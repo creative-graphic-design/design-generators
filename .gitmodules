@@ -1,0 +1,150 @@
+[submodule "vendor/ladeco"]
+	path = vendor/ladeco
+	url = https://github.com/microsoft/elem2design
+[submodule "vendor/ms-layout-generation"]
+	path = vendor/ms-layout-generation
+	url = https://github.com/microsoft/LayoutGeneration
+[submodule "vendor/posterllama"]
+	path = vendor/posterllama
+	url = https://github.com/jaepoong/PosterLlama
+[submodule "vendor/posterllava"]
+	path = vendor/posterllava
+	url = https://github.com/posterllava/PosterLLaVA
+[submodule "vendor/ralf"]
+	path = vendor/ralf
+	url = https://github.com/CyberAgentAILab/RALF
+[submodule "vendor/layout-dm"]
+	path = vendor/layout-dm
+	url = https://github.com/CyberAgentAILab/layout-dm
+[submodule "vendor/layout-flow"]
+	path = vendor/layout-flow
+	url = https://github.com/JulianGuerreiro/LayoutFlow
+[submodule "vendor/layout-dit"]
+	path = vendor/layout-dit
+	url = https://github.com/yuli0103/LayoutDiT
+[submodule "vendor/layout-gpt"]
+	path = vendor/layout-gpt
+	url = https://github.com/UCSB-AI/LayoutGPT
+[submodule "vendor/layout-corrector"]
+	path = vendor/layout-corrector
+	url = https://github.com/line/Layout-Corrector
+[submodule "vendor/dlt"]
+	path = vendor/dlt
+	url = https://github.com/wix-incubator/DLT
+[submodule "vendor/layout-detr"]
+	path = vendor/layout-detr
+	url = https://github.com/salesforce/LayoutDETR
+[submodule "vendor/layout-nuwa"]
+	path = vendor/layout-nuwa
+	url = https://github.com/ProjectNUWA/LayoutNUWA
+[submodule "vendor/deeplayout"]
+	path = vendor/deeplayout
+	url = https://github.com/kampta/DeepLayout
+[submodule "vendor/layout-transformer"]
+	path = vendor/layout-transformer
+	url = https://github.com/davidhalladay/LayoutTransformer
+[submodule "vendor/const-layout"]
+	path = vendor/const-layout
+	url = https://github.com/ktrk115/const_layout
+[submodule "vendor/doglayout"]
+	path = vendor/doglayout
+	url = https://github.com/deadsmither5/DogLayout
+[submodule "vendor/spot-error"]
+	path = vendor/spot-error
+	url = https://github.com/ffffatgoose/SpotError
+[submodule "vendor/lggpt"]
+	path = vendor/lggpt
+	url = https://github.com/NiceRingNode/LGGPT
+[submodule "vendor/postero"]
+	path = vendor/postero
+	url = https://github.com/theKinsley/PosterO-CVPR2025
+[submodule "vendor/creatiposter"]
+	path = vendor/creatiposter
+	url = https://github.com/graphic-design-ai/creatiposter
+[submodule "vendor/glyphdraw2"]
+	path = vendor/glyphdraw2
+	url = https://github.com/OPPO-Mente-Lab/GlyphDraw2
+[submodule "vendor/radm"]
+	path = vendor/radm
+	url = https://github.com/liuan0803/RADM
+[submodule "vendor/cgl-gan"]
+	path = vendor/cgl-gan
+	url = https://github.com/minzhouGithub/CGL-GAN
+[submodule "vendor/posterlayout-cvpr2023"]
+	path = vendor/posterlayout-cvpr2023
+	url = https://github.com/pku-icst-mipl/posterlayout-cvpr2023
+[submodule "vendor/uni-layout"]
+	path = vendor/uni-layout
+	url = https://github.com/JD-GenX/Uni-Layout
+[submodule "vendor/omnidoclayout"]
+	path = vendor/omnidoclayout
+	url = https://github.com/opendatalab/OmniDocLayout
+[submodule "vendor/google-research"]
+	path = vendor/google-research
+	url = https://github.com/google-research/google-research
+[submodule "vendor/canvas-vae"]
+	path = vendor/canvas-vae
+	url = https://github.com/CyberAgentAILab/canvas-vae
+[submodule "vendor/flex-dm"]
+	path = vendor/flex-dm
+	url = https://github.com/CyberAgentAILab/flex-dm
+[submodule "vendor/layout-generation-baselines"]
+	path = vendor/layout-generation-baselines
+	url = https://github.com/Layout-Generation/layout-generation
+[submodule "vendor/layoutgan-tensorflow"]
+	path = vendor/layoutgan-tensorflow
+	url = https://github.com/JiananLi2016/LayoutGAN-Tensorflow
+[submodule "vendor/ruite"]
+	path = vendor/ruite
+	url = https://github.com/vinothpandian/RUITE
+[submodule "vendor/lace"]
+	path = vendor/lace
+	url = https://github.com/puar-playground/LACE
+[submodule "vendor/textlap"]
+	path = vendor/textlap
+	url = https://github.com/puar-playground/TextLap
+[submodule "vendor/layout-action"]
+	path = vendor/layout-action
+	url = https://github.com/BERYLSHEEP/LayoutActionProject
+[submodule "vendor/scipostlayout"]
+	path = vendor/scipostlayout
+	url = https://github.com/omron-sinicx/scipostlayout
+[submodule "vendor/graphist"]
+	path = vendor/graphist
+	url = https://github.com/graphic-design-ai/graphist
+[submodule "vendor/desigen"]
+	path = vendor/desigen
+	url = https://github.com/whaohan/desigen
+[submodule "vendor/smarttext"]
+	path = vendor/smarttext
+	url = https://github.com/intchous/SmartText
+[submodule "vendor/sega"]
+	path = vendor/sega
+	url = https://github.com/BruceW91/SEGA
+[submodule "vendor/lavigen"]
+	path = vendor/lavigen
+	url = https://github.com/fenghora/LaviGen
+[submodule "vendor/imaginarium"]
+	path = vendor/imaginarium
+	url = https://github.com/HiHiAllen/Imaginarium
+[submodule "vendor/directlayout"]
+	path = vendor/directlayout
+	url = https://github.com/rxjfighting/DirectLayout
+[submodule "vendor/housegan"]
+	path = vendor/housegan
+	url = https://github.com/ennauata/housegan
+[submodule "vendor/coho"]
+	path = vendor/coho
+	url = https://github.com/Arking1995/COHO
+[submodule "vendor/globalmapper"]
+	path = vendor/globalmapper
+	url = https://github.com/Arking1995/GlobalMapper
+[submodule "vendor/citygen"]
+	path = vendor/citygen
+	url = https://github.com/wenhaochai/CityGen
+[submodule "vendor/optiscene"]
+	path = vendor/optiscene
+	url = https://github.com/PolySummit/OptiScene
+[submodule "vendor/lay-your-scene"]
+	path = vendor/lay-your-scene
+	url = https://github.com/mlpc-ucsd/Lay-Your-Scene
