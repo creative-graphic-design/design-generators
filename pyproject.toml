@@ -18,6 +18,9 @@ download = [
 llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
+training = [
+    "lightning>=2.0.0",
+]
 
 [dependency-groups]
 dev = [
