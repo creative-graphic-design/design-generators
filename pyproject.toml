@@ -1,0 +1,27 @@
+[project]
+name = "design-generators"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+diffusion = [
+    "diffusers[torch]>=0.36.0",
+]
+download = [
+    "gdown>=6.1.0",
+]
+llm-agent = [
+    "pydantic-ai>=2.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0.0",
+    "ruff>=0.1.5",
+    "ty>=0.0.10",
+]
