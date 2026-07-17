@@ -2,6 +2,7 @@ import tempfile
 
 import torch
 
+from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
 from layout_generation_common.testing import assert_layout_output_schema
 from layout_flow import (
     LayoutFlowConfig,
@@ -41,6 +42,7 @@ def test_pipeline_unconditional_smoke_and_seed_reproducibility() -> None:
     pipe = tiny_pipeline()
     out1 = pipe(batch_size=1, num_elements=2, seed=0, num_inference_steps=3)
     out2 = pipe(batch_size=1, num_elements=2, seed=0, num_inference_steps=3)
+    assert isinstance(out1, LayoutGenerationOutput)
     assert_layout_output_schema(out1, batch_size=1)
     assert torch.equal(out1.labels, out2.labels)
     assert torch.allclose(out1.bbox, out2.bbox)

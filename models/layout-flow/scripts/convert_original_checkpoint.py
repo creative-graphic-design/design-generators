@@ -15,10 +15,13 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--vendor-dir", type=Path, default=Path("vendor/layout-flow"))
+    parser.add_argument("--vendor-dir", type=Path)
     args = parser.parse_args()
 
-    sys.path.insert(0, str(args.vendor_dir.resolve()))
+    vendor_dir = (
+        args.vendor_dir or Path(__file__).resolve().parents[3] / "vendor/layout-flow"
+    )
+    sys.path.insert(0, str(vendor_dir.resolve()))
     raw = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     state_dict = raw.get("state_dict", raw)
     config = LayoutFlowConfig(dataset_name=args.dataset)

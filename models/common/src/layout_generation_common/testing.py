@@ -5,6 +5,7 @@ from collections.abc import Callable
 import torch
 
 from .outputs import LayoutGenerationOutput
+from .outputs_diffusers import LayoutGenerationOutput as DiffusersLayoutGenerationOutput
 
 
 def assert_mask_valid(mask: torch.Tensor) -> None:
@@ -24,9 +25,11 @@ def assert_normalized_xywh(
 
 
 def assert_layout_output_schema(
-    output: LayoutGenerationOutput, *, batch_size: int | None = None
+    output: LayoutGenerationOutput | DiffusersLayoutGenerationOutput,
+    *,
+    batch_size: int | None = None,
 ) -> None:
-    assert isinstance(output, LayoutGenerationOutput)
+    assert isinstance(output, LayoutGenerationOutput | DiffusersLayoutGenerationOutput)
     assert output.bbox.ndim == 3 and output.bbox.shape[-1] == 4
     assert output.labels.shape == output.mask.shape == output.bbox.shape[:2]
     assert output.labels.dtype == torch.long
