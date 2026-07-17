@@ -12,6 +12,7 @@ from .model_card import (
 )
 from .outputs import LayoutGenerationOutput
 from .outputs_diffusers import LayoutGenerationOutput as DiffusersLayoutGenerationOutput
+from .serialization import sanitize_for_yaml
 
 __all__ = [
     "BoxFormat",
@@ -28,4 +29,5 @@ __all__ = [
     "normalize_condition_type",
     "normalize_dataset_name",
     "normalize_sampling_mode",
+    "sanitize_for_yaml",
 ]

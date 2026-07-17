@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from enum import StrEnum
+from typing import cast
 
 from huggingface_hub import ModelCard, ModelCardData
+
+from .labels import DatasetName
+from .serialization import sanitize_for_yaml
 
 
 @dataclass(frozen=True)
@@ -21,7 +24,7 @@ class ParityMetric:
         logits_max_rel: Maximum relative denoiser-logit difference.
     """
 
-    dataset: str
+    dataset: DatasetName | str
     tokenizer_exact: str
     deterministic_exact: str
     logits_max_abs: float
@@ -76,15 +79,13 @@ def build_layout_model_card(
         >>> card.data.to_dict()["library_name"]
         'diffusers'
     """
-    dataset_ids = [_plain_string(dataset_id) for dataset_id in dataset_ids]
-    tags = [_plain_string(tag) for tag in tags]
     card_data = ModelCardData(
-        model_name=model_name,
-        license=license,
-        library_name=library_name,
-        pipeline_tag=pipeline_tag,
-        tags=list(tags),
-        datasets=list(dataset_ids),
+        model_name=cast(str, sanitize_for_yaml(model_name)),
+        license=cast(str, sanitize_for_yaml(license)),
+        library_name=cast(str, sanitize_for_yaml(library_name)),
+        pipeline_tag=cast(str, sanitize_for_yaml(pipeline_tag)),
+        tags=cast(list[str], sanitize_for_yaml(list(tags))),
+        datasets=cast(list[str], sanitize_for_yaml(list(dataset_ids))),
         language=["en"],
     )
     parity_table = _parity_table(parity_metrics)
@@ -241,7 +242,7 @@ def build_layout_model_card(
 
 def layoutdm_model_card(
     *,
-    dataset: str,
+    dataset: DatasetName | str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the LayoutDM model card for a converted checkpoint.
@@ -262,7 +263,7 @@ def layoutdm_model_card(
         >>> card.data.to_dict()["datasets"]
         ['creative-graphic-design/publaynet']
     """
-    dataset = _plain_string(dataset)
+    dataset = cast(str, sanitize_for_yaml(dataset))
     dataset_name = "crello" if dataset == "crello-bbox" else dataset
     dataset_id = _layoutdm_dataset_id(dataset_name)
     model_id = f"creative-graphic-design/layoutdm-{dataset_name}"
@@ -322,7 +323,7 @@ print(out.bbox, out.labels, out.mask)
 
 def layout_corrector_model_card(
     *,
-    dataset: str,
+    dataset: DatasetName | str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the Layout-Corrector model card for a converted checkpoint.
@@ -344,7 +345,7 @@ def layout_corrector_model_card(
         >>> card.data.to_dict()["datasets"]
         ['cyberagent/crello']
     """
-    dataset = _plain_string(dataset)
+    dataset = cast(str, sanitize_for_yaml(dataset))
     dataset_name = "crello" if dataset == "crello-bbox" else dataset
     dataset_id = _layout_dataset_id(dataset_name)
     model_id = f"creative-graphic-design/layout-corrector-{dataset_name}"
@@ -411,7 +412,7 @@ def _layoutdm_dataset_id(dataset: str) -> str:
 
 
 def _layout_dataset_id(dataset: str) -> str:
-    dataset = _plain_string(dataset)
+    dataset = cast(str, sanitize_for_yaml(dataset))
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":
@@ -438,7 +439,7 @@ def _parity_table(metrics: Sequence[ParityMetric | Mapping[str, object]]) -> str
 def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, object]:
     if isinstance(metric, ParityMetric):
         return {
-            "dataset": _plain_string(metric.dataset),
+            "dataset": cast(str, sanitize_for_yaml(metric.dataset)),
             "tokenizer_exact": metric.tokenizer_exact,
             "deterministic_exact": metric.deterministic_exact,
             "logits_max_abs": metric.logits_max_abs,
@@ -446,16 +447,8 @@ def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, objec
         }
     item = dict(metric)
     if "dataset" in item:
-        item["dataset"] = _plain_string(item["dataset"])
+        item["dataset"] = sanitize_for_yaml(item["dataset"])
     return item
-
-
-def _plain_string(value: object) -> str:
-    if isinstance(value, StrEnum):
-        return str(value)
-    if isinstance(value, str):
-        return value
-    return str(value)
 
 
 _LAYOUTDM_BIBTEX = r"""

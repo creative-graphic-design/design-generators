@@ -6,6 +6,7 @@ import torch
 import yaml
 
 from laygen.common import DatasetName
+from laygen.common.model_card import ParityMetric, layoutdm_model_card
 from layout_dm.conversion import (
     load_cluster_centers,
     remap_denoiser_key,
@@ -76,8 +77,12 @@ def test_load_cluster_centers_supports_crello_bbox(tmp_path):
 def test_write_layoutdm_model_card(tmp_path):
     path = write_layoutdm_model_card(tmp_path, DatasetName.rico25)
     text = path.read_text(encoding="utf-8")
+    front_matter = text.split("---", maxsplit=2)[1]
+    metadata = yaml.safe_load(front_matter)
 
     assert path.name == "README.md"
+    assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    assert "tag:yaml.org" not in text
     assert "license: apache-2.0" in text
     assert "library_name: diffusers" in text
     assert "pipeline_tag: text-to-image" in text
@@ -91,5 +96,26 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "annotated model card" not in text
     assert "model card template" not in text
     assert "DatasetName" not in text
+    assert "tag:yaml.org" not in text
+
+
+def test_model_card_yaml_front_matter_accepts_enum_metadata():
+    card = layoutdm_model_card(
+        dataset=DatasetName.publaynet,
+        parity_metrics=[
+            ParityMetric(
+                dataset=DatasetName.publaynet,
+                tokenizer_exact="1/1",
+                deterministic_exact="1/1",
+                logits_max_abs=0.0,
+                logits_max_rel=0.0,
+            )
+        ],
+    )
+    text = str(card)
     metadata = yaml.safe_load(text.split("---", maxsplit=2)[1])
-    assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+
+    assert metadata["tags"][-1] == "publaynet"
+    assert metadata["datasets"] == ["creative-graphic-design/publaynet"]
+    assert "tag:yaml.org" not in text
+    assert "DatasetName" not in text
