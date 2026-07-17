@@ -78,97 +78,122 @@ def build_layout_model_card(
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
-        language=list(language) if language is not None else None,
+        language=list(language) if language is not None else ["en"],
     )
     parity_table = _parity_table(parity_metrics)
-    content = f"""---
-{card_data.to_yaml()}
----
-
-# {model_name}
-
-## Model Details
-
-### Model Description
-
-{model_details}
-
-- **Developed by:** {developed_by}
-- **Model type:** {model_type}
-- **License:** {license}
-- **Finetuned from:** {finetuned_from}
-- **Hub repository:** `{model_id}`
-- **Original implementation:** {original_implementation_url}
-
-## Uses
-
-### Direct Use
-
-{intended_uses}
-
-### Downstream Use
-
-{downstream_uses}
-
-### Out-of-Scope Use
-
-{out_of_scope_uses}
-
-## Bias, Risks, and Limitations
-
-{limitations}
-
-### Recommendations
-
-{recommendations}
-
-## How to Get Started with the Model
-
-```python
-{how_to_use.strip()}
-```
-
-## Training Details
-
-### Training Data
-
-{training_data}
-
-### Training Procedure
-
-{training_procedure}
-
-## Evaluation
-
-### Testing Data, Factors & Metrics
-
-#### Testing Data
-
-{testing_data}
-
-#### Factors
-
-{evaluation_factors}
-
-#### Metrics
-
-{evaluation_metrics}
-
-### Results
-
-{parity_table}
-
-## Technical Specifications
-
-{technical_specs}
-
-## Citation
-
-```bibtex
-{citation_bibtex.strip()}
-```
-"""
-    return ModelCard(content)
+    card = ModelCard.from_template(
+        card_data,
+        model_id=model_id,
+        model_summary=(
+            f"{model_name} is a {library_name}-format checkpoint for layout generation."
+        ),
+        model_description=(
+            f"{model_details}\n\n"
+            "This card follows the Hugging Face Hub model card template and "
+            "the annotated model card section structure."
+        ),
+        developers=developed_by,
+        funded_by=(
+            "Funding for the original checkpoint is not separately reported in this "
+            "converted artifact."
+        ),
+        shared_by="creative-graphic-design",
+        model_type=model_type,
+        language=(
+            "The model does not process natural language inputs; metadata uses "
+            "English for this model card and category label names."
+        ),
+        license=license,
+        base_model=finetuned_from,
+        repo=original_implementation_url,
+        paper="See the citation section for the original research paper.",
+        demo="No hosted demo is packaged with this checkpoint.",
+        direct_use=intended_uses,
+        downstream_use=downstream_uses,
+        out_of_scope_use=out_of_scope_uses,
+        bias_risks_limitations=limitations,
+        bias_recommendations=recommendations,
+        get_started_code=f"```python\n{how_to_use.strip()}\n```",
+        training_data=training_data,
+        preprocessing=(
+            "The converted tokenizer represents each layout element as "
+            "discrete category and bounding-box tokens. Bounding boxes use "
+            "normalized center `xywh` coordinates in public outputs."
+        ),
+        training_regime=training_procedure,
+        speeds_sizes_times=(
+            "Training speed, elapsed time, and hardware are not included in "
+            "the upstream checkpoint bundle used for conversion."
+        ),
+        testing_data=testing_data,
+        testing_factors=evaluation_factors,
+        testing_metrics=evaluation_metrics,
+        results=parity_table,
+        results_summary=(
+            "The converted checkpoint matches the generated vendor reference "
+            "within the parity metrics reported in the table."
+        ),
+        model_examination=(
+            "No separate interpretability study is packaged with this converted "
+            "checkpoint."
+        ),
+        hardware_type=(
+            "Original training hardware is not reported in this converted "
+            "artifact. Vendor parity regeneration is documented for "
+            "`CUDA_VISIBLE_DEVICES=0` when a CUDA device is available."
+        ),
+        hours_used=(
+            "Original training hours are not reported in this converted artifact."
+        ),
+        cloud_provider=(
+            "Original training cloud provider is not reported in this converted "
+            "artifact."
+        ),
+        cloud_region=(
+            "Original training compute region is not reported in this converted "
+            "artifact."
+        ),
+        co2_emitted=(
+            "Carbon emissions cannot be estimated from the released checkpoint "
+            "bundle alone."
+        ),
+        model_specs=technical_specs,
+        compute_infrastructure=(
+            "Conversion and parity generation run locally through the `uv` "
+            "workspace commands documented in the package README."
+        ),
+        hardware_requirements=(
+            "CPU is sufficient for package loading and conversion. CUDA is "
+            "recommended for regenerating vendor parity references and running "
+            "the full parity test suite."
+        ),
+        software=(
+            "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
+            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+        ),
+        citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
+        citation_apa=(
+            "Please cite the original paper listed in the BibTeX entry when using "
+            "this converted checkpoint."
+        ),
+        glossary=(
+            "`xywh` means normalized center-x, center-y, width, and height. "
+            "`Tokenizer exact` counts matching encoded and decoded token "
+            "positions. `Logits max abs` and `logits max rel` are maximum "
+            "differences against the original denoiser outputs."
+        ),
+        more_information=(
+            "See the package README for copy-paste reproduction commands, "
+            "checkpoint conversion, and vendor parity fixture generation."
+        ),
+        model_card_authors="creative-graphic-design maintainers.",
+        model_card_contact=(
+            "Open an issue or pull request in the creative-graphic-design "
+            "design-generators repository."
+        ),
+    )
+    card.validate()
+    return card
 
 
 def layoutdm_model_card(

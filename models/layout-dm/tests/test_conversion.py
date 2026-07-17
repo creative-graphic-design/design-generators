@@ -39,3 +39,5 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "## Uses" in text
     assert "## Evaluation" in text
     assert "### Results" in text
+    assert "Tokenizer exact" in text
+    assert "[More Information Needed]" not in text
