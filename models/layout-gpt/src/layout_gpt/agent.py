@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import Final, assert_never, cast
 
 import torch
 from layout_generation_common.outputs import LayoutGenerationOutput
@@ -12,6 +12,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
+from layout_gpt.enums import BoxFormat, ConditionType, ICLType, OutputType, coerce_enum
 from layout_gpt.exemplars import (
     EmbeddingProvider,
     LayoutExample,
@@ -28,11 +29,12 @@ from layout_gpt.prompts import (
 from layout_gpt.schema import LayoutGPTConfig, LayoutGPTOutput, RawLayoutResponse
 
 ModelLike = Model | str | None
+DEFAULT_MODEL_ENV_VAR: Final[str] = "LAYOUT_GPT_MODEL"
 
 
 def build_agent(model: ModelLike = None) -> Agent[None]:
     """Build a Pydantic AI agent with provider selected by argument or env."""
-    selected_model = model or os.getenv("LAYOUT_GPT_MODEL")
+    selected_model = model or os.getenv(DEFAULT_MODEL_ENV_VAR)
     return Agent(
         selected_model,
         output_type=RawLayoutResponse,
@@ -153,16 +155,16 @@ class LayoutGPTAgent:
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "text",
+        condition_type: str | ConditionType = ConditionType.TEXT,
         labels: torch.Tensor | list[object] | None = None,
         bbox: torch.Tensor | list[object] | None = None,
         mask: torch.Tensor | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: str | BoxFormat = BoxFormat.XYWH,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: str | OutputType = OutputType.DATACLASS,
         return_intermediates: bool = False,
         model: ModelLike = None,
         query_embedding: EmbeddingProvider | None = None,
@@ -170,21 +172,20 @@ class LayoutGPTAgent:
         model_settings: ModelSettings | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate a layout through the common public generation surface."""
-        del (
-            labels,
-            bbox,
-            mask,
-            num_elements,
-            box_format,
-            normalized,
-            num_inference_steps,
-        )
+        del labels, bbox, mask, num_elements, normalized, num_inference_steps
+        normalized_condition_type = coerce_enum(condition_type, ConditionType)
+        normalized_box_format = coerce_enum(box_format, BoxFormat)
+        normalized_output_type = coerce_enum(output_type, OutputType)
+        del normalized_box_format
         if batch_size != 1:
             msg = "LayoutGPT currently supports batch_size=1 because provider calls are prompt-level."
             raise ValueError(msg)
-        if condition_type not in {"text", "unconditional"}:
-            msg = f"unsupported condition_type for LayoutGPT: {condition_type}"
-            raise ValueError(msg)
+        if normalized_condition_type is ConditionType.TEXT:
+            pass
+        elif normalized_condition_type is ConditionType.UNCONDITIONAL:
+            pass
+        else:
+            assert_never(normalized_condition_type)
         if canvas_size is not None and canvas_size != (
             self.config.canvas_size,
             self.config.canvas_size,
@@ -203,7 +204,7 @@ class LayoutGPTAgent:
         ).to_layout_generation_output()
         if not return_intermediates:
             output.intermediates = None
-        if output_type == "dict":
+        if normalized_output_type is OutputType.DICT:
             return {
                 "bbox": output.bbox,
                 "labels": output.labels,
@@ -214,7 +215,9 @@ class LayoutGPTAgent:
                 "trajectory": output.trajectory,
                 "intermediates": output.intermediates,
             }
-        return output
+        if normalized_output_type is OutputType.DATACLASS:
+            return output
+        assert_never(normalized_output_type)
 
     generate = __call__
 
@@ -228,7 +231,7 @@ class LayoutGPTAgent:
         query_embedding: EmbeddingProvider | None,
         example_embeddings: Sequence[Sequence[float]] | None,
     ) -> list[LayoutExample]:
-        if self.config.icl_type == "fixed-random":
+        if self.config.icl_type is ICLType.FIXED_RANDOM:
             selection_seed = (
                 int(generator.initial_seed())
                 if generator is not None
@@ -239,16 +242,18 @@ class LayoutGPTAgent:
             return select_fixed_random(
                 train_examples, k=self.config.k, seed=selection_seed
             )
-        if query_embedding is None or example_embeddings is None:
-            msg = "k-similar selection requires query_embedding and example_embeddings"
-            raise ValueError(msg)
-        return select_k_similar(
-            train_examples,
-            query=prompt,
-            k=self.config.k,
-            query_embedding=query_embedding,
-            example_embeddings=example_embeddings,
-        )
+        if self.config.icl_type is ICLType.K_SIMILAR:
+            if query_embedding is None or example_embeddings is None:
+                msg = "k-similar selection requires query_embedding and example_embeddings"
+                raise ValueError(msg)
+            return select_k_similar(
+                train_examples,
+                query=prompt,
+                k=self.config.k,
+                query_embedding=query_embedding,
+                example_embeddings=example_embeddings,
+            )
+        assert_never(self.config.icl_type)
 
 
 def _messages_to_text(messages: str | list[dict[str, str]]) -> str:

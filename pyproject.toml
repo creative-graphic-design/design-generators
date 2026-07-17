@@ -8,12 +8,6 @@ dependencies = [
     "transformers[torch,vision]>=5.0.0",
 ]
 
-[tool.uv.workspace]
-members = [
-    "models/common",
-    "models/layout-gpt",
-]
-
 [project.optional-dependencies]
 diffusion = [
     "diffusers[torch]>=0.36.0",

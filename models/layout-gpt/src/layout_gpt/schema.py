@@ -1,10 +1,12 @@
 """Typed LayoutGPT request and response schemas."""
 
-from typing import Literal, cast
+from typing import cast
 
 import torch
 from layout_generation_common.outputs import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from layout_gpt.enums import ICLType, LayoutGPTSetting
 
 
 class LayoutItem2D(BaseModel):
@@ -99,8 +101,8 @@ class LayoutGPTOutput(BaseModel):
 class LayoutGPTConfig(BaseModel):
     """Runtime configuration for LayoutGPT prompt and provider behavior."""
 
-    setting: Literal["counting", "spatial"] = "counting"
-    icl_type: Literal["fixed-random", "k-similar"] = "k-similar"
+    setting: LayoutGPTSetting = LayoutGPTSetting.COUNTING
+    icl_type: ICLType = ICLType.K_SIMILAR
     k: int = Field(default=8, ge=0)
     canvas_size: int = Field(default=256, gt=0)
     gpt_input_length_limit: int = Field(default=3000, gt=0)

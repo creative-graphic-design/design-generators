@@ -7,10 +7,13 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Final, assert_never, cast
+
+from layout_gpt.enums import LayoutGPTSetting, coerce_enum
 
 
 EmbeddingProvider = Callable[[str], Sequence[float]]
+DEFAULT_FIXED_RANDOM_SEED: Final[int] = 42
 
 
 @dataclass(frozen=True)
@@ -24,21 +27,21 @@ class LayoutExample:
 
     @classmethod
     def from_vendor_record(
-        cls, record: dict[str, Any], *, setting: str
+        cls, record: dict[str, Any], *, setting: str | LayoutGPTSetting
     ) -> LayoutExample:
         """Build an exemplar from the original NSR-1K JSON record."""
-        if setting == "counting":
+        normalized_setting = coerce_enum(setting, LayoutGPTSetting)
+        if normalized_setting is LayoutGPTSetting.COUNTING:
             raw_objects = cast(
                 Sequence[tuple[str, Sequence[float]]], record["object_list"]
             )
-        elif setting == "spatial":
+        elif normalized_setting is LayoutGPTSetting.SPATIAL:
             raw_objects = cast(
                 Sequence[tuple[str, Sequence[float]]],
                 [record["obj1"], record["obj2"]],
             )
         else:
-            msg = f"unsupported LayoutGPT setting: {setting}"
-            raise ValueError(msg)
+            assert_never(normalized_setting)
         objects = tuple(
             (
                 str(label),
@@ -59,7 +62,9 @@ class LayoutExample:
         )
 
 
-def load_nsr_examples(path: str | Path, *, setting: str) -> list[LayoutExample]:
+def load_nsr_examples(
+    path: str | Path, *, setting: str | LayoutGPTSetting
+) -> list[LayoutExample]:
     """Load LayoutGPT NSR-1K examples from a vendor-style JSON file."""
     records = json.loads(Path(path).read_text())
     return [
@@ -71,7 +76,7 @@ def select_fixed_random(
     examples: Sequence[LayoutExample],
     *,
     k: int,
-    seed: int = 42,
+    seed: int = DEFAULT_FIXED_RANDOM_SEED,
 ) -> list[LayoutExample]:
     """Select exemplars with the vendor's fixed ``random.seed(42)`` strategy."""
     shuffled = list(examples)
