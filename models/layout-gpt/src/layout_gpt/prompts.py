@@ -1,10 +1,13 @@
 """Prompt serialization ported from the original LayoutGPT scripts."""
 
 from collections.abc import Callable, Sequence
+from typing import Final
 
 from layout_gpt.exemplars import LayoutExample
+from layout_gpt.types import ChatMessage
 
 TokenCounter = Callable[[str], int]
+DEFAULT_INPUT_LENGTH_LIMIT: Final[int] = 3000
 
 
 def default_token_counter(text: str) -> int:
@@ -50,13 +53,13 @@ def form_prompt_for_chatgpt(
     exemplars: Sequence[LayoutExample],
     canvas_size: int,
     token_counter: TokenCounter = default_token_counter,
-    input_length_limit: int = 3000,
-) -> list[dict[str, str]]:
+    input_length_limit: int = DEFAULT_INPUT_LENGTH_LIMIT,
+) -> list[ChatMessage]:
     """Build chat messages with vendor exemplar ordering and token truncation."""
     system_prompt = system_prompt_2d(canvas_size=canvas_size)
     final_prompt = f"Prompt: {text_input}\nLayout:"
     total_length = token_counter(system_prompt + final_prompt)
-    messages = [{"role": "system", "content": system_prompt}]
+    messages: list[ChatMessage] = [{"role": "system", "content": system_prompt}]
 
     for exemplar in exemplars:
         user_prompt = f"Prompt: {exemplar.prompt}\nLayout:"
@@ -65,7 +68,7 @@ def form_prompt_for_chatgpt(
         if total_length + current_length > input_length_limit:
             break
         total_length += current_length
-        current_messages = [
+        current_messages: list[ChatMessage] = [
             {"role": "user", "content": user_prompt},
             {"role": "assistant", "content": answer},
         ]
@@ -81,7 +84,7 @@ def form_prompt_for_gpt3(
     exemplars: Sequence[LayoutExample],
     canvas_size: int,
     token_counter: TokenCounter = default_token_counter,
-    input_length_limit: int = 3000,
+    input_length_limit: int = DEFAULT_INPUT_LENGTH_LIMIT,
 ) -> str:
     """Build completion prompt with vendor exemplar ordering and truncation."""
     prompt = system_prompt_2d(canvas_size=canvas_size)

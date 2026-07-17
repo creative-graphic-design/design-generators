@@ -1,6 +1,6 @@
-"""Closed string modes used by LayoutGPT."""
+"""Closed string modes that are specific to LayoutGPT."""
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import TypeVar
 
 EnumT = TypeVar("EnumT", bound=StrEnum)
@@ -9,37 +9,22 @@ EnumT = TypeVar("EnumT", bound=StrEnum)
 class LayoutGPTSetting(StrEnum):
     """Supported NSR-1K LayoutGPT settings."""
 
-    COUNTING = "counting"
-    SPATIAL = "spatial"
+    counting = auto()
+    spatial = auto()
 
 
 class ICLType(StrEnum):
     """Supported in-context exemplar selection modes."""
 
-    FIXED_RANDOM = "fixed-random"
-    K_SIMILAR = "k-similar"
-
-
-class ConditionType(StrEnum):
-    """Public condition names accepted by the LayoutGPT agent."""
-
-    TEXT = "text"
-    UNCONDITIONAL = "unconditional"
-
-
-class BoxFormat(StrEnum):
-    """Public bounding-box format names."""
-
-    XYWH = "xywh"
-    LTWH = "ltwh"
-    LTRB = "ltrb"
+    fixed_random = "fixed-random"
+    k_similar = "k-similar"
 
 
 class OutputType(StrEnum):
     """Public return type names."""
 
-    DATACLASS = "dataclass"
-    DICT = "dict"
+    dataclass = auto()
+    dict = auto()
 
 
 def coerce_enum(value: str | EnumT, enum_type: type[EnumT]) -> EnumT:

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import pytest
+from typing_extensions import TypedDict
 
 from layout_gpt.exemplars import (
     LayoutExample,
@@ -18,10 +19,31 @@ from layout_gpt.prompts import form_prompt_for_chatgpt, form_prompt_for_gpt3
 pytestmark = pytest.mark.vendor_parity
 
 
+class GoldenMetadata(TypedDict):
+    """Metadata emitted by the vendor golden generation script."""
+
+    candidate_ids: list[int | str]
+
+
+class VendorGolden(TypedDict):
+    """Structured vendor parity payload used by the tests."""
+
+    metadata: GoldenMetadata
+    fixed_random_ids: list[int | str]
+    fixed_chat_prompt: object
+    fixed_completion_prompt: object
+    k_similar_ids: list[int | str]
+    k_similar_completion_prompt: object
+    parser_lines: list[str]
+    parsed_2d: list[object]
+    parser_3d_lines: list[str]
+    parsed_3d: list[object]
+
+
 class GoldenBuilder(Protocol):
     """Callable exposed by the vendor golden generation script."""
 
-    def __call__(self, vendor_root: Path | None = None) -> dict[str, object]: ...
+    def __call__(self, vendor_root: Path | None = None) -> VendorGolden: ...
 
 
 def _vendor_root() -> Path:
@@ -98,20 +120,16 @@ def test_parser_matches_vendor_generated_golden() -> None:
 
     parsed_2d = [
         _normalize_2d(parse_layout_line(line, canvas_size=64))
-        for line in cast(list[str], golden["parser_lines"])
+        for line in golden["parser_lines"]
     ]
-    assert parsed_2d == [
-        _normalize_vendor_parse(item)
-        for item in cast(list[object], golden["parsed_2d"])
-    ]
+    assert parsed_2d == [_normalize_vendor_parse(item) for item in golden["parsed_2d"]]
 
     parsed_3d = [
         _normalize_3d(parse_3d_layout_line(line, unit="m"))
-        for line in cast(list[str], golden["parser_3d_lines"])
+        for line in golden["parser_3d_lines"]
     ]
     assert parsed_3d == [
-        _normalize_vendor_3d_parse(item)
-        for item in cast(list[object], golden["parsed_3d"])
+        _normalize_vendor_3d_parse(item) for item in golden["parsed_3d"]
     ]
 
 
@@ -126,7 +144,7 @@ def test_vendor_golden_metadata_documents_regeneration_policy() -> None:
     assert metadata["canvas_size"] == 64
 
 
-def _build_vendor_golden() -> dict[str, object]:
+def _build_vendor_golden() -> VendorGolden:
     module_path = (
         Path(__file__).resolve().parents[2] / "scripts/generate_vendor_golden.py"
     )
@@ -139,10 +157,9 @@ def _build_vendor_golden() -> dict[str, object]:
     return build_golden(_vendor_root())
 
 
-def _candidate_records(golden: dict[str, object]) -> list[dict[str, object]]:
+def _candidate_records(golden: VendorGolden) -> list[dict[str, object]]:
     records = _train_records()
-    metadata = cast(dict[str, object], golden["metadata"])
-    ids = set(cast(list[int | str], metadata["candidate_ids"]))
+    ids = set(golden["metadata"]["candidate_ids"])
     return [record for record in records if record["id"] in ids]
 
 

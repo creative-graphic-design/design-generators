@@ -4,16 +4,31 @@ from __future__ import annotations
 
 import re
 from string import digits
+from typing import Final
 
 from layout_gpt.schema import LayoutItem2D, LayoutItem3D
 
-_RULE_RE = re.compile(r"^\s*(?P<label>.*?)\s*\{(?P<body>.*?)\}\s*$")
+_RULE_RE: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(?P<label>.*?)\s*\{(?P<body>.*?)\}\s*$"
+)
+_LAYOUT_2D_KEYS: Final[tuple[str, ...]] = ("height", "left", "top", "width")
+_LAYOUT_3D_KEYS: Final[tuple[str, ...]] = (
+    "depth",
+    "height",
+    "left",
+    "length",
+    "orientation",
+    "top",
+    "width",
+)
+DEFAULT_CANVAS_SIZE: Final[int] = 64
+DEFAULT_3D_UNIT: Final[str] = "m"
 
 
 def parse_layout_line(
     line: str,
     *,
-    canvas_size: int = 64,
+    canvas_size: int = DEFAULT_CANVAS_SIZE,
     no_integer: bool = False,
 ) -> LayoutItem2D | None:
     """Parse one 2D CSS line using the vendor clamp/reject behavior."""
@@ -23,7 +38,7 @@ def parse_layout_line(
 
     label = _strip_digits(match.group("label")).strip()
     declarations = _parse_declarations(match.group("body"))
-    if sorted(declarations) != ["height", "left", "top", "width"]:
+    if tuple(sorted(declarations)) != _LAYOUT_2D_KEYS:
         return LayoutItem2D(label=label, left=0, top=0, width=0, height=0)
 
     convert = float if no_integer else _parse_px_int
@@ -44,7 +59,9 @@ def parse_layout_line(
     )
 
 
-def parse_layout_text(text: str, *, canvas_size: int = 64) -> list[LayoutItem2D]:
+def parse_layout_text(
+    text: str, *, canvas_size: int = DEFAULT_CANVAS_SIZE
+) -> list[LayoutItem2D]:
     """Parse a multi-line 2D LayoutGPT response."""
     return [
         item
@@ -54,15 +71,16 @@ def parse_layout_text(text: str, *, canvas_size: int = 64) -> list[LayoutItem2D]
     ]
 
 
-def parse_3d_layout_line(line: str, *, unit: str = "m") -> LayoutItem3D | None:
+def parse_3d_layout_line(
+    line: str, *, unit: str = DEFAULT_3D_UNIT
+) -> LayoutItem3D | None:
     """Parse one 3D CSS line from the vendor scene-layout script."""
     match = _RULE_RE.match(line)
     if match is None:
         return None
     label = _strip_digits(match.group("label")).strip()
     declarations = _parse_declarations(match.group("body"))
-    expected = ["depth", "height", "left", "length", "orientation", "top", "width"]
-    if sorted(declarations) != expected:
+    if tuple(sorted(declarations)) != _LAYOUT_3D_KEYS:
         return None
     return LayoutItem3D(
         label=label,
@@ -76,7 +94,9 @@ def parse_3d_layout_line(line: str, *, unit: str = "m") -> LayoutItem3D | None:
     )
 
 
-def parse_3d_layout_text(text: str, *, unit: str = "m") -> list[LayoutItem3D]:
+def parse_3d_layout_text(
+    text: str, *, unit: str = DEFAULT_3D_UNIT
+) -> list[LayoutItem3D]:
     """Parse a multi-line 3D LayoutGPT response."""
     return [
         item

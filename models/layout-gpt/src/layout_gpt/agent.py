@@ -7,12 +7,14 @@ from collections.abc import Sequence
 from typing import Final, assert_never, cast
 
 import torch
+from laygen.common import ConditionType, normalize_condition_type
+from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.outputs import LayoutGenerationOutput
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 
-from layout_gpt.enums import BoxFormat, ConditionType, ICLType, OutputType, coerce_enum
+from layout_gpt.enums import ICLType, OutputType, coerce_enum
 from layout_gpt.exemplars import (
     EmbeddingProvider,
     LayoutExample,
@@ -21,15 +23,21 @@ from layout_gpt.exemplars import (
 )
 from layout_gpt.parser import parse_layout_text
 from layout_gpt.prompts import (
+    ChatMessage,
     TokenCounter,
     default_token_counter,
     form_prompt_for_chatgpt,
     form_prompt_for_gpt3,
 )
 from layout_gpt.schema import LayoutGPTConfig, LayoutGPTOutput, RawLayoutResponse
+from layout_gpt.types import LayoutGPTOutputDict
 
 ModelLike = Model | str | None
 DEFAULT_MODEL_ENV_VAR: Final[str] = "LAYOUT_GPT_MODEL"
+SUPPORTED_CONDITION_TYPES: Final[tuple[ConditionType, ...]] = (
+    ConditionType.text,
+    ConditionType.unconditional,
+)
 
 
 def build_agent(model: ModelLike = None) -> Agent[None]:
@@ -69,7 +77,7 @@ class LayoutGPTAgent:
         generator: torch.Generator | None = None,
         query_embedding: EmbeddingProvider | None = None,
         example_embeddings: Sequence[Sequence[float]] | None = None,
-    ) -> tuple[str | list[dict[str, str]], list[LayoutExample]]:
+    ) -> tuple[str | list[ChatMessage], list[LayoutExample]]:
         """Select exemplars and serialize the prompt sent to the model."""
         exemplars = self._select_examples(
             prompt,
@@ -155,37 +163,36 @@ class LayoutGPTAgent:
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str | ConditionType = ConditionType.TEXT,
+        condition_type: str | ConditionType = ConditionType.text,
         labels: torch.Tensor | list[object] | None = None,
         bbox: torch.Tensor | list[object] | None = None,
         mask: torch.Tensor | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: str | BoxFormat = BoxFormat.XYWH,
+        box_format: str | BoxFormat = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
-        output_type: str | OutputType = OutputType.DATACLASS,
+        output_type: str | OutputType = OutputType.dataclass,
         return_intermediates: bool = False,
         model: ModelLike = None,
         query_embedding: EmbeddingProvider | None = None,
         example_embeddings: Sequence[Sequence[float]] | None = None,
         model_settings: ModelSettings | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutGPTOutputDict:
         """Generate a layout through the common public generation surface."""
         del labels, bbox, mask, num_elements, normalized, num_inference_steps
-        normalized_condition_type = coerce_enum(condition_type, ConditionType)
-        normalized_box_format = coerce_enum(box_format, BoxFormat)
+        normalized_condition_type = normalize_condition_type(condition_type)
+        normalized_box_format = normalize_box_format(box_format)
         normalized_output_type = coerce_enum(output_type, OutputType)
         del normalized_box_format
         if batch_size != 1:
             msg = "LayoutGPT currently supports batch_size=1 because provider calls are prompt-level."
             raise ValueError(msg)
-        if normalized_condition_type is ConditionType.TEXT:
-            pass
-        elif normalized_condition_type is ConditionType.UNCONDITIONAL:
-            pass
-        else:
-            assert_never(normalized_condition_type)
+        if normalized_condition_type not in SUPPORTED_CONDITION_TYPES:
+            msg = (
+                f"unsupported condition_type for LayoutGPT: {normalized_condition_type}"
+            )
+            raise ValueError(msg)
         if canvas_size is not None and canvas_size != (
             self.config.canvas_size,
             self.config.canvas_size,
@@ -204,7 +211,7 @@ class LayoutGPTAgent:
         ).to_layout_generation_output()
         if not return_intermediates:
             output.intermediates = None
-        if normalized_output_type is OutputType.DICT:
+        if normalized_output_type is OutputType.dict:
             return {
                 "bbox": output.bbox,
                 "labels": output.labels,
@@ -215,7 +222,7 @@ class LayoutGPTAgent:
                 "trajectory": output.trajectory,
                 "intermediates": output.intermediates,
             }
-        if normalized_output_type is OutputType.DATACLASS:
+        if normalized_output_type is OutputType.dataclass:
             return output
         assert_never(normalized_output_type)
 
@@ -231,7 +238,7 @@ class LayoutGPTAgent:
         query_embedding: EmbeddingProvider | None,
         example_embeddings: Sequence[Sequence[float]] | None,
     ) -> list[LayoutExample]:
-        if self.config.icl_type is ICLType.FIXED_RANDOM:
+        if self.config.icl_type is ICLType.fixed_random:
             selection_seed = (
                 int(generator.initial_seed())
                 if generator is not None
@@ -242,7 +249,7 @@ class LayoutGPTAgent:
             return select_fixed_random(
                 train_examples, k=self.config.k, seed=selection_seed
             )
-        if self.config.icl_type is ICLType.K_SIMILAR:
+        if self.config.icl_type is ICLType.k_similar:
             if query_embedding is None or example_embeddings is None:
                 msg = "k-similar selection requires query_embedding and example_embeddings"
                 raise ValueError(msg)
@@ -256,7 +263,7 @@ class LayoutGPTAgent:
         assert_never(self.config.icl_type)
 
 
-def _messages_to_text(messages: str | list[dict[str, str]]) -> str:
+def _messages_to_text(messages: str | list[ChatMessage]) -> str:
     if isinstance(messages, str):
         return messages
     return "\n\n".join(

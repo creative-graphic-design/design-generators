@@ -2042,6 +2042,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "torch" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -2064,6 +2065,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pydantic-ai", specifier = ">=2.7.0" },
     { name = "torch", specifier = ">=2.0.0" },
+    { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
 provides-extras = ["vendor"]
 

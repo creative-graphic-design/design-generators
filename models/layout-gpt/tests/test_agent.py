@@ -7,10 +7,11 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 import pytest
 import torch
 
+from laygen.common import ConditionType
 from laygen.common.outputs import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_gpt import LayoutGPTAgent
-from layout_gpt.enums import ConditionType, OutputType
+from layout_gpt.enums import OutputType
 from layout_gpt.exemplars import LayoutExample
 from layout_gpt.schema import LayoutGPTConfig
 
@@ -110,8 +111,8 @@ def test_public_call_can_return_dict_and_hide_intermediates() -> None:
     output = runner(
         prompt="there is one clock in the image",
         train_examples=_examples(),
-        condition_type=ConditionType.UNCONDITIONAL,
-        output_type=OutputType.DICT,
+        condition_type=ConditionType.unconditional,
+        output_type=OutputType.dict,
     )
 
     assert isinstance(output, dict)

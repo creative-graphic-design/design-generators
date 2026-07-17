@@ -1,9 +1,9 @@
 """LayoutGPT Pydantic AI agent package."""
 
+from laygen.common import BoxFormat, ConditionType
+
 from layout_gpt.agent import LayoutGPTAgent, build_agent
 from layout_gpt.enums import (
-    BoxFormat,
-    ConditionType,
     ICLType,
     LayoutGPTSetting,
     OutputType,

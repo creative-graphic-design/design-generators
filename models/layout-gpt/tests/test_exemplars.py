@@ -21,7 +21,7 @@ def test_vendor_records_load_counting_and_spatial_settings(tmp_path: Path) -> No
             "prompt": "one clock",
             "object_list": [("clock", [0.1, 0.2, 0.3, 0.4])],
         },
-        setting=LayoutGPTSetting.COUNTING,
+        setting=LayoutGPTSetting.counting,
     )
     spatial = LayoutExample.from_vendor_record(
         {

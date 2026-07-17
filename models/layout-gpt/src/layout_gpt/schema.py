@@ -1,12 +1,21 @@
 """Typed LayoutGPT request and response schemas."""
 
-from typing import cast
+from typing import Final, cast
 
 import torch
 from laygen.common.outputs import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from layout_gpt.enums import ICLType, LayoutGPTSetting
+from layout_gpt.types import ChatMessage, LayoutGPTIntermediates
+
+DEFAULT_K: Final[int] = 8
+DEFAULT_CANVAS_SIZE: Final[int] = 256
+DEFAULT_GPT_INPUT_LENGTH_LIMIT: Final[int] = 3000
+DEFAULT_TEMPERATURE: Final[float] = 0.7
+DEFAULT_TOP_P: Final[float] = 1.0
+DEFAULT_N_ITER: Final[int] = 1
+DEFAULT_FIXED_RANDOM_SEED: Final[int] = 42
 
 
 class LayoutItem2D(BaseModel):
@@ -68,7 +77,7 @@ class LayoutGPTOutput(BaseModel):
     raw_text: str
     id2label: dict[int, str]
     selected_exemplar_ids: list[str | int] = Field(default_factory=list)
-    prompt_messages: list[dict[str, str]] | None = None
+    prompt_messages: list[ChatMessage] | None = None
 
     model_config = ConfigDict(frozen=True)
 
@@ -84,30 +93,31 @@ class LayoutGPTOutput(BaseModel):
         mask = cast(
             torch.BoolTensor, torch.ones((1, len(self.items)), dtype=torch.bool)
         )
+        intermediates: LayoutGPTIntermediates = {
+            "prompt": self.prompt,
+            "raw_text": self.raw_text,
+            "selected_exemplar_ids": self.selected_exemplar_ids,
+            "prompt_messages": self.prompt_messages,
+        }
         return LayoutGenerationOutput(
             bbox=bbox,
             labels=label_tensor,
             mask=mask,
             id2label=self.id2label,
-            intermediates={
-                "prompt": self.prompt,
-                "raw_text": self.raw_text,
-                "selected_exemplar_ids": self.selected_exemplar_ids,
-                "prompt_messages": self.prompt_messages,
-            },
+            intermediates=intermediates,
         )
 
 
 class LayoutGPTConfig(BaseModel):
     """Runtime configuration for LayoutGPT prompt and provider behavior."""
 
-    setting: LayoutGPTSetting = LayoutGPTSetting.COUNTING
-    icl_type: ICLType = ICLType.K_SIMILAR
-    k: int = Field(default=8, ge=0)
-    canvas_size: int = Field(default=256, gt=0)
-    gpt_input_length_limit: int = Field(default=3000, gt=0)
+    setting: LayoutGPTSetting = LayoutGPTSetting.counting
+    icl_type: ICLType = ICLType.k_similar
+    k: int = Field(default=DEFAULT_K, ge=0)
+    canvas_size: int = Field(default=DEFAULT_CANVAS_SIZE, gt=0)
+    gpt_input_length_limit: int = Field(default=DEFAULT_GPT_INPUT_LENGTH_LIMIT, gt=0)
     chat: bool = True
-    temperature: float = 0.7
-    top_p: float = 1.0
-    n_iter: int = Field(default=1, ge=1)
-    fixed_random_seed: int = 42
+    temperature: float = DEFAULT_TEMPERATURE
+    top_p: float = DEFAULT_TOP_P
+    n_iter: int = Field(default=DEFAULT_N_ITER, ge=1)
+    fixed_random_seed: int = DEFAULT_FIXED_RANDOM_SEED

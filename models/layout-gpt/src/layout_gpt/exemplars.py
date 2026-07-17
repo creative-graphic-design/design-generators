@@ -31,11 +31,11 @@ class LayoutExample:
     ) -> LayoutExample:
         """Build an exemplar from the original NSR-1K JSON record."""
         normalized_setting = coerce_enum(setting, LayoutGPTSetting)
-        if normalized_setting is LayoutGPTSetting.COUNTING:
+        if normalized_setting is LayoutGPTSetting.counting:
             raw_objects = cast(
                 Sequence[tuple[str, Sequence[float]]], record["object_list"]
             )
-        elif normalized_setting is LayoutGPTSetting.SPATIAL:
+        elif normalized_setting is LayoutGPTSetting.spatial:
             raw_objects = cast(
                 Sequence[tuple[str, Sequence[float]]],
                 [record["obj1"], record["obj2"]],
