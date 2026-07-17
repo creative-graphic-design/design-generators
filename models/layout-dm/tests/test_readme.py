@@ -6,12 +6,12 @@ from pathlib import Path
 def _reproducing_section() -> str:
     readme = Path(__file__).resolve().parents[1] / "README.md"
     section = readme.read_text(encoding="utf-8").split(
-        "## Reproducing Vendor Parity", maxsplit=1
+        "## Reproducibility", maxsplit=1
     )[1]
     return section.split("## Vendor Links", maxsplit=1)[0]
 
 
-def test_reproducing_vendor_parity_code_fences_are_tagged():
+def test_reproducibility_code_fences_are_tagged():
     section = _reproducing_section()
     fence_lines = [line for line in section.splitlines() if line.startswith("```")]
 
@@ -25,7 +25,7 @@ def test_reproducing_vendor_parity_code_fences_are_tagged():
     assert opening_fences.count("```text") == 2
 
 
-def test_reproducing_vendor_parity_bash_blocks_run_from_repo_root():
+def test_reproducibility_bash_blocks_run_from_repo_root():
     section = _reproducing_section()
     bash_blocks = [
         block.split("```", maxsplit=1)[0] for block in section.split("```bash\n")[1:]

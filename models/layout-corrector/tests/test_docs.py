@@ -10,7 +10,11 @@ def test_readme_includes_reproducible_vendor_parity_commands():
         encoding="utf-8"
     )
 
-    assert "## Reproducing Vendor Parity" in text
+    assert "## Reproducibility" in text
+    assert (
+        "This section reproduces the parity verification against the original implementation."
+        in text
+    )
     assert "models/layout-corrector/scripts/download_original.py" in text
     assert "models/layout-corrector/tests/vendor_parity" in text
     assert (

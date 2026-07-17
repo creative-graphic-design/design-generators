@@ -63,7 +63,7 @@ out = pipe(
 
 The converted checkpoints follow the original Layout-Corrector release and use the original starter-kit preprocessing for exact parity fixtures. For Crello, `cyberagent/crello` is the canonical Hugging Face dataset source for processor/data-path documentation; starter-kit processed splits remain the parity baseline because they are the author-released preprocessing artifact.
 
-## Vendor Parity
+## Parity Results
 
 Local parity compares the converted `LayoutCorrectorModel` against the original `CategoricalAggregatedTransformer` on the released starter-kit weights. The test skips cleanly when local artifacts are absent.
 
@@ -79,7 +79,9 @@ Local parity compares the converted `LayoutCorrectorModel` against the original 
 | Crello | 1 | 250/250 | 0 | 0 |
 | Crello | 2 | 250/250 | 0 | 0 |
 
-## Reproducing Vendor Parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed.
 
