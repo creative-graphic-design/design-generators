@@ -9,11 +9,38 @@ from pathlib import Path
 
 def main() -> None:
     """Write metadata describing an external vendor-reference run."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["rico", "publaynet"], required=True)
-    parser.add_argument("--task", required=True)
-    parser.add_argument("--seed", type=int, default=500)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Write local metadata for a LayoutFormer++ vendor-reference run. "
+            "Generated tensors are intentionally kept out of the repository."
+        )
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico", "publaynet"],
+        required=True,
+        help="Dataset name for the reference run. Required.",
+    )
+    parser.add_argument(
+        "--task",
+        required=True,
+        help=(
+            "LayoutFormer++ task name, for example gen_t, gen_ts, gen_r, "
+            "refinement, completion, or ugen. Required."
+        ),
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=500,
+        help="Random seed recorded for the vendor-reference run. Default: 500.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="Directory where metadata.json is written. Required.",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = {

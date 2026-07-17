@@ -83,6 +83,7 @@ print(out.bbox, out.labels, out.mask)
         license="mit",
         library_name="transformers",
         pipeline_tag="text-generation",
+        language=["en"],
         tags=[
             "layout-generation",
             "layoutformer++",
@@ -96,22 +97,70 @@ print(out.bbox, out.labels, out.mask)
             "processor returns normalized center `xywh` boxes, dataset-local "
             "labels, masks, and `id2label` using the shared `laygen.common` schema."
         ),
+        model_type=(
+            "Autoregressive Transformer checkpoint converted to a "
+            "`transformers.PreTrainedModel` layout-generation package."
+        ),
         intended_uses=(
-            "Use this checkpoint for research and evaluation of conditional "
-            "graphic layout generation tasks such as label, label-size, relation, "
-            "completion, refinement, and unconditional generation."
+            "Use this checkpoint to reproduce and evaluate LayoutFormer++ "
+            f"`{dataset}` / `{task}` conditional graphic layout generation in a "
+            "Transformers-style API."
+        ),
+        downstream_uses=(
+            "Generated layouts can be consumed by research pipelines for layout "
+            "rendering, design analysis, metric evaluation, or as structured "
+            "conditioning for downstream design tools after task-specific checks."
+        ),
+        out_of_scope_uses=(
+            "This checkpoint is not intended for general image generation, OCR, "
+            "document understanding, or unsupervised production design decisions. "
+            "It should not be treated as a safety-validated user interface system."
         ),
         limitations=(
             "This conversion preserves the released LayoutFormer++ checkpoint "
-            "contract. Full all-task generation parity is still being expanded; "
-            "current local parity covers the `rico_gen_t` teacher-forced logits."
+            "contract and inherits the dataset and task coverage of the original "
+            "research release. Current local parity covers the `rico_gen_t` "
+            "teacher-forced logits; full constrained-decoding generation parity "
+            "for every public task remains follow-up work."
+        ),
+        recommendations=(
+            "Use the package-local vendor parity commands before publishing a "
+            "converted checkpoint, inspect layout samples for the target task, and "
+            "report dataset/task-specific metrics with any downstream release."
         ),
         how_to_use=how_to_use,
         training_data=(
             f"The original checkpoint was trained on `{dataset_id}` using the "
             "preprocessed LayoutFormer++ release artifacts from `jzy124/LayoutFormer`."
         ),
+        training_procedure=(
+            "This repository converts the released PyTorch checkpoint and does not "
+            "retrain or fine-tune it. The original LayoutFormer++ training "
+            "procedure serializes layout constraints into tokens and trains an "
+            "autoregressive transformer with task-specific decoding restrictions."
+        ),
+        testing_data=(
+            "Local tests use fixtures from `jzy124/LayoutFormer` checkpoint files "
+            "and vendor reference metadata generated from "
+            "`vendor/ms-layout-generation/LayoutFormer++`."
+        ),
+        evaluation_factors=(
+            "The current parity gate checks the RICO `gen_t` checkpoint, exact "
+            "`vocab.json` token mapping, and teacher-forced logits for a fixed "
+            "reference example."
+        ),
+        evaluation_metrics=(
+            "Tokenizer equality and maximum absolute/relative logit differences "
+            "against the vendor implementation."
+        ),
         parity_metrics=metrics,
+        technical_specs=(
+            "The converted artifact stores a `LayoutFormerPPConfig`, "
+            "`LayoutFormerPPForConditionalGeneration` weights, tokenizer files, "
+            "and a `LayoutFormerPPProcessor`. Public outputs use normalized center "
+            "`xywh` boxes, dataset-local labels, masks, and `id2label` through "
+            "`laygen.common.outputs.LayoutGenerationOutput`."
+        ),
         citation_bibtex=LAYOUTFORMERPP_BIBTEX,
         original_implementation_url=(
             "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutFormer%2B%2B"

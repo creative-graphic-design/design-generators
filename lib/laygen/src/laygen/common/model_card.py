@@ -32,6 +32,44 @@ def build_layout_model_card(
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]],
     citation_bibtex: str,
     original_implementation_url: str,
+    language: Sequence[str] | None = None,
+    developed_by: str = "creative-graphic-design",
+    model_type: str = "layout generation model",
+    finetuned_from: str = "Not applicable; this is a converted original checkpoint.",
+    downstream_uses: str = (
+        "Use the generated structured layouts as intermediate inputs for design "
+        "analysis, rendering, retrieval, or other research pipelines."
+    ),
+    out_of_scope_uses: str = (
+        "Do not use this model as a general-purpose image generator, OCR system, "
+        "or production design decision maker without task-specific validation."
+    ),
+    recommendations: str = (
+        "Evaluate outputs on the target dataset and inspect generated layouts "
+        "before using them in downstream user-facing workflows."
+    ),
+    training_procedure: str = (
+        "This repository converts the released research checkpoint and does not "
+        "retrain it. See the cited paper and original implementation for the "
+        "full training recipe."
+    ),
+    testing_data: str = (
+        "Local parity tests use deterministic fixtures generated from the "
+        "released original implementation."
+    ),
+    evaluation_factors: str = (
+        "Parity checks focus on tokenizer compatibility, deterministic generated "
+        "tokens when available, and teacher-forced logits for selected fixtures."
+    ),
+    evaluation_metrics: str = (
+        "Tokenizer exact match, deterministic output exact match, and maximum "
+        "absolute/relative logit differences."
+    ),
+    technical_specs: str = (
+        "The converted package exposes `save_pretrained` / `from_pretrained` "
+        "artifacts and returns normalized center `xywh` boxes, labels, and masks "
+        "through the shared `laygen.common` output schema."
+    ),
 ) -> ModelCard:
     card_data = ModelCardData(
         model_name=model_name,
@@ -40,6 +78,7 @@ def build_layout_model_card(
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
+        language=list(language) if language is not None else None,
     )
     parity_table = _parity_table(parity_metrics)
     content = f"""---
@@ -50,33 +89,78 @@ def build_layout_model_card(
 
 ## Model Details
 
-Hub repository: `{model_id}`
+### Model Description
 
 {model_details}
 
-Original implementation: {original_implementation_url}
+- **Developed by:** {developed_by}
+- **Model type:** {model_type}
+- **License:** {license}
+- **Finetuned from:** {finetuned_from}
+- **Hub repository:** `{model_id}`
+- **Original implementation:** {original_implementation_url}
 
-## Intended Uses & Limitations
+## Uses
+
+### Direct Use
 
 {intended_uses}
 
-### Limitations
+### Downstream Use
+
+{downstream_uses}
+
+### Out-of-Scope Use
+
+{out_of_scope_uses}
+
+## Bias, Risks, and Limitations
 
 {limitations}
 
-## How to Use
+### Recommendations
+
+{recommendations}
+
+## How to Get Started with the Model
 
 ```python
 {how_to_use.strip()}
 ```
 
-## Training Data
+## Training Details
+
+### Training Data
 
 {training_data}
 
-## Parity Summary
+### Training Procedure
+
+{training_procedure}
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+{testing_data}
+
+#### Factors
+
+{evaluation_factors}
+
+#### Metrics
+
+{evaluation_metrics}
+
+### Results
 
 {parity_table}
+
+## Technical Specifications
+
+{technical_specs}
 
 ## Citation
 

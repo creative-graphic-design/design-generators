@@ -41,18 +41,6 @@ print(out.labels)   # dataset-local ids, padding controlled by out.mask
 print(out.id2label)
 ```
 
-For local conversion smoke tests:
-
-```bash
-cd models/layoutformerpp
-uv run --package layoutformerpp python scripts/convert_checkpoint.py \
-  --checkpoint ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar \
-  --dataset rico \
-  --task gen_t \
-  --vocab-json ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json \
-  --output-dir ../../.cache/layoutformerpp/converted/rico_gen_t
-```
-
 ## Checkpoints
 
 Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix.
@@ -93,6 +81,72 @@ CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest tests/vendor_parit
 ```
 
 Full generation parity for all RICO and PubLayNet public checkpoints is tracked as follow-up work.
+
+## Reproducing vendor parity
+
+Prerequisites:
+
+- Run commands from `models/layoutformerpp`.
+- Use `uv sync --package layoutformerpp` once before the first run.
+- Keep downloaded weights and generated outputs under `../../.cache/layoutformerpp/`; these files are local artifacts and are not committed.
+- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
+
+1. Download the released LayoutFormer++ checkpoint and vocabulary files into `../../.cache/layoutformerpp/original`.
+
+```bash
+uv run --package layoutformerpp python scripts/download_original.py \
+  --output-dir ../../.cache/layoutformerpp/original
+```
+
+2. Generate the local vendor reference metadata for the `rico_gen_t` fixture. The metadata output path is `../../.cache/layoutformerpp/reference/rico_gen_t/metadata.json`.
+
+```bash
+CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python scripts/export_reference.py \
+  --dataset rico \
+  --task gen_t \
+  --seed 500 \
+  --output-dir ../../.cache/layoutformerpp/reference/rico_gen_t
+```
+
+3. Run the vendor parity tests against the cached checkpoint and vendor source.
+
+```bash
+CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+  tests/vendor_parity \
+  -m vendor_parity \
+  -q
+```
+
+4. Convert the `rico_gen_t` checkpoint into Transformers `save_pretrained` format. The output directory is `../../.cache/layoutformerpp/converted/rico_gen_t`, including the generated Hub `README.md` model card.
+
+```bash
+uv run --package layoutformerpp python scripts/convert_checkpoint.py \
+  --checkpoint ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar \
+  --dataset rico \
+  --task gen_t \
+  --vocab-json ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json \
+  --output-dir ../../.cache/layoutformerpp/converted/rico_gen_t
+```
+
+5. Smoke-test `from_pretrained` from the converted artifact.
+
+```bash
+uv run --package layoutformerpp python - <<'PY'
+from layoutformerpp import (
+    LayoutFormerPPForConditionalGeneration,
+    LayoutFormerPPProcessor,
+)
+
+path = "../../.cache/layoutformerpp/converted/rico_gen_t"
+model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
+processor = LayoutFormerPPProcessor.from_pretrained(path)
+print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)
+PY
+```
+
+## Model Cards
+
+`scripts/convert_checkpoint.py` writes a Hugging Face Hub `README.md` model card into each converted output directory. The card includes Hub YAML metadata plus official-template sections for model details, uses, risks and limitations, getting started, training details, evaluation, technical specifications, and citation.
 
 ## License
 

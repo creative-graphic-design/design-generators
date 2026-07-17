@@ -21,16 +21,45 @@ from laygen.common.labels import labels_for_dataset
 
 def main() -> None:
     """Run checkpoint conversion."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--dataset", choices=["rico", "publaynet"], required=True)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert a LayoutFormer++ PyTorch checkpoint into Transformers "
+            "`save_pretrained` artifacts plus a Hub README model card."
+        )
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        required=True,
+        help="Path to the original LayoutFormer++ .pth.tar checkpoint. Required.",
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico", "publaynet"],
+        required=True,
+        help="Dataset for the checkpoint. Required.",
+    )
     parser.add_argument(
         "--task",
         choices=["gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"],
         required=True,
+        help="Task-specific checkpoint type. Required.",
     )
-    parser.add_argument("--vocab-json", type=Path)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--vocab-json",
+        type=Path,
+        help=(
+            "Optional original vocab.json path. When omitted, a default tokenizer "
+            "vocabulary is generated from dataset labels and the selected task. "
+            "Default: omitted."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="Directory where converted artifacts are written. Required.",
+    )
     args = parser.parse_args()
 
     if args.vocab_json is not None:
