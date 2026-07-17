@@ -5,18 +5,16 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final
-from typing import cast
+from typing import Final, TypeAlias, TypedDict, cast
 
 from huggingface_hub import ModelCard, ModelCardData
-from typing_extensions import TypedDict
 
 from .labels import DatasetName
 from .serialization import sanitize_for_yaml
 
 
 class ModelCardMetadataKey(StrEnum):
-    """Closed key set passed to ``ModelCardData``."""
+    """YAML metadata keys emitted by generated Hub model cards."""
 
     model_name = auto()
     license = auto()
@@ -27,8 +25,25 @@ class ModelCardMetadataKey(StrEnum):
     language = auto()
 
 
+MODEL_CARD_METADATA_KEYS: Final[tuple[ModelCardMetadataKey, ...]] = tuple(
+    ModelCardMetadataKey
+)
+
+
+class ModelCardMetadata(TypedDict):
+    """Structured metadata passed to ``ModelCardData``."""
+
+    model_name: str
+    license: str
+    library_name: str
+    pipeline_tag: str
+    tags: list[str]
+    datasets: list[str]
+    language: list[str]
+
+
 class ParityMetricKey(StrEnum):
-    """Closed key set used in model-card parity metric rows."""
+    """Column keys used in generated parity metric rows."""
 
     dataset = auto()
     tokenizer_exact = auto()
@@ -37,14 +52,7 @@ class ParityMetricKey(StrEnum):
     logits_max_rel = auto()
 
 
-class ParityMetricRecord(TypedDict):
-    """Structured dict form accepted for parity metric rows."""
-
-    dataset: str
-    tokenizer_exact: str
-    deterministic_exact: str
-    logits_max_abs: float
-    logits_max_rel: float
+PARITY_METRIC_KEYS: Final[tuple[ParityMetricKey, ...]] = tuple(ParityMetricKey)
 
 
 @dataclass(frozen=True)
@@ -66,7 +74,17 @@ class ParityMetric:
     logits_max_rel: float
 
 
-MODEL_CARD_LANGUAGE: Final[tuple[str, ...]] = ("en",)
+class ParityMetricRow(TypedDict):
+    """Structured parity metric row accepted by model-card generation."""
+
+    dataset: str
+    tokenizer_exact: str
+    deterministic_exact: str
+    logits_max_abs: float
+    logits_max_rel: float
+
+
+ParityMetricInput: TypeAlias = ParityMetric | ParityMetricRow | Mapping[str, object]
 
 
 def build_layout_model_card(
@@ -83,7 +101,7 @@ def build_layout_model_card(
     limitations: str,
     how_to_use: str,
     training_data: str,
-    parity_metrics: Sequence[ParityMetric | ParityMetricRecord | Mapping[str, object]],
+    parity_metrics: Sequence[ParityMetricInput],
     citation_bibtex: str,
     original_implementation_url: str,
 ) -> ModelCard:
@@ -117,26 +135,15 @@ def build_layout_model_card(
         >>> card.data.to_dict()["library_name"]
         'diffusers'
     """
-    metadata: dict[ModelCardMetadataKey, object] = {
-        ModelCardMetadataKey.model_name: cast(str, sanitize_for_yaml(model_name)),
-        ModelCardMetadataKey.license: cast(str, sanitize_for_yaml(license)),
-        ModelCardMetadataKey.library_name: cast(str, sanitize_for_yaml(library_name)),
-        ModelCardMetadataKey.pipeline_tag: cast(str, sanitize_for_yaml(pipeline_tag)),
-        ModelCardMetadataKey.tags: cast(list[str], sanitize_for_yaml(list(tags))),
-        ModelCardMetadataKey.datasets: cast(
-            list[str], sanitize_for_yaml(list(dataset_ids))
-        ),
-        ModelCardMetadataKey.language: list(MODEL_CARD_LANGUAGE),
-    }
-    card_data = ModelCardData(
-        model_name=cast(str, metadata[ModelCardMetadataKey.model_name]),
-        license=cast(str, metadata[ModelCardMetadataKey.license]),
-        library_name=cast(str, metadata[ModelCardMetadataKey.library_name]),
-        pipeline_tag=cast(str, metadata[ModelCardMetadataKey.pipeline_tag]),
-        tags=cast(list[str], metadata[ModelCardMetadataKey.tags]),
-        datasets=cast(list[str], metadata[ModelCardMetadataKey.datasets]),
-        language=cast(list[str], metadata[ModelCardMetadataKey.language]),
+    metadata = _model_card_metadata(
+        model_name=model_name,
+        license=license,
+        library_name=library_name,
+        pipeline_tag=pipeline_tag,
+        tags=tags,
+        dataset_ids=dataset_ids,
     )
+    card_data = ModelCardData(**metadata)
     parity_table = _parity_table(parity_metrics)
     card = ModelCard.from_template(
         card_data,
@@ -292,8 +299,7 @@ def build_layout_model_card(
 def layoutdm_model_card(
     *,
     dataset: DatasetName | str,
-    parity_metrics: Sequence[ParityMetric | ParityMetricRecord | Mapping[str, object]]
-    | None = None,
+    parity_metrics: Sequence[ParityMetricInput] | None = None,
 ) -> ModelCard:
     """Build the LayoutDM model card for a converted checkpoint.
 
@@ -377,9 +383,33 @@ def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 
-def _parity_table(
-    metrics: Sequence[ParityMetric | ParityMetricRecord | Mapping[str, object]],
-) -> str:
+def _model_card_metadata(
+    *,
+    model_name: str,
+    license: str,
+    library_name: str,
+    pipeline_tag: str,
+    tags: Sequence[str],
+    dataset_ids: Sequence[str],
+) -> ModelCardMetadata:
+    return {
+        ModelCardMetadataKey.model_name.value: cast(str, sanitize_for_yaml(model_name)),
+        ModelCardMetadataKey.license.value: cast(str, sanitize_for_yaml(license)),
+        ModelCardMetadataKey.library_name.value: cast(
+            str, sanitize_for_yaml(library_name)
+        ),
+        ModelCardMetadataKey.pipeline_tag.value: cast(
+            str, sanitize_for_yaml(pipeline_tag)
+        ),
+        ModelCardMetadataKey.tags.value: cast(list[str], sanitize_for_yaml(list(tags))),
+        ModelCardMetadataKey.datasets.value: cast(
+            list[str], sanitize_for_yaml(list(dataset_ids))
+        ),
+        ModelCardMetadataKey.language.value: ["en"],
+    }
+
+
+def _parity_table(metrics: Sequence[ParityMetricInput]) -> str:
     rows = [
         "| Dataset | Tokenizer exact | Deterministic exact | Logits max abs | Logits max rel |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -387,27 +417,22 @@ def _parity_table(
     for metric in metrics:
         item = _metric_dict(metric)
         rows.append(
-            f"| {item[ParityMetricKey.dataset]} | "
-            f"{item[ParityMetricKey.tokenizer_exact]} | "
-            f"{item[ParityMetricKey.deterministic_exact]} | "
-            f"{item[ParityMetricKey.logits_max_abs]:g} | "
-            f"{item[ParityMetricKey.logits_max_rel]:g} |"
+            "| {dataset} | {tokenizer_exact} | {deterministic_exact} | "
+            "{logits_max_abs:g} | {logits_max_rel:g} |".format(**item)
         )
     return "\n".join(rows)
 
 
-def _metric_dict(
-    metric: ParityMetric | ParityMetricRecord | Mapping[str, object],
-) -> dict[ParityMetricKey, object]:
+def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
     if isinstance(metric, ParityMetric):
         return {
-            ParityMetricKey.dataset: metric.dataset,
-            ParityMetricKey.tokenizer_exact: metric.tokenizer_exact,
-            ParityMetricKey.deterministic_exact: metric.deterministic_exact,
-            ParityMetricKey.logits_max_abs: metric.logits_max_abs,
-            ParityMetricKey.logits_max_rel: metric.logits_max_rel,
+            ParityMetricKey.dataset.value: metric.dataset,
+            ParityMetricKey.tokenizer_exact.value: metric.tokenizer_exact,
+            ParityMetricKey.deterministic_exact.value: metric.deterministic_exact,
+            ParityMetricKey.logits_max_abs.value: metric.logits_max_abs,
+            ParityMetricKey.logits_max_rel.value: metric.logits_max_rel,
         }
-    return {key: metric[key.value] for key in ParityMetricKey}
+    return dict(metric)
 
 
 _LAYOUTDM_BIBTEX: Final[str] = r"""
