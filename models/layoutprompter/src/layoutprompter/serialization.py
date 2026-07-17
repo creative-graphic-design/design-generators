@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import torch
 from collections.abc import Sequence
-from typing import Final, assert_never
+from dataclasses import dataclass
+from typing import ClassVar, Final, assert_never
 from typing_extensions import override
 
 from layoutprompter.data import (
@@ -50,43 +51,28 @@ HTML_TEMPLATE_WITH_INDEX: Final[str] = (
 DEFAULT_MAX_LENGTH: Final[int] = 8000
 
 
+@dataclass
 class Serializer:
     """Base serializer for seq/html prompt examples."""
 
-    task_type = ""
-    constraint_type: tuple[str, ...] = ()
+    task_type: ClassVar[str] = ""
+    constraint_type: ClassVar[tuple[str, ...]] = ()
 
-    def __init__(
-        self,
-        *,
-        input_format: PromptFormat | str,
-        output_format: PromptFormat | str,
-        index2label: dict[int, str],
-        canvas_width: int,
-        canvas_height: int,
-        add_index_token: bool = True,
-        add_sep_token: bool = True,
-        sep_token: str = "|",
-        add_unk_token: bool = False,
-        unk_token: str = "<unk>",
-    ) -> None:
-        """Create a serializer with vendor token options."""
-        try:
-            self.input_format = PromptFormat(input_format)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported input format: {input_format}") from exc
-        try:
-            self.output_format = PromptFormat(output_format)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported output format: {output_format}") from exc
-        self.index2label = index2label
-        self.canvas_width = canvas_width
-        self.canvas_height = canvas_height
-        self.add_index_token = add_index_token
-        self.add_sep_token = add_sep_token
-        self.sep_token = sep_token
-        self.add_unk_token = add_unk_token
-        self.unk_token = unk_token
+    input_format: PromptFormat
+    output_format: PromptFormat
+    index2label: dict[int, str]
+    canvas_width: int
+    canvas_height: int
+    add_index_token: bool = True
+    add_sep_token: bool = True
+    sep_token: str = "|"
+    add_unk_token: bool = False
+    unk_token: str = "<unk>"
+
+    def __post_init__(self) -> None:
+        """Normalize public string formats to enums."""
+        self.input_format = _normalize_prompt_format(self.input_format, name="input")
+        self.output_format = _normalize_prompt_format(self.output_format, name="output")
 
     def build_input(self, data: LayoutRecord) -> str:
         """Serialize test constraints."""
@@ -445,8 +431,8 @@ def create_serializer(
     width, height = CANVAS_SIZE[normalized_dataset]
     normalized_task = normalize_layoutprompter_task(task)
     return SERIALIZER_MAP[normalized_task](
-        input_format=input_format,
-        output_format=output_format,
+        input_format=_normalize_prompt_format(input_format, name="input"),
+        output_format=_normalize_prompt_format(output_format, name="output"),
         index2label=id2label(normalized_dataset),
         canvas_width=width,
         canvas_height=height,
@@ -454,6 +440,15 @@ def create_serializer(
         add_sep_token=add_sep_token,
         add_unk_token=add_unk_token,
     )
+
+
+def _normalize_prompt_format(
+    prompt_format: PromptFormat | str, *, name: str
+) -> PromptFormat:
+    try:
+        return PromptFormat(prompt_format)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported {name} format: {prompt_format}") from exc
 
 
 def build_prompt(

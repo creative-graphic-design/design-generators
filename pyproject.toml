@@ -14,6 +14,7 @@ classifiers = [
 dependencies = [
     "layout-corrector",
     "layout-flow",
+    "layout-gpt",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -60,6 +61,7 @@ members = ["lib/*", "models/*"]
 [tool.uv.sources]
 layout-corrector = { workspace = true }
 layout-flow = { workspace = true }
+layout-gpt = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }

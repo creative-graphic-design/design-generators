@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import assert_never
 
+from laygen.agents import BaseResponseParser
 from laygen.common import LayoutGenerationOutput
 from laygen.common.bbox import normalize_boxes
 import torch
@@ -20,7 +21,7 @@ from layoutprompter.enums import PromptFormat
 from layoutprompter.schemas import LayoutPrompterOutput
 
 
-class Parser:
+class Parser(BaseResponseParser[LayoutGenerationOutput]):
     """Parse raw or structured predictions into the common output schema."""
 
     def __init__(
@@ -35,6 +36,13 @@ class Parser:
         self.id2label = id2label(self.dataset)
         self.label2id = label2id(self.dataset)
         self.canvas_size = CANVAS_SIZE[self.dataset]
+
+    def __call__(
+        self, text: str, *, canvas_size: int | None = None
+    ) -> LayoutGenerationOutput:
+        """Parse repaired provider text through the shared parser protocol."""
+        del canvas_size
+        return self.parse_one(self.repair_response_text(text))
 
     def parse_one(
         self, prediction: str | LayoutPrompterOutput

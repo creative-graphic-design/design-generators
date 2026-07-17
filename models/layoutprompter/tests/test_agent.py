@@ -9,6 +9,7 @@ import pytest
 import torch
 from pydantic_ai.models.test import TestModel
 
+from laygen.agents import BaseLayoutAgent
 from laygen.common import BoxFormat, DatasetName, LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
@@ -43,6 +44,7 @@ def test_agent_runs_with_pydantic_ai_test_model_without_network() -> None:
     prompter = LayoutPrompter(
         LayoutPrompterConfig(model=model, shuffle=False, num_prompt=1)
     )
+    assert isinstance(prompter, BaseLayoutAgent)
     output = prompter.run_sync(train_data, test_data)
     assert_layout_output_schema(output, batch_size=1)
     assert output.labels.tolist() == [[0]]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
+from laygen.agents import BaseResponseParser
 from laygen.common.testing import (
     assert_layout_output_schema,
     assert_normalized_xywh,
@@ -134,9 +135,11 @@ def test_serializer_rejects_unsupported_formats_and_truncates_prompt() -> None:
 
 def test_parser_outputs_common_normalized_center_xywh_schema() -> None:
     """Parser converts vendor pixel ltwh text into public center xywh."""
-    output = Parser("publaynet", "seq").parse_one(
-        "text 0 12 16 24 32 | title 1 60 80 12 16"
-    )
+    parser = Parser("publaynet", "seq")
+    assert isinstance(parser, BaseResponseParser)
+    output = parser.parse_one("text 0 12 16 24 32 | title 1 60 80 12 16")
+    callable_output = parser("text 0 12 16 24 32 | title 1 60 80 12 16")
+    assert torch.equal(callable_output.labels, output.labels)
     assert_layout_output_schema(output, batch_size=1)
     assert_normalized_xywh(output.bbox, output.mask)
     assert output.labels.tolist() == [[0, 1]]

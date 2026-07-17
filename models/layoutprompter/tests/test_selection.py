@@ -5,6 +5,7 @@ from __future__ import annotations
 import torch
 import pytest
 
+from laygen.agents import BaseExemplarSelector
 from layoutprompter.selection import (
     ExemplarSelection,
     GenTypeExemplarSelection,
@@ -35,6 +36,7 @@ def test_gen_type_selection_matches_vendor_label_overlap_order() -> None:
     selector = GenTypeExemplarSelection(
         train_data, candidate_size=-1, num_prompt=2, shuffle=False
     )
+    assert isinstance(selector, BaseExemplarSelector)
     exemplars = selector(_record([0, 2], [[0, 0, 1, 1], [0, 0, 1, 1]]))
     assert exemplars == [train_data[2], train_data[0]]
 

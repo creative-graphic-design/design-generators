@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import random
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import Final
 
+from laygen.agents import BaseExemplarSelector
 import torch
 from typing_extensions import override
 
@@ -23,24 +25,21 @@ BBOX_ONLY_BBOX_WEIGHT: Final[float] = 1.0
 POSTER_MASK_SIZE: Final[tuple[int, int]] = (102, 150)
 
 
-class ExemplarSelection:
+@dataclass
+class ExemplarSelection(BaseExemplarSelector[LayoutRecord]):
     """Base selector with candidate truncation and zero-size filtering."""
 
-    def __init__(
-        self,
-        train_data: Sequence[LayoutRecord],
-        candidate_size: int,
-        num_prompt: int,
-        *,
-        shuffle: bool = True,
-        seed: int | None = None,
-    ) -> None:
-        """Create a selector over training records."""
-        self.generator = random.Random(seed)
-        self.train_data = list(train_data)
-        self.candidate_size = candidate_size
-        self.num_prompt = num_prompt
-        self.shuffle = shuffle
+    train_data: Sequence[LayoutRecord]
+    candidate_size: int
+    num_prompt: int
+    shuffle: bool = True
+    seed: int | None = None
+    generator: random.Random = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Normalize candidate records and initialize deterministic randomness."""
+        self.generator = random.Random(self.seed)
+        self.train_data = list(self.train_data)
         if self.candidate_size > 0:
             self.generator.shuffle(self.train_data)
             self.train_data = self.train_data[: self.candidate_size]

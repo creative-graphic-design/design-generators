@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Final, Generic, Protocol, TypeVar, cast
 
 import torch
@@ -26,6 +27,7 @@ from laygen.common.outputs import LayoutGenerationOutput
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")
 ExampleT = TypeVar("ExampleT")
+ParsedOutputT = TypeVar("ParsedOutputT")
 
 DEFAULT_SUPPORTED_CONDITIONS: Final[tuple[ConditionType, ...]] = (
     ConditionType.text,
@@ -57,6 +59,36 @@ class ResponseParser(Protocol):
     def __call__(self, text: str, *, canvas_size: int) -> LayoutGenerationOutput:
         """Parse provider ``text`` into the shared output schema."""
         ...
+
+
+@dataclass
+class BaseResponseParser(Generic[ParsedOutputT], ABC):
+    """Small base for parser strategies with shared repair/error hooks."""
+
+    parser_name: str = "response parser"
+
+    def repair_response_text(self, text: str) -> str:
+        """Repair provider text before parser-specific extraction."""
+        return text
+
+    def parser_error(self, message: str) -> RuntimeError:
+        """Build a consistent parser error with parser context."""
+        return RuntimeError(f"{self.parser_name}: {message}")
+
+
+@dataclass
+class BaseExemplarSelector(Generic[ExampleT], ABC):
+    """Small base for selector strategies with shared candidate validation."""
+
+    def validate_examples(self, examples: Sequence[ExampleT]) -> None:
+        """Validate the selector has at least one candidate exemplar."""
+        if not examples:
+            msg = "exemplar selector requires at least one candidate"
+            raise ValueError(msg)
+
+    def selection_error(self, message: str) -> ValueError:
+        """Build a consistent selector error."""
+        return ValueError(f"exemplar selector: {message}")
 
 
 class LayoutItem2DLike(Protocol):

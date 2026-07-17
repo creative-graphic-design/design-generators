@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import os
 import json
-from dataclasses import dataclass
 from dataclasses import asdict
+from dataclasses import dataclass
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, assert_never
 
+from laygen.agents import BaseLayoutAgent, ModelLike
 from laygen.common import (
     BoxFormat,
     ConditionType,
@@ -18,8 +19,7 @@ from laygen.common import (
     normalize_box_format,
     normalize_condition_type,
 )
-from pydantic_ai import Agent
-from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 
 from layoutprompter.data import SupportedDataset, normalize_dataset
 from layoutprompter.enums import LayoutPrompterTask, OutputType, PromptFormat
@@ -35,6 +35,11 @@ DEFAULT_MAX_LENGTH: Final[int] = 8000
 DEFAULT_TEMPERATURE: Final[float] = 0.7
 DEFAULT_TOP_P: Final[float] = 1.0
 DEFAULT_MODEL: Final[str] = "openai:gpt-4o-mini"
+DEFAULT_MODEL_ENV_VAR: Final[str] = "LAYOUTPROMPTER_MODEL"
+INSTRUCTIONS: Final[str] = (
+    "You are LayoutPrompter. Return structured layout elements with dataset labels "
+    "and pixel left/top/width/height boxes."
+)
 
 LayoutRecord = LayoutRecordInput
 
@@ -110,7 +115,7 @@ class LayoutPrompterConfig:
     max_length: int = DEFAULT_MAX_LENGTH
     temperature: float = DEFAULT_TEMPERATURE
     top_p: float = DEFAULT_TOP_P
-    model: str | Model | None = None
+    model: ModelLike = None
 
     def __post_init__(self) -> None:
         """Normalize public string modes to enums at the config boundary."""
@@ -137,7 +142,7 @@ class LayoutPrompterConfig:
             ) from exc
 
 
-class LayoutPrompter:
+class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
     """High-level LayoutPrompter Pydantic AI agent.
 
     Args:
@@ -166,6 +171,12 @@ class LayoutPrompter:
             ValueError: If a config mode cannot be normalized.
         """
         self.config = config or LayoutPrompterConfig()
+        super().__init__(
+            model=self.config.model,
+            model_env_var=DEFAULT_MODEL_ENV_VAR,
+            raw_response_type=LayoutPrompterOutput,
+            instructions=INSTRUCTIONS,
+        )
         self.serializer = create_serializer(
             self.config.dataset,
             self.config.task,
@@ -173,14 +184,6 @@ class LayoutPrompter:
             self.config.output_format,
         )
         self.parser = Parser(self.config.dataset, self.config.output_format)
-        self.agent = Agent(
-            self._resolve_model(self.config.model),
-            output_type=LayoutPrompterOutput,
-            model_settings={
-                "temperature": self.config.temperature,
-                "top_p": self.config.top_p,
-            },
-        )
 
     def build_prompt(
         self, train_data: Sequence[LayoutRecord], test_data: LayoutRecord
@@ -258,8 +261,14 @@ class LayoutPrompter:
             1
         """
         prompt = self.build_prompt(train_data, test_data)
-        result = self.agent.run_sync(prompt)
-        return self.parser.parse_one(result.output)
+        raw = self.run_raw_sync(
+            prompt,
+            model_settings=ModelSettings(
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+            ),
+        )
+        return self.parser.parse_one(raw)
 
     def __call__(
         self,
@@ -342,7 +351,7 @@ class LayoutPrompter:
         if normalized_output_type is OutputType.DATACLASS:
             return output
         if normalized_output_type is OutputType.DICT:
-            return asdict(output)
+            return self.output_to_dict(output)
         assert_never(normalized_output_type)
 
     def save_pretrained(self, save_directory: str | os.PathLike[str]) -> None:
@@ -382,7 +391,7 @@ class LayoutPrompter:
         cls,
         pretrained_model_name_or_path: str | os.PathLike[str],
         *,
-        model: str | Model | None = None,
+        model: ModelLike = None,
     ) -> "LayoutPrompter":
         """Load a saved LayoutPrompter dataset and prompt configuration.
 
@@ -415,11 +424,15 @@ class LayoutPrompter:
         return cls(LayoutPrompterConfig(**config_data))
 
     @staticmethod
-    def _resolve_model(model: str | Model | None) -> str | Model:
+    def _resolve_model(model: ModelLike = None) -> ModelLike:
         if model is not None:
             return model
         return (
-            os.getenv("LAYOUTPROMPTER_MODEL")
+            os.getenv(DEFAULT_MODEL_ENV_VAR)
             or os.getenv("PYDANTIC_AI_MODEL")
             or DEFAULT_MODEL
         )
+
+    def resolve_model(self, model: ModelLike = None) -> ModelLike:
+        """Resolve constructor or per-call model with LayoutPrompter defaults."""
+        return self._resolve_model(model)
