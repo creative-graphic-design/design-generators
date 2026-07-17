@@ -8,7 +8,7 @@ def test_reproducing_vendor_parity_code_fences_are_tagged():
     section = readme.read_text(encoding="utf-8").split(
         "## Reproducing Vendor Parity", maxsplit=1
     )[1]
-    section = section.split("## Model Cards", maxsplit=1)[0]
+    section = section.split("## Vendor Links", maxsplit=1)[0]
     fence_lines = [line for line in section.splitlines() if line.startswith("```")]
 
     assert len(fence_lines) % 2 == 0

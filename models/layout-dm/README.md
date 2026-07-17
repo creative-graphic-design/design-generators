@@ -169,10 +169,6 @@ for dataset in ("rico25", "publaynet"):
 PY
 ```
 
-## Model Cards
-
-Converted checkpoint directories include a model card as `README.md`.
-
 ## Vendor Links
 
 - Original implementation: https://github.com/CyberAgentAILab/layout-dm
