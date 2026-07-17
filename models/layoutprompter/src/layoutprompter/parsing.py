@@ -54,6 +54,20 @@ class Parser:
                 continue
         return parsed
 
+    def parse_vendor_compatible(
+        self, prediction: str
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Parse string output as vendor-compatible normalized top-left ``xywh``."""
+        if self.output_format == "seq":
+            labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
+        elif self.output_format == "html":
+            labels, pixel_ltwh = self._extract_from_html(prediction)
+        else:
+            raise ValueError(f"Unsupported output format: {self.output_format}")
+        width, height = self.canvas_size
+        scale = pixel_ltwh.new_tensor((width, height, width, height))
+        return labels, pixel_ltwh / scale
+
     def _extract_from_structured(
         self, prediction: LayoutPrompterOutput
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -108,6 +122,30 @@ class Parser:
         matches = re.findall(pattern, prediction.lower())
         if not matches:
             raise RuntimeError("No seq layout elements parsed")
+        label_tensor = torch.tensor(
+            [self.label2id[item[0]] for item in matches], dtype=torch.long
+        )
+        bbox_tensor = torch.tensor(
+            [
+                [int(item[1]), int(item[2]), int(item[3]), int(item[4])]
+                for item in matches
+            ],
+            dtype=torch.float,
+        )
+        return label_tensor, bbox_tensor
+
+    def _extract_from_seq_vendor(
+        self, prediction: str
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        labels = sorted(self.label2id, key=len, reverse=True)
+        pattern = (
+            r"("
+            + "|".join(re.escape(label) for label in labels)
+            + r")\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)"
+        )
+        matches = re.findall(pattern, prediction.lower())
+        if not matches:
+            raise RuntimeError("No vendor seq layout elements parsed")
         label_tensor = torch.tensor(
             [self.label2id[item[0]] for item in matches], dtype=torch.long
         )
