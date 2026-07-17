@@ -7,9 +7,12 @@ import torch
 import yaml
 
 from laygen.common.labels import normalize_dataset_name
-from laygen.common.model_card import layoutdm_model_card
 from layout_dm.configuration_layout_dm import LayoutDMConfig
-from layout_dm.conversion import load_cluster_centers, split_original_state_dict
+from layout_dm.conversion import (
+    load_cluster_centers,
+    split_original_state_dict,
+    write_layoutdm_model_card,
+)
 from layout_dm.denoiser import LayoutDMDenoiser
 from layout_dm.pipeline import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
@@ -97,10 +100,7 @@ def main() -> None:
         processor=LayoutDMProcessor(tokenizer),
     )
     pipe.save_pretrained(args.output_dir, safe_serialization=True)
-    (args.output_dir / "README.md").write_text(
-        str(layoutdm_model_card(dataset=dataset_name)),
-        encoding="utf-8",
-    )
+    write_layoutdm_model_card(args.output_dir, dataset_name)
     print(args.output_dir)
 
 
