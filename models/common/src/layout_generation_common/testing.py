@@ -13,7 +13,7 @@ def assert_mask_valid(mask: torch.Tensor) -> None:
 
 
 def assert_normalized_xywh(
-    bbox: torch.Tensor, mask: torch.BoolTensor | None = None
+    bbox: torch.Tensor, mask: torch.Tensor | None = None
 ) -> None:
     assert bbox.dtype.is_floating_point
     assert bbox.shape[-1] == 4

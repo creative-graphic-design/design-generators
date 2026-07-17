@@ -6,9 +6,7 @@ import torch.nn.functional as F
 LOG_EPS = -70.0
 
 
-def index_to_log_onehot(
-    input_ids: torch.LongTensor, vocab_size: int
-) -> torch.FloatTensor:
+def index_to_log_onehot(input_ids: torch.Tensor, vocab_size: int) -> torch.Tensor:
     if input_ids.numel() and input_ids.max().item() >= vocab_size:
         raise ValueError(
             f"input id {input_ids.max().item()} exceeds vocab_size {vocab_size}"
@@ -18,7 +16,7 @@ def index_to_log_onehot(
     return torch.log(onehot.permute(order).float().clamp(min=1e-30))
 
 
-def log_onehot_to_index(log_x: torch.FloatTensor) -> torch.LongTensor:
+def log_onehot_to_index(log_x: torch.Tensor) -> torch.Tensor:
     return log_x.argmax(dim=1)
 
 
@@ -28,7 +26,7 @@ def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 def extract(
-    values: torch.Tensor, timesteps: torch.LongTensor, broadcast_shape: torch.Size
+    values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
 ) -> torch.Tensor:
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
@@ -45,14 +43,14 @@ def gumbel_noise_like(
 
 
 def log_sample_categorical(
-    logits: torch.FloatTensor,
+    logits: torch.Tensor,
     *,
     generator: torch.Generator | None = None,
-) -> torch.LongTensor:
+) -> torch.Tensor:
     return (logits + gumbel_noise_like(logits, generator=generator)).argmax(dim=1)
 
 
-def top_k_logits(logits: torch.FloatTensor, k: int, dim: int = -1) -> torch.FloatTensor:
+def top_k_logits(logits: torch.Tensor, k: int, dim: int = -1) -> torch.Tensor:
     if k <= 0 or k >= logits.size(dim):
         return logits
     values = torch.topk(logits, k, dim=dim).values
@@ -60,7 +58,7 @@ def top_k_logits(logits: torch.FloatTensor, k: int, dim: int = -1) -> torch.Floa
     return logits.masked_fill(logits < threshold, LOG_EPS)
 
 
-def _top_p_logits(logits: torch.FloatTensor, top_p: float) -> torch.FloatTensor:
+def _top_p_logits(logits: torch.Tensor, top_p: float) -> torch.Tensor:
     if top_p >= 1.0:
         return logits
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
@@ -76,14 +74,14 @@ def _top_p_logits(logits: torch.FloatTensor, top_p: float) -> torch.FloatTensor:
 
 
 def sample_categorical(
-    logits: torch.FloatTensor,
+    logits: torch.Tensor,
     *,
     sampling: str = "random",
     temperature: float = 1.0,
     top_k: int | None = None,
     top_p: float | None = None,
     generator: torch.Generator | None = None,
-) -> torch.LongTensor:
+) -> torch.Tensor:
     if sampling == "deterministic":
         return logits.argmax(dim=-1)
     scaled = logits / temperature
@@ -100,7 +98,7 @@ def sample_categorical(
     return sampled
 
 
-def batch_topk_mask(scores: torch.FloatTensor, k: torch.LongTensor) -> torch.BoolTensor:
+def batch_topk_mask(scores: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
     max_k = int(k.max().item()) if k.numel() else 0

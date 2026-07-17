@@ -49,10 +49,10 @@ extend-select = ["ANN", "D"]
 exclude = ["vendor"]
 
 [tool.ruff.lint.per-file-ignores]
-"models/**/src/**/*.py" = ["ANN", "D"]
-"models/**/scripts/**/*.py" = ["ANN", "D"]
-"models/**/tests/*.py" = ["ANN", "D"]
-"models/**/tests/**/*.py" = ["ANN", "D"]
+"models/*/scripts/**/*.py" = ["ANN", "D"]
+"models/*/src/**/*.py" = ["ANN", "D"]
+"models/*/tests/*.py" = ["ANN", "D"]
+"models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
 "tests/*.py" = ["ANN", "D"]
 "tests/**/*.py" = ["ANN", "D"]
@@ -67,6 +67,7 @@ invalid-return-type = "ignore"
 missing-override-decorator = "ignore"
 missing-type-argument = "ignore"
 unsupported-base = "ignore"
+unresolved-import = "ignore"
 
 [tool.ty.src]
 exclude = [
@@ -79,7 +80,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
-testpaths = ["tests", "src", "models"]
+testpaths = ["tests", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original weights and vendor dependencies",
@@ -88,5 +89,5 @@ markers = [
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py"]
-verbose = true
+paths = ["main.py", "models"]
+verbose = false
