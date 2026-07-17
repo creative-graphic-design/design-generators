@@ -30,13 +30,13 @@ def normalize_condition_type(condition_type: str) -> str:
 
 @dataclass
 class LayoutDMCondition:
-    input_ids: torch.LongTensor
-    mask: torch.BoolTensor
+    input_ids: torch.Tensor
+    mask: torch.Tensor
     type: Literal["c", "cwh", "partial", "refinement"]
-    num_element: torch.LongTensor | None = None
-    original_input_ids: torch.LongTensor | None = None
-    weak_mask: torch.BoolTensor | None = None
-    weak_logits: torch.FloatTensor | None = None
+    num_element: torch.Tensor | None = None
+    original_input_ids: torch.Tensor | None = None
+    weak_mask: torch.Tensor | None = None
+    weak_logits: torch.Tensor | None = None
 
 
 def build_condition(

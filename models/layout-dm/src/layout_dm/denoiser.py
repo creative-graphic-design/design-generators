@@ -13,7 +13,7 @@ from .transformer import CategoricalTransformer
 
 @dataclass
 class LayoutDMDenoiserOutput(BaseOutput):
-    logits: torch.FloatTensor
+    logits: torch.Tensor
 
 
 class LayoutDMDenoiser(ModelMixin, ConfigMixin):
@@ -45,15 +45,15 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
         )
 
     def forward(
-        self, input_ids: torch.LongTensor, timesteps: torch.LongTensor
+        self, input_ids: torch.Tensor, timesteps: torch.Tensor
     ) -> LayoutDMDenoiserOutput:
         return LayoutDMDenoiserOutput(
             logits=self.transformer(input_ids, timestep=timesteps)["logits"]
         )
 
     def predict_start_log_probs(
-        self, input_ids: torch.LongTensor, timesteps: torch.LongTensor
-    ) -> torch.FloatTensor:
+        self, input_ids: torch.Tensor, timesteps: torch.Tensor
+    ) -> torch.Tensor:
         logits = self(input_ids=input_ids, timesteps=timesteps).logits[:, :, :-1]
         log_pred = F.log_softmax(logits.double(), dim=-1).float()
         zero_mask = torch.full(

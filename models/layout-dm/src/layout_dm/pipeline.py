@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -43,9 +44,9 @@ class LayoutDMPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str = "unconditional",
-        labels: torch.Tensor | np.ndarray | list | None = None,
-        bbox: torch.Tensor | np.ndarray | list | None = None,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        labels: torch.Tensor | np.ndarray | list[Any] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
+        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
         normalized: bool = True,
@@ -59,8 +60,9 @@ class LayoutDMPipeline(DiffusionPipeline):
         top_p: float = 0.9,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        **model_kwargs,
+        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
@@ -146,11 +148,13 @@ class LayoutDMPipeline(DiffusionPipeline):
 
     generate = __call__
 
-    def save_pretrained(self, save_directory, **kwargs):
+    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+    def from_pretrained(
+        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+    ) -> "LayoutDMPipeline":
         tokenizer = LayoutDMTokenizer.from_pretrained(pretrained_model_name_or_path)
         kwargs.setdefault("tokenizer", tokenizer)
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
