@@ -64,6 +64,19 @@ def test_sinusoidal_pos_emb_matches_vendor_even_and_odd_dims() -> None:
         assert torch.equal(actual, expected)
 
 
+def test_sinusoidal_pos_emb_matches_vendor_at_lace_scale() -> None:
+    timesteps = torch.tensor([0, 1, 499, 999], dtype=torch.long)
+    actual = SinusoidalPosEmb(num_steps=1000, dim=512, rescale_steps=4000)(timesteps)
+    expected = _vendor_sinusoidal_pos_emb(
+        timesteps,
+        num_steps=1000,
+        dim=512,
+        rescale_steps=4000,
+    )
+    assert actual.shape == expected.shape
+    assert torch.equal(actual, expected)
+
+
 def test_adaptive_norms_and_element_position_embedding_are_shape_stable() -> None:
     hidden = torch.randn(2, 3, 8)
     timesteps = torch.tensor([1, 2])

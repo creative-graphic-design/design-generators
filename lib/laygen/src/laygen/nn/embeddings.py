@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from enum import StrEnum, auto
 
 import torch
-from diffusers.models.embeddings import get_timestep_embedding
 from einops import repeat
 from torch import nn
 
@@ -69,15 +69,12 @@ class SinusoidalPosEmb(nn.Module):
         Returns:
             Sinusoidal embedding tensor.
         """
-        scaled = x / self.num_steps * self.rescale_steps
-        vendor_dim = (self.dim // 2) * 2
-        return get_timestep_embedding(
-            scaled,
-            vendor_dim,
-            flip_sin_to_cos=False,
-            downscale_freq_shift=1,
-            max_period=10000,
-        )
+        x = x / self.num_steps * self.rescale_steps
+        half_dim = self.dim // 2
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, device=x.device) * -emb)
+        emb = x[:, None] * emb[None, :]
+        return torch.cat((emb.sin(), emb.cos()), dim=-1)
 
 
 class ElementPositionalEmbedding(nn.Module):
