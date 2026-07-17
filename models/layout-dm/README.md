@@ -76,6 +76,12 @@ This section reproduces the parity verification against the original implementat
 
 Run these commands from the repository root unless a block explicitly changes directory. The commands assume CUDA is available as device `0`, the vendored original implementation is present at `vendor/layout-dm`, and generated files may be written under `.cache/` and `models/layout-dm/tests/vendor_parity/fixtures/`. If this worktree does not contain the vendor submodule contents, pass `--vendor-dir /path/to/design-generators/vendor/layout-dm` to `generate_reference_outputs.py`.
 
+Prerequisite:
+
+```bash
+git submodule update --init vendor/layout-dm
+```
+
 ### 1. Download Original Weights
 
 This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
@@ -116,7 +122,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python scripts/
 cd ../..
 ```
 
-### 3. Run Parity Tests
+### 3. Run Vendor Parity Tests
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs

@@ -17,5 +17,5 @@ def test_reproducibility_code_fences_are_tagged():
 
     assert all(fence in {"```bash", "```text"} for fence in opening_fences)
     assert all(fence == "```" for fence in closing_fences)
-    assert opening_fences.count("```bash") == 5
+    assert opening_fences.count("```bash") == 6
     assert opening_fences.count("```text") == 2

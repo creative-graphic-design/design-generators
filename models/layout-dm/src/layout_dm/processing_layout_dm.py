@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from os import PathLike
+from typing import Literal
 
 import numpy as np
 import torch
+from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
     BoxFormat,
@@ -18,7 +20,7 @@ from laygen.common.bbox import (
 from .tokenization_layout_dm import LayoutDMTokenizer
 
 
-class LayoutDMProcessor:
+class LayoutDMProcessor(ProcessorMixin):
     """Normalize layout arrays and encode them with ``LayoutDMTokenizer``.
 
     Args:
@@ -33,17 +35,41 @@ class LayoutDMProcessor:
     """
 
     config_name = "processor_config.json"
+    tokenizer_class = "LayoutDMTokenizer"
 
     def __init__(self, tokenizer: LayoutDMTokenizer) -> None:
         """Initialize the processor with a tokenizer."""
-        self.tokenizer = tokenizer
+        super().__init__(tokenizer=tokenizer)
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: str | PathLike[str],
+        cache_dir: str | PathLike[str] | None = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: str | bool | None = None,
+        revision: str = "main",
+        **kwargs: object,
+    ) -> "LayoutDMProcessor":
+        """Load a processor with the LayoutDM tokenizer implementation."""
+        tokenizer = LayoutDMTokenizer.from_pretrained(
+            pretrained_model_name_or_path,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            **kwargs,
+        )
+        return cls(tokenizer=tokenizer)
 
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list[Any],
-        labels: torch.Tensor | np.ndarray | list[Any],
-        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[object],
+        labels: torch.Tensor | np.ndarray | list[object],
+        mask: torch.Tensor | np.ndarray | list[object] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -91,12 +117,3 @@ class LayoutDMProcessor:
         elif fmt is BoxFormat.ltrb:
             bbox_t = ltrb_to_xywh(bbox_t)
         return self.tokenizer.encode_layout(bbox=bbox_t, labels=labels_t, mask=mask_t)
-
-    def save_pretrained(self, save_directory: str) -> None:
-        """Save the processor state through the underlying tokenizer."""
-        self.tokenizer.save_pretrained(save_directory)
-
-    @classmethod
-    def from_pretrained(cls, path: str) -> "LayoutDMProcessor":
-        """Load a processor from a tokenizer directory."""
-        return cls(LayoutDMTokenizer.from_pretrained(path))

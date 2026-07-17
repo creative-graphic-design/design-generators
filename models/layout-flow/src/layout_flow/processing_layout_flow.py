@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import assert_never
+from collections.abc import Sequence
+from typing import TypeAlias, assert_never
 
 import numpy as np
 import torch
@@ -18,6 +19,8 @@ from laygen.common.bbox import (
 from laygen.common.conditions import ConditionType, normalize_condition_type
 
 from .configuration_layout_flow import LayoutFlowConfig
+
+TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
 
 
 class LayoutFlowProcessor:
@@ -36,12 +39,12 @@ class LayoutFlowProcessor:
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list | None = None,
-        labels: torch.Tensor | np.ndarray | list | None = None,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        bbox: TensorInput = None,
+        labels: TensorInput = None,
+        mask: TensorInput = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         batch_size: int = 1,
-        box_format: BoxFormat = "xywh",
+        box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         device: torch.device | str | None = None,
@@ -116,14 +119,14 @@ class LayoutFlowProcessor:
         labels_t = labels_t * mask_t.long()
         return {"bbox": bbox_t, "labels": labels_t, "mask": mask_t, "length": lengths}
 
-    def encode_labels(self, labels: torch.LongTensor) -> torch.FloatTensor:
+    def encode_labels(self, labels: torch.Tensor) -> torch.Tensor:
         """Encode integer labels as vendor analog-bit vectors."""
         bit_mask = self.bit_mask.to(labels.device)
         return (
             torch.bitwise_and(labels.unsqueeze(-1), bit_mask).float() / bit_mask.float()
         )
 
-    def decode_labels(self, bits: torch.Tensor) -> torch.LongTensor:
+    def decode_labels(self, bits: torch.Tensor) -> torch.Tensor:
         """Decode vendor analog-bit vectors into integer labels."""
         bit_mask = self.bit_mask.to(bits.device)
         active = (bits - 0.5 >= 0).long()
@@ -147,9 +150,9 @@ class LayoutFlowProcessor:
         self,
         condition_type: ConditionType | str,
         *,
-        mask: torch.BoolTensor,
+        mask: torch.Tensor,
         generator: torch.Generator | None = None,
-    ) -> torch.LongTensor:
+    ) -> torch.Tensor:
         """Create the vendor condition mask for a conditioning mode.
 
         Args:
@@ -181,14 +184,14 @@ class LayoutFlowProcessor:
         elif canonical is ConditionType.unconditional:
             pass
         else:
-            assert_never(canonical)
+            raise ValueError(f"Unsupported LayoutFlow condition_type: {canonical}")
         return cond_mask
 
     def postprocess(
         self,
         state: torch.Tensor,
         *,
-        mask: torch.BoolTensor,
+        mask: torch.Tensor,
         box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -234,10 +237,10 @@ class LayoutFlowProcessor:
 
     def _completion_mask(
         self,
-        cond_mask: torch.LongTensor,
-        mask: torch.BoolTensor,
+        cond_mask: torch.Tensor,
+        mask: torch.Tensor,
         generator: torch.Generator | None,
-    ) -> torch.LongTensor:
+    ) -> torch.Tensor:
         for i, length in enumerate(mask.sum(dim=1).tolist()):
             if length <= 1:
                 continue
@@ -265,7 +268,7 @@ class LayoutFlowProcessor:
         batch_size: int,
         max_length: int,
         device: torch.device,
-    ) -> torch.LongTensor:
+    ) -> torch.Tensor:
         if num_elements is None:
             return torch.full(
                 (batch_size,), max_length, dtype=torch.long, device=device

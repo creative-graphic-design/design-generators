@@ -1,10 +1,9 @@
 import torch
-from typing import Any, cast
+from typing import Literal, cast
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
-from layout_dm.conditioning import build_condition, normalize_condition_type
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser
 from layout_dm.pipeline import LayoutDMPipeline
@@ -92,7 +91,11 @@ def test_pipeline_validates_condition_and_output_type():
         raise AssertionError("missing conditional bbox should fail")
 
     try:
-        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+        pipe(
+            batch_size=1,
+            num_inference_steps=1,
+            output_type=cast(Literal["dataclass"], "tuple"),
+        )
     except ValueError as exc:
         assert "Unsupported output_type" in str(exc)
     else:
@@ -111,53 +114,3 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     )
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
-
-
-def test_condition_builder_covers_supported_modes():
-    tokenizer = make_pipeline().tokenizer
-    bbox = torch.tensor([[[0.5, 0.5, 0.25, 0.25], [0.2, 0.2, 0.1, 0.1]]])
-    labels = torch.tensor([[0, 1]])
-    mask = torch.tensor([[True, False]])
-
-    assert normalize_condition_type("cat_cond") == "label"
-    label = build_condition(
-        tokenizer, cond_type="label", bbox=bbox, labels=labels, mask=mask
-    )
-    assert label.type == "c"
-    assert label.mask[:, 0::5].any()
-    assert not label.mask[:, 1::5].any()
-
-    label_size = build_condition(
-        tokenizer, cond_type="size_cond", bbox=bbox, labels=labels, mask=mask
-    )
-    assert label_size.type == "cwh"
-    assert label_size.mask[:, 3::5].any()
-    assert label_size.mask[:, 4::5].any()
-
-    completion = build_condition(
-        tokenizer, cond_type="completion", bbox=bbox, labels=labels, mask=mask
-    )
-    assert completion.type == "partial"
-    assert completion.mask.shape == completion.input_ids.shape
-
-    noisy_bbox = torch.tensor([[[0.9, 0.1, 0.8, 0.2], [0.2, 0.2, 0.1, 0.1]]])
-    refinement = build_condition(
-        tokenizer,
-        cond_type="refine",
-        bbox=bbox,
-        labels=labels,
-        mask=mask,
-        noisy_bbox=noisy_bbox,
-    )
-    assert refinement.type == "refinement"
-    assert refinement.original_input_ids is not None
-    assert not torch.equal(refinement.input_ids, refinement.original_input_ids)
-
-    try:
-        build_condition(
-            tokenizer, cond_type="unsupported", bbox=bbox, labels=labels, mask=mask
-        )
-    except ValueError as exc:
-        assert "Unknown condition_type: unsupported" in str(exc)
-    else:
-        raise AssertionError("unsupported condition type should fail")

@@ -10,7 +10,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 
-from .transformer import CategoricalTransformer
+from .transformer import CategoricalTransformer, TimestepType
 
 
 @dataclass
@@ -53,7 +53,7 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
         num_hidden_layers: int = 4,
         intermediate_size: int = 1856,
         dropout: float = 0.0,
-        timestep_type: str | None = "adalayernorm",
+        timestep_type: TimestepType | None = "adalayernorm",
     ) -> None:
         """Initialize the categorical transformer denoiser."""
         super().__init__()

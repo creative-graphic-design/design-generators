@@ -61,10 +61,6 @@ print(out.bbox, out.labels, out.mask, out.id2label)
             "diffusers",
             dataset,
         ],
-        model_summary=(
-            "Diffusers-format conversion of the LayoutFlow flow-matching layout "
-            f"generation checkpoint for `{dataset}`."
-        ),
         model_details=(
             "Diffusers-format conversion of the LayoutFlow checkpoint for "
             f"`{dataset}`. LayoutFlow is a flow-matching layout generator that "
@@ -72,66 +68,24 @@ print(out.bbox, out.labels, out.mask, out.id2label)
             "analog-bit category labels. Public outputs are normalized center "
             "`xywh` boxes, dataset-local labels, masks, and `id2label` metadata."
         ),
-        developed_by=(
-            "Julian Guerreiro, Naoto Inoue, Kento Masui, Mayu Otani, and Hideki "
-            "Nakayama; converted by creative-graphic-design."
-        ),
-        model_type="Flow-matching transformer model for layout generation.",
-        repo_url="https://github.com/julianguerreiro/LayoutFlow",
-        paper_url="https://arxiv.org/abs/2403.18187",
-        demo_url="https://julianguerreiro.github.io/layoutflow/",
-        direct_use=(
+        intended_uses=(
             "Use this checkpoint for research and evaluation of UI/document "
             "layout generation and controllable layout completion workflows."
-        ),
-        downstream_use=(
-            "Generated layouts can seed design-tool prototypes, dataset analysis, "
-            "or downstream rendering systems after task-specific validation."
-        ),
-        out_of_scope_use=(
-            "Do not use this checkpoint as an image renderer, OCR system, "
-            "accessibility checker, safety classifier, or an automated source of "
-            "production UI/document decisions without human review."
         ),
         limitations=(
             "This checkpoint generates layout geometry and category labels only; "
             "it does not render images or text. Generation is stochastic unless a "
             "`torch.Generator` or `seed` is supplied. The converted artifact "
             "preserves the original checkpoint behavior and should be evaluated "
-            "within the original dataset domain."
-        ),
-        recommendations=(
-            "Validate outputs on the intended document or UI domain, keep humans "
-            "in the loop for design decisions, and treat category taxonomies as "
-            "dataset-specific rather than universal."
+            "within the original dataset domain. Do not use it as an image "
+            "renderer, OCR system, accessibility checker, safety classifier, or "
+            "unreviewed production UI generator."
         ),
         how_to_use=how_to_use,
         training_data=(
             f"The original checkpoint was trained on `{dataset_id}` using the "
             "splits distributed by the LayoutFlow authors through "
             "`JulianGuerreiro/LayoutFlow`."
-        ),
-        training_procedure=(
-            "The training procedure follows the original LayoutFlow release; this "
-            "repository only converts released checkpoints and does not retrain."
-        ),
-        preprocessing=(
-            "Layouts are represented as normalized center `xywh` boxes, padding "
-            "masks, and analog-bit encodings of dataset-local category labels."
-        ),
-        training_regime="Original training regime; not retrained during conversion.",
-        speeds_sizes_times="No additional training was run for this conversion.",
-        testing_data=(
-            "Vendor parity tests use deterministic synthetic fixtures and the "
-            f"released `{dataset}` checkpoint from `JulianGuerreiro/LayoutFlow`."
-        ),
-        testing_factors=(
-            "Dataset checkpoint, learned vector field, and Euler ODE trajectory "
-            "through the original vendor sampling path."
-        ),
-        testing_metrics=(
-            "Maximum absolute and relative deviation between converted and vendor "
-            "vector-field outputs and Euler trajectories."
         ),
         parity_metrics=[
             {
@@ -142,29 +96,8 @@ print(out.bbox, out.labels, out.mask, out.id2label)
                 "logits_max_rel": 0.0,
             }
         ],
-        results_summary=(
-            "PubLayNet and RICO25 vector-field and Euler-trajectory parity are "
-            "exact within the tested tolerances: max_abs=0.0 and max_rel=0.0."
-        ),
-        model_specs=(
-            "LayoutFlow uses a transformer vector-field model over continuous "
-            "box coordinates and analog-bit label encodings, sampled with an "
-            "increasing-time Euler ODE scheduler from `t=0` to `t=1`."
-        ),
-        compute_infrastructure=(
-            "Inference requires Python, PyTorch, Diffusers, and this workspace "
-            "package. GPU is recommended for full parity or batch evaluation."
-        ),
-        hardware_requirements="CPU works for smoke tests; CUDA is recommended for parity.",
-        software="Python 3.11+, PyTorch, Diffusers, and Hugging Face Hub tooling.",
         citation_bibtex=LAYOUTFLOW_BIBTEX,
-        citation_apa=(
-            "Guerreiro, J. J. A., Inoue, N., Masui, K., Otani, M., & Nakayama, H. "
-            "(2024). LayoutFlow: Flow Matching For Layout Generation. ECCV."
-        ),
         original_implementation_url="https://github.com/julianguerreiro/LayoutFlow",
-        model_card_authors="creative-graphic-design",
-        model_card_contact="Use the repository issue tracker for questions.",
     )
 
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Self, assert_never
+from typing import Self, TypeAlias, assert_never, cast
 
 import numpy as np
 import torch
@@ -22,6 +23,8 @@ from .processing_layout_flow import (
 )
 from .sampling import sample_initial_state
 from .scheduling_layout_flow import LayoutFlowEulerScheduler
+
+TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
 
 
 class OutputType(StrEnum):
@@ -66,9 +69,9 @@ class LayoutFlowPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str = "unconditional",
-        labels: torch.Tensor | np.ndarray | list | None = None,
-        bbox: torch.Tensor | np.ndarray | list | None = None,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        labels: TensorInput = None,
+        bbox: TensorInput = None,
+        mask: TensorInput = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
@@ -229,7 +232,11 @@ class LayoutFlowPipeline(DiffusionPipeline):
         Returns:
             Loaded LayoutFlow pipeline.
         """
-        config = LayoutFlowConfig.from_config(pretrained_model_name_or_path)
+        config_dict, _ = LayoutFlowConfig.load_config(
+            pretrained_model_name_or_path,
+            return_unused_kwargs=True,
+        )
+        config = cast(LayoutFlowConfig, LayoutFlowConfig.from_config(config_dict))
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
         pipe.layout_flow_config = config
         pipe.processor = LayoutFlowProcessor(config)

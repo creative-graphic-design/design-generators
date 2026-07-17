@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal, overload
 
 import torch
 from diffusers import ConfigMixin, SchedulerMixin
@@ -14,7 +15,7 @@ from diffusers.utils import BaseOutput
 class LayoutFlowSchedulerOutput(BaseOutput):
     """Output of one LayoutFlow Euler scheduler step."""
 
-    prev_sample: torch.FloatTensor
+    prev_sample: torch.Tensor
 
 
 class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
@@ -67,15 +68,37 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
         del timestep
         return sample
 
+    @overload
     def step(
         self,
-        model_output: torch.FloatTensor,
+        model_output: torch.Tensor,
         timestep: torch.Tensor | float,
-        sample: torch.FloatTensor,
+        sample: torch.Tensor,
+        *,
+        next_timestep: torch.Tensor | float | None = None,
+        return_dict: Literal[True] = True,
+    ) -> LayoutFlowSchedulerOutput: ...
+
+    @overload
+    def step(
+        self,
+        model_output: torch.Tensor,
+        timestep: torch.Tensor | float,
+        sample: torch.Tensor,
+        *,
+        next_timestep: torch.Tensor | float | None = None,
+        return_dict: Literal[False],
+    ) -> tuple[torch.Tensor]: ...
+
+    def step(
+        self,
+        model_output: torch.Tensor,
+        timestep: torch.Tensor | float,
+        sample: torch.Tensor,
         *,
         next_timestep: torch.Tensor | float | None = None,
         return_dict: bool = True,
-    ) -> LayoutFlowSchedulerOutput | tuple[torch.FloatTensor]:
+    ) -> LayoutFlowSchedulerOutput | tuple[torch.Tensor]:
         """Advance the sample with one Euler step.
 
         Args:

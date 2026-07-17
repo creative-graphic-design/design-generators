@@ -30,7 +30,7 @@ def _gelu2(x: torch.Tensor) -> torch.Tensor:
 def _get_activation_fn(
     activation: str | Callable[[Tensor], Tensor],
 ) -> Callable[[Tensor], Tensor]:
-    if callable(activation):
+    if not isinstance(activation, str):
         return activation
     if activation == "relu":
         return F.relu
@@ -57,6 +57,7 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(1, max_len, d_model)
         pe[0, :, 0::2] = torch.sin(position * div_term)
         pe[0, :, 1::2] = torch.cos(position * div_term)
+        self.pe: Tensor
         self.register_buffer("pe", pe)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -258,6 +259,7 @@ class LayoutDMBackbone(nn.Module):
         self, geom: Tensor, attr: Tensor, cond_flags: Tensor, t: Tensor
     ) -> Tensor:
         """Predict vector-field values for geometry and attribute inputs."""
+        ps = None
         if self.attr_encoding == "discrete":
             geom = self.geom_embed(geom)
             attr = self.type_embed(attr.squeeze())
@@ -294,6 +296,8 @@ class LayoutDMBackbone(nn.Module):
         )
         x = self.linear(x)
         if self.seq_type != "stacked":
+            if ps is None:
+                raise ValueError(f"Unsupported seq_type: {self.seq_type}")
             x = unpack(x, ps, "b * d")
             x = rearrange(x, "k b s d -> b s (k d)")
             x = self.to_attrdim(x)
@@ -304,7 +308,7 @@ class LayoutDMBackbone(nn.Module):
 class LayoutFlowModelOutput(BaseOutput):
     """Output of ``LayoutFlowTransformerModel``."""
 
-    sample: torch.FloatTensor
+    sample: Tensor
 
 
 class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
@@ -364,11 +368,11 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: torch.FloatTensor,
-        timestep: torch.FloatTensor,
-        cond_mask: torch.Tensor,
+        sample: Tensor,
+        timestep: Tensor,
+        cond_mask: Tensor,
         return_dict: bool = True,
-    ) -> LayoutFlowModelOutput | tuple[torch.FloatTensor]:
+    ) -> LayoutFlowModelOutput | tuple[Tensor]:
         """Predict the vector field for a model state.
 
         Args:

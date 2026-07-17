@@ -19,7 +19,7 @@ def sample_initial_state(
     *,
     batch_size: int,
     max_length: int,
-    lengths: torch.LongTensor,
+    lengths: torch.Tensor,
     dim: int,
     distribution: InitialDistribution | str = "gaussian",
     generator: torch.Generator | None = None,

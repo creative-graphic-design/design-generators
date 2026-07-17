@@ -1,6 +1,9 @@
+from typing import cast
+
 import torch
 import pytest
 
+from layout_flow.configuration_layout_flow import SeqType
 from layout_flow import LayoutFlowTransformerModel
 from layout_flow.modeling_layout_flow import (
     LayoutDMBackbone,
@@ -83,7 +86,7 @@ def test_backbone_variants_and_activation_errors() -> None:
         dim_feedforward=16,
         num_layers=1,
         num_cat=6,
-        seq_type="bad",
+        seq_type=cast(SeqType, "bad"),
     )
     with pytest.raises(ValueError, match="Unsupported seq_type"):
         bad(geom, torch.rand(1, 2, 1), cond, timestep)

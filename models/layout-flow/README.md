@@ -78,6 +78,12 @@ Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.Ne
 
 This section reproduces the parity verification against the original implementation.
 
+### Prerequisites
+
+```bash
+git submodule update --init vendor/layout-flow
+```
+
 Run the commands below from the repository root. The original source under `vendor/layout-flow` is read-only; downloads and generated artifacts are written under `.cache/layout-flow`.
 
 1. Download the original checkpoints. This creates `.cache/layout-flow/original/checkpoints/checkpoint_PubLayNet_LayoutFlow.ckpt` and `.cache/layout-flow/original/checkpoints/checkpoint_RICO_LayoutFlow.ckpt`.
