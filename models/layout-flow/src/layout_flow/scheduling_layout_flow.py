@@ -1,3 +1,5 @@
+"""Euler scheduler for LayoutFlow flow-matching inference."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,17 +12,28 @@ from diffusers.utils import BaseOutput
 
 @dataclass
 class LayoutFlowSchedulerOutput(BaseOutput):
+    """Output of one LayoutFlow Euler scheduler step."""
+
     prev_sample: torch.FloatTensor
 
 
 class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
-    config_name = "scheduler_config.json"
-    order = 1
+    """Increasing-time Euler scheduler used by LayoutFlow."""
+
+    config_name: str = "scheduler_config.json"
+    order: int = 1
 
     @register_to_config
     def __init__(
         self, num_inference_steps: int = 100, start: float = 0.0, end: float = 1.0
     ) -> None:
+        """Initialize the scheduler.
+
+        Args:
+            num_inference_steps: Number of Euler steps.
+            start: Initial integration time.
+            end: Final integration time.
+        """
         self.num_inference_steps = num_inference_steps
         self.start = start
         self.end = end
@@ -34,6 +47,14 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
         start: float | None = None,
         end: float | None = None,
     ) -> None:
+        """Set the integration timesteps.
+
+        Args:
+            num_inference_steps: Optional number of inference steps.
+            device: Optional target device.
+            start: Optional start time.
+            end: Optional end time.
+        """
         steps = num_inference_steps or self.config.num_inference_steps
         start = self.config.start if start is None else start
         end = self.config.end if end is None else end
@@ -42,6 +63,8 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
     def scale_model_input(
         self, sample: torch.Tensor, timestep: torch.Tensor | float
     ) -> torch.Tensor:
+        """Return the sample unchanged for Diffusers scheduler compatibility."""
+        del timestep
         return sample
 
     def step(
@@ -53,6 +76,18 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
         next_timestep: torch.Tensor | float | None = None,
         return_dict: bool = True,
     ) -> LayoutFlowSchedulerOutput | tuple[torch.FloatTensor]:
+        """Advance the sample with one Euler step.
+
+        Args:
+            model_output: Predicted vector field.
+            timestep: Current integration time.
+            sample: Current sample state.
+            next_timestep: Optional next integration time.
+            return_dict: Whether to return a scheduler output dataclass.
+
+        Returns:
+            Scheduler output dataclass or single-item tuple.
+        """
         t = torch.as_tensor(timestep, device=sample.device, dtype=sample.dtype)
         if next_timestep is None:
             matches = torch.isclose(self.timesteps.to(sample.device, sample.dtype), t)

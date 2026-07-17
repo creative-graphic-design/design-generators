@@ -1,11 +1,31 @@
+"""Configuration objects and dataset metadata for LayoutFlow."""
+
 from __future__ import annotations
 
 import math
+from enum import StrEnum
+from typing import Final, Literal, assert_never
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
+from laygen.common.bbox import BoxFormat
 
-RICO25_LAYOUT_FLOW_LABELS: tuple[str, ...] = (
+
+AttrEncoding = Literal["AnalogBit", "continuous", "discrete"]
+SeqType = Literal["stacked", "seq", "seq_cond"]
+InitialDistributionName = Literal["gaussian", "uniform", "gmm", "gauss_uniform"]
+OdeSolverName = Literal["euler"]
+CoordinateRange = Literal["normalized_0_1"]
+
+
+class LayoutFlowDataset(StrEnum):
+    """Dataset variants supported by converted LayoutFlow checkpoints."""
+
+    rico25 = "rico25"
+    publaynet = "publaynet"
+
+
+RICO25_LAYOUT_FLOW_LABELS: Final[tuple[str, ...]] = (
     "background",
     "Advertisement",
     "Video",
@@ -34,7 +54,7 @@ RICO25_LAYOUT_FLOW_LABELS: tuple[str, ...] = (
     "Button Bar",
 )
 
-PUBLAYNET_LAYOUT_FLOW_LABELS: tuple[str, ...] = (
+PUBLAYNET_LAYOUT_FLOW_LABELS: Final[tuple[str, ...]] = (
     "background",
     "text",
     "title",
@@ -44,27 +64,70 @@ PUBLAYNET_LAYOUT_FLOW_LABELS: tuple[str, ...] = (
 )
 
 
-def normalize_dataset_name(dataset_name: str) -> str:
+_DATASET_ALIASES: Final[dict[str, LayoutFlowDataset]] = {
+    "rico": LayoutFlowDataset.rico25,
+    "rico25": LayoutFlowDataset.rico25,
+    "rico25_max25": LayoutFlowDataset.rico25,
+    "publaynet": LayoutFlowDataset.publaynet,
+    "publaynet_max25": LayoutFlowDataset.publaynet,
+}
+
+
+def normalize_dataset_name(dataset_name: LayoutFlowDataset | str) -> LayoutFlowDataset:
+    """Normalize LayoutFlow dataset aliases.
+
+    Args:
+        dataset_name: Dataset enum value or string alias.
+
+    Returns:
+        Canonical LayoutFlow dataset enum.
+
+    Raises:
+        ValueError: If the dataset name is unsupported.
+
+    Examples:
+        >>> str(normalize_dataset_name("rico25_max25"))
+        'rico25'
+    """
+    if isinstance(dataset_name, LayoutFlowDataset):
+        return dataset_name
     key = dataset_name.lower().replace("-", "_")
-    if key in {"rico", "rico25", "rico25_max25"}:
-        return "rico25"
-    if key in {"publaynet", "publaynet_max25"}:
-        return "publaynet"
-    raise ValueError(f"Unknown LayoutFlow dataset_name: {dataset_name}")
+    try:
+        return _DATASET_ALIASES[key]
+    except KeyError as exc:
+        raise ValueError(f"Unknown LayoutFlow dataset_name: {dataset_name}") from exc
 
 
-def default_id2label(dataset_name: str) -> dict[int, str]:
+def default_id2label(dataset_name: LayoutFlowDataset | str) -> dict[int, str]:
+    """Return the LayoutFlow label vocabulary for a dataset.
+
+    Args:
+        dataset_name: Dataset enum value or string alias.
+
+    Returns:
+        Integer-id to label-name mapping.
+
+    Raises:
+        ValueError: If the dataset name is unsupported.
+
+    Examples:
+        >>> default_id2label("publaynet")[1]
+        'text'
+    """
     dataset = normalize_dataset_name(dataset_name)
-    labels = (
-        RICO25_LAYOUT_FLOW_LABELS
-        if dataset == "rico25"
-        else PUBLAYNET_LAYOUT_FLOW_LABELS
-    )
+    if dataset is LayoutFlowDataset.rico25:
+        labels = RICO25_LAYOUT_FLOW_LABELS
+    elif dataset is LayoutFlowDataset.publaynet:
+        labels = PUBLAYNET_LAYOUT_FLOW_LABELS
+    else:
+        assert_never(dataset)
     return dict(enumerate(labels))
 
 
 class LayoutFlowConfig(ConfigMixin):
-    config_name = "layout_flow_config.json"
+    """Configuration saved with converted LayoutFlow pipelines."""
+
+    config_name: str = "layout_flow_config.json"
 
     @register_to_config
     def __init__(
@@ -81,16 +144,42 @@ class LayoutFlowConfig(ConfigMixin):
         dropout: float = 0.1,
         use_pos_enc: bool = False,
         tr_enc_only: bool = True,
-        attr_encoding: str = "AnalogBit",
-        seq_type: str = "stacked",
-        distribution: str = "gaussian",
+        attr_encoding: AttrEncoding = "AnalogBit",
+        seq_type: SeqType = "stacked",
+        distribution: InitialDistributionName = "gaussian",
         sample_padding: bool = False,
         inference_steps: int = 100,
-        ode_solver: str = "euler",
-        bbox_format: str = "xywh",
-        coordinate_range: str = "normalized_0_1",
+        ode_solver: OdeSolverName = "euler",
+        bbox_format: BoxFormat | str = "xywh",
+        coordinate_range: CoordinateRange = "normalized_0_1",
     ) -> None:
-        self.dataset_name = normalize_dataset_name(dataset_name)
+        """Initialize LayoutFlow pipeline and model settings.
+
+        Args:
+            dataset_name: Dataset variant or alias.
+            id2label: Optional explicit id-to-label mapping.
+            max_length: Maximum number of layout elements.
+            latent_dim: Vendor latent dimension.
+            d_model: Transformer hidden size.
+            nhead: Number of attention heads.
+            dim_feedforward: Feed-forward hidden size.
+            num_layers: Number of transformer layers.
+            dropout: Dropout probability.
+            use_pos_enc: Whether to add sinusoidal position encodings.
+            tr_enc_only: Whether to use the encoder-only vendor path.
+            attr_encoding: Attribute encoding used by the vendor checkpoint.
+            seq_type: Vendor sequence layout type.
+            distribution: Initial sampling distribution.
+            sample_padding: Whether vendor sampling includes padded elements.
+            inference_steps: Default Euler inference steps.
+            ode_solver: ODE solver name.
+            bbox_format: Public bounding-box format.
+            coordinate_range: Public coordinate range.
+
+        Raises:
+            ValueError: If ``dataset_name`` is unsupported.
+        """
+        self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or default_id2label(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
         self.max_length = max_length
@@ -108,23 +197,27 @@ class LayoutFlowConfig(ConfigMixin):
         self.sample_padding = sample_padding
         self.inference_steps = inference_steps
         self.ode_solver = ode_solver
-        self.bbox_format = bbox_format
+        self.bbox_format = str(BoxFormat(bbox_format))
         self.coordinate_range = coordinate_range
 
     @property
     def label2id(self) -> dict[str, int]:
+        """Return the label-name to integer-id mapping."""
         return {v: k for k, v in self.id2label.items()}
 
     @property
     def num_labels(self) -> int:
+        """Return the number of labels, including the background label."""
         return len(self.id2label)
 
     @property
     def attr_dim(self) -> int:
+        """Return the analog-bit attribute dimensionality."""
         if self.attr_encoding == "AnalogBit":
             return int(math.ceil(math.log2(self.num_labels)))
         return 1
 
     @property
     def sample_dim(self) -> int:
+        """Return the model-state dimensionality per layout element."""
         return 4 + self.attr_dim

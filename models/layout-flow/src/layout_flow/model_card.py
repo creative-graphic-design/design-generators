@@ -1,3 +1,5 @@
+"""Model-card generation for converted LayoutFlow checkpoints."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,6 +21,22 @@ LAYOUTFLOW_BIBTEX = r"""
 
 
 def layoutflow_model_card(dataset: str) -> ModelCard:
+    """Build a model card for a converted LayoutFlow checkpoint.
+
+    Args:
+        dataset: LayoutFlow dataset name or alias.
+
+    Returns:
+        Validated Hugging Face model card.
+
+    Raises:
+        ValueError: If ``dataset`` is unsupported.
+
+    Examples:
+        >>> card = layoutflow_model_card("publaynet")
+        >>> card.data.to_dict()["library_name"]
+        'diffusers'
+    """
     dataset = _normalize_dataset(dataset)
     model_id = f"creative-graphic-design/layout-flow-{dataset}"
     dataset_id = _dataset_id(dataset)
@@ -151,6 +169,25 @@ print(out.bbox, out.labels, out.mask, out.id2label)
 
 
 def save_layoutflow_model_card(output_dir: str | Path, *, dataset: str) -> Path:
+    """Write a LayoutFlow model card as ``README.md``.
+
+    Args:
+        output_dir: Directory that receives ``README.md``.
+        dataset: LayoutFlow dataset name or alias.
+
+    Returns:
+        Path to the written README.
+
+    Raises:
+        ValueError: If ``dataset`` is unsupported.
+
+    Examples:
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as tmp:
+        ...     path = save_layoutflow_model_card(tmp, dataset="publaynet")
+        ...     path.name
+        'README.md'
+    """
     output_path = Path(output_dir) / "README.md"
     output_path.write_text(str(layoutflow_model_card(dataset)), encoding="utf-8")
     return output_path

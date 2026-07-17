@@ -1,22 +1,40 @@
+"""Diffusers pipeline for LayoutFlow inference."""
+
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum
+from pathlib import Path
+from typing import Self, assert_never
 
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
 from .modeling_layout_flow import LayoutFlowTransformerModel
-from .processing_layout_flow import LayoutFlowProcessor, normalize_condition_type
+from .processing_layout_flow import (
+    ConditionType,
+    LayoutFlowProcessor,
+    normalize_condition_type,
+)
 from .sampling import sample_initial_state
 from .scheduling_layout_flow import LayoutFlowEulerScheduler
 
 
+class OutputType(StrEnum):
+    """Pipeline output containers supported by LayoutFlow."""
+
+    dataclass = "dataclass"
+    dict = "dict"
+
+
 class LayoutFlowPipeline(DiffusionPipeline):
-    model_cpu_offload_seq = "model"
+    """Generate layouts with a converted LayoutFlow checkpoint."""
+
+    model_cpu_offload_seq: str = "model"
 
     def __init__(
         self,
@@ -25,6 +43,14 @@ class LayoutFlowPipeline(DiffusionPipeline):
         config: LayoutFlowConfig | None = None,
         processor: LayoutFlowProcessor | None = None,
     ) -> None:
+        """Create a LayoutFlow pipeline.
+
+        Args:
+            model: Converted LayoutFlow transformer model.
+            scheduler: Increasing-time Euler scheduler.
+            config: Optional pipeline configuration.
+            processor: Optional input/output processor.
+        """
         super().__init__()
         self.register_modules(model=model, scheduler=scheduler)
         dataset_name = "rico25" if model.config.num_labels == 26 else "publaynet"
@@ -44,18 +70,60 @@ class LayoutFlowPipeline(DiffusionPipeline):
         bbox: torch.Tensor | np.ndarray | list | None = None,
         mask: torch.Tensor | np.ndarray | list | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
         guidance_scale: float = 0.0,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: OutputType | str = "dataclass",
         return_intermediates: bool = False,
-        **model_kwargs,
+        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        """Generate layout boxes and labels.
+
+        Args:
+            batch_size: Number of layouts to generate.
+            seed: Optional seed used when ``generator`` is omitted.
+            generator: Optional torch random generator.
+            condition_type: Public condition name or vendor alias.
+            labels: Optional condition labels.
+            bbox: Optional condition boxes.
+            mask: Optional valid-element mask.
+            num_elements: Optional element counts for unconditional masks.
+            box_format: Input and output box format.
+            normalized: Whether coordinates are normalized.
+            canvas_size: Pixel canvas size for denormalized coordinates.
+            num_inference_steps: Number of Euler steps.
+            guidance_scale: Classifier-free guidance scale.
+            output_type: ``"dataclass"`` or ``"dict"``.
+            return_intermediates: Whether to include intermediate samples.
+            **model_kwargs: Reserved for Diffusers-compatible extension points.
+
+        Returns:
+            Layout generation output dataclass, or a dictionary when requested.
+
+        Raises:
+            ValueError: If ``condition_type``, ``box_format``, or ``output_type``
+                is unsupported.
+
+        Examples:
+            >>> pipe = LayoutFlowPipeline(
+            ...     model=LayoutFlowTransformerModel(
+            ...         num_labels=6, latent_dim=8, d_model=16, nhead=4,
+            ...         dim_feedforward=32, num_layers=1
+            ...     ),
+            ...     scheduler=LayoutFlowEulerScheduler(num_inference_steps=2),
+            ...     config=LayoutFlowConfig(max_length=2, latent_dim=8, d_model=16),
+            ... )
+            >>> out = pipe(batch_size=1, num_elements=1, seed=0, num_inference_steps=2)
+            >>> out.bbox.shape[-1]
+            4
+        """
+        del model_kwargs
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
+        output_kind = OutputType(output_type)
         processed = self.processor(
             bbox=bbox,
             labels=labels,
@@ -84,7 +152,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             device=self.device,
             dtype=cond_state.dtype,
         )
-        if canonical == "refinement":
+        if canonical is ConditionType.refinement:
             sample = cond_state
             self.scheduler.set_timesteps(
                 num_inference_steps, device=self.device, start=0.97, end=1.0
@@ -126,24 +194,41 @@ class LayoutFlowPipeline(DiffusionPipeline):
             mask=decoded["mask"].detach().cpu(),
             id2label=self.layout_flow_config.id2label,
             trajectory=trajectory,
-            intermediates={"condition_type": canonical}
+            intermediates={"condition_type": str(canonical)}
             if return_intermediates
             else None,
         )
-        if output_type == "dict":
+        if output_kind is OutputType.dict:
             return dict(output)
-        if output_type != "dataclass":
-            raise ValueError(f"Unsupported output_type: {output_type}")
-        return output
+        if output_kind is OutputType.dataclass:
+            return output
+        assert_never(output_kind)
 
     generate = __call__
 
-    def save_pretrained(self, save_directory, **kwargs):
+    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+        """Save pipeline components and LayoutFlow config.
+
+        Args:
+            save_directory: Output directory.
+            **kwargs: Forwarded to ``DiffusionPipeline.save_pretrained``.
+        """
         super().save_pretrained(save_directory, **kwargs)
         self.layout_flow_config.save_config(save_directory)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+    def from_pretrained(
+        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+    ) -> Self:
+        """Load a saved LayoutFlow pipeline.
+
+        Args:
+            pretrained_model_name_or_path: Local directory or Hub id.
+            **kwargs: Forwarded to ``DiffusionPipeline.from_pretrained``.
+
+        Returns:
+            Loaded LayoutFlow pipeline.
+        """
         config = LayoutFlowConfig.from_config(pretrained_model_name_or_path)
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
         pipe.layout_flow_config = config

@@ -1,3 +1,5 @@
+"""PyTorch modules for the converted LayoutFlow vector-field model."""
+
 from __future__ import annotations
 
 import copy
@@ -13,6 +15,8 @@ from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
 from torch import Tensor, nn
+
+from .configuration_layout_flow import AttrEncoding, SeqType
 
 
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
@@ -38,7 +42,12 @@ def _get_activation_fn(
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 10000):
+    """Sinusoidal positional encoding used by the vendor backbone."""
+
+    def __init__(
+        self, d_model: int, dropout: float = 0.1, max_len: int = 10000
+    ) -> None:
+        """Initialize positional encodings."""
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_len).unsqueeze(1)
@@ -51,11 +60,15 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x: Tensor) -> Tensor:
+        """Return positional encodings matching the sequence length of ``x``."""
         return self.dropout(self.pe[:, : x.shape[1]])
 
 
 class AdaLayerNorm(nn.Module):
-    def __init__(self, n_embd: int):
+    """Adaptive layer norm conditioned on the integration timestep."""
+
+    def __init__(self, n_embd: int) -> None:
+        """Initialize timestep-conditioned normalization."""
         super().__init__()
         self.emb = nn.Sequential(
             nn.Unflatten(0, (-1, 1)),
@@ -68,12 +81,15 @@ class AdaLayerNorm(nn.Module):
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
     def forward(self, x: Tensor, timestep: Tensor) -> Tensor:
+        """Normalize ``x`` with scale and shift predicted from ``timestep``."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
         return self.layernorm(x) * (1 + scale) + shift
 
 
 class LayoutFlowBlock(nn.Module):
+    """Transformer encoder block matching the original LayoutFlow backbone."""
+
     def __init__(
         self,
         d_model: int = 1024,
@@ -84,6 +100,7 @@ class LayoutFlowBlock(nn.Module):
         batch_first: bool = False,
         norm_first: bool = False,
     ) -> None:
+        """Initialize one LayoutFlow transformer block."""
         super().__init__()
         if not norm_first:
             raise ValueError("LayoutFlow transformer expects prenorm blocks")
@@ -107,6 +124,7 @@ class LayoutFlowBlock(nn.Module):
         src_key_padding_mask: Tensor | None = None,
         timestep: Tensor | None = None,
     ) -> Tensor:
+        """Apply self-attention and feed-forward layers."""
         if timestep is None:
             raise ValueError("timestep is required")
         x = self.norm1(src, timestep)
@@ -136,9 +154,12 @@ class LayoutFlowBlock(nn.Module):
 
 
 class LayoutFlowTransformerEncoder(nn.Module):
+    """Stack of LayoutFlow transformer blocks."""
+
     def __init__(
         self, encoder_layer: nn.Module, num_layers: int, norm: nn.Module | None = None
-    ):
+    ) -> None:
+        """Clone and stack ``encoder_layer`` ``num_layers`` times."""
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
@@ -151,6 +172,7 @@ class LayoutFlowTransformerEncoder(nn.Module):
         src_key_padding_mask: Tensor | None = None,
         timestep: Tensor | None = None,
     ) -> Tensor:
+        """Run the stacked encoder blocks."""
         output = src
         for layer in self.layers:
             output = layer(
@@ -163,6 +185,8 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
 
 class LayoutDMBackbone(nn.Module):
+    """Vendor-compatible LayoutFlow backbone module."""
+
     def __init__(
         self,
         latent_dim: int = 128,
@@ -174,9 +198,10 @@ class LayoutDMBackbone(nn.Module):
         dropout: float = 0.1,
         use_pos_enc: bool = False,
         num_cat: int = 6,
-        attr_encoding: str = "continuous",
-        seq_type: str = "stacked",
+        attr_encoding: AttrEncoding = "continuous",
+        seq_type: SeqType = "stacked",
     ) -> None:
+        """Initialize the vendor-compatible backbone."""
         super().__init__()
         self.geom_dim = 4
         self.num_cat = num_cat
@@ -232,6 +257,7 @@ class LayoutDMBackbone(nn.Module):
     def forward(
         self, geom: Tensor, attr: Tensor, cond_flags: Tensor, t: Tensor
     ) -> Tensor:
+        """Predict vector-field values for geometry and attribute inputs."""
         if self.attr_encoding == "discrete":
             geom = self.geom_embed(geom)
             attr = self.type_embed(attr.squeeze())
@@ -276,11 +302,15 @@ class LayoutDMBackbone(nn.Module):
 
 @dataclass
 class LayoutFlowModelOutput(BaseOutput):
+    """Output of ``LayoutFlowTransformerModel``."""
+
     sample: torch.FloatTensor
 
 
 class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
-    config_name = "layout_flow_model_config.json"
+    """Diffusers model wrapper around the LayoutFlow backbone."""
+
+    config_name: str = "layout_flow_model_config.json"
 
     @register_to_config
     def __init__(
@@ -295,9 +325,24 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
         num_layers: int = 4,
         dropout: float = 0.1,
         use_pos_enc: bool = False,
-        attr_encoding: str = "AnalogBit",
-        seq_type: str = "stacked",
+        attr_encoding: AttrEncoding = "AnalogBit",
+        seq_type: SeqType = "stacked",
     ) -> None:
+        """Initialize the converted LayoutFlow transformer model.
+
+        Args:
+            num_labels: Number of dataset labels.
+            latent_dim: Vendor latent dimension.
+            tr_enc_only: Whether to use the encoder-only path.
+            d_model: Transformer hidden size.
+            nhead: Number of attention heads.
+            dim_feedforward: Feed-forward hidden size.
+            num_layers: Number of transformer layers.
+            dropout: Dropout probability.
+            use_pos_enc: Whether to add positional encodings.
+            attr_encoding: Vendor attribute encoding.
+            seq_type: Vendor sequence type.
+        """
         super().__init__()
         self.geom_dim = 4
         self.attr_dim = (
@@ -324,6 +369,17 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
         cond_mask: torch.Tensor,
         return_dict: bool = True,
     ) -> LayoutFlowModelOutput | tuple[torch.FloatTensor]:
+        """Predict the vector field for a model state.
+
+        Args:
+            sample: Current model state.
+            timestep: Current integration timestep.
+            cond_mask: Condition mask.
+            return_dict: Whether to return a dataclass output.
+
+        Returns:
+            Model output dataclass or single-item tuple.
+        """
         timestep = timestep.to(device=sample.device, dtype=sample.dtype)
         if timestep.ndim == 0:
             timestep = timestep.repeat(sample.shape[0])

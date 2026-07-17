@@ -1,6 +1,9 @@
+"""Input and output processing for LayoutFlow pipelines."""
+
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum
+from typing import Final, assert_never
 
 import numpy as np
 import torch
@@ -17,28 +20,55 @@ from laygen.common.bbox import (
 from .configuration_layout_flow import LayoutFlowConfig
 
 
-_CONDITION_ALIASES = {
-    "unconditional": "unconditional",
-    "uncond": "unconditional",
-    "ugen": "unconditional",
-    "label": "label",
-    "c": "label",
-    "cat_cond": "label",
-    "gen_t": "label",
-    "label_size": "label_size",
-    "cwh": "label_size",
-    "size_cond": "label_size",
-    "gen_ts": "label_size",
-    "completion": "completion",
-    "partial": "completion",
-    "complete": "completion",
-    "elem_compl": "completion",
-    "refinement": "refinement",
-    "refine": "refinement",
+class ConditionType(StrEnum):
+    """Canonical LayoutFlow conditioning modes."""
+
+    unconditional = "unconditional"
+    label = "label"
+    label_size = "label_size"
+    completion = "completion"
+    refinement = "refinement"
+
+
+_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
+    "unconditional": ConditionType.unconditional,
+    "uncond": ConditionType.unconditional,
+    "ugen": ConditionType.unconditional,
+    "label": ConditionType.label,
+    "c": ConditionType.label,
+    "cat_cond": ConditionType.label,
+    "gen_t": ConditionType.label,
+    "label_size": ConditionType.label_size,
+    "cwh": ConditionType.label_size,
+    "size_cond": ConditionType.label_size,
+    "gen_ts": ConditionType.label_size,
+    "completion": ConditionType.completion,
+    "partial": ConditionType.completion,
+    "complete": ConditionType.completion,
+    "elem_compl": ConditionType.completion,
+    "refinement": ConditionType.refinement,
+    "refine": ConditionType.refinement,
 }
 
 
-def normalize_condition_type(condition_type: str) -> str:
+def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
+    """Normalize public condition aliases.
+
+    Args:
+        condition_type: Canonical condition enum or string alias.
+
+    Returns:
+        Canonical condition enum.
+
+    Raises:
+        ValueError: If the condition type is unsupported.
+
+    Examples:
+        >>> normalize_condition_type("cat_cond") is ConditionType.label
+        True
+    """
+    if isinstance(condition_type, ConditionType):
+        return condition_type
     try:
         return _CONDITION_ALIASES[condition_type]
     except KeyError as exc:
@@ -46,7 +76,14 @@ def normalize_condition_type(condition_type: str) -> str:
 
 
 class LayoutFlowProcessor:
-    def __init__(self, config: LayoutFlowConfig):
+    """Prepare public layout tensors for the LayoutFlow model."""
+
+    def __init__(self, config: LayoutFlowConfig) -> None:
+        """Create a processor for a LayoutFlow configuration.
+
+        Args:
+            config: LayoutFlow pipeline configuration.
+        """
         self.config = config
         bit_mask = [1 << k for k in range(config.attr_dim)]
         self.bit_mask = torch.tensor(bit_mask, dtype=torch.long)
@@ -64,6 +101,26 @@ class LayoutFlowProcessor:
         canvas_size: tuple[int, int] | None = None,
         device: torch.device | str | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Convert public inputs into padded model-ready tensors.
+
+        Args:
+            bbox: Optional boxes in the requested ``box_format``.
+            labels: Optional dataset-local label ids.
+            mask: Optional valid-element mask.
+            num_elements: Optional element counts used when ``mask`` is omitted.
+            batch_size: Batch size used when tensors are omitted.
+            box_format: Format of ``bbox``.
+            normalized: Whether ``bbox`` is already normalized to ``[0, 1]``.
+            canvas_size: Pixel canvas size required for denormalized boxes.
+            device: Target torch device.
+
+        Returns:
+            Dictionary with ``bbox``, ``labels``, ``mask``, and ``length`` tensors.
+
+        Raises:
+            ValueError: If denormalized boxes are missing ``canvas_size`` or the
+                box format is unsupported.
+        """
         device = torch.device(device) if device is not None else torch.device("cpu")
         max_length = self.config.max_length
         if bbox is None:
@@ -81,12 +138,14 @@ class LayoutFlowProcessor:
                 bbox_t = normalize_boxes(
                     bbox_t, canvas_size=canvas_size, box_format=box_format
                 )
-            elif box_format == "ltwh":
-                bbox_t = ltwh_to_xywh(bbox_t)
-            elif box_format == "ltrb":
-                bbox_t = ltrb_to_xywh(bbox_t)
-            elif box_format != "xywh":
-                raise ValueError(f"Unsupported box_format: {box_format}")
+            else:
+                fmt = BoxFormat(box_format)
+                if fmt is BoxFormat.ltwh:
+                    bbox_t = ltwh_to_xywh(bbox_t)
+                elif fmt is BoxFormat.ltrb:
+                    bbox_t = ltrb_to_xywh(bbox_t)
+                elif fmt is not BoxFormat.xywh:
+                    assert_never(fmt)
             bbox_t = self._pad_tensor(bbox_t, max_length, 0.0)
         if labels is None:
             labels_t = torch.zeros(
@@ -113,12 +172,14 @@ class LayoutFlowProcessor:
         return {"bbox": bbox_t, "labels": labels_t, "mask": mask_t, "length": lengths}
 
     def encode_labels(self, labels: torch.LongTensor) -> torch.FloatTensor:
+        """Encode integer labels as vendor analog-bit vectors."""
         bit_mask = self.bit_mask.to(labels.device)
         return (
             torch.bitwise_and(labels.unsqueeze(-1), bit_mask).float() / bit_mask.float()
         )
 
     def decode_labels(self, bits: torch.Tensor) -> torch.LongTensor:
+        """Decode vendor analog-bit vectors into integer labels."""
         bit_mask = self.bit_mask.to(bits.device)
         active = (bits - 0.5 >= 0).long()
         return (
@@ -126,22 +187,37 @@ class LayoutFlowProcessor:
         )
 
     def model_state(self, bbox: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Concatenate normalized boxes and analog-bit labels."""
         return torch.cat([bbox, self.encode_labels(labels)], dim=-1)
 
     def preprocess_state(
         self, state: torch.Tensor, *, reverse: bool = False
     ) -> torch.Tensor:
+        """Map between public ``[0, 1]`` state and model distribution range."""
         if self.config.distribution in {"gaussian", "gmm", "uniform", "gauss_uniform"}:
             return (state + 1) / 2 if reverse else 2 * state - 1
         return state
 
     def make_condition_mask(
         self,
-        condition_type: str,
+        condition_type: ConditionType | str,
         *,
         mask: torch.BoolTensor,
         generator: torch.Generator | None = None,
     ) -> torch.LongTensor:
+        """Create the vendor condition mask for a conditioning mode.
+
+        Args:
+            condition_type: Canonical condition or alias.
+            mask: Valid-element mask.
+            generator: Optional generator used by completion masking.
+
+        Returns:
+            Long tensor where ``1`` means generated and ``0`` means conditioned.
+
+        Raises:
+            ValueError: If the condition type is unsupported.
+        """
         canonical = normalize_condition_type(condition_type)
         batch, seq = mask.shape
         cond_mask = torch.ones(
@@ -151,14 +227,16 @@ class LayoutFlowProcessor:
             dtype=torch.long,
             device=mask.device,
         )
-        if canonical in {"label", "refinement"}:
+        if canonical in {ConditionType.label, ConditionType.refinement}:
             cond_mask[:, :, 4:] = 0
-        elif canonical == "label_size":
+        elif canonical is ConditionType.label_size:
             cond_mask[:, :, 2:] = 0
-        elif canonical == "completion":
+        elif canonical is ConditionType.completion:
             cond_mask = self._completion_mask(cond_mask, mask, generator)
-        elif canonical != "unconditional":
-            raise ValueError(f"Unsupported condition_type: {condition_type}")
+        elif canonical is ConditionType.unconditional:
+            pass
+        else:
+            assert_never(canonical)
         return cond_mask
 
     def postprocess(
@@ -166,21 +244,36 @@ class LayoutFlowProcessor:
         state: torch.Tensor,
         *,
         mask: torch.BoolTensor,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Convert model state back to public layout tensors.
+
+        Args:
+            state: Model state tensor.
+            mask: Valid-element mask.
+            box_format: Requested output box format.
+            normalized: Whether to return normalized coordinates.
+            canvas_size: Pixel canvas size for denormalized coordinates.
+
+        Returns:
+            Dictionary with ``bbox``, ``labels``, and ``mask``.
+
+        Raises:
+            ValueError: If denormalized output is requested without
+                ``canvas_size``.
+        """
         restored = self.preprocess_state(state, reverse=True)
         bbox = clamp_boxes(restored[:, :, :4]) * mask.unsqueeze(-1)
         labels = self.decode_labels(restored[:, :, 4:]) * mask.long()
-        if box_format != "xywh":
+        fmt = BoxFormat(box_format)
+        if fmt is not BoxFormat.xywh:
             if not normalized and canvas_size is None:
                 raise ValueError("canvas_size is required for denormalized output")
             if canvas_size is None:
                 canvas_size = (1, 1)
-            bbox = denormalize_boxes(
-                bbox, canvas_size=canvas_size, box_format=box_format
-            )
+            bbox = denormalize_boxes(bbox, canvas_size=canvas_size, box_format=fmt)
             if normalized:
                 scale = torch.tensor(
                     (*canvas_size, *canvas_size), dtype=bbox.dtype, device=bbox.device
@@ -189,7 +282,9 @@ class LayoutFlowProcessor:
         elif not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required for denormalized output")
-            bbox = denormalize_boxes(bbox, canvas_size=canvas_size, box_format="xywh")
+            bbox = denormalize_boxes(
+                bbox, canvas_size=canvas_size, box_format=BoxFormat.xywh
+            )
         return {"bbox": bbox, "labels": labels, "mask": mask}
 
     def _completion_mask(

@@ -1,3 +1,5 @@
+"""Checkpoint conversion helpers for original LayoutDM releases."""
+
 from __future__ import annotations
 
 import pickle
@@ -9,6 +11,7 @@ from laygen.common.model_card import layoutdm_model_card
 
 
 def remap_denoiser_key(key: str) -> str:
+    """Map an original checkpoint key to the converted denoiser key."""
     if not key.startswith("model.module.transformer."):
         raise KeyError(key)
     return key.removeprefix("model.module.")
@@ -17,6 +20,7 @@ def remap_denoiser_key(key: str) -> str:
 def split_original_state_dict(
     state_dict: dict[str, torch.Tensor],
 ) -> dict[str, torch.Tensor]:
+    """Extract converted denoiser weights from an original state dict."""
     denoiser: dict[str, torch.Tensor] = {}
     for key, value in state_dict.items():
         if key.startswith("model.module.transformer."):
@@ -33,6 +37,7 @@ def split_original_state_dict(
 
 
 def load_cluster_centers(starter_dir: Path, dataset: str) -> dict[str, list[float]]:
+    """Load sorted bbox cluster centers from the original starter bundle."""
     name = "rico25_max25" if dataset == "rico25" else "publaynet_max25"
     path = starter_dir / "clustering_weights" / f"{name}_kmeans_train_clusters.pkl"
     with path.open("rb") as f:
@@ -45,6 +50,7 @@ def load_cluster_centers(starter_dir: Path, dataset: str) -> dict[str, list[floa
 
 
 def write_layoutdm_model_card(output_dir: Path, dataset: str) -> Path:
+    """Write a LayoutDM model card to a converted pipeline directory."""
     path = output_dir / "README.md"
     path.write_text(str(layoutdm_model_card(dataset=dataset)), encoding="utf-8")
     return path
