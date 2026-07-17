@@ -9,11 +9,11 @@ from diffusers.utils import BaseOutput
 
 @dataclass
 class LayoutGenerationOutput(BaseOutput):
-    bbox: torch.FloatTensor
-    labels: torch.LongTensor
-    mask: torch.BoolTensor
+    bbox: torch.Tensor
+    labels: torch.Tensor
+    mask: torch.Tensor
     id2label: dict[int, str]
-    sequences: torch.LongTensor | None = None
-    scores: torch.FloatTensor | None = None
+    sequences: torch.Tensor | None = None
+    scores: torch.Tensor | None = None
     trajectory: Any | None = None
     intermediates: Any | None = None

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Callable
+from typing import Callable, cast
 
 import torch
 import torch.nn.functional as F
@@ -22,7 +22,7 @@ def _activation(
     name: str | Callable[[torch.Tensor], torch.Tensor],
 ) -> Callable[[torch.Tensor], torch.Tensor]:
     if callable(name):
-        return name
+        return cast(Callable[[torch.Tensor], torch.Tensor], name)
     if name == "relu":
         return F.relu
     if name == "gelu":
@@ -33,7 +33,7 @@ def _activation(
 
 
 class SinusoidalPosEmb(nn.Module):
-    def __init__(self, num_steps: int, dim: int, rescale_steps: int = 4000):
+    def __init__(self, num_steps: int, dim: int, rescale_steps: int = 4000) -> None:
         super().__init__()
         self.dim = dim
         self.num_steps = float(num_steps)
@@ -51,7 +51,7 @@ class SinusoidalPosEmb(nn.Module):
 class AdaLayerNorm(nn.Module):
     def __init__(
         self, n_embd: int, max_timestep: int, emb_type: str = "adalayernorm_abs"
-    ):
+    ) -> None:
         super().__init__()
         self.emb = (
             SinusoidalPosEmb(max_timestep, n_embd)
@@ -142,7 +142,7 @@ class Block(nn.Module):
 class TransformerEncoder(nn.Module):
     def __init__(
         self, encoder_layer: Block, num_layers: int, norm: nn.Module | None = None
-    ):
+    ) -> None:
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
@@ -167,7 +167,9 @@ class TransformerEncoder(nn.Module):
 
 
 class ElementPositionalEmbedding(nn.Module):
-    def __init__(self, dim_model: int, max_token_length: int, n_attr_per_elem: int = 5):
+    def __init__(
+        self, dim_model: int, max_token_length: int, n_attr_per_elem: int = 5
+    ) -> None:
         super().__init__()
         self.n_elem = max_token_length // n_attr_per_elem
         self.n_attr_per_elem = n_attr_per_elem
@@ -221,7 +223,7 @@ class CategoricalTransformer(nn.Module):
         )
 
     def forward(
-        self, input_ids: torch.LongTensor, timestep: torch.LongTensor | None = None
+        self, input_ids: torch.Tensor, timestep: torch.Tensor | None = None
     ) -> dict[str, torch.Tensor]:
         hidden = self.cat_emb(input_ids)
         hidden = self.drop(hidden + self.pos_emb(hidden))

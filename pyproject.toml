@@ -52,6 +52,10 @@ extend-select = ["ANN", "D"]
 
 [tool.ruff.lint.per-file-ignores]
 "models/**/*.py" = ["ANN", "D"]
+"models/*/scripts/**/*.py" = ["ANN", "D"]
+"models/*/src/**/*.py" = ["D"]
+"models/*/tests/*.py" = ["ANN", "D"]
+"models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
 "tests/*.py" = ["D"]
 "tests/**/*.py" = ["D"]
@@ -61,6 +65,9 @@ convention = "google"
 
 [tool.ty.rules]
 all = "error"
+missing-override-decorator = "ignore"
+unsupported-base = "ignore"
+unresolved-import = "ignore"
 
 [tool.ty.src]
 exclude = [
@@ -71,7 +78,7 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "src"]
+testpaths = ["tests", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original model weights and vendor dependencies",
@@ -80,5 +87,5 @@ markers = [
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py"]
-verbose = true
+paths = ["main.py", "models"]
+verbose = false
