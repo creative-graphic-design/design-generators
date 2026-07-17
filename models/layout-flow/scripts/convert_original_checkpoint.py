@@ -8,6 +8,7 @@ import torch
 
 from layout_flow.configuration_layout_flow import LayoutFlowConfig
 from layout_flow.conversion import build_pipeline, convert_lightning_state_dict
+from layout_flow.model_card import save_layoutflow_model_card
 
 
 def main() -> None:
@@ -35,6 +36,7 @@ def main() -> None:
     if model_missing:
         raise RuntimeError(f"Missing model keys: {model_missing}")
     pipe.save_pretrained(args.output_dir)
+    save_layoutflow_model_card(args.output_dir, dataset=args.dataset)
 
 
 if __name__ == "__main__":
