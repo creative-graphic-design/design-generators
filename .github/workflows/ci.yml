@@ -123,8 +123,13 @@ jobs:
                 PYPROJECT_FILE="${pyproject_file}" uv run python -c \
                   'import os, tomllib; print(tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb"))["project"]["name"])'
               )"
+              import_name="${package_name//-/_}"
 
-              uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration"
+              uv run --package "${package_name}" pytest "${tests_dir}" \
+                -m "not vendor_parity and not integration" \
+                --cov="${import_name}" \
+                --cov-report=term-missing \
+                --cov-fail-under=90
             done
 
   docs:
