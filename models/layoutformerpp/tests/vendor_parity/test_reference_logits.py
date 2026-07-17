@@ -80,6 +80,13 @@ def _vendor_modules(vendor_src: Path):
     _install_vendor_packages(vendor_src)
     model_module = importlib.import_module("model.layout_transformer.model")
     tokenizer_module = importlib.import_module("model.layout_transformer.tokenizer")
+    layout_package = sys.modules["model.layout_transformer"]
+    setattr(layout_package, "LayoutTransformer", model_module.LayoutTransformer)
+    setattr(
+        layout_package,
+        "LayoutTransformerTokenizer",
+        tokenizer_module.LayoutTransformerTokenizer,
+    )
 
     return model_module.LayoutTransformer, tokenizer_module.LayoutTransformerTokenizer
 
@@ -89,8 +96,11 @@ def _install_vendor_packages(vendor_src: Path) -> None:
     setattr(model_package, "__path__", [str(vendor_src / "model")])
     layout_package = types.ModuleType("model.layout_transformer")
     setattr(layout_package, "__path__", [str(vendor_src / "model/layout_transformer")])
+    data_package = types.ModuleType("data")
+    setattr(data_package, "__path__", [str(vendor_src / "data")])
     sys.modules.setdefault("model", model_package)
     sys.modules.setdefault("model.layout_transformer", layout_package)
+    sys.modules.setdefault("data", data_package)
 
 
 def _tokenizers(case: ParityCase, vocab: Path | None, vendor_tokenizer_class):
