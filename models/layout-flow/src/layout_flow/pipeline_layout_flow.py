@@ -68,7 +68,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         labels: TensorInput = None,
         bbox: TensorInput = None,
         mask: TensorInput = None,
@@ -80,7 +80,6 @@ class LayoutFlowPipeline(DiffusionPipeline):
         guidance_scale: float = 0.0,
         output_type: OutputType | str = "dataclass",
         return_intermediates: bool = False,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
         """Generate layout boxes and labels.
 
@@ -100,7 +99,6 @@ class LayoutFlowPipeline(DiffusionPipeline):
             guidance_scale: Classifier-free guidance scale.
             output_type: ``"dataclass"`` or ``"dict"``.
             return_intermediates: Whether to include intermediate samples.
-            **model_kwargs: Reserved for Diffusers-compatible extension points.
 
         Returns:
             Layout generation output dataclass, or a dictionary when requested.
@@ -122,7 +120,6 @@ class LayoutFlowPipeline(DiffusionPipeline):
             >>> out.bbox.shape[-1]
             4
         """
-        del model_kwargs
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
@@ -209,25 +206,21 @@ class LayoutFlowPipeline(DiffusionPipeline):
 
     generate = __call__
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(self, save_directory: str | Path) -> None:
         """Save pipeline components and LayoutFlow config.
 
         Args:
             save_directory: Output directory.
-            **kwargs: Forwarded to ``DiffusionPipeline.save_pretrained``.
         """
-        super().save_pretrained(save_directory, **kwargs)
+        super().save_pretrained(save_directory)
         self.layout_flow_config.save_config(save_directory)
 
     @classmethod
-    def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
-    ) -> Self:
+    def from_pretrained(cls, pretrained_model_name_or_path: str | Path) -> Self:
         """Load a saved LayoutFlow pipeline.
 
         Args:
             pretrained_model_name_or_path: Local directory or Hub id.
-            **kwargs: Forwarded to ``DiffusionPipeline.from_pretrained``.
 
         Returns:
             Loaded LayoutFlow pipeline.
@@ -237,7 +230,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             return_unused_kwargs=True,
         )
         config = cast(LayoutFlowConfig, LayoutFlowConfig.from_config(config_dict))
-        pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+        pipe = super().from_pretrained(pretrained_model_name_or_path)
         pipe.layout_flow_config = config
         pipe.processor = LayoutFlowProcessor(config)
         return pipe

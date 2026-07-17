@@ -7,6 +7,7 @@ from typing import TypeAlias, assert_never
 
 import numpy as np
 import torch
+from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
     BoxFormat,
@@ -22,9 +23,13 @@ from .configuration_layout_flow import LayoutFlowConfig
 
 TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
 
+__all__ = ["ConditionType", "LayoutFlowProcessor", "normalize_condition_type"]
 
-class LayoutFlowProcessor:
+
+class LayoutFlowProcessor(ProcessorMixin):
     """Prepare public layout tensors for the LayoutFlow model."""
+
+    config_name = "processor_config.json"
 
     def __init__(self, config: LayoutFlowConfig) -> None:
         """Create a processor for a LayoutFlow configuration.
@@ -32,6 +37,7 @@ class LayoutFlowProcessor:
         Args:
             config: LayoutFlow pipeline configuration.
         """
+        super().__init__()
         self.config = config
         bit_mask = [1 << k for k in range(config.attr_dim)]
         self.bit_mask = torch.tensor(bit_mask, dtype=torch.long)
@@ -148,7 +154,7 @@ class LayoutFlowProcessor:
 
     def make_condition_mask(
         self,
-        condition_type: ConditionType | str,
+        condition_type: ConditionType,
         *,
         mask: torch.Tensor,
         generator: torch.Generator | None = None,
@@ -166,7 +172,6 @@ class LayoutFlowProcessor:
         Raises:
             ValueError: If the condition type is unsupported.
         """
-        canonical = normalize_condition_type(condition_type)
         batch, seq = mask.shape
         cond_mask = torch.ones(
             batch,
@@ -175,16 +180,16 @@ class LayoutFlowProcessor:
             dtype=torch.long,
             device=mask.device,
         )
-        if canonical in {ConditionType.label, ConditionType.refinement}:
+        if condition_type in {ConditionType.label, ConditionType.refinement}:
             cond_mask[:, :, 4:] = 0
-        elif canonical is ConditionType.label_size:
+        elif condition_type is ConditionType.label_size:
             cond_mask[:, :, 2:] = 0
-        elif canonical is ConditionType.completion:
+        elif condition_type is ConditionType.completion:
             cond_mask = self._completion_mask(cond_mask, mask, generator)
-        elif canonical is ConditionType.unconditional:
+        elif condition_type is ConditionType.unconditional:
             pass
         else:
-            raise ValueError(f"Unsupported LayoutFlow condition_type: {canonical}")
+            raise ValueError(f"Unsupported LayoutFlow condition_type: {condition_type}")
         return cond_mask
 
     def postprocess(

@@ -27,11 +27,16 @@ def test_condition_masks_match_layout_flow_semantics() -> None:
         LayoutFlowConfig(dataset_name="publaynet", max_length=2)
     )
     mask = torch.tensor([[True, True]])
-    assert processor.make_condition_mask("unconditional", mask=mask).sum().item() == 14
-    label = processor.make_condition_mask("c", mask=mask)
+    assert (
+        processor.make_condition_mask(ConditionType.unconditional, mask=mask)
+        .sum()
+        .item()
+        == 14
+    )
+    label = processor.make_condition_mask(normalize_condition_type("c"), mask=mask)
     assert label[:, :, :4].all()
     assert not label[:, :, 4:].any()
-    size = processor.make_condition_mask("cwh", mask=mask)
+    size = processor.make_condition_mask(normalize_condition_type("cwh"), mask=mask)
     assert size[:, :, :2].all()
     assert not size[:, :, 2:].any()
 
@@ -70,7 +75,7 @@ def test_processor_completion_and_postprocess_branches() -> None:
     )
     mask = torch.tensor([[True, False, False, False], [True, True, True, False]])
     cond = processor.make_condition_mask(
-        "completion", mask=mask, generator=torch.Generator().manual_seed(0)
+        ConditionType.completion, mask=mask, generator=torch.Generator().manual_seed(0)
     )
     assert cond[0].all()
     assert (cond[1] == 0).any()

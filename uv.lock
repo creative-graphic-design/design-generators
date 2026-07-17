@@ -2247,6 +2247,7 @@ dependencies = [
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "safetensors" },
     { name = "torch" },
+    { name = "transformers" },
 ]
 
 [package.optional-dependencies]
@@ -2278,6 +2279,7 @@ requires-dist = [
     { name = "torchcfm", marker = "extra == 'vendor'" },
     { name = "torchdiffeq", marker = "extra == 'vendor'" },
     { name = "torchdyn", marker = "extra == 'vendor'" },
+    { name = "transformers", specifier = ">=5.0.0" },
 ]
 provides-extras = ["vendor"]
 
