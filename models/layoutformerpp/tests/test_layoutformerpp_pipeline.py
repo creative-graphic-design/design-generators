@@ -5,6 +5,7 @@ from layoutformerpp import (
     LayoutFormerPPForConditionalGeneration,
     LayoutFormerPPPipeline,
     LayoutFormerPPProcessor,
+    LayoutGenerationOutput,
 )
 
 
@@ -27,4 +28,6 @@ def test_save_load_smoke(tmp_path: Path) -> None:
     loaded_processor = LayoutFormerPPProcessor.from_pretrained(tmp_path)
     pipe = LayoutFormerPPPipeline(model=loaded_model, processor=loaded_processor)
     out = pipe(condition_type="label", labels=[["Text"]], max_length=2)
+    assert isinstance(out, LayoutGenerationOutput)
+    assert out.sequences is not None
     assert out.sequences.shape[0] == 1

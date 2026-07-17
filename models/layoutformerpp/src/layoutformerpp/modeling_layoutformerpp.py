@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, cast
 
 import torch
 import torch.nn as nn
@@ -12,10 +12,13 @@ import torch.nn.functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
+from laygen.common.conditions import ConditionType
 from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
-from .processing_layoutformerpp import ConditionType
+
+if TYPE_CHECKING:
+    from .processing_layoutformerpp import LayoutFormerPPProcessor
 
 
 def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
@@ -38,6 +41,7 @@ class PositionalEncoding(nn.Module):
     """Learned positional embeddings matching the original implementation."""
 
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 512) -> None:
+        """Initialize learned position tokens."""
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         self.pos_token = nn.Parameter(torch.rand(max_len, 1, d_model))
@@ -59,6 +63,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
     }
 
     def __init__(self, config: LayoutFormerPPConfig) -> None:
+        """Initialize vendor-compatible encoder/decoder modules."""
         super().__init__(config)
         self.d_model = config.d_model
         self.vocab_size = config.vocab_size
@@ -163,7 +168,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         decoder_input_ids: torch.Tensor | None = None,
         task_ids: torch.Tensor | None = None,
         return_dict: bool | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
         """Run teacher-forced LayoutFormer++ decoding."""
         if attention_mask is None:
@@ -196,7 +201,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             )
         if return_dict is False:
             return (logits,) if loss is None else (loss, logits)
-        return Seq2SeqLMOutput(loss=loss, logits=logits)
+        return Seq2SeqLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)
 
     @torch.no_grad()
     def generate_sequences(
@@ -268,15 +273,24 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         self,
         input_ids: torch.Tensor | None = None,
         attention_mask: torch.Tensor | None = None,
-        processor: Any | None = None,
+        processor: LayoutFormerPPProcessor | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
+        labels: list[list[int | str]] | None = None,
+        bbox: object = None,
+        relations: list[list[tuple[int, int, int, int, int]]] | None = None,
+        num_elements: int | list[int] | None = None,
         box_format: str = "xywh",
         output_type: str = "dataclass",
-        **kwargs: Any,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        max_length: int | None = None,
+        do_sample: bool | None = None,
+        top_k: int = 10,
+        temperature: float = 0.7,
+        normalized: bool = True,
+        return_intermediates: bool = False,
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate and post-process layouts through a `LayoutFormerPPProcessor`."""
         if processor is None:
             raise ValueError("processor is required for generate_layout")
@@ -285,24 +299,27 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
                 condition_type=condition_type,
                 batch_size=batch_size,
                 return_tensors="pt",
-                **kwargs,
+                labels=labels,
+                bbox=bbox,
+                relations=relations,
             )
             input_ids = encoded["input_ids"].to(self.device)
             attention_mask = encoded["attention_mask"].to(self.device)
         condition = processor.normalize_condition_type(condition_type)
         if generator is None and seed is not None:
             torch.manual_seed(seed)
+        default_do_sample = condition in {
+            ConditionType.unconditional,
+            ConditionType.completion,
+        }
+        _ = (generator, num_elements, normalized, return_intermediates)
         sequences = self.generate_sequences(
             input_ids,
             attention_mask,
-            max_length=kwargs.get("max_length"),
-            do_sample=bool(
-                kwargs.get(
-                    "do_sample",
-                    condition
-                    in {ConditionType.unconditional, ConditionType.completion},
-                )
-            ),
+            max_length=max_length,
+            do_sample=default_do_sample if do_sample is None else do_sample,
+            top_k=top_k,
+            temperature=temperature,
         )
         out = processor.post_process_layouts(
             sequences.cpu(), box_format=box_format, output_type=output_type

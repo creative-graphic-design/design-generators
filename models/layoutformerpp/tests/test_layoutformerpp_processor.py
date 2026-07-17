@@ -1,9 +1,16 @@
+from typing import cast
+
 import torch
 import pytest
 
 from laygen.common.bbox import BoxFormat
 
-from layoutformerpp import ConditionType, LayoutFormerPPProcessor, OutputType
+from layoutformerpp import (
+    ConditionType,
+    LayoutFormerPPProcessor,
+    LayoutGenerationOutput,
+    OutputType,
+)
 
 
 def test_processor_label_condition_and_postprocess() -> None:
@@ -16,6 +23,7 @@ def test_processor_label_condition_and_postprocess() -> None:
     assert batch["input_ids"].shape[0] == 1
     ids = processor.tokenizer.encode_text("label_1 0 0 10 10 |")["input_ids"]
     out = processor.post_process_layouts(ids)
+    assert isinstance(out, LayoutGenerationOutput)
     assert out.labels.tolist() == [[0]]
     assert out.mask.tolist() == [[True]]
     assert out.id2label[0] == "Text"
@@ -54,9 +62,16 @@ def test_processor_postprocess_padding_dict_and_errors() -> None:
     out = processor.post_process_layouts(
         sequences, box_format=BoxFormat.ltwh, output_type=OutputType.dict
     )
-    assert out["labels"].shape == (2, 2)
-    assert out["mask"].tolist() == [[True, True], [False, False]]
-    assert out["intermediates"]["box_format"] is BoxFormat.ltwh
+    assert isinstance(out, dict)
+    labels = out["labels"]
+    mask = out["mask"]
+    intermediates = cast(dict[str, object], out["intermediates"])
+    assert isinstance(labels, torch.Tensor)
+    assert isinstance(mask, torch.Tensor)
+    assert isinstance(intermediates, dict)
+    assert labels.shape == (2, 2)
+    assert mask.tolist() == [[True, True], [False, False]]
+    assert intermediates["box_format"] is BoxFormat.ltwh
 
     with pytest.raises(ValueError, match="Unsupported output_type"):
         processor.post_process_layouts(sequences, output_type="bad")

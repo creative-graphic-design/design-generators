@@ -29,7 +29,7 @@ from layoutformerpp import (
     LayoutFormerPPProcessor,
 )
 
-model_id = "creative-graphic-design/layoutformerpp-rico-gen-t"
+model_id = "creative-graphic-design/layoutformerpp-rico-label"
 model = LayoutFormerPPForConditionalGeneration.from_pretrained(model_id)
 processor = LayoutFormerPPProcessor.from_pretrained(model_id)
 pipe = LayoutFormerPPPipeline(model=model, processor=processor)
@@ -46,18 +46,18 @@ Each released task has an incompatible task-specific checkpoint, so Hub ids incl
 
 | Dataset | Task | Condition | Hub id |
 | --- | --- | --- | --- |
-| RICO | `gen_t` | label | `creative-graphic-design/layoutformerpp-rico-gen-t` |
-| RICO | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-rico-gen-ts` |
-| RICO | `gen_r` | relation | `creative-graphic-design/layoutformerpp-rico-gen-r` |
+| RICO | `gen_t` | label | `creative-graphic-design/layoutformerpp-rico-label` |
+| RICO | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-rico-label-size` |
+| RICO | `gen_r` | relation | `creative-graphic-design/layoutformerpp-rico-relation` |
 | RICO | `refinement` | refinement | `creative-graphic-design/layoutformerpp-rico-refinement` |
 | RICO | `completion` | completion | `creative-graphic-design/layoutformerpp-rico-completion` |
-| RICO | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-rico-ugen` |
-| PubLayNet | `gen_t` | label | `creative-graphic-design/layoutformerpp-publaynet-gen-t` |
-| PubLayNet | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-publaynet-gen-ts` |
-| PubLayNet | `gen_r` | relation | `creative-graphic-design/layoutformerpp-publaynet-gen-r` |
+| RICO | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-rico-unconditional` |
+| PubLayNet | `gen_t` | label | `creative-graphic-design/layoutformerpp-publaynet-label` |
+| PubLayNet | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-publaynet-label-size` |
+| PubLayNet | `gen_r` | relation | `creative-graphic-design/layoutformerpp-publaynet-relation` |
 | PubLayNet | `refinement` | refinement | `creative-graphic-design/layoutformerpp-publaynet-refinement` |
 | PubLayNet | `completion` | completion | `creative-graphic-design/layoutformerpp-publaynet-completion` |
-| PubLayNet | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-publaynet-ugen` |
+| PubLayNet | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-publaynet-unconditional` |
 
 ## Datasets
 
@@ -91,6 +91,7 @@ Prerequisites:
 
 - Run commands from the repository root.
 - Use `uv sync --package layoutformerpp` once before the first run.
+- Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed.
 - Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
 

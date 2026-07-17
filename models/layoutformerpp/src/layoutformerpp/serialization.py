@@ -34,6 +34,7 @@ class T5LayoutSequence:
     """Serialize labels and discrete ltwh bboxes as LayoutFormer++ text."""
 
     def __init__(self, id2label: dict[int, str], *, add_sep_token: bool = True) -> None:
+        """Initialize label lookup tables used by the serializer."""
         self.id2label = id2label
         self.label2id = {label.lower().strip(): idx for idx, label in id2label.items()}
         self.add_sep_token = add_sep_token

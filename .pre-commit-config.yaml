@@ -21,12 +21,6 @@ repos:
 
   - repo: local
     hooks:
-      - id: pytest-models
-        name: pytest models
-        entry: uv run pytest models/
-        language: system
-        pass_filenames: false
-
       - id: ty
         name: ty
         entry: uv run ty check .

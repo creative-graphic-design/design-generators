@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from os import PathLike
 from pathlib import Path
+from typing import cast
 
-from transformers import PreTrainedTokenizer
+from transformers import BatchEncoding, PreTrainedTokenizer
 
 
 class LayoutFormerPPTokenizer(PreTrainedTokenizer):
@@ -23,6 +25,7 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
         bbox_order: str = "ltwh",
         **kwargs: object,
     ) -> None:
+        """Initialize a tokenizer from a vocab file or synthetic token list."""
         self.x_grid = x_grid
         self.y_grid = y_grid
         self.bbox_order = bbox_order
@@ -83,10 +86,21 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
         return (str(out_path),)
 
     def save_pretrained(
-        self, save_directory: str | Path, **kwargs: object
+        self,
+        save_directory: str | PathLike[str],
+        legacy_format: bool | None = None,
+        filename_prefix: str | None = None,
+        push_to_hub: bool = False,
+        **kwargs: object,
     ) -> tuple[str, ...]:
         """Save tokenizer files plus LayoutFormer++ tokenizer metadata."""
-        paths = super().save_pretrained(str(save_directory), **kwargs)
+        _ = kwargs
+        paths = super().save_pretrained(
+            str(save_directory),
+            legacy_format=legacy_format,
+            filename_prefix=filename_prefix,
+            push_to_hub=push_to_hub,
+        )
         metadata = {
             "x_grid": self.x_grid,
             "y_grid": self.y_grid,
@@ -100,8 +114,16 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, *args: object, **kwargs: object
-    ):
+        cls,
+        pretrained_model_name_or_path: str | PathLike[str],
+        *args: object,
+        cache_dir: str | PathLike[str] | None = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: str | bool | None = None,
+        revision: str = "main",
+        **kwargs: object,
+    ) -> "LayoutFormerPPTokenizer":
         """Load tokenizer and LayoutFormer++ metadata."""
         path = Path(pretrained_model_name_or_path)
         metadata_path = path / "layoutformerpp_tokenizer_config.json"
@@ -109,13 +131,23 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
             with metadata_path.open() as f:
                 metadata = json.load(f)
             kwargs = {**metadata, **kwargs}
-        return super().from_pretrained(
-            str(pretrained_model_name_or_path), *args, **kwargs
+        return cast(
+            "LayoutFormerPPTokenizer",
+            super().from_pretrained(
+                str(pretrained_model_name_or_path),
+                *args,
+                cache_dir=cache_dir,
+                force_download=force_download,
+                local_files_only=local_files_only,
+                token=token,
+                revision=revision,
+                **kwargs,
+            ),
         )
 
     def encode_text(
         self, text: str | list[str], *, add_eos: bool = True, add_bos: bool = False
-    ):
+    ) -> BatchEncoding:
         """Tokenize vendor-style text while matching the original EOS/BOS behavior."""
         if isinstance(text, str):
             texts = [text]

@@ -41,8 +41,8 @@ def test_rico_gen_t_logits_match_vendor() -> None:
         )
 
     sys.path.insert(0, str(vendor_src))
-    from model.layout_transformer.model import LayoutTransformer  # type: ignore
-    from model.layout_transformer.tokenizer import LayoutTransformerTokenizer  # type: ignore
+    from model.layout_transformer.model import LayoutTransformer
+    from model.layout_transformer.tokenizer import LayoutTransformerTokenizer
 
     vendor_tokenizer = LayoutTransformerTokenizer([])
     vendor_tokenizer.from_vocab(str(vocab))

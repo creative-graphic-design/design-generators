@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import torch
 from transformers import Pipeline
-
-from laygen.common.outputs import LayoutGenerationOutput
+from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat
+from laygen.common.conditions import ConditionType
+from laygen.common.outputs import LayoutGenerationOutput
+
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
-from .processing_layoutformerpp import (
-    ConditionType,
-    LayoutFormerPPProcessor,
-    OutputType,
-)
+from .processing_layoutformerpp import LayoutFormerPPProcessor, OutputType
 
 
 class LayoutFormerPPPipeline(Pipeline):
@@ -28,29 +24,36 @@ class LayoutFormerPPPipeline(Pipeline):
         self,
         model: LayoutFormerPPForConditionalGeneration,
         processor: LayoutFormerPPProcessor,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
-        super().__init__(model=model, tokenizer=processor.tokenizer, **kwargs)
+        """Initialize the pipeline with a model and matching processor."""
+        _ = kwargs
+        super().__init__(model=model, tokenizer=processor.tokenizer)
         self.processor = processor
 
     def _sanitize_parameters(
-        self, **kwargs: Any
-    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        self, **kwargs: object
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
         return {}, kwargs, {}
 
-    def preprocess(self, inputs: Any = None, **kwargs: Any) -> dict[str, Any]:
+    def preprocess(  # type: ignore
+        self, inputs: object = None, **kwargs: object
+    ) -> dict[str, object]:
+        """Forward keyword inputs to the model step unchanged."""
         return kwargs
 
-    def _forward(
-        self, model_inputs: dict[str, Any], **kwargs: Any
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
-        return self.model.generate_layout(processor=self.processor, **model_inputs)
+    def _forward(  # type: ignore
+        self, model_inputs: dict[str, object], **kwargs: object
+    ) -> ModelOutput:
+        _ = (model_inputs, kwargs)
+        raise NotImplementedError("Use LayoutFormerPPPipeline.__call__ directly")
 
     def postprocess(
         self,
-        model_outputs: LayoutGenerationOutput | dict[str, torch.Tensor],
-        **kwargs: Any,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        model_outputs: LayoutGenerationOutput | dict[str, object],
+        **kwargs: object,
+    ) -> LayoutGenerationOutput | dict[str, object]:
+        """Return model outputs without additional formatting."""
         return model_outputs
 
     def __call__(
@@ -60,15 +63,21 @@ class LayoutFormerPPPipeline(Pipeline):
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: list[list[int | str]] | None = None,
-        bbox: Any = None,
+        bbox: object = None,
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         num_elements: int | list[int] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        **generate_kwargs: Any,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        max_length: int | None = None,
+        do_sample: bool | None = None,
+        top_k: int = 10,
+        temperature: float = 0.7,
+        **generate_kwargs: object,
+    ) -> LayoutGenerationOutput | dict[str, object]:
+        """Generate layouts through the wrapped model and processor."""
+        _ = generate_kwargs
         return self.model.generate_layout(
             processor=self.processor,
             batch_size=batch_size,
@@ -83,5 +92,8 @@ class LayoutFormerPPPipeline(Pipeline):
             num_elements=num_elements,
             normalized=normalized,
             return_intermediates=return_intermediates,
-            **generate_kwargs,
+            max_length=max_length,
+            do_sample=do_sample,
+            top_k=top_k,
+            temperature=temperature,
         )

@@ -14,7 +14,7 @@ def test_layoutformerpp_model_card_sections() -> None:
 
     assert (
         layoutformerpp_hub_id("rico", "gen_t")
-        == "creative-graphic-design/layoutformerpp-rico-gen-t"
+        == "creative-graphic-design/layoutformerpp-rico-label"
     )
     assert metadata["license"] == "mit"
     assert metadata["library_name"] == "transformers"
@@ -41,6 +41,6 @@ def test_write_layoutformerpp_model_card(tmp_path: Path) -> None:
     text = readme.read_text()
 
     assert readme.name == "README.md"
-    assert "creative-graphic-design/layoutformerpp-publaynet-ugen" in text
+    assert "creative-graphic-design/layoutformerpp-publaynet-unconditional" in text
     assert "creative-graphic-design/PubLayNet" in text
     assert "## Evaluation" in text

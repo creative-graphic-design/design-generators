@@ -107,6 +107,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         gen_r_compact: bool = False,
         **kwargs: object,
     ) -> None:
+        """Initialize architecture and task-specific generation defaults."""
         self.dataset = dataset
         self.task = task
         defaults = TASK_DEFAULTS.get((dataset, task), {})
@@ -154,11 +155,12 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.gen_r_compact = gen_r_compact
         kwargs.pop("is_encoder_decoder", None)
         kwargs.pop("vocab_size", None)
-        super().__init__(
-            bos_token_id=kwargs.pop("bos_token_id", 0),
-            eos_token_id=kwargs.pop("eos_token_id", 1),
-            pad_token_id=kwargs.pop("pad_token_id", 2),
-            is_encoder_decoder=True,
-            vocab_size=vocab_size,
+        pretrained_kwargs: dict[str, object] = {
+            "bos_token_id": kwargs.pop("bos_token_id", 0),
+            "eos_token_id": kwargs.pop("eos_token_id", 1),
+            "pad_token_id": kwargs.pop("pad_token_id", 2),
+            "is_encoder_decoder": True,
+            "vocab_size": vocab_size,
             **kwargs,
-        )
+        }
+        super().__init__(**pretrained_kwargs)  # type: ignore

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from huggingface_hub import ModelCard, ModelCardData
+
+from .labels import DatasetName
+from .serialization import sanitize_for_yaml
 
 
 @dataclass(frozen=True)
@@ -44,44 +48,6 @@ def build_layout_model_card(
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]],
     citation_bibtex: str,
     original_implementation_url: str,
-    language: Sequence[str] | None = None,
-    developed_by: str = "creative-graphic-design",
-    model_type: str = "layout generation model",
-    finetuned_from: str = "Not applicable; this is a converted original checkpoint.",
-    downstream_uses: str = (
-        "Use the generated structured layouts as intermediate inputs for design "
-        "analysis, rendering, retrieval, or other research pipelines."
-    ),
-    out_of_scope_uses: str = (
-        "Do not use this model as a general-purpose image generator, OCR system, "
-        "or production design decision maker without task-specific validation."
-    ),
-    recommendations: str = (
-        "Evaluate outputs on the target dataset and inspect generated layouts "
-        "before using them in downstream user-facing workflows."
-    ),
-    training_procedure: str = (
-        "This repository converts the released research checkpoint and does not "
-        "retrain it. See the cited paper and original implementation for the "
-        "full training recipe."
-    ),
-    testing_data: str = (
-        "Local parity tests use deterministic fixtures generated from the "
-        "released original implementation."
-    ),
-    evaluation_factors: str = (
-        "Parity checks focus on tokenizer compatibility, deterministic generated "
-        "tokens when available, and teacher-forced logits for selected fixtures."
-    ),
-    evaluation_metrics: str = (
-        "Tokenizer exact match, deterministic output exact match, and maximum "
-        "absolute/relative logit differences."
-    ),
-    technical_specs: str = (
-        "The converted package exposes `save_pretrained` / `from_pretrained` "
-        "artifacts and returns normalized center `xywh` boxes, labels, and masks "
-        "through the shared `laygen.common` output schema."
-    ),
 ) -> ModelCard:
     """Build a Hugging Face model card for a layout-generation checkpoint.
 
@@ -114,62 +80,96 @@ def build_layout_model_card(
         'diffusers'
     """
     card_data = ModelCardData(
-        model_name=model_name,
-        license=license,
-        library_name=library_name,
-        pipeline_tag=pipeline_tag,
-        tags=list(tags),
-        datasets=list(dataset_ids),
-        language=list(language) if language is not None else ["en"],
+        model_name=cast(str, sanitize_for_yaml(model_name)),
+        license=cast(str, sanitize_for_yaml(license)),
+        library_name=cast(str, sanitize_for_yaml(library_name)),
+        pipeline_tag=cast(str, sanitize_for_yaml(pipeline_tag)),
+        tags=cast(list[str], sanitize_for_yaml(list(tags))),
+        datasets=cast(list[str], sanitize_for_yaml(list(dataset_ids))),
+        language=["en"],
     )
     parity_table = _parity_table(parity_metrics)
     card = ModelCard.from_template(
         card_data,
         model_id=model_id,
         model_summary=(
-            f"{model_name} is a {library_name}-format checkpoint for layout generation."
+            f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
+            "conditional-free layout generation."
         ),
         model_description=model_details,
-        developers=developed_by,
+        developers="CyberAgentAILab released the original LayoutDM implementation.",
         funded_by=(
-            "Funding for the original checkpoint is not separately reported in this "
-            "converted artifact."
+            "Funding for the original checkpoint is not separately reported in "
+            "this converted artifact."
         ),
         shared_by="creative-graphic-design",
-        model_type=model_type,
+        model_type="Discrete diffusion model for layout generation.",
         language=(
             "The model does not process natural language inputs; metadata uses "
             "English for this model card and category label names."
         ),
         license=license,
-        base_model=finetuned_from,
+        base_model=(
+            "Not applicable. This is a direct conversion of the original "
+            "LayoutDM checkpoint, not a fine-tuned derivative of a Hub model."
+        ),
         repo=original_implementation_url,
-        paper="See the citation section for the original research paper.",
+        paper="https://arxiv.org/abs/2303.08137",
         demo="No hosted demo is packaged with this checkpoint.",
         direct_use=intended_uses,
-        downstream_use=downstream_uses,
-        out_of_scope_use=out_of_scope_uses,
+        downstream_use=(
+            "Use the generated normalized boxes, labels, and masks as layout "
+            "priors for design tooling, document analysis research, or "
+            "controlled rendering pipelines that perform their own validation."
+        ),
+        out_of_scope_use=(
+            "Do not use this checkpoint as an OCR model, image renderer, "
+            "semantic document understanding model, accessibility verifier, or "
+            "unreviewed production UI generator. The model predicts layout "
+            "structure only and can produce implausible or overlapping boxes."
+        ),
         bias_risks_limitations=limitations,
-        bias_recommendations=recommendations,
+        bias_recommendations=(
+            "Inspect generated layouts before downstream use, validate boxes "
+            "against application constraints, and evaluate separately for each "
+            "target dataset or design domain."
+        ),
         get_started_code=f"```python\n{how_to_use.strip()}\n```",
         training_data=training_data,
         preprocessing=(
             "The converted tokenizer represents each layout element as "
             "discrete category and bounding-box tokens. Bounding boxes use "
-            "normalized center `xywh` coordinates in public outputs."
+            "normalized center `xywh` coordinates and dataset-specific cluster "
+            "centers stored with the tokenizer files."
         ),
-        training_regime=training_procedure,
+        training_regime=(
+            "Original LayoutDM training regime as released by the upstream "
+            "project; this package converts the checkpoint and does not "
+            "retrain it."
+        ),
         speeds_sizes_times=(
             "Training speed, elapsed time, and hardware are not included in "
             "the upstream checkpoint bundle used for conversion."
         ),
-        testing_data=testing_data,
-        testing_factors=evaluation_factors,
-        testing_metrics=evaluation_metrics,
+        testing_data=(
+            "Vendor parity tests use deterministic samples and forward-pass "
+            "golden tensors generated from the original LayoutDM implementation "
+            "for each converted dataset."
+        ),
+        testing_factors=(
+            "Parity is checked separately for each dataset conversion so that "
+            "dataset-specific tokenization and checkpoint weights are covered."
+        ),
+        testing_metrics=(
+            "Tokenizer exact-match count, deterministic token-sequence "
+            "exact-match count, and denoiser logits maximum absolute and "
+            "relative error versus the original implementation."
+        ),
         results=parity_table,
         results_summary=(
             "The converted checkpoint matches the generated vendor reference "
-            "within the parity metrics reported in the table."
+            "tensors exactly for tokenizer IO and deterministic sampling; "
+            "denoiser logits are within the reported numeric tolerance."
         ),
         model_examination=(
             "No separate interpretability study is packaged with this converted "
@@ -195,10 +195,15 @@ def build_layout_model_card(
             "Carbon emissions cannot be estimated from the released checkpoint "
             "bundle alone."
         ),
-        model_specs=technical_specs,
+        model_specs=(
+            "LayoutDM models layout generation as discrete diffusion over "
+            "category and bounding-box token sequences. This package exposes "
+            "the denoiser, tokenizer, scheduler, and Diffusers pipeline needed "
+            "to reproduce converted inference."
+        ),
         compute_infrastructure=(
             "Conversion and parity generation run locally through the `uv` "
-            "workspace commands documented in the package README."
+            "workspace commands documented in `models/layout-dm/README.md`."
         ),
         hardware_requirements=(
             "CPU is sufficient for package loading and conversion. CUDA is "
@@ -211,8 +216,9 @@ def build_layout_model_card(
         ),
         citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
         citation_apa=(
-            "Please cite the original paper listed in the BibTeX entry when using "
-            "this converted checkpoint."
+            "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
+            "(2023). LayoutDM: Discrete Diffusion Model for Controllable Layout "
+            "Generation. CVPR."
         ),
         glossary=(
             "`xywh` means normalized center-x, center-y, width, and height. "
@@ -236,7 +242,7 @@ def build_layout_model_card(
 
 def layoutdm_model_card(
     *,
-    dataset: str,
+    dataset: DatasetName | str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the LayoutDM model card for a converted checkpoint.
@@ -313,7 +319,7 @@ print(out.bbox, out.labels, out.mask)
     )
 
 
-def _layoutdm_dataset_id(dataset: str) -> str:
+def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":

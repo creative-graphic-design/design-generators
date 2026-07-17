@@ -6,6 +6,7 @@ from layoutformerpp import (
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
     LayoutFormerPPProcessor,
+    LayoutGenerationOutput,
 )
 
 
@@ -107,6 +108,8 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
         do_sample=True,
         top_k=1,
     )
+    assert isinstance(sampled, LayoutGenerationOutput)
+    assert sampled.sequences is not None
     assert sampled.sequences.shape == (1, 1)
 
     with pytest.raises(ValueError, match="processor is required"):
