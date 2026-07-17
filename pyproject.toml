@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "const-layout",
     "layout-dm",
     "layout-generation-common",
     "transformers[torch,vision]>=5.0.0",
@@ -37,6 +38,7 @@ dev = [
 members = ["models/*"]
 
 [tool.uv.sources]
+const-layout = { workspace = true }
 layout-dm = { workspace = true }
 layout-generation-common = { workspace = true }
 
@@ -48,7 +50,9 @@ extend-select = ["ANN", "D"]
 "tests/*.py" = ["D"]
 "tests/**/*.py" = ["D"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
-"models/*/tests/**/*.py" = ["D"]
+"models/*/src/**/*.py" = ["ANN", "D"]
+"models/*/tests/**/*.py" = ["ANN", "D"]
+"**/tests/**/*.py" = ["ANN", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -57,7 +61,7 @@ convention = "google"
 all = "error"
 
 [tool.ty.src]
-exclude = ["models/common/**", "models/layout-dm/**"]
+exclude = ["models/common/**", "models/layout-dm/**", "models/const-layout/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src", "models"]
