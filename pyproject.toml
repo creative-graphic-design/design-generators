@@ -14,9 +14,11 @@ classifiers = [
 dependencies = [
     "layout-corrector",
     "layout-flow",
+    "layout-gpt",
     "lace",
     "layoutganpp",
     "layout-dm",
+    "layoutprompter",
     "laygen",
     "layoutformerpp",
     "posgen",
@@ -60,9 +62,11 @@ members = ["lib/*", "models/*"]
 [tool.uv.sources]
 layout-corrector = { workspace = true }
 layout-flow = { workspace = true }
+layout-gpt = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
+layoutprompter = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 posgen = { workspace = true }
@@ -100,7 +104,7 @@ unresolved-import = "ignore"
 exclude = ["vendor"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "lib", "models"]
+testpaths = ["lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
@@ -123,5 +127,5 @@ skip_covered = true
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py", "lib", "models"]
+paths = ["lib", "models", "scripts"]
 verbose = false
