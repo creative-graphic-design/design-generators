@@ -19,6 +19,14 @@ from layoutformerpp.serialization import build_default_tokens
 from laygen.common.labels import labels_for_dataset
 
 
+def resolve_vocab_json(vocab_json: Path | None, checkpoint: Path) -> Path | None:
+    """Return an explicit or sibling vendor vocab file when one is published."""
+    if vocab_json is not None:
+        return vocab_json
+    sibling = checkpoint.parent / "vocab.json"
+    return sibling if sibling.exists() else None
+
+
 def main() -> None:
     """Run checkpoint conversion."""
     parser = argparse.ArgumentParser(
@@ -62,8 +70,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.vocab_json is not None:
-        tokenizer = LayoutFormerPPTokenizer(vocab_file=str(args.vocab_json))
+    vocab_json = resolve_vocab_json(args.vocab_json, args.checkpoint)
+    if vocab_json is not None:
+        tokenizer = LayoutFormerPPTokenizer(vocab_file=str(vocab_json))
     else:
         tokenizer = LayoutFormerPPTokenizer(
             tokens=build_default_tokens(

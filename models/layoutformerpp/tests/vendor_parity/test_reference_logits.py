@@ -1,14 +1,48 @@
 from __future__ import annotations
 
+import os
 import sys
+import types
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 import torch
 
 from layoutformerpp import (
+    LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
     LayoutFormerPPTokenizer,
+)
+from layoutformerpp.conversion import load_original_state_dict
+from layoutformerpp.serialization import build_default_tokens
+from laygen.common.labels import labels_for_dataset
+
+
+PUBLIC_TASKS = ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen")
+
+
+@dataclass(frozen=True)
+class ParityCase:
+    """One public LayoutFormer++ checkpoint parity target."""
+
+    dataset: str
+    task: str
+
+    @property
+    def checkpoint_name(self) -> str:
+        return f"{self.dataset}_{self.task}"
+
+
+PARITY_CASES = tuple(
+    ParityCase(dataset=dataset, task=task)
+    for dataset in ("rico", "publaynet")
+    for task in PUBLIC_TASKS
+)
+LABEL_CONSTRAINT_CASES = tuple(
+    ParityCase(dataset=dataset, task=task)
+    for dataset in ("rico", "publaynet")
+    for task in ("gen_t", "gen_ts")
 )
 
 
@@ -20,60 +54,162 @@ def _repo_root() -> Path:
     raise RuntimeError("Could not locate repository root")
 
 
-@pytest.mark.vendor_parity
-def test_rico_gen_t_logits_match_vendor() -> None:
-    root = _repo_root()
-    checkpoint = (
-        root
-        / ".cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar"
-    )
-    vocab = root / ".cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json"
-    converted = root / ".cache/layoutformerpp/converted/rico_gen_t"
-    vendor_src = root / "vendor/ms-layout-generation/LayoutFormer++/src"
-    if (
-        not checkpoint.exists()
-        or not vocab.exists()
-        or not converted.exists()
-        or not vendor_src.exists()
-    ):
-        pytest.skip(
-            "LayoutFormer++ original checkpoint, vocab, converted model, or vendor source is absent"
+def _original_root(repo_root: Path) -> Path:
+    return Path(
+        os.environ.get(
+            "LAYOUTFORMERPP_ORIGINAL_DIR",
+            str(repo_root / ".cache/layoutformerpp/original"),
         )
+    )
 
+
+def _case_paths(repo_root: Path, case: ParityCase) -> tuple[Path, Path, Path | None]:
+    original = _original_root(repo_root)
+    checkpoint_dir = original / "ckpts" / case.checkpoint_name
+    checkpoint = checkpoint_dir / "final_checkpoint.pth.tar"
+    vocab = checkpoint_dir / "vocab.json"
+    return (
+        checkpoint,
+        repo_root / "vendor/ms-layout-generation/LayoutFormer++/src",
+        (vocab if vocab.exists() else None),
+    )
+
+
+def _vendor_modules(vendor_src: Path):
     sys.path.insert(0, str(vendor_src))
     from model.layout_transformer.model import LayoutTransformer
     from model.layout_transformer.tokenizer import LayoutTransformerTokenizer
 
-    vendor_tokenizer = LayoutTransformerTokenizer([])
-    vendor_tokenizer.from_vocab(str(vocab))
-    tokenizer = LayoutFormerPPTokenizer.from_pretrained(converted)
-    assert vendor_tokenizer._token2id == tokenizer.get_vocab()
+    return LayoutTransformer, LayoutTransformerTokenizer
 
-    state = torch.load(checkpoint, map_location="cpu")
-    vendor_model = LayoutTransformer(
+
+def _tokenizers(case: ParityCase, vocab: Path | None, vendor_tokenizer_class):
+    if vocab is None:
+        tokens = build_default_tokens(
+            labels_for_dataset(case.dataset), task=case.task, grid=128
+        )
+        vendor_tokenizer = vendor_tokenizer_class(tokens)
+        tokenizer = LayoutFormerPPTokenizer(tokens=tokens)
+        return vendor_tokenizer, tokenizer
+    vendor_tokenizer = vendor_tokenizer_class([])
+    vendor_tokenizer.from_vocab(str(vocab))
+    tokenizer = LayoutFormerPPTokenizer(vocab_file=str(vocab))
+    return vendor_tokenizer, tokenizer
+
+
+def _models(case: ParityCase, checkpoint: Path, tokenizer: LayoutFormerPPTokenizer):
+    config = LayoutFormerPPConfig(
+        vocab_size=tokenizer.vocab_size, dataset=case.dataset, task=case.task
+    )
+    state_dict = load_original_state_dict(checkpoint)
+    model = LayoutFormerPPForConditionalGeneration(config)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    assert missing == []
+    assert unexpected == []
+    model.eval()
+    return config, state_dict, model
+
+
+def _input_text(case: ParityCase) -> str:
+    if case.task == "gen_r":
+        return (
+            "label_1 | label_2 <sep_labels_relations> "
+            "label_1 index_1 <sep_ele_rela_ele> relation_3 "
+            "<sep_ele_rela_ele> label_2 index_1 <sep_relations>"
+        )
+    if case.task == "gen_ts":
+        return "label_1 10 10 | label_2 11 11"
+    if case.task in {"completion", "refinement"}:
+        return "label_1 0 0 10 10 | label_2 1 1 11 11 |"
+    return "label_1 label_2"
+
+
+def _output_text() -> str:
+    return "label_1 0 0 10 10 | label_2 1 1 11 11 |"
+
+
+def _index2label(case: ParityCase) -> dict[int, str]:
+    return {
+        idx + 1: f"label_{idx + 1}"
+        for idx, _ in enumerate(labels_for_dataset(case.dataset))
+    }
+
+
+def _label_constraint(case: ParityCase, vendor_src: Path, vendor_tokenizer):
+    sys.path.insert(0, str(vendor_src))
+    if "seaborn" not in sys.modules:
+        seaborn_stub = types.ModuleType("seaborn")
+        setattr(seaborn_stub, "color_palette", lambda *args, **kwargs: [])
+        sys.modules["seaborn"] = seaborn_stub
+    if "pycocotools.coco" not in sys.modules:
+        pycocotools_stub = types.ModuleType("pycocotools")
+        coco_stub = types.ModuleType("pycocotools.coco")
+        setattr(coco_stub, "COCO", object)
+        sys.modules["pycocotools"] = pycocotools_stub
+        sys.modules["pycocotools.coco"] = coco_stub
+    from model.layout_transformer.constrained_decoding import (
+        TransformerSortByDictLabelConstraint,
+        TransformerSortByDictLabelSizeConstraint,
+    )
+
+    index2label = _index2label(case)
+    if case.task == "gen_ts":
+        constraint = TransformerSortByDictLabelSizeConstraint(
+            vendor_tokenizer,
+            128,
+            set(index2label.values()),
+            index2label,
+            add_sep_token=True,
+        )
+        constraint.prepare([[1, 2]], [[[0, 0, 10, 10], [1, 1, 11, 11]]])
+        return constraint
+    constraint = TransformerSortByDictLabelConstraint(
+        vendor_tokenizer,
+        128,
+        set(index2label.values()),
+        index2label,
+        add_sep_token=True,
+    )
+    constraint.prepare([[1, 2]])
+    return constraint
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize("case", PARITY_CASES, ids=lambda case: case.checkpoint_name)
+def test_public_checkpoint_logits_match_vendor(case: ParityCase) -> None:
+    root = _repo_root()
+    checkpoint, vendor_src, vocab = _case_paths(root, case)
+    if not checkpoint.exists() or not vendor_src.exists():
+        pytest.skip(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        )
+
+    layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
+    vendor_tokenizer, tokenizer = _tokenizers(case, vocab, vendor_tokenizer_class)
+    assert vendor_tokenizer._token2id == tokenizer.get_vocab()
+    config, state_dict, model = _models(case, checkpoint, tokenizer)
+    vendor_model = layout_transformer(
         vocab_size=len(vendor_tokenizer),
-        max_len=150,
+        max_len=config.max_position_embeddings,
         bos_token_id=vendor_tokenizer.bos_token_id,
         pad_token_id=vendor_tokenizer.pad_token_id,
         eos_token_id=vendor_tokenizer.eos_token_id,
-        d_model=512,
-        num_layers=8,
-        nhead=8,
-        dropout=0.1,
-        d_feedforward=2048,
-        share_embedding=True,
+        d_model=config.d_model,
+        num_layers=config.encoder_layers,
+        nhead=config.encoder_attention_heads,
+        dropout=config.dropout,
+        d_feedforward=config.dim_feedforward,
+        share_embedding=config.share_embedding,
     )
-    vendor_model.load_state_dict(
-        {k.removeprefix("module."): v for k, v in state.items()}, strict=False
-    )
+    missing, unexpected = vendor_model.load_state_dict(state_dict, strict=False)
+    assert missing == []
+    assert unexpected == []
     vendor_model.eval()
-    model = LayoutFormerPPForConditionalGeneration.from_pretrained(converted)
-    model.eval()
 
-    encoded = tokenizer.encode_text(["label_1 label_2"], add_eos=True)
-    labels = tokenizer.encode_text(
-        ["label_1 0 0 10 10 | label_2 1 1 11 11 |"], add_eos=True
-    )["input_ids"]
+    encoded = tokenizer.encode_text([_input_text(case)], add_eos=True)
+    vendor_encoded = vendor_tokenizer([_input_text(case)], add_eos=True)
+    torch.testing.assert_close(encoded["input_ids"], vendor_encoded["input_ids"])
+    labels = tokenizer.encode_text([_output_text()], add_eos=True)["input_ids"]
     with torch.no_grad():
         vendor_logits = vendor_model.compute_loss(
             encoded["input_ids"], ~encoded["attention_mask"].bool(), labels
@@ -84,3 +220,106 @@ def test_rico_gen_t_logits_match_vendor() -> None:
             labels=labels,
         ).logits
     torch.testing.assert_close(new_logits, vendor_logits, atol=0.0, rtol=0.0)
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize("case", PARITY_CASES, ids=lambda case: case.checkpoint_name)
+def test_public_checkpoint_generation_matches_vendor(case: ParityCase) -> None:
+    root = _repo_root()
+    checkpoint, vendor_src, vocab = _case_paths(root, case)
+    if not checkpoint.exists() or not vendor_src.exists():
+        pytest.skip(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        )
+
+    layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
+    vendor_tokenizer, tokenizer = _tokenizers(case, vocab, vendor_tokenizer_class)
+    config, state_dict, model = _models(case, checkpoint, tokenizer)
+    vendor_model = layout_transformer(
+        vocab_size=len(vendor_tokenizer),
+        max_len=config.max_position_embeddings,
+        bos_token_id=vendor_tokenizer.bos_token_id,
+        pad_token_id=vendor_tokenizer.pad_token_id,
+        eos_token_id=vendor_tokenizer.eos_token_id,
+        d_model=config.d_model,
+        num_layers=config.encoder_layers,
+        nhead=config.encoder_attention_heads,
+        dropout=config.dropout,
+        d_feedforward=config.dim_feedforward,
+        share_embedding=config.share_embedding,
+    )
+    vendor_model.load_state_dict(state_dict, strict=False)
+    vendor_model.eval()
+
+    encoded = tokenizer.encode_text([_input_text(case)], add_eos=True)
+    do_sample = case.task in {"completion", "ugen", "gen_r"}
+    torch.manual_seed(1234)
+    with torch.no_grad():
+        vendor_sequences = vendor_model(
+            encoded["input_ids"],
+            ~encoded["attention_mask"].bool(),
+            max_length=min(config.decode_max_length, 12),
+            do_sample=do_sample,
+            top_k=10,
+            temperature=0.7,
+        )["output"]
+    torch.manual_seed(1234)
+    new_sequences = model.generate_sequences(
+        encoded["input_ids"],
+        encoded["attention_mask"],
+        max_length=min(config.decode_max_length, 12),
+        do_sample=do_sample,
+        top_k=10,
+        temperature=0.7,
+    )
+    torch.testing.assert_close(new_sequences, vendor_sequences)
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(
+    "case", LABEL_CONSTRAINT_CASES, ids=lambda case: case.checkpoint_name
+)
+def test_label_constrained_generation_matches_vendor(case: ParityCase) -> None:
+    root = _repo_root()
+    checkpoint, vendor_src, vocab = _case_paths(root, case)
+    if not checkpoint.exists() or not vendor_src.exists():
+        pytest.skip(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        )
+
+    layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
+    vendor_tokenizer, tokenizer = _tokenizers(case, vocab, vendor_tokenizer_class)
+    config, state_dict, model = _models(case, checkpoint, tokenizer)
+    vendor_model = layout_transformer(
+        vocab_size=len(vendor_tokenizer),
+        max_len=config.max_position_embeddings,
+        bos_token_id=vendor_tokenizer.bos_token_id,
+        pad_token_id=vendor_tokenizer.pad_token_id,
+        eos_token_id=vendor_tokenizer.eos_token_id,
+        d_model=config.d_model,
+        num_layers=config.encoder_layers,
+        nhead=config.encoder_attention_heads,
+        dropout=config.dropout,
+        d_feedforward=config.dim_feedforward,
+        share_embedding=config.share_embedding,
+    )
+    vendor_model.load_state_dict(state_dict, strict=False)
+    vendor_model.eval()
+
+    encoded = tokenizer.encode_text([_input_text(case)], add_eos=True)
+    with torch.no_grad():
+        vendor_sequences = vendor_model(
+            encoded["input_ids"],
+            ~encoded["attention_mask"].bool(),
+            max_length=12,
+            generation_constraint_fn=_label_constraint(
+                case, vendor_src, vendor_tokenizer
+            ),
+        )["output"]
+    new_sequences = model.generate_sequences(
+        encoded["input_ids"],
+        encoded["attention_mask"],
+        max_length=12,
+        generation_constraint_fn=_label_constraint(case, vendor_src, vendor_tokenizer),
+    )
+    torch.testing.assert_close(new_sequences, vendor_sequences)

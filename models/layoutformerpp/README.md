@@ -66,22 +66,32 @@ Each released task has an incompatible task-specific checkpoint, so Hub ids incl
 
 ## Parity results
 
-Current local parity coverage:
+Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README.
 
-| Checkpoint | Tokenizer | Logits max abs | Logits max rel | Generation |
-| --- | ---: | ---: | ---: | --- |
-| `rico_gen_t` | `vocab.json` exact | 0.0 | 0.0 | pending full constrained-decoding fixture sweep |
+| Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| `rico_gen_t` | present | `ckpts/rico_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-constrained loop |
+| `rico_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
+| `rico_gen_r` | present | `ckpts/rico_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop with relation input |
+| `rico_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop |
+| `rico_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
+| `rico_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
+| `publaynet_gen_t` | present | `ckpts/publaynet_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-constrained loop |
+| `publaynet_gen_ts` | present | `ckpts/publaynet_gen_ts/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
+| `publaynet_gen_r` | present | `ckpts/publaynet_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop with relation input |
+| `publaynet_refinement` | present | `ckpts/publaynet_refinement/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop |
+| `publaynet_completion` | present | `ckpts/publaynet_completion/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop |
+| `publaynet_ugen` | present | `ckpts/publaynet_ugen/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop |
 
 Verified command:
 
 ```bash
+LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
 CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
 ```
-
-Full generation parity for all RICO and PubLayNet public checkpoints is tracked as follow-up work.
 
 ## Reproducibility
 
@@ -92,48 +102,57 @@ Prerequisites:
 - Run commands from the repository root.
 - Use `uv sync --package layoutformerpp` once before the first run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
-- Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed.
+- Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
 - Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
 
-1. Download the `rico_gen_t` LayoutFormer++ checkpoint and vocabulary files into `.cache/layoutformerpp/original`.
+1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
 ```bash
 uv run --package layoutformerpp python models/layoutformerpp/scripts/download_original.py \
   --output-dir .cache/layoutformerpp/original \
-  --allow-pattern "ckpts/rico_gen_t/**"
+  --allow-pattern "ckpts/**/final_checkpoint.pth.tar" \
+  --allow-pattern "ckpts/**/vocab.json"
 ```
 
-2. Generate the local vendor reference metadata for the `rico_gen_t` fixture. The metadata output path is `.cache/layoutformerpp/reference/rico_gen_t/metadata.json`.
+2. Generate local vendor reference metadata for each public task fixture. Metadata is written under `.cache/layoutformerpp/reference/<dataset>_<task>/metadata.json`; generated tensors stay local.
 
 ```bash
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
-  --dataset rico \
-  --task gen_t \
-  --seed 500 \
-  --output-dir .cache/layoutformerpp/reference/rico_gen_t
+for dataset in rico publaynet; do
+  for task in gen_t gen_ts gen_r refinement completion ugen; do
+    CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+      --dataset "$dataset" \
+      --task "$task" \
+      --seed 500 \
+      --output-dir ".cache/layoutformerpp/reference/${dataset}_${task}"
+  done
+done
 ```
 
-3. Run the vendor parity tests against the cached checkpoint and vendor source.
+3. Run the vendor parity tests against the cached checkpoints and vendor source.
 
 ```bash
+LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
 CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
 ```
 
-4. Convert the `rico_gen_t` checkpoint into Transformers `save_pretrained` format. The output directory is `.cache/layoutformerpp/converted/rico_gen_t`, including the generated `README.md` model card.
+4. Convert all public checkpoints into Transformers `save_pretrained` format. When a task-specific `vocab.json` is not published, the converter builds the matching synthetic single-task vocabulary from the dataset labels and selected task.
 
 ```bash
-uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
-  --checkpoint .cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar \
-  --dataset rico \
-  --task gen_t \
-  --vocab-json .cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json \
-  --output-dir .cache/layoutformerpp/converted/rico_gen_t
+for dataset in rico publaynet; do
+  for task in gen_t gen_ts gen_r refinement completion ugen; do
+    uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
+      --checkpoint ".cache/layoutformerpp/original/ckpts/${dataset}_${task}/final_checkpoint.pth.tar" \
+      --dataset "$dataset" \
+      --task "$task" \
+      --output-dir ".cache/layoutformerpp/converted/${dataset}_${task}"
+  done
+done
 ```
 
-5. Smoke-test `from_pretrained` from the converted artifact.
+5. Smoke-test `from_pretrained` from every converted artifact.
 
 ```bash
 uv run --package layoutformerpp python - <<'PY'
@@ -142,10 +161,12 @@ from layoutformerpp import (
     LayoutFormerPPProcessor,
 )
 
-path = ".cache/layoutformerpp/converted/rico_gen_t"
-model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
-processor = LayoutFormerPPProcessor.from_pretrained(path)
-print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)
+for dataset in ("rico", "publaynet"):
+    for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
+        path = f".cache/layoutformerpp/converted/{dataset}_{task}"
+        model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
+        processor = LayoutFormerPPProcessor.from_pretrained(path)
+        print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)
 PY
 ```
 
