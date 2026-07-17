@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
-from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
 from .modeling_layout_flow import LayoutFlowTransformerModel

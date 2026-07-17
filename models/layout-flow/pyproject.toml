@@ -7,7 +7,7 @@ dependencies = [
     "diffusers[torch]>=0.36.0",
     "einops>=0.8",
     "huggingface-hub>=0.24",
-    "layout-generation-common",
+    "laygen",
     "numpy>=1.24",
     "safetensors>=0.4",
     "torch>=2.1",
@@ -26,7 +26,7 @@ vendor = [
 ]
 
 [tool.uv.sources]
-layout-generation-common = { workspace = true }
+laygen = { workspace = true }
 
 [tool.pytest.ini_options]
 markers = [

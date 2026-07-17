@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "layout-flow",
     "layout-dm",
-    "layout-generation-common",
+    "laygen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -35,12 +35,13 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["models/*"]
+members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 layout-flow = { workspace = true }
 layout-dm = { workspace = true }
-layout-generation-common = { workspace = true }
+laygen = { workspace = true }
+posgen = { workspace = true }
 
 [tool.ruff.lint]
 extend-select = ["ANN", "D"]
@@ -50,6 +51,9 @@ extend-exclude = ["vendor"]
 
 [tool.ruff.lint.per-file-ignores]
 "models/**/*.py" = ["ANN", "D"]
+"lib/*/src/**/*.py" = ["D"]
+"lib/*/tests/*.py" = ["ANN", "D"]
+"lib/*/tests/**/*.py" = ["ANN", "D"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
 "models/*/src/**/*.py" = ["D"]
 "models/*/tests/*.py" = ["ANN", "D"]
@@ -68,10 +72,10 @@ unsupported-base = "ignore"
 unresolved-import = "ignore"
 
 [tool.ty.src]
-exclude = ["models/common/**", "models/layout-dm/**", "models/layout-flow/**", "vendor/**"]
+exclude = ["models/layout-dm/**", "models/layout-flow/**", "vendor/**"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "models"]
+testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original model weights and vendor dependencies",
@@ -80,5 +84,5 @@ markers = [
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py"]
-verbose = true
+paths = ["main.py", "lib", "models"]
+verbose = false

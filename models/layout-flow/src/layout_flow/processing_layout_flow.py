@@ -5,7 +5,7 @@ from typing import Literal
 import numpy as np
 import torch
 
-from layout_generation_common.bbox import (
+from laygen.common.bbox import (
     BoxFormat,
     clamp_boxes,
     denormalize_boxes,
