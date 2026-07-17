@@ -5,29 +5,36 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Final
 
 import torch
 
-from layout_flow.configuration_layout_flow import LayoutFlowConfig
+from laygen.common.labels import DatasetName
+from layout_flow.configuration_layout_flow import (
+    LayoutFlowConfig,
+    normalize_dataset_name,
+)
 from layout_flow.conversion import build_pipeline, convert_lightning_state_dict
 from layout_flow.model_card import save_layoutflow_model_card
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_ORIGINAL_DIR = REPO_ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
-DEFAULT_OUTPUT_ROOT = REPO_ROOT / ".cache" / "layout-flow" / "converted"
-CHECKPOINT_NAMES = {
-    "publaynet": "checkpoint_PubLayNet_LayoutFlow.ckpt",
-    "rico25": "checkpoint_RICO_LayoutFlow.ckpt",
+REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
+DEFAULT_ORIGINAL_DIR: Final[Path] = (
+    REPO_ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
+)
+DEFAULT_OUTPUT_ROOT: Final[Path] = REPO_ROOT / ".cache" / "layout-flow" / "converted"
+CHECKPOINT_NAMES: Final[dict[DatasetName, str]] = {
+    DatasetName.publaynet: "checkpoint_PubLayNet_LayoutFlow.ckpt",
+    DatasetName.rico25: "checkpoint_RICO_LayoutFlow.ckpt",
 }
 
 
-def default_checkpoint(dataset: str) -> Path:
+def default_checkpoint(dataset: DatasetName) -> Path:
     return DEFAULT_ORIGINAL_DIR / CHECKPOINT_NAMES[dataset]
 
 
-def default_output_dir(dataset: str) -> Path:
-    return DEFAULT_OUTPUT_ROOT / dataset
+def default_output_dir(dataset: DatasetName) -> Path:
+    return DEFAULT_OUTPUT_ROOT / str(dataset)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dataset",
-        choices=sorted(CHECKPOINT_NAMES),
+        choices=sorted(str(dataset) for dataset in CHECKPOINT_NAMES),
         default="publaynet",
         help="Dataset/checkpoint variant to convert.",
     )
@@ -75,13 +82,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
 
-    checkpoint = args.checkpoint or default_checkpoint(args.dataset)
-    output_dir = args.output_dir or default_output_dir(args.dataset)
+    dataset = normalize_dataset_name(args.dataset)
+    checkpoint = args.checkpoint or default_checkpoint(dataset)
+    output_dir = args.output_dir or default_output_dir(dataset)
     vendor_dir = args.vendor_dir
     sys.path.insert(0, str(vendor_dir.resolve()))
     raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
     state_dict = raw.get("state_dict", raw)
-    config = LayoutFlowConfig(dataset_name=args.dataset)
+    config = LayoutFlowConfig(dataset_name=str(dataset))
     pipe = build_pipeline(config)
     missing, unexpected = pipe.model.load_state_dict(
         convert_lightning_state_dict(state_dict), strict=False
@@ -92,7 +100,7 @@ def main() -> None:
     if model_missing:
         raise RuntimeError(f"Missing model keys: {model_missing}")
     pipe.save_pretrained(output_dir)
-    save_layoutflow_model_card(output_dir, dataset=args.dataset)
+    save_layoutflow_model_card(output_dir, dataset=str(dataset))
 
 
 if __name__ == "__main__":

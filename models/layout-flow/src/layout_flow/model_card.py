@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 from huggingface_hub import ModelCard
+from laygen.common.labels import DatasetName
 from laygen.common.model_card import build_layout_model_card
 
+from .configuration_layout_flow import normalize_dataset_name
 
-LAYOUTFLOW_BIBTEX = r"""
+
+LAYOUTFLOW_BIBTEX: Final[str] = r"""
 @inproceedings{guerreiro2024layoutflow,
   title={LayoutFlow: Flow Matching For Layout Generation},
   author={Guerreiro, Julian Jorge Andrade and Inoue, Naoto and Masui, Kento and Otani, Mayu and Nakayama, Hideki},
@@ -18,6 +22,11 @@ LAYOUTFLOW_BIBTEX = r"""
   organization={Springer}
 }
 """
+
+LAYOUTFLOW_DATASET_IDS: Final[dict[DatasetName, str]] = {
+    DatasetName.rico25: "creative-graphic-design/Rico",
+    DatasetName.publaynet: "creative-graphic-design/PubLayNet",
+}
 
 
 def layoutflow_model_card(dataset: str) -> ModelCard:
@@ -37,9 +46,10 @@ def layoutflow_model_card(dataset: str) -> ModelCard:
         >>> card.data.to_dict()["library_name"]
         'diffusers'
     """
-    dataset = _normalize_dataset(dataset)
-    model_id = f"creative-graphic-design/layout-flow-{dataset}"
-    dataset_id = _dataset_id(dataset)
+    dataset_name = normalize_dataset_name(dataset)
+    dataset_id = _dataset_id(dataset_name)
+    dataset_value = str(dataset_name)
+    model_id = f"creative-graphic-design/layout-flow-{dataset_value}"
     how_to_use = f"""
 from layout_flow import LayoutFlowPipeline
 
@@ -49,7 +59,7 @@ print(out.bbox, out.labels, out.mask, out.id2label)
 """
     return build_layout_model_card(
         model_id=model_id,
-        model_name=f"LayoutFlow {dataset}",
+        model_name=f"LayoutFlow {dataset_value}",
         dataset_ids=[dataset_id],
         license="mit",
         library_name="diffusers",
@@ -59,11 +69,11 @@ print(out.bbox, out.labels, out.mask, out.id2label)
             "layout-flow",
             "flow-matching",
             "diffusers",
-            dataset,
+            dataset_value,
         ],
         model_details=(
             "Diffusers-format conversion of the LayoutFlow checkpoint for "
-            f"`{dataset}`. LayoutFlow is a flow-matching layout generator that "
+            f"`{dataset_value}`. LayoutFlow is a flow-matching layout generator that "
             "integrates a learned vector field over continuous geometry and "
             "analog-bit category labels. Public outputs are normalized center "
             "`xywh` boxes, dataset-local labels, masks, and `id2label` metadata."
@@ -89,7 +99,7 @@ print(out.bbox, out.labels, out.mask, out.id2label)
         ),
         parity_metrics=[
             {
-                "dataset": dataset,
+                "dataset": dataset_value,
                 "tokenizer_exact": "n/a",
                 "deterministic_exact": "Euler exact",
                 "logits_max_abs": 0.0,
@@ -126,17 +136,8 @@ def save_layoutflow_model_card(output_dir: str | Path, *, dataset: str) -> Path:
     return output_path
 
 
-def _normalize_dataset(dataset: str) -> str:
-    if dataset in {"rico", "rico25"}:
-        return "rico25"
-    if dataset == "publaynet":
-        return "publaynet"
-    raise ValueError(f"Unsupported LayoutFlow dataset: {dataset}")
-
-
-def _dataset_id(dataset: str) -> str:
-    if dataset == "rico25":
-        return "creative-graphic-design/Rico"
-    if dataset == "publaynet":
-        return "creative-graphic-design/PubLayNet"
-    raise ValueError(f"Unsupported LayoutFlow dataset: {dataset}")
+def _dataset_id(dataset: DatasetName) -> str:
+    try:
+        return LAYOUTFLOW_DATASET_IDS[dataset]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported LayoutFlow dataset: {dataset}") from exc

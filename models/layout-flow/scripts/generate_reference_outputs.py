@@ -6,19 +6,25 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Final
 
 import torch
 
+from laygen.common.labels import DatasetName
 from layout_flow import LayoutFlowConfig
+from layout_flow.configuration_layout_flow import normalize_dataset_name
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_ORIGINAL_DIR = REPO_ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / ".cache" / "layout-flow" / "golden"
-CHECKPOINT_NAMES = {
-    "publaynet": "checkpoint_PubLayNet_LayoutFlow.ckpt",
-    "rico25": "checkpoint_RICO_LayoutFlow.ckpt",
+REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
+DEFAULT_ORIGINAL_DIR: Final[Path] = (
+    REPO_ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
+)
+DEFAULT_OUTPUT_DIR: Final[Path] = REPO_ROOT / ".cache" / "layout-flow" / "golden"
+CHECKPOINT_NAMES: Final[dict[DatasetName, str]] = {
+    DatasetName.publaynet: "checkpoint_PubLayNet_LayoutFlow.ckpt",
+    DatasetName.rico25: "checkpoint_RICO_LayoutFlow.ckpt",
 }
+ALL_DATASETS: Final[str] = "all"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,8 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dataset",
-        choices=[*sorted(CHECKPOINT_NAMES), "all"],
-        default="all",
+        choices=[*sorted(str(dataset) for dataset in CHECKPOINT_NAMES), ALL_DATASETS],
+        default=ALL_DATASETS,
         help="Dataset/checkpoint variant to generate, or all variants.",
     )
     parser.add_argument(
@@ -72,11 +78,16 @@ def main() -> None:
     sys.path.insert(0, str(args.vendor_dir.resolve()))
     from src.models.backbone.layoutdm_backbone import LayoutDMBackbone
 
-    datasets = sorted(CHECKPOINT_NAMES) if args.dataset == "all" else [args.dataset]
+    datasets = (
+        sorted(CHECKPOINT_NAMES, key=str)
+        if args.dataset == ALL_DATASETS
+        else [normalize_dataset_name(args.dataset)]
+    )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     summary = []
     for dataset in datasets:
-        config = LayoutFlowConfig(dataset_name=dataset)
+        dataset_value = str(dataset)
+        config = LayoutFlowConfig(dataset_name=dataset_value)
         checkpoint = args.checkpoint_dir / CHECKPOINT_NAMES[dataset]
         raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
         state_dict = raw["state_dict"]
@@ -121,10 +132,10 @@ def main() -> None:
         timestep = torch.tensor([0.25, 0.75], device=args.device, dtype=torch.float32)
         with torch.no_grad():
             vector = vendor(sample[:, :, :4], sample[:, :, 4:], cond_mask, timestep)
-        output_path = args.output_dir / f"{dataset}_vendor_vector_field.pt"
+        output_path = args.output_dir / f"{dataset_value}_vendor_vector_field.pt"
         torch.save(
             {
-                "dataset": dataset,
+                "dataset": dataset_value,
                 "seed": args.seed,
                 "sample": sample.cpu(),
                 "cond_mask": cond_mask.cpu(),
@@ -135,7 +146,7 @@ def main() -> None:
         )
         summary.append(
             {
-                "dataset": dataset,
+                "dataset": dataset_value,
                 "checkpoint": str(checkpoint),
                 "output": str(output_path),
                 "shape": list(vector.shape),

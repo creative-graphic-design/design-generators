@@ -199,36 +199,42 @@ class LayoutDMBackbone(nn.Module):
         dropout: float = 0.1,
         use_pos_enc: bool = False,
         num_cat: int = 6,
-        attr_encoding: AttrEncoding = "continuous",
-        seq_type: SeqType = "stacked",
+        attr_encoding: AttrEncoding = AttrEncoding.continuous,
+        seq_type: SeqType = SeqType.stacked,
     ) -> None:
         """Initialize the vendor-compatible backbone."""
         super().__init__()
         self.geom_dim = 4
         self.num_cat = num_cat
-        self.attr_encoding = attr_encoding
-        self.seq_type = seq_type
+        self.attr_encoding = AttrEncoding(attr_encoding)
+        self.seq_type = SeqType(seq_type)
         self.use_pose_enc = use_pos_enc
         self.pos_enc = PositionalEncoding(d_model, dropout, max_len=200)
         self.cond_enc = nn.Embedding(
-            6, latent_dim if seq_type == "stacked" else 2 * latent_dim
+            6,
+            latent_dim if self.seq_type is SeqType.stacked else 2 * latent_dim,
         )
-        attr_dim = int(np.ceil(np.log2(num_cat))) if attr_encoding == "AnalogBit" else 1
-        if attr_encoding == "discrete":
+        attr_dim = (
+            int(np.ceil(np.log2(num_cat)))
+            if self.attr_encoding is AttrEncoding.analog_bit
+            else 1
+        )
+        if self.attr_encoding is AttrEncoding.discrete:
             self.type_embed = nn.Embedding(num_cat, latent_dim)
             self.geom_embed = nn.Linear(self.geom_dim, latent_dim)
         else:
             self.type_embed = nn.Linear(
-                attr_dim, latent_dim if seq_type == "stacked" else 2 * latent_dim
+                attr_dim,
+                latent_dim if self.seq_type is SeqType.stacked else 2 * latent_dim,
             )
-            if seq_type == "seq":
+            if self.seq_type is SeqType.seq:
                 self.geom_enc = nn.ModuleList(
                     [nn.Linear(1, 2 * latent_dim) for _ in range(4)]
                 )
             else:
                 self.geom_embed = nn.Linear(
                     self.geom_dim,
-                    latent_dim if seq_type == "stacked" else 2 * latent_dim,
+                    latent_dim if self.seq_type is SeqType.stacked else 2 * latent_dim,
                 )
         self.elem_embed = nn.Linear(2 * latent_dim, d_model)
         decoder_layer = LayoutFlowBlock(
@@ -249,8 +255,8 @@ class LayoutDMBackbone(nn.Module):
                 d_model=d_model, nhead=nhead, batch_first=True
             )
         self.linear = nn.Linear(d_model, self.geom_dim + attr_dim)
-        if seq_type != "stacked":
-            k = 2 if seq_type == "seq_cond" else 5
+        if self.seq_type is not SeqType.stacked:
+            k = 2 if self.seq_type is SeqType.seq_cond else 5
             self.to_attrdim = nn.Linear(
                 k * (self.geom_dim + attr_dim), self.geom_dim + attr_dim
             )
@@ -260,23 +266,23 @@ class LayoutDMBackbone(nn.Module):
     ) -> Tensor:
         """Predict vector-field values for geometry and attribute inputs."""
         ps = None
-        if self.attr_encoding == "discrete":
+        if self.attr_encoding is AttrEncoding.discrete:
             geom = self.geom_embed(geom)
             attr = self.type_embed(attr.squeeze())
             x = torch.cat([geom, attr], dim=-1)
-        elif self.seq_type == "stacked":
+        elif self.seq_type is SeqType.stacked:
             geom = self.geom_embed(geom) + self.cond_enc(
                 cond_flags[:, :, : self.geom_dim].sum(-1)
             )
             attr = self.type_embed(attr) + self.cond_enc(cond_flags[:, :, -1])
             x, _ = pack([geom, attr], "b s *")
-        elif self.seq_type == "seq_cond":
+        elif self.seq_type is SeqType.seq_cond:
             geom = self.geom_embed(geom) + self.cond_enc(
                 cond_flags[:, :, : self.geom_dim].sum(-1)
             )
             attr = self.type_embed(attr) + self.cond_enc(cond_flags[:, :, -1])
             x, ps = pack([geom, attr], "b * d")
-        elif self.seq_type == "seq":
+        elif self.seq_type is SeqType.seq:
             geom_parts = [
                 self.geom_enc[i](geom[:, :, i, None])
                 + self.cond_enc(cond_flags[:, :, i])
@@ -295,7 +301,7 @@ class LayoutDMBackbone(nn.Module):
             else self.transformer(x, x)
         )
         x = self.linear(x)
-        if self.seq_type != "stacked":
+        if self.seq_type is not SeqType.stacked:
             if ps is None:
                 raise ValueError(f"Unsupported seq_type: {self.seq_type}")
             x = unpack(x, ps, "b * d")
@@ -329,8 +335,8 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
         num_layers: int = 4,
         dropout: float = 0.1,
         use_pos_enc: bool = False,
-        attr_encoding: AttrEncoding = "AnalogBit",
-        seq_type: SeqType = "stacked",
+        attr_encoding: AttrEncoding = AttrEncoding.analog_bit,
+        seq_type: SeqType = SeqType.stacked,
     ) -> None:
         """Initialize the converted LayoutFlow transformer model.
 
@@ -350,7 +356,9 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
         super().__init__()
         self.geom_dim = 4
         self.attr_dim = (
-            int(np.ceil(np.log2(num_labels))) if attr_encoding == "AnalogBit" else 1
+            int(np.ceil(np.log2(num_labels)))
+            if AttrEncoding(attr_encoding) is AttrEncoding.analog_bit
+            else 1
         )
         self.backbone = LayoutDMBackbone(
             latent_dim=latent_dim,

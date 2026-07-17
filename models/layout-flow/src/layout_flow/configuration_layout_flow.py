@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Final, Literal
+from enum import StrEnum, auto
+from typing import Final
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
@@ -14,11 +15,41 @@ from laygen.common.labels import (
 )
 
 
-AttrEncoding = Literal["AnalogBit", "continuous", "discrete"]
-SeqType = Literal["stacked", "seq", "seq_cond"]
-InitialDistributionName = Literal["gaussian", "uniform", "gmm", "gauss_uniform"]
-OdeSolverName = Literal["euler"]
-CoordinateRange = Literal["normalized_0_1"]
+class AttrEncoding(StrEnum):
+    """Closed set of LayoutFlow attribute encodings."""
+
+    analog_bit = "AnalogBit"
+    continuous = auto()
+    discrete = auto()
+
+
+class SeqType(StrEnum):
+    """Closed set of LayoutFlow sequence layouts."""
+
+    stacked = auto()
+    seq = auto()
+    seq_cond = auto()
+
+
+class InitialDistributionName(StrEnum):
+    """Closed set of initial-state distributions accepted by LayoutFlow config."""
+
+    gaussian = auto()
+    uniform = auto()
+    gmm = auto()
+    gauss_uniform = auto()
+
+
+class OdeSolverName(StrEnum):
+    """Closed set of ODE solvers accepted by LayoutFlow config."""
+
+    euler = auto()
+
+
+class CoordinateRange(StrEnum):
+    """Closed set of public coordinate ranges."""
+
+    normalized_0_1 = auto()
 
 
 RICO25_LAYOUT_FLOW_LABELS: Final[tuple[str, ...]] = (
@@ -125,14 +156,14 @@ class LayoutFlowConfig(ConfigMixin):
         dropout: float = 0.1,
         use_pos_enc: bool = False,
         tr_enc_only: bool = True,
-        attr_encoding: AttrEncoding = "AnalogBit",
-        seq_type: SeqType = "stacked",
-        distribution: InitialDistributionName = "gaussian",
+        attr_encoding: AttrEncoding = AttrEncoding.analog_bit,
+        seq_type: SeqType = SeqType.stacked,
+        distribution: InitialDistributionName = InitialDistributionName.gaussian,
         sample_padding: bool = False,
         inference_steps: int = 100,
-        ode_solver: OdeSolverName = "euler",
+        ode_solver: OdeSolverName = OdeSolverName.euler,
         bbox_format: BoxFormat | str = "xywh",
-        coordinate_range: CoordinateRange = "normalized_0_1",
+        coordinate_range: CoordinateRange = CoordinateRange.normalized_0_1,
     ) -> None:
         """Initialize LayoutFlow pipeline and model settings.
 
@@ -172,14 +203,14 @@ class LayoutFlowConfig(ConfigMixin):
         self.dropout = dropout
         self.use_pos_enc = use_pos_enc
         self.tr_enc_only = tr_enc_only
-        self.attr_encoding = attr_encoding
-        self.seq_type = seq_type
-        self.distribution = distribution
+        self.attr_encoding = str(AttrEncoding(attr_encoding))
+        self.seq_type = str(SeqType(seq_type))
+        self.distribution = str(InitialDistributionName(distribution))
         self.sample_padding = sample_padding
         self.inference_steps = inference_steps
-        self.ode_solver = ode_solver
+        self.ode_solver = str(OdeSolverName(ode_solver))
         self.bbox_format = str(BoxFormat(bbox_format))
-        self.coordinate_range = coordinate_range
+        self.coordinate_range = str(CoordinateRange(coordinate_range))
 
     @property
     def label2id(self) -> dict[str, int]:
@@ -194,7 +225,7 @@ class LayoutFlowConfig(ConfigMixin):
     @property
     def attr_dim(self) -> int:
         """Return the analog-bit attribute dimensionality."""
-        if self.attr_encoding == "AnalogBit":
+        if AttrEncoding(self.attr_encoding) is AttrEncoding.analog_bit:
             return int(math.ceil(math.log2(self.num_labels)))
         return 1
 

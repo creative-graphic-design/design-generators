@@ -3,8 +3,8 @@ from typing import cast
 import torch
 import pytest
 
-from layout_flow.configuration_layout_flow import SeqType
 from layout_flow import LayoutFlowTransformerModel
+from layout_flow.configuration_layout_flow import AttrEncoding, SeqType
 from layout_flow.modeling_layout_flow import (
     LayoutDMBackbone,
     LayoutFlowBlock,
@@ -44,7 +44,7 @@ def test_backbone_variants_and_activation_errors() -> None:
     geom = torch.rand(1, 2, 4)
     cond = torch.ones(1, 2, 7, dtype=torch.long)
     timestep = torch.zeros(1)
-    for seq_type in ["seq_cond", "seq"]:
+    for seq_type in [SeqType.seq_cond, SeqType.seq]:
         model = LayoutDMBackbone(
             latent_dim=4,
             d_model=8,
@@ -52,7 +52,7 @@ def test_backbone_variants_and_activation_errors() -> None:
             dim_feedforward=16,
             num_layers=1,
             num_cat=6,
-            attr_encoding="AnalogBit",
+            attr_encoding=AttrEncoding.analog_bit,
             seq_type=seq_type,
             use_pos_enc=True,
         )
@@ -66,8 +66,8 @@ def test_backbone_variants_and_activation_errors() -> None:
         dim_feedforward=16,
         num_layers=1,
         num_cat=6,
-        attr_encoding="discrete",
-        seq_type="stacked",
+        attr_encoding=AttrEncoding.discrete,
+        seq_type=SeqType.stacked,
         tr_enc_only=False,
     )
     geom_discrete = torch.rand(2, 2, 4)
@@ -79,14 +79,13 @@ def test_backbone_variants_and_activation_errors() -> None:
         cond_discrete,
         timestep_discrete,
     ).shape == (2, 2, 5)
-    bad = LayoutDMBackbone(
-        latent_dim=4,
-        d_model=8,
-        nhead=2,
-        dim_feedforward=16,
-        num_layers=1,
-        num_cat=6,
-        seq_type=cast(SeqType, "bad"),
-    )
-    with pytest.raises(ValueError, match="Unsupported seq_type"):
-        bad(geom, torch.rand(1, 2, 1), cond, timestep)
+    with pytest.raises(ValueError, match="not a valid SeqType"):
+        LayoutDMBackbone(
+            latent_dim=4,
+            d_model=8,
+            nhead=2,
+            dim_feedforward=16,
+            num_layers=1,
+            num_cat=6,
+            seq_type=cast(SeqType, "bad"),
+        )

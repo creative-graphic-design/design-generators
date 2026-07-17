@@ -3,6 +3,7 @@ import pytest
 
 from laygen.common.bbox import BoxFormat
 from layout_flow import ConditionType, LayoutFlowConfig, LayoutFlowProcessor
+from layout_flow.configuration_layout_flow import InitialDistributionName
 from layout_flow.processing_layout_flow import normalize_condition_type
 
 
@@ -100,7 +101,11 @@ def test_processor_completion_and_postprocess_branches() -> None:
 
 def test_processor_default_inputs_truncate_and_non_scaled_distribution() -> None:
     processor = LayoutFlowProcessor(
-        LayoutFlowConfig(dataset_name="publaynet", max_length=2, distribution="raw")
+        LayoutFlowConfig(
+            dataset_name="publaynet",
+            max_length=2,
+            distribution=InitialDistributionName.gmm,
+        )
     )
     out = processor(batch_size=2, num_elements=[1, 3])
     assert out["mask"].tolist() == [[True, False], [True, True]]
