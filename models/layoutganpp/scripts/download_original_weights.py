@@ -1,3 +1,5 @@
+"""Download the original LayoutGAN++ checkpoint files released by const-layout."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,11 +16,25 @@ BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/layoutganpp/original")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Download original LayoutGAN++ generator checkpoints into the local "
+            "cache used by conversion and parity scripts."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--dataset", choices=[*WEIGHTS, "all"], default="all")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(".cache/layoutganpp/original"),
+        help="Directory where downloaded .pth.tar files are stored.",
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=[*WEIGHTS, "all"],
+        default="all",
+        help="Checkpoint dataset to download; 'all' downloads every released file.",
+    )
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)

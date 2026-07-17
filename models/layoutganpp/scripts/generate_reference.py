@@ -1,3 +1,5 @@
+"""Generate LayoutGAN++ vendor-reference bbox fixtures for parity tests."""
+
 from __future__ import annotations
 
 import argparse
@@ -31,12 +33,46 @@ def _synthetic_labels(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--vendor-dir", type=Path, required=True)
-    parser.add_argument("--checkpoint", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--batch-size", type=int, default=3)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the vendored const-layout LayoutGAN++ generator and save a "
+            "deterministic bbox fixture for the converted-model parity tests."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--vendor-dir",
+        type=Path,
+        default=Path("vendor/const-layout"),
+        help="Path to the original const-layout repository checkout.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=Path(".cache/layoutganpp/original/layoutganpp_rico.pth.tar"),
+        help=(
+            "Original checkpoint to load. The dataset is read from the checkpoint "
+            "args, so changing this path selects the matching dataset."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(".cache/layoutganpp/fixtures/rico/reference_seed0.pt"),
+        help="Output .pt fixture consumed by tests/vendor_parity.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed used for the synthetic latent tensor.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=3,
+        help="Number of synthetic label rows in the saved fixture.",
+    )
     args = parser.parse_args()
 
     sys.path.insert(0, str(args.vendor_dir))
