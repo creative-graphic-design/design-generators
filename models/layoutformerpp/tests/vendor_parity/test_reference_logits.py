@@ -12,9 +12,17 @@ from layoutformerpp import (
 )
 
 
+def _repo_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists() and (parent / "models").exists():
+            return parent
+    raise RuntimeError("Could not locate repository root")
+
+
 @pytest.mark.vendor_parity
 def test_rico_gen_t_logits_match_vendor() -> None:
-    root = Path.cwd()
+    root = _repo_root()
     checkpoint = (
         root
         / ".cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar"
