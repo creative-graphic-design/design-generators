@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -24,7 +26,7 @@ class LayoutElement(BaseModel):
     @classmethod
     def normalize_label(cls, value: str) -> str:
         """Normalize model-produced labels for dataset lookup."""
-        return value.strip().lower()
+        return re.sub(r"\s+\d+$", "", value.strip().lower())
 
 
 class LayoutPrompterOutput(BaseModel):

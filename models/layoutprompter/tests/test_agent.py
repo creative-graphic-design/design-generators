@@ -9,6 +9,7 @@ from pydantic_ai.models.test import TestModel
 
 from layout_generation_common.testing import assert_layout_output_schema
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
+from layoutprompter.schemas import LayoutElement, PixelBBox
 
 
 def test_agent_runs_with_pydantic_ai_test_model_without_network() -> None:
@@ -72,3 +73,12 @@ def test_save_pretrained_round_trip_preserves_prompt_config(tmp_path: Path) -> N
     assert loaded.config.output_format == "html"
     assert loaded.config.shuffle is False
     assert loaded.config.seed == 7
+
+
+def test_structured_label_normalization_removes_trailing_index() -> None:
+    """Structured labels tolerate models copying prompt index tokens."""
+    element = LayoutElement(
+        label="Text 0",
+        bbox=PixelBBox(left=1, top=2, width=3, height=4),
+    )
+    assert element.label == "text"
