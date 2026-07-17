@@ -98,10 +98,18 @@ jobs:
           uv sync --all-packages
 
       - name: Run root tests
-        run: uv run pytest -m "not integration"
+        env:
+          ROOT_COVERAGE_FAIL_UNDER: "90"
+        run: |
+          uv run pytest -m "not integration" \
+            --cov=. \
+            --cov-report=term-missing \
+            --cov-fail-under="${ROOT_COVERAGE_FAIL_UNDER}"
 
       - name: Run workspace member tests
         shell: bash
+        env:
+          WORKSPACE_COVERAGE_FAIL_UNDER: "90"
         run: |
           set -euo pipefail
 
@@ -123,13 +131,23 @@ jobs:
                 PYPROJECT_FILE="${pyproject_file}" uv run python -c \
                   'import os, tomllib; print(tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb"))["project"]["name"])'
               )"
-              import_name="${package_name//-/_}"
 
-              uv run --package "${package_name}" pytest "${tests_dir}" \
-                -m "not vendor_parity and not integration" \
-                --cov="${import_name}" \
+              import_package="$(
+                MEMBER_DIR="${member_dir}" uv run python -c \
+                  'import os, pathlib; src = pathlib.Path(os.environ["MEMBER_DIR"]) / "src"; print(sorted(path.name for path in src.iterdir() if path.is_dir() and (path / "__init__.py").exists())[0])'
+              )"
+
+              fail_under="$(
+                PYPROJECT_FILE="${pyproject_file}" \
+                DEFAULT_FAIL_UNDER="${WORKSPACE_COVERAGE_FAIL_UNDER}" \
+                uv run python -c \
+                  'import os, sys, tomllib; path = os.environ["PYPROJECT_FILE"]; data = tomllib.load(open(path, "rb")); floor = float(os.environ["DEFAULT_FAIL_UNDER"]); value = float(data.get("tool", {}).get("coverage", {}).get("report", {}).get("fail_under", floor)); sys.exit("coverage fail_under for {} is {:g}, below required floor {:g}".format(path, value, floor)) if value < floor else print("{:g}".format(value))'
+              )"
+
+              uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration" \
+                --cov="${import_package}" \
                 --cov-report=term-missing \
-                --cov-fail-under=90
+                --cov-fail-under="${fail_under}"
             done
 
   docs:
