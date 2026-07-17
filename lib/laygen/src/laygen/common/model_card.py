@@ -295,6 +295,11 @@ finetuned derivative.
 ```bibtex
 {{ citation_bibtex }}
 ```
+
+## Model Card Contact
+
+Open an issue or pull request in the creative-graphic-design design-generators
+repository.
 """
 
 

@@ -102,17 +102,28 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
     card.validate()
     assert "## Model Details" in text
+    assert "### Model Description" in text
     assert "## Uses" in text
+    assert "### Direct Use" in text
+    assert "### Downstream Use" in text
     assert "### Out-of-Scope Use" in text
     assert "## Bias, Risks, and Limitations" in text
+    assert "### Recommendations" in text
     assert "## How to Get Started with the Model" in text
     assert "LayoutDMPipeline.from_pretrained" in text
     assert "## Training Details" in text
+    assert "### Training Data" in text
+    assert "### Training Procedure" in text
     assert "## Evaluation" in text
+    assert "### Testing Data, Factors & Metrics" in text
     assert "### Results" in text
-    assert "## Technical Specifications" in text
     assert "Tokenizer exact" in text
+    assert "## Technical Specifications" in text
+    assert "## Model Card Contact" in text
     assert "[More Information Needed]" not in text
+    assert "This card follows" not in text
+    assert "annotated model card" not in text
+    assert "model card template" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
     assert card.validate() is None
