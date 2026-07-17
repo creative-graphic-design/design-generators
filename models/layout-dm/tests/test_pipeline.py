@@ -1,5 +1,6 @@
 import torch
 
+from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
 from layout_generation_common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser
@@ -50,6 +51,10 @@ def test_pipeline_contract_and_seed_reproducible():
     pipe = make_pipeline()
     out1 = pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
     out2 = pipe(batch_size=1, seed=999, num_inference_steps=1, sampling="deterministic")
+    assert isinstance(out1, LayoutGenerationOutput)
+    assert isinstance(out2, LayoutGenerationOutput)
+    assert out1.sequences is not None
+    assert out2.sequences is not None
     assert_layout_output_schema(out1, batch_size=1)
     assert torch.equal(out1.sequences, out2.sequences)
 
@@ -59,4 +64,5 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     pipe.save_pretrained(tmp_path)
     loaded = LayoutDMPipeline.from_pretrained(tmp_path)
     out = loaded(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
+    assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)

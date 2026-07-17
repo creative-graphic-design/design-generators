@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -19,9 +19,9 @@ class LayoutDMProcessor:
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list,
-        labels: torch.Tensor | np.ndarray | list,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        bbox: torch.Tensor | np.ndarray | list[Any],
+        labels: torch.Tensor | np.ndarray | list[Any],
+        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
         box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

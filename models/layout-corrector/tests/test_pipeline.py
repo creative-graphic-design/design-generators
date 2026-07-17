@@ -8,7 +8,7 @@ from layout_dm import (
     LayoutDMTokenizer,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
-from layout_generation_common.outputs import LayoutGenerationOutput
+from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
 
 
 def tiny_layout_dm():
@@ -126,4 +126,5 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     )
 
     assert isinstance(output, LayoutGenerationOutput)
+    assert output.id2label is not None
     assert output.id2label[4] == "figure"

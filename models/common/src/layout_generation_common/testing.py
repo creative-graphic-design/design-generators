@@ -5,6 +5,9 @@ from collections.abc import Callable
 import torch
 
 from .outputs import LayoutGenerationOutput
+from .outputs_diffusers import LayoutGenerationOutput as DiffusersLayoutGenerationOutput
+
+LayoutGenerationOutputTypes = (LayoutGenerationOutput, DiffusersLayoutGenerationOutput)
 
 
 def assert_mask_valid(mask: torch.Tensor) -> None:
@@ -13,7 +16,7 @@ def assert_mask_valid(mask: torch.Tensor) -> None:
 
 
 def assert_normalized_xywh(
-    bbox: torch.Tensor, mask: torch.BoolTensor | None = None
+    bbox: torch.Tensor, mask: torch.Tensor | None = None
 ) -> None:
     assert bbox.dtype.is_floating_point
     assert bbox.shape[-1] == 4
@@ -24,9 +27,15 @@ def assert_normalized_xywh(
 
 
 def assert_layout_output_schema(
-    output: LayoutGenerationOutput, *, batch_size: int | None = None
+    output: LayoutGenerationOutput | DiffusersLayoutGenerationOutput,
+    *,
+    batch_size: int | None = None,
 ) -> None:
-    assert isinstance(output, LayoutGenerationOutput)
+    assert isinstance(output, LayoutGenerationOutputTypes)
+    assert output.bbox is not None
+    assert output.labels is not None
+    assert output.mask is not None
+    assert output.id2label is not None
     assert output.bbox.ndim == 3 and output.bbox.shape[-1] == 4
     assert output.labels.shape == output.mask.shape == output.bbox.shape[:2]
     assert output.labels.dtype == torch.long
@@ -38,7 +47,7 @@ def assert_layout_output_schema(
 
 
 def assert_generator_reproducible(
-    callable_: Callable[..., LayoutGenerationOutput],
+    callable_: Callable[..., LayoutGenerationOutput | DiffusersLayoutGenerationOutput],
 ) -> None:
     g1 = torch.Generator().manual_seed(0)
     g2 = torch.Generator().manual_seed(0)

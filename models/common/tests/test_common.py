@@ -11,6 +11,9 @@ from layout_generation_common.bbox import (
 from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
 from layout_generation_common.labels import id2label_for_dataset
 from layout_generation_common.outputs import LayoutGenerationOutput
+from layout_generation_common.outputs_diffusers import (
+    LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
+)
 from layout_generation_common.testing import assert_layout_output_schema
 
 
@@ -37,6 +40,16 @@ def test_discrete_log_onehot_roundtrip():
 
 def test_output_schema():
     output = LayoutGenerationOutput(
+        bbox=torch.zeros(1, 2, 4),
+        labels=torch.zeros(1, 2, dtype=torch.long),
+        mask=torch.tensor([[True, False]]),
+        id2label=id2label_for_dataset("publaynet"),
+    )
+    assert_layout_output_schema(output, batch_size=1)
+
+
+def test_diffusers_output_schema():
+    output = DiffusersLayoutGenerationOutput(
         bbox=torch.zeros(1, 2, 4),
         labels=torch.zeros(1, 2, dtype=torch.long),
         mask=torch.tensor([[True, False]]),

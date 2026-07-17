@@ -7,12 +7,16 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
-from layout_dm.conditioning import build_condition, normalize_condition_type
+from layout_dm.conditioning import (
+    LayoutDMCondition,
+    build_condition,
+    normalize_condition_type,
+)
 from layout_dm.pipeline import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
 from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
-from layout_generation_common.outputs import LayoutGenerationOutput
+from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
 
 from .corrector import LayoutCorrectorModel
 from .sampling import (
@@ -73,8 +77,9 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         time_adaptive_temperature: bool | None = None,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        **model_kwargs,
+        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
@@ -216,7 +221,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         *,
         sample: torch.FloatTensor,
         timestep_batch: torch.LongTensor,
-        condition,
+        condition: LayoutDMCondition | None,
         sampling: LayoutCorrectorSamplingConfig,
         generator: torch.Generator | None,
     ) -> tuple[torch.FloatTensor, torch.FloatTensor | None]:
@@ -298,14 +303,16 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             return 0.0
         return float(timestep / self.layout_dm.scheduler.config.num_timesteps)
 
-    def save_pretrained(self, save_directory, **kwargs):
+    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
         save_path = Path(save_directory)
         save_path.mkdir(parents=True, exist_ok=True)
         self.layout_dm.save_pretrained(save_path / "layout_dm", **kwargs)
         self.corrector.save_pretrained(save_path / "corrector", **kwargs)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+    def from_pretrained(
+        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+    ) -> "LayoutCorrectorPipeline":
         path = Path(pretrained_model_name_or_path)
         layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
         corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")

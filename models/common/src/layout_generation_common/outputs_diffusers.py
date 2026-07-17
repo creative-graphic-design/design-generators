@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from transformers.utils import ModelOutput
+from diffusers.utils import BaseOutput
 
 
 @dataclass
-class LayoutGenerationOutput(ModelOutput):
+class LayoutGenerationOutput(BaseOutput):
     bbox: torch.Tensor | None = None
     labels: torch.Tensor | None = None
     mask: torch.Tensor | None = None
