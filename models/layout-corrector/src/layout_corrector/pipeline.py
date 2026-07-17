@@ -1,0 +1,312 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal, Sequence
+
+import numpy as np
+import torch
+from diffusers import DiffusionPipeline
+
+from layout_dm.conditioning import build_condition, normalize_condition_type
+from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.processing_layout_dm import LayoutDMProcessor
+from layout_dm.sampling import LayoutDMSamplingConfig
+from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
+from layout_generation_common.outputs import LayoutGenerationOutput
+
+from .corrector import LayoutCorrectorModel
+from .sampling import (
+    LayoutCorrectorSamplingConfig,
+    add_confidence_gumbel_noise,
+    select_tokens_to_remask,
+    should_apply_corrector,
+)
+
+
+class LayoutCorrectorPipeline(DiffusionPipeline):
+    model_cpu_offload_seq = "layout_dm.denoiser->corrector"
+
+    def __init__(
+        self,
+        layout_dm: LayoutDMPipeline,
+        corrector: LayoutCorrectorModel,
+        processor: LayoutDMProcessor | None = None,
+    ) -> None:
+        super().__init__()
+        self.register_modules(layout_dm=layout_dm, corrector=corrector)
+        self.layout_dm = layout_dm
+        self.corrector = corrector
+        self.processor = processor or layout_dm.processor
+        self.corrector.eval()
+
+    @torch.no_grad()
+    def __call__(
+        self,
+        *,
+        batch_size: int = 1,
+        seed: int | None = None,
+        generator: torch.Generator | None = None,
+        condition_type: str = "unconditional",
+        labels: torch.Tensor | np.ndarray | list | None = None,
+        bbox: torch.Tensor | np.ndarray | list | None = None,
+        mask: torch.Tensor | np.ndarray | list | None = None,
+        num_elements: int | list[int] | torch.Tensor | None = None,
+        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        normalized: bool = True,
+        canvas_size: tuple[int, int] | None = None,
+        num_inference_steps: int | None = None,
+        sampling: Literal[
+            "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
+        ] = "random",
+        temperature: float = 1.0,
+        top_k: int = 5,
+        top_p: float = 0.9,
+        corrector_steps: int | None = None,
+        corrector_t_list: Sequence[int] | None = None,
+        corrector_start: int = -1,
+        corrector_end: int = -1,
+        corrector_mask_mode: Literal["thresh", "topk"] | None = None,
+        corrector_mask_threshold: float | None = None,
+        corrector_temperature: float | None = None,
+        use_gumbel_noise: bool | None = None,
+        gumbel_temperature: float | None = None,
+        time_adaptive_temperature: bool | None = None,
+        output_type: Literal["dataclass", "dict"] = "dataclass",
+        return_intermediates: bool = False,
+        **model_kwargs,
+    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        if generator is None and seed is not None:
+            generator = torch.Generator(device=self.device).manual_seed(seed)
+        canonical = normalize_condition_type(condition_type)
+        condition = None
+        if canonical != "unconditional":
+            if bbox is None or labels is None:
+                raise ValueError(
+                    f"bbox and labels are required for condition_type={condition_type}"
+                )
+            processed = self.processor(
+                bbox=bbox,
+                labels=labels,
+                mask=mask,
+                box_format=box_format,
+                normalized=normalized,
+                canvas_size=canvas_size,
+            )
+            decoded_input = self.layout_dm.tokenizer.decode_layout(
+                processed["input_ids"]
+            )
+            condition = build_condition(
+                self.layout_dm.tokenizer,
+                cond_type=canonical,
+                bbox=decoded_input["bbox"],
+                labels=decoded_input["labels"],
+                mask=decoded_input["mask"],
+            )
+            batch_size = condition.input_ids.shape[0]
+
+        corrector_cfg = LayoutCorrectorSamplingConfig(
+            sampling=sampling,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            num_inference_steps=num_inference_steps,
+            corrector_steps=corrector_steps or self.corrector.config.corrector_steps,
+            corrector_t_list=tuple(
+                self.corrector.config.corrector_t_list
+                if corrector_t_list is None
+                else corrector_t_list
+            ),
+            corrector_start=corrector_start,
+            corrector_end=corrector_end,
+            corrector_mask_mode=corrector_mask_mode
+            or self.corrector.config.corrector_mask_mode,
+            corrector_mask_threshold=corrector_mask_threshold
+            if corrector_mask_threshold is not None
+            else self.corrector.config.corrector_mask_threshold,
+            corrector_temperature=corrector_temperature
+            if corrector_temperature is not None
+            else self.corrector.config.corrector_temperature,
+            use_gumbel_noise=use_gumbel_noise
+            if use_gumbel_noise is not None
+            else self.corrector.config.use_gumbel_noise,
+            gumbel_temperature=gumbel_temperature
+            if gumbel_temperature is not None
+            else self.corrector.config.gumbel_temperature,
+            time_adaptive_temperature=time_adaptive_temperature
+            if time_adaptive_temperature is not None
+            else self.corrector.config.time_adaptive_temperature,
+        )
+        sampling_cfg = LayoutDMSamplingConfig(
+            name=sampling,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            num_inference_steps=num_inference_steps,
+        )
+        self.layout_dm.scheduler.set_timesteps(num_inference_steps, device=self.device)
+        sample = self.layout_dm.scheduler.initial_sample(
+            batch_size,
+            self.layout_dm.tokenizer.config.max_token_length,
+            device=self.device,
+            condition=condition,
+        )
+        trajectory = [] if return_intermediates else None
+        scores = [] if return_intermediates else None
+        previous_timestep = self.layout_dm.scheduler.config.num_timesteps
+        for timestep in self.layout_dm.scheduler.timesteps:
+            timestep_value = int(timestep.item())
+            timestep_batch = torch.full(
+                (batch_size,),
+                timestep_value,
+                device=self.device,
+                dtype=torch.long,
+            )
+            if should_apply_corrector(timestep_value, corrector_cfg):
+                sample, confidence = self._step_with_corrector(
+                    sample=sample,
+                    timestep_batch=timestep_batch,
+                    condition=condition,
+                    sampling=corrector_cfg,
+                    generator=generator,
+                )
+                if scores is not None and confidence is not None:
+                    scores.append(confidence.detach().cpu())
+            else:
+                input_ids = log_onehot_to_index(sample)
+                logits = self.layout_dm.denoiser(
+                    input_ids=input_ids, timesteps=timestep_batch
+                ).logits
+                sample = self.layout_dm.scheduler.step(
+                    logits,
+                    timestep_batch,
+                    sample,
+                    previous_timestep=previous_timestep,
+                    sampling=sampling_cfg,
+                    condition=condition,
+                    generator=generator,
+                ).prev_sample
+            previous_timestep = timestep_value
+            if trajectory is not None:
+                trajectory.append(log_onehot_to_index(sample).detach().cpu())
+
+        sequences = log_onehot_to_index(sample).detach().cpu()
+        decoded = self.layout_dm.tokenizer.decode_layout(sequences)
+        output = LayoutGenerationOutput(
+            bbox=decoded["bbox"],
+            labels=decoded["labels"],
+            mask=decoded["mask"],
+            id2label=dict(self.corrector.config.id2label),
+            sequences=sequences,
+            scores=torch.stack(scores) if scores else None,
+            trajectory=trajectory,
+            intermediates={"condition_type": canonical}
+            if return_intermediates
+            else None,
+        )
+        if output_type == "dict":
+            return dict(output)
+        if output_type != "dataclass":
+            raise ValueError(f"Unsupported output_type: {output_type}")
+        return output
+
+    generate = __call__
+
+    def _step_with_corrector(
+        self,
+        *,
+        sample: torch.FloatTensor,
+        timestep_batch: torch.LongTensor,
+        condition,
+        sampling: LayoutCorrectorSamplingConfig,
+        generator: torch.Generator | None,
+    ) -> tuple[torch.FloatTensor, torch.FloatTensor | None]:
+        confidence = None
+        current = sample
+        for _ in range(sampling.corrector_steps):
+            input_ids = log_onehot_to_index(current)
+            denoiser_logits = self.layout_dm.denoiser(
+                input_ids=input_ids, timesteps=timestep_batch
+            ).logits
+            model_log_prob = self.layout_dm.scheduler.predict_start(denoiser_logits)
+            if self.corrector.config.recon_type == "x_t-1":
+                model_log_prob = self.layout_dm.scheduler.q_posterior(
+                    model_log_prob, current, timestep_batch
+                )
+                model_log_prob[:, self.layout_dm.tokenizer.mask_token_id, :] = -70.0
+            if self.layout_dm.scheduler.token_mask is not None:
+                valid = self.layout_dm.scheduler.token_mask.to(
+                    model_log_prob.device
+                ).T.unsqueeze(0)
+                model_log_prob = model_log_prob.masked_fill(~valid, -70.0)
+            if condition is not None:
+                strong_mask = condition.mask.to(model_log_prob.device).unsqueeze(1)
+                strong_log_prob = index_to_log_onehot(
+                    condition.input_ids.to(model_log_prob.device),
+                    self.layout_dm.scheduler.vocab_size,
+                )
+                model_log_prob = torch.where(
+                    strong_mask, strong_log_prob, model_log_prob
+                )
+            x0_recon_ids = torch.multinomial(
+                (model_log_prob.permute(0, 2, 1) / sampling.temperature)
+                .softmax(dim=-1)
+                .reshape(-1, model_log_prob.size(1)),
+                1,
+                generator=generator,
+            ).reshape(model_log_prob.shape[0], model_log_prob.shape[-1])
+            confidence = self.corrector.calc_confidence_score(
+                x0_recon_ids,
+                timestep_batch,
+                padding_mask=x0_recon_ids == self.layout_dm.tokenizer.pad_token_id,
+            )
+            adjusted = confidence
+            mask_ratio = self._mask_ratio(timestep_batch)
+            if sampling.use_gumbel_noise:
+                adjusted = add_confidence_gumbel_noise(
+                    adjusted,
+                    timestep=timestep_batch,
+                    mask_ratio=mask_ratio,
+                    temperature=sampling.gumbel_temperature,
+                    time_adaptive_temperature=sampling.time_adaptive_temperature,
+                    generator=generator,
+                )
+            remask = select_tokens_to_remask(
+                adjusted,
+                mask_ratio=mask_ratio,
+                mode=sampling.corrector_mask_mode,
+                threshold=sampling.corrector_mask_threshold,
+                temperature=sampling.corrector_temperature,
+            )
+            x0_recon_ids = x0_recon_ids.masked_fill(
+                remask, self.layout_dm.tokenizer.mask_token_id
+            )
+            if condition is not None:
+                x0_recon_ids = torch.where(
+                    condition.mask.to(x0_recon_ids.device),
+                    condition.input_ids.to(x0_recon_ids.device),
+                    x0_recon_ids,
+                )
+            current = index_to_log_onehot(
+                x0_recon_ids, self.layout_dm.scheduler.vocab_size
+            )
+        return current, confidence
+
+    def _mask_ratio(self, timestep_batch: torch.LongTensor) -> float:
+        timestep = int(timestep_batch[0].item())
+        timestep = max(0, min(timestep, self.layout_dm.scheduler.config.num_timesteps))
+        if timestep == 0:
+            return 0.0
+        return float(timestep / self.layout_dm.scheduler.config.num_timesteps)
+
+    def save_pretrained(self, save_directory, **kwargs):
+        save_path = Path(save_directory)
+        save_path.mkdir(parents=True, exist_ok=True)
+        self.layout_dm.save_pretrained(save_path / "layout_dm", **kwargs)
+        self.corrector.save_pretrained(save_path / "corrector", **kwargs)
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
+        path = Path(pretrained_model_name_or_path)
+        layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
+        corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")
+        return cls(layout_dm=layout_dm, corrector=corrector, **kwargs)
