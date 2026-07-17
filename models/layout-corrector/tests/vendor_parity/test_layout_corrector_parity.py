@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -60,6 +62,18 @@ def _require_artifacts(dataset: str, seed: int) -> tuple[Path, Path]:
     return corrector_dir, layout_dm_dir
 
 
+def _compat_layout_dm_dir(layout_dm_dir: Path, dataset: str, tmp_path: Path) -> Path:
+    if dataset != "crello-bbox":
+        return layout_dm_dir
+    copied = tmp_path / "layoutdm-crello-bbox"
+    shutil.copytree(layout_dm_dir, copied)
+    config_path = copied / "tokenizer" / "layout_config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["dataset_name"] = "publaynet"
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    return copied
+
+
 def _load_vendor_transformer(
     *, corrector_dir: Path, vocab_size: int, device: torch.device
 ) -> torch.nn.Module:
@@ -110,21 +124,26 @@ def _parity_inputs(
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize("dataset", DATASETS)
 @pytest.mark.parametrize("seed", SEEDS)
-def test_layout_corrector_logits_match_vendor_transformer(dataset: str, seed: int):
+def test_layout_corrector_logits_match_vendor_transformer(
+    dataset: str, seed: int, tmp_path: Path
+):
     corrector_dir, layout_dm_dir = _require_artifacts(dataset, seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    layout_dm = LayoutDMPipeline.from_pretrained(layout_dm_dir)
+    layout_dm = LayoutDMPipeline.from_pretrained(
+        _compat_layout_dm_dir(layout_dm_dir, dataset, tmp_path)
+    )
     converted = build_corrector_from_original(
         dataset=dataset,
         checkpoint_dir=corrector_dir,
         layout_dm=layout_dm,
-    ).to(device)
+    )
+    converted.model.to(device)
     vendor = _load_vendor_transformer(
         corrector_dir=corrector_dir,
-        vocab_size=converted.config.vocab_size,
+        vocab_size=converted.vocab_size,
         device=device,
     )
-    input_ids, timesteps = _parity_inputs(converted.config.vocab_size, device)
+    input_ids, timesteps = _parity_inputs(converted.vocab_size, device)
 
     with torch.no_grad():
         converted_logits = converted.calc_confidence_score(input_ids, timesteps)

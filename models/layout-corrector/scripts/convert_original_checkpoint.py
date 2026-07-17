@@ -6,11 +6,12 @@ import argparse
 from pathlib import Path
 
 from laygen.common.labels import normalize_dataset_name
-from laygen.common.model_card import ParityMetric, layout_corrector_model_card
+from laygen.common.model_card import ParityMetric
 from layout_corrector.conversion import (
     build_corrector_from_original,
     discover_seed_dirs,
 )
+from layout_corrector.model_card import layout_corrector_model_card
 from layout_corrector.pipeline import LayoutCorrectorPipeline
 from layout_dm.pipeline import LayoutDMPipeline
 

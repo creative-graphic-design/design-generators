@@ -10,7 +10,12 @@ from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 from torch import nn
 
-from layout_dm.transformer import Block, ElementPositionalEmbedding, TransformerEncoder
+from layout_dm.transformer import (
+    Block,
+    ElementPositionalEmbedding,
+    TimestepType,
+    TransformerEncoder,
+)
 from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 
@@ -22,7 +27,7 @@ class LayoutCorrectorOutput(BaseOutput):
         logits: Token confidence logits shaped `(batch, tokens)`.
     """
 
-    logits: torch.FloatTensor
+    logits: torch.Tensor
 
 
 class AggregatedCategoricalTransformer(nn.Module):
@@ -38,7 +43,7 @@ class AggregatedCategoricalTransformer(nn.Module):
         num_hidden_layers: int,
         intermediate_size: int,
         dropout: float,
-        timestep_type: str | None,
+        timestep_type: TimestepType | None,
         pos_emb: str,
         num_attributes_per_element: int,
         num_timesteps: int,
@@ -107,7 +112,7 @@ class AggregatedCategoricalTransformer(nn.Module):
         *,
         timestep: torch.LongTensor | None = None,
         src_key_padding_mask: torch.BoolTensor | None = None,
-    ) -> torch.FloatTensor:
+    ) -> torch.Tensor:
         """Predict token confidence logits.
 
         Args:
@@ -128,12 +133,14 @@ class AggregatedCategoricalTransformer(nn.Module):
         if self.pos_emb is not None:
             hidden = hidden + self.pos_emb(hidden)
         if src_key_padding_mask is not None:
-            src_key_padding_mask = src_key_padding_mask.reshape(
+            element_padding_mask = src_key_padding_mask.reshape(
                 batch_size, token_length // step, step
             ).any(dim=-1)
+        else:
+            element_padding_mask = None
         hidden = self.backbone(
             hidden,
-            src_key_padding_mask=src_key_padding_mask,
+            src_key_padding_mask=element_padding_mask,
             timestep=timestep,
         )
         hidden = self.dec(hidden)
@@ -160,7 +167,7 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         num_hidden_layers: int = 4,
         intermediate_size: int = 1856,
         dropout: float = 0.0,
-        timestep_type: str | None = "adalayernorm",
+        timestep_type: TimestepType | None = "adalayernorm",
         num_timesteps: int = 100,
         recon_type: str = "x_t-1",
         target: str = "recon_acc",
@@ -234,6 +241,18 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             corrector_t_list=tuple(corrector_t_list),
             attr_loss_weights=tuple(attr_loss_weights),
         )
+        self.vocab_size = vocab_size
+        self.id2label = normalized_id2label
+        self.recon_type = recon_type
+        self.corrector_steps = corrector_steps
+        self.corrector_t_list = tuple(corrector_t_list)
+        self.corrector_mask_mode = corrector_mask_mode
+        self.corrector_mask_threshold = corrector_mask_threshold
+        self.corrector_temperature = corrector_temperature
+        self.use_padding_as_vocab = use_padding_as_vocab
+        self.use_gumbel_noise = use_gumbel_noise
+        self.gumbel_temperature = gumbel_temperature
+        self.time_adaptive_temperature = time_adaptive_temperature
         self.model = AggregatedCategoricalTransformer(
             vocab_size=vocab_size,
             max_token_length=max_seq_length * num_attributes_per_element,
@@ -250,9 +269,9 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        input_ids: torch.LongTensor,
-        timesteps: torch.LongTensor,
-        padding_mask: torch.BoolTensor | None = None,
+        input_ids: torch.Tensor,
+        timesteps: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
     ) -> LayoutCorrectorOutput:
         """Run the corrector model.
 
@@ -264,24 +283,22 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         Returns:
             `LayoutCorrectorOutput` containing token confidence logits.
         """
-        src_key_padding_mask = (
-            None if self.config.use_padding_as_vocab else padding_mask
-        )
+        src_key_padding_mask = None if self.use_padding_as_vocab else padding_mask
         logits = self.model(
             input_ids,
             timestep=timesteps,
             src_key_padding_mask=src_key_padding_mask,
         ).squeeze(-1)
-        if not self.config.use_padding_as_vocab and padding_mask is not None:
+        if not self.use_padding_as_vocab and padding_mask is not None:
             logits = logits.masked_fill(padding_mask, 1000.0)
         return LayoutCorrectorOutput(logits=logits)
 
     def calc_confidence_score(
         self,
-        input_ids: torch.LongTensor,
-        timesteps: torch.LongTensor,
-        padding_mask: torch.BoolTensor | None = None,
-    ) -> torch.FloatTensor:
+        input_ids: torch.Tensor,
+        timesteps: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Return confidence logits for token remasking.
 
         Args:

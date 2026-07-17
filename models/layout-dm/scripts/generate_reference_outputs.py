@@ -1,4 +1,4 @@
-"""Generate local LayoutDM vendor parity reference tensors."""
+"""Generate local golden tensors from the original LayoutDM implementation."""
 
 from __future__ import annotations
 
@@ -81,8 +81,8 @@ def _synthetic_layout(tokenizer) -> dict[str, torch.Tensor]:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the original LayoutDM implementation and save tokenizer, denoiser, "
-            "and deterministic sampling fixtures for vendor parity tests."
+            "Run the vendored original LayoutDM code and save tokenizer, denoiser, "
+            "and deterministic sampling fixtures for parity tests."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -90,13 +90,16 @@ def main() -> None:
         "--dataset",
         choices=["rico25", "publaynet"],
         required=True,
-        help="Dataset/checkpoint family for fixture generation.",
+        help="Original LayoutDM dataset/checkpoint used to generate fixtures.",
     )
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(".cache/layout-dm/original/download"),
-        help="Extracted original LayoutDM starter directory.",
+        required=True,
+        help=(
+            "Path to the extracted original `download/` directory produced by "
+            "download_original.py."
+        ),
     )
     parser.add_argument(
         "--vendor-dir",
@@ -111,19 +114,27 @@ def main() -> None:
         "--output-dir",
         type=Path,
         required=True,
-        help="Output fixture directory containing tokenizer_io.pt and related files.",
+        help=(
+            "Fixture destination. Use tests/vendor_parity/fixtures/<dataset> from "
+            "models/layout-dm."
+        ),
     )
     parser.add_argument(
         "--sampling",
         default="deterministic",
-        help="Sampling mode; parity fixtures require deterministic sampling.",
+        help="Sampling mode for the generated unconditional sample fixture.",
     )
-    parser.add_argument("--seed", type=int, default=0, help="Torch RNG seed.")
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Torch random seed used before generating deterministic fixtures.",
+    )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=1,
-        help="Batch size for generated denoiser and sampling fixtures.",
+        help="Batch size for denoiser and unconditional sampling fixtures.",
     )
     args = parser.parse_args()
     vendor_dir = (

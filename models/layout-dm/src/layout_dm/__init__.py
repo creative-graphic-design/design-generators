@@ -4,14 +4,13 @@ from laygen.common import ConditionType, normalize_condition_type
 
 from .conditioning import LayoutDMCondition
 from .denoiser import LayoutDMDenoiser, LayoutDMDenoiserOutput
-from .pipeline import LayoutDMPipeline, OutputType, normalize_output_type
+from .pipeline import LayoutDMPipeline
 from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
 from .scheduler import LayoutDMScheduler
 from .tokenization_layout_dm import LayoutDMTokenizer
 
 __all__ = [
-    "ConditionType",
     "LayoutDMCondition",
     "LayoutDMDenoiser",
     "LayoutDMDenoiserOutput",
@@ -20,7 +19,6 @@ __all__ = [
     "LayoutDMSamplingConfig",
     "LayoutDMScheduler",
     "LayoutDMTokenizer",
-    "OutputType",
+    "ConditionType",
     "normalize_condition_type",
-    "normalize_output_type",
 ]

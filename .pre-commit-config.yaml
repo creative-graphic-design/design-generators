@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: uv run --package design-generators ty check .
+        entry: uv run --package design-generators ty check . --exclude vendor/
         language: system
         pass_filenames: false
 

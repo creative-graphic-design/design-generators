@@ -1,14 +1,14 @@
 import torch
 import pytest
 
-from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
 from layout_corrector import CorrectorMaskMode
+from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
+from layout_corrector.pipeline import OutputType
 from layout_dm import (
     LayoutDMDenoiser,
     LayoutDMPipeline,
     LayoutDMScheduler,
     LayoutDMTokenizer,
-    OutputType,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from laygen.common.outputs_diffusers import LayoutGenerationOutput

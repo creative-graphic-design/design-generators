@@ -6,11 +6,15 @@ import argparse
 import shutil
 import zipfile
 from pathlib import Path
+from types import ModuleType
 
+gdown: ModuleType | None
 try:
-    import gdown
+    import gdown as _gdown
 except ImportError:  # pragma: no cover - depends on optional download extra
     gdown = None
+else:
+    gdown = _gdown
 
 
 FILE_ID = "1og3l0enR67rDwiAN44K4RchcFYAgsbNq"

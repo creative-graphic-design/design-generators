@@ -1,4 +1,3 @@
-import pytest
 import torch
 
 from laygen.common import ConditionType, normalize_condition_type
@@ -50,9 +49,7 @@ def test_build_condition_modes():
     assert refinement.type == "refinement"
     assert refinement.original_input_ids is not None
 
-    with pytest.raises(
-        NotImplementedError, match="Unsupported LayoutDM condition_type"
-    ):
+    try:
         build_condition(
             tokenizer,
             cond_type=ConditionType.relation,
@@ -60,6 +57,14 @@ def test_build_condition_modes():
             labels=labels,
             mask=mask,
         )
+    except NotImplementedError as exc:
+        assert "Unsupported LayoutDM condition_type" in str(exc)
+    else:
+        raise AssertionError("unsupported canonical condition type should fail")
 
-    with pytest.raises(ValueError, match="Unknown condition_type"):
+    try:
         normalize_condition_type("unknown")
+    except ValueError as exc:
+        assert "Unknown condition_type" in str(exc)
+    else:
+        raise AssertionError("unknown condition type should fail")

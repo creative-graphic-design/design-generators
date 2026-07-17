@@ -1,4 +1,4 @@
-"""Convert original LayoutDM checkpoints to a Diffusers pipeline."""
+"""Convert original LayoutDM checkpoints to Diffusers save_pretrained format."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from pathlib import Path
 import torch
 import yaml
 
-from laygen.common.labels import normalize_dataset_name
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.conversion import (
     load_cluster_centers,
@@ -22,87 +21,55 @@ from layout_dm.scheduler import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
 
-def _checkpoint_dir(starter_dir: Path, dataset: str, seed: int) -> Path:
-    candidates = [
-        starter_dir / "pretrained_weights" / dataset / "layoutdm" / str(seed),
-    ]
-    if dataset == "rico25":
-        candidates.append(
-            starter_dir / "pretrained_weights" / "layoutdm_rico" / str(seed)
-        )
-    if dataset == "publaynet":
-        candidates.append(
-            starter_dir / "pretrained_weights" / "layoutdm_publaynet" / str(seed)
-        )
-    for path in candidates:
-        if (path / "best_model.pt").is_file() and (path / "config.yaml").is_file():
-            return path
-    raise FileNotFoundError(f"No LayoutDM checkpoint found for {dataset}")
-
-
-def _id2label_for_checkpoint(dataset: str) -> dict[int, str] | None:
-    if dataset != "crello-bbox":
-        return None
-    return {i: f"class_{i}" for i in range(5)}
-
-
-def _config_dataset_name(dataset: str) -> str:
-    if dataset == "crello":
-        return "crello-bbox"
-    if dataset == "crello-bbox":
-        return dataset
-    return str(normalize_dataset_name(dataset))
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Convert released LayoutDM weights into a save_pretrained "
-            "LayoutDMPipeline directory with a Hub README model card."
+            "Convert a downloaded original LayoutDM checkpoint into a local "
+            "Diffusers pipeline directory with tokenizer files and README.md model card."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--dataset",
-        choices=["rico25", "publaynet", "crello", "crello-bbox"],
+        choices=["rico25", "publaynet"],
         required=True,
-        help="Dataset/checkpoint family to convert.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Original checkpoint seed subdirectory.",
+        help="Original LayoutDM checkpoint/dataset to convert.",
     )
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(".cache/layout-dm/original/download"),
-        help="Extracted starter directory containing pretrained_weights.",
+        required=True,
+        help=(
+            "Path to the extracted original `download/` directory produced by "
+            "download_original.py."
+        ),
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         required=True,
-        help="Output save_pretrained directory.",
+        help=(
+            "Destination save_pretrained directory, for example "
+            "`../../.cache/layout-dm/converted/layoutdm-rico25` from models/layout-dm."
+        ),
     )
     args = parser.parse_args()
 
-    checkpoint_dataset = "crello-bbox" if args.dataset == "crello" else args.dataset
-    dataset_name = _config_dataset_name(args.dataset)
-    checkpoint_dir = _checkpoint_dir(args.starter_dir, checkpoint_dataset, args.seed)
+    checkpoint_name = (
+        "layoutdm_rico" if args.dataset == "rico25" else "layoutdm_publaynet"
+    )
+    checkpoint_dir = args.starter_dir / "pretrained_weights" / checkpoint_name / "0"
     with (checkpoint_dir / "config.yaml").open() as f:
         original_config = yaml.safe_load(f)
     data_cfg = original_config["data"]
     config = LayoutDMConfig(
-        dataset_name=dataset_name,
-        id2label=_id2label_for_checkpoint(checkpoint_dataset),
+        dataset_name=args.dataset,
         max_seq_length=25,
         num_bin_bboxes=data_cfg.get("num_bin_bboxes", 32),
         var_order=data_cfg.get("var_order", "c-x-y-w-h"),
         shared_bbox_vocab=data_cfg.get("shared_bbox_vocab", "x-y-w-h"),
         bbox_quantization=data_cfg.get("bbox_quantization", "kmeans"),
-        cluster_centers=load_cluster_centers(args.starter_dir, checkpoint_dataset),
+        cluster_centers=load_cluster_centers(args.starter_dir, args.dataset),
     )
     tokenizer = LayoutDMTokenizer(config)
     denoiser = LayoutDMDenoiser(
@@ -139,7 +106,7 @@ def main() -> None:
         processor=LayoutDMProcessor(tokenizer),
     )
     pipe.save_pretrained(args.output_dir, safe_serialization=True)
-    write_layoutdm_model_card(args.output_dir, dataset_name)
+    write_layoutdm_model_card(args.output_dir, args.dataset)
     print(args.output_dir)
 
 

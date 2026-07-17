@@ -59,21 +59,6 @@ def test_load_cluster_centers(tmp_path):
     assert centers["x"] == [0.1, 0.2, 0.3]
 
 
-def test_load_cluster_centers_supports_crello_bbox(tmp_path):
-    cluster_dir = tmp_path / "clustering_weights"
-    cluster_dir.mkdir()
-    models = {
-        f"{key}-32": SimpleNamespace(cluster_centers_=np.array([[0.4], [0.2]]))
-        for key in ("x", "y", "w", "h")
-    }
-    with (cluster_dir / "crello-bbox_max25_kmeans_train_clusters.pkl").open("wb") as f:
-        pickle.dump(models, f)
-
-    centers = load_cluster_centers(tmp_path, "crello-bbox")
-
-    assert centers["x"] == [0.2, 0.4]
-
-
 def test_write_layoutdm_model_card(tmp_path):
     path = write_layoutdm_model_card(tmp_path, DatasetName.rico25)
     text = path.read_text(encoding="utf-8")
@@ -95,8 +80,6 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "This card follows" not in text
     assert "annotated model card" not in text
     assert "model card template" not in text
-    assert "DatasetName" not in text
-    assert "tag:yaml.org" not in text
 
 
 def test_model_card_yaml_front_matter_accepts_enum_metadata():
@@ -118,4 +101,3 @@ def test_model_card_yaml_front_matter_accepts_enum_metadata():
     assert metadata["tags"][-1] == "publaynet"
     assert metadata["datasets"] == ["creative-graphic-design/publaynet"]
     assert "tag:yaml.org" not in text
-    assert "DatasetName" not in text

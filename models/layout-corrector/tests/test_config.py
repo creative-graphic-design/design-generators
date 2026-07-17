@@ -1,5 +1,6 @@
 import pytest
 import yaml
+from typing import cast
 
 from laygen.common import DatasetName
 from layout_corrector import LayoutCorrectorConfig
@@ -14,7 +15,10 @@ def test_config_roundtrip(tmp_path):
     )
 
     config.save_config(tmp_path)
-    loaded = LayoutCorrectorConfig.from_config(tmp_path / "corrector_config.json")
+    loaded = cast(
+        LayoutCorrectorConfig,
+        LayoutCorrectorConfig.from_config(tmp_path / "corrector_config.json"),
+    )
 
     assert loaded.dataset_name == "rico25"
     assert loaded.id2label[0] == "Text"

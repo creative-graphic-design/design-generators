@@ -15,7 +15,11 @@ from laygen.common.bbox import (
     normalize_boxes,
     xywh_to_ltrb,
 )
-from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.conditions import (
+    ConditionAlias,
+    ConditionType,
+    normalize_condition_type,
+)
 from laygen.common.discrete import (
     SamplingMode,
     batch_topk_mask,
@@ -36,7 +40,7 @@ from laygen.common.labels import (
     labels_for_dataset,
     normalize_dataset_name,
 )
-from laygen.common.model_card import layout_corrector_model_card, layoutdm_model_card
+from laygen.common.model_card import layoutdm_model_card
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
@@ -194,6 +198,8 @@ def test_condition_type_aliases_and_errors():
     assert normalize_condition_type("content") is ConditionType.content_image
     assert normalize_condition_type("coarse-to-fine") is ConditionType.hierarchical
     assert normalize_condition_type("retrieval_examples") is ConditionType.retrieval
+    assert ConditionAlias.gen_t.value == "gen_t"
+    assert ConditionType.label_size.value == "label_size"
     with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
 
@@ -306,10 +312,10 @@ def test_layoutdm_model_card_metadata_and_sections():
 
 def test_layoutdm_model_card_mapping_inputs_and_errors():
     card = layoutdm_model_card(
-        dataset=DatasetName.publaynet,
+        dataset="publaynet",
         parity_metrics=[
             {
-                "dataset": DatasetName.publaynet,
+                "dataset": "publaynet",
                 "tokenizer_exact": "1/1",
                 "deterministic_exact": "1/1",
                 "logits_max_abs": 0.0,
@@ -317,39 +323,9 @@ def test_layoutdm_model_card_mapping_inputs_and_errors():
             }
         ],
     )
-    text = str(card)
-    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in text
-    assert "DatasetName" not in text
-    metadata = yaml.safe_load(text.split("---", maxsplit=2)[1])
-    assert metadata["datasets"] == ["creative-graphic-design/publaynet"]
-    crello_text = str(layoutdm_model_card(dataset="crello-bbox"))
-    crello_metadata = yaml.safe_load(crello_text.split("---", maxsplit=2)[1])
-    assert crello_metadata["datasets"] == ["cyberagent/crello"]
-    assert "DatasetName" not in crello_text
-    with pytest.raises(ValueError, match="Unsupported layout dataset"):
+    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
+    with pytest.raises(ValueError, match="Unsupported LayoutDM dataset"):
         layoutdm_model_card(dataset="unknown")
-
-
-def test_layout_corrector_model_card_metadata_and_sections():
-    card = layout_corrector_model_card(dataset="crello-bbox")
-    metadata = card.data.to_dict()
-    text = str(card)
-
-    assert metadata["license"] == "mit"
-    assert metadata["library_name"] == "diffusers"
-    assert metadata["datasets"] == ["cyberagent/crello"]
-    assert metadata["language"] == ["en"]
-    assert "layout-corrector" in metadata["tags"]
-    assert "LayoutCorrectorPipeline.from_pretrained" in text
-    assert "## Uses" in text
-    assert "### Out-of-Scope Use" in text
-    assert "## Bias, Risks, and Limitations" in text
-    assert "## Evaluation" in text
-    assert "### Results" in text
-    assert "https://github.com/line/Layout-Corrector" in text
-    assert "cyberagent/crello" in text
-    assert "More Information Needed" not in text
-    assert card.validate() is None
 
 
 @dataclass

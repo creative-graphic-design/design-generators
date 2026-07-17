@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from typing import Literal
 
 import torch
 
@@ -12,22 +12,13 @@ from laygen.common import ConditionType, normalize_condition_type
 from .tokenization_layout_dm import LayoutDMTokenizer
 
 
-class ConditionEncodingType(StrEnum):
-    """Token-mask condition encodings consumed by the scheduler."""
-
-    label = "c"
-    label_size = "cwh"
-    completion = "partial"
-    refinement = "refinement"
-
-
 @dataclass
 class LayoutDMCondition:
     """Strong and weak token constraints for conditional LayoutDM sampling."""
 
     input_ids: torch.Tensor
     mask: torch.Tensor
-    type: ConditionEncodingType
+    type: Literal["c", "cwh", "partial", "refinement"]
     num_element: torch.Tensor | None = None
     original_input_ids: torch.Tensor | None = None
     weak_mask: torch.Tensor | None = None
@@ -65,18 +56,11 @@ def build_condition(
     element_mask = encoded["mask"].reshape(
         ids.shape[0], tokenizer.config.max_seq_length, 5
     )
-    if canonical is ConditionType.unconditional:
-        raise NotImplementedError(
-            "Unconditional generation does not build token constraints"
-        )
     if canonical is ConditionType.label:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
         return LayoutDMCondition(
-            input_ids=ids,
-            mask=strong_mask,
-            type=ConditionEncodingType.label,
-            num_element=mask.sum(dim=1),
+            input_ids=ids, mask=strong_mask, type="c", num_element=mask.sum(dim=1)
         )
     if canonical is ConditionType.label_size:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
@@ -84,16 +68,13 @@ def build_condition(
         strong_mask[:, 3::5] = element_mask[..., 3]
         strong_mask[:, 4::5] = element_mask[..., 4]
         return LayoutDMCondition(
-            input_ids=ids,
-            mask=strong_mask,
-            type=ConditionEncodingType.label_size,
-            num_element=mask.sum(dim=1),
+            input_ids=ids, mask=strong_mask, type="cwh", num_element=mask.sum(dim=1)
         )
     if canonical is ConditionType.completion:
         return LayoutDMCondition(
             input_ids=ids,
             mask=encoded["mask"],
-            type=ConditionEncodingType.completion,
+            type="partial",
             num_element=mask.sum(dim=1),
         )
     if canonical is ConditionType.refinement:
@@ -105,7 +86,7 @@ def build_condition(
         return LayoutDMCondition(
             input_ids=ids,
             mask=encoded["mask"],
-            type=ConditionEncodingType.refinement,
+            type="refinement",
             num_element=mask.sum(dim=1),
             original_input_ids=original,
         )

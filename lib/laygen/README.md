@@ -16,6 +16,7 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 | `laygen.common.discrete` | Discrete diffusion tensor helpers and categorical sampling utilities. |
 | `laygen.common.visualization` | Lightweight layout rendering helpers for quick inspection. |
 | `laygen.common.testing` | Duck-typed schema assertions shared by model tests. |
+| `laygen.common.model_card` | Model-card builders used by converted layout model packages. |
 
 ## Usage
 

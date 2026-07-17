@@ -119,14 +119,14 @@ def should_apply_corrector(
 
 
 def add_confidence_gumbel_noise(
-    confidence_logits: torch.FloatTensor,
+    confidence_logits: torch.Tensor,
     *,
-    timestep: torch.LongTensor,
+    timestep: torch.Tensor,
     mask_ratio: float,
     temperature: float,
     time_adaptive_temperature: bool,
     generator: torch.Generator | None = None,
-) -> torch.FloatTensor:
+) -> torch.Tensor:
     """Add Gumbel noise to confidence logits.
 
     Args:
@@ -170,13 +170,13 @@ def add_confidence_gumbel_noise(
 
 
 def select_tokens_to_remask(
-    confidence_logits: torch.FloatTensor,
+    confidence_logits: torch.Tensor,
     *,
     mask_ratio: float,
     mode: CorrectorMaskMode | str,
     threshold: float,
     temperature: float = 1.0,
-) -> torch.BoolTensor:
+) -> torch.Tensor:
     """Select low-confidence tokens that should be masked again.
 
     Args:

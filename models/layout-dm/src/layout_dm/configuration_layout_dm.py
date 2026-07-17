@@ -75,13 +75,7 @@ class LayoutDMConfig(ConfigMixin):
         ctt_T: float = 0.99999,
     ) -> None:
         """Initialize a serializable LayoutDM configuration."""
-        try:
-            self.dataset_name = str(normalize_dataset_name(dataset_name))
-        except ValueError:
-            if id2label is None:
-                raise
-            self.dataset_name = str(dataset_name)
-        self.register_to_config(dataset_name=self.dataset_name)
+        self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or id2label_for_dataset(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
         self.max_seq_length = max_seq_length

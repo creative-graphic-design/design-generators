@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 import torch
 from transformers.utils import ModelOutput
 
-from ._output_spec import dataclass_fields
+from .output_spec import dataclass_fields
 
 if TYPE_CHECKING:
 

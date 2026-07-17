@@ -24,7 +24,7 @@ class ParityMetric:
         logits_max_rel: Maximum relative denoiser-logit difference.
     """
 
-    dataset: DatasetName | str
+    dataset: str
     tokenizer_exact: str
     deterministic_exact: str
     logits_max_abs: float
@@ -263,14 +263,12 @@ def layoutdm_model_card(
         >>> card.data.to_dict()["datasets"]
         ['creative-graphic-design/publaynet']
     """
-    dataset = cast(str, sanitize_for_yaml(dataset))
-    dataset_name = "crello" if dataset == "crello-bbox" else dataset
-    dataset_id = _layoutdm_dataset_id(dataset_name)
-    model_id = f"creative-graphic-design/layoutdm-{dataset_name}"
-    model_name = f"LayoutDM {dataset_name}"
+    dataset_id = _layoutdm_dataset_id(dataset)
+    model_id = f"creative-graphic-design/layoutdm-{dataset}"
+    model_name = f"LayoutDM {dataset}"
     metrics = parity_metrics or [
         ParityMetric(
-            dataset=dataset_name,
+            dataset=dataset,
             tokenizer_exact="125/125",
             deterministic_exact="125/125",
             logits_max_abs=0.0,
@@ -295,11 +293,11 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "layout-dm",
             "diffusers",
-            dataset_name,
+            dataset,
         ],
         model_details=(
             "Diffusers-format conversion of the LayoutDM checkpoint for "
-            f"`{dataset_name}`. The pipeline generates normalized center `xywh` layout "
+            f"`{dataset}`. The pipeline generates normalized center `xywh` layout "
             "boxes, category labels, and masks."
         ),
         intended_uses=(
@@ -321,105 +319,12 @@ print(out.bbox, out.labels, out.mask)
     )
 
 
-def layout_corrector_model_card(
-    *,
-    dataset: DatasetName | str,
-    parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
-) -> ModelCard:
-    """Build the Layout-Corrector model card for a converted checkpoint.
-
-    Args:
-        dataset: Dataset name such as ``"rico25"``, ``"publaynet"``, or
-            ``"crello-bbox"``.
-        parity_metrics: Optional parity rows. Defaults to the checked conversion
-            metrics used by this package.
-
-    Returns:
-        Validated model card for the requested Layout-Corrector checkpoint.
-
-    Raises:
-        ValueError: If ``dataset`` is unsupported.
-
-    Examples:
-        >>> card = layout_corrector_model_card(dataset="crello-bbox")
-        >>> card.data.to_dict()["datasets"]
-        ['cyberagent/crello']
-    """
-    dataset = cast(str, sanitize_for_yaml(dataset))
-    dataset_name = "crello" if dataset == "crello-bbox" else dataset
-    dataset_id = _layout_dataset_id(dataset_name)
-    model_id = f"creative-graphic-design/layout-corrector-{dataset_name}"
-    model_name = f"Layout-Corrector {dataset_name}"
-    metrics = parity_metrics or [
-        ParityMetric(
-            dataset=dataset_name,
-            tokenizer_exact="250/250",
-            deterministic_exact="250/250",
-            logits_max_abs=0.0,
-            logits_max_rel=0.0,
-        )
-    ]
-    how_to_use = f"""
-from layout_corrector import LayoutCorrectorPipeline
-
-pipe = LayoutCorrectorPipeline.from_pretrained("{model_id}")
-out = pipe(batch_size=1, seed=0, sampling="deterministic")
-print(out.bbox, out.labels, out.mask)
-"""
-    return build_layout_model_card(
-        model_id=model_id,
-        model_name=model_name,
-        dataset_ids=[dataset_id],
-        license="mit",
-        library_name="diffusers",
-        pipeline_tag="unconditional-layout-generation",
-        tags=[
-            "layout-generation",
-            "layout-corrector",
-            "layout-dm",
-            "diffusers",
-            dataset_name,
-        ],
-        model_details=(
-            "Diffusers-format composite conversion of the Layout-Corrector "
-            f"checkpoint for `{dataset_name}`. The pipeline wraps a converted "
-            "LayoutDM denoiser with the released Layout-Corrector confidence model. "
-            "Original implementation: https://github.com/line/Layout-Corrector"
-        ),
-        intended_uses=(
-            "Generate layouts with a LayoutDM backbone and use the corrector to "
-            "identify low-confidence reconstructed tokens during sampling."
-        ),
-        limitations=(
-            "The corrector inherits the dataset taxonomy, preprocessing, and "
-            "LayoutDM failure modes. It can still preserve invalid geometry or "
-            "dataset-specific layout artifacts."
-        ),
-        how_to_use=how_to_use,
-        training_data=(
-            f"The released corrector checkpoint was trained on `{dataset_id}`. "
-            "Local parity fixtures use the original Layout-Corrector starter-kit "
-            "processed splits."
-        ),
-        parity_metrics=metrics,
-        citation_bibtex=_LAYOUT_CORRECTOR_BIBTEX,
-        original_implementation_url="https://github.com/line/Layout-Corrector",
-    )
-
-
-def _layoutdm_dataset_id(dataset: str) -> str:
-    return _layout_dataset_id(dataset)
-
-
-def _layout_dataset_id(dataset: str) -> str:
-    dataset = cast(str, sanitize_for_yaml(dataset))
+def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":
         return "creative-graphic-design/publaynet"
-    if dataset == "crello":
-        return "cyberagent/crello"
-    raise ValueError(f"Unsupported layout dataset: {dataset}")
+    raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 
 def _parity_table(metrics: Sequence[ParityMetric | Mapping[str, object]]) -> str:
@@ -439,16 +344,13 @@ def _parity_table(metrics: Sequence[ParityMetric | Mapping[str, object]]) -> str
 def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, object]:
     if isinstance(metric, ParityMetric):
         return {
-            "dataset": cast(str, sanitize_for_yaml(metric.dataset)),
+            "dataset": metric.dataset,
             "tokenizer_exact": metric.tokenizer_exact,
             "deterministic_exact": metric.deterministic_exact,
             "logits_max_abs": metric.logits_max_abs,
             "logits_max_rel": metric.logits_max_rel,
         }
-    item = dict(metric)
-    if "dataset" in item:
-        item["dataset"] = sanitize_for_yaml(item["dataset"])
-    return item
+    return dict(metric)
 
 
 _LAYOUTDM_BIBTEX = r"""
@@ -457,14 +359,5 @@ _LAYOUTDM_BIBTEX = r"""
   author = {Inoue, Naoto and Kikuchi, Kotaro and Simo-Serra, Edgar and Otani, Mayu and Yamaguchi, Kota},
   booktitle = {CVPR},
   year = {2023}
-}
-"""
-
-_LAYOUT_CORRECTOR_BIBTEX = r"""
-@article{kikuchi2024layoutcorrector,
-  title = {Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model},
-  author = {Kikuchi, Kotaro and others},
-  journal = {arXiv preprint arXiv:2409.16689},
-  year = {2024}
 }
 """

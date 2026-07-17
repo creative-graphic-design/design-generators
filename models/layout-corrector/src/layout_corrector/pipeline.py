@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Sequence, assert_never
+from typing import Sequence, assert_never, cast
 
 import numpy as np
 import torch
@@ -15,7 +16,6 @@ from layout_dm.conditioning import (
     normalize_condition_type,
 )
 from layout_dm.pipeline import LayoutDMPipeline
-from layout_dm.pipeline import OutputType, normalize_output_type
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
 from laygen.common.bbox import BoxFormat
@@ -31,6 +31,23 @@ from .sampling import (
     select_tokens_to_remask,
     should_apply_corrector,
 )
+
+
+class OutputType(StrEnum):
+    """Supported Layout-Corrector pipeline output formats."""
+
+    dataclass = "dataclass"
+    dict = "dict"
+
+
+def normalize_output_type(output_type: OutputType | str) -> OutputType:
+    """Normalize a public output format string to ``OutputType``."""
+    if isinstance(output_type, OutputType):
+        return output_type
+    try:
+        return OutputType(output_type)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported output_type: {output_type}") from exc
 
 
 class LayoutCorrectorPipeline(DiffusionPipeline):
@@ -79,9 +96,9 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str = "unconditional",
-        labels: torch.Tensor | np.ndarray | list[Any] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
-        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
+        labels: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+        mask: torch.Tensor | np.ndarray | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -185,31 +202,31 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             top_k=top_k,
             top_p=top_p,
             num_inference_steps=num_inference_steps,
-            corrector_steps=corrector_steps or self.corrector.config.corrector_steps,
+            corrector_steps=corrector_steps or self.corrector.corrector_steps,
             corrector_t_list=tuple(
-                self.corrector.config.corrector_t_list
+                self.corrector.corrector_t_list
                 if corrector_t_list is None
                 else corrector_t_list
             ),
             corrector_start=corrector_start,
             corrector_end=corrector_end,
             corrector_mask_mode=corrector_mask_mode
-            or self.corrector.config.corrector_mask_mode,
+            or self.corrector.corrector_mask_mode,
             corrector_mask_threshold=corrector_mask_threshold
             if corrector_mask_threshold is not None
-            else self.corrector.config.corrector_mask_threshold,
+            else self.corrector.corrector_mask_threshold,
             corrector_temperature=corrector_temperature
             if corrector_temperature is not None
-            else self.corrector.config.corrector_temperature,
+            else self.corrector.corrector_temperature,
             use_gumbel_noise=use_gumbel_noise
             if use_gumbel_noise is not None
-            else self.corrector.config.use_gumbel_noise,
+            else self.corrector.use_gumbel_noise,
             gumbel_temperature=gumbel_temperature
             if gumbel_temperature is not None
-            else self.corrector.config.gumbel_temperature,
+            else self.corrector.gumbel_temperature,
             time_adaptive_temperature=time_adaptive_temperature
             if time_adaptive_temperature is not None
-            else self.corrector.config.time_adaptive_temperature,
+            else self.corrector.time_adaptive_temperature,
         )
         sampling_cfg = LayoutDMSamplingConfig(
             name=sampling,
@@ -270,7 +287,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             bbox=decoded["bbox"],
             labels=decoded["labels"],
             mask=decoded["mask"],
-            id2label=dict(self.corrector.config.id2label),
+            id2label=dict(self.corrector.id2label),
             sequences=sequences,
             scores=torch.stack(scores) if scores else None,
             trajectory=trajectory,
@@ -290,12 +307,12 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
     def _step_with_corrector(
         self,
         *,
-        sample: torch.FloatTensor,
-        timestep_batch: torch.LongTensor,
+        sample: torch.Tensor,
+        timestep_batch: torch.Tensor,
         condition: LayoutDMCondition | None,
         sampling: LayoutCorrectorSamplingConfig,
         generator: torch.Generator | None,
-    ) -> tuple[torch.FloatTensor, torch.FloatTensor | None]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         confidence = None
         current = sample
         for _ in range(sampling.corrector_steps):
@@ -304,7 +321,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                 input_ids=input_ids, timesteps=timestep_batch
             ).logits
             model_log_prob = self.layout_dm.scheduler.predict_start(denoiser_logits)
-            if self.corrector.config.recon_type == "x_t-1":
+            if self.corrector.recon_type == "x_t-1":
                 model_log_prob = self.layout_dm.scheduler.q_posterior(
                     model_log_prob, current, timestep_batch
                 )
@@ -367,7 +384,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             )
         return current, confidence
 
-    def _mask_ratio(self, timestep_batch: torch.LongTensor) -> float:
+    def _mask_ratio(self, timestep_batch: torch.Tensor) -> float:
         timestep = int(timestep_batch[0].item())
         timestep = max(0, min(timestep, self.layout_dm.scheduler.config.num_timesteps))
         if timestep == 0:
@@ -420,4 +437,8 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         path = Path(pretrained_model_name_or_path)
         layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
         corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")
-        return cls(layout_dm=layout_dm, corrector=corrector, **kwargs)
+        processor = cast(LayoutDMProcessor | None, kwargs.pop("processor", None))
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"Unexpected LayoutCorrectorPipeline kwargs: {unexpected}")
+        return cls(layout_dm=layout_dm, corrector=corrector, processor=processor)

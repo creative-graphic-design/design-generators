@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Callable, cast
+from typing import Callable, Literal, TypeAlias, cast
 
 import torch
 import torch.nn.functional as F
 from einops import repeat
 from torch import nn
+
+TimestepType: TypeAlias = Literal["adalayernorm", "adalayernorm_abs"]
 
 
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
@@ -91,7 +93,7 @@ class Block(nn.Module):
         batch_first: bool = True,
         norm_first: bool = True,
         diffusion_step: int = 100,
-        timestep_type: str | None = None,
+        timestep_type: TimestepType | None = None,
     ) -> None:
         """Initialize a LayoutDM transformer block."""
         super().__init__()
@@ -224,7 +226,7 @@ class CategoricalTransformer(nn.Module):
         num_hidden_layers: int,
         intermediate_size: int,
         dropout: float = 0.0,
-        timestep_type: str | None = "adalayernorm",
+        timestep_type: TimestepType | None = "adalayernorm",
     ) -> None:
         """Initialize the categorical transformer denoiser backbone."""
         super().__init__()

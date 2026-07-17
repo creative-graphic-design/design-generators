@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import torch
 import yaml
-from layout_dm.pipeline import LayoutDMPipeline
 from laygen.common.labels import normalize_dataset_name
 
 from .configuration_layout_corrector import LayoutCorrectorConfig
@@ -65,7 +63,7 @@ def corrector_config_from_original(
     dataset: str,
     config_path: str | Path,
     state_dict: dict[str, torch.Tensor],
-    layout_dm: LayoutDMPipeline,
+    layout_dm: object,
 ) -> LayoutCorrectorConfig:
     """Build a Layout-Corrector config from original files.
 
@@ -91,7 +89,7 @@ def corrector_config_from_original(
         else "crello-bbox"
     )
     id2label = (
-        layout_dm.tokenizer.config.id2label
+        getattr(getattr(layout_dm, "tokenizer").config, "id2label")
         if normalized_dataset == "crello-bbox"
         else None
     )
@@ -123,7 +121,7 @@ def build_corrector_from_original(
     *,
     dataset: str,
     checkpoint_dir: str | Path,
-    layout_dm: LayoutDMPipeline,
+    layout_dm: object,
 ) -> LayoutCorrectorModel:
     """Build a `LayoutCorrectorModel` from an original checkpoint directory.
 
@@ -169,7 +167,7 @@ def discover_seed_dirs(job_dir: str | Path) -> list[Path]:
 
 def validate_layout_dm_compatibility(
     *,
-    layout_dm: LayoutDMPipeline,
+    layout_dm: object,
     corrector_config: LayoutCorrectorConfig,
 ) -> None:
     """Validate that a corrector config matches its nested LayoutDM pipeline.
@@ -181,12 +179,13 @@ def validate_layout_dm_compatibility(
     Raises:
         ValueError: If a shared tokenizer or scheduler field differs.
     """
-    tokenizer_config = layout_dm.tokenizer.config
-    checks: dict[str, Any] = {
+    tokenizer_config = getattr(layout_dm, "tokenizer").config
+    scheduler_config = getattr(layout_dm, "scheduler").config
+    checks: dict[str, int] = {
         "vocab_size": tokenizer_config.vocab_size,
         "max_seq_length": tokenizer_config.max_seq_length,
         "num_attributes_per_element": tokenizer_config.num_attributes_per_element,
-        "num_timesteps": layout_dm.scheduler.config.num_timesteps,
+        "num_timesteps": scheduler_config.num_timesteps,
     }
     for key, value in checks.items():
         if getattr(corrector_config, key) != value:

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
 from pathlib import Path
-from typing import Any, assert_never
+from typing import Literal
 
 import numpy as np
 import torch
@@ -22,23 +21,6 @@ from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
 from .scheduler import LayoutDMScheduler
 from .tokenization_layout_dm import LayoutDMTokenizer
-
-
-class OutputType(StrEnum):
-    """Supported pipeline output containers."""
-
-    dataclass = "dataclass"
-    dict = "dict"
-
-
-def normalize_output_type(output_type: OutputType | str) -> OutputType:
-    """Normalize a public output type value to ``OutputType``."""
-    if isinstance(output_type, OutputType):
-        return output_type
-    try:
-        return OutputType(output_type)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported output_type: {output_type}") from exc
 
 
 class LayoutDMPipeline(DiffusionPipeline):
@@ -88,9 +70,9 @@ class LayoutDMPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: torch.Tensor | np.ndarray | list[Any] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
-        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
+        labels: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+        mask: torch.Tensor | np.ndarray | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -100,7 +82,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         temperature: float = 1.0,
         top_k: int = 5,
         top_p: float = 0.9,
-        output_type: OutputType | str = OutputType.dataclass,
+        output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
@@ -213,12 +195,11 @@ class LayoutDMPipeline(DiffusionPipeline):
             if return_intermediates
             else None,
         )
-        normalized_output_type = normalize_output_type(output_type)
-        if normalized_output_type is OutputType.dict:
+        if output_type == "dict":
             return dict(output)
-        if normalized_output_type is OutputType.dataclass:
-            return output
-        assert_never(normalized_output_type)
+        if output_type != "dataclass":
+            raise ValueError(f"Unsupported output_type: {output_type}")
+        return output
 
     generate = __call__
 
