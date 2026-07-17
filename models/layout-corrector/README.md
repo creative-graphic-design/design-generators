@@ -83,7 +83,7 @@ Local parity compares the converted `LayoutCorrectorModel` against the original 
 
 This section reproduces the parity verification against the original implementation.
 
-Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed.
+Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed. Initialize the required vendor submodules once with `git submodule update --init vendor/layout-corrector vendor/layout-dm`.
 
 1. Download the original starter kit. This creates `.cache/layout-corrector/original/layout_corrector_starter.zip` and extracts `.cache/layout-corrector/original/layout_corrector_starter_kit/download`.
 

@@ -85,8 +85,19 @@ def corrector_config_from_original(
     layer_cfg = original_config["backbone"]["encoder_layer"]
     hidden_size = int(state_dict["cat_emb.weight"].shape[1])
     intermediate_size = int(state_dict["backbone.layers.0.linear1.weight"].shape[0])
+    normalized_dataset = (
+        str(normalize_dataset_name(dataset))
+        if dataset not in {"crello", "crello-bbox"}
+        else "crello-bbox"
+    )
+    id2label = (
+        layout_dm.tokenizer.config.id2label
+        if normalized_dataset == "crello-bbox"
+        else None
+    )
     return LayoutCorrectorConfig(
-        dataset_name=normalize_dataset_name(dataset),
+        dataset_name=normalized_dataset,
+        id2label=id2label,
         vocab_size=int(state_dict["cat_emb.weight"].shape[0]),
         max_seq_length=int(original_config["dataset"].get("max_seq_length", 25)),
         num_attributes_per_element=len(

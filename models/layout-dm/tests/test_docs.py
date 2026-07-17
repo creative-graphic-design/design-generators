@@ -14,6 +14,7 @@ def test_readme_includes_reproducible_vendor_parity_commands():
         in text
     )
     assert "scripts/download_original.py" in text
+    assert "git submodule update --init vendor/layout-dm" in text
     assert "models/layout-dm/tests/vendor_parity" in text
     assert (
         "CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor pytest"

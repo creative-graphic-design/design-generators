@@ -40,6 +40,20 @@ def _checkpoint_dir(starter_dir: Path, dataset: str, seed: int) -> Path:
     raise FileNotFoundError(f"No LayoutDM checkpoint found for {dataset}")
 
 
+def _id2label_for_checkpoint(dataset: str) -> dict[int, str] | None:
+    if dataset != "crello-bbox":
+        return None
+    return {i: f"class_{i}" for i in range(5)}
+
+
+def _config_dataset_name(dataset: str) -> str:
+    if dataset == "crello":
+        return "crello-bbox"
+    if dataset == "crello-bbox":
+        return dataset
+    return str(normalize_dataset_name(dataset))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -75,13 +89,14 @@ def main() -> None:
     args = parser.parse_args()
 
     checkpoint_dataset = "crello-bbox" if args.dataset == "crello" else args.dataset
-    dataset_name = normalize_dataset_name(args.dataset)
+    dataset_name = _config_dataset_name(args.dataset)
     checkpoint_dir = _checkpoint_dir(args.starter_dir, checkpoint_dataset, args.seed)
     with (checkpoint_dir / "config.yaml").open() as f:
         original_config = yaml.safe_load(f)
     data_cfg = original_config["data"]
     config = LayoutDMConfig(
         dataset_name=dataset_name,
+        id2label=_id2label_for_checkpoint(checkpoint_dataset),
         max_seq_length=25,
         num_bin_bboxes=data_cfg.get("num_bin_bboxes", 32),
         var_order=data_cfg.get("var_order", "c-x-y-w-h"),

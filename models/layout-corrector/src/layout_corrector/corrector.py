@@ -218,7 +218,12 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             raise ValueError(f"Unsupported target: {target}")
         if transformer_type != "aggregated":
             raise ValueError("Only transformer_type='aggregated' is supported")
-        dataset_name = normalize_dataset_name(dataset_name)
+        try:
+            dataset_name = str(normalize_dataset_name(dataset_name))
+        except ValueError:
+            if id2label is None:
+                raise
+            dataset_name = str(dataset_name)
         normalized_id2label = {
             int(k): v
             for k, v in (id2label or id2label_for_dataset(dataset_name)).items()

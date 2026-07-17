@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 
 from huggingface_hub import ModelCard, ModelCardData
 
@@ -75,6 +76,8 @@ def build_layout_model_card(
         >>> card.data.to_dict()["library_name"]
         'diffusers'
     """
+    dataset_ids = [_plain_string(dataset_id) for dataset_id in dataset_ids]
+    tags = [_plain_string(tag) for tag in tags]
     card_data = ModelCardData(
         model_name=model_name,
         license=license,
@@ -259,12 +262,14 @@ def layoutdm_model_card(
         >>> card.data.to_dict()["datasets"]
         ['creative-graphic-design/publaynet']
     """
-    dataset_id = _layoutdm_dataset_id(dataset)
-    model_id = f"creative-graphic-design/layoutdm-{dataset}"
-    model_name = f"LayoutDM {dataset}"
+    dataset = _plain_string(dataset)
+    dataset_name = "crello" if dataset == "crello-bbox" else dataset
+    dataset_id = _layoutdm_dataset_id(dataset_name)
+    model_id = f"creative-graphic-design/layoutdm-{dataset_name}"
+    model_name = f"LayoutDM {dataset_name}"
     metrics = parity_metrics or [
         ParityMetric(
-            dataset=dataset,
+            dataset=dataset_name,
             tokenizer_exact="125/125",
             deterministic_exact="125/125",
             logits_max_abs=0.0,
@@ -289,11 +294,11 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "layout-dm",
             "diffusers",
-            dataset,
+            dataset_name,
         ],
         model_details=(
             "Diffusers-format conversion of the LayoutDM checkpoint for "
-            f"`{dataset}`. The pipeline generates normalized center `xywh` layout "
+            f"`{dataset_name}`. The pipeline generates normalized center `xywh` layout "
             "boxes, category labels, and masks."
         ),
         intended_uses=(
@@ -339,6 +344,7 @@ def layout_corrector_model_card(
         >>> card.data.to_dict()["datasets"]
         ['cyberagent/crello']
     """
+    dataset = _plain_string(dataset)
     dataset_name = "crello" if dataset == "crello-bbox" else dataset
     dataset_id = _layout_dataset_id(dataset_name)
     model_id = f"creative-graphic-design/layout-corrector-{dataset_name}"
@@ -405,6 +411,7 @@ def _layoutdm_dataset_id(dataset: str) -> str:
 
 
 def _layout_dataset_id(dataset: str) -> str:
+    dataset = _plain_string(dataset)
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":
@@ -431,13 +438,24 @@ def _parity_table(metrics: Sequence[ParityMetric | Mapping[str, object]]) -> str
 def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, object]:
     if isinstance(metric, ParityMetric):
         return {
-            "dataset": metric.dataset,
+            "dataset": _plain_string(metric.dataset),
             "tokenizer_exact": metric.tokenizer_exact,
             "deterministic_exact": metric.deterministic_exact,
             "logits_max_abs": metric.logits_max_abs,
             "logits_max_rel": metric.logits_max_rel,
         }
-    return dict(metric)
+    item = dict(metric)
+    if "dataset" in item:
+        item["dataset"] = _plain_string(item["dataset"])
+    return item
+
+
+def _plain_string(value: object) -> str:
+    if isinstance(value, StrEnum):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    return str(value)
 
 
 _LAYOUTDM_BIBTEX = r"""

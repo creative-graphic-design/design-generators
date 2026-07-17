@@ -3,7 +3,9 @@ from types import SimpleNamespace
 
 import numpy as np
 import torch
+import yaml
 
+from laygen.common import DatasetName
 from layout_dm.conversion import (
     load_cluster_centers,
     remap_denoiser_key,
@@ -56,8 +58,23 @@ def test_load_cluster_centers(tmp_path):
     assert centers["x"] == [0.1, 0.2, 0.3]
 
 
+def test_load_cluster_centers_supports_crello_bbox(tmp_path):
+    cluster_dir = tmp_path / "clustering_weights"
+    cluster_dir.mkdir()
+    models = {
+        f"{key}-32": SimpleNamespace(cluster_centers_=np.array([[0.4], [0.2]]))
+        for key in ("x", "y", "w", "h")
+    }
+    with (cluster_dir / "crello-bbox_max25_kmeans_train_clusters.pkl").open("wb") as f:
+        pickle.dump(models, f)
+
+    centers = load_cluster_centers(tmp_path, "crello-bbox")
+
+    assert centers["x"] == [0.2, 0.4]
+
+
 def test_write_layoutdm_model_card(tmp_path):
-    path = write_layoutdm_model_card(tmp_path, "rico25")
+    path = write_layoutdm_model_card(tmp_path, DatasetName.rico25)
     text = path.read_text(encoding="utf-8")
 
     assert path.name == "README.md"
@@ -73,3 +90,6 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "This card follows" not in text
     assert "annotated model card" not in text
     assert "model card template" not in text
+    assert "DatasetName" not in text
+    metadata = yaml.safe_load(text.split("---", maxsplit=2)[1])
+    assert metadata["datasets"] == ["creative-graphic-design/rico25"]

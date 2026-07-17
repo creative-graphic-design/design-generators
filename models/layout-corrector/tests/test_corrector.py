@@ -1,4 +1,5 @@
 import torch
+import yaml
 import pytest
 
 from layout_corrector import LayoutCorrectorModel
@@ -51,6 +52,16 @@ def test_corrector_model_accepts_position_embedding_branch():
     )
 
     assert output.logits.shape == (1, 10)
+
+
+def test_corrector_model_allows_external_dataset_with_explicit_labels():
+    model = tiny_model(dataset_name="crello-bbox", id2label={0: "class_0"})
+
+    assert model.config.dataset_name == "crello-bbox"
+    assert (
+        yaml.safe_load(yaml.safe_dump(dict(model.config)))["dataset_name"]
+        == "crello-bbox"
+    )
 
 
 def test_corrector_model_rejects_unsupported_modes():

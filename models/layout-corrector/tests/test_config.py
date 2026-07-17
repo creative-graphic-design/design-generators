@@ -1,5 +1,7 @@
 import pytest
+import yaml
 
+from laygen.common import DatasetName
 from layout_corrector import LayoutCorrectorConfig
 
 
@@ -18,6 +20,29 @@ def test_config_roundtrip(tmp_path):
     assert loaded.id2label[0] == "Text"
     assert loaded.corrector_t_list == (10, 20, 30)
     assert loaded.corrector_mask_mode == "topk"
+
+
+def test_config_serializes_dataset_enum_as_plain_string(tmp_path):
+    config = LayoutCorrectorConfig(dataset_name=DatasetName.publaynet, vocab_size=135)
+
+    config.save_config(tmp_path)
+    dumped = yaml.safe_dump(dict(config.config))
+    loaded = yaml.safe_load(dumped)
+
+    assert config.dataset_name == "publaynet"
+    assert config.config["dataset_name"] == "publaynet"
+    assert loaded["dataset_name"] == "publaynet"
+
+
+def test_config_allows_external_dataset_with_explicit_labels():
+    config = LayoutCorrectorConfig(
+        dataset_name="crello-bbox",
+        vocab_size=135,
+        id2label={0: "class_0"},
+    )
+
+    assert config.dataset_name == "crello-bbox"
+    assert config.id2label == {0: "class_0"}
 
 
 def test_config_rejects_bad_recon_type():

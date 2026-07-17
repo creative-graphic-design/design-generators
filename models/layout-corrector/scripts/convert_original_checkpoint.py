@@ -16,9 +16,14 @@ from layout_dm.pipeline import LayoutDMPipeline
 
 
 def _parity_metrics(dataset: str) -> list[ParityMetric]:
+    dataset_name = (
+        str(normalize_dataset_name(dataset))
+        if dataset not in {"crello", "crello-bbox"}
+        else "crello"
+    )
     return [
         ParityMetric(
-            dataset=normalize_dataset_name(dataset),
+            dataset=dataset_name,
             tokenizer_exact="checked in vendor parity",
             deterministic_exact="checked in vendor parity",
             logits_max_abs=0.0,

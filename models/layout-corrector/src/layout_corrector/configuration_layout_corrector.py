@@ -6,7 +6,11 @@ from typing import Literal
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
+from laygen.common.labels import (
+    DatasetName,
+    id2label_for_dataset,
+    normalize_dataset_name,
+)
 
 
 class LayoutCorrectorConfig(ConfigMixin):
@@ -55,7 +59,7 @@ class LayoutCorrectorConfig(ConfigMixin):
     def __init__(
         self,
         *,
-        dataset_name: str,
+        dataset_name: DatasetName | str,
         vocab_size: int,
         id2label: dict[int | str, str] | None = None,
         max_seq_length: int = 25,
@@ -128,7 +132,13 @@ class LayoutCorrectorConfig(ConfigMixin):
             >>> cfg.max_token_length
             125
         """
-        dataset_name = normalize_dataset_name(dataset_name)
+        try:
+            dataset_name = str(normalize_dataset_name(dataset_name))
+        except ValueError:
+            if id2label is None:
+                raise
+            dataset_name = str(dataset_name)
+        self.register_to_config(dataset_name=dataset_name)
         if vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
         if max_seq_length <= 0:

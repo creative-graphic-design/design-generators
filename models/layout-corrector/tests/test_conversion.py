@@ -1,3 +1,4 @@
+import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -5,6 +6,7 @@ import pytest
 import torch
 import yaml
 
+from laygen.common import DatasetName
 from layout_corrector import LayoutCorrectorConfig
 from layout_corrector.conversion import (
     corrector_config_from_original,
@@ -14,6 +16,20 @@ from layout_corrector.conversion import (
     split_original_corrector_state_dict,
     validate_layout_dm_compatibility,
 )
+
+
+def _load_convert_script():
+    script_path = (
+        Path(__file__).parents[1] / "scripts" / "convert_original_checkpoint.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "layout_corrector_convert", script_path
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_remap_corrector_key():
@@ -103,8 +119,20 @@ def test_corrector_config_from_original_and_compatibility(tmp_path):
     validate_layout_dm_compatibility(layout_dm=layout_dm, corrector_config=config)
 
     assert config.vocab_size == 20
+    assert config.dataset_name == "publaynet"
+    assert (
+        yaml.safe_load(yaml.safe_dump(dict(config.config)))["dataset_name"]
+        == "publaynet"
+    )
     assert config.hidden_size == 8
     assert config.intermediate_size == 16
+
+
+def test_parity_metrics_use_plain_dataset_strings():
+    metric = _load_convert_script()._parity_metrics(DatasetName.publaynet)[0]
+
+    assert metric.dataset == "publaynet"
+    assert yaml.safe_load(yaml.safe_dump(metric.__dict__))["dataset"] == "publaynet"
 
 
 def test_validate_layout_dm_compatibility_rejects_mismatch():

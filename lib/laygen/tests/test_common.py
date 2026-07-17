@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pytest
 import torch
+import yaml
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import (
@@ -286,10 +287,10 @@ def test_layoutdm_model_card_metadata_and_sections():
 
 def test_layoutdm_model_card_mapping_inputs_and_errors():
     card = layoutdm_model_card(
-        dataset="publaynet",
+        dataset=DatasetName.publaynet,
         parity_metrics=[
             {
-                "dataset": "publaynet",
+                "dataset": DatasetName.publaynet,
                 "tokenizer_exact": "1/1",
                 "deterministic_exact": "1/1",
                 "logits_max_abs": 0.0,
@@ -297,7 +298,15 @@ def test_layoutdm_model_card_mapping_inputs_and_errors():
             }
         ],
     )
-    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
+    text = str(card)
+    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in text
+    assert "DatasetName" not in text
+    metadata = yaml.safe_load(text.split("---", maxsplit=2)[1])
+    assert metadata["datasets"] == ["creative-graphic-design/publaynet"]
+    crello_text = str(layoutdm_model_card(dataset="crello-bbox"))
+    crello_metadata = yaml.safe_load(crello_text.split("---", maxsplit=2)[1])
+    assert crello_metadata["datasets"] == ["cyberagent/crello"]
+    assert "DatasetName" not in crello_text
     with pytest.raises(ValueError, match="Unsupported layout dataset"):
         layoutdm_model_card(dataset="unknown")
 
