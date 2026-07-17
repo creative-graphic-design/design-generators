@@ -50,11 +50,7 @@ def build_layout_model_card(
             f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
             "conditional-free layout generation."
         ),
-        model_description=(
-            f"{model_details}\n\n"
-            "This card follows the Hugging Face Hub model card template and "
-            "the annotated model card section structure."
-        ),
+        model_description=model_details,
         developers="CyberAgentAILab released the original LayoutDM implementation.",
         funded_by=(
             "Funding for the original checkpoint is not separately reported in "

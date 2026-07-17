@@ -39,3 +39,6 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "## Evaluation" in text
     assert "Tokenizer exact" in text
     assert "[More Information Needed]" not in text
+    assert "This card follows" not in text
+    assert "annotated model card" not in text
+    assert "model card template" not in text
