@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Final
 
+from laygen.common import DatasetName, normalize_dataset_name
+
 
 class LayoutPrompterDataset(StrEnum):
     """Supported LayoutPrompter dataset vocabularies."""
@@ -76,6 +78,16 @@ LAYOUT_DOMAIN: Final[dict[LayoutPrompterDataset, str]] = {
 
 def normalize_dataset(dataset: LayoutPrompterDataset | str) -> LayoutPrompterDataset:
     """Return a supported dataset enum from a public string value."""
+    if isinstance(dataset, LayoutPrompterDataset):
+        return dataset
+    try:
+        shared_dataset = normalize_dataset_name(dataset)
+    except ValueError:
+        shared_dataset = None
+    if shared_dataset is DatasetName.publaynet:
+        return LayoutPrompterDataset.PUBLAYNET
+    if shared_dataset is DatasetName.rico25:
+        return LayoutPrompterDataset.RICO
     try:
         return LayoutPrompterDataset(dataset)
     except ValueError as exc:

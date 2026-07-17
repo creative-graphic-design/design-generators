@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 
+from laygen.common import LayoutGenerationOutput
+from laygen.common.bbox import normalize_boxes
 import torch
 
-from layout_generation_common.bbox import normalize_boxes
-from layout_generation_common.outputs import LayoutGenerationOutput
 from layoutprompter.data import (
     CANVAS_SIZE,
     LayoutPrompterDataset,

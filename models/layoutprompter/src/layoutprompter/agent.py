@@ -6,38 +6,28 @@ import os
 import json
 from dataclasses import dataclass
 from dataclasses import asdict
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Final, assert_never
+from typing import Final, assert_never
 
+from laygen.common import (
+    BoxFormat,
+    ConditionType,
+    LayoutGenerationOutput,
+    normalize_box_format,
+    normalize_condition_type,
+)
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 
-from layout_generation_common.bbox import BoxFormat, normalize_box_format
-from layout_generation_common.outputs import LayoutGenerationOutput
 from layoutprompter.data import LayoutPrompterDataset, normalize_dataset
 from layoutprompter.parsing import Parser
 from layoutprompter.schemas import LayoutPrompterOutput
 from layoutprompter.selection import create_selector
 from layoutprompter.serialization import build_prompt, create_serializer
 
-
-class ConditionType(StrEnum):
-    """Public LayoutPrompter generation conditions and vendor aliases."""
-
-    LABEL = "label"
-    CAT_COND = "cat_cond"
-    GEN_T = "gen_t"
-    LABEL_SIZE = "label_size"
-    SIZE_COND = "size_cond"
-    GEN_TS = "gen_ts"
-    RELATION = "relation"
-    GEN_R = "gen_r"
-    COMPLETION = "completion"
-    PARTIAL = "partial"
-    REFINEMENT = "refinement"
-    REFINE = "refine"
-    TEXT = "text"
+LayoutRecord = Mapping[str, object]
 
 
 class PromptFormat(StrEnum):
@@ -55,28 +45,13 @@ class OutputType(StrEnum):
 
 
 TASK_ALIASES: Final[dict[ConditionType, str]] = {
-    ConditionType.LABEL: "gent",
-    ConditionType.CAT_COND: "gent",
-    ConditionType.GEN_T: "gent",
-    ConditionType.LABEL_SIZE: "gents",
-    ConditionType.SIZE_COND: "gents",
-    ConditionType.GEN_TS: "gents",
-    ConditionType.RELATION: "genr",
-    ConditionType.GEN_R: "genr",
-    ConditionType.COMPLETION: "completion",
-    ConditionType.PARTIAL: "completion",
-    ConditionType.REFINEMENT: "refinement",
-    ConditionType.REFINE: "refinement",
-    ConditionType.TEXT: "text",
+    ConditionType.label: "gent",
+    ConditionType.label_size: "gents",
+    ConditionType.relation: "genr",
+    ConditionType.completion: "completion",
+    ConditionType.refinement: "refinement",
+    ConditionType.text: "text",
 }
-
-
-def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
-    """Return a condition enum from a public string value."""
-    try:
-        return ConditionType(condition_type)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported condition_type: {condition_type}") from exc
 
 
 def normalize_prompt_format(prompt_format: PromptFormat | str) -> PromptFormat:
@@ -130,7 +105,7 @@ class LayoutPrompterConfig:
     """
 
     dataset: LayoutPrompterDataset | str = LayoutPrompterDataset.PUBLAYNET
-    condition_type: ConditionType | str = ConditionType.LABEL
+    condition_type: ConditionType | str = ConditionType.label
     input_format: PromptFormat | str = PromptFormat.SEQ
     output_format: PromptFormat | str = PromptFormat.SEQ
     candidate_size: int = -1
@@ -158,7 +133,13 @@ class LayoutPrompterConfig:
     @property
     def task(self) -> str:
         """Return the vendor task key."""
-        return TASK_ALIASES[normalize_condition_type(self.condition_type)]
+        condition_type = normalize_condition_type(self.condition_type)
+        try:
+            return TASK_ALIASES[condition_type]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unsupported LayoutPrompter condition_type: {condition_type}"
+            ) from exc
 
 
 class LayoutPrompter:
@@ -207,7 +188,7 @@ class LayoutPrompter:
         )
 
     def build_prompt(
-        self, train_data: list[dict[str, Any]], test_data: dict[str, Any]
+        self, train_data: Sequence[LayoutRecord], test_data: LayoutRecord
     ) -> str:
         """Select exemplars and build the final LayoutPrompter prompt.
 
@@ -254,7 +235,7 @@ class LayoutPrompter:
         )
 
     def run_sync(
-        self, train_data: list[dict[str, Any]], test_data: dict[str, Any]
+        self, train_data: Sequence[LayoutRecord], test_data: LayoutRecord
     ) -> LayoutGenerationOutput:
         """Run the Pydantic AI model and return the common layout schema.
 
@@ -288,8 +269,8 @@ class LayoutPrompter:
     def __call__(
         self,
         *,
-        train_data: list[dict[str, Any]],
-        test_data: dict[str, Any],
+        train_data: Sequence[LayoutRecord],
+        test_data: LayoutRecord,
         batch_size: int = 1,
         seed: int | None = None,
         generator: object | None = None,
@@ -298,7 +279,7 @@ class LayoutPrompter:
         bbox: object | None = None,
         mask: object | None = None,
         num_elements: int | list[int] | object | None = None,
-        box_format: BoxFormat | str = BoxFormat.XYWH,
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,

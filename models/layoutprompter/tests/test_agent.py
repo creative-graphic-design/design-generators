@@ -9,9 +9,8 @@ import pytest
 import torch
 from pydantic_ai.models.test import TestModel
 
-from layout_generation_common.bbox import BoxFormat
-from layout_generation_common.outputs import LayoutGenerationOutput
-from layout_generation_common.testing import assert_layout_output_schema
+from laygen.common import BoxFormat, LayoutGenerationOutput
+from laygen.common.testing import assert_layout_output_schema
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 from layoutprompter.agent import ConditionType, OutputType, PromptFormat
 from layoutprompter.data import LayoutPrompterDataset
@@ -111,7 +110,7 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
     prompter = LayoutPrompter(
         LayoutPrompterConfig(
             dataset=LayoutPrompterDataset.PUBLAYNET,
-            condition_type=ConditionType.LABEL,
+            condition_type=ConditionType.label,
             input_format=PromptFormat.SEQ,
             output_format=PromptFormat.SEQ,
             model=model,
@@ -122,7 +121,7 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
     output = prompter(
         train_data=train_data,
         test_data=test_data,
-        box_format=BoxFormat.XYWH,
+        box_format=BoxFormat.xywh,
         output_type=OutputType.DICT,
     )
     dict_output = cast(dict[str, object], output)
@@ -138,7 +137,7 @@ def test_config_and_call_reject_unsupported_modes() -> None:
     """Unsupported public string modes raise explicit ValueError."""
     with pytest.raises(ValueError, match="Unsupported dataset"):
         LayoutPrompterConfig(dataset="unknown")
-    with pytest.raises(ValueError, match="Unsupported condition_type"):
+    with pytest.raises(ValueError, match="Unknown condition_type"):
         LayoutPrompterConfig(condition_type="unknown")
     with pytest.raises(ValueError, match="Unsupported prompt format"):
         LayoutPrompterConfig(input_format="json")
@@ -150,7 +149,7 @@ def test_config_and_call_reject_unsupported_modes() -> None:
             num_prompt=1,
         )
     )
-    with pytest.raises(ValueError, match="Unsupported box format"):
+    with pytest.raises(ValueError, match="Unsupported box_format"):
         prompter(
             train_data=[], test_data={"labels": torch.tensor([])}, box_format="bad"
         )

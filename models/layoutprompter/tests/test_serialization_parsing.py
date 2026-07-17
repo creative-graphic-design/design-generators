@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from layout_generation_common.testing import (
+from laygen.common.testing import (
     assert_layout_output_schema,
     assert_normalized_xywh,
 )

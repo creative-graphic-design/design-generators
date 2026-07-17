@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+import torch
+from collections.abc import Mapping, Sequence
 from typing_extensions import override
 
 from layoutprompter.data import (
@@ -13,6 +13,8 @@ from layoutprompter.data import (
     id2label,
     normalize_dataset,
 )
+
+LayoutRecord = Mapping[str, object]
 
 PREAMBLE = (
     "Please generate a layout based on the given information. "
@@ -62,7 +64,7 @@ class Serializer:
         self.add_unk_token = add_unk_token
         self.unk_token = unk_token
 
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize test constraints."""
         if self.input_format == "seq":
             return self._build_seq_input(data)
@@ -72,7 +74,7 @@ class Serializer:
 
     def build_output(
         self,
-        data: dict[str, Any],
+        data: LayoutRecord,
         label_key: str = "labels",
         bbox_key: str = "discrete_gold_bboxes",
     ) -> str:
@@ -83,17 +85,17 @@ class Serializer:
             return self._build_html_output(data, label_key, bbox_key)
         raise ValueError(f"Unsupported output format: {self.output_format}")
 
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         raise NotImplementedError
 
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         raise NotImplementedError
 
     def _build_seq_output(
-        self, data: dict[str, Any], label_key: str, bbox_key: str
+        self, data: LayoutRecord, label_key: str, bbox_key: str
     ) -> str:
-        labels = data[label_key]
-        bboxes = data[bbox_key]
+        labels = torch.as_tensor(data[label_key])
+        bboxes = torch.as_tensor(data[bbox_key])
         tokens: list[str] = []
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
@@ -105,10 +107,10 @@ class Serializer:
         return " ".join(tokens)
 
     def _build_html_output(
-        self, data: dict[str, Any], label_key: str, bbox_key: str
+        self, data: LayoutRecord, label_key: str, bbox_key: str
     ) -> str:
-        labels = data[label_key]
-        bboxes = data[bbox_key]
+        labels = torch.as_tensor(data[label_key])
+        bboxes = torch.as_tensor(data[bbox_key])
         template = HTML_TEMPLATE_WITH_INDEX if self.add_index_token else HTML_TEMPLATE
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
         for index in range(len(labels)):
@@ -128,9 +130,9 @@ class GenTypeSerializer(Serializer):
     constraint_type = ["Element Type Constraint: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = data["labels"]
+        labels = torch.as_tensor(data["labels"])
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -142,10 +144,11 @@ class GenTypeSerializer(Serializer):
         return " ".join(tokens)
 
     @override
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        for index in range(len(data["labels"])):
-            label = self.index2label[int(data["labels"][index])]
+        labels = torch.as_tensor(data["labels"])
+        for index in range(len(labels)):
+            label = self.index2label[int(labels[index])]
             if self.add_unk_token:
                 bbox = [self.unk_token] * 4
                 element = (
@@ -168,7 +171,7 @@ class GenTypeSerializer(Serializer):
         return "".join(html)
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize type constraints with the vendor prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
@@ -180,10 +183,10 @@ class GenTypeSizeSerializer(GenTypeSerializer):
     constraint_type = ["Element Type and Size Constraint: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = data["labels"]
-        bboxes = data["discrete_gold_bboxes"]
+        labels = torch.as_tensor(data["labels"])
+        bboxes = torch.as_tensor(data["discrete_gold_bboxes"])
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -196,10 +199,10 @@ class GenTypeSizeSerializer(GenTypeSerializer):
         return " ".join(tokens)
 
     @override
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        labels = data["labels"]
-        bboxes = data["discrete_gold_bboxes"]
+        labels = torch.as_tensor(data["labels"])
+        bboxes = torch.as_tensor(data["discrete_gold_bboxes"])
         for index in range(len(labels)):
             label = self.index2label[int(labels[index])]
             width, height = [int(value) for value in bboxes[index].tolist()[2:]]
@@ -243,12 +246,12 @@ class GenRelationSerializer(GenTypeSerializer):
     )
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize type and relation constraints."""
         type_constraints = self.constraint_type[0] + super(
             GenTypeSerializer, self
         ).build_input(data)
-        relations = data.get("relations", [])
+        relations = torch.as_tensor(data.get("relations", torch.empty((0, 5))))
         if len(relations) == 0:
             return type_constraints
         relation_tokens: list[str] = []
@@ -280,23 +283,29 @@ class CompletionSerializer(Serializer):
     constraint_type = ["Partial Layout: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         return self._build_seq_output(
-            {"labels": data["labels"][:1], "bboxes": data["discrete_bboxes"][:1]},
+            {
+                "labels": torch.as_tensor(data["labels"])[:1],
+                "bboxes": torch.as_tensor(data["discrete_bboxes"])[:1],
+            },
             "labels",
             "bboxes",
         )
 
     @override
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         return self._build_html_output(
-            {"labels": data["labels"][:1], "bboxes": data["discrete_bboxes"][:1]},
+            {
+                "labels": torch.as_tensor(data["labels"])[:1],
+                "bboxes": torch.as_tensor(data["discrete_bboxes"])[:1],
+            },
             "labels",
             "bboxes",
         )
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize partial layout constraints with the vendor prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
@@ -308,15 +317,15 @@ class RefinementSerializer(Serializer):
     constraint_type = ["Noise Layout: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         return self._build_seq_output(data, "labels", "discrete_bboxes")
 
     @override
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         return self._build_html_output(data, "labels", "discrete_bboxes")
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize noisy layout constraints with the vendor prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
@@ -333,15 +342,15 @@ class TextToLayoutSerializer(Serializer):
     constraint_type = ["Text: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         return str(data["text"])
 
     @override
-    def _build_html_input(self, data: dict[str, Any]) -> str:
+    def _build_html_input(self, data: LayoutRecord) -> str:
         return self._build_seq_input(data)
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize text input with the vendor prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
@@ -356,14 +365,15 @@ class ContentAwareSerializer(GenTypeSerializer):
     constraint_type = ["Content Constraint: ", "Element Type Constraint: "]
 
     @override
-    def _build_seq_input(self, data: dict[str, Any]) -> str:
+    def _build_seq_input(self, data: LayoutRecord) -> str:
         content_tokens = []
-        for index, bbox in enumerate(data["discrete_content_bboxes"]):
+        content_bboxes = torch.as_tensor(data["discrete_content_bboxes"])
+        for index, bbox in enumerate(content_bboxes):
             left, top, width, height = [int(value) for value in bbox.tolist()]
             content_tokens.append(
                 f"left {left}px, top {top}px, width {width}px, height {height}px"
             )
-            if self.add_sep_token and index < len(data["discrete_content_bboxes"]) - 1:
+            if self.add_sep_token and index < len(content_bboxes) - 1:
                 content_tokens.append(self.sep_token)
         return (
             self.constraint_type[0]
@@ -374,7 +384,7 @@ class ContentAwareSerializer(GenTypeSerializer):
         )
 
     @override
-    def build_input(self, data: dict[str, Any]) -> str:
+    def build_input(self, data: LayoutRecord) -> str:
         """Serialize content masks and element type constraints."""
         return Serializer.build_input(self, data)
 
@@ -417,8 +427,8 @@ def create_serializer(
 
 def build_prompt(
     serializer: Serializer,
-    exemplars: list[dict[str, Any]],
-    test_data: dict[str, Any],
+    exemplars: Sequence[LayoutRecord],
+    test_data: LayoutRecord,
     dataset: LayoutPrompterDataset | str,
     *,
     max_length: int = 8000,

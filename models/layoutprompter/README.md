@@ -134,6 +134,10 @@ printf 'LayoutPrompter has no learned weights.\n'
 
 Prerequisites:
 
+```bash
+git submodule update --init vendor/ms-layout-generation
+```
+
 ```text
 The script looks for the vendor source at one of:
 - vendor/ms-layout-generation/LayoutPrompter/src

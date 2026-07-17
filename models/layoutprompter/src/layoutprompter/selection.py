@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Mapping, Sequence
 
 import torch
 from typing_extensions import override
 
 from layoutprompter.similarity import labels_bboxes_similarity, labels_similarity
 
-LayoutRecord = dict[str, Any]
+LayoutRecord = Mapping[str, object]
 
 
 class ExemplarSelection:
