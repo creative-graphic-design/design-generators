@@ -100,6 +100,7 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    card.validate()
     assert "## Model Details" in text
     assert "## Uses" in text
     assert "### Direct Use" in text
@@ -110,7 +111,7 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "## Training Details" in text
     assert "## Evaluation" in text
     assert "## Technical Specifications" in text
+    assert "Tokenizer exact" in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
     assert "[More Information Needed]" not in text
-    card.validate()
