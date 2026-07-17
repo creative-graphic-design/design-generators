@@ -109,8 +109,8 @@ class Block(nn.Module):
     ) -> torch.Tensor:
         x = src
         if self.norm_first:
-            normed = self.norm1(x, timestep) if self.timestep_type else self.norm1(x)
-            x = x + self._sa_block(normed, src_mask, src_key_padding_mask)
+            x = self.norm1(x, timestep) if self.timestep_type else self.norm1(x)
+            x = x + self._sa_block(x, src_mask, src_key_padding_mask)
             x = x + self._ff_block(self.norm2(x))
             return x
         x = x + self._sa_block(x, src_mask, src_key_padding_mask)

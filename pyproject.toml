@@ -26,6 +26,7 @@ training = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.6.0",
     "pytest>=6.0.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",

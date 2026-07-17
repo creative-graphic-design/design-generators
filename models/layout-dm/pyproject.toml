@@ -10,6 +10,7 @@ dependencies = [
     "numpy>=1.24",
     "safetensors>=0.4",
     "torch>=2.1",
+    "transformers>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +26,8 @@ vendor = [
     "fsspec",
     "hydra-core~=1.3",
     "omegaconf~=2.3",
+    "prdc>=0.2",
+    "pytorch-fid>=0.3",
     "scikit-learn>=1.0",
     "seaborn",
     "torch-geometric>=2.5,<2.7",

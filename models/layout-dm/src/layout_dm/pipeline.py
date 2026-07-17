@@ -28,7 +28,9 @@ class LayoutDMPipeline(DiffusionPipeline):
         processor: LayoutDMProcessor | None = None,
     ) -> None:
         super().__init__()
-        self.register_modules(denoiser=denoiser, scheduler=scheduler)
+        self.register_modules(
+            denoiser=denoiser, scheduler=scheduler, tokenizer=tokenizer
+        )
         self.tokenizer = tokenizer
         self.processor = processor or LayoutDMProcessor(tokenizer)
         self.denoiser.eval()
@@ -76,7 +78,7 @@ class LayoutDMPipeline(DiffusionPipeline):
                 normalized=normalized,
                 canvas_size=canvas_size,
             )
-            decoded_input = self.tokenizer.decode(processed["input_ids"])
+            decoded_input = self.tokenizer.decode_layout(processed["input_ids"])
             condition = build_condition(
                 self.tokenizer,
                 cond_type=canonical,
@@ -124,7 +126,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             if trajectory is not None:
                 trajectory.append(log_onehot_to_index(sample).detach().cpu())
         sequences = log_onehot_to_index(sample).detach().cpu()
-        decoded = self.tokenizer.decode(sequences)
+        decoded = self.tokenizer.decode_layout(sequences)
         output = LayoutGenerationOutput(
             bbox=decoded["bbox"],
             labels=decoded["labels"],
@@ -146,15 +148,11 @@ class LayoutDMPipeline(DiffusionPipeline):
 
     def save_pretrained(self, save_directory, **kwargs):
         super().save_pretrained(save_directory, **kwargs)
-        self.tokenizer.save_pretrained(save_directory)
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, **kwargs):
         tokenizer = LayoutDMTokenizer.from_pretrained(pretrained_model_name_or_path)
         kwargs.setdefault("tokenizer", tokenizer)
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-        pipe.tokenizer = LayoutDMTokenizer.from_pretrained(
-            pretrained_model_name_or_path
-        )
         pipe.processor = LayoutDMProcessor(pipe.tokenizer)
         return pipe

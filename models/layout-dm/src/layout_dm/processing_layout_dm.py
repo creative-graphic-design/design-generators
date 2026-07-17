@@ -54,7 +54,7 @@ class LayoutDMProcessor:
             from layout_generation_common.bbox import ltrb_to_xywh
 
             bbox_t = ltrb_to_xywh(bbox_t)
-        return self.tokenizer.encode(bbox=bbox_t, labels=labels_t, mask=mask_t)
+        return self.tokenizer.encode_layout(bbox=bbox_t, labels=labels_t, mask=mask_t)
 
     def save_pretrained(self, save_directory: str) -> None:
         self.tokenizer.save_pretrained(save_directory)

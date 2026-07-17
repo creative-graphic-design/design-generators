@@ -49,7 +49,7 @@ def build_condition(
     noisy_bbox: torch.Tensor | None = None,
 ) -> LayoutDMCondition:
     canonical = normalize_condition_type(cond_type)
-    encoded = tokenizer.encode(bbox=bbox, labels=labels, mask=mask)
+    encoded = tokenizer.encode_layout(bbox=bbox, labels=labels, mask=mask)
     ids = encoded["input_ids"]
     element_mask = encoded["mask"].reshape(
         ids.shape[0], tokenizer.config.max_seq_length, 5
@@ -78,7 +78,7 @@ def build_condition(
     if canonical == "refinement":
         original = ids
         if noisy_bbox is not None:
-            ids = tokenizer.encode(bbox=noisy_bbox, labels=labels, mask=mask)[
+            ids = tokenizer.encode_layout(bbox=noisy_bbox, labels=labels, mask=mask)[
                 "input_ids"
             ]
         return LayoutDMCondition(
