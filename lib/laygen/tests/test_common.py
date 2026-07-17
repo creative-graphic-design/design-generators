@@ -142,8 +142,16 @@ def test_batch_topk_mask_edges():
 
 
 def test_label_registry_aliases_and_errors():
+    assert {item.value for item in DatasetName} == {
+        "rico25",
+        "rico13",
+        "publaynet",
+        "magazine",
+    }
     assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
     assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
+    assert normalize_dataset_name("rico13") is DatasetName.rico13
+    assert labels_for_dataset("rico13")[:3] == ("Text", "Image", "Icon")
     assert labels_for_dataset("publaynet") == (
         "text",
         "title",
@@ -152,16 +160,39 @@ def test_label_registry_aliases_and_errors():
         "figure",
     )
     assert label2id_for_dataset("rico25")["Text"] == 0
+    assert id2label_for_dataset("rico13")[12] == "Advertisement"
+    with pytest.raises(ValueError, match="Unknown dataset_name"):
+        normalize_dataset_name("crello")
     with pytest.raises(ValueError, match="Unknown dataset_name"):
         normalize_dataset_name("unknown")
 
 
-def test_condition_registry_aliases_and_errors():
-    assert normalize_condition_type(ConditionType.label) is ConditionType.label
-    assert normalize_condition_type("cat_cond") is ConditionType.label
-    assert normalize_condition_type("label-size") is ConditionType.label_size
+def test_condition_type_aliases_and_errors():
+    assert {item.value for item in ConditionType} == {
+        "unconditional",
+        "label",
+        "label_size",
+        "completion",
+        "refinement",
+        "text",
+        "content_image",
+        "relation",
+        "hierarchical",
+        "retrieval",
+    }
+    assert normalize_condition_type(ConditionType.text) is ConditionType.text
+    assert normalize_condition_type("ugen") is ConditionType.unconditional
+    assert normalize_condition_type("gen_t") is ConditionType.label
+    assert normalize_condition_type("gen_ts") is ConditionType.label_size
+    assert normalize_condition_type("partial") is ConditionType.completion
+    assert normalize_condition_type("complete") is ConditionType.completion
     assert normalize_condition_type("refine") is ConditionType.refinement
-    with pytest.raises(ValueError, match="Unsupported condition_type"):
+    assert normalize_condition_type("gen_r") is ConditionType.relation
+    assert normalize_condition_type("text-to-layout") is ConditionType.text
+    assert normalize_condition_type("content") is ConditionType.content_image
+    assert normalize_condition_type("coarse-to-fine") is ConditionType.hierarchical
+    assert normalize_condition_type("retrieval_examples") is ConditionType.retrieval
+    with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
 
 

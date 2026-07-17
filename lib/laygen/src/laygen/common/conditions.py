@@ -1,4 +1,4 @@
-"""Shared condition mode names for layout generation tasks."""
+"""Shared condition-type vocabulary for layout generation packages."""
 
 from __future__ import annotations
 
@@ -7,13 +7,18 @@ from typing import Final
 
 
 class ConditionType(StrEnum):
-    """Canonical conditioning modes shared by layout generation packages."""
+    """Canonical condition names used by layout generation interfaces."""
 
     unconditional = "unconditional"
     label = "label"
     label_size = "label_size"
     completion = "completion"
     refinement = "refinement"
+    text = "text"
+    content_image = "content_image"
+    relation = "relation"
+    hierarchical = "hierarchical"
+    retrieval = "retrieval"
 
 
 _CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
@@ -34,24 +39,43 @@ _CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
     "elem_compl": ConditionType.completion,
     "refinement": ConditionType.refinement,
     "refine": ConditionType.refinement,
+    "text": ConditionType.text,
+    "prompt": ConditionType.text,
+    "text_to_layout": ConditionType.text,
+    "content_image": ConditionType.content_image,
+    "content": ConditionType.content_image,
+    "image": ConditionType.content_image,
+    "visual": ConditionType.content_image,
+    "relation": ConditionType.relation,
+    "scene_graph": ConditionType.relation,
+    "graph": ConditionType.relation,
+    "gen_r": ConditionType.relation,
+    "hierarchical": ConditionType.hierarchical,
+    "hierarchy": ConditionType.hierarchical,
+    "coarse_to_fine": ConditionType.hierarchical,
+    "retrieval": ConditionType.retrieval,
+    "retrieved": ConditionType.retrieval,
+    "retrieval_examples": ConditionType.retrieval,
 }
 
 
 def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
-    """Normalize public condition aliases to canonical condition names.
+    """Normalize condition aliases to a canonical ``ConditionType``.
 
     Args:
-        condition_type: Canonical condition enum or string alias.
+        condition_type: Canonical condition enum or a vendor/public alias.
 
     Returns:
         Canonical condition enum.
 
     Raises:
-        ValueError: If the condition type is unsupported.
+        ValueError: If the condition type is unknown.
 
     Examples:
-        >>> normalize_condition_type("cat_cond") is ConditionType.label
-        True
+        >>> str(normalize_condition_type("gen_t"))
+        'label'
+        >>> str(normalize_condition_type("gen_r"))
+        'relation'
     """
     if isinstance(condition_type, ConditionType):
         return condition_type
@@ -59,4 +83,4 @@ def normalize_condition_type(condition_type: ConditionType | str) -> ConditionTy
     try:
         return _CONDITION_ALIASES[key]
     except KeyError as exc:
-        raise ValueError(f"Unsupported condition_type: {condition_type}") from exc
+        raise ValueError(f"Unknown condition_type: {condition_type}") from exc

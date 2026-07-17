@@ -28,6 +28,7 @@ import torch
 from posgen.common import (
     PositionContent,
     assert_position_content_schema,
+    labels_for_dataset,
     normalize_label,
     render_position_summary,
 )
@@ -39,6 +40,7 @@ content = PositionContent(
 assert_position_content_schema(content)
 print(normalize_label("Anchor-Point"))
 print(render_position_summary(content))
+print(labels_for_dataset("crello"))
 PY
 ```
 
@@ -47,6 +49,7 @@ Example output:
 ```text
 anchor_point
 1 active positions
+('coloredBackground', 'imageElement', 'maskElement', 'svgElement', 'textElement')
 ```
 
 ## Growth Rule

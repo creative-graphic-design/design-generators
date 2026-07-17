@@ -157,7 +157,7 @@ def test_condition_builder_covers_supported_modes():
         build_condition(
             tokenizer, cond_type="unsupported", bbox=bbox, labels=labels, mask=mask
         )
-    except NotImplementedError as exc:
-        assert "unsupported" in str(exc)
+    except ValueError as exc:
+        assert "Unknown condition_type: unsupported" in str(exc)
     else:
         raise AssertionError("unsupported condition type should fail")

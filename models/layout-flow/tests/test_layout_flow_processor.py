@@ -41,7 +41,7 @@ def test_processor_handles_aliases_errors_and_denormalized_boxes() -> None:
     )
 
     assert normalize_condition_type(ConditionType.label) is ConditionType.label
-    with pytest.raises(ValueError, match="Unsupported condition_type"):
+    with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("bad")
 
     out = processor(
