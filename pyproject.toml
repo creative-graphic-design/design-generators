@@ -46,32 +46,36 @@ layout-generation-common = { workspace = true }
 extend-select = ["ANN", "D"]
 
 [tool.ruff.lint.per-file-ignores]
+"models/*/scripts/**/*.py" = ["ANN", "D"]
+"models/*/src/**/*.py" = ["D"]
+"models/const-layout/src/**/*.py" = ["ANN", "D"]
+"models/*/tests/*.py" = ["ANN", "D"]
+"models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
 "tests/*.py" = ["D"]
 "tests/**/*.py" = ["D"]
-"models/*/scripts/**/*.py" = ["ANN", "D"]
-"models/*/src/**/*.py" = ["ANN", "D"]
-"models/*/tests/**/*.py" = ["ANN", "D"]
-"**/tests/**/*.py" = ["ANN", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ty.rules]
 all = "error"
+missing-override-decorator = "ignore"
+unsupported-base = "ignore"
+unresolved-import = "ignore"
 
 [tool.ty.src]
-exclude = ["models/common/**", "models/layout-dm/**", "models/const-layout/**"]
+exclude = ["models/const-layout/**"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "src", "models"]
+testpaths = ["tests", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
-    "vendor_parity: requires original weights and vendor dependencies",
+    "vendor_parity: requires original LayoutDM or LayoutGAN++ weights and vendor dependencies",
 ]
 
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py"]
-verbose = true
+paths = ["main.py", "models"]
+verbose = false

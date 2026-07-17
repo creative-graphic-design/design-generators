@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import torch
@@ -18,12 +18,15 @@ from layout_generation_common.discrete import (
 
 from .sampling import LayoutDMSamplingConfig
 
+if TYPE_CHECKING:
+    from .conditioning import LayoutDMCondition
+
 
 @dataclass
 class LayoutDMSchedulerOutput(BaseOutput):
-    prev_sample: torch.FloatTensor
-    pred_original_sample: torch.FloatTensor | None = None
-    model_log_prob: torch.FloatTensor | None = None
+    prev_sample: torch.Tensor
+    pred_original_sample: torch.Tensor | None = None
+    model_log_prob: torch.Tensor | None = None
 
 
 class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
@@ -91,8 +94,8 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         token_length: int,
         *,
         device: torch.device,
-        condition=None,
-    ) -> torch.FloatTensor:
+        condition: LayoutDMCondition | None = None,
+    ) -> torch.Tensor:
         if condition is not None:
             ids = condition.input_ids.to(device)
         else:
@@ -118,7 +121,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def q_posterior(
-        self, log_x_start: torch.Tensor, log_x_t: torch.Tensor, t: torch.LongTensor
+        self, log_x_start: torch.Tensor, log_x_t: torch.Tensor, t: torch.Tensor
     ) -> torch.Tensor:
         if self.per_var_full_ids is not None:
             return self._constrained_q_posterior(log_x_start, log_x_t, t)
@@ -134,7 +137,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         self,
         log_x_start_full: torch.Tensor,
         log_x_t_full: torch.Tensor,
-        t: torch.LongTensor,
+        t: torch.Tensor,
     ) -> torch.Tensor:
         batch_size = log_x_start_full.size(0)
         step = len(self.var_order)
@@ -177,7 +180,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _q_pred_one_timestep(
-        self, log_x_t: torch.Tensor, t: torch.LongTensor, key: str
+        self, log_x_t: torch.Tensor, t: torch.Tensor, key: str
     ) -> torch.Tensor:
         log_at, log_bt, log_ct = (self.schedules[key][i].to(t.device) for i in range(3))
         log_at = _extract(log_at, t, log_x_t.shape)
@@ -193,7 +196,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _q_pred(
-        self, log_x_start: torch.Tensor, t: torch.LongTensor, key: str
+        self, log_x_start: torch.Tensor, t: torch.Tensor, key: str
     ) -> torch.Tensor:
         t = (t + (self.num_timesteps + 1)) % (self.num_timesteps + 1)
         log_cumprod_at, log_cumprod_bt, log_cumprod_ct = (
@@ -217,7 +220,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         assert self.per_var_full_ids is not None
         return len(self.per_var_full_ids[key])
 
-    def _full_ids(self, key: str, device: torch.device) -> torch.LongTensor:
+    def _full_ids(self, key: str, device: torch.device) -> torch.Tensor:
         assert self.per_var_full_ids is not None
         return torch.tensor(self.per_var_full_ids[key], dtype=torch.long, device=device)
 
@@ -240,12 +243,12 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     def step(
         self,
         denoiser_output: torch.Tensor,
-        timestep: torch.LongTensor,
+        timestep: torch.Tensor,
         sample: torch.Tensor,
         *,
         previous_timestep: int,
         sampling: LayoutDMSamplingConfig,
-        condition=None,
+        condition: LayoutDMCondition | None = None,
         generator: torch.Generator | None = None,
     ) -> LayoutDMSchedulerOutput:
         log_x_recon = self.predict_start(denoiser_output)
@@ -297,7 +300,7 @@ def _alpha_schedule(
 
 
 def _extract(
-    values: torch.Tensor, timesteps: torch.LongTensor, broadcast_shape: torch.Size
+    values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
 ) -> torch.Tensor:
     batch, *_ = timesteps.shape
     out = values.gather(-1, timesteps)
