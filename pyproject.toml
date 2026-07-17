@@ -125,5 +125,5 @@ skip_covered = true
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py", "lib", "models"]
+paths = ["lib", "models", "scripts"]
 verbose = false
