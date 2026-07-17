@@ -1,3 +1,5 @@
+"""Transformers-style LayoutGAN++ package exports."""
+
 from .configuration_layoutganpp import LayoutGANPPConfig
 from .datasets import (
     DATASET_METADATA,

@@ -1,3 +1,5 @@
+"""Model card builders for LayoutGAN++ checkpoint packages."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -45,6 +47,22 @@ _BIBTEX = r"""
 
 
 def layoutganpp_model_card(dataset: str) -> ModelCard:
+    """Build a Hugging Face model card for a LayoutGAN++ dataset.
+
+    Args:
+        dataset: Dataset key or alias for the converted checkpoint.
+
+    Returns:
+        A populated `ModelCard` for the selected checkpoint.
+
+    Raises:
+        ValueError: If `dataset` is not a supported LayoutGAN++ dataset.
+
+    Examples:
+        >>> card = layoutganpp_model_card("rico")
+        >>> "layoutganpp-rico" in str(card)
+        True
+    """
     dataset_name = normalize_dataset_name(dataset)
     model_id = _CHECKPOINT_IDS[dataset_name]
     metrics = _PARITY_METRICS[dataset_name]
@@ -107,6 +125,25 @@ print(out.bbox, out.labels, out.mask)
 
 
 def write_layoutganpp_model_card(output_dir: Path, dataset: str) -> Path:
+    """Write a LayoutGAN++ model card to an output directory.
+
+    Args:
+        output_dir: Directory that will receive `README.md`.
+        dataset: Dataset key or alias for the converted checkpoint.
+
+    Returns:
+        Path to the written `README.md` file.
+
+    Raises:
+        ValueError: If `dataset` is not a supported LayoutGAN++ dataset.
+
+    Examples:
+        >>> from tempfile import TemporaryDirectory
+        >>> with TemporaryDirectory() as tmp:
+        ...     path = write_layoutganpp_model_card(Path(tmp), "rico")
+        ...     path.name
+        'README.md'
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     readme_path = output_dir / "README.md"
     readme_path.write_text(str(layoutganpp_model_card(dataset)), encoding="utf-8")

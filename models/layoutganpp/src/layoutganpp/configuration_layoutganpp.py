@@ -1,3 +1,5 @@
+"""Configuration objects for LayoutGAN++ checkpoints."""
+
 from __future__ import annotations
 
 from transformers import PretrainedConfig
@@ -6,6 +8,28 @@ from .datasets import dataset_metadata, id2label_for_dataset
 
 
 class LayoutGANPPConfig(PretrainedConfig):
+    """Configuration for the LayoutGAN++ generator.
+
+    Args:
+        dataset_name: Dataset key or alias used to resolve labels and sequence length.
+        latent_size: Size of each per-element latent vector.
+        num_labels: Optional label vocabulary size override.
+        id2label: Optional mapping from label IDs to display labels.
+        label2id: Optional mapping from display labels to label IDs.
+        d_model: Transformer hidden size used by the generator.
+        nhead: Number of transformer attention heads.
+        num_layers: Number of transformer encoder layers.
+        bbox_format: Bounding-box format produced by the model.
+        bbox_normalized: Whether generated boxes are normalized to the canvas.
+        max_position_embeddings: Maximum element count for generated layouts.
+        **kwargs: Extra `PretrainedConfig` keyword arguments.
+
+    Examples:
+        >>> config = LayoutGANPPConfig(dataset_name="rico")
+        >>> config.model_type
+        'layoutganpp'
+    """
+
     model_type = "layoutganpp"
 
     def __init__(
@@ -21,8 +45,31 @@ class LayoutGANPPConfig(PretrainedConfig):
         bbox_format: str = "xywh",
         bbox_normalized: bool = True,
         max_position_embeddings: int | None = None,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
+        """Initialize a LayoutGAN++ config.
+
+        Args:
+            dataset_name: Dataset key or alias used to resolve labels and metadata.
+            latent_size: Size of each latent vector passed to the generator.
+            num_labels: Optional explicit label vocabulary size.
+            id2label: Optional label ID to text mapping.
+            label2id: Optional label text to ID mapping.
+            d_model: Transformer hidden size.
+            nhead: Number of attention heads.
+            num_layers: Number of transformer encoder layers.
+            bbox_format: Format of generated bounding boxes.
+            bbox_normalized: Whether generated boxes are normalized.
+            max_position_embeddings: Optional maximum layout length override.
+            **kwargs: Extra `PretrainedConfig` keyword arguments.
+
+        Raises:
+            ValueError: If `dataset_name` is not a supported LayoutGAN++ dataset.
+
+        Examples:
+            >>> LayoutGANPPConfig(dataset_name="publaynet").num_labels
+            5
+        """
         metadata = dataset_metadata(dataset_name)
         raw_id2label = id2label or id2label_for_dataset(dataset_name)
         normalized_id2label = {int(k): v for k, v in raw_id2label.items()}

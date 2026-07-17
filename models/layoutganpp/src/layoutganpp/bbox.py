@@ -1,3 +1,5 @@
+"""Bounding-box helpers re-exported for LayoutGAN++ users."""
+
 from laygen.common.bbox import (
     clamp_boxes as clip_normalized_xywh,
     ltrb_to_xywh,

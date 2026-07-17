@@ -1,3 +1,5 @@
+"""PyTorch model wrapper for the LayoutGAN++ generator."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,6 +17,20 @@ from .configuration_layoutganpp import LayoutGANPPConfig
 
 @dataclass
 class LayoutGANPPModelOutput(ModelOutput):
+    """Raw LayoutGAN++ model output.
+
+    Args:
+        bbox: Generated normalized `xywh` boxes with shape `(batch, sequence, 4)`.
+        labels: Optional label IDs used for generation.
+        mask: Optional valid-element mask.
+        latents: Optional latent vectors used by the generator.
+
+    Examples:
+        >>> out = LayoutGANPPModelOutput(bbox=torch.zeros(1, 1, 4))
+        >>> tuple(out.bbox.shape)
+        (1, 1, 4)
+    """
+
     bbox: torch.FloatTensor
     labels: torch.LongTensor | None = None
     mask: torch.BoolTensor | None = None
@@ -29,6 +45,21 @@ _CONDITION_ALIASES = {
 
 
 def normalize_condition_type(condition_type: str) -> str:
+    """Normalize a LayoutGAN++ generation condition type.
+
+    Args:
+        condition_type: User-facing condition type or alias.
+
+    Returns:
+        Canonical condition type accepted by `LayoutGANPPModel.generate`.
+
+    Raises:
+        ValueError: If the condition type is unsupported.
+
+    Examples:
+        >>> normalize_condition_type("cat-cond")
+        'label'
+    """
     key = condition_type.lower().replace("-", "_")
     if key == "unconditional":
         return "unconditional"
@@ -42,11 +73,33 @@ def normalize_condition_type(condition_type: str) -> str:
 
 
 class LayoutGANPPModel(PreTrainedModel):
+    """Transformers-compatible LayoutGAN++ generator.
+
+    Args:
+        config: LayoutGAN++ model configuration.
+
+    Examples:
+        >>> config = LayoutGANPPConfig(num_labels=2, id2label={0: "a", 1: "b"})
+        >>> model = LayoutGANPPModel(config)
+        >>> model.config.model_type
+        'layoutganpp'
+    """
+
     config_class = LayoutGANPPConfig
     base_model_prefix = "layoutganpp"
     supports_gradient_checkpointing = False
 
     def __init__(self, config: LayoutGANPPConfig) -> None:
+        """Initialize the LayoutGAN++ generator layers.
+
+        Args:
+            config: LayoutGAN++ model configuration.
+
+        Examples:
+            >>> model = LayoutGANPPModel(LayoutGANPPConfig())
+            >>> model.base_model_prefix
+            'layoutganpp'
+        """
         super().__init__(config)
         self.fc_z = nn.Linear(config.latent_size, config.d_model // 2)
         self.emb_label = nn.Embedding(config.num_labels, config.d_model // 2)
@@ -74,6 +127,28 @@ class LayoutGANPPModel(PreTrainedModel):
         LayoutGANPPModelOutput
         | tuple[torch.FloatTensor, torch.LongTensor, torch.BoolTensor]
     ):
+        """Run a forward pass from latents and label IDs.
+
+        Args:
+            latents: Per-element latent vectors shaped `(batch, sequence, latent_size)`.
+            labels: Label IDs shaped `(batch, sequence)`.
+            attention_mask: Optional mask where true values mark valid labels.
+            padding_mask: Optional mask where true values mark padded labels.
+            return_dict: Whether to return a `LayoutGANPPModelOutput`.
+
+        Returns:
+            Model output dataclass or tuple containing boxes, labels, and mask.
+
+        Raises:
+            ValueError: If labels or latents have invalid shape or label IDs.
+
+        Examples:
+            >>> model = LayoutGANPPModel(LayoutGANPPConfig(num_labels=2))
+            >>> labels = torch.tensor([[0, 1]])
+            >>> latents = torch.zeros(1, 2, model.config.latent_size)
+            >>> tuple(model(latents=latents, labels=labels).bbox.shape)
+            (1, 2, 4)
+        """
         labels = labels.to(dtype=torch.long)
         if labels.ndim != 2:
             raise ValueError("labels must have shape (batch, sequence)")
@@ -134,8 +209,42 @@ class LayoutGANPPModel(PreTrainedModel):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         latents: torch.FloatTensor | None = None,
-        **model_kwargs,
+        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        """Generate layouts from label conditions.
+
+        Args:
+            batch_size: Requested batch size; label shape determines the final value.
+            condition_type: Condition type or alias. LayoutGAN++ supports label conditions.
+            bbox: Reserved compatibility argument.
+            labels: Required label IDs for generation.
+            mask: Optional valid-element mask.
+            attention_mask: Optional valid-element mask.
+            num_elements: Reserved compatibility argument.
+            box_format: Reserved compatibility argument.
+            normalized: Reserved compatibility argument.
+            canvas_size: Reserved compatibility argument.
+            seed: Optional random seed for latent sampling.
+            generator: Optional PyTorch random generator.
+            num_inference_steps: Reserved compatibility argument.
+            output_type: Return format, either `dataclass` or `dict`.
+            return_intermediates: Whether to include generation intermediates.
+            latents: Optional fixed latent vectors.
+            **model_kwargs: Additional keyword arguments, rejected if present.
+
+        Returns:
+            A layout generation dataclass or dictionary.
+
+        Raises:
+            ValueError: If labels are missing, generation options are unsupported,
+                or output type is invalid.
+
+        Examples:
+            >>> model = LayoutGANPPModel(LayoutGANPPConfig(num_labels=2))
+            >>> out = model.generate(labels=torch.tensor([[0, 1]]), seed=0)
+            >>> tuple(out.bbox.shape)
+            (1, 2, 4)
+        """
         del bbox, num_elements, box_format, normalized, canvas_size, num_inference_steps
         if model_kwargs:
             unknown = ", ".join(sorted(model_kwargs))
