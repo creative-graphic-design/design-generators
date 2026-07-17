@@ -107,8 +107,9 @@ uv run --package layout-gpt python models/layout-gpt/scripts/demo_layout_gpt.py 
   --model "${LAYOUT_GPT_MODEL:-openai:gpt-5-mini}"
 ```
 
-## Reproducing Vendor Parity
+## Reproducibility
 
+This section reproduces the parity verification against the original implementation.
 These steps reproduce the deterministic parity checks. The generated JSON is
 written to `/tmp/layout-gpt-cache/vendor-golden.json`. The scripts look for
 `vendor/layout-gpt` next to this worktree; pass `--vendor-root` if your checkout
@@ -136,7 +137,7 @@ uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_gol
   --output "${LAYOUT_GPT_CACHE_DIR:-/tmp/layout-gpt-cache}/vendor-golden.json"
 ```
 
-### 3. Run Vendor Parity Tests
+### 3. Run Parity Tests
 
 ```bash
 uv run --package layout-gpt pytest models/layout-gpt/tests/vendor_parity -m vendor_parity
