@@ -5,6 +5,8 @@ from pathlib import Path
 
 import torch
 
+from laygen.common.model_card import layoutdm_model_card
+
 
 def remap_denoiser_key(key: str) -> str:
     if not key.startswith("model.module.transformer."):
@@ -40,3 +42,9 @@ def load_cluster_centers(starter_dir: Path, dataset: str) -> dict[str, list[floa
         arr = models[f"{key}-32"].cluster_centers_
         centers[key] = sorted(float(x) for x in arr.reshape(-1))
     return centers
+
+
+def write_layoutdm_model_card(output_dir: Path, dataset: str) -> Path:
+    path = output_dir / "README.md"
+    path.write_text(str(layoutdm_model_card(dataset=dataset)), encoding="utf-8")
+    return path
