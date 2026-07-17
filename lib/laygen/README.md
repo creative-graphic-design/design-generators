@@ -84,7 +84,6 @@ uv run --package laygen python - <<'PY'
 from laygen.common.model_card import layoutdm_model_card
 
 card = layoutdm_model_card(dataset="rico25")
-card.validate()
 print(card.data.to_dict()["datasets"])
 PY
 ```
