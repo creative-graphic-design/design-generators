@@ -5,11 +5,14 @@ from pathlib import Path
 
 def test_layoutganpp_readme_code_fences_are_tagged():
     readme = Path(__file__).resolve().parents[1] / "README.md"
-    fence_lines = [
-        line
-        for line in readme.read_text(encoding="utf-8").splitlines()
-        if line.startswith("```")
-    ]
+    text = readme.read_text(encoding="utf-8")
+    assert "## Reproducibility" in text
+    assert (
+        "This section reproduces the parity verification against the original "
+        "implementation."
+    ) in text
+    assert "## Reproducing Vendor Parity" not in text
+    fence_lines = [line for line in text.splitlines() if line.startswith("```")]
 
     assert len(fence_lines) % 2 == 0
     opening_fences = fence_lines[::2]

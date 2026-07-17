@@ -6,8 +6,12 @@ from pathlib import Path
 def test_reproducing_vendor_parity_code_fences_are_tagged():
     readme = Path(__file__).resolve().parents[1] / "README.md"
     section = readme.read_text(encoding="utf-8").split(
-        "## Reproducing Vendor Parity", maxsplit=1
+        "## Reproducibility", maxsplit=1
     )[1]
+    assert (
+        "This section reproduces the parity verification against the original "
+        "implementation."
+    ) in section
     section = section.split("## Vendor Links", maxsplit=1)[0]
     fence_lines = [line for line in section.splitlines() if line.startswith("```")]
 

@@ -63,7 +63,9 @@ out = model.generate(**encoded, seed=0)
 print(processor.batch_decode(out.bbox, out.labels, out.mask))
 ```
 
-## Reproducing Vendor Parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Prerequisites: run these commands from the repository root. The command examples keep all local artifacts under `.cache/layoutganpp/` and never modify `vendor/const-layout`.
 
