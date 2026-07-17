@@ -13,8 +13,7 @@ pass to Pydantic AI, such as an OpenAI-compatible endpoint.
 Run commands from this package directory unless a command says otherwise.
 
 ```bash
-cd models/layout-gpt
-uv sync --package layout-gpt
+(cd models/layout-gpt && uv sync --package layout-gpt)
 ```
 
 ## Basic Usage
@@ -100,12 +99,15 @@ For `k-similar`, pass a query embedding function and candidate embeddings to
 ## Demo
 
 ```bash
-uv run --package layout-gpt python scripts/demo_layout_gpt.py \
-  --train-json ../../vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json \
-  --prompt "there is one clock in the image" \
-  --setting counting \
-  --canvas-size 256 \
-  --model "${LAYOUT_GPT_MODEL:-openai:gpt-5-mini}"
+(
+  cd models/layout-gpt
+  uv run --package layout-gpt python scripts/demo_layout_gpt.py \
+    --train-json ../../vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json \
+    --prompt "there is one clock in the image" \
+    --setting counting \
+    --canvas-size 256 \
+    --model "${LAYOUT_GPT_MODEL:-openai:gpt-5-mini}"
+)
 ```
 
 ## Reproducing Vendor Parity
@@ -121,10 +123,12 @@ directory for optional provider or downstream assets without downloading
 anything.
 
 ```bash
-cd models/layout-gpt
-export LAYOUT_GPT_CACHE_DIR="${LAYOUT_GPT_CACHE_DIR:-/tmp/layout-gpt-cache}"
-mkdir -p "${LAYOUT_GPT_CACHE_DIR}"
-printf 'LayoutGPT has no package weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
+(
+  cd models/layout-gpt
+  export LAYOUT_GPT_CACHE_DIR="${LAYOUT_GPT_CACHE_DIR:-/tmp/layout-gpt-cache}"
+  mkdir -p "${LAYOUT_GPT_CACHE_DIR}"
+  printf 'LayoutGPT has no package weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
+)
 ```
 
 ### 2. Regenerate Vendor Golden Data
@@ -132,17 +136,21 @@ printf 'LayoutGPT has no package weights to download. Cache: %s\n' "${LAYOUT_GPT
 The generated JSON is a temporary artifact. Do not commit it.
 
 ```bash
-cd models/layout-gpt
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
-uv run --package layout-gpt python scripts/generate_vendor_golden.py \
-  --output "${LAYOUT_GPT_CACHE_DIR:-/tmp/layout-gpt-cache}/vendor-golden.json"
+(
+  cd models/layout-gpt
+  export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+  uv run --package layout-gpt python scripts/generate_vendor_golden.py \
+    --output "${LAYOUT_GPT_CACHE_DIR:-/tmp/layout-gpt-cache}/vendor-golden.json"
+)
 ```
 
 ### 3. Run Vendor Parity Tests
 
 ```bash
-cd models/layout-gpt
-uv run --package layout-gpt pytest tests/vendor_parity -m vendor_parity
+(
+  cd models/layout-gpt
+  uv run --package layout-gpt pytest tests/vendor_parity -m vendor_parity
+)
 ```
 
 ### 4. Convert Checkpoints
@@ -151,10 +159,12 @@ There is no checkpoint conversion step for LayoutGPT. The package converts
 provider text responses into typed layout outputs at runtime.
 
 ```bash
-cd models/layout-gpt
-uv run --package layout-gpt python - <<'PY'
+(
+  cd models/layout-gpt
+  uv run --package layout-gpt python - <<'PY'
 print("LayoutGPT has no checkpoint conversion step.")
 PY
+)
 ```
 
 ### 5. Run Loading Smoke
@@ -163,8 +173,9 @@ There is no `from_pretrained` checkpoint for LayoutGPT. This smoke verifies the
 installed package and output conversion path.
 
 ```bash
-cd models/layout-gpt
-uv run --package layout-gpt python - <<'PY'
+(
+  cd models/layout-gpt
+  uv run --package layout-gpt python - <<'PY'
 from layout_gpt.schema import LayoutGPTOutput, LayoutItem2D
 
 output = LayoutGPTOutput(
@@ -179,14 +190,17 @@ assert layout.bbox.shape == (1, 1, 4)
 assert layout.id2label == {0: "clock"}
 print("LayoutGPT loading smoke passed.")
 PY
+)
 ```
 
 ## Local Checks
 
 ```bash
-cd models/layout-gpt
-uv run --package layout-gpt pytest
-uv run --package layout-gpt ruff check .
-uv run --package layout-gpt ruff format --check .
-uv run --package layout-gpt ty check .
+(
+  cd models/layout-gpt
+  uv run --package layout-gpt pytest
+  uv run --package layout-gpt ruff check .
+  uv run --package layout-gpt ruff format --check .
+  uv run --package layout-gpt ty check .
+)
 ```
