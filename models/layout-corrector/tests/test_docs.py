@@ -1,8 +1,9 @@
 import ast
 from pathlib import Path
+from typing import Final
 
 
-ROOT = Path(__file__).parents[3]
+ROOT: Final[Path] = Path(__file__).parents[3]
 
 
 def test_readme_includes_reproducible_vendor_parity_commands():

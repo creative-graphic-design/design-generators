@@ -2,14 +2,82 @@
 
 from __future__ import annotations
 
+from enum import StrEnum, auto
 from pathlib import Path
+from typing import Final, TypedDict, cast
 
 import torch
 import yaml
 from laygen.common.labels import normalize_dataset_name
 
-from .configuration_layout_corrector import LayoutCorrectorConfig
+from .configuration_layout_corrector import CRELLO_BBOX_DATASET, LayoutCorrectorConfig
 from .corrector import LayoutCorrectorModel
+
+_ORIGINAL_KEY_PREFIXES: Final[tuple[str, ...]] = (
+    "model.module.model.",
+    "model.module.",
+)
+_CRELLO_DATASET_ALIASES: Final[frozenset[str]] = frozenset(
+    ("crello", CRELLO_BBOX_DATASET)
+)
+_DEFAULT_VAR_ORDER: Final[str] = "c-x-y-w-h"
+
+
+class CompatibilityKey(StrEnum):
+    """LayoutDM fields that must match the converted corrector config."""
+
+    vocab_size = auto()
+    max_seq_length = auto()
+    num_attributes_per_element = auto()
+    num_timesteps = auto()
+
+
+class OriginalDatasetConfig(TypedDict, total=False):
+    """Dataset section of the original Layout-Corrector YAML."""
+
+    max_seq_length: int
+
+
+class OriginalDataConfig(TypedDict, total=False):
+    """Data section of the original Layout-Corrector YAML."""
+
+    var_order: str
+
+
+class OriginalModelConfig(TypedDict, total=False):
+    """Model section of the original Layout-Corrector YAML."""
+
+    num_timesteps: int
+    recon_type: str
+    target: str
+    attr_loss_weights: list[float]
+    use_padding_as_vocab: bool
+    pos_emb: str
+    transformer_type: str
+
+
+class OriginalEncoderLayerConfig(TypedDict, total=False):
+    """Backbone encoder-layer section of the original YAML."""
+
+    nhead: int
+    dropout: float
+    timestep_type: str
+
+
+class OriginalBackboneConfig(TypedDict, total=False):
+    """Backbone section of the original Layout-Corrector YAML."""
+
+    num_layers: int
+    encoder_layer: OriginalEncoderLayerConfig
+
+
+class OriginalConfig(TypedDict):
+    """Typed shape for the original Layout-Corrector YAML."""
+
+    data: OriginalDataConfig
+    dataset: OriginalDatasetConfig
+    model: OriginalModelConfig
+    backbone: OriginalBackboneConfig
 
 
 def remap_corrector_key(key: str) -> str:
@@ -24,7 +92,7 @@ def remap_corrector_key(key: str) -> str:
     Raises:
         ValueError: If the key does not use an expected original prefix.
     """
-    for prefix in ("model.module.model.", "model.module."):
+    for prefix in _ORIGINAL_KEY_PREFIXES:
         if key.startswith(prefix):
             return key.removeprefix(prefix)
     raise ValueError(f"Unexpected corrector checkpoint key: {key}")
@@ -77,7 +145,7 @@ def corrector_config_from_original(
         Converted Layout-Corrector config.
     """
     with Path(config_path).open() as f:
-        original_config = yaml.safe_load(f)
+        original_config = cast(OriginalConfig, yaml.safe_load(f))
     data_cfg = original_config["data"]
     model_cfg = original_config["model"]
     layer_cfg = original_config["backbone"]["encoder_layer"]
@@ -85,12 +153,12 @@ def corrector_config_from_original(
     intermediate_size = int(state_dict["backbone.layers.0.linear1.weight"].shape[0])
     normalized_dataset = (
         str(normalize_dataset_name(dataset))
-        if dataset not in {"crello", "crello-bbox"}
-        else "crello-bbox"
+        if dataset not in _CRELLO_DATASET_ALIASES
+        else CRELLO_BBOX_DATASET
     )
     id2label = (
         getattr(getattr(layout_dm, "tokenizer").config, "id2label")
-        if normalized_dataset == "crello-bbox"
+        if normalized_dataset == CRELLO_BBOX_DATASET
         else None
     )
     return LayoutCorrectorConfig(
@@ -99,7 +167,7 @@ def corrector_config_from_original(
         vocab_size=int(state_dict["cat_emb.weight"].shape[0]),
         max_seq_length=int(original_config["dataset"].get("max_seq_length", 25)),
         num_attributes_per_element=len(
-            data_cfg.get("var_order", "c-x-y-w-h").split("-")
+            data_cfg.get("var_order", _DEFAULT_VAR_ORDER).split("-")
         ),
         hidden_size=hidden_size,
         num_attention_heads=int(layer_cfg.get("nhead", 8)),
@@ -110,7 +178,9 @@ def corrector_config_from_original(
         num_timesteps=int(model_cfg.get("num_timesteps", 100)),
         recon_type=model_cfg.get("recon_type", "x_t-1"),
         target=model_cfg.get("target", "recon_acc"),
-        attr_loss_weights=tuple(float(v) for v in model_cfg["attr_loss_weights"]),
+        attr_loss_weights=tuple(
+            float(v) for v in model_cfg.get("attr_loss_weights", [1, 1, 1, 1, 1])
+        ),
         use_padding_as_vocab=bool(model_cfg.get("use_padding_as_vocab", True)),
         pos_emb=model_cfg.get("pos_emb", "none"),
         transformer_type=model_cfg.get("transformer_type", "aggregated"),
@@ -181,15 +251,18 @@ def validate_layout_dm_compatibility(
     """
     tokenizer_config = getattr(layout_dm, "tokenizer").config
     scheduler_config = getattr(layout_dm, "scheduler").config
-    checks: dict[str, int] = {
-        "vocab_size": tokenizer_config.vocab_size,
-        "max_seq_length": tokenizer_config.max_seq_length,
-        "num_attributes_per_element": tokenizer_config.num_attributes_per_element,
-        "num_timesteps": scheduler_config.num_timesteps,
+    checks: dict[CompatibilityKey, int] = {
+        CompatibilityKey.vocab_size: tokenizer_config.vocab_size,
+        CompatibilityKey.max_seq_length: tokenizer_config.max_seq_length,
+        CompatibilityKey.num_attributes_per_element: (
+            tokenizer_config.num_attributes_per_element
+        ),
+        CompatibilityKey.num_timesteps: scheduler_config.num_timesteps,
     }
     for key, value in checks.items():
-        if getattr(corrector_config, key) != value:
+        field = str(key)
+        if getattr(corrector_config, field) != value:
             raise ValueError(
-                f"LayoutDM/{key} mismatch: corrector={getattr(corrector_config, key)} "
+                f"LayoutDM/{field} mismatch: corrector={getattr(corrector_config, field)} "
                 f"layout_dm={value}"
             )

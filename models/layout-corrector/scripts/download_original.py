@@ -7,6 +7,7 @@ import shutil
 import zipfile
 from pathlib import Path
 from types import ModuleType
+from typing import Final
 
 gdown: ModuleType | None
 try:
@@ -17,9 +18,9 @@ else:
     gdown = _gdown
 
 
-FILE_ID = "1og3l0enR67rDwiAN44K4RchcFYAgsbNq"
-STARTER_DIR = "layout_corrector_starter_kit"
-REQUIRED_PATHS = (
+FILE_ID: Final[str] = "1og3l0enR67rDwiAN44K4RchcFYAgsbNq"
+STARTER_DIR: Final[str] = "layout_corrector_starter_kit"
+REQUIRED_PATHS: Final[tuple[Path, ...]] = (
     Path(STARTER_DIR)
     / "download"
     / "pretrained_weights"

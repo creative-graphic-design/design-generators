@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import assert_never
 
 import torch
@@ -19,8 +19,8 @@ from laygen.common.discrete import (
 class CorrectorMaskMode(StrEnum):
     """Supported token remasking modes for Layout-Corrector."""
 
-    thresh = "thresh"
-    topk = "topk"
+    thresh = auto()
+    topk = auto()
 
 
 def normalize_corrector_mask_mode(

@@ -18,6 +18,14 @@ from layout_dm.transformer import (
 )
 from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
+from .configuration_layout_corrector import (
+    CorrectorPositionEmbedding,
+    CorrectorReconType,
+    CorrectorTarget,
+    CorrectorTransformerType,
+)
+from .sampling import CorrectorMaskMode, normalize_corrector_mask_mode
+
 
 @dataclass
 class LayoutCorrectorOutput(BaseOutput):
@@ -44,7 +52,7 @@ class AggregatedCategoricalTransformer(nn.Module):
         intermediate_size: int,
         dropout: float,
         timestep_type: TimestepType | None,
-        pos_emb: str,
+        pos_emb: CorrectorPositionEmbedding | str,
         num_attributes_per_element: int,
         num_timesteps: int,
     ) -> None:
@@ -95,7 +103,7 @@ class AggregatedCategoricalTransformer(nn.Module):
             nn.ReLU(),
         )
         self.pos_emb = None
-        if pos_emb != "none":
+        if CorrectorPositionEmbedding(pos_emb) is not CorrectorPositionEmbedding.none:
             self.pos_emb = ElementPositionalEmbedding(
                 hidden_size,
                 max_token_length // num_attributes_per_element,
@@ -169,15 +177,17 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         dropout: float = 0.0,
         timestep_type: TimestepType | None = "adalayernorm",
         num_timesteps: int = 100,
-        recon_type: str = "x_t-1",
-        target: str = "recon_acc",
+        recon_type: CorrectorReconType | str = CorrectorReconType.x_t_minus_1,
+        target: CorrectorTarget | str = CorrectorTarget.recon_acc,
         attr_loss_weights: tuple[float, ...] = (1.0, 1.0, 1.0, 1.0, 1.0),
         use_padding_as_vocab: bool = True,
-        pos_emb: str = "none",
-        transformer_type: str = "aggregated",
+        pos_emb: CorrectorPositionEmbedding | str = CorrectorPositionEmbedding.none,
+        transformer_type: CorrectorTransformerType | str = (
+            CorrectorTransformerType.aggregated
+        ),
         corrector_steps: int = 1,
         corrector_t_list: tuple[int, ...] = (10, 20, 30),
-        corrector_mask_mode: str = "thresh",
+        corrector_mask_mode: CorrectorMaskMode | str = CorrectorMaskMode.thresh,
         corrector_mask_threshold: float = 0.7,
         corrector_temperature: float = 1.0,
         use_gumbel_noise: bool = True,
@@ -219,12 +229,28 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
                 unsupported.
         """
         super().__init__()
-        if recon_type not in {"x_0", "x_t-1"}:
-            raise ValueError(f"Unsupported recon_type: {recon_type}")
-        if target not in {"mask", "recon_acc"}:
-            raise ValueError(f"Unsupported target: {target}")
-        if transformer_type != "aggregated":
-            raise ValueError("Only transformer_type='aggregated' is supported")
+        try:
+            recon_type = CorrectorReconType(recon_type)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
+        try:
+            target = CorrectorTarget(target)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported target: {target}") from exc
+        try:
+            transformer_type = CorrectorTransformerType(transformer_type)
+        except ValueError as exc:
+            raise ValueError("Only transformer_type='aggregated' is supported") from exc
+        try:
+            pos_emb = CorrectorPositionEmbedding(pos_emb)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
+        try:
+            corrector_mask_mode = normalize_corrector_mask_mode(corrector_mask_mode)
+        except ValueError as exc:
+            raise ValueError(
+                f"Unsupported corrector_mask_mode: {corrector_mask_mode}"
+            ) from exc
         try:
             dataset_name = str(normalize_dataset_name(dataset_name))
         except ValueError:
@@ -240,6 +266,11 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             id2label=normalized_id2label,
             corrector_t_list=tuple(corrector_t_list),
             attr_loss_weights=tuple(attr_loss_weights),
+            recon_type=str(recon_type),
+            target=str(target),
+            pos_emb=str(pos_emb),
+            transformer_type=str(transformer_type),
+            corrector_mask_mode=str(corrector_mask_mode),
         )
         self.vocab_size = vocab_size
         self.id2label = normalized_id2label

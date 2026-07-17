@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Final
 
 from laygen.common.labels import normalize_dataset_name
 from laygen.common.model_card import ParityMetric
@@ -15,11 +16,22 @@ from layout_corrector.model_card import layout_corrector_model_card
 from layout_corrector.pipeline import LayoutCorrectorPipeline
 from layout_dm.pipeline import LayoutDMPipeline
 
+_SUPPORTED_DATASETS: Final[tuple[str, ...]] = (
+    "rico25",
+    "publaynet",
+    "crello",
+    "crello-bbox",
+)
+_CRELLO_DATASET_ALIASES: Final[frozenset[str]] = frozenset(("crello", "crello-bbox"))
+_DEFAULT_STARTER_DIR: Final[Path] = Path(
+    ".cache/layout-corrector/original/layout_corrector_starter_kit/download"
+)
+
 
 def _parity_metrics(dataset: str) -> list[ParityMetric]:
     dataset_name = (
         str(normalize_dataset_name(dataset))
-        if dataset not in {"crello", "crello-bbox"}
+        if dataset not in _CRELLO_DATASET_ALIASES
         else "crello"
     )
     return [
@@ -43,16 +55,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        choices=["rico25", "publaynet", "crello", "crello-bbox"],
+        choices=_SUPPORTED_DATASETS,
         required=True,
         help="Dataset/checkpoint family to convert.",
     )
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(
-            ".cache/layout-corrector/original/layout_corrector_starter_kit/download"
-        ),
+        default=_DEFAULT_STARTER_DIR,
         help="Extracted starter-kit download directory containing pretrained_weights.",
     )
     parser.add_argument(

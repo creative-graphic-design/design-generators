@@ -4,6 +4,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Final
+
+_SUPPORTED_DATASETS: Final[tuple[str, ...]] = (
+    "rico25",
+    "publaynet",
+    "crello",
+    "crello-bbox",
+)
+_DEFAULT_CORRECTOR_TIMESTEPS: Final[tuple[int, ...]] = (10, 20, 30)
 
 
 def main() -> None:
@@ -17,7 +26,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        choices=["rico25", "publaynet", "crello", "crello-bbox"],
+        choices=_SUPPORTED_DATASETS,
         required=True,
         help="Dataset/checkpoint family for reference generation.",
     )
@@ -50,7 +59,7 @@ def main() -> None:
         "--corrector-t-list",
         nargs="*",
         type=int,
-        default=[10, 20, 30],
+        default=_DEFAULT_CORRECTOR_TIMESTEPS,
         help="Diffusion timesteps where the corrector is applied.",
     )
     parser.add_argument(

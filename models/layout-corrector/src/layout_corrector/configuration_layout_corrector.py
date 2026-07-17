@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum, auto
+from typing import Final
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
@@ -11,6 +12,40 @@ from laygen.common.labels import (
     id2label_for_dataset,
     normalize_dataset_name,
 )
+
+from .sampling import CorrectorMaskMode, normalize_corrector_mask_mode
+
+CRELLO_BBOX_DATASET: Final[str] = "crello-bbox"
+
+
+class CorrectorReconType(StrEnum):
+    """Supported Layout-Corrector reconstruction targets."""
+
+    x_0 = auto()
+    x_t_minus_1 = "x_t-1"
+
+
+class CorrectorTarget(StrEnum):
+    """Supported Layout-Corrector confidence targets."""
+
+    mask = auto()
+    recon_acc = auto()
+
+
+class CorrectorPositionEmbedding(StrEnum):
+    """Supported original position-embedding modes."""
+
+    default = auto()
+    none = auto()
+    pos_enc = auto()
+    shuffle_pos_enc = auto()
+    shuffle = auto()
+
+
+class CorrectorTransformerType(StrEnum):
+    """Supported corrector transformer variants."""
+
+    aggregated = auto()
 
 
 class LayoutCorrectorConfig(ConfigMixin):
@@ -71,8 +106,8 @@ class LayoutCorrectorConfig(ConfigMixin):
         dropout: float = 0.0,
         timestep_type: str | None = "adalayernorm",
         num_timesteps: int = 100,
-        recon_type: Literal["x_0", "x_t-1"] = "x_t-1",
-        target: Literal["mask", "recon_acc"] = "recon_acc",
+        recon_type: CorrectorReconType | str = CorrectorReconType.x_t_minus_1,
+        target: CorrectorTarget | str = CorrectorTarget.recon_acc,
         attr_loss_weights: tuple[float, float, float, float, float] = (
             1.0,
             1.0,
@@ -81,13 +116,13 @@ class LayoutCorrectorConfig(ConfigMixin):
             1.0,
         ),
         use_padding_as_vocab: bool = True,
-        pos_emb: Literal[
-            "default", "none", "pos_enc", "shuffle_pos_enc", "shuffle"
-        ] = "none",
-        transformer_type: Literal["aggregated"] = "aggregated",
+        pos_emb: CorrectorPositionEmbedding | str = CorrectorPositionEmbedding.none,
+        transformer_type: CorrectorTransformerType | str = (
+            CorrectorTransformerType.aggregated
+        ),
         corrector_steps: int = 1,
         corrector_t_list: tuple[int, ...] = (10, 20, 30),
-        corrector_mask_mode: Literal["thresh", "topk"] = "thresh",
+        corrector_mask_mode: CorrectorMaskMode | str = CorrectorMaskMode.thresh,
         corrector_mask_threshold: float = 0.7,
         corrector_temperature: float = 1.0,
         use_gumbel_noise: bool = True,
@@ -147,22 +182,42 @@ class LayoutCorrectorConfig(ConfigMixin):
             raise ValueError("Layout-Corrector supports 5 attributes per element")
         if num_timesteps <= 0:
             raise ValueError("num_timesteps must be positive")
-        if recon_type not in {"x_0", "x_t-1"}:
-            raise ValueError(f"Unsupported recon_type: {recon_type}")
-        if target not in {"mask", "recon_acc"}:
-            raise ValueError(f"Unsupported target: {target}")
-        if transformer_type != "aggregated":
-            raise ValueError("Only transformer_type='aggregated' is supported")
-        if pos_emb not in {"default", "none", "pos_enc", "shuffle_pos_enc", "shuffle"}:
-            raise ValueError(f"Unsupported pos_emb: {pos_emb}")
+        try:
+            recon_type = CorrectorReconType(recon_type)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
+        try:
+            target = CorrectorTarget(target)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported target: {target}") from exc
+        try:
+            transformer_type = CorrectorTransformerType(transformer_type)
+        except ValueError as exc:
+            raise ValueError("Only transformer_type='aggregated' is supported") from exc
+        try:
+            pos_emb = CorrectorPositionEmbedding(pos_emb)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
         if len(attr_loss_weights) != num_attributes_per_element:
             raise ValueError("attr_loss_weights must match num_attributes_per_element")
         if corrector_steps <= 0:
             raise ValueError("corrector_steps must be positive")
-        if corrector_mask_mode not in {"thresh", "topk"}:
-            raise ValueError(f"Unsupported corrector_mask_mode: {corrector_mask_mode}")
+        try:
+            corrector_mask_mode = normalize_corrector_mask_mode(corrector_mask_mode)
+        except ValueError as exc:
+            raise ValueError(
+                f"Unsupported corrector_mask_mode: {corrector_mask_mode}"
+            ) from exc
         if not 0.0 <= corrector_mask_threshold <= 1.0:
             raise ValueError("corrector_mask_threshold must be in [0, 1]")
+        self.register_to_config(
+            dataset_name=dataset_name,
+            recon_type=str(recon_type),
+            target=str(target),
+            pos_emb=str(pos_emb),
+            transformer_type=str(transformer_type),
+            corrector_mask_mode=str(corrector_mask_mode),
+        )
 
         self.dataset_name = dataset_name
         raw_id2label = id2label or id2label_for_dataset(dataset_name)
@@ -177,15 +232,15 @@ class LayoutCorrectorConfig(ConfigMixin):
         self.dropout = dropout
         self.timestep_type = timestep_type
         self.num_timesteps = num_timesteps
-        self.recon_type = recon_type
-        self.target = target
+        self.recon_type = str(recon_type)
+        self.target = str(target)
         self.attr_loss_weights = tuple(float(v) for v in attr_loss_weights)
         self.use_padding_as_vocab = use_padding_as_vocab
-        self.pos_emb = pos_emb
-        self.transformer_type = transformer_type
+        self.pos_emb = str(pos_emb)
+        self.transformer_type = str(transformer_type)
         self.corrector_steps = corrector_steps
         self.corrector_t_list = tuple(int(v) for v in corrector_t_list)
-        self.corrector_mask_mode = corrector_mask_mode
+        self.corrector_mask_mode = str(corrector_mask_mode)
         self.corrector_mask_threshold = corrector_mask_threshold
         self.corrector_temperature = corrector_temperature
         self.use_gumbel_noise = use_gumbel_noise

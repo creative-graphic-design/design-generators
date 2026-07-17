@@ -4,11 +4,12 @@ import importlib.util
 import shutil
 import zipfile
 from pathlib import Path
+from typing import Final
 from types import ModuleType
 from types import SimpleNamespace
 
 
-ROOT = Path(__file__).parents[3]
+ROOT: Final[Path] = Path(__file__).parents[3]
 
 
 def _load_script() -> ModuleType:

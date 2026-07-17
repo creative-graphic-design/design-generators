@@ -4,6 +4,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from typing import Final
 
 import pytest
 import torch
@@ -12,10 +13,10 @@ from layout_corrector.conversion import build_corrector_from_original
 from layout_dm.pipeline import LayoutDMPipeline
 
 
-DATASETS = ("rico25", "publaynet", "crello-bbox")
-SEEDS = (0, 1, 2)
-LOGITS_ATOL = 1.0e-5
-LOGITS_RTOL = 1.0e-5
+DATASETS: Final[tuple[str, ...]] = ("rico25", "publaynet", "crello-bbox")
+SEEDS: Final[tuple[int, ...]] = (0, 1, 2)
+LOGITS_ATOL: Final[float] = 1.0e-5
+LOGITS_RTOL: Final[float] = 1.0e-5
 
 
 def _repo_root() -> Path:

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from pathlib import Path
-from typing import Sequence, assert_never, cast
+from typing import ClassVar, Sequence, assert_never
 
 import numpy as np
 import torch
@@ -19,10 +19,12 @@ from layout_dm.pipeline import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
 from laygen.common.bbox import BoxFormat
+from laygen.common.conditions import ConditionType
 from laygen.common.discrete import SamplingMode
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
+from .configuration_layout_corrector import CorrectorReconType
 from .corrector import LayoutCorrectorModel
 from .sampling import (
     LayoutCorrectorSamplingConfig,
@@ -36,8 +38,8 @@ from .sampling import (
 class OutputType(StrEnum):
     """Supported Layout-Corrector pipeline output formats."""
 
-    dataclass = "dataclass"
-    dict = "dict"
+    dataclass = auto()
+    dict = auto()
 
 
 def normalize_output_type(output_type: OutputType | str) -> OutputType:
@@ -66,7 +68,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         <bound method...
     """
 
-    model_cpu_offload_seq = "layout_dm.denoiser->corrector"
+    model_cpu_offload_seq: ClassVar[str] = "layout_dm.denoiser->corrector"
 
     def __init__(
         self,
@@ -95,7 +97,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         labels: torch.Tensor | np.ndarray | list[object] | None = None,
         bbox: torch.Tensor | np.ndarray | list[object] | None = None,
         mask: torch.Tensor | np.ndarray | list[object] | None = None,
@@ -120,7 +122,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         time_adaptive_temperature: bool | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
         """Generate layouts with optional Layout-Corrector guidance.
 
@@ -153,7 +154,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             time_adaptive_temperature: Optional adaptive-noise override.
             output_type: `"dataclass"` or `"dict"`.
             return_intermediates: Whether to include scores and trajectory.
-            **model_kwargs: Reserved model keyword arguments.
 
         Returns:
             `LayoutGenerationOutput` by default, or a dictionary when requested.
@@ -166,7 +166,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             >>> LayoutCorrectorPipeline.__call__  # doctest: +ELLIPSIS
             <function...
         """
-        _ = (num_elements, model_kwargs)
+        _ = num_elements
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
@@ -321,7 +321,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                 input_ids=input_ids, timesteps=timestep_batch
             ).logits
             model_log_prob = self.layout_dm.scheduler.predict_start(denoiser_logits)
-            if self.corrector.recon_type == "x_t-1":
+            if self.corrector.recon_type is CorrectorReconType.x_t_minus_1:
                 model_log_prob = self.layout_dm.scheduler.q_posterior(
                     model_log_prob, current, timestep_batch
                 )
@@ -391,12 +391,14 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             return 0.0
         return float(timestep / self.layout_dm.scheduler.config.num_timesteps)
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(
+        self, save_directory: str | Path, *, safe_serialization: bool = True
+    ) -> None:
         """Save the nested LayoutDM pipeline and corrector model.
 
         Args:
             save_directory: Destination directory.
-            **kwargs: Additional save options passed to nested components.
+            safe_serialization: Whether to save weights as safetensors.
 
         Returns:
             None.
@@ -410,19 +412,26 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         """
         save_path = Path(save_directory)
         save_path.mkdir(parents=True, exist_ok=True)
-        self.layout_dm.save_pretrained(save_path / "layout_dm", **kwargs)
-        self.corrector.save_pretrained(save_path / "corrector", **kwargs)
+        self.layout_dm.save_pretrained(
+            save_path / "layout_dm", safe_serialization=safe_serialization
+        )
+        self.corrector.save_pretrained(
+            save_path / "corrector", safe_serialization=safe_serialization
+        )
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        *,
+        processor: LayoutDMProcessor | None = None,
     ) -> "LayoutCorrectorPipeline":
         """Load a Layout-Corrector pipeline from a saved directory.
 
         Args:
             pretrained_model_name_or_path: Directory containing `layout_dm/` and
                 `corrector/` subdirectories.
-            **kwargs: Additional constructor options.
+            processor: Optional processor override.
 
         Returns:
             Loaded `LayoutCorrectorPipeline`.
@@ -437,8 +446,4 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         path = Path(pretrained_model_name_or_path)
         layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
         corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")
-        processor = cast(LayoutDMProcessor | None, kwargs.pop("processor", None))
-        if kwargs:
-            unexpected = ", ".join(sorted(kwargs))
-            raise TypeError(f"Unexpected LayoutCorrectorPipeline kwargs: {unexpected}")
         return cls(layout_dm=layout_dm, corrector=corrector, processor=processor)

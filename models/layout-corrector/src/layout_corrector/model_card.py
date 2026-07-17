@@ -3,9 +3,40 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from enum import StrEnum, auto
+from typing import Final
 
 from huggingface_hub import ModelCard
 from laygen.common.model_card import ParityMetric, build_layout_model_card
+
+from .configuration_layout_corrector import CRELLO_BBOX_DATASET
+
+
+class LayoutCorrectorCardDataset(StrEnum):
+    """Canonical datasets used in Layout-Corrector model-card metadata."""
+
+    rico25 = auto()
+    publaynet = auto()
+    crello = auto()
+
+
+class LayoutCorrectorCardValue(StrEnum):
+    """Closed metadata and tag values emitted by Layout-Corrector cards."""
+
+    license = "mit"
+    library = "diffusers"
+    pipeline_tag = "unconditional-layout-generation"
+    layout_generation_tag = "layout-generation"
+    layout_corrector_tag = "layout-corrector"
+
+
+_MODEL_ID_PREFIX: Final[str] = "creative-graphic-design/layout-corrector"
+_ORIGINAL_IMPLEMENTATION_URL: Final[str] = "https://github.com/line/Layout-Corrector"
+_DATASET_IDS: Final[dict[LayoutCorrectorCardDataset, str]] = {
+    LayoutCorrectorCardDataset.rico25: "creative-graphic-design/rico25",
+    LayoutCorrectorCardDataset.publaynet: "creative-graphic-design/publaynet",
+    LayoutCorrectorCardDataset.crello: "cyberagent/crello",
+}
 
 
 def layout_corrector_model_card(
@@ -14,12 +45,12 @@ def layout_corrector_model_card(
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the Layout-Corrector model card for a converted checkpoint."""
-    dataset_name = "crello" if dataset in {"crello", "crello-bbox"} else dataset
-    dataset_id = _layout_corrector_dataset_id(dataset_name)
-    model_id = f"creative-graphic-design/layout-corrector-{dataset_name}"
+    dataset_name = _normalize_model_card_dataset(dataset)
+    dataset_id = _DATASET_IDS[dataset_name]
+    model_id = f"{_MODEL_ID_PREFIX}-{dataset_name}"
     metrics = parity_metrics or [
         ParityMetric(
-            dataset=dataset_name,
+            dataset=str(dataset_name),
             tokenizer_exact="checked in vendor parity",
             deterministic_exact="not applicable",
             logits_max_abs=0.0,
@@ -37,14 +68,14 @@ print(out.bbox, out.labels, out.mask)
         model_id=model_id,
         model_name=f"Layout-Corrector {dataset_name}",
         dataset_ids=[dataset_id],
-        license="mit",
-        library_name="diffusers",
-        pipeline_tag="unconditional-layout-generation",
+        license=str(LayoutCorrectorCardValue.license),
+        library_name=str(LayoutCorrectorCardValue.library),
+        pipeline_tag=str(LayoutCorrectorCardValue.pipeline_tag),
         tags=[
-            "layout-generation",
-            "layout-corrector",
-            "diffusers",
-            dataset_name,
+            str(LayoutCorrectorCardValue.layout_generation_tag),
+            str(LayoutCorrectorCardValue.layout_corrector_tag),
+            str(LayoutCorrectorCardValue.library),
+            str(dataset_name),
         ],
         model_details=(
             "Diffusers-format composite pipeline for Layout-Corrector. The "
@@ -68,21 +99,20 @@ print(out.bbox, out.labels, out.mask)
         ),
         parity_metrics=metrics,
         citation_bibtex=_LAYOUT_CORRECTOR_BIBTEX,
-        original_implementation_url="https://github.com/line/Layout-Corrector",
+        original_implementation_url=_ORIGINAL_IMPLEMENTATION_URL,
     )
 
 
-def _layout_corrector_dataset_id(dataset: str) -> str:
-    if dataset == "rico25":
-        return "creative-graphic-design/rico25"
-    if dataset == "publaynet":
-        return "creative-graphic-design/publaynet"
-    if dataset == "crello":
-        return "cyberagent/crello"
-    raise ValueError(f"Unsupported Layout-Corrector dataset: {dataset}")
+def _normalize_model_card_dataset(dataset: str) -> LayoutCorrectorCardDataset:
+    if dataset == CRELLO_BBOX_DATASET:
+        return LayoutCorrectorCardDataset.crello
+    try:
+        return LayoutCorrectorCardDataset(dataset)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported Layout-Corrector dataset: {dataset}") from exc
 
 
-MODEL_CARD_TEMPLATE = """---
+MODEL_CARD_TEMPLATE: Final[str] = """---
 license: mit
 library_name: diffusers
 pipeline_tag: unconditional-layout-generation
@@ -94,7 +124,7 @@ Composite Layout-Corrector pipeline converted from the original MIT-licensed imp
 """
 
 
-_LAYOUT_CORRECTOR_BIBTEX = r"""
+_LAYOUT_CORRECTOR_BIBTEX: Final[str] = r"""
 @article{iwai2024layoutcorrector,
   title = {Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model},
   author = {Iwai, Shoma and Osanai, Atsuki and Kitada, Shunsuke and Omachi, Shinichiro},
