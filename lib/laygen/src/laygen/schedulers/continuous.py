@@ -1,0 +1,184 @@
+"""Continuous diffusion scheduler adapters backed by Diffusers."""
+
+from __future__ import annotations
+
+import math
+from enum import StrEnum, auto
+from typing import Literal, assert_never
+
+import numpy as np
+import torch
+from diffusers.schedulers.scheduling_ddim import DDIMScheduler
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
+
+
+class BetaSchedule(StrEnum):
+    """Supported DDPM beta schedules."""
+
+    linear = auto()
+    const = auto()
+    quad = auto()
+    jsd = auto()
+    sigmoid = auto()
+    cosine = auto()
+    cosine_reverse = auto()
+    cosine_anneal = auto()
+
+
+class DDIMDiscretization(StrEnum):
+    """Supported DDIM timestep discretization methods."""
+
+    uniform = auto()
+    quad = auto()
+    new = auto()
+
+
+def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
+    """Normalize a beta schedule value.
+
+    Args:
+        schedule: Schedule enum or string value.
+
+    Returns:
+        Canonical beta schedule enum.
+
+    Raises:
+        ValueError: If the schedule is unsupported.
+    """
+    if isinstance(schedule, BetaSchedule):
+        return schedule
+    try:
+        return BetaSchedule(schedule)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported beta schedule: {schedule}") from exc
+
+
+def normalize_ddim_discretization(
+    method: DDIMDiscretization | str,
+) -> DDIMDiscretization:
+    """Normalize a DDIM timestep discretization method.
+
+    Args:
+        method: Method enum or string value.
+
+    Returns:
+        Canonical DDIM discretization enum.
+
+    Raises:
+        ValueError: If the method is unsupported.
+    """
+    if isinstance(method, DDIMDiscretization):
+        return method
+    try:
+        return DDIMDiscretization(method)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported ddim discretization: {method}") from exc
+
+
+def _diffusers_beta_schedule(
+    schedule: BetaSchedule,
+) -> Literal["linear", "scaled_linear", "squaredcos_cap_v2", "sigmoid"] | None:
+    if schedule is BetaSchedule.linear:
+        return "linear"
+    if schedule is BetaSchedule.quad:
+        return "scaled_linear"
+    if schedule in (BetaSchedule.cosine, BetaSchedule.cosine_reverse):
+        return "squaredcos_cap_v2"
+    if schedule is BetaSchedule.sigmoid:
+        return "sigmoid"
+    return None
+
+
+def get_beta_schedule(
+    schedule: BetaSchedule | str = BetaSchedule.cosine,
+    num_timesteps: int = 1000,
+    start: float = 0.0001,
+    end: float = 0.02,
+) -> torch.Tensor:
+    """Create a beta schedule, delegating common schedules to Diffusers.
+
+    Args:
+        schedule: Schedule enum or string value.
+        num_timesteps: Number of training timesteps.
+        start: Initial beta value for schedules that use a range.
+        end: Final beta value for schedules that use a range.
+
+    Returns:
+        One-dimensional beta tensor.
+
+    Raises:
+        ValueError: If the schedule is unsupported.
+    """
+    canonical = normalize_beta_schedule(schedule)
+    diffusers_schedule = _diffusers_beta_schedule(canonical)
+    if diffusers_schedule is not None:
+        return DDPMScheduler(
+            num_train_timesteps=num_timesteps,
+            beta_start=start,
+            beta_end=end,
+            beta_schedule=diffusers_schedule,
+        ).betas
+    if canonical is BetaSchedule.const:
+        return end * torch.ones(num_timesteps)
+    if canonical is BetaSchedule.jsd:
+        return 1.0 / torch.linspace(num_timesteps, 1, num_timesteps)
+    if canonical is BetaSchedule.cosine_anneal:
+        return torch.tensor(
+            [
+                start
+                + 0.5
+                * (end - start)
+                * (1 - math.cos(t / (num_timesteps - 1) * math.pi))
+                for t in range(num_timesteps)
+            ]
+        )
+    raise ValueError(f"Unsupported beta schedule: {schedule}")
+
+
+def get_ddim_timesteps(
+    method: DDIMDiscretization | str,
+    num_ddim_timesteps: int,
+    num_ddpm_timesteps: int,
+    *,
+    steps_offset: int = 1,
+) -> np.ndarray:
+    """Create ascending vendor-order DDIM timesteps.
+
+    Args:
+        method: Discretization enum or string value.
+        num_ddim_timesteps: Number of inference timesteps.
+        num_ddpm_timesteps: Number of training timesteps.
+        steps_offset: Diffusers timestep offset. LACE uses one-indexed
+            timesteps, so the default is ``1``.
+
+    Returns:
+        NumPy array of timesteps in ascending vendor order.
+
+    Raises:
+        ValueError: If the method is unsupported.
+    """
+    canonical = normalize_ddim_discretization(method)
+    if canonical is DDIMDiscretization.uniform:
+        scheduler = DDIMScheduler(
+            num_train_timesteps=num_ddpm_timesteps,
+            timestep_spacing="leading",
+            steps_offset=steps_offset,
+        )
+        scheduler.set_timesteps(num_ddim_timesteps)
+        return scheduler.timesteps.cpu().numpy()[::-1].copy()
+    if canonical is DDIMDiscretization.quad:
+        timesteps = (
+            np.linspace(0, np.sqrt(num_ddpm_timesteps * 0.8), num_ddim_timesteps) ** 2
+        ).astype(int)
+        return timesteps + steps_offset
+    if canonical is DDIMDiscretization.new:
+        c = (num_ddpm_timesteps - 50) // (num_ddim_timesteps - 50)
+        timesteps = np.asarray(
+            list(range(0, 50)) + list(range(50, num_ddpm_timesteps - 50, c))
+        )
+        return timesteps + steps_offset
+    assert_never(canonical)
+
+
+make_beta_schedule = get_beta_schedule
+make_ddim_timesteps = get_ddim_timesteps

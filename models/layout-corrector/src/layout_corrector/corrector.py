@@ -10,10 +10,10 @@ from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 from torch import nn
 
-from layout_dm.transformer import (
+from laygen.nn import (
     Block,
     ElementPositionalEmbedding,
-    TimestepType,
+    TimestepEmbeddingType,
     TransformerEncoder,
 )
 from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
@@ -51,7 +51,7 @@ class AggregatedCategoricalTransformer(nn.Module):
         num_hidden_layers: int,
         intermediate_size: int,
         dropout: float,
-        timestep_type: TimestepType | None,
+        timestep_type: TimestepEmbeddingType | str | None,
         pos_emb: CorrectorPositionEmbedding | str,
         num_attributes_per_element: int,
         num_timesteps: int,
@@ -175,7 +175,7 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         num_hidden_layers: int = 4,
         intermediate_size: int = 1856,
         dropout: float = 0.0,
-        timestep_type: TimestepType | None = "adalayernorm",
+        timestep_type: TimestepEmbeddingType | str | None = "adalayernorm",
         num_timesteps: int = 100,
         recon_type: CorrectorReconType | str = CorrectorReconType.x_t_minus_1,
         target: CorrectorTarget | str = CorrectorTarget.recon_acc,
