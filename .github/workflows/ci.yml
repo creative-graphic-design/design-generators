@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install workspace dependencies
+        run: |
+          # Install every uv workspace member for CI checks. Member extras are
+          # intentionally omitted; test suites are expected to run without them.
+          uv sync --all-packages
+
+      - name: Run pre-commit
+        env:
+          # uv-lock is intentionally skipped in CI. The local development
+          # environment writes uv global exclude-newer options into uv.lock,
+          # so lock checks/resolution are handled by the local pre-commit hook.
+          SKIP: uv-lock
+        run: uv run pre-commit run --all-files
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install workspace dependencies
+        run: |
+          # Install every uv workspace member for CI checks. Member extras are
+          # intentionally omitted; test suites are expected to run without them.
+          uv sync --all-packages
+
+      - name: Run ty
+        run: uv run ty check .
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+
+      - name: Install workspace dependencies
+        run: |
+          # Install every uv workspace member for CI checks. Member extras are
+          # intentionally omitted; test suites are expected to run without them.
+          uv sync --all-packages
+
+      - name: Run root tests
+        run: uv run pytest -m "not integration"
+
+      - name: Run workspace member tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for parent in lib models; do
+            if [ -d "${parent}" ]; then
+              find "${parent}" -mindepth 2 -maxdepth 2 -name pyproject.toml -print
+            fi
+          done |
+            sort |
+            while IFS= read -r pyproject_file; do
+              member_dir="${pyproject_file%/pyproject.toml}"
+              tests_dir="${member_dir}/tests"
+
+              if [ ! -d "${tests_dir}" ]; then
+                continue
+              fi
+
+              package_name="$(
+                PYPROJECT_FILE="${pyproject_file}" uv run python -c \
+                  'import os, tomllib; print(tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb"))["project"]["name"])'
+              )"
+
+              uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration"
+            done
