@@ -1,4 +1,6 @@
+from layoutformerpp import LayoutFormerPPTask
 from layoutformerpp.serialization import (
+    RelationType,
     T5LayoutSequence,
     T5LayoutSequenceForGenR,
     T5LayoutSequenceForGenT,
@@ -17,10 +19,14 @@ def test_full_sequence_parse_with_sep() -> None:
 
 def test_gen_t_and_vocab_tokens() -> None:
     seq = T5LayoutSequenceForGenT({1: "label_1"}, add_sep_token=True)
-    assert seq.build_input_seq("gen_ts", [1], [[1, 2, 3, 4]]) == "label_1 3 4"
-    tokens = build_default_tokens(("Text",), task="gen_r", grid=2)
+    assert (
+        seq.build_input_seq(LayoutFormerPPTask.gen_ts, [1], [[1, 2, 3, 4]])
+        == "label_1 3 4"
+    )
+    tokens = build_default_tokens(("Text",), task=LayoutFormerPPTask.gen_r, grid=2)
     assert "label_1" in tokens
     assert "<sep_labels_relations>" in tokens
+    assert RelationType.smaller == "smaller"
 
 
 def test_sequence_parse_without_sep_and_error_paths() -> None:

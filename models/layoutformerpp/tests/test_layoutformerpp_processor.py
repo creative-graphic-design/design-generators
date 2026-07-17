@@ -4,17 +4,21 @@ import torch
 import pytest
 
 from laygen.common.bbox import BoxFormat
+from laygen.common.labels import DatasetName
 
 from layoutformerpp import (
     ConditionType,
     LayoutFormerPPProcessor,
+    LayoutFormerPPTask,
     LayoutGenerationOutput,
     OutputType,
 )
 
 
 def test_processor_label_condition_and_postprocess() -> None:
-    processor = LayoutFormerPPProcessor.from_config(dataset="rico", task="gen_t")
+    processor = LayoutFormerPPProcessor.from_config(
+        dataset=DatasetName.rico25, task=LayoutFormerPPTask.gen_t
+    )
     batch = processor(
         condition_type="label_size",
         labels=[["Text"]],
@@ -30,7 +34,9 @@ def test_processor_label_condition_and_postprocess() -> None:
 
 
 def test_processor_condition_aliases_and_error_paths() -> None:
-    processor = LayoutFormerPPProcessor.from_config(dataset="rico", task="gen_r")
+    processor = LayoutFormerPPProcessor.from_config(
+        dataset="rico", task=ConditionType.relation
+    )
 
     assert processor.normalize_condition_type("gen_t") is ConditionType.label
     assert (
@@ -50,6 +56,8 @@ def test_processor_condition_aliases_and_error_paths() -> None:
         relations=[[(2, 1, 1, 0, 3)]],
     )
     assert relation["input_ids"].shape[0] == 1
+    assert processor.dataset == "rico"
+    assert processor.task == "gen_r"
 
 
 def test_processor_postprocess_padding_dict_and_errors() -> None:

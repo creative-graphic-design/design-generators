@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final
+from typing import Final, TypedDict
 
 import torch
 from huggingface_hub import ModelCard
-from laygen.common.conditions import ConditionType
+from laygen.common import ConditionType, DatasetName
 from laygen.common.model_card import ParityMetric, build_layout_model_card
+
+from ._tasks import (
+    LayoutFormerPPTask,
+    TASK_TO_CONDITION,
+    layoutformerpp_dataset_slug,
+    normalize_layoutformerpp_dataset,
+    normalize_layoutformerpp_task,
+)
 
 
 LAYOUTFORMERPP_BIBTEX = r"""
@@ -21,20 +29,36 @@ LAYOUTFORMERPP_BIBTEX = r"""
 """
 
 
-TASK_TO_CONDITION: Final[dict[str, ConditionType]] = {
-    "ugen": ConditionType.unconditional,
-    "gen_t": ConditionType.label,
-    "gen_ts": ConditionType.label_size,
-    "gen_r": ConditionType.relation,
-    "completion": ConditionType.completion,
-    "refinement": ConditionType.refinement,
+class DatasetCardMetadata(TypedDict):
+    """Hub-facing metadata for one LayoutFormer++ dataset."""
+
+    hub_slug: str
+    dataset_id: str
+
+
+DATASET_CARD_METADATA: Final[dict[DatasetName, DatasetCardMetadata]] = {
+    DatasetName.rico25: {
+        "hub_slug": "rico",
+        "dataset_id": "creative-graphic-design/Rico",
+    },
+    DatasetName.publaynet: {
+        "hub_slug": "publaynet",
+        "dataset_id": "creative-graphic-design/PubLayNet",
+    },
 }
 
 
-def layoutformerpp_hub_id(dataset: str, task: str) -> str:
+def layoutformerpp_hub_id(
+    dataset: DatasetName | str,
+    task: LayoutFormerPPTask | ConditionType | str,
+) -> str:
     """Return the task-specific Hub id for a converted checkpoint."""
-    suffix = TASK_TO_CONDITION[task].replace("_", "-")
-    return f"creative-graphic-design/layoutformerpp-{dataset}-{suffix}"
+    normalized_task = normalize_layoutformerpp_task(task)
+    suffix = TASK_TO_CONDITION[normalized_task].replace("_", "-")
+    return (
+        "creative-graphic-design/layoutformerpp-"
+        f"{layoutformerpp_dataset_slug(dataset)}-{suffix}"
+    )
 
 
 def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
@@ -48,20 +72,21 @@ def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
 
 def layoutformerpp_model_card(
     *,
-    dataset: str,
-    task: str,
+    dataset: DatasetName | str,
+    task: LayoutFormerPPTask | ConditionType | str,
     parity_metrics: list[ParityMetric | dict[str, object]] | None = None,
 ) -> ModelCard:
     """Build a Hub model card for one LayoutFormer++ checkpoint."""
-    model_id = layoutformerpp_hub_id(dataset, task)
-    condition = TASK_TO_CONDITION[task]
-    dataset_id = {
-        "rico": "creative-graphic-design/Rico",
-        "publaynet": "creative-graphic-design/PubLayNet",
-    }[dataset]
+    normalized_dataset = normalize_layoutformerpp_dataset(dataset)
+    normalized_task = normalize_layoutformerpp_task(task)
+    model_id = layoutformerpp_hub_id(normalized_dataset, normalized_task)
+    condition = TASK_TO_CONDITION[normalized_task]
+    dataset_metadata = DATASET_CARD_METADATA[normalized_dataset]
+    dataset_slug = dataset_metadata["hub_slug"]
+    dataset_id = dataset_metadata["dataset_id"]
     metrics = parity_metrics or [
         ParityMetric(
-            dataset=f"{dataset}_{task}",
+            dataset=f"{dataset_slug}_{normalized_task}",
             tokenizer_exact="vocab.json exact",
             deterministic_exact="not run",
             logits_max_abs=0.0,
@@ -84,7 +109,7 @@ print(out.bbox, out.labels, out.mask)
 """
     return build_layout_model_card(
         model_id=model_id,
-        model_name=f"LayoutFormer++ {dataset} {task}",
+        model_name=f"LayoutFormer++ {dataset_slug} {normalized_task}",
         dataset_ids=[dataset_id],
         license="mit",
         library_name="transformers",
@@ -93,19 +118,20 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "layoutformer++",
             "transformers",
-            dataset,
-            task,
+            dataset_slug,
+            str(normalized_task),
         ],
         model_details=(
             "Transformers-format conversion of the LayoutFormer++ autoregressive "
-            f"layout transformer checkpoint for `{dataset}` / `{task}`. The "
+            f"layout transformer checkpoint for `{dataset_slug}` / "
+            f"`{normalized_task}`. The "
             "processor returns normalized center `xywh` boxes, dataset-local "
             "labels, masks, and `id2label` using the shared `laygen.common` schema."
         ),
         intended_uses=(
             "Use this checkpoint to reproduce and evaluate LayoutFormer++ "
-            f"`{dataset}` / `{task}` conditional graphic layout generation in a "
-            "Transformers-style API."
+            f"`{dataset_slug}` / `{normalized_task}` conditional graphic layout "
+            "generation in a Transformers-style API."
         ),
         limitations=(
             "This conversion preserves the released LayoutFormer++ checkpoint "
@@ -132,8 +158,8 @@ print(out.bbox, out.labels, out.mask)
 def write_layoutformerpp_model_card(
     output_dir: Path,
     *,
-    dataset: str,
-    task: str,
+    dataset: DatasetName | str,
+    task: LayoutFormerPPTask | ConditionType | str,
     parity_metrics: list[ParityMetric | dict[str, object]] | None = None,
 ) -> Path:
     """Write the checkpoint README model card next to converted weights."""

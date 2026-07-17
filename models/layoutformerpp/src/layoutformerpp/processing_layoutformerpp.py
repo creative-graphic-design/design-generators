@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from enum import StrEnum
 from os import PathLike
 from pathlib import Path
 from typing import Final
@@ -16,9 +15,18 @@ from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_common_condition_type,
 )
+from laygen.common.labels import DatasetName
 from laygen.common.labels import labels_for_dataset
 from laygen.common.outputs import LayoutGenerationOutput
 
+from ._tasks import (
+    OutputType,
+    LayoutFormerPPTask,
+    SUPPORTED_CONDITIONS,
+    layoutformerpp_dataset_slug,
+    normalize_layoutformerpp_dataset,
+    normalize_layoutformerpp_task,
+)
 from .geometry import discrete_ltwh_to_public, public_to_discrete_ltwh
 from .serialization import (
     T5LayoutSequence,
@@ -29,35 +37,8 @@ from .serialization import (
 from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
 
-class LayoutFormerPPTask(StrEnum):
-    """Supported converted LayoutFormer++ checkpoint tasks."""
-
-    ugen = "ugen"
-    gen_t = "gen_t"
-    gen_ts = "gen_ts"
-    gen_r = "gen_r"
-    completion = "completion"
-    refinement = "refinement"
-
-
-class OutputType(StrEnum):
-    """Supported post-processing return shapes."""
-
-    dataclass = "dataclass"
-    dict = "dict"
-
-
-TASK_TO_CONDITION: Final[dict[LayoutFormerPPTask, ConditionType]] = {
-    LayoutFormerPPTask.ugen: ConditionType.unconditional,
-    LayoutFormerPPTask.gen_t: ConditionType.label,
-    LayoutFormerPPTask.gen_ts: ConditionType.label_size,
-    LayoutFormerPPTask.gen_r: ConditionType.relation,
-    LayoutFormerPPTask.completion: ConditionType.completion,
-    LayoutFormerPPTask.refinement: ConditionType.refinement,
-}
-SUPPORTED_CONDITIONS: Final[frozenset[ConditionType]] = frozenset(
-    TASK_TO_CONDITION.values()
-)
+DEFAULT_DATASET: Final[DatasetName] = DatasetName.rico25
+DEFAULT_TASK: Final[LayoutFormerPPTask] = LayoutFormerPPTask.gen_t
 
 
 class LayoutFormerPPProcessor(ProcessorMixin):
@@ -69,8 +50,8 @@ class LayoutFormerPPProcessor(ProcessorMixin):
     def __init__(
         self,
         tokenizer: LayoutFormerPPTokenizer,
-        dataset: str = "rico",
-        task: str = "gen_t",
+        dataset: DatasetName | str = DEFAULT_DATASET,
+        task: LayoutFormerPPTask | ConditionType | str = DEFAULT_TASK,
         add_sep_token: bool = True,
         x_grid: int = 128,
         y_grid: int = 128,
@@ -79,12 +60,14 @@ class LayoutFormerPPProcessor(ProcessorMixin):
     ) -> None:
         """Initialize serializers, label maps, and tokenizer state."""
         self.tokenizer = tokenizer
-        self.dataset = dataset
-        self.task = task
+        normalized_dataset = normalize_layoutformerpp_dataset(dataset)
+        normalized_task = normalize_layoutformerpp_task(task)
+        self.dataset = layoutformerpp_dataset_slug(normalized_dataset)
+        self.task = str(normalized_task)
         self.add_sep_token = add_sep_token
         self.x_grid = x_grid
         self.y_grid = y_grid
-        labels = labels_for_dataset(dataset)
+        labels = labels_for_dataset(normalized_dataset)
         self.public_id2label = id2label or dict(enumerate(labels))
         self.public_label2id = {
             value.lower(): key for key, value in self.public_id2label.items()
@@ -105,9 +88,14 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     @classmethod
     def from_config(
-        cls, dataset: str = "rico", task: str = "gen_t", **kwargs: object
+        cls,
+        dataset: DatasetName | str = DEFAULT_DATASET,
+        task: LayoutFormerPPTask | ConditionType | str = DEFAULT_TASK,
+        **kwargs: object,
     ) -> "LayoutFormerPPProcessor":
         """Construct processor and tokenizer without external files."""
+        normalized_dataset = normalize_layoutformerpp_dataset(dataset)
+        normalized_task = normalize_layoutformerpp_task(task)
         x_grid_value = kwargs.get("x_grid", 128)
         y_grid_value = kwargs.get("y_grid", 128)
         add_sep_token_value = kwargs.get("add_sep_token", True)
@@ -120,8 +108,8 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             raise TypeError("add_sep_token must be a bool")
         if id2label_value is not None and not isinstance(id2label_value, dict):
             raise TypeError("id2label must be a dict when provided")
-        labels = labels_for_dataset(dataset)
-        tokens = build_default_tokens(labels, task=task, grid=x_grid_value)
+        labels = labels_for_dataset(normalized_dataset)
+        tokens = build_default_tokens(labels, task=normalized_task, grid=x_grid_value)
         tokenizer = LayoutFormerPPTokenizer(tokens=tokens)
         id2label: dict[int, str] | None = None
         if id2label_value is not None:
@@ -132,8 +120,8 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                 id2label[int(key)] = str(value)
         return cls(
             tokenizer=tokenizer,
-            dataset=dataset,
-            task=task,
+            dataset=normalized_dataset,
+            task=normalized_task,
             add_sep_token=add_sep_token_value,
             x_grid=x_grid_value,
             y_grid=y_grid_value,

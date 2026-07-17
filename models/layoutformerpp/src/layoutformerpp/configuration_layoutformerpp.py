@@ -2,66 +2,85 @@
 
 from __future__ import annotations
 
+from typing import Final, TypedDict
+
+from laygen.common import ConditionType, DatasetName
 from transformers import PretrainedConfig
 
+from ._tasks import (
+    LayoutFormerPPTask,
+    TASK_TO_CONDITION,
+    layoutformerpp_dataset_slug,
+    normalize_layoutformerpp_dataset,
+    normalize_layoutformerpp_task,
+)
 
-TASK_DEFAULTS: dict[tuple[str, str], dict[str, int | bool]] = {
-    ("rico", "gen_t"): {
+
+class TaskDefaults(TypedDict, total=False):
+    """Generation defaults for one dataset/condition pair."""
+
+    max_position_embeddings: int
+    decode_max_length: int
+    eval_seed: int
+
+
+TASK_DEFAULTS: Final[dict[tuple[DatasetName, ConditionType], TaskDefaults]] = {
+    (DatasetName.rico25, ConditionType.label): {
         "max_position_embeddings": 150,
         "decode_max_length": 120,
         "eval_seed": 500,
     },
-    ("rico", "gen_ts"): {
+    (DatasetName.rico25, ConditionType.label_size): {
         "max_position_embeddings": 120,
         "decode_max_length": 120,
         "eval_seed": 500,
     },
-    ("rico", "gen_r"): {
+    (DatasetName.rico25, ConditionType.relation): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 500,
     },
-    ("rico", "refinement"): {
+    (DatasetName.rico25, ConditionType.refinement): {
         "max_position_embeddings": 120,
         "decode_max_length": 120,
         "eval_seed": 100,
     },
-    ("rico", "completion"): {
+    (DatasetName.rico25, ConditionType.completion): {
         "max_position_embeddings": 120,
         "decode_max_length": 120,
         "eval_seed": 100,
     },
-    ("rico", "ugen"): {
+    (DatasetName.rico25, ConditionType.unconditional): {
         "max_position_embeddings": 350,
         "decode_max_length": 120,
         "eval_seed": 100,
     },
-    ("publaynet", "gen_t"): {
+    (DatasetName.publaynet, ConditionType.label): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 500,
     },
-    ("publaynet", "gen_ts"): {
+    (DatasetName.publaynet, ConditionType.label_size): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 500,
     },
-    ("publaynet", "gen_r"): {
+    (DatasetName.publaynet, ConditionType.relation): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 500,
     },
-    ("publaynet", "refinement"): {
+    (DatasetName.publaynet, ConditionType.refinement): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 100,
     },
-    ("publaynet", "completion"): {
+    (DatasetName.publaynet, ConditionType.completion): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 100,
     },
-    ("publaynet", "ugen"): {
+    (DatasetName.publaynet, ConditionType.unconditional): {
         "max_position_embeddings": 400,
         "decode_max_length": 150,
         "eval_seed": 100,
@@ -86,8 +105,8 @@ class LayoutFormerPPConfig(PretrainedConfig):
         dropout: float = 0.1,
         dim_feedforward: int | None = None,
         share_embedding: bool = True,
-        dataset: str = "rico",
-        task: str = "gen_t",
+        dataset: DatasetName | str = DatasetName.rico25,
+        task: LayoutFormerPPTask | ConditionType | str = LayoutFormerPPTask.gen_t,
         max_num_elements: int = 20,
         bbox_format: str = "ltwh",
         default_box_format: str = "xywh",
@@ -108,9 +127,13 @@ class LayoutFormerPPConfig(PretrainedConfig):
         **kwargs: object,
     ) -> None:
         """Initialize architecture and task-specific generation defaults."""
-        self.dataset = dataset
-        self.task = task
-        defaults = TASK_DEFAULTS.get((dataset, task), {})
+        normalized_dataset = normalize_layoutformerpp_dataset(dataset)
+        normalized_task = normalize_layoutformerpp_task(task)
+        condition_type = TASK_TO_CONDITION[normalized_task]
+        self.dataset = layoutformerpp_dataset_slug(normalized_dataset)
+        self.task = str(normalized_task)
+        self.condition_type = str(condition_type)
+        defaults = TASK_DEFAULTS.get((normalized_dataset, condition_type), {})
         if max_position_embeddings is None:
             max_position_embeddings = int(defaults.get("max_position_embeddings", 150))
         if decode_max_length is None:

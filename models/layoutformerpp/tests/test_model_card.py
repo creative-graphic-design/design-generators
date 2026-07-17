@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from laygen.common import ConditionType, DatasetName
+
+from layoutformerpp import LayoutFormerPPTask
 from layoutformerpp.conversion import (
     layoutformerpp_hub_id,
     layoutformerpp_model_card,
@@ -8,12 +11,14 @@ from layoutformerpp.conversion import (
 
 
 def test_layoutformerpp_model_card_sections() -> None:
-    card = layoutformerpp_model_card(dataset="rico", task="gen_t")
+    card = layoutformerpp_model_card(
+        dataset=DatasetName.rico25, task=LayoutFormerPPTask.gen_t
+    )
     metadata = card.data.to_dict()
     text = str(card)
 
     assert (
-        layoutformerpp_hub_id("rico", "gen_t")
+        layoutformerpp_hub_id(DatasetName.rico25, ConditionType.label)
         == "creative-graphic-design/layoutformerpp-rico-label"
     )
     assert metadata["license"] == "mit"

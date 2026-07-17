@@ -4,22 +4,32 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum, auto
+from typing import Final
+
+from ._tasks import LayoutFormerPPTask, normalize_layoutformerpp_task
 
 
-SEP_TOKEN = "|"
-REL_BEG_TOKEN = "<sep_labels_relations>"
-REL_SEP_TOKEN = "<sep_relations>"
-REL_ELE_SEP_TOKEN = "<sep_ele_rela_ele>"
-RELATION_TYPES: tuple[str, ...] = (
-    "smaller",
-    "equal",
-    "larger",
-    "top",
-    "center",
-    "bottom",
-    "left",
-    "right",
-)
+SEP_TOKEN: Final[str] = "|"
+REL_BEG_TOKEN: Final[str] = "<sep_labels_relations>"
+REL_SEP_TOKEN: Final[str] = "<sep_relations>"
+REL_ELE_SEP_TOKEN: Final[str] = "<sep_ele_rela_ele>"
+
+
+class RelationType(StrEnum):
+    """Supported LayoutFormer++ relation token names."""
+
+    smaller = auto()
+    equal = auto()
+    larger = auto()
+    top = auto()
+    center = auto()
+    bottom = auto()
+    left = auto()
+    right = auto()
+
+
+RELATION_TYPES: Final[tuple[RelationType, ...]] = tuple(RelationType)
 
 
 @dataclass
@@ -94,7 +104,7 @@ class T5LayoutSequenceForGenT(T5LayoutSequence):
 
     def build_input_seq(
         self,
-        task: str,
+        task: LayoutFormerPPTask | str,
         labels: list[int],
         bbox: list[list[int]],
         *,
@@ -102,10 +112,11 @@ class T5LayoutSequenceForGenT(T5LayoutSequence):
         add_unk_for_label_size: bool = False,
     ) -> str:
         """Build task input from labels and optional width/height constraints."""
+        normalized_task = normalize_layoutformerpp_task(task)
         tokens: list[str] = []
         for idx, label_id in enumerate(labels):
             tokens.append(self.id2label[int(label_id)].lower())
-            if task == "gen_ts":
+            if normalized_task is LayoutFormerPPTask.gen_ts:
                 if add_unk_for_label_size:
                     tokens.extend(["<unk>", "<unk>"])
                 tokens.extend(str(int(value)) for value in bbox[idx][2:])
@@ -149,14 +160,19 @@ class T5LayoutSequenceForGenR(T5LayoutSequence):
 
 
 def build_default_tokens(
-    dataset_labels: tuple[str, ...], *, task: str, grid: int, add_sep_token: bool = True
+    dataset_labels: tuple[str, ...],
+    *,
+    task: LayoutFormerPPTask | str,
+    grid: int,
+    add_sep_token: bool = True,
 ) -> list[str]:
     """Construct a vendor-compatible vocabulary when no `vocab.json` is available."""
+    normalized_task = normalize_layoutformerpp_task(task)
     tokens = [f"label_{idx}" for idx in range(1, len(dataset_labels) + 1)]
     tokens.extend(str(idx) for idx in range(grid))
     if add_sep_token:
         tokens.append(SEP_TOKEN)
-    if task == "gen_r":
+    if normalized_task is LayoutFormerPPTask.gen_r:
         tokens.append("label_0")
         tokens.extend(f"relation_{idx}" for idx, _ in enumerate(RELATION_TYPES))
         tokens.extend(f"index_{idx}" for idx in range(1, 21))
