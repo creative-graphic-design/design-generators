@@ -8,6 +8,7 @@ dependencies = [
     "layoutganpp",
     "layout-dm",
     "laygen",
+    "posgen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
