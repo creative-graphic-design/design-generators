@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import Final
 
-from ._tasks import LayoutFormerPPTask, normalize_layoutformerpp_task
+from .tasks import LayoutFormerPPTask, normalize_layoutformerpp_task
 
 
 SEP_TOKEN: Final[str] = "|"
@@ -116,12 +116,15 @@ class T5LayoutSequenceForGenT(T5LayoutSequence):
         tokens: list[str] = []
         for idx, label_id in enumerate(labels):
             tokens.append(self.id2label[int(label_id)].lower())
-            if normalized_task is LayoutFormerPPTask.gen_ts:
+            if normalized_task is LayoutFormerPPTask.gen_t:
+                if add_unk_for_label:
+                    tokens.extend(["<unk>", "<unk>", "<unk>", "<unk>"])
+            elif normalized_task is LayoutFormerPPTask.gen_ts:
                 if add_unk_for_label_size:
                     tokens.extend(["<unk>", "<unk>"])
                 tokens.extend(str(int(value)) for value in bbox[idx][2:])
-            elif add_unk_for_label:
-                tokens.extend(["<unk>", "<unk>", "<unk>", "<unk>"])
+            else:
+                raise ValueError(f"Unsupported gen_t serializer task: {task}")
             if self.add_sep_token and idx < len(labels) - 1:
                 tokens.append(SEP_TOKEN)
         return " ".join(tokens)

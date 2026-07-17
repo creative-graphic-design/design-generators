@@ -1,4 +1,4 @@
-from typing import cast
+from typing import get_args, get_type_hints, cast
 
 import torch
 import pytest
@@ -47,8 +47,8 @@ def test_processor_condition_aliases_and_error_paths() -> None:
         processor.normalize_condition_type("bad")
     with pytest.raises(ValueError, match="Unknown label"):
         processor(condition_type="label", labels=[["missing"]])
-    with pytest.raises(ValueError, match="Only return_tensors"):
-        processor(condition_type="unconditional", return_tensors="np")
+    call_hints = get_type_hints(processor.__call__)
+    assert get_args(call_hints["return_tensors"]) == ("pt",)
 
     relation = processor(
         condition_type=ConditionType.relation,
@@ -83,5 +83,5 @@ def test_processor_postprocess_padding_dict_and_errors() -> None:
 
     with pytest.raises(ValueError, match="Unsupported output_type"):
         processor.post_process_layouts(sequences, output_type="bad")
-    with pytest.raises(ValueError, match="Only return_tensors"):
-        processor.post_process_layouts(sequences, return_tensors="np")
+    postprocess_hints = get_type_hints(processor.post_process_layouts)
+    assert get_args(postprocess_hints["return_tensors"]) == ("pt",)

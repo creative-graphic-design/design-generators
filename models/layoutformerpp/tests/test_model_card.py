@@ -37,6 +37,8 @@ def test_layoutformerpp_model_card_sections() -> None:
     assert "## Technical Specifications" in text
     assert "0" in text
     assert "## Citation" in text
+    assert "every public `rico` and `publaynet`" in text
+    assert "full constrained-decoding generation parity" not in text
     assert "More Information Needed" not in text
     assert "https://github.com/microsoft/LayoutGeneration" in text
 

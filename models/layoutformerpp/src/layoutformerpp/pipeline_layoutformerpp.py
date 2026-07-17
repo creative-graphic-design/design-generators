@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch
 from transformers import Pipeline
+from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat
@@ -24,10 +25,8 @@ class LayoutFormerPPPipeline(Pipeline):
         self,
         model: LayoutFormerPPForConditionalGeneration,
         processor: LayoutFormerPPProcessor,
-        **kwargs: object,
     ) -> None:
         """Initialize the pipeline with a model and matching processor."""
-        _ = kwargs
         super().__init__(model=model, tokenizer=processor.tokenizer)
         self.processor = processor
 
@@ -36,16 +35,19 @@ class LayoutFormerPPPipeline(Pipeline):
     ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
         return {}, kwargs, {}
 
-    def preprocess(  # type: ignore
-        self, inputs: object = None, **kwargs: object
-    ) -> dict[str, object]:
-        """Forward keyword inputs to the model step unchanged."""
-        return kwargs
+    def preprocess(
+        self, input_: object, **preprocess_parameters: dict[str, object]
+    ) -> dict[str, GenericTensor]:
+        """Satisfy the abstract pipeline API; direct calls bypass this path."""
+        _ = (input_, preprocess_parameters)
+        return {}
 
-    def _forward(  # type: ignore
-        self, model_inputs: dict[str, object], **kwargs: object
+    def _forward(
+        self,
+        input_tensors: dict[str, GenericTensor],
+        **forward_parameters: dict[str, object],
     ) -> ModelOutput:
-        _ = (model_inputs, kwargs)
+        _ = (input_tensors, forward_parameters)
         raise NotImplementedError("Use LayoutFormerPPPipeline.__call__ directly")
 
     def postprocess(
@@ -54,6 +56,7 @@ class LayoutFormerPPPipeline(Pipeline):
         **kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Return model outputs without additional formatting."""
+        _ = kwargs
         return model_outputs
 
     def __call__(
@@ -74,10 +77,8 @@ class LayoutFormerPPPipeline(Pipeline):
         do_sample: bool | None = None,
         top_k: int = 10,
         temperature: float = 0.7,
-        **generate_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts through the wrapped model and processor."""
-        _ = generate_kwargs
         return self.model.generate_layout(
             processor=self.processor,
             batch_size=batch_size,

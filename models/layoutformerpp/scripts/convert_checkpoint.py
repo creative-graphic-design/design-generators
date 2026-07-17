@@ -16,6 +16,11 @@ from layoutformerpp.conversion import (
     write_layoutformerpp_model_card,
 )
 from layoutformerpp.serialization import build_default_tokens
+from layoutformerpp.tasks import (
+    LayoutFormerPPTask,
+    SUPPORTED_DATASETS,
+    normalize_layoutformerpp_dataset,
+)
 from laygen.common.labels import labels_for_dataset
 
 
@@ -43,13 +48,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        choices=["rico", "publaynet"],
+        type=normalize_layoutformerpp_dataset,
+        choices=sorted(SUPPORTED_DATASETS, key=str),
         required=True,
         help="Dataset for the checkpoint. Required.",
     )
     parser.add_argument(
         "--task",
-        choices=["gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"],
+        type=LayoutFormerPPTask,
+        choices=tuple(LayoutFormerPPTask),
         required=True,
         help="Task-specific checkpoint type. Required.",
     )

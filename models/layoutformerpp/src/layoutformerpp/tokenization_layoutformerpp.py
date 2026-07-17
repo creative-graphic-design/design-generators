@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 from os import PathLike
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
+from laygen.common.bbox import BoxFormat, normalize_box_format
 from transformers import BatchEncoding, PreTrainedTokenizer
+
+DEFAULT_MODEL_MAX_LENGTH: Final[int] = 1_000_000_000_000_000_019_884_624_838_656
 
 
 class LayoutFormerPPTokenizer(PreTrainedTokenizer):
@@ -22,13 +25,29 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
         tokens: list[str] | None = None,
         x_grid: int = 128,
         y_grid: int = 128,
-        bbox_order: str = "ltwh",
-        **kwargs: object,
+        bbox_order: BoxFormat | str = BoxFormat.ltwh,
+        bos_token: str = "<bos>",
+        eos_token: str = "<eos>",
+        pad_token: str = "<pad>",
+        sep_token: str = "<sep>",
+        unk_token: str = "<unk>",
+        model_max_length: int = DEFAULT_MODEL_MAX_LENGTH,
+        padding_side: str = "right",
+        truncation_side: str = "right",
+        clean_up_tokenization_spaces: bool = False,
+        added_tokens_decoder: dict[int | str, object] | None = None,
+        backend: str = "custom",
+        tokenizer_file: str | None = None,
+        name_or_path: str = "",
+        is_local: bool = False,
+        local_files_only: bool = False,
+        processor_class: str | None = None,
     ) -> None:
         """Initialize a tokenizer from a vocab file or synthetic token list."""
+        _ = (backend, tokenizer_file, is_local, local_files_only, processor_class)
         self.x_grid = x_grid
         self.y_grid = y_grid
-        self.bbox_order = bbox_order
+        self.bbox_order = str(normalize_box_format(bbox_order))
         if vocab_file is not None:
             with Path(vocab_file).open() as f:
                 token2id = {str(k): int(v) for k, v in json.load(f).items()}
@@ -40,14 +59,22 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
                     token2id[token] = len(token2id)
         self._token2id = token2id
         self._id2token = {idx: token for token, idx in token2id.items()}
-        super().__init__(
-            bos_token=kwargs.pop("bos_token", "<bos>"),
-            eos_token=kwargs.pop("eos_token", "<eos>"),
-            pad_token=kwargs.pop("pad_token", "<pad>"),
-            sep_token=kwargs.pop("sep_token", "<sep>"),
-            unk_token=kwargs.pop("unk_token", "<unk>"),
-            **kwargs,
-        )
+        tokenizer_kwargs: dict[str, object] = {
+            "bos_token": bos_token,
+            "eos_token": eos_token,
+            "pad_token": pad_token,
+            "sep_token": sep_token,
+            "unk_token": unk_token,
+            "model_max_length": model_max_length,
+            "padding_side": padding_side,
+            "truncation_side": truncation_side,
+            "clean_up_tokenization_spaces": clean_up_tokenization_spaces,
+            "backend": backend,
+            "name_or_path": name_or_path,
+        }
+        if added_tokens_decoder is not None:
+            tokenizer_kwargs["added_tokens_decoder"] = added_tokens_decoder
+        super().__init__(**tokenizer_kwargs)
 
     @property
     def vocab_size(self) -> int:
@@ -59,6 +86,7 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
         return dict(self._token2id)
 
     def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+        _ = kwargs
         return text.strip().split()
 
     def _convert_token_to_id(self, token: str) -> int:
@@ -116,32 +144,38 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str | PathLike[str],
-        *args: object,
         cache_dir: str | PathLike[str] | None = None,
         force_download: bool = False,
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        x_grid: int | None = None,
+        y_grid: int | None = None,
+        bbox_order: BoxFormat | str | None = None,
     ) -> "LayoutFormerPPTokenizer":
         """Load tokenizer and LayoutFormer++ metadata."""
         path = Path(pretrained_model_name_or_path)
         metadata_path = path / "layoutformerpp_tokenizer_config.json"
+        metadata: dict[str, object] = {}
         if metadata_path.exists():
             with metadata_path.open() as f:
                 metadata = json.load(f)
-            kwargs = {**metadata, **kwargs}
+        if x_grid is not None:
+            metadata["x_grid"] = x_grid
+        if y_grid is not None:
+            metadata["y_grid"] = y_grid
+        if bbox_order is not None:
+            metadata["bbox_order"] = bbox_order
         return cast(
             "LayoutFormerPPTokenizer",
             super().from_pretrained(
                 str(pretrained_model_name_or_path),
-                *args,
                 cache_dir=cache_dir,
                 force_download=force_download,
                 local_files_only=local_files_only,
                 token=token,
                 revision=revision,
-                **kwargs,
+                **metadata,
             ),
         )
 

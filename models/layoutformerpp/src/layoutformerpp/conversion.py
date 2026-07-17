@@ -10,7 +10,7 @@ from huggingface_hub import ModelCard
 from laygen.common import ConditionType, DatasetName
 from laygen.common.model_card import ParityMetric, build_layout_model_card
 
-from ._tasks import (
+from .tasks import (
     LayoutFormerPPTask,
     TASK_TO_CONDITION,
     layoutformerpp_dataset_slug,
@@ -136,11 +136,11 @@ print(out.bbox, out.labels, out.mask)
         limitations=(
             "This conversion preserves the released LayoutFormer++ checkpoint "
             "contract and inherits the dataset and task coverage of the original "
-            "research release. Current local parity covers the `rico_gen_t` "
-            "teacher-forced logits; full constrained-decoding generation parity "
-            "for every public task remains follow-up work. This checkpoint is not "
-            "intended for OCR, document understanding, or unreviewed production "
-            "design decisions."
+            "research release. Local vendor parity covers tokenizer behavior, "
+            "teacher-forced logits, vendor greedy/top-k generation, and constrained "
+            "label or label-size generation for every public `rico` and `publaynet` "
+            "LayoutFormer++ task checkpoint. This checkpoint is not intended for "
+            "OCR, document understanding, or unreviewed production design decisions."
         ),
         how_to_use=how_to_use,
         training_data=(

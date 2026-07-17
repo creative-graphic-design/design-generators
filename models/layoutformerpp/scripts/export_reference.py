@@ -6,6 +6,13 @@ import argparse
 import json
 from pathlib import Path
 
+from layoutformerpp.tasks import (
+    LayoutFormerPPTask,
+    SUPPORTED_DATASETS,
+    layoutformerpp_dataset_slug,
+    normalize_layoutformerpp_dataset,
+)
+
 
 def main() -> None:
     """Write metadata describing an external vendor-reference run."""
@@ -17,12 +24,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        choices=["rico", "publaynet"],
+        type=normalize_layoutformerpp_dataset,
+        choices=sorted(SUPPORTED_DATASETS, key=str),
         required=True,
         help="Dataset name for the reference run. Required.",
     )
     parser.add_argument(
         "--task",
+        type=LayoutFormerPPTask,
+        choices=tuple(LayoutFormerPPTask),
         required=True,
         help=(
             "LayoutFormer++ task name, for example gen_t, gen_ts, gen_r, "
@@ -44,8 +54,8 @@ def main() -> None:
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     metadata = {
-        "dataset": args.dataset,
-        "task": args.task,
+        "dataset": layoutformerpp_dataset_slug(args.dataset),
+        "task": str(args.task),
         "seed": args.seed,
         "source": "vendor/ms-layout-generation/LayoutFormer++",
         "note": "Regenerate token/logit fixtures locally; do not commit generated tensors.",

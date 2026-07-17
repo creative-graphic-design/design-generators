@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Final, TypedDict
 
+from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common import ConditionType, DatasetName
 from transformers import PretrainedConfig
 
-from ._tasks import (
+from .tasks import (
     LayoutFormerPPTask,
     TASK_TO_CONDITION,
     layoutformerpp_dataset_slug,
@@ -108,8 +109,8 @@ class LayoutFormerPPConfig(PretrainedConfig):
         dataset: DatasetName | str = DatasetName.rico25,
         task: LayoutFormerPPTask | ConditionType | str = LayoutFormerPPTask.gen_t,
         max_num_elements: int = 20,
-        bbox_format: str = "ltwh",
-        default_box_format: str = "xywh",
+        bbox_format: BoxFormat | str = BoxFormat.ltwh,
+        default_box_format: BoxFormat | str = BoxFormat.xywh,
         discrete_x_grid: int = 128,
         discrete_y_grid: int = 128,
         add_sep_token: bool = True,
@@ -124,9 +125,26 @@ class LayoutFormerPPConfig(PretrainedConfig):
         gen_ts_add_unk_token: bool = False,
         gen_r_add_unk_token: bool = False,
         gen_r_compact: bool = False,
-        **kwargs: object,
+        bos_token_id: int = 0,
+        eos_token_id: int = 1,
+        pad_token_id: int = 2,
+        is_encoder_decoder: bool = True,
+        condition_type: ConditionType | str | None = None,
+        model_type: str | None = None,
+        transformers_version: str | None = None,
+        architectures: list[str] | None = None,
+        id2label: dict[int | str, str] | None = None,
+        label2id: dict[str, int] | None = None,
+        torch_dtype: str | None = None,
+        dtype: str | None = None,
+        tie_word_embeddings: bool = True,
+        task_specific_params: dict[str, object] | None = None,
+        name_or_path: str = "",
+        _commit_hash: str | None = None,
+        attn_implementation: str | None = None,
     ) -> None:
         """Initialize architecture and task-specific generation defaults."""
+        _ = (condition_type, model_type, transformers_version)
         normalized_dataset = normalize_layoutformerpp_dataset(dataset)
         normalized_task = normalize_layoutformerpp_task(task)
         condition_type = TASK_TO_CONDITION[normalized_task]
@@ -160,8 +178,8 @@ class LayoutFormerPPConfig(PretrainedConfig):
         )
         self.share_embedding = share_embedding
         self.max_num_elements = max_num_elements
-        self.bbox_format = bbox_format
-        self.default_box_format = default_box_format
+        self.bbox_format = str(normalize_box_format(bbox_format))
+        self.default_box_format = str(normalize_box_format(default_box_format))
         self.discrete_x_grid = discrete_x_grid
         self.discrete_y_grid = discrete_y_grid
         self.add_sep_token = add_sep_token
@@ -176,14 +194,30 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.gen_ts_add_unk_token = gen_ts_add_unk_token
         self.gen_r_add_unk_token = gen_r_add_unk_token
         self.gen_r_compact = gen_r_compact
-        kwargs.pop("is_encoder_decoder", None)
-        kwargs.pop("vocab_size", None)
         pretrained_kwargs: dict[str, object] = {
-            "bos_token_id": kwargs.pop("bos_token_id", 0),
-            "eos_token_id": kwargs.pop("eos_token_id", 1),
-            "pad_token_id": kwargs.pop("pad_token_id", 2),
-            "is_encoder_decoder": True,
+            "bos_token_id": bos_token_id,
+            "eos_token_id": eos_token_id,
+            "pad_token_id": pad_token_id,
+            "is_encoder_decoder": is_encoder_decoder,
             "vocab_size": vocab_size,
-            **kwargs,
+            "tie_word_embeddings": tie_word_embeddings,
         }
-        super().__init__(**pretrained_kwargs)  # type: ignore
+        optional_pretrained_kwargs: dict[str, object | None] = {
+            "architectures": architectures,
+            "id2label": id2label,
+            "label2id": label2id,
+            "torch_dtype": torch_dtype or dtype,
+            "task_specific_params": task_specific_params,
+            "name_or_path": name_or_path,
+            "_commit_hash": _commit_hash,
+            "attn_implementation": attn_implementation,
+        }
+        pretrained_kwargs.update(
+            {
+                key: value
+                for key, value in optional_pretrained_kwargs.items()
+                if value is not None
+            }
+        )
+        super_init = getattr(super(), "__init__")
+        super_init(**pretrained_kwargs)

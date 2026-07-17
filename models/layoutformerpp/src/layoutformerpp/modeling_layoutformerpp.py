@@ -12,10 +12,12 @@ import torch.nn.functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
+from .tasks import OutputType
 
 if TYPE_CHECKING:
     from .processing_layoutformerpp import LayoutFormerPPProcessor
@@ -168,7 +170,6 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         decoder_input_ids: torch.Tensor | None = None,
         task_ids: torch.Tensor | None = None,
         return_dict: bool | None = None,
-        **kwargs: object,
     ) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
         """Run teacher-forced LayoutFormer++ decoding."""
         if attention_mask is None:
@@ -282,8 +283,8 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         bbox: object = None,
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         num_elements: int | list[int] | None = None,
-        box_format: str = "xywh",
-        output_type: str = "dataclass",
+        box_format: BoxFormat | str = BoxFormat.xywh,
+        output_type: OutputType | str = OutputType.dataclass,
         max_length: int | None = None,
         do_sample: bool | None = None,
         top_k: int = 10,

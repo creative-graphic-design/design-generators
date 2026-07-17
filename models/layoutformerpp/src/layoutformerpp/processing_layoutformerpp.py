@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from os import PathLike
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal, assert_never, cast
 
 import torch
 from transformers import BatchEncoding, ProcessorMixin
@@ -19,7 +18,7 @@ from laygen.common.labels import DatasetName
 from laygen.common.labels import labels_for_dataset
 from laygen.common.outputs import LayoutGenerationOutput
 
-from ._tasks import (
+from .tasks import (
     OutputType,
     LayoutFormerPPTask,
     SUPPORTED_CONDITIONS,
@@ -39,6 +38,14 @@ from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
 DEFAULT_DATASET: Final[DatasetName] = DatasetName.rico25
 DEFAULT_TASK: Final[LayoutFormerPPTask] = LayoutFormerPPTask.gen_t
+SupportedConditionType = Literal[
+    ConditionType.unconditional,
+    ConditionType.label,
+    ConditionType.label_size,
+    ConditionType.relation,
+    ConditionType.completion,
+    ConditionType.refinement,
+]
 
 
 class LayoutFormerPPProcessor(ProcessorMixin):
@@ -56,7 +63,6 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         x_grid: int = 128,
         y_grid: int = 128,
         id2label: dict[int, str] | None = None,
-        **kwargs: object,
     ) -> None:
         """Initialize serializers, label maps, and tokenizer state."""
         self.tokenizer = tokenizer
@@ -68,7 +74,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self.x_grid = x_grid
         self.y_grid = y_grid
         labels = labels_for_dataset(normalized_dataset)
-        self.public_id2label = id2label or dict(enumerate(labels))
+        self.id2label = (
+            {int(key): str(value) for key, value in id2label.items()}
+            if id2label is not None
+            else dict(enumerate(labels))
+        )
+        self.public_id2label = dict(self.id2label)
         self.public_label2id = {
             value.lower(): key for key, value in self.public_id2label.items()
         }
@@ -84,93 +95,60 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self.gen_r_serializer = T5LayoutSequenceForGenR(
             self.internal_id2label, add_sep_token=add_sep_token
         )
-        super().__init__(tokenizer=tokenizer, **kwargs)
+        super().__init__(tokenizer=tokenizer)
 
     @classmethod
     def from_config(
         cls,
         dataset: DatasetName | str = DEFAULT_DATASET,
         task: LayoutFormerPPTask | ConditionType | str = DEFAULT_TASK,
-        **kwargs: object,
+        *,
+        add_sep_token: bool = True,
+        x_grid: int = 128,
+        y_grid: int = 128,
+        id2label: dict[int, str] | None = None,
     ) -> "LayoutFormerPPProcessor":
         """Construct processor and tokenizer without external files."""
         normalized_dataset = normalize_layoutformerpp_dataset(dataset)
         normalized_task = normalize_layoutformerpp_task(task)
-        x_grid_value = kwargs.get("x_grid", 128)
-        y_grid_value = kwargs.get("y_grid", 128)
-        add_sep_token_value = kwargs.get("add_sep_token", True)
-        id2label_value = kwargs.get("id2label")
-        if not isinstance(x_grid_value, int):
-            raise TypeError("x_grid must be an int")
-        if not isinstance(y_grid_value, int):
-            raise TypeError("y_grid must be an int")
-        if not isinstance(add_sep_token_value, bool):
-            raise TypeError("add_sep_token must be a bool")
-        if id2label_value is not None and not isinstance(id2label_value, dict):
-            raise TypeError("id2label must be a dict when provided")
         labels = labels_for_dataset(normalized_dataset)
-        tokens = build_default_tokens(labels, task=normalized_task, grid=x_grid_value)
+        tokens = build_default_tokens(labels, task=normalized_task, grid=x_grid)
         tokenizer = LayoutFormerPPTokenizer(tokens=tokens)
-        id2label: dict[int, str] | None = None
-        if id2label_value is not None:
-            id2label = {}
-            for key, value in id2label_value.items():
-                if not isinstance(key, int | str):
-                    raise TypeError("id2label keys must be int or str")
-                id2label[int(key)] = str(value)
         return cls(
             tokenizer=tokenizer,
             dataset=normalized_dataset,
             task=normalized_task,
-            add_sep_token=add_sep_token_value,
-            x_grid=x_grid_value,
-            y_grid=y_grid_value,
+            add_sep_token=add_sep_token,
+            x_grid=x_grid,
+            y_grid=y_grid,
             id2label=id2label,
         )
 
-    def save_pretrained(
-        self, save_directory: str | Path, push_to_hub: bool = False, **kwargs: object
-    ) -> None:
-        """Save processor metadata and tokenizer files."""
-        _ = (push_to_hub, kwargs)
-        out_dir = Path(save_directory)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        self.tokenizer.save_pretrained(out_dir)
-        config = {
-            "dataset": self.dataset,
-            "task": self.task,
-            "add_sep_token": self.add_sep_token,
-            "x_grid": self.x_grid,
-            "y_grid": self.y_grid,
-            "id2label": self.public_id2label,
-        }
-        with (out_dir / "processor_config.json").open("w") as f:
-            json.dump(config, f, indent=2, sort_keys=True)
-
     @classmethod
-    def from_pretrained(
+    def _load_tokenizer_from_pretrained(
         cls,
+        sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
-        cache_dir: str | PathLike[str] | None = None,
-        force_download: bool = False,
-        local_files_only: bool = False,
-        token: str | bool | None = None,
-        revision: str = "main",
+        subfolder: str = "",
         **kwargs: object,
-    ) -> "LayoutFormerPPProcessor":
-        """Load processor metadata and tokenizer files."""
-        _ = (cache_dir, force_download, local_files_only, token, revision)
+    ) -> LayoutFormerPPTokenizer:
+        """Load the local tokenizer for `ProcessorMixin.from_pretrained`."""
+        _ = sub_processor_type
         path = Path(pretrained_model_name_or_path)
-        with (path / "processor_config.json").open() as f:
-            config = json.load(f)
-        config["id2label"] = {int(k): v for k, v in config.get("id2label", {}).items()}
-        config.update(kwargs)
-        tokenizer = LayoutFormerPPTokenizer.from_pretrained(path)
-        return cls(tokenizer=tokenizer, **config)
+        tokenizer_path = path / subfolder if subfolder else path
+        token = kwargs.get("token")
+        return LayoutFormerPPTokenizer.from_pretrained(
+            tokenizer_path,
+            cache_dir=cast(str | PathLike[str] | None, kwargs.get("cache_dir")),
+            force_download=bool(kwargs.get("force_download", False)),
+            local_files_only=bool(kwargs.get("local_files_only", False)),
+            token=token if isinstance(token, str | bool) else None,
+            revision=str(kwargs.get("revision", "main")),
+        )
 
     def normalize_condition_type(
         self, condition_type: ConditionType | str
-    ) -> ConditionType:
+    ) -> SupportedConditionType:
         """Normalize public condition aliases."""
         try:
             condition = normalize_common_condition_type(condition_type)
@@ -178,7 +156,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             raise ValueError(f"Unsupported condition_type: {condition_type}") from exc
         if condition not in SUPPORTED_CONDITIONS:
             raise ValueError(f"Unsupported condition_type: {condition_type}")
-        return condition
+        return cast(SupportedConditionType, condition)
 
     def _label_to_internal_id(self, label: int | str) -> int:
         if isinstance(label, int):
@@ -218,8 +196,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         batch_size: int | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
-        return_tensors: str = "pt",
-        **kwargs: object,
+        return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
         """Build tokenized model inputs for a public condition."""
         condition = self.normalize_condition_type(condition_type)
@@ -251,7 +228,11 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                         internal_labels[idx], item_relations
                     )
                 )
-            elif condition in {ConditionType.completion, ConditionType.refinement}:
+            elif condition is ConditionType.completion:
+                texts.append(
+                    self.serializer.build_seq(internal_labels[idx], internal_bbox[idx])
+                )
+            elif condition is ConditionType.refinement:
                 texts.append(
                     self.serializer.build_seq(internal_labels[idx], internal_bbox[idx])
                 )
@@ -268,7 +249,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         *,
         box_format: BoxFormat | str = BoxFormat.xywh,
         output_type: OutputType | str = OutputType.dataclass,
-        return_tensors: str = "pt",
+        return_tensors: Literal["pt"] = "pt",
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Parse generated token ids to the common layout output schema."""
         texts = self.tokenizer.batch_decode(sequences, skip_special_tokens=True)
@@ -330,7 +311,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         if normalized_output_type is OutputType.dict:
             return dict(output)
         if normalized_output_type is not OutputType.dataclass:
-            raise ValueError(f"Unsupported output_type: {output_type}")
+            assert_never(normalized_output_type)
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
         return output

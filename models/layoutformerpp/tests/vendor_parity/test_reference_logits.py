@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import importlib
 import sys
 import types
 from dataclasses import dataclass
@@ -76,11 +77,20 @@ def _case_paths(repo_root: Path, case: ParityCase) -> tuple[Path, Path, Path | N
 
 
 def _vendor_modules(vendor_src: Path):
-    sys.path.insert(0, str(vendor_src))
-    from model.layout_transformer.model import LayoutTransformer
-    from model.layout_transformer.tokenizer import LayoutTransformerTokenizer
+    _install_vendor_packages(vendor_src)
+    model_module = importlib.import_module("model.layout_transformer.model")
+    tokenizer_module = importlib.import_module("model.layout_transformer.tokenizer")
 
-    return LayoutTransformer, LayoutTransformerTokenizer
+    return model_module.LayoutTransformer, tokenizer_module.LayoutTransformerTokenizer
+
+
+def _install_vendor_packages(vendor_src: Path) -> None:
+    model_package = types.ModuleType("model")
+    setattr(model_package, "__path__", [str(vendor_src / "model")])
+    layout_package = types.ModuleType("model.layout_transformer")
+    setattr(layout_package, "__path__", [str(vendor_src / "model/layout_transformer")])
+    sys.modules.setdefault("model", model_package)
+    sys.modules.setdefault("model.layout_transformer", layout_package)
 
 
 def _tokenizers(case: ParityCase, vocab: Path | None, vendor_tokenizer_class):
@@ -136,10 +146,20 @@ def _index2label(case: ParityCase) -> dict[int, str]:
 
 
 def _label_constraint(case: ParityCase, vendor_src: Path, vendor_tokenizer):
-    sys.path.insert(0, str(vendor_src))
+    _install_vendor_packages(vendor_src)
     if "seaborn" not in sys.modules:
         seaborn_stub = types.ModuleType("seaborn")
-        setattr(seaborn_stub, "color_palette", lambda *args, **kwargs: [])
+
+        def _empty_color_palette(
+            palette: object = None,
+            n_colors: int | None = None,
+            desat: float | None = None,
+            as_cmap: bool = False,
+        ) -> list[object]:
+            _ = (palette, n_colors, desat, as_cmap)
+            return []
+
+        setattr(seaborn_stub, "color_palette", _empty_color_palette)
         sys.modules["seaborn"] = seaborn_stub
     if "pycocotools.coco" not in sys.modules:
         pycocotools_stub = types.ModuleType("pycocotools")
@@ -147,9 +167,14 @@ def _label_constraint(case: ParityCase, vendor_src: Path, vendor_tokenizer):
         setattr(coco_stub, "COCO", object)
         sys.modules["pycocotools"] = pycocotools_stub
         sys.modules["pycocotools.coco"] = coco_stub
-    from model.layout_transformer.constrained_decoding import (
-        TransformerSortByDictLabelConstraint,
-        TransformerSortByDictLabelSizeConstraint,
+    constraints = importlib.import_module(
+        "model.layout_transformer.constrained_decoding"
+    )
+    TransformerSortByDictLabelConstraint = (
+        constraints.TransformerSortByDictLabelConstraint
+    )
+    TransformerSortByDictLabelSizeConstraint = (
+        constraints.TransformerSortByDictLabelSizeConstraint
     )
 
     index2label = _index2label(case)
