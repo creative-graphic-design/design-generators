@@ -29,13 +29,13 @@ repos:
 
       - id: ty
         name: ty
-        entry: uv run ty check tests lib models
+        entry: uv run --package design-generators ty check . --exclude vendor/
         language: system
         pass_filenames: false
 
       - id: vulture
         name: vulture
-        entry: uv run vulture
+        entry: uv run --package design-generators vulture
         language: system
         pass_filenames: false
 
