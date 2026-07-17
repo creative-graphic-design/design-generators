@@ -18,6 +18,7 @@ dependencies = [
     "lace",
     "layoutganpp",
     "layout-dm",
+    "layoutprompter",
     "laygen",
     "posgen",
     "transformers[torch,vision]>=5.0.0",
@@ -64,6 +65,7 @@ layout-gpt = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
+layoutprompter = { workspace = true }
 laygen = { workspace = true }
 posgen = { workspace = true }
 
@@ -100,7 +102,7 @@ unresolved-import = "ignore"
 exclude = ["vendor"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "lib", "models"]
+testpaths = ["lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",

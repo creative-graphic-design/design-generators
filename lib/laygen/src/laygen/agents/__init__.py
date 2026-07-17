@@ -7,6 +7,8 @@ usable without that extra.
 
 from .core import (
     BaseLayoutAgent,
+    BaseExemplarSelector,
+    BaseResponseParser,
     ExemplarSelector,
     LayoutItem2DLike,
     ModelLike,
@@ -18,6 +20,8 @@ from .core import (
 
 __all__ = [
     "BaseLayoutAgent",
+    "BaseExemplarSelector",
+    "BaseResponseParser",
     "ExemplarSelector",
     "LayoutItem2DLike",
     "ModelLike",

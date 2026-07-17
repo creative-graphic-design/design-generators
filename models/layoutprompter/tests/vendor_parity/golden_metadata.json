@@ -1,0 +1,9 @@
+{
+  "dataset": "webui",
+  "generated_by": "scripts/generate_vendor_golden.py",
+  "golden_policy": "Golden prompt/selection/parser outputs are regenerated from vendor code during parity tests and are not committed.",
+  "input_format": "seq",
+  "output_format": "seq",
+  "source": "vendor/ms-layout-generation/LayoutPrompter",
+  "task": "gent"
+}
