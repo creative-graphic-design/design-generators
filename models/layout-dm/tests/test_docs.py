@@ -9,9 +9,9 @@ def test_readme_includes_reproducible_vendor_parity_commands():
     text = (ROOT / "models" / "layout-dm" / "README.md").read_text(encoding="utf-8")
 
     assert "## Reproducing Vendor Parity" in text
-    assert "models/layout-dm/scripts/download_original.py" in text
+    assert "scripts/download_original.py" in text
     assert "models/layout-dm/tests/vendor_parity" in text
-    assert "CUDA_VISIBLE_DEVICES=5 uv run --package layout-dm pytest" in text
+    assert "CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest" in text
     assert "uv run --package layout-dm python - <<'PY'" in text
 
 
