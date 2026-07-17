@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from huggingface_hub import ModelCard, ModelCardData
+
+from .labels import DatasetName
+from .serialization import sanitize_for_yaml
 
 
 @dataclass(frozen=True)
@@ -76,12 +80,12 @@ def build_layout_model_card(
         'diffusers'
     """
     card_data = ModelCardData(
-        model_name=model_name,
-        license=license,
-        library_name=library_name,
-        pipeline_tag=pipeline_tag,
-        tags=list(tags),
-        datasets=list(dataset_ids),
+        model_name=cast(str, sanitize_for_yaml(model_name)),
+        license=cast(str, sanitize_for_yaml(license)),
+        library_name=cast(str, sanitize_for_yaml(library_name)),
+        pipeline_tag=cast(str, sanitize_for_yaml(pipeline_tag)),
+        tags=cast(list[str], sanitize_for_yaml(list(tags))),
+        datasets=cast(list[str], sanitize_for_yaml(list(dataset_ids))),
         language=["en"],
     )
     parity_table = _parity_table(parity_metrics)
@@ -238,7 +242,7 @@ def build_layout_model_card(
 
 def layoutdm_model_card(
     *,
-    dataset: str,
+    dataset: DatasetName | str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the LayoutDM model card for a converted checkpoint.
@@ -315,7 +319,7 @@ print(out.bbox, out.labels, out.mask)
     )
 
 
-def _layoutdm_dataset_id(dataset: str) -> str:
+def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":

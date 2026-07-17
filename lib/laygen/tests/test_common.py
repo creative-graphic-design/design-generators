@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pytest
 import torch
+import yaml
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import (
@@ -40,6 +41,7 @@ from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
 from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.serialization import sanitize_for_yaml
 from laygen.common.testing import (
     assert_generator_reproducible,
     assert_layout_output_schema,
@@ -194,6 +196,24 @@ def test_condition_type_aliases_and_errors():
     assert normalize_condition_type("retrieval_examples") is ConditionType.retrieval
     with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
+
+
+def test_yaml_sanitizer_handles_shared_enums():
+    config = {
+        "dataset_name": DatasetName.rico25,
+        "condition_type": ConditionType.label,
+        "nested": {
+            DatasetName.publaynet: [ConditionType.retrieval, DatasetName.rico13]
+        },
+    }
+
+    loaded = yaml.safe_load(yaml.safe_dump(sanitize_for_yaml(config)))
+
+    assert loaded == {
+        "dataset_name": "rico25",
+        "condition_type": "label",
+        "nested": {"publaynet": ["retrieval", "rico13"]},
+    }
 
 
 def test_output_schema():
