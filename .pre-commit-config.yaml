@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: pytest-models
         name: pytest models
-        entry: uv run pytest models/
+        entry: bash -c 'uv run --package layout-generation-common pytest && uv run --package layout-dm pytest && uv run --package const-layout pytest'
         language: system
         pass_filenames: false
 
