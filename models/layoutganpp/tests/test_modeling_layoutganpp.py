@@ -1,8 +1,16 @@
 import torch
 import pytest
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.testing import assert_layout_output_schema
-from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
+from layoutganpp import (
+    ConditionType,
+    LayoutGANPPConfig,
+    LayoutGANPPModel,
+    OutputType,
+    normalize_condition_type,
+    normalize_output_type,
+)
 
 
 def make_model() -> LayoutGANPPModel:
@@ -24,6 +32,8 @@ def test_forward_bbox_range_and_shape():
     assert out.bbox.shape == (1, 3, 4)
     assert torch.all((0 <= out.bbox) & (out.bbox <= 1))
     assert torch.equal(out.mask, torch.ones(1, 3, dtype=torch.bool))
+    tuple_out = model(latents=latents, labels=labels, return_dict=False)
+    assert tuple_out[0].shape == (1, 3, 4)
 
 
 def test_attention_mask_and_padding_mask_are_equivalent():
@@ -59,6 +69,37 @@ def test_invalid_inputs_raise():
     with pytest.raises(ValueError, match="labels are required"):
         model.generate()
     with pytest.raises(ValueError, match="unconditional"):
-        model.generate(labels=torch.tensor([[0]]), condition_type="unconditional")
+        model.generate(
+            labels=torch.tensor([[0]]), condition_type=ConditionType.unconditional
+        )
     with pytest.raises(ValueError, match="outside"):
         model.generate(labels=torch.tensor([[999]]), latents=torch.zeros(1, 1, 4))
+    with pytest.raises(ValueError, match="shape"):
+        model(latents=torch.zeros(1, 1, 4), labels=torch.tensor([0]))
+    with pytest.raises(ValueError, match="shape"):
+        model(latents=torch.zeros(1, 1, 4), labels=torch.tensor([[0, 1]]))
+    with pytest.raises(ValueError, match="last dimension"):
+        model(latents=torch.zeros(1, 1, 2), labels=torch.tensor([[0]]))
+    with pytest.raises(ValueError, match="Unsupported generation kwargs"):
+        model.generate(labels=torch.tensor([[0]]), unsupported=True)
+    with pytest.raises(ValueError, match="Unsupported condition_type"):
+        normalize_condition_type("unknown")
+    with pytest.raises(ValueError, match="Unsupported output_type"):
+        normalize_output_type("unknown")
+
+
+def test_generate_enums_masks_and_dict_output():
+    model = make_model()
+    labels = torch.tensor([0, 1])
+    latents = torch.zeros(1, 2, model.config.latent_size)
+    out = model.generate(
+        labels=labels,
+        attention_mask=torch.tensor([True, False]),
+        box_format=BoxFormat.xywh,
+        output_type=OutputType.dict,
+        return_intermediates=True,
+        latents=latents,
+    )
+    assert out["bbox"].shape == (1, 2, 4)
+    assert out["mask"].tolist() == [[True, False]]
+    assert out["intermediates"]["condition_type"] == ConditionType.label

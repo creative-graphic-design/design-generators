@@ -1,10 +1,13 @@
 import torch
+import pytest
 
 from laygen.common.testing import assert_layout_output_schema
 from layoutganpp import (
+    ConditionType,
     LayoutGANPPConfig,
     LayoutGANPPModel,
     LayoutGANPPPipeline,
+    OutputType,
 )
 
 
@@ -24,6 +27,34 @@ def test_pipeline_contract_and_save_load(tmp_path):
     loaded_pipeline = LayoutGANPPPipeline.from_pretrained(str(tmp_path))
     loaded = loaded_pipeline(labels=[["text", "figure"]], seed=0)
     assert loaded.bbox.shape == out.bbox.shape
+
+
+def test_pipeline_preprocess_forward_postprocess_and_tensor_call():
+    model = LayoutGANPPModel(
+        LayoutGANPPConfig(
+            dataset_name="publaynet",
+            latent_size=4,
+            d_model=16,
+            nhead=4,
+            num_layers=1,
+        )
+    ).eval()
+    pipeline = LayoutGANPPPipeline(model)
+    encoded = pipeline.preprocess(["text"], seed=0, output_type=OutputType.dict)
+    assert encoded["labels"].shape == (1, 1)
+    forwarded = pipeline._forward(dict(encoded))
+    assert forwarded["bbox"].shape == (1, 1, 4)
+    assert pipeline.postprocess(forwarded, ignored=True) is forwarded
+    out = pipeline(
+        labels=torch.tensor([0, 1]),
+        mask=torch.tensor([True, False]),
+        condition_type=ConditionType.label,
+    )
+    assert out.mask.tolist() == [[True, False]]
+    with pytest.raises(ValueError, match="labels are required"):
+        pipeline.preprocess()
+    with pytest.raises(ValueError, match="labels are required"):
+        pipeline()
 
 
 def test_generator_wins_over_seed():

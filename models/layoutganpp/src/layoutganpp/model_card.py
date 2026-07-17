@@ -3,37 +3,38 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 from huggingface_hub import ModelCard
 from laygen.common.model_card import build_layout_model_card
 
-from .datasets import normalize_dataset_name
+from .datasets import DatasetName, normalize_dataset_name
 
 
-_DATASET_IDS = {
-    "rico": "creative-graphic-design/rico",
-    "publaynet": "creative-graphic-design/publaynet",
-    "magazine": "creative-graphic-design/magazine",
+_DATASET_IDS: Final[dict[DatasetName, str]] = {
+    DatasetName.rico: "creative-graphic-design/rico",
+    DatasetName.publaynet: "creative-graphic-design/publaynet",
+    DatasetName.magazine: "creative-graphic-design/magazine",
 }
 
-_CHECKPOINT_IDS = {
+_CHECKPOINT_IDS: Final[dict[DatasetName, str]] = {
     dataset: f"creative-graphic-design/layoutganpp-{dataset}"
     for dataset in _DATASET_IDS
 }
 
-_EXAMPLE_LABELS = {
-    "rico": '[["Toolbar", "Image"]]',
-    "publaynet": '[["text", "figure"]]',
-    "magazine": '[["text", "image"]]',
+_EXAMPLE_LABELS: Final[dict[DatasetName, str]] = {
+    DatasetName.rico: '[["Toolbar", "Image"]]',
+    DatasetName.publaynet: '[["text", "figure"]]',
+    DatasetName.magazine: '[["text", "image"]]',
 }
 
-_PARITY_METRICS = {
-    "rico": {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
-    "publaynet": {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
-    "magazine": {"shape": "(3, 33, 4)", "smoke_shape": "(1, 2, 4)"},
+_PARITY_METRICS: Final[dict[DatasetName, dict[str, str]]] = {
+    DatasetName.rico: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
+    DatasetName.publaynet: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
+    DatasetName.magazine: {"shape": "(3, 33, 4)", "smoke_shape": "(1, 2, 4)"},
 }
 
-_BIBTEX = r"""
+_BIBTEX: Final[str] = r"""
 @inproceedings{Kikuchi2021,
     title = {Constrained Graphic Layout Generation via Latent Optimization},
     author = {Kotaro Kikuchi and Edgar Simo-Serra and Mayu Otani and Kota Yamaguchi},
@@ -46,7 +47,7 @@ _BIBTEX = r"""
 """
 
 
-def layoutganpp_model_card(dataset: str) -> ModelCard:
+def layoutganpp_model_card(dataset: DatasetName | str) -> ModelCard:
     """Build a Hugging Face model card for a LayoutGAN++ dataset.
 
     Args:
@@ -64,6 +65,7 @@ def layoutganpp_model_card(dataset: str) -> ModelCard:
         True
     """
     dataset_name = normalize_dataset_name(dataset)
+    dataset_key = str(dataset_name)
     model_id = _CHECKPOINT_IDS[dataset_name]
     metrics = _PARITY_METRICS[dataset_name]
     how_to_use = f"""
@@ -75,7 +77,7 @@ print(out.bbox, out.labels, out.mask)
 """
     return build_layout_model_card(
         model_id=model_id,
-        model_name=f"LayoutGAN++ {dataset_name}",
+        model_name=f"LayoutGAN++ {dataset_key}",
         dataset_ids=[_DATASET_IDS[dataset_name]],
         license="agpl-3.0",
         library_name="transformers",
@@ -85,12 +87,12 @@ print(out.bbox, out.labels, out.mask)
             "layoutganpp",
             "layoutgan++",
             "transformers",
-            dataset_name,
+            dataset_key,
         ],
         model_details=(
             "Transformers-style conversion of the LayoutGAN++ generator from "
             "`Constrained Graphic Layout Generation via Latent Optimization` "
-            f"for `{dataset_name}`. The model generates normalized center `xywh` "
+            f"for `{dataset_key}`. The model generates normalized center `xywh` "
             "layout boxes from category-label conditions. Vendor parity compares "
             f"bbox tensors with shape {metrics['shape']} and observed max_abs=0 "
             "and max_rel=0 against local const-layout fixtures."
@@ -112,7 +114,7 @@ print(out.bbox, out.labels, out.mask)
         ),
         parity_metrics=[
             {
-                "dataset": dataset_name,
+                "dataset": dataset_key,
                 "tokenizer_exact": "n/a",
                 "deterministic_exact": "bbox exact",
                 "logits_max_abs": 0.0,
@@ -124,7 +126,7 @@ print(out.bbox, out.labels, out.mask)
     )
 
 
-def write_layoutganpp_model_card(output_dir: Path, dataset: str) -> Path:
+def write_layoutganpp_model_card(output_dir: Path, dataset: DatasetName | str) -> Path:
     """Write a LayoutGAN++ model card to an output directory.
 
     Args:

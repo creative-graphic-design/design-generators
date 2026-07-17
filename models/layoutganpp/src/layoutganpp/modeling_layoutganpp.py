@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import StrEnum, auto
+from typing import Final, assert_never
 
 import torch
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
+from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutganpp import LayoutGANPPConfig
@@ -37,14 +39,28 @@ class LayoutGANPPModelOutput(ModelOutput):
     latents: torch.FloatTensor | None = None
 
 
-_CONDITION_ALIASES = {
-    "label": "label",
-    "c": "label",
-    "cat_cond": "label",
+class ConditionType(StrEnum):
+    """Supported LayoutGAN++ generation condition modes."""
+
+    label = auto()
+    unconditional = auto()
+
+
+class OutputType(StrEnum):
+    """Supported LayoutGAN++ generation output formats."""
+
+    dataclass = auto()
+    dict = auto()
+
+
+_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
+    "label": ConditionType.label,
+    "c": ConditionType.label,
+    "cat_cond": ConditionType.label,
 }
 
 
-def normalize_condition_type(condition_type: str) -> str:
+def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
     """Normalize a LayoutGAN++ generation condition type.
 
     Args:
@@ -57,12 +73,14 @@ def normalize_condition_type(condition_type: str) -> str:
         ValueError: If the condition type is unsupported.
 
     Examples:
-        >>> normalize_condition_type("cat-cond")
+        >>> str(normalize_condition_type("cat-cond"))
         'label'
     """
+    if isinstance(condition_type, ConditionType):
+        return condition_type
     key = condition_type.lower().replace("-", "_")
     if key == "unconditional":
-        return "unconditional"
+        return ConditionType.unconditional
     try:
         return _CONDITION_ALIASES[key]
     except KeyError as exc:
@@ -70,6 +88,30 @@ def normalize_condition_type(condition_type: str) -> str:
         raise ValueError(
             f"Unsupported condition_type={condition_type}; {supported=}"
         ) from exc
+
+
+def normalize_output_type(output_type: OutputType | str) -> OutputType:
+    """Normalize a public output type value.
+
+    Args:
+        output_type: Output type enum or string.
+
+    Returns:
+        Normalized output type enum.
+
+    Raises:
+        ValueError: If `output_type` is unsupported.
+
+    Examples:
+        >>> str(normalize_output_type("dict"))
+        'dict'
+    """
+    if isinstance(output_type, OutputType):
+        return output_type
+    try:
+        return OutputType(output_type)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported output_type: {output_type}") from exc
 
 
 class LayoutGANPPModel(PreTrainedModel):
@@ -194,19 +236,19 @@ class LayoutGANPPModel(PreTrainedModel):
         self,
         *,
         batch_size: int = 1,
-        condition_type: str = "label",
+        condition_type: ConditionType | str = ConditionType.label,
         bbox: torch.FloatTensor | None = None,
         labels: torch.LongTensor | None = None,
         mask: torch.BoolTensor | None = None,
         attention_mask: torch.BoolTensor | None = None,
         num_elements: int | list[int] | torch.LongTensor | None = None,
-        box_format: str = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         num_inference_steps: int | None = None,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: torch.FloatTensor | None = None,
         **model_kwargs: object,
@@ -245,12 +287,13 @@ class LayoutGANPPModel(PreTrainedModel):
             >>> tuple(out.bbox.shape)
             (1, 2, 4)
         """
-        del bbox, num_elements, box_format, normalized, canvas_size, num_inference_steps
+        del bbox, num_elements, normalized, canvas_size, num_inference_steps
+        normalize_box_format(box_format)
         if model_kwargs:
             unknown = ", ".join(sorted(model_kwargs))
             raise ValueError(f"Unsupported generation kwargs: {unknown}")
         canonical = normalize_condition_type(condition_type)
-        if canonical == "unconditional":
+        if canonical is ConditionType.unconditional:
             raise ValueError(
                 "layoutganpp v1 requires labels; unconditional is unsupported"
             )
@@ -300,11 +343,12 @@ class LayoutGANPPModel(PreTrainedModel):
             if return_intermediates
             else None,
         )
-        if output_type == "dict":
+        resolved_output_type = normalize_output_type(output_type)
+        if resolved_output_type is OutputType.dict:
             return dict(layout)
-        if output_type != "dataclass":
-            raise ValueError(f"Unsupported output_type: {output_type}")
-        return layout
+        if resolved_output_type is OutputType.dataclass:
+            return layout
+        assert_never(resolved_output_type)
 
     def _sample_latents(
         self,

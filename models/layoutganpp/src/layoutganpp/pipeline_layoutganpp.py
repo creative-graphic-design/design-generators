@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 import torch
 from transformers import Pipeline
 from transformers.tokenization_utils_base import BatchEncoding
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.outputs import LayoutGenerationOutput
 
-from .modeling_layoutganpp import LayoutGANPPModel
+from .modeling_layoutganpp import ConditionType, LayoutGANPPModel, OutputType
 from .processing_layoutganpp import LayoutGANPPProcessor
 
 
@@ -128,18 +127,18 @@ class LayoutGANPPPipeline(Pipeline):
         | None = None,
         *,
         batch_size: int = 1,
-        condition_type: str = "label",
+        condition_type: ConditionType | str = ConditionType.label,
         bbox: torch.FloatTensor | None = None,
         mask: torch.BoolTensor | None = None,
         attention_mask: torch.BoolTensor | None = None,
         num_elements: int | list[int] | torch.LongTensor | None = None,
-        box_format: str = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         num_inference_steps: int | None = None,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: torch.FloatTensor | None = None,
         **model_kwargs: object,

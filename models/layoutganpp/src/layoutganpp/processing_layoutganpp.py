@@ -7,7 +7,7 @@ from typing import Literal
 import torch
 from transformers.tokenization_utils_base import BatchEncoding
 
-from .datasets import id2label_for_dataset, normalize_dataset_name
+from .datasets import DatasetName, id2label_for_dataset, normalize_dataset_name
 
 
 class LayoutGANPPProcessor:
@@ -27,7 +27,7 @@ class LayoutGANPPProcessor:
 
     def __init__(
         self,
-        dataset_name: str = "rico",
+        dataset_name: DatasetName | str = DatasetName.rico,
         id2label: dict[int | str, str] | None = None,
     ) -> None:
         """Initialize a LayoutGAN++ processor.
@@ -43,7 +43,7 @@ class LayoutGANPPProcessor:
             >>> LayoutGANPPProcessor("publaynet").id2label[0]
             'text'
         """
-        self.dataset_name = normalize_dataset_name(dataset_name)
+        self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or id2label_for_dataset(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
         self.label2id = {v: k for k, v in self.id2label.items()}
@@ -218,7 +218,7 @@ class LayoutGANPPProcessor:
             raise ValueError(f"Unknown label: {label}") from exc
 
 
-def processor_for_dataset(dataset_name: str) -> LayoutGANPPProcessor:
+def processor_for_dataset(dataset_name: DatasetName | str) -> LayoutGANPPProcessor:
     """Create a processor with the default labels for a dataset.
 
     Args:

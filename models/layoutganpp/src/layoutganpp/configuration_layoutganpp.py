@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from transformers import PretrainedConfig
 
-from .datasets import dataset_metadata, id2label_for_dataset
+from laygen.common.bbox import BoxFormat, normalize_box_format
+
+from .datasets import DatasetName, dataset_metadata, id2label_for_dataset
 
 
 class LayoutGANPPConfig(PretrainedConfig):
@@ -34,7 +36,7 @@ class LayoutGANPPConfig(PretrainedConfig):
 
     def __init__(
         self,
-        dataset_name: str = "rico",
+        dataset_name: DatasetName | str = DatasetName.rico,
         latent_size: int = 4,
         num_labels: int | None = None,
         id2label: dict[int | str, str] | None = None,
@@ -42,7 +44,7 @@ class LayoutGANPPConfig(PretrainedConfig):
         d_model: int = 512,
         nhead: int = 8,
         num_layers: int = 4,
-        bbox_format: str = "xywh",
+        bbox_format: BoxFormat | str = BoxFormat.xywh,
         bbox_normalized: bool = True,
         max_position_embeddings: int | None = None,
         **kwargs: object,
@@ -82,15 +84,15 @@ class LayoutGANPPConfig(PretrainedConfig):
             label2id=normalized_label2id,
             **kwargs,
         )
-        self.dataset_name = metadata["name"]
+        self.dataset_name = str(metadata["name"])
         self.latent_size = latent_size
         self.num_labels = resolved_num_labels
         self.d_model = d_model
         self.nhead = nhead
         self.num_layers = num_layers
-        self.bbox_format = bbox_format
+        self.bbox_format = str(normalize_box_format(bbox_format))
         self.bbox_normalized = bbox_normalized
-        self.max_position_embeddings = max_position_embeddings or int(
-            metadata["max_elements"]
+        self.max_position_embeddings = (
+            max_position_embeddings or metadata["max_elements"]
         )
         self.architectures = ["LayoutGANPPModel"]

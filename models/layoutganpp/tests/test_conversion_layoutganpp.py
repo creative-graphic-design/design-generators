@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from layoutganpp.conversion import config_from_checkpoint_args
 from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
 
@@ -18,6 +20,21 @@ def test_config_from_checkpoint_args():
     assert config.num_labels == 5
     assert config.max_position_embeddings == 9
     assert config.d_model == 256
+
+
+def test_config_from_checkpoint_mapping_and_bad_args():
+    config = config_from_checkpoint_args(
+        {
+            "dataset": "rico",
+            "latent_size": "4",
+            "G_d_model": "128",
+            "G_nhead": "4",
+            "G_num_layers": "2",
+        }
+    )
+    assert config.dataset_name == "rico"
+    with pytest.raises(TypeError):
+        config_from_checkpoint_args(object())
 
 
 def test_state_dict_uses_vendor_generator_keys():
