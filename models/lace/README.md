@@ -65,7 +65,7 @@ max-25 layout sequences.
 | Rico13 | `creative-graphic-design/rico13` |
 | Rico25 | `creative-graphic-design/rico25` |
 
-## Vendor Parity
+## Parity Results
 
 Local parity tests use `vendor/lace/util/backbone.py` and the original
 checkpoints from `puar-playground/LACE`.
@@ -80,7 +80,9 @@ is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied,
 because the public `model.tar.gz` archive contains only `publaynet_best.pt` and
 `rico25_best.pt`.
 
-## Reproducing Vendor Parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Run the following commands from the repository root. They keep downloaded
 weights under `.cache/lace/original`, local reference metadata under
@@ -127,7 +129,7 @@ Generated metadata:
 .cache/lace/reference/rico25/metadata.json
 ```
 
-3. Run the vendor parity tests:
+3. Run the parity tests:
 
 ```bash
 CUDA_VISIBLE_DEVICES=2 uv run --package lace pytest \
