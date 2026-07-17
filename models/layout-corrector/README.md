@@ -81,7 +81,7 @@ Local parity compares the converted `LayoutCorrectorModel` against the original 
 
 ## Reproducing Vendor Parity
 
-Prerequisites: run from the repository root, keep `vendor/` read-only, and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed.
+Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed.
 
 1. Download the original starter kit. This creates `.cache/layout-corrector/original/layout_corrector_starter.zip` and extracts `.cache/layout-corrector/original/layout_corrector_starter_kit/download`.
 
@@ -126,7 +126,7 @@ CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector pytest \
   -q -m vendor_parity -s
 ```
 
-5. Convert a Layout-Corrector checkpoint and confirm the generated `save_pretrained` directory includes a Hub-style `README.md` model card.
+5. Convert a Layout-Corrector checkpoint and run a `from_pretrained` smoke test.
 
 ```bash
 uv run --package layout-corrector python models/layout-corrector/scripts/convert_original_checkpoint.py \
@@ -149,7 +149,7 @@ PY
 
 ## Model Cards
 
-`models/layout-corrector/scripts/convert_original_checkpoint.py` writes a Hub-style `README.md` model card into each `save_pretrained` output. Cards are generated through `laygen.common.model_card.layout_corrector_model_card()`, which uses `huggingface_hub.ModelCard.from_template()` with the official annotated-card section structure and validates metadata with `ModelCard.validate()`.
+Converted checkpoint directories include a model card as `README.md`.
 
 ## Vendor Links
 
