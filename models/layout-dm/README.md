@@ -79,10 +79,8 @@ Run these commands from the repository root unless a block explicitly changes di
 This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
 
 ```bash
-cd models/layout-dm
-uv run --package layout-dm python scripts/download_original.py \
-  --output-dir ../../.cache/layout-dm/original
-cd ../..
+uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+  --output-dir .cache/layout-dm/original
 ```
 
 ### 2. Generate Golden Reference Tensors
@@ -95,23 +93,21 @@ This writes local-only parity fixtures for each dataset:
 - `models/layout-dm/tests/vendor_parity/fixtures/<dataset>/meta.json`
 
 ```bash
-cd models/layout-dm
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset rico25 \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir tests/vendor_parity/fixtures/rico25 \
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir models/layout-dm/tests/vendor_parity/fixtures/rico25 \
   --sampling deterministic \
   --seed 0 \
   --batch-size 1
 
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset publaynet \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir tests/vendor_parity/fixtures/publaynet \
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir models/layout-dm/tests/vendor_parity/fixtures/publaynet \
   --sampling deterministic \
   --seed 0 \
   --batch-size 1
-cd ../..
 ```
 
 ### 3. Run Vendor Parity Tests
@@ -138,17 +134,15 @@ Expected local output roots:
 ```
 
 ```bash
-cd models/layout-dm
-uv run --package layout-dm --extra convert python scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir ../../.cache/layout-dm/converted/layoutdm-rico25
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir .cache/layout-dm/converted/layoutdm-rico25
 
-uv run --package layout-dm --extra convert python scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir ../../.cache/layout-dm/converted/layoutdm-publaynet
-cd ../..
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir .cache/layout-dm/converted/layoutdm-publaynet
 ```
 
 Smoke test both converted checkpoints:
@@ -171,7 +165,7 @@ PY
 
 ## Model Cards
 
-Converted checkpoint directories include a model card as `README.md`.
+Each converted checkpoint directory includes a model card as `README.md`.
 
 ## Vendor Links
 

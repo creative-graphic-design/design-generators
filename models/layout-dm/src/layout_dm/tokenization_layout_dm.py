@@ -16,7 +16,28 @@ KEY_MULT_DICT = {
 
 
 class LayoutDMTokenizer(PreTrainedTokenizer):
-    """Structured LayoutDM tokenizer backed by a Transformers vocabulary."""
+    """Structured LayoutDM tokenizer backed by a Transformers vocabulary.
+
+    Args:
+        config: LayoutDM config object or config dictionary.
+        vocab_file: Optional saved vocabulary file.
+        layout_config_file: Optional saved layout config file.
+        cluster_centers_file: Optional saved cluster-center file.
+        **kwargs: Additional `PreTrainedTokenizer` keyword arguments.
+
+    Returns:
+        A tokenizer that encodes layout boxes and labels as LayoutDM token ids.
+
+    Raises:
+        NotImplementedError: If the config uses an unsupported token order.
+        ValueError: If the mask token is not the final special token.
+
+    Examples:
+        >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+        >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+        >>> tokenizer.vocab_size > 0
+        True
+    """
 
     vocab_files_names = {
         "vocab_file": "vocab.json",
@@ -79,6 +100,27 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return tuple(self.config.var_order.split("-"))
 
     def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
+        """Encode structured layout inputs through tokenizer call syntax.
+
+        Args:
+            *args: Positional arguments are not supported.
+            **kwargs: Must include `bbox` and `labels`; may include `mask`.
+
+        Returns:
+            Dictionary with `input_ids`, `attention_mask`, and `mask`.
+
+        Raises:
+            TypeError: If text-style positional inputs are used or required layout
+                fields are missing.
+
+        Examples:
+            >>> import torch
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer(bbox=torch.zeros(1, 1, 4), labels=torch.zeros(1, 1, dtype=torch.long))["input_ids"].shape
+            torch.Size([1, 125])
+        """
+
         if args:
             raise TypeError(
                 "LayoutDMTokenizer expects structured layout inputs; use "
@@ -95,6 +137,24 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         )
 
     def get_vocab(self) -> dict[str, int]:
+        """Return the tokenizer vocabulary.
+
+        Args:
+            None.
+
+        Returns:
+            Mapping from token string to token id.
+
+        Raises:
+            ValueError: This function does not raise.
+
+        Examples:
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> "pad" in tokenizer.get_vocab()
+            True
+        """
+
         return dict(self._token_to_id)
 
     def _tokenize(self, text: str, **kwargs: object) -> list[str]:
@@ -107,11 +167,50 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return self._id_to_token.get(int(index), self.pad_token)
 
     def convert_tokens_to_string(self, tokens: list[str]) -> str:
+        """Join layout token strings for tokenizer compatibility.
+
+        Args:
+            tokens: Token strings.
+
+        Returns:
+            Space-separated token string.
+
+        Raises:
+            ValueError: This function does not raise.
+
+        Examples:
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer.convert_tokens_to_string(["c:text", "x:0"])
+            'c:text x:0'
+        """
+
         return " ".join(tokens)
 
     def save_vocabulary(
         self, save_directory: str | Path, filename_prefix: str | None = None
     ) -> tuple[str, ...]:
+        """Save vocabulary, layout config, and cluster centers.
+
+        Args:
+            save_directory: Destination directory.
+            filename_prefix: Optional prefix added to each filename.
+
+        Returns:
+            Tuple of written file paths.
+
+        Raises:
+            OSError: If files cannot be written.
+
+        Examples:
+            >>> import tempfile
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> with tempfile.TemporaryDirectory() as path:
+            ...     len(tokenizer.save_vocabulary(path))
+            3
+        """
+
         save_path = Path(save_directory)
         save_path.mkdir(parents=True, exist_ok=True)
         prefix = "" if filename_prefix is None else f"{filename_prefix}-"
@@ -141,6 +240,24 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def from_pretrained(
         cls, path: str | Path, *args: object, **kwargs: object
     ) -> "LayoutDMTokenizer":
+        """Load a tokenizer from a pipeline or tokenizer directory.
+
+        Args:
+            path: Saved pipeline directory or tokenizer subdirectory.
+            *args: Additional `PreTrainedTokenizer.from_pretrained` arguments.
+            **kwargs: Additional tokenizer loading options.
+
+        Returns:
+            Loaded `LayoutDMTokenizer`.
+
+        Raises:
+            OSError: If tokenizer files are missing.
+
+        Examples:
+            >>> LayoutDMTokenizer.from_pretrained  # doctest: +ELLIPSIS
+            <bound method...
+        """
+
         path = Path(path)
         if (path / "tokenizer").is_dir():
             path = path / "tokenizer"
@@ -179,6 +296,28 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         labels: torch.Tensor,
         mask: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Encode normalized layout boxes and labels as LayoutDM token ids.
+
+        Args:
+            bbox: Normalized `xywh` boxes shaped `(batch, elements, 4)` or
+                `(elements, 4)`.
+            labels: Class ids shaped `(batch, elements)` or `(elements,)`.
+            mask: Optional boolean element mask.
+
+        Returns:
+            Dictionary with flattened token ids and masks.
+
+        Raises:
+            ValueError: If the sequence length exceeds the configured maximum.
+
+        Examples:
+            >>> import torch
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer.encode_layout(bbox=torch.zeros(1, 1, 4), labels=torch.zeros(1, 1, dtype=torch.long))["input_ids"].shape
+            torch.Size([1, 125])
+        """
+
         bbox = torch.as_tensor(bbox, dtype=torch.float64)
         labels = torch.as_tensor(labels, dtype=torch.long)
         if labels.ndim == 1:
@@ -223,6 +362,26 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         }
 
     def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Decode LayoutDM token ids into boxes, labels, and masks.
+
+        Args:
+            input_ids: Flattened token ids shaped `(batch, max_token_length)`.
+
+        Returns:
+            Dictionary with normalized `bbox`, integer `labels`, and boolean `mask`.
+
+        Raises:
+            ValueError: This function does not raise directly.
+
+        Examples:
+            >>> import torch
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> encoded = tokenizer.encode_layout(bbox=torch.zeros(1, 1, 4), labels=torch.zeros(1, 1, dtype=torch.long))
+            >>> tokenizer.decode_layout(encoded["input_ids"])["bbox"].shape
+            torch.Size([1, 25, 4])
+        """
+
         ids = torch.as_tensor(input_ids, dtype=torch.long)
         ids = ids.reshape(ids.shape[0], self.config.max_seq_length, 5)
         labels = ids[..., 0].clone()
@@ -236,6 +395,24 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return {"bbox": bbox.float(), "labels": labels, "mask": mask}
 
     def token_mask(self) -> torch.Tensor:
+        """Build a position-aware valid-token mask.
+
+        Args:
+            None.
+
+        Returns:
+            Boolean tensor shaped `(max_token_length, vocab_size)`.
+
+        Raises:
+            ValueError: This function does not raise.
+
+        Examples:
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer.token_mask().shape[1] == tokenizer.vocab_size
+            True
+        """
+
         mask = torch.zeros(
             self.config.max_token_length, self.config.vocab_size, dtype=torch.bool
         )
@@ -251,10 +428,50 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return mask
 
     def full_to_partial_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+        """Map full-vocabulary ids to coordinate-local ids.
+
+        Args:
+            ids: Full-vocabulary ids.
+            key: Variable key such as `"c"`, `"x"`, `"y"`, `"w"`, or `"h"`.
+
+        Returns:
+            Partial ids for the requested variable.
+
+        Raises:
+            KeyError: If `key` is unsupported.
+
+        Examples:
+            >>> import torch
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer.full_to_partial_ids(torch.tensor([tokenizer.pad_token_id]), "c").shape
+            torch.Size([1])
+        """
+
         mapping = self._mapping(key)
         return _bucketize(ids, mapping["full"], mapping["partial"])
 
     def partial_to_full_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+        """Map coordinate-local ids back to full-vocabulary ids.
+
+        Args:
+            ids: Partial ids for the requested variable.
+            key: Variable key such as `"c"`, `"x"`, `"y"`, `"w"`, or `"h"`.
+
+        Returns:
+            Full-vocabulary ids.
+
+        Raises:
+            KeyError: If `key` is unsupported.
+
+        Examples:
+            >>> import torch
+            >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+            >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
+            >>> tokenizer.partial_to_full_ids(torch.tensor([0]), "c").shape
+            torch.Size([1])
+        """
+
         mapping = self._mapping(key)
         return _bucketize(ids, mapping["partial"], mapping["full"])
 

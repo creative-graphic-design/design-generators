@@ -28,6 +28,24 @@ from .sampling import (
 
 
 class LayoutCorrectorPipeline(DiffusionPipeline):
+    """Diffusers pipeline that applies Layout-Corrector during LayoutDM sampling.
+
+    Args:
+        layout_dm: Base LayoutDM pipeline.
+        corrector: Corrector model used to score and remask tokens.
+        processor: Optional processor for conditional layout inputs.
+
+    Returns:
+        A pipeline that generates corrected layout boxes and labels.
+
+    Raises:
+        ValueError: Pipeline construction does not raise directly.
+
+    Examples:
+        >>> LayoutCorrectorPipeline.from_pretrained  # doctest: +ELLIPSIS
+        <bound method...
+    """
+
     model_cpu_offload_seq = "layout_dm.denoiser->corrector"
 
     def __init__(
@@ -79,6 +97,51 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        """Generate layouts with optional Layout-Corrector guidance.
+
+        Args:
+            batch_size: Number of layouts to sample for unconditional generation.
+            seed: Optional seed used when `generator` is not supplied.
+            generator: Optional PyTorch generator.
+            condition_type: Condition mode such as `"unconditional"` or `"label"`.
+            labels: Optional class ids for conditional generation.
+            bbox: Optional boxes for conditional generation.
+            mask: Optional element mask for conditional generation.
+            num_elements: Reserved for future element-count conditioning.
+            box_format: Coordinate format for conditional boxes.
+            normalized: Whether conditional boxes are normalized.
+            canvas_size: Pixel canvas used when `normalized=False`.
+            num_inference_steps: Optional inference timestep count.
+            sampling: Base LayoutDM sampling strategy.
+            temperature: Base sampling temperature.
+            top_k: Top-k cutoff for top-k sampling.
+            top_p: Nucleus cutoff for top-p sampling.
+            corrector_steps: Optional override for correction passes.
+            corrector_t_list: Optional explicit correction timesteps.
+            corrector_start: Range start for correction when no list is supplied.
+            corrector_end: Range end for correction when no list is supplied.
+            corrector_mask_mode: Optional override for remasking mode.
+            corrector_mask_threshold: Optional threshold override.
+            corrector_temperature: Optional confidence temperature override.
+            use_gumbel_noise: Optional confidence-noise override.
+            gumbel_temperature: Optional confidence-noise temperature override.
+            time_adaptive_temperature: Optional adaptive-noise override.
+            output_type: `"dataclass"` or `"dict"`.
+            return_intermediates: Whether to include scores and trajectory.
+            **model_kwargs: Reserved model keyword arguments.
+
+        Returns:
+            `LayoutGenerationOutput` by default, or a dictionary when requested.
+
+        Raises:
+            ValueError: If conditional generation is missing `bbox` or `labels`, or
+                if `output_type` is unsupported.
+
+        Examples:
+            >>> LayoutCorrectorPipeline.__call__  # doctest: +ELLIPSIS
+            <function...
+        """
+
         _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
@@ -304,6 +367,23 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         return float(timestep / self.layout_dm.scheduler.config.num_timesteps)
 
     def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+        """Save the nested LayoutDM pipeline and corrector model.
+
+        Args:
+            save_directory: Destination directory.
+            **kwargs: Additional save options passed to nested components.
+
+        Returns:
+            None.
+
+        Raises:
+            OSError: If files cannot be written.
+
+        Examples:
+            >>> LayoutCorrectorPipeline.save_pretrained  # doctest: +ELLIPSIS
+            <function...
+        """
+
         save_path = Path(save_directory)
         save_path.mkdir(parents=True, exist_ok=True)
         self.layout_dm.save_pretrained(save_path / "layout_dm", **kwargs)
@@ -313,6 +393,24 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
     def from_pretrained(
         cls, pretrained_model_name_or_path: str | Path, **kwargs: object
     ) -> "LayoutCorrectorPipeline":
+        """Load a Layout-Corrector pipeline from a saved directory.
+
+        Args:
+            pretrained_model_name_or_path: Directory containing `layout_dm/` and
+                `corrector/` subdirectories.
+            **kwargs: Additional constructor options.
+
+        Returns:
+            Loaded `LayoutCorrectorPipeline`.
+
+        Raises:
+            OSError: If nested component files are missing.
+
+        Examples:
+            >>> LayoutCorrectorPipeline.from_pretrained  # doctest: +ELLIPSIS
+            <bound method...
+        """
+
         path = Path(pretrained_model_name_or_path)
         layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
         corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")

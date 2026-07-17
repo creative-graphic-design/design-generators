@@ -19,6 +19,25 @@ from .tokenization_layout_dm import LayoutDMTokenizer
 
 
 class LayoutDMPipeline(DiffusionPipeline):
+    """Diffusers pipeline for LayoutDM layout generation.
+
+    Args:
+        denoiser: LayoutDM denoising model.
+        scheduler: Discrete diffusion scheduler.
+        tokenizer: Structured layout tokenizer.
+        processor: Optional processor for conditional layout inputs.
+
+    Returns:
+        A Diffusers pipeline that generates layout boxes and labels.
+
+    Raises:
+        ValueError: Pipeline construction does not raise directly.
+
+    Examples:
+        >>> LayoutDMPipeline.from_pretrained  # doctest: +ELLIPSIS
+        <bound method...
+    """
+
     model_cpu_offload_seq = "denoiser"
 
     def __init__(
@@ -62,6 +81,41 @@ class LayoutDMPipeline(DiffusionPipeline):
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        """Generate layouts from optional structured conditions.
+
+        Args:
+            batch_size: Number of layouts to sample for unconditional generation.
+            seed: Optional seed used when `generator` is not supplied.
+            generator: Optional PyTorch generator.
+            condition_type: Condition mode such as `"unconditional"` or `"label"`.
+            labels: Optional class ids for conditional generation.
+            bbox: Optional boxes for conditional generation.
+            mask: Optional element mask for conditional generation.
+            num_elements: Reserved for future element-count conditioning.
+            box_format: Coordinate format for conditional boxes.
+            normalized: Whether conditional boxes are normalized.
+            canvas_size: Pixel canvas used when `normalized=False`.
+            num_inference_steps: Optional inference timestep count.
+            sampling: Sampling strategy name.
+            temperature: Sampling temperature.
+            top_k: Top-k cutoff for top-k sampling.
+            top_p: Nucleus cutoff for top-p sampling.
+            output_type: `"dataclass"` or `"dict"`.
+            return_intermediates: Whether to include trajectory diagnostics.
+            **model_kwargs: Reserved model keyword arguments.
+
+        Returns:
+            `LayoutGenerationOutput` by default, or a dictionary when requested.
+
+        Raises:
+            ValueError: If conditional generation is missing `bbox` or `labels`, or
+                if `output_type` is unsupported.
+
+        Examples:
+            >>> LayoutDMPipeline.__call__  # doctest: +ELLIPSIS
+            <function...
+        """
+
         _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
@@ -149,12 +203,46 @@ class LayoutDMPipeline(DiffusionPipeline):
     generate = __call__
 
     def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+        """Save the pipeline and tokenizer-compatible processor files.
+
+        Args:
+            save_directory: Destination directory.
+            **kwargs: Additional Diffusers save options.
+
+        Returns:
+            None.
+
+        Raises:
+            OSError: If files cannot be written.
+
+        Examples:
+            >>> LayoutDMPipeline.save_pretrained  # doctest: +ELLIPSIS
+            <function...
+        """
+
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
     def from_pretrained(
         cls, pretrained_model_name_or_path: str | Path, **kwargs: object
     ) -> "LayoutDMPipeline":
+        """Load a LayoutDM pipeline from a saved directory or Hub id.
+
+        Args:
+            pretrained_model_name_or_path: Pipeline directory or model id.
+            **kwargs: Additional Diffusers loading options.
+
+        Returns:
+            Loaded `LayoutDMPipeline`.
+
+        Raises:
+            OSError: If required model files are unavailable.
+
+        Examples:
+            >>> LayoutDMPipeline.from_pretrained  # doctest: +ELLIPSIS
+            <bound method...
+        """
+
         tokenizer = LayoutDMTokenizer.from_pretrained(pretrained_model_name_or_path)
         kwargs.setdefault("tokenizer", tokenizer)
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)

@@ -9,6 +9,43 @@ from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 @dataclass
 class LayoutDMConfig(ConfigMixin):
+    """Configuration for a LayoutDM denoising pipeline.
+
+    Args:
+        dataset_name: Dataset key or alias used for labels and checkpoint metadata.
+        id2label: Optional class-id mapping. When omitted, the shared registry is used.
+        max_seq_length: Maximum number of layout elements.
+        num_bin_bboxes: Number of discrete bins for each box coordinate.
+        var_order: Token order per element. Only `c-x-y-w-h` is supported.
+        shared_bbox_vocab: Coordinate vocabulary sharing scheme.
+        bbox_quantization: Bounding-box quantization mode.
+        special_tokens: Special token names appended to the vocabulary.
+        cluster_centers: Optional coordinate centers for k-means or percentile bins.
+        hidden_size: Transformer hidden dimension.
+        num_attention_heads: Number of attention heads.
+        num_hidden_layers: Number of transformer layers.
+        intermediate_size: Feed-forward hidden dimension.
+        dropout: Dropout probability.
+        timestep_type: Timestep conditioning type.
+        num_timesteps: Number of diffusion training timesteps.
+        q_type: Diffusion transition type.
+        att_1: Initial alpha-to-token schedule value.
+        att_T: Final alpha-to-token schedule value.
+        ctt_1: Initial category transition schedule value.
+        ctt_T: Final category transition schedule value.
+
+    Returns:
+        A Diffusers-compatible config object.
+
+    Raises:
+        ValueError: If `dataset_name` is unknown.
+
+    Examples:
+        >>> cfg = LayoutDMConfig(dataset_name="publaynet", bbox_quantization="linear")
+        >>> cfg.num_attributes_per_element
+        5
+    """
+
     config_name = "layout_dm_config.json"
 
     @register_to_config

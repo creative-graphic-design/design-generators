@@ -67,6 +67,22 @@ _LABELS = {
 
 
 def normalize_dataset_name(dataset_name: str) -> str:
+    """Normalize supported layout dataset aliases.
+
+    Args:
+        dataset_name: Dataset name or alias such as `"rico"` or `"crello-bbox"`.
+
+    Returns:
+        Canonical dataset key used by shared label registries.
+
+    Raises:
+        ValueError: If the dataset is unknown.
+
+    Examples:
+        >>> normalize_dataset_name("rico25_max25")
+        'rico25'
+    """
+
     key = dataset_name.lower().replace("-", "_")
     try:
         return _ALIASES[key]
@@ -75,12 +91,60 @@ def normalize_dataset_name(dataset_name: str) -> str:
 
 
 def labels_for_dataset(dataset_name: str) -> tuple[str, ...]:
+    """Return labels for a supported layout dataset.
+
+    Args:
+        dataset_name: Dataset name or alias.
+
+    Returns:
+        Tuple of label strings ordered by class id.
+
+    Raises:
+        ValueError: If the dataset is unknown.
+
+    Examples:
+        >>> labels_for_dataset("publaynet")[0]
+        'text'
+    """
+
     return _LABELS[normalize_dataset_name(dataset_name)]
 
 
 def id2label_for_dataset(dataset_name: str) -> dict[int, str]:
+    """Return an id-to-label mapping for a supported dataset.
+
+    Args:
+        dataset_name: Dataset name or alias.
+
+    Returns:
+        Dictionary keyed by integer class id.
+
+    Raises:
+        ValueError: If the dataset is unknown.
+
+    Examples:
+        >>> id2label_for_dataset("publaynet")[0]
+        'text'
+    """
+
     return dict(enumerate(labels_for_dataset(dataset_name)))
 
 
 def label2id_for_dataset(dataset_name: str) -> dict[str, int]:
+    """Return a label-to-id mapping for a supported dataset.
+
+    Args:
+        dataset_name: Dataset name or alias.
+
+    Returns:
+        Dictionary keyed by label string.
+
+    Raises:
+        ValueError: If the dataset is unknown.
+
+    Examples:
+        >>> label2id_for_dataset("rico25")["Text"]
+        0
+    """
+
     return {label: i for i, label in id2label_for_dataset(dataset_name).items()}

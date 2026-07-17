@@ -8,6 +8,48 @@ from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 
 class LayoutCorrectorConfig(ConfigMixin):
+    """Configuration for the Layout-Corrector transformer.
+
+    Args:
+        dataset_name: Dataset key or alias used for labels.
+        vocab_size: LayoutDM vocabulary size expected by the corrector.
+        id2label: Optional class-id mapping. When omitted, the shared registry is used.
+        max_seq_length: Maximum number of layout elements.
+        num_attributes_per_element: Number of token attributes per element.
+        hidden_size: Transformer hidden dimension.
+        num_attention_heads: Number of attention heads.
+        num_hidden_layers: Number of transformer layers.
+        intermediate_size: Feed-forward hidden dimension.
+        dropout: Dropout probability.
+        timestep_type: Timestep conditioning type.
+        num_timesteps: Number of diffusion training timesteps.
+        recon_type: Reconstruction target used by the corrector.
+        target: Confidence target type.
+        attr_loss_weights: Per-attribute loss weights.
+        use_padding_as_vocab: Whether padding is part of the modeled vocabulary.
+        pos_emb: Position embedding mode from the original implementation.
+        transformer_type: Corrector transformer variant.
+        corrector_steps: Number of correction passes per selected timestep.
+        corrector_t_list: Explicit timesteps where the corrector is applied.
+        corrector_mask_mode: Strategy for selecting tokens to remask.
+        corrector_mask_threshold: Confidence threshold for threshold masking.
+        corrector_temperature: Temperature used for corrector resampling.
+        use_gumbel_noise: Whether to perturb confidence logits.
+        gumbel_temperature: Temperature for confidence Gumbel noise.
+        time_adaptive_temperature: Whether to scale noise by timestep ratio.
+
+    Returns:
+        A Diffusers-compatible corrector config.
+
+    Raises:
+        ValueError: If a supplied dataset, shape, or option is unsupported.
+
+    Examples:
+        >>> cfg = LayoutCorrectorConfig(dataset_name="publaynet", vocab_size=100)
+        >>> cfg.max_token_length
+        125
+    """
+
     config_name = "corrector_config.json"
 
     @register_to_config
