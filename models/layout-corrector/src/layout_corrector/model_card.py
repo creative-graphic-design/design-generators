@@ -58,9 +58,12 @@ def layout_corrector_model_card(
         )
     ]
     how_to_use = f"""
-from layout_corrector import LayoutCorrectorPipeline
+from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
+from layout_dm import LayoutDMPipeline
 
-pipe = LayoutCorrectorPipeline.from_pretrained("{model_id}")
+layout_dm = LayoutDMPipeline.from_pretrained("{model_id}", subfolder="layout_dm")
+corrector = LayoutCorrectorModel.from_pretrained("{model_id}", subfolder="corrector")
+pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)
 out = pipe(batch_size=1, seed=0, sampling="deterministic")
 print(out.bbox, out.labels, out.mask)
 """
@@ -78,10 +81,12 @@ print(out.bbox, out.labels, out.mask)
             str(dataset_name),
         ],
         model_details=(
-            "Diffusers-format composite pipeline for Layout-Corrector. The "
-            "pipeline wraps a converted LayoutDM generator with the released "
-            "Layout-Corrector confidence model to re-mask low-confidence layout "
-            "tokens during sampling."
+            "Layout-Corrector is a training-free corrector module for discrete "
+            "diffusion layout generators such as LayoutDM. This Diffusers-format "
+            "checkpoint pairs a converted LayoutDM generator with the released "
+            "Layout-Corrector confidence model, which scores intermediate "
+            "reconstructed layout tokens, re-masks low-confidence tokens, and "
+            "lets LayoutDM regenerate those positions during sampling."
         ),
         intended_uses=(
             "Use this checkpoint for research and evaluation of controllable "
@@ -120,7 +125,7 @@ pipeline_tag: unconditional-layout-generation
 
 # Layout-Corrector
 
-Composite Layout-Corrector pipeline converted from the original MIT-licensed implementation. The nested LayoutDM components are derived from Apache-2.0 LayoutDM code and should be cited alongside Layout-Corrector.
+Training-free Layout-Corrector module for LayoutDM-style discrete diffusion layout generation. It scores intermediate layout tokens during sampling, re-masks low-confidence tokens, and lets the nested LayoutDM generator regenerate those positions.
 """
 
 

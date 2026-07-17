@@ -1,6 +1,8 @@
 # Layout-Corrector
 
-Diffusers-style composite pipeline for **Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model**. The package wraps a converted LayoutDM pipeline and the released Layout-Corrector confidence model so sampling can re-mask low-confidence reconstructed layout tokens.
+Layout-Corrector is a training-free corrector module for discrete diffusion layout generators such as LayoutDM. It plugs into the LayoutDM sampling loop, scores intermediate reconstructed layout tokens, resets low-confidence tokens to the mask token, and lets the base generator sample those positions again.
+
+This package exposes that composition as a Diffusers-style pipeline for **Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model**. The base generator remains LayoutDM; Layout-Corrector adds confidence-based remasking during sampling.
 
 Paper: https://arxiv.org/abs/2409.16689
 
@@ -21,12 +23,21 @@ uv sync --package layout-dm --extra convert
 
 ## Usage
 
-```python
-from layout_corrector import LayoutCorrectorPipeline
+The primary use case is to combine a LayoutDM generator with a matching Layout-Corrector confidence model:
 
-pipe = LayoutCorrectorPipeline.from_pretrained(
-    "creative-graphic-design/layout-corrector-rico25",
+```python
+from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
+from layout_dm import LayoutDMPipeline
+
+layout_dm = LayoutDMPipeline.from_pretrained(
+    "creative-graphic-design/layoutdm-rico25",
 )
+corrector = LayoutCorrectorModel.from_pretrained(
+    "creative-graphic-design/layout-corrector-rico25",
+    subfolder="corrector",
+)
+
+pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)
 out = pipe(
     batch_size=1,
     seed=0,
@@ -37,6 +48,35 @@ out = pipe(
 print(out.bbox)    # normalized center xywh boxes
 print(out.labels)  # integer category labels
 print(out.mask)    # valid element mask
+```
+
+Without the corrector, LayoutDM samples the next layout tokens directly from its denoiser predictions. With the corrector, low-confidence reconstructed tokens are re-masked at selected timesteps, which gives LayoutDM another chance to regenerate uncertain positions and can reduce layout sticking.
+
+```text
+LayoutDM denoiser logits
+        |
+        v
+reconstruct x0 tokens
+        |
+        v
+Layout-Corrector confidence score
+        |
+        v
+re-mask low-confidence tokens
+        |
+        v
+LayoutDM samples the next step
+```
+
+For already-converted composite checkpoints, load the nested `layout_dm/` and `corrector/` components together:
+
+```python
+from layout_corrector import LayoutCorrectorPipeline
+
+pipe = LayoutCorrectorPipeline.from_pretrained(
+    ".cache/layout-corrector/converted/layout-corrector-rico25-smoke",
+)
+out = pipe(batch_size=1, seed=0, sampling="deterministic")
 ```
 
 Conditional generation follows the nested LayoutDM processor path:
