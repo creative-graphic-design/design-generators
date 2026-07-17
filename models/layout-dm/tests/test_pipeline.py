@@ -1,4 +1,5 @@
 import torch
+from typing import Any, cast
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
@@ -58,6 +59,43 @@ def test_pipeline_contract_and_seed_reproducible():
     assert out2.sequences is not None
     assert_layout_output_schema(out1, batch_size=1)
     assert torch.equal(out1.sequences, out2.sequences)
+
+
+def test_pipeline_conditional_dict_and_intermediates():
+    pipe = make_pipeline()
+    out = pipe(
+        condition_type="cat_cond",
+        bbox=[[[0.5, 0.5, 0.25, 0.25]]],
+        labels=[[1]],
+        mask=[[True]],
+        batch_size=3,
+        seed=0,
+        num_inference_steps=1,
+        sampling="deterministic",
+        output_type="dict",
+        return_intermediates=True,
+    )
+
+    assert out["bbox"].shape[0] == 1
+    assert out["intermediates"] == {"condition_type": "label"}
+    assert len(out["trajectory"]) == 1
+
+
+def test_pipeline_validates_condition_and_output_type():
+    pipe = make_pipeline()
+    try:
+        pipe(condition_type="label", labels=[[0]], num_inference_steps=1)
+    except ValueError as exc:
+        assert "bbox and labels are required" in str(exc)
+    else:
+        raise AssertionError("missing conditional bbox should fail")
+
+    try:
+        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+    except ValueError as exc:
+        assert "Unsupported output_type" in str(exc)
+    else:
+        raise AssertionError("unsupported output_type should fail")
 
 
 def test_pipeline_save_load_roundtrip(tmp_path):
