@@ -10,6 +10,7 @@ import runpy
 import sys
 import types
 from collections.abc import Iterator, MutableMapping, Sequence
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final, Protocol, cast
 
@@ -24,12 +25,15 @@ COUNTING_TRAIN_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.train.
 COUNTING_VAL_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.val.json")
 VENDOR_2D_SCRIPT: Final[str] = "run_layoutgpt_2d.py"
 VENDOR_PARSER_SCRIPT: Final[str] = "parse_llm_output.py"
-STUBBED_VENDOR_MODULES: Final[tuple[str, ...]] = (
-    "clip",
-    "openai",
-    "transformers",
-    "cssutils",
-)
+
+
+class StubbedVendorModule(StrEnum):
+    """Vendor imports replaced by local stubs during golden generation."""
+
+    clip = auto()
+    openai = auto()
+    transformers = auto()
+    cssutils = auto()
 
 
 class GoldenMetadata(TypedDict):
@@ -291,18 +295,26 @@ def _load_vendor_module(vendor_root: Path, filename: str) -> dict[str, object]:
 def _vendor_runtime(vendor_root: Path, filename: str) -> Iterator[None]:
     old_argv = sys.argv[:]
     old_path = sys.path[:]
-    old_modules = {key: sys.modules.get(key) for key in STUBBED_VENDOR_MODULES}
+    old_modules = {
+        module.value: sys.modules.get(module.value) for module in StubbedVendorModule
+    }
     sys.argv = [filename, "--icl_type", "fixed-random"]
     sys.path.insert(0, str(vendor_root))
-    sys.modules["clip"] = _ClipStub("clip")
-    sys.modules["openai"] = types.ModuleType("openai")
-    transformers = types.ModuleType("transformers")
+    sys.modules[StubbedVendorModule.clip.value] = _ClipStub(
+        StubbedVendorModule.clip.value
+    )
+    sys.modules[StubbedVendorModule.openai.value] = types.ModuleType(
+        StubbedVendorModule.openai.value
+    )
+    transformers = types.ModuleType(StubbedVendorModule.transformers.value)
     setattr(transformers, "StoppingCriteria", _StoppingCriteria)
     setattr(transformers, "GPT2TokenizerFast", object)
     setattr(transformers, "LlamaForCausalLM", object)
     setattr(transformers, "LlamaTokenizer", object)
-    sys.modules["transformers"] = transformers
-    sys.modules["cssutils"] = _CssUtilsStub("cssutils")
+    sys.modules[StubbedVendorModule.transformers.value] = transformers
+    sys.modules[StubbedVendorModule.cssutils.value] = _CssUtilsStub(
+        StubbedVendorModule.cssutils.value
+    )
     state = random.getstate()
     try:
         yield

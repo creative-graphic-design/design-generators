@@ -11,9 +11,6 @@ from layout_gpt.enums import ICLType, LayoutGPTSetting
 from layout_gpt.exemplars import load_nsr_examples
 from layout_gpt.schema import LayoutGPTConfig
 
-SETTING_CHOICES: Final[tuple[str, ...]] = tuple(
-    setting.value for setting in LayoutGPTSetting
-)
 DEFAULT_SETTING: Final[LayoutGPTSetting] = LayoutGPTSetting.counting
 DEFAULT_ICL_TYPE: Final[ICLType] = ICLType.fixed_random
 DEFAULT_CANVAS_SIZE: Final[int] = 256
@@ -24,13 +21,16 @@ def main() -> None:
     parser.add_argument("--train-json", type=Path, required=True)
     parser.add_argument("--prompt", required=True)
     parser.add_argument(
-        "--setting", choices=SETTING_CHOICES, default=DEFAULT_SETTING.value
+        "--setting",
+        type=LayoutGPTSetting,
+        choices=list(LayoutGPTSetting),
+        default=DEFAULT_SETTING,
     )
     parser.add_argument("--canvas-size", type=int, default=DEFAULT_CANVAS_SIZE)
     parser.add_argument("--model", default=None)
     args = parser.parse_args()
 
-    setting = LayoutGPTSetting(args.setting)
+    setting = args.setting
     config = LayoutGPTConfig(
         setting=setting,
         icl_type=DEFAULT_ICL_TYPE,

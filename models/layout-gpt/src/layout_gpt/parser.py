@@ -3,23 +3,46 @@
 from __future__ import annotations
 
 import re
+from enum import StrEnum, auto
 from string import digits
 from typing import Final
 
 from layout_gpt.schema import LayoutItem2D, LayoutItem3D
 
+
+class CSSProperty(StrEnum):
+    """CSS declaration keys emitted by the vendor LayoutGPT prompts."""
+
+    depth = auto()
+    height = auto()
+    left = auto()
+    length = auto()
+    orientation = auto()
+    top = auto()
+    width = auto()
+
+
 _RULE_RE: Final[re.Pattern[str]] = re.compile(
     r"^\s*(?P<label>.*?)\s*\{(?P<body>.*?)\}\s*$"
 )
-_LAYOUT_2D_KEYS: Final[tuple[str, ...]] = ("height", "left", "top", "width")
-_LAYOUT_3D_KEYS: Final[tuple[str, ...]] = (
-    "depth",
-    "height",
-    "left",
-    "length",
-    "orientation",
-    "top",
-    "width",
+_LAYOUT_2D_KEYS: Final[frozenset[CSSProperty]] = frozenset(
+    {
+        CSSProperty.height,
+        CSSProperty.left,
+        CSSProperty.top,
+        CSSProperty.width,
+    }
+)
+_LAYOUT_3D_KEYS: Final[frozenset[CSSProperty]] = frozenset(
+    {
+        CSSProperty.depth,
+        CSSProperty.height,
+        CSSProperty.left,
+        CSSProperty.length,
+        CSSProperty.orientation,
+        CSSProperty.top,
+        CSSProperty.width,
+    }
 )
 DEFAULT_CANVAS_SIZE: Final[int] = 64
 DEFAULT_3D_UNIT: Final[str] = "m"
@@ -38,14 +61,14 @@ def parse_layout_line(
 
     label = _strip_digits(match.group("label")).strip()
     declarations = _parse_declarations(match.group("body"))
-    if tuple(sorted(declarations)) != _LAYOUT_2D_KEYS:
+    if declarations is None or set(declarations) != _LAYOUT_2D_KEYS:
         return LayoutItem2D(label=label, left=0, top=0, width=0, height=0)
 
     convert = float if no_integer else _parse_px_int
-    left = convert(declarations["left"])
-    top = convert(declarations["top"])
-    width = convert(declarations["width"])
-    height = convert(declarations["height"])
+    left = convert(declarations[CSSProperty.left])
+    top = convert(declarations[CSSProperty.top])
+    width = convert(declarations[CSSProperty.width])
+    height = convert(declarations[CSSProperty.height])
     right = min(left + width, canvas_size)
     bottom = min(top + height, canvas_size)
     if left >= canvas_size or top >= canvas_size:
@@ -80,17 +103,17 @@ def parse_3d_layout_line(
         return None
     label = _strip_digits(match.group("label")).strip()
     declarations = _parse_declarations(match.group("body"))
-    if tuple(sorted(declarations)) != _LAYOUT_3D_KEYS:
+    if declarations is None or set(declarations) != _LAYOUT_3D_KEYS:
         return None
     return LayoutItem3D(
         label=label,
-        length=_parse_unit_float(declarations["length"], unit=unit),
-        width=_parse_unit_float(declarations["width"], unit=unit),
-        height=_parse_unit_float(declarations["height"], unit=unit),
-        orientation=_parse_orientation(declarations["orientation"]),
-        left=_parse_unit_float(declarations["left"], unit=unit),
-        top=_parse_unit_float(declarations["top"], unit=unit),
-        depth=_parse_unit_float(declarations["depth"], unit=unit),
+        length=_parse_unit_float(declarations[CSSProperty.length], unit=unit),
+        width=_parse_unit_float(declarations[CSSProperty.width], unit=unit),
+        height=_parse_unit_float(declarations[CSSProperty.height], unit=unit),
+        orientation=_parse_orientation(declarations[CSSProperty.orientation]),
+        left=_parse_unit_float(declarations[CSSProperty.left], unit=unit),
+        top=_parse_unit_float(declarations[CSSProperty.top], unit=unit),
+        depth=_parse_unit_float(declarations[CSSProperty.depth], unit=unit),
     )
 
 
@@ -105,13 +128,17 @@ def parse_3d_layout_text(
     ]
 
 
-def _parse_declarations(body: str) -> dict[str, str]:
-    declarations: dict[str, str] = {}
+def _parse_declarations(body: str) -> dict[CSSProperty, str] | None:
+    declarations: dict[CSSProperty, str] = {}
     for part in body.strip().strip(";").split(";"):
         if not part.strip():
             continue
         key, value = part.split(":", 1)
-        declarations[key.strip()] = value.strip()
+        try:
+            css_property = CSSProperty(key.strip())
+        except ValueError:
+            return None
+        declarations[css_property] = value.strip()
     return declarations
 
 
