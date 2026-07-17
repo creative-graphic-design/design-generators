@@ -2,6 +2,7 @@ import torch
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import (
+    BoxFormat,
     denormalize_boxes,
     linear_continuize,
     linear_discretize,
@@ -10,7 +11,7 @@ from laygen.common.bbox import (
     xywh_to_ltrb,
 )
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
-from laygen.common.labels import id2label_for_dataset
+from laygen.common.labels import DatasetName, id2label_for_dataset
 from laygen.common.model_card import layout_corrector_model_card, layoutdm_model_card
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
@@ -26,6 +27,10 @@ def test_bbox_conversions_roundtrip():
     assert torch.allclose(
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="ltrb"), bbox
     )
+    pixels_from_enum = denormalize_boxes(
+        bbox, canvas_size=(100, 200), box_format=BoxFormat.ltrb
+    )
+    assert torch.allclose(pixels_from_enum, pixels)
 
 
 def test_linear_bins_roundtrip_shape():
@@ -45,7 +50,7 @@ def test_output_schema():
         bbox=torch.zeros(1, 2, 4),
         labels=torch.zeros(1, 2, dtype=torch.long),
         mask=torch.tensor([[True, False]]),
-        id2label=id2label_for_dataset("publaynet"),
+        id2label=id2label_for_dataset(DatasetName.publaynet),
     )
     assert_layout_output_schema(output, batch_size=1)
 

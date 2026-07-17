@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
+from laygen.common.labels import (
+    DatasetName,
+    id2label_for_dataset,
+    normalize_dataset_name,
+)
 
 
 @dataclass
@@ -48,7 +52,7 @@ class LayoutDMConfig(ConfigMixin):
     def __init__(
         self,
         *,
-        dataset_name: str,
+        dataset_name: DatasetName | str,
         id2label: dict[int | str, str] | None = None,
         max_seq_length: int = 25,
         num_bin_bboxes: int = 32,
@@ -71,7 +75,7 @@ class LayoutDMConfig(ConfigMixin):
         ctt_T: float = 0.99999,
     ) -> None:
         """Initialize a serializable LayoutDM configuration."""
-        self.dataset_name = normalize_dataset_name(dataset_name)
+        self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or id2label_for_dataset(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
         self.max_seq_length = max_seq_length
