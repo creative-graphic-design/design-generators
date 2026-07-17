@@ -13,7 +13,7 @@ from layoutformerpp import (
 )
 from layoutformerpp.conversion import load_original_state_dict
 from layoutformerpp.serialization import build_default_tokens
-from layout_generation_common.labels import labels_for_dataset
+from laygen.common.labels import labels_for_dataset
 
 
 def main() -> None:

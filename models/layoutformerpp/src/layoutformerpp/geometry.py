@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from layout_generation_common.bbox import ltwh_to_xywh, xywh_to_ltwh
+from laygen.common.bbox import ltwh_to_xywh, xywh_to_ltwh
 
 
 def discretize_ltwh(

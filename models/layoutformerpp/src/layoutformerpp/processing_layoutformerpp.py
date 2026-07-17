@@ -9,8 +9,8 @@ from typing import Any
 import torch
 from transformers import BatchEncoding, ProcessorMixin
 
-from layout_generation_common.labels import labels_for_dataset
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.labels import labels_for_dataset
+from laygen.common.outputs import LayoutGenerationOutput
 
 from .geometry import discrete_ltwh_to_public, public_to_discrete_ltwh
 from .serialization import (

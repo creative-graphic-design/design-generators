@@ -7,7 +7,7 @@ from typing import Any
 import torch
 from transformers import Pipeline
 
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
 from .processing_layoutformerpp import LayoutFormerPPProcessor

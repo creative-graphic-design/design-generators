@@ -1,6 +1,6 @@
 """Transformers-style LayoutFormer++ components."""
 
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
