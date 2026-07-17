@@ -64,7 +64,7 @@ Each released task has an incompatible task-specific checkpoint, so Hub ids incl
 - `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens.
 - `creative-graphic-design/PubLayNet`: COCO-style document layout boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
-## Parity
+## Parity results
 
 Current local parity coverage:
 
@@ -83,7 +83,9 @@ CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
 
 Full generation parity for all RICO and PubLayNet public checkpoints is tracked as follow-up work.
 
-## Reproducing vendor parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Prerequisites:
 
