@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 from lace import LaceProcessor
+from laygen.common.bbox import BoxFormat
 
 
 def test_encode_maps_public_bbox_to_vendor_range() -> None:
@@ -36,3 +38,32 @@ def test_processor_converts_ltrb_input() -> None:
         box_format="ltrb",
     )
     assert torch.allclose(out["bbox"][0, 0], torch.tensor([0.5, 0.5, 1.0, 1.0]))
+
+
+def test_processor_converts_ltwh_pixels_and_saves_config(tmp_path) -> None:
+    processor = LaceProcessor.from_dataset("rico25")
+    out = processor(
+        bbox=[[[10.0, 20.0, 30.0, 40.0]]],
+        labels=[[3]],
+        box_format=BoxFormat.ltwh,
+        normalized=False,
+        canvas_size=(100, 200),
+    )
+    assert torch.allclose(out["bbox"][0, 0], torch.tensor([0.25, 0.2, 0.3, 0.2]))
+
+    processor.save_pretrained(tmp_path)
+    loaded = LaceProcessor.from_pretrained(tmp_path, ignored=True)
+    assert loaded.dataset == "rico25"
+    assert loaded.max_seq_length == processor.max_seq_length
+
+
+def test_processor_rejects_too_many_elements_and_missing_canvas() -> None:
+    processor = LaceProcessor(
+        dataset="publaynet",
+        labels=["text", "title"],
+        max_seq_length=1,
+    )
+    with pytest.raises(ValueError, match="canvas_size is required"):
+        processor(bbox=[[[1.0, 1.0, 2.0, 2.0]]], labels=[[0]], normalized=False)
+    with pytest.raises(ValueError, match="at most 1 elements"):
+        processor.pad(torch.zeros(1, 2, 4), torch.zeros(1, 2, dtype=torch.long))

@@ -1,3 +1,5 @@
+"""Aesthetic post-processing constraints for LACE layout boxes."""
+
 from __future__ import annotations
 
 import torch
@@ -60,6 +62,20 @@ def beautify_layout(
     num_steps: int = 1000,
     lr: float = 1e-4,
 ) -> tuple[torch.Tensor, torch.BoolTensor]:
+    """Optimize generated boxes with overlap and alignment penalties.
+
+    Args:
+        bbox: Normalized center ``xywh`` boxes with shape ``(batch, seq, 4)``.
+        mask: Valid-element mask with shape ``(batch, seq)``.
+        overlap_weight: Weight for pairwise overlap penalties.
+        alignment_weight: Weight for alignment penalties.
+        xy_only: Whether to keep width and height fixed.
+        num_steps: Number of Adam optimization steps.
+        lr: Adam learning rate.
+
+    Returns:
+        Optimized boxes and updated mask.
+    """
     if torch.sum(mask) == 1:
         return bbox, mask
     bbox_in = bbox

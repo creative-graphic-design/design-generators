@@ -1,3 +1,5 @@
+"""Discrete diffusion scheduler for converted LayoutDM pipelines."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,12 +26,36 @@ if TYPE_CHECKING:
 
 @dataclass
 class LayoutDMSchedulerOutput(BaseOutput):
+    """Scheduler step output for LayoutDM reverse diffusion."""
+
     prev_sample: torch.Tensor
     pred_original_sample: torch.Tensor | None = None
     model_log_prob: torch.Tensor | None = None
 
 
 class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
+    """Diffusers-compatible scheduler for LayoutDM categorical diffusion.
+
+    Args:
+        num_timesteps: Number of training diffusion timesteps.
+        q_type: Transition type from the original LayoutDM implementation.
+        vocab_size: Full tokenizer vocabulary size.
+        mask_token_id: Full vocabulary id used for mask tokens.
+        pad_token_id: Full vocabulary id used for padding tokens.
+        var_order: Per-element token variable order.
+        token_mask: Optional valid-token mask for each sequence position.
+        per_var_full_ids: Optional constrained vocabulary ids per variable.
+        att_1: Initial keep-probability schedule value.
+        att_T: Final keep-probability schedule value.
+        ctt_1: Initial mask-probability schedule value.
+        ctt_T: Final mask-probability schedule value.
+
+    Examples:
+        >>> scheduler = LayoutDMScheduler(vocab_size=8, mask_token_id=7, pad_token_id=6)
+        >>> scheduler.timesteps.shape[0]
+        100
+    """
+
     config_name = "scheduler_config.json"
     order = 1
 
@@ -50,6 +76,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         ctt_1: float = 0.000009,
         ctt_T: float = 0.99999,
     ) -> None:
+        """Initialize LayoutDM transition schedules."""
         self.num_timesteps = num_timesteps
         self.timesteps = torch.arange(num_timesteps - 1, -1, -1)
         self.vocab_size = vocab_size
@@ -81,6 +108,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     def set_timesteps(
         self, num_inference_steps: int | None = None, device: torch.device | None = None
     ) -> None:
+        """Set reverse-diffusion timesteps for inference."""
         steps = num_inference_steps or self.num_timesteps
         self.timesteps = torch.tensor(
             [int(i * self.num_timesteps / steps) for i in range(steps - 1, -1, -1)],
@@ -96,6 +124,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         device: torch.device,
         condition: LayoutDMCondition | None = None,
     ) -> torch.Tensor:
+        """Create the initial log one-hot sample for reverse diffusion."""
         if condition is not None:
             ids = condition.input_ids.to(device)
         else:
@@ -108,6 +137,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         return index_to_log_onehot(ids, self.vocab_size)
 
     def predict_start(self, denoiser_output: torch.Tensor) -> torch.Tensor:
+        """Convert denoiser logits to start-sequence log probabilities."""
         logits = denoiser_output[:, :, :-1]
         log_pred = torch.log_softmax(logits.double(), dim=-1).float()
         mask_col = torch.full(
@@ -123,6 +153,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     def q_posterior(
         self, log_x_start: torch.Tensor, log_x_t: torch.Tensor, t: torch.Tensor
     ) -> torch.Tensor:
+        """Compute the LayoutDM posterior transition distribution."""
         if self.per_var_full_ids is not None:
             return self._constrained_q_posterior(log_x_start, log_x_t, t)
         t = t.clamp(0, self.num_timesteps - 1)
@@ -139,6 +170,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         log_x_t_full: torch.Tensor,
         t: torch.Tensor,
     ) -> torch.Tensor:
+        """Compute posterior probabilities with per-variable vocab constraints."""
         batch_size = log_x_start_full.size(0)
         step = len(self.var_order)
         seq_len = log_x_start_full.shape[-1] // step
@@ -182,6 +214,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     def _q_pred_one_timestep(
         self, log_x_t: torch.Tensor, t: torch.Tensor, key: str
     ) -> torch.Tensor:
+        """Apply one forward noising transition in partial vocabulary space."""
         log_at, log_bt, log_ct = (self.schedules[key][i].to(t.device) for i in range(3))
         log_at = _extract(log_at, t, log_x_t.shape)
         log_bt = _extract(log_bt, t, log_x_t.shape)
@@ -198,6 +231,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
     def _q_pred(
         self, log_x_start: torch.Tensor, t: torch.Tensor, key: str
     ) -> torch.Tensor:
+        """Apply cumulative forward noising in partial vocabulary space."""
         t = (t + (self.num_timesteps + 1)) % (self.num_timesteps + 1)
         log_cumprod_at, log_cumprod_bt, log_cumprod_ct = (
             self.schedules[key][i].to(t.device) for i in range(3, 6)
@@ -217,19 +251,23 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _mat_size(self, key: str) -> int:
+        """Return the constrained matrix size for one token variable."""
         assert self.per_var_full_ids is not None
         return len(self.per_var_full_ids[key])
 
     def _full_ids(self, key: str, device: torch.device) -> torch.Tensor:
+        """Return full vocabulary ids for a constrained token variable."""
         assert self.per_var_full_ids is not None
         return torch.tensor(self.per_var_full_ids[key], dtype=torch.long, device=device)
 
     def _full_to_partial_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+        """Gather full-vocabulary log probabilities into partial space."""
         full_ids = self._full_ids(key, inputs.device)
         index = full_ids.reshape(1, -1, 1).expand(inputs.shape[0], -1, inputs.shape[-1])
         return torch.gather(inputs, dim=1, index=index)
 
     def _partial_to_full_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+        """Scatter partial-space log probabilities into full vocabulary space."""
         full_ids = self._full_ids(key, inputs.device)
         outputs = torch.full(
             (inputs.shape[0], self.vocab_size, inputs.shape[-1]),
@@ -251,6 +289,21 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         condition: LayoutDMCondition | None = None,
         generator: torch.Generator | None = None,
     ) -> LayoutDMSchedulerOutput:
+        """Run one reverse-diffusion scheduler step.
+
+        Args:
+            denoiser_output: Raw denoiser logits.
+            timestep: Current timestep tensor.
+            sample: Current log one-hot sample.
+            previous_timestep: Previous timestep value from the sampling loop.
+            sampling: Sampling configuration.
+            condition: Optional strong condition mask and ids.
+            generator: Optional torch generator for stochastic sampling.
+
+        Returns:
+            Scheduler output containing the previous sample and log-probability
+            intermediates.
+        """
         log_x_recon = self.predict_start(denoiser_output)
         model_log_prob = self.q_posterior(log_x_recon, sample, timestep)
         if self.token_mask is not None:

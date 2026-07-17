@@ -1,18 +1,39 @@
+"""Processor for encoding and decoding LACE layout tensors."""
+
 from __future__ import annotations
 
-from typing import Literal
+from pathlib import Path
 
 import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-from laygen.common.bbox import ltrb_to_xywh, ltwh_to_xywh, normalize_boxes
+from laygen.common.bbox import (
+    BoxFormat,
+    ltrb_to_xywh,
+    ltwh_to_xywh,
+    normalize_boxes,
+    normalize_box_format,
+)
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_lace import get_dataset_spec
 
 
 class LaceProcessor(ConfigMixin):
+    """Encode public layout tensors into the continuous LACE sequence format.
+
+    Args:
+        dataset: Canonical dataset name serialized with the processor config.
+        labels: Ordered category labels without the padding label.
+        max_seq_length: Maximum number of layout elements.
+
+    Examples:
+        >>> processor = LaceProcessor.from_dataset("publaynet")
+        >>> processor.seq_dim
+        10
+    """
+
     config_name = "processor_config.json"
 
     @register_to_config
@@ -23,33 +44,59 @@ class LaceProcessor(ConfigMixin):
         labels: list[str],
         max_seq_length: int = 25,
     ) -> None:
+        """Initialize processor metadata.
+
+        Args:
+            dataset: Canonical dataset name.
+            labels: Ordered category labels without padding.
+            max_seq_length: Maximum number of layout elements.
+        """
         self.dataset = dataset
         self.labels = tuple(labels)
         self.max_seq_length = max_seq_length
 
     @classmethod
     def from_dataset(cls, dataset: str) -> "LaceProcessor":
+        """Create a processor from built-in dataset metadata.
+
+        Args:
+            dataset: LACE dataset name or alias.
+
+        Returns:
+            Processor configured for the dataset.
+
+        Raises:
+            ValueError: If the dataset is unsupported.
+
+        Examples:
+            >>> LaceProcessor.from_dataset("rico13").pad_label_id
+            13
+        """
         spec = get_dataset_spec(dataset)
         return cls(
-            dataset=spec.dataset,
+            dataset=str(spec.dataset),
             labels=list(spec.labels),
             max_seq_length=spec.max_seq_length,
         )
 
     @property
     def id2label(self) -> dict[int, str]:
+        """Return the category id to label mapping."""
         return dict(enumerate(self.labels))
 
     @property
     def pad_label_id(self) -> int:
+        """Return the padding label id."""
         return len(self.labels)
 
     @property
     def num_classes_with_pad(self) -> int:
+        """Return the label-channel count including padding."""
         return len(self.labels) + 1
 
     @property
     def seq_dim(self) -> int:
+        """Return the latent per-element feature size."""
         return self.num_classes_with_pad + 4
 
     def __call__(
@@ -58,10 +105,33 @@ class LaceProcessor(ConfigMixin):
         bbox: torch.Tensor | np.ndarray | list,
         labels: torch.Tensor | np.ndarray | list,
         mask: torch.Tensor | np.ndarray | list | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
     ) -> dict[str, torch.Tensor]:
+        """Encode a public layout batch.
+
+        Args:
+            bbox: Boxes in ``box_format``.
+            labels: Integer category labels.
+            mask: Optional valid-element mask.
+            box_format: Input box format.
+            normalized: Whether input coordinates are already normalized.
+            canvas_size: Pixel canvas size required when ``normalized`` is false.
+
+        Returns:
+            Dictionary containing encoded layout, normalized boxes, labels, and mask.
+
+        Raises:
+            ValueError: If pixel boxes are passed without ``canvas_size`` or if
+                ``box_format`` is unsupported.
+
+        Examples:
+            >>> processor = LaceProcessor.from_dataset("publaynet")
+            >>> out = processor(bbox=[[[0.5, 0.5, 0.2, 0.2]]], labels=[[0]])
+            >>> tuple(out["layout"].shape)
+            (1, 25, 10)
+        """
         bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
         labels_t = torch.as_tensor(labels, dtype=torch.long)
         if labels_t.ndim == 1:
@@ -79,12 +149,16 @@ class LaceProcessor(ConfigMixin):
             bbox_t = normalize_boxes(
                 bbox_t, canvas_size=canvas_size, box_format=box_format
             )
-        elif box_format == "ltwh":
-            bbox_t = ltwh_to_xywh(bbox_t)
-        elif box_format == "ltrb":
-            bbox_t = ltrb_to_xywh(bbox_t)
-        elif box_format != "xywh":
-            raise ValueError(f"Unsupported box_format: {box_format}")
+        else:
+            fmt = normalize_box_format(box_format)
+            if fmt is BoxFormat.xywh:
+                pass
+            elif fmt is BoxFormat.ltwh:
+                bbox_t = ltwh_to_xywh(bbox_t)
+            elif fmt is BoxFormat.ltrb:
+                bbox_t = ltrb_to_xywh(bbox_t)
+            else:
+                raise ValueError(f"Unsupported box_format: {box_format}")
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t)
         return {
             "layout": self.encode(bbox_t, labels_t, mask_t),
@@ -100,6 +174,20 @@ class LaceProcessor(ConfigMixin):
         mask: torch.Tensor | None = None,
         max_seq_length: int | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Pad a batch to ``max_seq_length``.
+
+        Args:
+            bbox: Normalized boxes with shape ``(batch, seq, 4)``.
+            labels: Integer labels with shape ``(batch, seq)``.
+            mask: Optional valid-element mask.
+            max_seq_length: Optional override for output length.
+
+        Returns:
+            Padded boxes, labels, and mask.
+
+        Raises:
+            ValueError: If the input has too many elements.
+        """
         max_len = max_seq_length or self.max_seq_length
         if bbox.shape[1] > max_len:
             raise ValueError(f"LACE supports at most {max_len} elements")
@@ -129,6 +217,16 @@ class LaceProcessor(ConfigMixin):
     def encode(
         self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
+        """Encode normalized boxes and labels into the vendor latent range.
+
+        Args:
+            bbox: Normalized center ``xywh`` boxes.
+            labels: Integer labels.
+            mask: Optional valid-element mask.
+
+        Returns:
+            Tensor with one-hot labels followed by box channels in ``[-1, 1]``.
+        """
         bbox, labels, mask = self.pad(bbox, labels, mask)
         bbox_in = 2 * (bbox.clamp(0.0, 1.0) - 0.5)
         labels = labels.clamp(0, self.pad_label_id)
@@ -141,6 +239,15 @@ class LaceProcessor(ConfigMixin):
     def decode(
         self, layout: torch.Tensor, clamp: bool = True
     ) -> LayoutGenerationOutput:
+        """Decode a LACE layout tensor into public output fields.
+
+        Args:
+            layout: Tensor with one-hot label channels and box channels.
+            clamp: Whether to clamp latent box channels before conversion.
+
+        Returns:
+            Layout generation output with boxes in normalized center ``xywh``.
+        """
         decoded = layout.clone()
         bbox_latent = decoded[:, :, self.num_classes_with_pad :]
         if clamp:
@@ -156,9 +263,24 @@ class LaceProcessor(ConfigMixin):
             intermediates={"dataset": self.dataset},
         )
 
-    def save_pretrained(self, save_directory: str) -> None:
+    def save_pretrained(self, save_directory: str | Path) -> None:
+        """Save processor config to a Diffusers directory.
+
+        Args:
+            save_directory: Directory where ``processor_config.json`` is written.
+        """
         self.save_config(save_directory)
 
     @classmethod
-    def from_pretrained(cls, path: str) -> "LaceProcessor":
+    def from_pretrained(cls, path: str | Path, **kwargs: object) -> "LaceProcessor":
+        """Load processor config from a Diffusers directory.
+
+        Args:
+            path: Directory containing ``processor_config.json``.
+            **kwargs: Reserved for Diffusers compatibility.
+
+        Returns:
+            Loaded processor.
+        """
+        del kwargs
         return cls.from_config(cls.load_config(path))

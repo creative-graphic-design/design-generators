@@ -1,3 +1,5 @@
+"""Diffusers pipeline for converted LayoutDM checkpoints."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +9,9 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.discrete import log_onehot_to_index
+from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .conditioning import build_condition, normalize_condition_type
@@ -19,6 +23,26 @@ from .tokenization_layout_dm import LayoutDMTokenizer
 
 
 class LayoutDMPipeline(DiffusionPipeline):
+    """Generate layouts with a converted LayoutDM denoiser and scheduler.
+
+    Args:
+        denoiser: LayoutDM denoiser model.
+        scheduler: Discrete diffusion scheduler.
+        tokenizer: Structured layout tokenizer.
+        processor: Optional input processor. A default processor is created
+            when omitted.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> path = Path(".cache/layout-dm/converted/layoutdm-rico25")
+        >>> path.exists()  # doctest: +SKIP
+        True
+        >>> pipe = LayoutDMPipeline.from_pretrained(path)  # doctest: +SKIP
+        >>> out = pipe(batch_size=1, seed=0, num_inference_steps=1)  # doctest: +SKIP
+        >>> out.bbox.shape[-1]  # doctest: +SKIP
+        4
+    """
+
     model_cpu_offload_seq = "denoiser"
 
     def __init__(
@@ -28,6 +52,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         tokenizer: LayoutDMTokenizer,
         processor: LayoutDMProcessor | None = None,
     ) -> None:
+        """Initialize and register LayoutDM pipeline modules."""
         super().__init__()
         self.register_modules(
             denoiser=denoiser, scheduler=scheduler, tokenizer=tokenizer
@@ -48,13 +73,11 @@ class LayoutDMPipeline(DiffusionPipeline):
         bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
         mask: torch.Tensor | np.ndarray | list[Any] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
-        sampling: Literal[
-            "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
-        ] = "random",
+        sampling: SamplingMode | str = SamplingMode.random,
         temperature: float = 1.0,
         top_k: int = 5,
         top_p: float = 0.9,
@@ -62,6 +85,37 @@ class LayoutDMPipeline(DiffusionPipeline):
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+        """Run unconditional or conditional layout generation.
+
+        Args:
+            batch_size: Number of layouts generated for unconditional sampling.
+            seed: Optional seed used only when ``generator`` is omitted.
+            generator: Optional torch generator. Takes precedence over ``seed``.
+            condition_type: Canonical condition type or supported vendor alias.
+            labels: Optional labels used by conditional modes.
+            bbox: Optional boxes used by conditional modes.
+            mask: Optional valid-element mask for conditional inputs.
+            num_elements: Reserved compatibility argument.
+            box_format: Format of conditional input boxes.
+            normalized: Whether conditional boxes are already normalized.
+            canvas_size: Pixel canvas size used when ``normalized=False``.
+            num_inference_steps: Optional shortened diffusion step count.
+            sampling: Sampling strategy.
+            temperature: Random sampling temperature.
+            top_k: Top-k value for top-k modes.
+            top_p: Top-p value for top-p modes.
+            output_type: ``"dataclass"`` or ``"dict"``.
+            return_intermediates: Whether to return sampling trajectory data.
+            **model_kwargs: Reserved compatibility keyword arguments.
+
+        Returns:
+            ``LayoutGenerationOutput`` by default, or a dictionary when
+            ``output_type="dict"``.
+
+        Raises:
+            ValueError: If a conditional mode is missing ``bbox`` or ``labels``,
+                or if ``output_type`` is unsupported.
+        """
         _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
@@ -149,12 +203,22 @@ class LayoutDMPipeline(DiffusionPipeline):
     generate = __call__
 
     def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+        """Save the pipeline and tokenizer to a Diffusers directory."""
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
     def from_pretrained(
         cls, pretrained_model_name_or_path: str | Path, **kwargs: object
     ) -> "LayoutDMPipeline":
+        """Load a LayoutDM pipeline from a local directory or Hub repo.
+
+        Args:
+            pretrained_model_name_or_path: Diffusers pipeline directory or Hub id.
+            **kwargs: Additional arguments forwarded to Diffusers.
+
+        Returns:
+            Loaded pipeline with a matching ``LayoutDMProcessor``.
+        """
         tokenizer = LayoutDMTokenizer.from_pretrained(pretrained_model_name_or_path)
         kwargs.setdefault("tokenizer", tokenizer)
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)

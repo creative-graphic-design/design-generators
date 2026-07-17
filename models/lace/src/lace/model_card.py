@@ -1,3 +1,5 @@
+"""Model-card generation for converted LACE checkpoints."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -53,11 +55,25 @@ def lace_model_card(
     *,
     parity_metrics: list[ParityMetric] | None = None,
 ) -> ModelCard:
-    dataset = normalize_dataset(dataset)
-    model_id = _MODEL_IDS[dataset]
+    """Create the Hugging Face model card for a LACE checkpoint.
+
+    Args:
+        dataset: LACE dataset name or alias.
+        parity_metrics: Optional parity metrics to embed in the evaluation section.
+
+    Returns:
+        Rendered Hugging Face Hub model card.
+
+    Raises:
+        ValueError: If the dataset is unsupported.
+    """
+    dataset_key = str(normalize_dataset(dataset))
+    model_id = _MODEL_IDS[dataset_key]
     metrics = parity_metrics
     if metrics is None:
-        metrics = [_PARITY_METRICS[dataset]] if dataset in _PARITY_METRICS else []
+        metrics = (
+            [_PARITY_METRICS[dataset_key]] if dataset_key in _PARITY_METRICS else []
+        )
     how_to_use = f"""
 from lace import LacePipeline
 
@@ -67,13 +83,13 @@ print(out.bbox, out.labels, out.mask)
 """
     details = (
         "Diffusers-format conversion of the LACE checkpoint for "
-        f"`{dataset}`. LACE is a continuous diffusion layout generation model "
+        f"`{dataset_key}`. LACE is a continuous diffusion layout generation model "
         "from the paper 'Towards Aligned Layout Generation via Diffusion Model "
         "with Aesthetic Constraints' (https://arxiv.org/abs/2402.04754). "
         "The pipeline generates normalized center `xywh` layout boxes, "
         "category labels, and masks."
     )
-    if dataset == "rico13":
+    if dataset_key == "rico13":
         details += (
             " The public vendor checkpoint archive used for local parity "
             "verification does not include `rico13_best.pt`; Rico13 parity "
@@ -81,8 +97,8 @@ print(out.bbox, out.labels, out.mask)
         )
     return build_layout_model_card(
         model_id=model_id,
-        model_name=f"LACE {dataset}",
-        dataset_ids=[_DATASET_IDS[dataset]],
+        model_name=f"LACE {dataset_key}",
+        dataset_ids=[_DATASET_IDS[dataset_key]],
         license="mit",
         library_name="diffusers",
         pipeline_tag="text-to-image",
@@ -90,7 +106,7 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "lace",
             "diffusers",
-            dataset,
+            dataset_key,
         ],
         model_details=details,
         intended_uses=(
@@ -105,7 +121,7 @@ print(out.bbox, out.labels, out.mask)
         ),
         how_to_use=how_to_use,
         training_data=(
-            f"The original checkpoint was trained on `{_DATASET_IDS[dataset]}` "
+            f"The original checkpoint was trained on `{_DATASET_IDS[dataset_key]}` "
             "as released by the original LACE project."
         ),
         parity_metrics=metrics,
@@ -137,7 +153,7 @@ print(out.bbox, out.labels, out.mask)
         ),
         training_regime="Original training regime from the upstream LACE release.",
         testing_data=(
-            f"Vendor parity tests use `{_DATASET_IDS[dataset]}` checkpoint fixtures "
+            f"Vendor parity tests use `{_DATASET_IDS[dataset_key]}` checkpoint fixtures "
             "from the original LACE release when the public checkpoint is available."
         ),
         testing_factors=(
@@ -162,6 +178,19 @@ def write_lace_model_card(
     *,
     parity_metrics: list[ParityMetric] | None = None,
 ) -> Path:
+    """Write the LACE model card into a model directory.
+
+    Args:
+        output_dir: Directory where ``README.md`` is written.
+        dataset: LACE dataset name or alias.
+        parity_metrics: Optional parity metrics to embed in the evaluation section.
+
+    Returns:
+        Path to the written ``README.md``.
+
+    Raises:
+        ValueError: If the dataset is unsupported.
+    """
     path = Path(output_dir) / "README.md"
     path.write_text(
         str(lace_model_card(dataset, parity_metrics=parity_metrics)),

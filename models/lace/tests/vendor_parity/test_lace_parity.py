@@ -1,8 +1,11 @@
 from pathlib import Path
 import sys
+from typing import cast
 
 import pytest
 import torch
+
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from lace import build_pipeline_from_vendor_checkpoint, default_model_config
 from lace.conversion import convert_state_dict, load_vendor_state_dict
@@ -24,7 +27,9 @@ def test_checkpoint_conversion_smoke(dataset: str, checkpoint: str) -> None:
     if not path.exists():
         pytest.skip("LACE vendor checkpoint is local-only")
     pipe = build_pipeline_from_vendor_checkpoint(dataset, path)
-    out = pipe(batch_size=1, seed=0, num_inference_steps=2)
+    out = cast(
+        LayoutGenerationOutput, pipe(batch_size=1, seed=0, num_inference_steps=2)
+    )
     assert out.bbox.shape == (1, 25, 4)
     assert out.labels.shape == (1, 25)
     assert torch.all((0 <= out.bbox) & (out.bbox <= 1))

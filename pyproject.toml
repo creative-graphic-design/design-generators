@@ -29,9 +29,16 @@ training = [
 dev = [
     "pre-commit>=4.6.0",
     "pytest>=6.0.0",
+    "pytest-cov>=7.0.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
+]
+docs = [
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-literate-nav>=0.6.2",
+    "mkdocs-material>=9.7.0",
+    "mkdocstrings[python]>=0.31.0",
 ]
 
 [tool.uv.workspace]
@@ -50,11 +57,9 @@ extend-select = ["ANN", "D"]
 exclude = ["vendor"]
 
 [tool.ruff.lint.per-file-ignores]
-"lib/*/src/**/*.py" = ["D"]
 "lib/*/tests/*.py" = ["ANN", "D"]
 "lib/*/tests/**/*.py" = ["ANN", "D"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
-"models/*/src/**/*.py" = ["ANN", "D"]
 "models/*/tests/*.py" = ["ANN", "D"]
 "models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]

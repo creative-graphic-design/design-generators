@@ -1,6 +1,11 @@
+import pickle
+from types import SimpleNamespace
+
+import pytest
 import torch
 
 from layout_dm.conversion import (
+    load_cluster_centers,
     remap_denoiser_key,
     split_original_state_dict,
     write_layoutdm_model_card,
@@ -25,6 +30,33 @@ def test_split_original_state_dict_ignores_scheduler_buffers():
     }
 
 
+def test_conversion_rejects_unknown_keys_and_loads_centers(tmp_path):
+    with pytest.raises(KeyError):
+        remap_denoiser_key("other.weight")
+    with pytest.raises(KeyError):
+        split_original_state_dict({"model.module.other.weight": torch.zeros(1)})
+
+    models = {
+        f"{key}-32": SimpleNamespace(
+            cluster_centers_=torch.tensor([[0.2], [0.1]]).numpy()
+        )
+        for key in ("x", "y", "w", "h")
+    }
+    cluster_dir = tmp_path / "clustering_weights"
+    cluster_dir.mkdir()
+    path = cluster_dir / "publaynet_max25_kmeans_train_clusters.pkl"
+    with path.open("wb") as f:
+        pickle.dump(models, f)
+
+    centers = load_cluster_centers(tmp_path, "publaynet")
+    assert centers == {
+        "x": pytest.approx([0.1, 0.2]),
+        "y": pytest.approx([0.1, 0.2]),
+        "w": pytest.approx([0.1, 0.2]),
+        "h": pytest.approx([0.1, 0.2]),
+    }
+
+
 def test_write_layoutdm_model_card(tmp_path):
     path = write_layoutdm_model_card(tmp_path, "rico25")
     text = path.read_text(encoding="utf-8")
@@ -40,3 +72,6 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "### Results" in text
     assert "Tokenizer exact" in text
     assert "[More Information Needed]" not in text
+    assert "This card follows" not in text
+    assert "annotated model card" not in text
+    assert "model card template" not in text

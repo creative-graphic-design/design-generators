@@ -1,5 +1,9 @@
+from typing import cast
+
+import pytest
 import torch
 
+from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
@@ -63,6 +67,55 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     pipe = make_pipeline()
     pipe.save_pretrained(tmp_path)
     loaded = LayoutDMPipeline.from_pretrained(tmp_path)
-    out = loaded(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
+    out = loaded(
+        batch_size=1,
+        seed=0,
+        num_inference_steps=1,
+        sampling=SamplingMode.deterministic,
+    )
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
+
+
+def test_pipeline_conditional_modes_dict_output_and_errors():
+    pipe = make_pipeline()
+    bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.2]]])
+    labels = torch.tensor([[1]])
+    mask = torch.tensor([[True]])
+    for condition_type in ["c", "cwh", "complete", "refine"]:
+        out = cast(
+            LayoutGenerationOutput,
+            pipe(
+                condition_type=condition_type,
+                bbox=bbox,
+                labels=labels,
+                mask=mask,
+                seed=0,
+                num_inference_steps=1,
+                sampling=SamplingMode.deterministic,
+                return_intermediates=True,
+            ),
+        )
+        assert_layout_output_schema(out, batch_size=1)
+        assert out.trajectory is not None
+        assert out.intermediates == {
+            "condition_type": {
+                "c": "label",
+                "cwh": "label_size",
+                "complete": "completion",
+                "refine": "refinement",
+            }[condition_type]
+        }
+
+    dict_out = pipe(
+        batch_size=1,
+        seed=0,
+        num_inference_steps=1,
+        sampling=SamplingMode.deterministic,
+        output_type="dict",
+    )
+    assert type(dict_out) is dict
+    with pytest.raises(ValueError, match="bbox and labels are required"):
+        pipe(condition_type="label", num_inference_steps=1)
+    with pytest.raises(ValueError, match="Unsupported output_type"):
+        pipe(output_type="tuple", num_inference_steps=1)
