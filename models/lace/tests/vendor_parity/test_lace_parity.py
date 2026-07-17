@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 import torch
 
+from laygen.common.vendor import vendor_root
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from lace import build_pipeline_from_vendor_checkpoint, default_model_config
@@ -12,9 +13,9 @@ from lace.conversion import convert_state_dict, load_vendor_state_dict
 from lace.modeling_lace import LaceTransformerModel
 
 
-def _load_vendor_transformer_encoder(root: Path) -> type[torch.nn.Module]:
+def _load_vendor_transformer_encoder(vendor_dir: Path) -> type[torch.nn.Module]:
     spec = spec_from_file_location(
-        "lace_vendor_backbone", root / "vendor" / "lace" / "util" / "backbone.py"
+        "lace_vendor_backbone", vendor_dir / "util" / "backbone.py"
     )
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load vendor LACE backbone")
@@ -62,7 +63,8 @@ def test_denoiser_logits_match_vendor(dataset: str, checkpoint: str) -> None:
     path = root / ".cache" / "lace" / "original" / "model" / checkpoint
     if not path.exists():
         pytest.skip("LACE vendor checkpoint is local-only")
-    TransformerEncoder = _load_vendor_transformer_encoder(root)
+    vendor_dir = vendor_root("lace", marker=Path("util") / "backbone.py")
+    TransformerEncoder = _load_vendor_transformer_encoder(vendor_dir)
     config = default_model_config(dataset)
     device = torch.device("cpu")
     vendor = TransformerEncoder(

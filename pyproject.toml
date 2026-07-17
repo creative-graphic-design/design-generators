@@ -13,8 +13,10 @@ classifiers = [
 ]
 dependencies = [
     "lace",
+    "layoutganpp",
     "layout-dm",
     "laygen",
+    "posgen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -54,6 +56,7 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 lace = { workspace = true }
+layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 laygen = { workspace = true }
 posgen = { workspace = true }

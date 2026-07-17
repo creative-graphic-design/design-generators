@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 import numpy as np
 import torch
@@ -15,10 +16,16 @@ from laygen.common.bbox import (
     normalize_boxes,
     normalize_box_format,
 )
+from laygen.common import OutputField
 from laygen.common.labels import DatasetName
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_lace import get_dataset_spec, normalize_dataset
+
+LACE_LAYOUT_KEY: Final[str] = "layout"
+LACE_BBOX_KEY: Final[str] = str(OutputField.bbox)
+LACE_LABELS_KEY: Final[str] = str(OutputField.labels)
+LACE_MASK_KEY: Final[str] = str(OutputField.mask)
 
 
 class LaceProcessor(ProcessorMixin):
@@ -161,10 +168,10 @@ class LaceProcessor(ProcessorMixin):
                 raise ValueError(f"Unsupported box_format: {box_format}")
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t)
         return {
-            "layout": self.encode(bbox_t, labels_t, mask_t),
-            "bbox": bbox_t,
-            "labels": labels_t,
-            "mask": mask_t,
+            LACE_LAYOUT_KEY: self.encode(bbox_t, labels_t, mask_t),
+            LACE_BBOX_KEY: bbox_t,
+            LACE_LABELS_KEY: labels_t,
+            LACE_MASK_KEY: mask_t,
         }
 
     def pad(

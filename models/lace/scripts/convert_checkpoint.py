@@ -4,17 +4,28 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Final
 
+from laygen.common import DatasetName
 from lace.conversion import build_pipeline_from_vendor_checkpoint
+from lace.configuration_lace import normalize_dataset
 from lace.model_card import write_lace_model_card
 
+DATASET_CHOICES: Final[tuple[str, ...]] = (
+    str(DatasetName.publaynet),
+    str(DatasetName.rico13),
+    str(DatasetName.rico25),
+)
 
-def _default_checkpoint(dataset: str) -> str:
-    return f".cache/lace/original/model/{dataset}_best.pt"
+
+def _default_checkpoint(dataset: DatasetName | str) -> str:
+    dataset_name = normalize_dataset(dataset)
+    return f".cache/lace/original/model/{dataset_name}_best.pt"
 
 
-def _default_output(dataset: str) -> str:
-    return f".cache/lace/converted/lace-{dataset}"
+def _default_output(dataset: DatasetName | str) -> str:
+    dataset_name = normalize_dataset(dataset)
+    return f".cache/lace/converted/lace-{dataset_name}"
 
 
 def main() -> None:
@@ -27,8 +38,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        default="publaynet",
-        choices=["publaynet", "rico13", "rico25"],
+        default=str(DatasetName.publaynet),
+        choices=DATASET_CHOICES,
         help="Dataset/checkpoint family to convert.",
     )
     parser.add_argument(
@@ -51,13 +62,14 @@ def main() -> None:
         help="Number of DDIM sampling steps stored in the converted scheduler.",
     )
     args = parser.parse_args()
-    checkpoint = args.checkpoint or _default_checkpoint(args.dataset)
-    output = Path(args.output or _default_output(args.dataset))
+    dataset = normalize_dataset(args.dataset)
+    checkpoint = args.checkpoint or _default_checkpoint(dataset)
+    output = Path(args.output or _default_output(dataset))
     pipe = build_pipeline_from_vendor_checkpoint(
-        args.dataset, checkpoint, ddim_num_steps=args.ddim_num_steps
+        dataset, checkpoint, ddim_num_steps=args.ddim_num_steps
     )
     pipe.save_pretrained(output)
-    write_lace_model_card(output, args.dataset)
+    write_lace_model_card(output, dataset)
 
 
 if __name__ == "__main__":

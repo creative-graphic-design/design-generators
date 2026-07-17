@@ -18,7 +18,13 @@ from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from .configuration_lace import normalize_dataset
 from .constraints import beautify_layout
 from .modeling_lace import LaceTransformerModel
-from .processing_lace import LaceProcessor
+from .processing_lace import (
+    LACE_BBOX_KEY,
+    LACE_LABELS_KEY,
+    LACE_LAYOUT_KEY,
+    LACE_MASK_KEY,
+    LaceProcessor,
+)
 from .scheduling_lace import LaceScheduler
 
 
@@ -224,7 +230,7 @@ class LacePipeline(DiffusionPipeline):
                 normalized=normalized,
                 canvas_size=canvas_size,
             )
-            batch_size = encoded["layout"].shape[0]
+            batch_size = encoded[LACE_LAYOUT_KEY].shape[0]
         self.scheduler.set_timesteps(num_inference_steps, device=self.device)
         sample = self.scheduler.initial_sample(
             batch_size,
@@ -236,18 +242,20 @@ class LacePipeline(DiffusionPipeline):
         if canonical is ConditionType.refinement:
             assert encoded is not None
             noise = torch.randn(
-                encoded["bbox"].shape,
-                dtype=encoded["bbox"].dtype,
-                device=encoded["bbox"].device,
+                encoded[LACE_BBOX_KEY].shape,
+                dtype=encoded[LACE_BBOX_KEY].dtype,
+                device=encoded[LACE_BBOX_KEY].device,
                 generator=generator,
             )
-            noisy_bbox = (encoded["bbox"] + refinement_noise * noise).clamp(0, 1)
+            noisy_bbox = (encoded[LACE_BBOX_KEY] + refinement_noise * noise).clamp(0, 1)
             sample = self.processor.encode(
                 noisy_bbox.to(self.device),
-                encoded["labels"].to(self.device),
-                encoded["mask"].to(self.device),
+                encoded[LACE_LABELS_KEY].to(self.device),
+                encoded[LACE_MASK_KEY].to(self.device),
             )
-        real_layout = None if encoded is None else encoded["layout"].to(self.device)
+        real_layout = (
+            None if encoded is None else encoded[LACE_LAYOUT_KEY].to(self.device)
+        )
         fix_mask = self._build_fix_mask(
             canonical, real_layout, completion_ratio, generator
         )
