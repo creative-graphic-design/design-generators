@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Final, assert_never
 
 import torch
 from transformers import BatchEncoding, ProcessorMixin
 
+from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.labels import labels_for_dataset
 from laygen.common.outputs import LayoutGenerationOutput
 
@@ -22,25 +24,54 @@ from .serialization import (
 from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
 
-TASK_TO_CONDITION = {
-    "ugen": "unconditional",
-    "gen_t": "label",
-    "gen_ts": "label_size",
-    "gen_r": "relation",
-    "completion": "completion",
-    "refinement": "refinement",
+class ConditionType(StrEnum):
+    """Canonical LayoutFormer++ condition names."""
+
+    unconditional = "unconditional"
+    label = "label"
+    label_size = "label_size"
+    relation = "relation"
+    completion = "completion"
+    refinement = "refinement"
+
+
+class LayoutFormerPPTask(StrEnum):
+    """Supported converted LayoutFormer++ checkpoint tasks."""
+
+    ugen = "ugen"
+    gen_t = "gen_t"
+    gen_ts = "gen_ts"
+    gen_r = "gen_r"
+    completion = "completion"
+    refinement = "refinement"
+
+
+class OutputType(StrEnum):
+    """Supported post-processing return shapes."""
+
+    dataclass = "dataclass"
+    dict = "dict"
+
+
+TASK_TO_CONDITION: Final[dict[LayoutFormerPPTask, ConditionType]] = {
+    LayoutFormerPPTask.ugen: ConditionType.unconditional,
+    LayoutFormerPPTask.gen_t: ConditionType.label,
+    LayoutFormerPPTask.gen_ts: ConditionType.label_size,
+    LayoutFormerPPTask.gen_r: ConditionType.relation,
+    LayoutFormerPPTask.completion: ConditionType.completion,
+    LayoutFormerPPTask.refinement: ConditionType.refinement,
 }
-CONDITION_ALIASES = {
-    "uncond": "unconditional",
-    "ugen": "unconditional",
-    "c": "label",
-    "gen_t": "label",
-    "cwh": "label_size",
-    "gen_ts": "label_size",
-    "gen_r": "relation",
-    "partial": "completion",
-    "complete": "completion",
-    "elem_compl": "completion",
+CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
+    "uncond": ConditionType.unconditional,
+    "ugen": ConditionType.unconditional,
+    "c": ConditionType.label,
+    "gen_t": ConditionType.label,
+    "cwh": ConditionType.label_size,
+    "gen_ts": ConditionType.label_size,
+    "gen_r": ConditionType.relation,
+    "partial": ConditionType.completion,
+    "complete": ConditionType.completion,
+    "elem_compl": ConditionType.completion,
 }
 
 
@@ -127,19 +158,19 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         tokenizer = LayoutFormerPPTokenizer.from_pretrained(path)
         return cls(tokenizer=tokenizer, **config)
 
-    def normalize_condition_type(self, condition_type: str) -> str:
+    def normalize_condition_type(
+        self, condition_type: ConditionType | str
+    ) -> ConditionType:
         """Normalize public condition aliases."""
-        value = CONDITION_ALIASES.get(condition_type, condition_type)
-        if value not in {
-            "unconditional",
-            "label",
-            "label_size",
-            "relation",
-            "completion",
-            "refinement",
-        }:
-            raise ValueError(f"Unsupported condition_type: {condition_type}")
-        return value
+        if isinstance(condition_type, ConditionType):
+            return condition_type
+        value = CONDITION_ALIASES.get(condition_type)
+        if value is not None:
+            return value
+        try:
+            return ConditionType(condition_type)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported condition_type: {condition_type}") from exc
 
     def _label_to_internal_id(self, label: int | str) -> int:
         if isinstance(label, int):
@@ -161,7 +192,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         ]
 
     def _prepare_bbox(
-        self, bbox: Any, *, labels: list[list[int]], box_format: str
+        self, bbox: Any, *, labels: list[list[int]], box_format: BoxFormat | str
     ) -> list[list[list[int]]]:
         if bbox is None:
             return [[[0, 0, 1, 1] for _ in item] for item in labels]
@@ -173,12 +204,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         labels: list[list[int | str]] | None = None,
         bbox: Any = None,
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         batch_size: int | None = None,
-        box_format: str = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         return_tensors: str = "pt",
         **kwargs: Any,
     ) -> BatchEncoding:
@@ -191,33 +222,33 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         )
         texts: list[str] = []
         for idx in range(batch_size):
-            if condition == "unconditional":
+            if condition is ConditionType.unconditional:
                 texts.append("")
-            elif condition == "label":
+            elif condition is ConditionType.label:
                 texts.append(
                     self.gen_t_serializer.build_input_seq(
                         "gen_t", internal_labels[idx], internal_bbox[idx]
                     )
                 )
-            elif condition == "label_size":
+            elif condition is ConditionType.label_size:
                 texts.append(
                     self.gen_t_serializer.build_input_seq(
                         "gen_ts", internal_labels[idx], internal_bbox[idx]
                     )
                 )
-            elif condition == "relation":
+            elif condition is ConditionType.relation:
                 item_relations = [] if relations is None else relations[idx]
                 texts.append(
                     self.gen_r_serializer.build_input_seq(
                         internal_labels[idx], item_relations
                     )
                 )
-            elif condition in {"completion", "refinement"}:
+            elif condition in {ConditionType.completion, ConditionType.refinement}:
                 texts.append(
                     self.serializer.build_seq(internal_labels[idx], internal_bbox[idx])
                 )
             else:
-                raise ValueError(f"Unsupported condition_type: {condition}")
+                assert_never(condition)
         encoded = self.tokenizer.encode_text(texts, add_eos=True, add_bos=False)
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
@@ -227,8 +258,8 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self,
         sequences: torch.Tensor,
         *,
-        box_format: str = "xywh",
-        output_type: str = "dataclass",
+        box_format: BoxFormat | str = BoxFormat.xywh,
+        output_type: OutputType | str = OutputType.dataclass,
         return_tensors: str = "pt",
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
         """Parse generated token ids to the common layout output schema."""
@@ -262,8 +293,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             bbox_rows.append(boxes)
             mask_rows.append(mask)
         bbox_ids = torch.stack(bbox_rows)
+        normalized_box_format = normalize_box_format(box_format)
         bbox = discrete_ltwh_to_public(
-            bbox_ids, box_format=box_format, x_grid=self.x_grid, y_grid=self.y_grid
+            bbox_ids,
+            box_format=normalized_box_format,
+            x_grid=self.x_grid,
+            y_grid=self.y_grid,
         )
         output = LayoutGenerationOutput(
             bbox=bbox.float(),
@@ -271,12 +306,23 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             mask=torch.stack(mask_rows).bool(),
             id2label=dict(self.public_id2label),
             sequences=sequences.long(),
-            intermediates={"generated_text": texts, "box_format": box_format},
+            intermediates={
+                "generated_text": texts,
+                "box_format": normalized_box_format,
+            },
         )
-        if output_type == "dict":
+        try:
+            normalized_output_type = (
+                output_type
+                if isinstance(output_type, OutputType)
+                else OutputType(output_type)
+            )
+        except ValueError as exc:
+            raise ValueError(f"Unsupported output_type: {output_type}") from exc
+        if normalized_output_type is OutputType.dict:
             return dict(output)
-        if output_type != "dataclass":
-            raise ValueError(f"Unsupported output_type: {output_type}")
+        if normalized_output_type is not OutputType.dataclass:
+            assert_never(normalized_output_type)
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
         return output

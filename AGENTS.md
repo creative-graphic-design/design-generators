@@ -113,6 +113,17 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 ## Documentation
 
+- The docs site uses `mkdocs-material`, `mkdocstrings[python]`, and
+  `mkdocs-gen-files`; build it with
+  `uv run --group docs mkdocs build --strict`.
+- The API reference is generated from workspace members under `lib/*` and
+  `models/*`, using Python packages found below each member's `src/` directory.
+- Public API docstrings are the source text for the API reference. Use
+  google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples`
+  sections for public pipelines, tokenizers, processors, configs,
+  `laygen.common` modules, `posgen.common` modules, and agents.
+- `Examples` in public API docstrings should be doctest-ready snippets whenever
+  the API can run without heavyweight assets, downloads, or credentials.
 - Each model package README uses a model-card style: overview, install/usage
   snippet, supported checkpoints/Hub ids, datasets, vendor-parity summary with
   numbers, license, citation, and original implementation link.

@@ -9,8 +9,13 @@ from transformers import Pipeline
 
 from laygen.common.outputs import LayoutGenerationOutput
 
+from laygen.common.bbox import BoxFormat
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
-from .processing_layoutformerpp import LayoutFormerPPProcessor
+from .processing_layoutformerpp import (
+    ConditionType,
+    LayoutFormerPPProcessor,
+    OutputType,
+)
 
 
 class LayoutFormerPPPipeline(Pipeline):
@@ -53,14 +58,14 @@ class LayoutFormerPPPipeline(Pipeline):
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         labels: list[list[int | str]] | None = None,
         bbox: Any = None,
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         num_elements: int | list[int] | None = None,
-        box_format: str = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
-        output_type: str = "dataclass",
+        output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         **generate_kwargs: Any,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:

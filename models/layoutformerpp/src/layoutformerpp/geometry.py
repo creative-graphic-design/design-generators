@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import torch
 
-from laygen.common.bbox import ltwh_to_xywh, xywh_to_ltwh
+from laygen.common.bbox import (
+    BoxFormat,
+    ltwh_to_xywh,
+    normalize_box_format,
+    xywh_to_ltwh,
+)
 
 
 def discretize_ltwh(
@@ -36,24 +41,30 @@ def continuize_ltwh(
 def public_to_discrete_ltwh(
     bbox: torch.Tensor,
     *,
-    box_format: str = "xywh",
+    box_format: BoxFormat | str = BoxFormat.xywh,
     x_grid: int = 128,
     y_grid: int = 128,
 ) -> torch.Tensor:
     """Convert public normalized boxes to internal discrete ltwh tokens."""
-    ltwh = xywh_to_ltwh(bbox.float()) if box_format == "xywh" else bbox.float()
-    if box_format not in {"xywh", "ltwh"}:
+    fmt = normalize_box_format(box_format)
+    ltwh = xywh_to_ltwh(bbox.float()) if fmt is BoxFormat.xywh else bbox.float()
+    if fmt is not BoxFormat.xywh and fmt is not BoxFormat.ltwh:
         raise ValueError(f"Unsupported box_format: {box_format}")
     return discretize_ltwh(ltwh, x_grid=x_grid, y_grid=y_grid)
 
 
 def discrete_ltwh_to_public(
-    ids: torch.Tensor, *, box_format: str = "xywh", x_grid: int = 128, y_grid: int = 128
+    ids: torch.Tensor,
+    *,
+    box_format: BoxFormat | str = BoxFormat.xywh,
+    x_grid: int = 128,
+    y_grid: int = 128,
 ) -> torch.Tensor:
     """Convert internal discrete ltwh tokens to public normalized boxes."""
     ltwh = continuize_ltwh(ids, x_grid=x_grid, y_grid=y_grid)
-    if box_format == "xywh":
+    fmt = normalize_box_format(box_format)
+    if fmt is BoxFormat.xywh:
         return ltwh_to_xywh(ltwh).clamp(0.0, 1.0)
-    if box_format == "ltwh":
+    if fmt is BoxFormat.ltwh:
         return ltwh.clamp(0.0, 1.0)
     raise ValueError(f"Unsupported box_format: {box_format}")

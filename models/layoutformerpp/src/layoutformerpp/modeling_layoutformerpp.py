@@ -15,6 +15,7 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
+from .processing_layoutformerpp import ConditionType
 
 
 def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
@@ -271,7 +272,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         box_format: str = "xywh",
         output_type: str = "dataclass",
         **kwargs: Any,
@@ -288,6 +289,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             )
             input_ids = encoded["input_ids"].to(self.device)
             attention_mask = encoded["attention_mask"].to(self.device)
+        condition = processor.normalize_condition_type(condition_type)
         if generator is None and seed is not None:
             torch.manual_seed(seed)
         sequences = self.generate_sequences(
@@ -296,7 +298,9 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             max_length=kwargs.get("max_length"),
             do_sample=bool(
                 kwargs.get(
-                    "do_sample", condition_type in {"unconditional", "completion"}
+                    "do_sample",
+                    condition
+                    in {ConditionType.unconditional, ConditionType.completion},
                 )
             ),
         )
