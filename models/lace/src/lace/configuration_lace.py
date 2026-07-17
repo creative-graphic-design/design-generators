@@ -16,6 +16,8 @@ from laygen.common.labels import (
     normalize_dataset_name,
 )
 
+from .modeling_lace import TimestepEmbeddingType
+
 LaceDatasetName = DatasetName
 LaceLabel = PubLayNetLabel | Rico13Label | Rico25Label
 
@@ -73,7 +75,7 @@ class LaceModelConfigKwargs(TypedDict):
     nhead: int
     dim_feedforward: int
     diffusion_step: int
-    timestep_type: str
+    timestep_type: TimestepEmbeddingType
 
 
 DATASET_SPECS: Final[dict[DatasetName, LaceDatasetSpec]] = {
@@ -168,5 +170,5 @@ def default_model_config(dataset: DatasetName | str) -> LaceModelConfigKwargs:
         "nhead": spec.nhead,
         "dim_feedforward": spec.dim_feedforward,
         "diffusion_step": 1000,
-        "timestep_type": "adalayernorm",
+        "timestep_type": TimestepEmbeddingType.adalayernorm,
     }

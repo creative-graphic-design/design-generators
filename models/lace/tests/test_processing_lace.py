@@ -52,7 +52,7 @@ def test_processor_converts_ltwh_pixels_and_saves_config(tmp_path) -> None:
     assert torch.allclose(out["bbox"][0, 0], torch.tensor([0.25, 0.2, 0.3, 0.2]))
 
     processor.save_pretrained(tmp_path)
-    loaded = LaceProcessor.from_pretrained(tmp_path, ignored=True)
+    loaded = LaceProcessor.from_pretrained(tmp_path)
     assert loaded.dataset == "rico25"
     assert loaded.max_seq_length == processor.max_seq_length
 

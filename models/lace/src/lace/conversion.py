@@ -7,6 +7,8 @@ from pathlib import Path
 
 import torch
 
+from laygen.common.labels import DatasetName
+
 from .configuration_lace import default_model_config
 from .modeling_lace import LaceTransformerModel
 from .pipeline_lace import LacePipeline
@@ -54,7 +56,7 @@ def convert_state_dict(
 
 
 def build_pipeline_from_vendor_checkpoint(
-    dataset: str,
+    dataset: DatasetName | str,
     checkpoint_path: str | Path,
     ddim_num_steps: int = 100,
 ) -> LacePipeline:

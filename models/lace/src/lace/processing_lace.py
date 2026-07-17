@@ -17,9 +17,10 @@ from laygen.common.bbox import (
     normalize_boxes,
     normalize_box_format,
 )
+from laygen.common.labels import DatasetName
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
-from .configuration_lace import get_dataset_spec
+from .configuration_lace import get_dataset_spec, normalize_dataset
 
 
 class LaceProcessor(ConfigMixin):
@@ -42,7 +43,7 @@ class LaceProcessor(ConfigMixin):
     def __init__(
         self,
         *,
-        dataset: str,
+        dataset: DatasetName | str,
         labels: list[str],
         max_seq_length: int = 25,
     ) -> None:
@@ -53,12 +54,12 @@ class LaceProcessor(ConfigMixin):
             labels: Ordered category labels without padding.
             max_seq_length: Maximum number of layout elements.
         """
-        self.dataset = dataset
+        self.dataset = str(normalize_dataset(dataset))
         self.labels = tuple(labels)
         self.max_seq_length = max_seq_length
 
     @classmethod
-    def from_dataset(cls, dataset: str) -> "LaceProcessor":
+    def from_dataset(cls, dataset: DatasetName | str) -> "LaceProcessor":
         """Create a processor from built-in dataset metadata.
 
         Args:
@@ -274,17 +275,15 @@ class LaceProcessor(ConfigMixin):
         self.save_config(save_directory)
 
     @classmethod
-    def from_pretrained(cls, path: str | Path, **kwargs: object) -> "LaceProcessor":
+    def from_pretrained(cls, path: str | Path) -> "LaceProcessor":
         """Load processor config from a Diffusers directory.
 
         Args:
             path: Directory containing ``processor_config.json``.
-            **kwargs: Reserved for Diffusers compatibility.
 
         Returns:
             Loaded processor.
         """
-        del kwargs
         raw_config = cls.load_config(path)
         config_obj = raw_config[0] if isinstance(raw_config, tuple) else raw_config
         config = cast(Mapping[str, object], config_obj)

@@ -6,7 +6,7 @@ import copy
 import math
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Callable, cast
+from typing import Callable, assert_never, cast
 
 import torch
 import torch.nn.functional as F
@@ -112,7 +112,7 @@ def _activation(name: ActivationName | str | ActivationFn) -> ActivationFn:
         return F.gelu
     if canonical is ActivationName.gelu2:
         return _gelu2
-    raise AssertionError(f"Unhandled activation: {canonical}")
+    assert_never(canonical)
 
 
 class SinusoidalPosEmb(nn.Module):
@@ -267,14 +267,23 @@ class Block(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-        if canonical_timestep is None:
-            self.norm1 = nn.LayerNorm(d_model, eps=1e-5)
-        elif "adalayernorm" in canonical_timestep:
-            self.norm1 = AdaLayerNorm(d_model, diffusion_step, canonical_timestep)
-        elif "adainnorm" in canonical_timestep:
-            self.norm1 = AdaInsNorm(d_model, diffusion_step, canonical_timestep)
-        else:
-            raise AssertionError(f"Unhandled timestep_type: {canonical_timestep}")
+        match canonical_timestep:
+            case None:
+                self.norm1 = nn.LayerNorm(d_model, eps=1e-5)
+            case (
+                TimestepEmbeddingType.adalayernorm
+                | TimestepEmbeddingType.adalayernorm_abs
+                | TimestepEmbeddingType.adalayernorm_mlp
+            ):
+                self.norm1 = AdaLayerNorm(d_model, diffusion_step, canonical_timestep)
+            case (
+                TimestepEmbeddingType.adainnorm
+                | TimestepEmbeddingType.adainnorm_abs
+                | TimestepEmbeddingType.adainnorm_mlp
+            ):
+                self.norm1 = AdaInsNorm(d_model, diffusion_step, canonical_timestep)
+            case _:
+                assert_never(canonical_timestep)
         self.norm2 = nn.LayerNorm(d_model, eps=1e-5)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)

@@ -12,8 +12,10 @@ from diffusers import DiffusionPipeline
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
+from laygen.common.labels import DatasetName
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
+from .configuration_lace import normalize_dataset
 from .constraints import beautify_layout
 from .modeling_lace import LaceTransformerModel
 from .processing_lace import LaceProcessor
@@ -280,7 +282,12 @@ class LacePipeline(DiffusionPipeline):
         if beautify:
             overlap = beautify_overlap_weight
             if overlap is None:
-                overlap = 1.0 if self.processor.dataset == "publaynet" else 0.0
+                overlap = (
+                    1.0
+                    if normalize_dataset(self.processor.dataset)
+                    is DatasetName.publaynet
+                    else 0.0
+                )
             bbox_out, mask_out = beautify_layout(
                 bbox_out,
                 mask_out,
@@ -306,34 +313,37 @@ class LacePipeline(DiffusionPipeline):
 
     generate = __call__
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(self, save_directory: str | Path) -> None:
         """Save pipeline components.
 
         Args:
             save_directory: Output directory.
-            **kwargs: Forwarded to ``DiffusionPipeline.save_pretrained``.
         """
-        super().save_pretrained(save_directory, **kwargs)
+        super().save_pretrained(save_directory)
         self.processor.save_pretrained(save_directory)
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        processor: LaceProcessor | None = None,
     ) -> "LacePipeline":
         """Load a saved LACE pipeline.
 
         Args:
             pretrained_model_name_or_path: Local path or Hub id.
-            **kwargs: Forwarded to ``DiffusionPipeline.from_pretrained``.
+            processor: Optional processor override.
 
         Returns:
             Loaded pipeline with the serialized processor attached.
         """
-        processor = kwargs.pop(
-            "processor", LaceProcessor.from_pretrained(pretrained_model_name_or_path)
+        loaded_processor = (
+            LaceProcessor.from_pretrained(pretrained_model_name_or_path)
+            if processor is None
+            else processor
         )
-        pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-        pipe.processor = processor
+        pipe = super().from_pretrained(pretrained_model_name_or_path)
+        pipe.processor = loaded_processor
         return pipe
 
     def _build_fix_mask(
