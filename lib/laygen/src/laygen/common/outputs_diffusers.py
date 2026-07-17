@@ -1,3 +1,5 @@
+"""Diffusers-compatible output types for layout generation pipelines."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, make_dataclass
@@ -18,33 +20,27 @@ if TYPE_CHECKING:
 
     @dataclass
     class LayoutGenerationOutput(BaseOutput):
-        """Layout generation result for Diffusers pipelines.
+        """Layout-generation output for Diffusers pipelines.
 
-        Args:
-            bbox: Normalized `xywh` boxes shaped `(batch, elements, 4)`.
-            labels: Class ids shaped `(batch, elements)`.
-            mask: Boolean element mask shaped `(batch, elements)`.
-            id2label: Mapping from class ids to display labels.
+        Attributes:
+            bbox: Normalized center ``xywh`` boxes with shape ``(batch, seq, 4)``.
+            labels: Dataset-local integer labels with shape ``(batch, seq)``.
+            mask: Boolean valid-element mask with shape ``(batch, seq)``.
+            id2label: Mapping from integer label ids to display names.
             sequences: Optional raw token sequences.
-            scores: Optional sampling or correction scores.
-            trajectory: Optional intermediate token trajectory.
-            intermediates: Optional package-specific diagnostics.
-
-        Returns:
-            A dataclass compatible with `diffusers.utils.BaseOutput`.
-
-        Raises:
-            ImportError: If the optional `diffusers` dependency is unavailable.
+            scores: Optional per-token or per-element scores.
+            trajectory: Optional sampling trajectory.
+            intermediates: Optional model-specific debug or auxiliary data.
 
         Examples:
             >>> import torch
-            >>> out = LayoutGenerationOutput(
+            >>> output = LayoutGenerationOutput(
             ...     bbox=torch.zeros(1, 1, 4),
             ...     labels=torch.zeros(1, 1, dtype=torch.long),
             ...     mask=torch.ones(1, 1, dtype=torch.bool),
             ...     id2label={0: "text"},
             ... )
-            >>> out.to_tuple()[0].shape
+            >>> output.to_tuple()[0].shape
             torch.Size([1, 1, 4])
         """
 

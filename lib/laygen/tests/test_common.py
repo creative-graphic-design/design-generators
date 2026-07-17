@@ -121,6 +121,9 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "Tokenizer exact" in text
     assert "## Technical Specifications" in text
     assert "[More Information Needed]" not in text
+    assert "This card follows" not in text
+    assert "annotated model card" not in text
+    assert "model card template" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
     assert "More Information Needed" not in text

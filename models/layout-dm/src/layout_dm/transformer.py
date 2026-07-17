@@ -1,3 +1,5 @@
+"""Transformer building blocks used by the LayoutDM denoiser."""
+
 from __future__ import annotations
 
 import copy
@@ -33,13 +35,17 @@ def _activation(
 
 
 class SinusoidalPosEmb(nn.Module):
+    """Sinusoidal embedding for diffusion timesteps."""
+
     def __init__(self, num_steps: int, dim: int, rescale_steps: int = 4000) -> None:
+        """Initialize the timestep embedding table parameters."""
         super().__init__()
         self.dim = dim
         self.num_steps = float(num_steps)
         self.rescale_steps = float(rescale_steps)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Embed timestep indices into sinusoidal vectors."""
         x = x / self.num_steps * self.rescale_steps
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
@@ -49,9 +55,12 @@ class SinusoidalPosEmb(nn.Module):
 
 
 class AdaLayerNorm(nn.Module):
+    """Adaptive layer normalization conditioned on diffusion timesteps."""
+
     def __init__(
         self, n_embd: int, max_timestep: int, emb_type: str = "adalayernorm_abs"
     ) -> None:
+        """Initialize timestep-conditioned normalization layers."""
         super().__init__()
         self.emb = (
             SinusoidalPosEmb(max_timestep, n_embd)
@@ -63,12 +72,15 @@ class AdaLayerNorm(nn.Module):
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+        """Normalize hidden states with timestep-derived scale and shift."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
         return self.layernorm(x) * (1 + scale) + shift
 
 
 class Block(nn.Module):
+    """Transformer encoder block with optional adaptive layer normalization."""
+
     def __init__(
         self,
         d_model: int = 1024,
@@ -81,6 +93,7 @@ class Block(nn.Module):
         diffusion_step: int = 100,
         timestep_type: str | None = None,
     ) -> None:
+        """Initialize a LayoutDM transformer block."""
         super().__init__()
         self.norm_first = norm_first
         self.timestep_type = timestep_type
@@ -107,6 +120,7 @@ class Block(nn.Module):
         src_key_padding_mask: torch.Tensor | None = None,
         timestep: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        """Run self-attention and feed-forward layers."""
         x = src
         if self.norm_first:
             x = self.norm1(x, timestep) if self.timestep_type else self.norm1(x)
@@ -140,9 +154,12 @@ class Block(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
+    """Stack of cloned LayoutDM transformer blocks."""
+
     def __init__(
         self, encoder_layer: Block, num_layers: int, norm: nn.Module | None = None
     ) -> None:
+        """Initialize a transformer encoder stack."""
         super().__init__()
         self.layers = _get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
@@ -155,6 +172,7 @@ class TransformerEncoder(nn.Module):
         src_key_padding_mask: torch.Tensor | None = None,
         timestep: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        """Run hidden states through all encoder layers."""
         output = src
         for layer in self.layers:
             output = layer(
@@ -167,9 +185,12 @@ class TransformerEncoder(nn.Module):
 
 
 class ElementPositionalEmbedding(nn.Module):
+    """Learned element and attribute positional embedding."""
+
     def __init__(
         self, dim_model: int, max_token_length: int, n_attr_per_elem: int = 5
     ) -> None:
+        """Initialize element and attribute embedding parameters."""
         super().__init__()
         self.n_elem = max_token_length // n_attr_per_elem
         self.n_attr_per_elem = n_attr_per_elem
@@ -177,6 +198,7 @@ class ElementPositionalEmbedding(nn.Module):
         self.attr_emb = nn.Parameter(torch.rand(self.n_attr_per_elem, dim_model))
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
+        """Return positional embeddings matching hidden-state length."""
         batch, seq_len = h.shape[:2]
         elem_emb = repeat(self.elem_emb, "s d -> (s x) d", x=self.n_attr_per_elem)
         attr_emb = repeat(self.attr_emb, "x d -> (s x) d", s=self.n_elem)
@@ -185,10 +207,13 @@ class ElementPositionalEmbedding(nn.Module):
 
     @property
     def no_decay_param_names(self) -> list[str]:
+        """Return parameter names that should skip weight decay."""
         return ["elem_emb", "attr_emb"]
 
 
 class CategoricalTransformer(nn.Module):
+    """Token transformer that predicts LayoutDM categorical logits."""
+
     def __init__(
         self,
         *,
@@ -201,6 +226,7 @@ class CategoricalTransformer(nn.Module):
         dropout: float = 0.0,
         timestep_type: str | None = "adalayernorm",
     ) -> None:
+        """Initialize the categorical transformer denoiser backbone."""
         super().__init__()
         layer = Block(
             d_model=hidden_size,
@@ -225,6 +251,7 @@ class CategoricalTransformer(nn.Module):
     def forward(
         self, input_ids: torch.Tensor, timestep: torch.Tensor | None = None
     ) -> dict[str, torch.Tensor]:
+        """Predict logits for flattened LayoutDM token ids."""
         hidden = self.cat_emb(input_ids)
         hidden = self.drop(hidden + self.pos_emb(hidden))
         hidden = self.backbone(hidden, timestep=timestep)

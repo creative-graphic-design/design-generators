@@ -1,3 +1,5 @@
+"""Shared public APIs for layout-generation packages."""
+
 from .outputs import LayoutGenerationOutput
 from .outputs_diffusers import LayoutGenerationOutput as DiffusersLayoutGenerationOutput
 from .model_card import (

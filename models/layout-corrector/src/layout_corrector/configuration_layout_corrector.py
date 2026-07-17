@@ -1,3 +1,5 @@
+"""Configuration objects for Layout-Corrector models."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -91,6 +93,44 @@ class LayoutCorrectorConfig(ConfigMixin):
         gumbel_temperature: float = 1.0,
         time_adaptive_temperature: bool = False,
     ) -> None:
+        """Initialize a Layout-Corrector config.
+
+        Args:
+            dataset_name: Dataset key or alias used for labels.
+            vocab_size: LayoutDM vocabulary size expected by the corrector.
+            id2label: Optional class-id mapping.
+            max_seq_length: Maximum number of layout elements.
+            num_attributes_per_element: Number of token attributes per element.
+            hidden_size: Transformer hidden dimension.
+            num_attention_heads: Number of attention heads.
+            num_hidden_layers: Number of transformer layers.
+            intermediate_size: Feed-forward hidden dimension.
+            dropout: Dropout probability.
+            timestep_type: Timestep conditioning type.
+            num_timesteps: Number of diffusion training timesteps.
+            recon_type: Reconstruction target used by the corrector.
+            target: Confidence target type.
+            attr_loss_weights: Per-attribute loss weights.
+            use_padding_as_vocab: Whether padding is part of the modeled vocabulary.
+            pos_emb: Position embedding mode.
+            transformer_type: Corrector transformer variant.
+            corrector_steps: Number of correction passes per selected timestep.
+            corrector_t_list: Explicit timesteps where the corrector is applied.
+            corrector_mask_mode: Strategy for selecting tokens to remask.
+            corrector_mask_threshold: Confidence threshold for threshold masking.
+            corrector_temperature: Temperature used for corrector resampling.
+            use_gumbel_noise: Whether to perturb confidence logits.
+            gumbel_temperature: Temperature for confidence Gumbel noise.
+            time_adaptive_temperature: Whether to scale noise by timestep ratio.
+
+        Raises:
+            ValueError: If a supplied dataset, shape, or option is unsupported.
+
+        Examples:
+            >>> cfg = LayoutCorrectorConfig(dataset_name="publaynet", vocab_size=100)
+            >>> cfg.max_token_length
+            125
+        """
         dataset_name = normalize_dataset_name(dataset_name)
         if vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
@@ -147,4 +187,13 @@ class LayoutCorrectorConfig(ConfigMixin):
 
     @property
     def max_token_length(self) -> int:
+        """Return the flattened token length for one layout sequence.
+
+        Returns:
+            Maximum token count after flattening element attributes.
+
+        Examples:
+            >>> LayoutCorrectorConfig(dataset_name="publaynet", vocab_size=100).max_token_length
+            125
+        """
         return self.max_seq_length * self.num_attributes_per_element

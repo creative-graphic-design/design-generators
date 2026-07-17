@@ -1,3 +1,5 @@
+"""Static model card template for converted Layout-Corrector checkpoints."""
+
 MODEL_CARD_TEMPLATE = """---
 license: mit
 library_name: diffusers

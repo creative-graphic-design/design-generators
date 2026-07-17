@@ -1,3 +1,5 @@
+"""Public LayoutDM conversion and inference APIs."""
+
 from .conditioning import LayoutDMCondition, normalize_condition_type
 from .denoiser import LayoutDMDenoiser, LayoutDMDenoiserOutput
 from .pipeline import LayoutDMPipeline

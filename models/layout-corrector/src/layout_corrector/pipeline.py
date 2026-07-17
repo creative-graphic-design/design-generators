@@ -1,3 +1,5 @@
+"""Diffusers pipeline wrapper for Layout-Corrector guided generation."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -54,6 +56,13 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         corrector: LayoutCorrectorModel,
         processor: LayoutDMProcessor | None = None,
     ) -> None:
+        """Initialize the composite pipeline.
+
+        Args:
+            layout_dm: Base LayoutDM pipeline.
+            corrector: Confidence model used to remask low-confidence tokens.
+            processor: Optional processor for conditional inputs.
+        """
         super().__init__()
         self.register_modules(layout_dm=layout_dm, corrector=corrector)
         self.layout_dm = layout_dm
@@ -141,7 +150,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             >>> LayoutCorrectorPipeline.__call__  # doctest: +ELLIPSIS
             <function...
         """
-
         _ = (num_elements, model_kwargs)
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
@@ -383,7 +391,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             >>> LayoutCorrectorPipeline.save_pretrained  # doctest: +ELLIPSIS
             <function...
         """
-
         save_path = Path(save_directory)
         save_path.mkdir(parents=True, exist_ok=True)
         self.layout_dm.save_pretrained(save_path / "layout_dm", **kwargs)
@@ -410,7 +417,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             >>> LayoutCorrectorPipeline.from_pretrained  # doctest: +ELLIPSIS
             <bound method...
         """
-
         path = Path(pretrained_model_name_or_path)
         layout_dm = LayoutDMPipeline.from_pretrained(path / "layout_dm")
         corrector = LayoutCorrectorModel.from_pretrained(path / "corrector")

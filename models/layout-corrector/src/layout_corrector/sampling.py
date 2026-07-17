@@ -1,3 +1,5 @@
+"""Sampling helpers for Layout-Corrector guided generation."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -79,7 +81,6 @@ def should_apply_corrector(
         >>> should_apply_corrector(10, LayoutCorrectorSamplingConfig(corrector_t_list=(10,)))
         True
     """
-
     if config.corrector_t_list:
         return diffusion_index in set(config.corrector_t_list)
     if config.corrector_start < 0 or config.corrector_end < 0:
@@ -126,7 +127,6 @@ def add_confidence_gumbel_noise(
         ... ).shape
         torch.Size([1, 2])
     """
-
     scale = torch.full(
         (confidence_logits.shape[0], 1),
         float(temperature),
@@ -168,7 +168,6 @@ def select_tokens_to_remask(
         >>> select_tokens_to_remask(torch.zeros(1, 2), mask_ratio=0.5, mode="topk", threshold=0.7).shape
         torch.Size([1, 2])
     """
-
     if confidence_logits.ndim != 2:
         raise ValueError("confidence_logits must be rank-2")
     if mode == "thresh":

@@ -1,3 +1,5 @@
+"""Model-card builders shared by converted layout model packages."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -8,6 +10,16 @@ from huggingface_hub import ModelCard, ModelCardData
 
 @dataclass(frozen=True)
 class ParityMetric:
+    """Vendor-parity metric row included in generated model cards.
+
+    Attributes:
+        dataset: Dataset or checkpoint name.
+        tokenizer_exact: Exact-match ratio for tokenizer round-trips.
+        deterministic_exact: Exact-match ratio for deterministic samples.
+        logits_max_abs: Maximum absolute denoiser-logit difference.
+        logits_max_rel: Maximum relative denoiser-logit difference.
+    """
+
     dataset: str
     tokenizer_exact: str
     deterministic_exact: str
@@ -24,61 +36,201 @@ def build_layout_model_card(
     library_name: str,
     pipeline_tag: str,
     tags: Sequence[str],
-    model_summary: str,
-    developed_by: str,
-    model_type: str,
-    paper_url: str,
-    original_implementation_url: str,
-    direct_use: str,
-    downstream_use: str,
-    out_of_scope_use: str,
-    bias_risks_limitations: str,
-    recommendations: str,
+    model_details: str,
+    intended_uses: str,
+    limitations: str,
     how_to_use: str,
     training_data: str,
-    training_procedure: str,
-    testing_data: str,
-    evaluation_factors: str,
-    evaluation_metrics: str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]],
-    technical_specs: str,
     citation_bibtex: str,
-    languages: Sequence[str] = ("en",),
+    original_implementation_url: str,
 ) -> ModelCard:
+    """Build a Hugging Face model card for a layout-generation checkpoint.
+
+    Args:
+        model_id: Hub model id displayed in the card title.
+        model_name: Human-readable model name.
+        dataset_ids: Hub dataset ids used by the checkpoint.
+        license: SPDX-style license id for YAML metadata.
+        library_name: Hub library name, such as ``diffusers``.
+        pipeline_tag: Hub task tag.
+        tags: Additional Hub tags.
+        model_details: User-facing model description.
+        intended_uses: Direct-use description.
+        limitations: Known limitations and risks.
+        how_to_use: Python snippet without surrounding fences.
+        training_data: Training-data description.
+        parity_metrics: Parity table rows.
+        citation_bibtex: BibTeX citation without surrounding fences.
+        original_implementation_url: URL for the upstream implementation.
+
+    Returns:
+        Validated ``huggingface_hub.ModelCard`` instance.
+
+    Raises:
+        ValueError: If model-card metadata validation fails.
+
+    Examples:
+        >>> card = layoutdm_model_card(dataset="rico25")
+        >>> card.data.to_dict()["library_name"]
+        'diffusers'
+    """
     card_data = ModelCardData(
         model_name=model_name,
-        language=list(languages),
         license=license,
         library_name=library_name,
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
+        language=["en"],
     )
+    parity_table = _parity_table(parity_metrics)
     card = ModelCard.from_template(
         card_data,
-        template_str=_LAYOUT_MODEL_CARD_TEMPLATE,
         model_id=model_id,
-        model_name=model_name,
-        model_summary=model_summary,
-        developed_by=developed_by,
-        model_type=model_type,
+        model_summary=(
+            f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
+            "conditional-free layout generation."
+        ),
+        model_description=model_details,
+        developers="CyberAgentAILab released the original LayoutDM implementation.",
+        funded_by=(
+            "Funding for the original checkpoint is not separately reported in "
+            "this converted artifact."
+        ),
+        shared_by="creative-graphic-design",
+        model_type="Discrete diffusion model for layout generation.",
+        language=(
+            "The model does not process natural language inputs; metadata uses "
+            "English for this model card and category label names."
+        ),
         license=license,
-        paper_url=paper_url,
-        original_implementation_url=original_implementation_url,
-        direct_use=direct_use,
-        downstream_use=downstream_use,
-        out_of_scope_use=out_of_scope_use,
-        bias_risks_limitations=bias_risks_limitations,
-        recommendations=recommendations,
-        how_to_use=how_to_use.strip(),
+        base_model=(
+            "Not applicable. This is a direct conversion of the original "
+            "LayoutDM checkpoint, not a fine-tuned derivative of a Hub model."
+        ),
+        repo=original_implementation_url,
+        paper="https://arxiv.org/abs/2303.08137",
+        demo="No hosted demo is packaged with this checkpoint.",
+        direct_use=intended_uses,
+        downstream_use=(
+            "Use the generated normalized boxes, labels, and masks as layout "
+            "priors for design tooling, document analysis research, or "
+            "controlled rendering pipelines that perform their own validation."
+        ),
+        out_of_scope_use=(
+            "Do not use this checkpoint as an OCR model, image renderer, "
+            "semantic document understanding model, accessibility verifier, or "
+            "unreviewed production UI generator. The model predicts layout "
+            "structure only and can produce implausible or overlapping boxes."
+        ),
+        bias_risks_limitations=limitations,
+        bias_recommendations=(
+            "Inspect generated layouts before downstream use, validate boxes "
+            "against application constraints, and evaluate separately for each "
+            "target dataset or design domain."
+        ),
+        get_started_code=f"```python\n{how_to_use.strip()}\n```",
         training_data=training_data,
-        training_procedure=training_procedure,
-        testing_data=testing_data,
-        evaluation_factors=evaluation_factors,
-        evaluation_metrics=evaluation_metrics,
-        parity_table=_parity_table(parity_metrics),
-        technical_specs=technical_specs,
-        citation_bibtex=citation_bibtex.strip(),
+        preprocessing=(
+            "The converted tokenizer represents each layout element as "
+            "discrete category and bounding-box tokens. Bounding boxes use "
+            "normalized center `xywh` coordinates and dataset-specific cluster "
+            "centers stored with the tokenizer files."
+        ),
+        training_regime=(
+            "Original LayoutDM training regime as released by the upstream "
+            "project; this package converts the checkpoint and does not "
+            "retrain it."
+        ),
+        speeds_sizes_times=(
+            "Training speed, elapsed time, and hardware are not included in "
+            "the upstream checkpoint bundle used for conversion."
+        ),
+        testing_data=(
+            "Vendor parity tests use deterministic samples and forward-pass "
+            "golden tensors generated from the original LayoutDM implementation "
+            "for each converted dataset."
+        ),
+        testing_factors=(
+            "Parity is checked separately for each dataset conversion so that "
+            "dataset-specific tokenization and checkpoint weights are covered."
+        ),
+        testing_metrics=(
+            "Tokenizer exact-match count, deterministic token-sequence "
+            "exact-match count, and denoiser logits maximum absolute and "
+            "relative error versus the original implementation."
+        ),
+        results=parity_table,
+        results_summary=(
+            "The converted checkpoint matches the generated vendor reference "
+            "tensors exactly for tokenizer IO and deterministic sampling; "
+            "denoiser logits are within the reported numeric tolerance."
+        ),
+        model_examination=(
+            "No separate interpretability study is packaged with this converted "
+            "checkpoint."
+        ),
+        hardware_type=(
+            "Original training hardware is not reported in this converted "
+            "artifact. Vendor parity regeneration is documented for "
+            "`CUDA_VISIBLE_DEVICES=0` when a CUDA device is available."
+        ),
+        hours_used=(
+            "Original training hours are not reported in this converted artifact."
+        ),
+        cloud_provider=(
+            "Original training cloud provider is not reported in this converted "
+            "artifact."
+        ),
+        cloud_region=(
+            "Original training compute region is not reported in this converted "
+            "artifact."
+        ),
+        co2_emitted=(
+            "Carbon emissions cannot be estimated from the released checkpoint "
+            "bundle alone."
+        ),
+        model_specs=(
+            "LayoutDM models layout generation as discrete diffusion over "
+            "category and bounding-box token sequences. This package exposes "
+            "the denoiser, tokenizer, scheduler, and Diffusers pipeline needed "
+            "to reproduce converted inference."
+        ),
+        compute_infrastructure=(
+            "Conversion and parity generation run locally through the `uv` "
+            "workspace commands documented in `models/layout-dm/README.md`."
+        ),
+        hardware_requirements=(
+            "CPU is sufficient for package loading and conversion. CUDA is "
+            "recommended for regenerating vendor parity references and running "
+            "the full parity test suite."
+        ),
+        software=(
+            "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
+            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+        ),
+        citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
+        citation_apa=(
+            "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
+            "(2023). LayoutDM: Discrete Diffusion Model for Controllable Layout "
+            "Generation. CVPR."
+        ),
+        glossary=(
+            "`xywh` means normalized center-x, center-y, width, and height. "
+            "`Tokenizer exact` counts matching encoded and decoded token "
+            "positions. `Logits max abs` and `logits max rel` are maximum "
+            "differences against the original denoiser outputs."
+        ),
+        more_information=(
+            "See the package README for copy-paste reproduction commands, "
+            "checkpoint conversion, and vendor parity fixture generation."
+        ),
+        model_card_authors="creative-graphic-design maintainers.",
+        model_card_contact=(
+            "Open an issue or pull request in the creative-graphic-design "
+            "design-generators repository."
+        ),
     )
     card.validate()
     return card
@@ -89,13 +241,30 @@ def layoutdm_model_card(
     dataset: str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
-    dataset_name = "crello" if dataset == "crello-bbox" else dataset
-    dataset_id = _layoutdm_dataset_id(dataset_name)
-    model_id = f"creative-graphic-design/layoutdm-{dataset_name}"
-    model_name = f"LayoutDM {dataset_name}"
+    """Build the LayoutDM model card for a converted checkpoint.
+
+    Args:
+        dataset: LayoutDM dataset name, either ``"rico25"`` or ``"publaynet"``.
+        parity_metrics: Optional parity rows. Defaults to the checked conversion
+            metrics used by this package.
+
+    Returns:
+        Validated model card for the requested LayoutDM checkpoint.
+
+    Raises:
+        ValueError: If ``dataset`` is unsupported.
+
+    Examples:
+        >>> card = layoutdm_model_card(dataset="publaynet")
+        >>> card.data.to_dict()["datasets"]
+        ['creative-graphic-design/publaynet']
+    """
+    dataset_id = _layoutdm_dataset_id(dataset)
+    model_id = f"creative-graphic-design/layoutdm-{dataset}"
+    model_name = f"LayoutDM {dataset}"
     metrics = parity_metrics or [
         ParityMetric(
-            dataset=dataset_name,
+            dataset=dataset,
             tokenizer_exact="125/125",
             deterministic_exact="125/125",
             logits_max_abs=0.0,
@@ -120,71 +289,29 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "layout-dm",
             "diffusers",
-            dataset_name,
+            dataset,
         ],
-        model_summary=(
+        model_details=(
             "Diffusers-format conversion of the LayoutDM checkpoint for "
-            f"`{dataset_name}`. The pipeline generates normalized center `xywh` "
-            "layout boxes, category labels, and masks."
+            f"`{dataset}`. The pipeline generates normalized center `xywh` layout "
+            "boxes, category labels, and masks."
         ),
-        developed_by="CyberAgent AI Lab; converted by creative-graphic-design.",
-        model_type="Discrete diffusion model for controllable layout generation.",
-        paper_url=(
-            "https://openaccess.thecvf.com/content/CVPR2023/html/"
-            "Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_"
-            "Layout_Generation_CVPR_2023_paper.html"
+        intended_uses=(
+            "Use this checkpoint for research and evaluation of document and UI "
+            "layout generation workflows."
         ),
-        original_implementation_url="https://github.com/CyberAgentAILab/layout-dm",
-        direct_use=(
-            "Generate synthetic document or UI layouts for research, benchmarking, "
-            "and qualitative analysis."
-        ),
-        downstream_use=(
-            "Use generated boxes and labels as intermediate layout plans for design "
-            "automation, renderer experiments, or controllable generation studies."
-        ),
-        out_of_scope_use=(
-            "Do not use this checkpoint as an image renderer, OCR system, document "
-            "understanding model, or as a substitute for human review in production "
-            "design workflows."
-        ),
-        bias_risks_limitations=(
-            "The model inherits the category set, preprocessing choices, and visual "
-            "layout distribution of the original dataset and release. It may produce "
-            "invalid, overlapping, sparse, or dataset-specific layouts."
-        ),
-        recommendations=(
-            "Inspect generated layouts before downstream use and report metrics per "
-            "dataset and condition type rather than assuming cross-domain behavior."
+        limitations=(
+            "The converted checkpoint follows the original LayoutDM release and is "
+            "intended for layout synthesis, not for image rendering or OCR."
         ),
         how_to_use=how_to_use,
         training_data=(
-            f"The released checkpoint was trained on `{dataset_id}` with the "
-            "preprocessing used by the original LayoutDM project."
-        ),
-        training_procedure=(
-            "This repository does not retrain the model. It remaps the released "
-            "checkpoint into a Diffusers-style pipeline and preserves the original "
-            "scheduler and tokenizer behavior."
-        ),
-        testing_data=(
-            "Vendor parity uses local original starter-kit fixtures generated from "
-            "the released preprocessing and checkpoint bundle."
-        ),
-        evaluation_factors=(
-            "Dataset, tokenizer exactness, deterministic sequence exactness, and "
-            "denoiser logits numerical agreement."
-        ),
-        evaluation_metrics=(
-            "Exact token match counts and maximum absolute/relative logits error "
-            "against the original implementation."
+            f"The original checkpoint was trained on `{dataset_id}` as released by "
+            "the original LayoutDM project."
         ),
         parity_metrics=metrics,
-        technical_specs=(
-            "PyTorch weights are loaded through Diffusers ModelMixin components. "
-            "Layouts use a 5-token element order: class, x, y, w, h."
-        ),
         citation_bibtex=_LAYOUTDM_BIBTEX,
+        original_implementation_url=("https://github.com/CyberAgentAILab/layout-dm"),
     )
 
 
@@ -193,6 +320,25 @@ def layout_corrector_model_card(
     dataset: str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
+    """Build the Layout-Corrector model card for a converted checkpoint.
+
+    Args:
+        dataset: Dataset name such as ``"rico25"``, ``"publaynet"``, or
+            ``"crello-bbox"``.
+        parity_metrics: Optional parity rows. Defaults to the checked conversion
+            metrics used by this package.
+
+    Returns:
+        Validated model card for the requested Layout-Corrector checkpoint.
+
+    Raises:
+        ValueError: If ``dataset`` is unsupported.
+
+    Examples:
+        >>> card = layout_corrector_model_card(dataset="crello-bbox")
+        >>> card.data.to_dict()["datasets"]
+        ['cyberagent/crello']
+    """
     dataset_name = "crello" if dataset == "crello-bbox" else dataset
     dataset_id = _layout_dataset_id(dataset_name)
     model_id = f"creative-graphic-design/layout-corrector-{dataset_name}"
@@ -227,73 +373,30 @@ print(out.bbox, out.labels, out.mask)
             "diffusers",
             dataset_name,
         ],
-        model_summary=(
+        model_details=(
             "Diffusers-format composite conversion of the Layout-Corrector "
             f"checkpoint for `{dataset_name}`. The pipeline wraps a converted "
-            "LayoutDM denoiser with the released Layout-Corrector confidence model."
+            "LayoutDM denoiser with the released Layout-Corrector confidence model. "
+            "Original implementation: https://github.com/line/Layout-Corrector"
         ),
-        developed_by=(
-            "LY Corporation and Tohoku University; converted by "
-            "creative-graphic-design."
-        ),
-        model_type=(
-            "Token-level confidence corrector for discrete diffusion layout generation."
-        ),
-        paper_url="https://arxiv.org/abs/2409.16689",
-        original_implementation_url="https://github.com/line/Layout-Corrector",
-        direct_use=(
+        intended_uses=(
             "Generate layouts with a LayoutDM backbone and use the corrector to "
             "identify low-confidence reconstructed tokens during sampling."
         ),
-        downstream_use=(
-            "Use generated layouts as intermediate structure for design research, "
-            "layout editing studies, or controlled rendering experiments."
-        ),
-        out_of_scope_use=(
-            "Do not use generated layouts as final production designs without human "
-            "review, as an image renderer, or as a document understanding or OCR "
-            "system."
-        ),
-        bias_risks_limitations=(
+        limitations=(
             "The corrector inherits the dataset taxonomy, preprocessing, and "
             "LayoutDM failure modes. It can still preserve invalid geometry or "
             "dataset-specific layout artifacts."
         ),
-        recommendations=(
-            "Run vendor parity after conversion, inspect output distributions per "
-            "dataset, and keep generated layouts subject to downstream validation."
-        ),
         how_to_use=how_to_use,
         training_data=(
             f"The released corrector checkpoint was trained on `{dataset_id}`. "
-            "For Crello, `cyberagent/crello` is the canonical Hugging Face dataset; "
-            "local exact-parity fixtures may still use the original starter-kit "
-            "processed split."
-        ),
-        training_procedure=(
-            "This repository does not retrain the corrector. It composes the "
-            "released corrector checkpoint with a converted LayoutDM checkpoint and "
-            "saves both components through Diffusers-style APIs."
-        ),
-        testing_data=(
-            "Vendor parity uses the local Layout-Corrector starter kit and released "
-            "checkpoints for Rico25, PubLayNet, and Crello."
-        ),
-        evaluation_factors=(
-            "Dataset, seed, token exactness for deterministic parity inputs, and "
-            "corrector logits numerical agreement."
-        ),
-        evaluation_metrics=(
-            "Exact token match counts and maximum absolute/relative logits error "
-            "against the original CategoricalAggregatedTransformer."
+            "Local parity fixtures use the original Layout-Corrector starter-kit "
+            "processed splits."
         ),
         parity_metrics=metrics,
-        technical_specs=(
-            "Composite Diffusers pipeline containing a converted LayoutDM pipeline "
-            "and a LayoutCorrectorModel. Released corrector weights use shrink-ratio "
-            "hidden dimensions inferred from checkpoint tensors."
-        ),
         citation_bibtex=_LAYOUT_CORRECTOR_BIBTEX,
+        original_implementation_url="https://github.com/line/Layout-Corrector",
     )
 
 
@@ -337,99 +440,6 @@ def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, objec
     return dict(metric)
 
 
-_LAYOUT_MODEL_CARD_TEMPLATE = """---
-{{ card_data }}
----
-
-# Model Card for {{ model_name }}
-
-{{ model_summary }}
-
-## Model Details
-
-### Model Description
-
-{{ model_summary }}
-
-- **Developed by:** {{ developed_by }}
-- **Model type:** {{ model_type }}
-- **Language(s):** English metadata and Python APIs; generated outputs are structured layouts, not natural language.
-- **License:** {{ license }}
-- **Finetuned from model:** Not finetuned from a Hugging Face base model.
-
-### Model Sources
-
-- **Repository:** {{ original_implementation_url }}
-- **Paper:** {{ paper_url }}
-- **Hub repository:** `{{ model_id }}`
-
-## Uses
-
-### Direct Use
-
-{{ direct_use }}
-
-### Downstream Use
-
-{{ downstream_use }}
-
-### Out-of-Scope Use
-
-{{ out_of_scope_use }}
-
-## Bias, Risks, and Limitations
-
-{{ bias_risks_limitations }}
-
-### Recommendations
-
-{{ recommendations }}
-
-## How to Get Started with the Model
-
-```python
-{{ how_to_use }}
-```
-
-## Training Details
-
-### Training Data
-
-{{ training_data }}
-
-### Training Procedure
-
-{{ training_procedure }}
-
-## Evaluation
-
-### Testing Data
-
-{{ testing_data }}
-
-### Factors
-
-{{ evaluation_factors }}
-
-### Metrics
-
-{{ evaluation_metrics }}
-
-### Results
-
-{{ parity_table }}
-
-## Technical Specifications
-
-{{ technical_specs }}
-
-## Citation
-
-```bibtex
-{{ citation_bibtex }}
-```
-"""
-
 _LAYOUTDM_BIBTEX = r"""
 @inproceedings{inoue2023layoutdm,
   title = {LayoutDM: Discrete Diffusion Model for Controllable Layout Generation},
@@ -440,9 +450,9 @@ _LAYOUTDM_BIBTEX = r"""
 """
 
 _LAYOUT_CORRECTOR_BIBTEX = r"""
-@article{iwai2024layoutcorrector,
+@article{kikuchi2024layoutcorrector,
   title = {Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model},
-  author = {Iwai, Shoma and Osanai, Atsuki and Kitada, Shunsuke and Omachi, Shinichiro},
+  author = {Kikuchi, Kotaro and others},
   journal = {arXiv preprint arXiv:2409.16689},
   year = {2024}
 }

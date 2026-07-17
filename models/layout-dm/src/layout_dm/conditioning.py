@@ -1,3 +1,5 @@
+"""Condition construction helpers for LayoutDM generation modes."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,53 +27,13 @@ CONDITION_ALIASES = {
 
 
 def normalize_condition_type(condition_type: str) -> str:
-    """Normalize LayoutDM condition aliases.
-
-    Args:
-        condition_type: User-facing condition type or original implementation alias.
-
-    Returns:
-        Canonical condition type.
-
-    Raises:
-        ValueError: This function does not raise.
-
-    Examples:
-        >>> normalize_condition_type("cat_cond")
-        'label'
-    """
-
+    """Normalize vendor condition aliases to canonical condition names."""
     return CONDITION_ALIASES.get(condition_type, condition_type)
 
 
 @dataclass
 class LayoutDMCondition:
-    """Tokenized condition used by the LayoutDM scheduler.
-
-    Args:
-        input_ids: Flattened condition token ids.
-        mask: Boolean mask for strongly conditioned token positions.
-        type: Original LayoutDM condition family.
-        num_element: Optional number of active elements per sample.
-        original_input_ids: Optional clean ids for refinement conditions.
-        weak_mask: Optional weak-condition mask.
-        weak_logits: Optional weak-condition logits.
-
-    Returns:
-        Dataclass consumed by the scheduler and pipeline.
-
-    Raises:
-        ValueError: Construction does not raise directly.
-
-    Examples:
-        >>> import torch
-        >>> LayoutDMCondition(
-        ...     input_ids=torch.zeros(1, 5, dtype=torch.long),
-        ...     mask=torch.ones(1, 5, dtype=torch.bool),
-        ...     type="c",
-        ... ).type
-        'c'
-    """
+    """Strong and weak token constraints for conditional LayoutDM sampling."""
 
     input_ids: torch.Tensor
     mask: torch.Tensor
@@ -91,38 +53,22 @@ def build_condition(
     mask: torch.Tensor,
     noisy_bbox: torch.Tensor | None = None,
 ) -> LayoutDMCondition:
-    """Build a LayoutDM condition from structured layout tensors.
+    """Build token-level conditioning masks for a LayoutDM layout condition.
 
     Args:
-        tokenizer: Tokenizer used to encode the condition layout.
-        cond_type: Condition type or alias.
-        bbox: Normalized `xywh` boxes.
-        labels: Class ids.
-        mask: Boolean element mask.
-        noisy_bbox: Optional noisy boxes for refinement.
+        tokenizer: LayoutDM tokenizer used to encode structured layouts.
+        cond_type: Canonical condition type or vendor alias.
+        bbox: Normalized center ``xywh`` boxes.
+        labels: Dataset-local labels.
+        mask: Valid-element mask.
+        noisy_bbox: Optional noised boxes for refinement mode.
 
     Returns:
-        Tokenized condition with a strong mask for constrained positions.
+        Token ids and masks consumed by the scheduler.
 
     Raises:
-        NotImplementedError: If `cond_type` is unsupported.
-
-    Examples:
-        >>> import torch
-        >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
-        >>> from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
-        >>> tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
-        >>> condition = build_condition(
-        ...     tokenizer,
-        ...     cond_type="label",
-        ...     bbox=torch.zeros(1, 1, 4),
-        ...     labels=torch.zeros(1, 1, dtype=torch.long),
-        ...     mask=torch.ones(1, 1, dtype=torch.bool),
-        ... )
-        >>> condition.type
-        'c'
+        NotImplementedError: If the condition type is unsupported.
     """
-
     canonical = normalize_condition_type(cond_type)
     encoded = tokenizer.encode_layout(bbox=bbox, labels=labels, mask=mask)
     ids = encoded["input_ids"]

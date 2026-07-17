@@ -1,3 +1,5 @@
+"""Conversion helpers for original Layout-Corrector checkpoints."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,6 +15,17 @@ from .corrector import LayoutCorrectorModel
 
 
 def remap_corrector_key(key: str) -> str:
+    """Map an original checkpoint key to the converted module key.
+
+    Args:
+        key: Original state-dict key.
+
+    Returns:
+        Key accepted by `AggregatedCategoricalTransformer`.
+
+    Raises:
+        ValueError: If the key does not use an expected original prefix.
+    """
     for prefix in ("model.module.model.", "model.module."):
         if key.startswith(prefix):
             return key.removeprefix(prefix)
@@ -22,10 +35,26 @@ def remap_corrector_key(key: str) -> str:
 def split_original_corrector_state_dict(
     state_dict: dict[str, torch.Tensor],
 ) -> dict[str, torch.Tensor]:
+    """Strip original wrapper prefixes from a corrector state dict.
+
+    Args:
+        state_dict: Original checkpoint state dictionary.
+
+    Returns:
+        Converted state dictionary.
+    """
     return {remap_corrector_key(key): value for key, value in state_dict.items()}
 
 
 def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+    """Load and remap an original corrector checkpoint.
+
+    Args:
+        path: Path to `best_model.pt`.
+
+    Returns:
+        Converted state dictionary.
+    """
     state = torch.load(path, map_location="cpu")
     raw = state.get("state_dict", state)
     return split_original_corrector_state_dict(raw)
@@ -38,6 +67,17 @@ def corrector_config_from_original(
     state_dict: dict[str, torch.Tensor],
     layout_dm: LayoutDMPipeline,
 ) -> LayoutCorrectorConfig:
+    """Build a Layout-Corrector config from original files.
+
+    Args:
+        dataset: Dataset key or alias.
+        config_path: Original `config.yaml` path.
+        state_dict: Converted corrector state dictionary.
+        layout_dm: Nested LayoutDM pipeline used for compatibility checks.
+
+    Returns:
+        Converted Layout-Corrector config.
+    """
     with Path(config_path).open() as f:
         original_config = yaml.safe_load(f)
     data_cfg = original_config["data"]
@@ -74,6 +114,16 @@ def build_corrector_from_original(
     checkpoint_dir: str | Path,
     layout_dm: LayoutDMPipeline,
 ) -> LayoutCorrectorModel:
+    """Build a `LayoutCorrectorModel` from an original checkpoint directory.
+
+    Args:
+        dataset: Dataset key or alias.
+        checkpoint_dir: Directory containing `best_model.pt` and `config.yaml`.
+        layout_dm: Nested LayoutDM pipeline paired with the corrector.
+
+    Returns:
+        Loaded and eval-mode corrector model.
+    """
     checkpoint_dir = Path(checkpoint_dir)
     state_dict = load_original_corrector_state_dict(checkpoint_dir / "best_model.pt")
     config = corrector_config_from_original(
@@ -90,6 +140,14 @@ def build_corrector_from_original(
 
 
 def discover_seed_dirs(job_dir: str | Path) -> list[Path]:
+    """Discover corrector seed directories under an original job directory.
+
+    Args:
+        job_dir: Seed directory or parent directory containing seed subdirectories.
+
+    Returns:
+        Sorted list of directories containing `config.yaml`.
+    """
     path = Path(job_dir)
     if (path / "config.yaml").is_file():
         return [path]
@@ -103,6 +161,15 @@ def validate_layout_dm_compatibility(
     layout_dm: LayoutDMPipeline,
     corrector_config: LayoutCorrectorConfig,
 ) -> None:
+    """Validate that a corrector config matches its nested LayoutDM pipeline.
+
+    Args:
+        layout_dm: Nested LayoutDM pipeline.
+        corrector_config: Corrector config to compare.
+
+    Raises:
+        ValueError: If a shared tokenizer or scheduler field differs.
+    """
     tokenizer_config = layout_dm.tokenizer.config
     checks: dict[str, Any] = {
         "vocab_size": tokenizer_config.vocab_size,

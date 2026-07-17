@@ -1,3 +1,5 @@
+"""Layout-Corrector confidence model components."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,10 +16,18 @@ from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 @dataclass
 class LayoutCorrectorOutput(BaseOutput):
+    """Output container for Layout-Corrector confidence logits.
+
+    Args:
+        logits: Token confidence logits shaped `(batch, tokens)`.
+    """
+
     logits: torch.FloatTensor
 
 
 class AggregatedCategoricalTransformer(nn.Module):
+    """Aggregated-token transformer used by the original Layout-Corrector model."""
+
     def __init__(
         self,
         *,
@@ -33,6 +43,25 @@ class AggregatedCategoricalTransformer(nn.Module):
         num_attributes_per_element: int,
         num_timesteps: int,
     ) -> None:
+        """Initialize the aggregated categorical transformer.
+
+        Args:
+            vocab_size: Number of token ids.
+            max_token_length: Flattened token sequence length.
+            hidden_size: Transformer hidden dimension.
+            num_attention_heads: Number of attention heads.
+            num_hidden_layers: Number of transformer layers.
+            intermediate_size: Feed-forward hidden dimension.
+            dropout: Dropout probability.
+            timestep_type: Timestep conditioning type.
+            pos_emb: Position embedding mode.
+            num_attributes_per_element: Number of attributes per layout element.
+            num_timesteps: Diffusion timestep count.
+
+        Raises:
+            ValueError: If `max_token_length` is not divisible by attributes per
+                element.
+        """
         super().__init__()
         if max_token_length % num_attributes_per_element:
             raise ValueError(
@@ -79,6 +108,16 @@ class AggregatedCategoricalTransformer(nn.Module):
         timestep: torch.LongTensor | None = None,
         src_key_padding_mask: torch.BoolTensor | None = None,
     ) -> torch.FloatTensor:
+        """Predict token confidence logits.
+
+        Args:
+            input_ids: Flattened token ids.
+            timestep: Optional diffusion timestep tensor.
+            src_key_padding_mask: Optional padding mask.
+
+        Returns:
+            Confidence logits shaped `(batch, tokens, 1)`.
+        """
         batch_size, token_length = input_ids.shape
         step = self.num_attributes_per_element
         hidden = self.drop(self.cat_emb(input_ids))
@@ -103,6 +142,8 @@ class AggregatedCategoricalTransformer(nn.Module):
 
 
 class LayoutCorrectorModel(ModelMixin, ConfigMixin):
+    """Diffusers-compatible Layout-Corrector confidence model."""
+
     config_name = "corrector_config.json"
 
     @register_to_config
@@ -136,6 +177,40 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         gumbel_temperature: float = 1.0,
         time_adaptive_temperature: bool = False,
     ) -> None:
+        """Initialize a Layout-Corrector model.
+
+        Args:
+            dataset_name: Dataset key or alias used for labels.
+            vocab_size: LayoutDM vocabulary size.
+            id2label: Optional class-id mapping.
+            max_seq_length: Maximum number of elements.
+            num_attributes_per_element: Number of token attributes per element.
+            hidden_size: Transformer hidden dimension.
+            num_attention_heads: Number of attention heads.
+            num_hidden_layers: Number of transformer layers.
+            intermediate_size: Feed-forward hidden dimension.
+            dropout: Dropout probability.
+            timestep_type: Timestep conditioning type.
+            num_timesteps: Number of diffusion timesteps.
+            recon_type: Reconstruction target.
+            target: Confidence target type.
+            attr_loss_weights: Per-attribute loss weights.
+            use_padding_as_vocab: Whether padding is modeled as a vocabulary token.
+            pos_emb: Position embedding mode.
+            transformer_type: Corrector transformer type.
+            corrector_steps: Number of correction passes.
+            corrector_t_list: Explicit correction timesteps.
+            corrector_mask_mode: Token remasking mode.
+            corrector_mask_threshold: Threshold for confidence remasking.
+            corrector_temperature: Corrector sampling temperature.
+            use_gumbel_noise: Whether confidence logits receive Gumbel noise.
+            gumbel_temperature: Confidence-noise temperature.
+            time_adaptive_temperature: Whether to scale noise by timestep ratio.
+
+        Raises:
+            ValueError: If reconstruction, target, or transformer options are
+                unsupported.
+        """
         super().__init__()
         if recon_type not in {"x_0", "x_t-1"}:
             raise ValueError(f"Unsupported recon_type: {recon_type}")
@@ -174,6 +249,16 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         timesteps: torch.LongTensor,
         padding_mask: torch.BoolTensor | None = None,
     ) -> LayoutCorrectorOutput:
+        """Run the corrector model.
+
+        Args:
+            input_ids: Flattened token ids.
+            timesteps: Diffusion timestep tensor.
+            padding_mask: Optional padding mask.
+
+        Returns:
+            `LayoutCorrectorOutput` containing token confidence logits.
+        """
         src_key_padding_mask = (
             None if self.config.use_padding_as_vocab else padding_mask
         )
@@ -192,6 +277,16 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
         timesteps: torch.LongTensor,
         padding_mask: torch.BoolTensor | None = None,
     ) -> torch.FloatTensor:
+        """Return confidence logits for token remasking.
+
+        Args:
+            input_ids: Flattened token ids.
+            timesteps: Diffusion timestep tensor.
+            padding_mask: Optional padding mask.
+
+        Returns:
+            Confidence logits shaped `(batch, tokens)`.
+        """
         return self(
             input_ids=input_ids,
             timesteps=timesteps,
