@@ -111,6 +111,48 @@ print(out.bbox, out.labels, out.mask)
         parity_metrics=metrics,
         citation_bibtex=_LACE_BIBTEX,
         original_implementation_url="https://github.com/puar-playground/LACE",
+        developers="Jian Chen, Ruiyi Zhang, Yufan Zhou, and Changyou Chen; converted by creative-graphic-design contributors.",
+        model_type="Continuous diffusion model for aesthetic-constrained layout generation.",
+        paper_url="https://openreview.net/forum?id=kJ0qp9Xdsh",
+        direct_use=(
+            "Generate normalized layout boxes, labels, and masks from the converted "
+            "Diffusers pipeline without fine-tuning."
+        ),
+        downstream_use=(
+            "Use generated layouts as candidates for document or UI rendering, "
+            "layout editing, data augmentation, or evaluation workflows."
+        ),
+        out_of_scope_use=(
+            "Do not use the model as an image renderer, OCR system, safety-critical "
+            "document generation system, or a replacement for human review of "
+            "layout quality and content suitability."
+        ),
+        bias_recommendations=(
+            "Inspect outputs for dataset bias, element overlap, category balance, "
+            "and downstream rendering constraints before release or deployment."
+        ),
+        preprocessing=(
+            "The original LACE workflow represents layouts as max-25 continuous "
+            "sequences with one-hot category channels and normalized bounding boxes."
+        ),
+        training_regime="Original training regime from the upstream LACE release.",
+        testing_data=(
+            f"Vendor parity tests use `{_DATASET_IDS[dataset]}` checkpoint fixtures "
+            "from the original LACE release when the public checkpoint is available."
+        ),
+        testing_factors=(
+            "Parity is checked per available dataset and covers checkpoint conversion "
+            "smoke tests plus denoiser logits for PubLayNet and Rico25."
+        ),
+        testing_metrics=(
+            "Conversion smoke output shapes and bbox range, plus denoiser logits "
+            "maximum absolute and relative differences."
+        ),
+        model_specs=(
+            "Converted LACE transformer denoiser, processor, and DDIM-style scheduler "
+            "wrapped in a Diffusers-style pipeline."
+        ),
+        software="Python, PyTorch, Diffusers, and laygen.common.",
     )
 
 

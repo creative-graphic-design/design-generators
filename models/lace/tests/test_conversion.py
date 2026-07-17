@@ -32,7 +32,10 @@ def test_write_lace_model_card_smoke(tmp_path) -> None:
     path = write_lace_model_card(tmp_path, "publaynet")
     text = path.read_text(encoding="utf-8")
     assert path.name == "README.md"
-    assert "# LACE publaynet" in text
+    assert "# Model Card for creative-graphic-design/lace-publaynet" in text
     assert "creative-graphic-design/lace-publaynet" in text
     assert "creative-graphic-design/publaynet" in text
     assert "| publaynet | n/a | n/a | 0 | 0 |" in text
+    assert "## Uses" in text
+    assert "## Evaluation" in text
+    assert "[More Information Needed]" not in text

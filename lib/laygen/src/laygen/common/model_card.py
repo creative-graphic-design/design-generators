@@ -32,6 +32,39 @@ def build_layout_model_card(
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]],
     citation_bibtex: str,
     original_implementation_url: str,
+    developers: str,
+    model_type: str,
+    paper_url: str,
+    direct_use: str,
+    downstream_use: str,
+    out_of_scope_use: str,
+    bias_recommendations: str,
+    preprocessing: str,
+    training_regime: str,
+    testing_data: str,
+    testing_factors: str,
+    testing_metrics: str,
+    model_specs: str,
+    software: str,
+    model_summary: str | None = None,
+    funded_by: str = "Not documented in the original release.",
+    shared_by: str = "creative-graphic-design",
+    base_model: str = "Not applicable: this is a converted original checkpoint.",
+    demo: str = "Not provided.",
+    speeds_sizes_times: str = "Not documented in the original release.",
+    model_examination: str = "No separate interpretability examination is provided.",
+    hardware_type: str = "Not documented in the original release.",
+    hours_used: str = "Not documented in the original release.",
+    cloud_provider: str = "Not documented in the original release.",
+    cloud_region: str = "Not documented in the original release.",
+    co2_emitted: str = "Not documented in the original release.",
+    compute_infrastructure: str = "Not documented in the original release.",
+    hardware_requirements: str = "CPU is sufficient to load the pipeline; CUDA is recommended for generation and parity tests.",
+    citation_apa: str = "See the BibTeX citation above.",
+    glossary: str = "`bbox` uses normalized center `xywh` coordinates; `mask` marks valid layout elements.",
+    more_information: str = "See the original implementation, paper, and dataset links above.",
+    model_card_authors: str = "creative-graphic-design contributors.",
+    model_card_contact: str = "Use the model repository discussions or issues for questions.",
 ) -> ModelCard:
     card_data = ModelCardData(
         model_name=model_name,
@@ -40,51 +73,64 @@ def build_layout_model_card(
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
+        language=["en"],
+        metrics=["vendor-parity"],
     )
     parity_table = _parity_table(parity_metrics)
-    content = f"""---
-{card_data.to_yaml()}
----
-
-# {model_name}
-
-## Model Details
-
-Hub repository: `{model_id}`
-
-{model_details}
-
-Original implementation: {original_implementation_url}
-
-## Intended Uses & Limitations
-
-{intended_uses}
-
-### Limitations
-
-{limitations}
-
-## How to Use
-
-```python
-{how_to_use.strip()}
-```
-
-## Training Data
-
-{training_data}
-
-## Parity Summary
-
-{parity_table}
-
-## Citation
-
-```bibtex
-{citation_bibtex.strip()}
-```
-"""
-    return ModelCard(content)
+    get_started_code = f"```python\n{how_to_use.strip()}\n```"
+    summary = model_summary or model_details
+    card = ModelCard.from_template(
+        card_data,
+        model_id=model_id,
+        model_summary=summary,
+        model_description=model_details,
+        developers=developers,
+        funded_by=funded_by,
+        shared_by=shared_by,
+        model_type=model_type,
+        language="Not applicable: the model generates layout structures, not natural language.",
+        license=license,
+        base_model=base_model,
+        repo=original_implementation_url,
+        paper=paper_url,
+        demo=demo,
+        direct_use=f"{intended_uses}\n\n{direct_use}",
+        downstream_use=downstream_use,
+        out_of_scope_use=out_of_scope_use,
+        bias_risks_limitations=limitations,
+        bias_recommendations=bias_recommendations,
+        get_started_code=get_started_code,
+        training_data=training_data,
+        preprocessing=preprocessing,
+        training_regime=training_regime,
+        speeds_sizes_times=speeds_sizes_times,
+        testing_data=testing_data,
+        testing_factors=testing_factors,
+        testing_metrics=testing_metrics,
+        results=parity_table,
+        results_summary=(
+            "Local vendor parity checks compare converted pipeline components "
+            "against the original implementation and checkpoint weights."
+        ),
+        model_examination=model_examination,
+        hardware_type=hardware_type,
+        hours_used=hours_used,
+        cloud_provider=cloud_provider,
+        cloud_region=cloud_region,
+        co2_emitted=co2_emitted,
+        model_specs=model_specs,
+        compute_infrastructure=compute_infrastructure,
+        hardware_requirements=hardware_requirements,
+        software=software,
+        citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
+        citation_apa=citation_apa,
+        glossary=glossary,
+        more_information=more_information,
+        model_card_authors=model_card_authors,
+        model_card_contact=model_card_contact,
+    )
+    card.validate(repo_type="model")
+    return card
 
 
 def layoutdm_model_card(
@@ -135,7 +181,9 @@ print(out.bbox, out.labels, out.mask)
         ),
         limitations=(
             "The converted checkpoint follows the original LayoutDM release and is "
-            "intended for layout synthesis, not for image rendering or OCR."
+            "intended for layout synthesis, not image rendering, OCR, or evaluation "
+            "of visual quality without downstream checks. Dataset-specific biases "
+            "from PubLayNet or Rico may appear in generated layouts."
         ),
         how_to_use=how_to_use,
         training_data=(
@@ -145,6 +193,48 @@ print(out.bbox, out.labels, out.mask)
         parity_metrics=metrics,
         citation_bibtex=_LAYOUTDM_BIBTEX,
         original_implementation_url=("https://github.com/CyberAgentAILab/layout-dm"),
+        developers="CyberAgent AI Lab; converted by creative-graphic-design contributors.",
+        model_type="Discrete diffusion model for controllable layout generation.",
+        paper_url="https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html",
+        direct_use=(
+            "Generate normalized layout boxes, labels, and masks from the converted "
+            "Diffusers pipeline without fine-tuning."
+        ),
+        downstream_use=(
+            "Use generated layouts as inputs for document or UI rendering, "
+            "benchmarking, data augmentation, or layout editing systems."
+        ),
+        out_of_scope_use=(
+            "Do not use the model as an image generator, OCR system, safety-critical "
+            "document authoring system, or as a substitute for human review of "
+            "generated layouts."
+        ),
+        bias_recommendations=(
+            "Inspect generated layouts for dataset bias, overlap, category balance, "
+            "and downstream rendering constraints before deployment."
+        ),
+        preprocessing=(
+            "The original LayoutDM workflow quantizes bounding boxes into layout "
+            "tokens and stores outputs as max-25 sequences."
+        ),
+        training_regime="Original training regime from the upstream LayoutDM release.",
+        testing_data=(
+            f"Vendor parity tests use `{dataset_id}` checkpoint fixtures and local "
+            "golden outputs generated from the original implementation."
+        ),
+        testing_factors=(
+            "Parity is checked per dataset and covers tokenizer round trips, "
+            "deterministic generation, and denoiser logits."
+        ),
+        testing_metrics=(
+            "Tokenizer exact match count, deterministic exact match count, logits "
+            "maximum absolute difference, and logits maximum relative difference."
+        ),
+        model_specs=(
+            "Converted LayoutDM denoiser, tokenizer, processor, and scheduler wrapped "
+            "in a Diffusers-style pipeline."
+        ),
+        software="Python, PyTorch, Diffusers, Transformers, and laygen.common.",
     )
 
 
