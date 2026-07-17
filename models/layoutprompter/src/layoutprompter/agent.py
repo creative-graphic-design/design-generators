@@ -269,7 +269,7 @@ class LayoutPrompter:
         batch_size: int = 1,
         seed: int | None = None,
         generator: object | None = None,
-        condition_type: str | None = None,
+        condition_type: ConditionType | str | None = None,
         labels: object | None = None,
         bbox: object | None = None,
         mask: object | None = None,
@@ -280,7 +280,6 @@ class LayoutPrompter:
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.DATACLASS,
         return_intermediates: bool = False,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Expose the shared generation signature for LayoutPrompter.
 
@@ -301,7 +300,6 @@ class LayoutPrompter:
             num_inference_steps: Accepted for shared interface compatibility.
             output_type: `dataclass` for `LayoutGenerationOutput`, or `dict`.
             return_intermediates: Accepted for shared interface compatibility.
-            **model_kwargs: Accepted for shared interface compatibility.
 
         Returns:
             A `LayoutGenerationOutput` or dictionary representation.
@@ -322,6 +320,8 @@ class LayoutPrompter:
             >>> isinstance(agent(train_data=[record], test_data=record), LayoutGenerationOutput)
             True
         """
+        if condition_type is not None:
+            normalize_condition_type(condition_type)
         del (
             batch_size,
             seed,
@@ -335,7 +335,6 @@ class LayoutPrompter:
             canvas_size,
             num_inference_steps,
             return_intermediates,
-            model_kwargs,
         )
         normalize_box_format(box_format)
         normalized_output_type = normalize_output_type(output_type)

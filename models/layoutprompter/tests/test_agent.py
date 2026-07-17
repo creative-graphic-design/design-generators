@@ -158,6 +158,18 @@ def test_config_and_call_reject_unsupported_modes() -> None:
             test_data={"labels": torch.tensor([])},
             output_type="json",
         )
+    with pytest.raises(ValueError, match="Unknown condition_type"):
+        prompter(
+            train_data=[],
+            test_data={"labels": torch.tensor([])},
+            condition_type="unknown",
+        )
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        getattr(prompter, "__call__")(
+            train_data=[],
+            test_data={"labels": torch.tensor([])},
+            unsupported=True,
+        )
 
 
 def test_resolve_model_prefers_explicit_and_environment(
