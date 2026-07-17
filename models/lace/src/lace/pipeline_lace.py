@@ -176,7 +176,6 @@ class LacePipeline(DiffusionPipeline):
         beautify_alignment_weight: float = 1.0,
         output_type: PipelineOutputType | str = PipelineOutputType.dataclass,
         return_intermediates: bool = False,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
         """Run LACE denoising and return generated layouts.
 
@@ -200,7 +199,6 @@ class LacePipeline(DiffusionPipeline):
             beautify_alignment_weight: Alignment penalty weight.
             output_type: ``"dataclass"`` or ``"dict"``.
             return_intermediates: Whether to return the denoising trajectory.
-            **model_kwargs: Reserved for Diffusers compatibility.
 
         Returns:
             Layout output dataclass or a dictionary.
@@ -209,7 +207,6 @@ class LacePipeline(DiffusionPipeline):
             ValueError: If a condition/output mode is unsupported or required
                 conditioning tensors are missing.
         """
-        del model_kwargs
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
