@@ -22,7 +22,7 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 - [ ] Read the model plan and amendment comments, if this is a model PR.
 - [ ] Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.
 - [ ] Did not push Hub repositories or model artifacts unless explicitly requested.
-- [ ] Kept progress updates in agmsg only; the PR body is the latest summary.
+- [ ] Kept the PR description current as the single summary of this PR (no progress-log comments).
 - [ ] README reproducibility steps are copy-pasteable commands, if README docs changed.
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
 
