@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 import torch
-from diffusers.configuration_utils import ConfigMixin, register_to_config
+from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
     BoxFormat,
@@ -23,7 +21,7 @@ from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from .configuration_lace import get_dataset_spec, normalize_dataset
 
 
-class LaceProcessor(ConfigMixin):
+class LaceProcessor(ProcessorMixin):
     """Encode public layout tensors into the continuous LACE sequence format.
 
     Args:
@@ -39,10 +37,8 @@ class LaceProcessor(ConfigMixin):
 
     config_name = "processor_config.json"
 
-    @register_to_config
     def __init__(
         self,
-        *,
         dataset: DatasetName | str,
         labels: list[str],
         max_seq_length: int = 25,
@@ -54,6 +50,7 @@ class LaceProcessor(ConfigMixin):
             labels: Ordered category labels without padding.
             max_seq_length: Maximum number of layout elements.
         """
+        super().__init__()
         self.dataset = str(normalize_dataset(dataset))
         self.labels = tuple(labels)
         self.max_seq_length = max_seq_length
@@ -266,34 +263,45 @@ class LaceProcessor(ConfigMixin):
             intermediates={"dataset": self.dataset},
         )
 
-    def save_pretrained(self, save_directory: str | Path) -> None:
+    def save_pretrained(  # ty: ignore[invalid-method-override]
+        self, save_directory: str | Path
+    ) -> None:
         """Save processor config to a Diffusers directory.
 
         Args:
             save_directory: Directory where ``processor_config.json`` is written.
         """
-        self.save_config(save_directory)
+        super().save_pretrained(save_directory)
 
     @classmethod
-    def from_pretrained(cls, path: str | Path) -> "LaceProcessor":
+    def from_pretrained(  # ty: ignore[invalid-method-override]
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        cache_dir: str | Path | None = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: str | bool | None = None,
+        revision: str = "main",
+    ) -> "LaceProcessor":
         """Load processor config from a Diffusers directory.
 
         Args:
-            path: Directory containing ``processor_config.json``.
+            pretrained_model_name_or_path: Directory or Hub id containing
+                ``processor_config.json``.
+            cache_dir: Optional Hugging Face cache directory.
+            force_download: Whether to force a fresh download.
+            local_files_only: Whether to avoid network access.
+            token: Optional Hugging Face token.
+            revision: Hub revision to load.
 
         Returns:
             Loaded processor.
         """
-        raw_config = cls.load_config(path)
-        config_obj = raw_config[0] if isinstance(raw_config, tuple) else raw_config
-        config = cast(Mapping[str, object], config_obj)
-        labels_obj = config["labels"]
-        if not isinstance(labels_obj, list | tuple):
-            raise TypeError("processor config labels must be a sequence")
-        max_len_obj = config.get("max_seq_length", 25)
-        max_seq_length = max_len_obj if isinstance(max_len_obj, int) else 25
-        return cls(
-            dataset=str(config["dataset"]),
-            labels=[str(label) for label in labels_obj],
-            max_seq_length=max_seq_length,
+        return super().from_pretrained(
+            pretrained_model_name_or_path,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
         )

@@ -1887,6 +1887,7 @@ dependencies = [
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pillow" },
     { name = "torch" },
+    { name = "transformers" },
 ]
 
 [package.optional-dependencies]
@@ -1924,6 +1925,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.0" },
     { name = "torch-geometric", marker = "extra == 'vendor'", specifier = ">=2.5" },
     { name = "tqdm", marker = "extra == 'vendor'", specifier = ">=4.66" },
+    { name = "transformers", specifier = ">=4.57.0" },
 ]
 provides-extras = ["hub", "metrics", "vendor"]
 
