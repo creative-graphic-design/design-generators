@@ -13,8 +13,10 @@ classifiers = [
 ]
 dependencies = [
     "layout-corrector",
+    "layoutganpp",
     "layout-dm",
     "laygen",
+    "posgen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -54,6 +56,7 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 layout-corrector = { workspace = true }
+layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 laygen = { workspace = true }
 posgen = { workspace = true }
@@ -91,7 +94,7 @@ addopts = ["--import-mode=importlib"]
 testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
-    "vendor_parity: requires original LayoutDM weights and vendor dependencies",
+    "vendor_parity: requires original LayoutDM or LayoutGAN++ weights and vendor dependencies",
 ]
 
 [tool.coverage.run]

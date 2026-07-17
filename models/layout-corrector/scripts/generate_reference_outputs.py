@@ -6,9 +6,15 @@ import argparse
 from pathlib import Path
 from typing import Final
 
-_SUPPORTED_DATASETS: Final[tuple[str, ...]] = (
-    "rico25",
-    "publaynet",
+from laygen.common.labels import DatasetName
+
+_LAYGEN_DATASETS: Final[tuple[DatasetName, ...]] = (
+    DatasetName.rico25,
+    DatasetName.publaynet,
+)
+_SUPPORTED_DATASETS: Final[tuple[str, ...]] = tuple(
+    str(dataset) for dataset in _LAYGEN_DATASETS
+) + (
     "crello",
     "crello-bbox",
 )

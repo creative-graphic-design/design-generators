@@ -9,6 +9,7 @@ from typing import Final
 import pytest
 import torch
 
+from laygen.common.vendor import vendor_root
 from layout_corrector.conversion import build_corrector_from_original
 from layout_dm.pipeline import LayoutDMPipeline
 
@@ -78,7 +79,15 @@ def _compat_layout_dm_dir(layout_dm_dir: Path, dataset: str, tmp_path: Path) -> 
 def _load_vendor_transformer(
     *, corrector_dir: Path, vocab_size: int, device: torch.device
 ) -> torch.nn.Module:
-    vendor_src = _repo_root() / "vendor" / "layout-corrector" / "src" / "trainer"
+    vendor_src = (
+        vendor_root(
+            "layout-corrector",
+            marker="src/trainer/trainer/models/common/nn_lib.py",
+            repo_root=_repo_root(),
+        )
+        / "src"
+        / "trainer"
+    )
     sys.path.insert(0, str(vendor_src))
     from trainer.models.common.nn_lib import CategoricalAggregatedTransformer
     from trainer.models.transformer_utils import Block, TransformerEncoder

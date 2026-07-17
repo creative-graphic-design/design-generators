@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Final
 
-from laygen.common.labels import normalize_dataset_name
+from laygen.common.labels import DatasetName, normalize_dataset_name
 from laygen.common.model_card import ParityMetric
 from layout_corrector.conversion import (
     build_corrector_from_original,
@@ -16,9 +16,13 @@ from layout_corrector.model_card import layout_corrector_model_card
 from layout_corrector.pipeline import LayoutCorrectorPipeline
 from layout_dm.pipeline import LayoutDMPipeline
 
-_SUPPORTED_DATASETS: Final[tuple[str, ...]] = (
-    "rico25",
-    "publaynet",
+_LAYGEN_DATASETS: Final[tuple[DatasetName, ...]] = (
+    DatasetName.rico25,
+    DatasetName.publaynet,
+)
+_SUPPORTED_DATASETS: Final[tuple[str, ...]] = tuple(
+    str(dataset) for dataset in _LAYGEN_DATASETS
+) + (
     "crello",
     "crello-bbox",
 )

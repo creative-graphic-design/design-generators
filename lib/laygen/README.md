@@ -108,7 +108,7 @@ Example output:
 
 ## Design Rules
 
-- `outputs` and `outputs_diffusers` share one field definition from `laygen.common._output_spec`; add or rename output fields there first.
+- `outputs` and `outputs_diffusers` share one field definition from `laygen.common.output_spec`; add or rename output fields there first.
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.

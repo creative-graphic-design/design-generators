@@ -9,6 +9,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Final
 
+from laygen.common.labels import DatasetName
+
 gdown: ModuleType | None
 try:
     import gdown as _gdown
@@ -20,25 +22,26 @@ else:
 
 FILE_ID: Final[str] = "1og3l0enR67rDwiAN44K4RchcFYAgsbNq"
 STARTER_DIR: Final[str] = "layout_corrector_starter_kit"
+CRELLO_BBOX_DATASET: Final[str] = "crello-bbox"
 REQUIRED_PATHS: Final[tuple[Path, ...]] = (
     Path(STARTER_DIR)
     / "download"
     / "pretrained_weights"
-    / "rico25"
+    / str(DatasetName.rico25)
     / "layout_corrector"
     / "0"
     / "config.yaml",
     Path(STARTER_DIR)
     / "download"
     / "pretrained_weights"
-    / "publaynet"
+    / str(DatasetName.publaynet)
     / "layout_corrector"
     / "0"
     / "config.yaml",
     Path(STARTER_DIR)
     / "download"
     / "pretrained_weights"
-    / "crello-bbox"
+    / CRELLO_BBOX_DATASET
     / "layout_corrector"
     / "0"
     / "config.yaml",
