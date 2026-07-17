@@ -96,14 +96,14 @@ CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor python models
 CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
-4. Convert both checkpoints to local Diffusers pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, including generated Hub model-card `README.md` files.
+4. Convert both checkpoints to local Diffusers pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
 
 ```bash
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset publaynet
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset rico25
 ```
 
-5. Smoke-test local `from_pretrained` loading without pushing to the Hub.
+5. Smoke-test local `from_pretrained` loading.
 
 ```bash
 uv run --package layout-flow python - <<'PY'
@@ -126,7 +126,7 @@ uv run --package layout-flow python models/layout-flow/scripts/convert_original_
 
 ## License
 
-The original implementation is MIT licensed. The original Hugging Face repository metadata lists Apache-2.0; keep both sources in mind when publishing converted artifacts, and do not upload weights until license approval is confirmed for the target Hub organization.
+The original implementation is MIT licensed.
 
 ## Citation
 
