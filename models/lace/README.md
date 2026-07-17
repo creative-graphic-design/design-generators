@@ -36,8 +36,8 @@ out = pipe(batch_size=1, seed=0, num_inference_steps=100)
 print(out.bbox, out.labels, out.mask)
 ```
 
-Convert a local original checkpoint and write the Hub model card into the
-`save_pretrained` output:
+Convert a local original checkpoint. The output directory includes `README.md`
+alongside the pipeline files:
 
 ```bash
 uv run --package lace python models/lace/scripts/convert_checkpoint.py \
@@ -57,7 +57,7 @@ uv run --package lace python models/lace/scripts/convert_checkpoint.py \
 ## Training Data
 
 The original LACE project trains on PubLayNet and Rico annotations prepared as
-max-25 layout sequences. Dataset ids used in generated model cards:
+max-25 layout sequences.
 
 | Dataset | Dataset id |
 | --- | --- |
@@ -155,7 +155,7 @@ uv run --package lace python models/lace/scripts/convert_checkpoint.py \
   --output .cache/lace/converted/lace-rico25
 ```
 
-Each output directory contains Diffusers pipeline files plus a Hub model card:
+Each output directory contains Diffusers pipeline files and `README.md`:
 
 ```text
 .cache/lace/converted/lace-publaynet/README.md
