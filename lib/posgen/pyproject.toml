@@ -1,0 +1,13 @@
+[project]
+name = "posgen"
+version = "0.1.0"
+description = "Shared position generation schemas and utilities."
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0.0",
+]

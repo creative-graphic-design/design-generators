@@ -5,7 +5,12 @@ build/
 dist/
 site/
 wheels/
-*.egg-info
+*.egg-info/
 
 # Virtual environments
 .venv
+
+# Local caches and generated parity fixtures
+.cache/
+models/*/tests/vendor_parity/fixtures/
+.pytest_cache/

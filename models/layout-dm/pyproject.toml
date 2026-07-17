@@ -1,0 +1,44 @@
+[project]
+name = "layout-dm"
+version = "0.1.0"
+description = "Diffusers-style LayoutDM conversion package."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+convert = [
+    "huggingface-hub>=0.24",
+    "pyyaml>=6",
+    "scikit-learn>=1.0",
+]
+download = [
+    "requests>=2.31",
+]
+vendor = [
+    "fsspec",
+    "hydra-core~=1.3",
+    "omegaconf~=2.3",
+    "prdc>=0.2",
+    "pytorch-fid>=0.3",
+    "scikit-learn>=1.0",
+    "seaborn",
+    "torch-geometric>=2.5,<2.7",
+    "torchvision",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original LayoutDM weights and vendor dependencies",
+]
