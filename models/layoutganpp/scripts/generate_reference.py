@@ -6,13 +6,14 @@ import argparse
 import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 import torch
 
+from laygen.common.vendor import vendor_root
 from layoutganpp.datasets import labels_for_dataset
 
-_VENDOR_MODEL = Path("model") / "layoutganpp.py"
+_VENDOR_MODEL: Final[Path] = Path("model") / "layoutganpp.py"
 
 
 def _arg(args: object, key: str) -> str:
@@ -38,45 +39,6 @@ def _synthetic_labels(
     positions = torch.arange(seq_len, device=device).unsqueeze(0)
     attention_mask = positions < lengths.unsqueeze(1)
     return labels, attention_mask
-
-
-def _resolve_vendor_dir(
-    vendor_dir: Path,
-    *,
-    repo_root: Path | None = None,
-    cwd: Path | None = None,
-) -> Path:
-    repo = repo_root or Path(__file__).resolve().parents[3]
-    current = cwd or Path.cwd()
-    candidates = [
-        vendor_dir,
-        current / vendor_dir,
-        repo / vendor_dir,
-        repo / "vendor" / "const-layout",
-    ]
-    if "=" in repo.name:
-        candidates.append(
-            repo.with_name(repo.name.split("=", maxsplit=1)[0]) / vendor_dir
-        )
-    if "=" in current.name:
-        candidates.append(
-            current.with_name(current.name.split("=", maxsplit=1)[0]) / vendor_dir
-        )
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        resolved = candidate.expanduser().resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if (resolved / _VENDOR_MODEL).exists():
-            return resolved
-
-    searched = "\n".join(f"- {path}" for path in seen)
-    raise FileNotFoundError(
-        "Could not find const-layout vendor source with model/layoutganpp.py. "
-        f"Searched:\n{searched}"
-    )
 
 
 def main() -> None:
@@ -122,7 +84,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    vendor_dir = _resolve_vendor_dir(args.vendor_dir)
+    vendor_dir = vendor_root(
+        "const-layout",
+        marker=_VENDOR_MODEL,
+        path=args.vendor_dir,
+    )
     sys.path.insert(0, str(vendor_dir))
     from model.layoutganpp import Generator
 

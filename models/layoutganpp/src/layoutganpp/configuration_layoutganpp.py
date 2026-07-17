@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
+from laygen.common.labels import max_elements_for_dataset
 
 from .datasets import DatasetName, dataset_metadata, id2label_for_dataset
 
@@ -98,6 +99,6 @@ class LayoutGANPPConfig(PretrainedConfig):
         self.bbox_format = str(normalize_box_format(bbox_format))
         self.bbox_normalized = bbox_normalized
         self.max_position_embeddings = (
-            max_position_embeddings or metadata["max_elements"]
+            max_position_embeddings or max_elements_for_dataset(metadata["name"])
         )
         self.architectures = ["LayoutGANPPModel"]

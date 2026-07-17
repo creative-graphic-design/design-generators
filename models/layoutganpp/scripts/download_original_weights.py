@@ -4,15 +4,25 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Final
 
 import requests
 
-WEIGHTS = {
-    "rico": "layoutganpp_rico.pth.tar",
-    "publaynet": "layoutganpp_publaynet.pth.tar",
-    "magazine": "layoutganpp_magazine.pth.tar",
+from laygen.common import DatasetName
+from layoutganpp.datasets import normalize_dataset_name
+
+WEIGHTS: Final[dict[DatasetName, str]] = {
+    DatasetName.rico13: "layoutganpp_rico.pth.tar",
+    DatasetName.publaynet: "layoutganpp_publaynet.pth.tar",
+    DatasetName.magazine: "layoutganpp_magazine.pth.tar",
 }
-BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
+SUPPORTED_DATASETS: Final[frozenset[DatasetName]] = frozenset(WEIGHTS)
+DATASET_CHOICES: Final[tuple[str, ...]] = (
+    "all",
+    "rico",
+    *(str(dataset) for dataset in sorted(SUPPORTED_DATASETS)),
+)
+BASE_URL: Final[str] = "https://esslab.jp/~kotaro/files/const_layout"
 
 
 def main() -> None:
@@ -31,7 +41,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset",
-        choices=[*WEIGHTS, "all"],
+        choices=DATASET_CHOICES,
         default="all",
         help="Checkpoint dataset to download; 'all' downloads every released file.",
     )
@@ -39,9 +49,12 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     datasets = (
-        WEIGHTS if args.dataset == "all" else {args.dataset: WEIGHTS[args.dataset]}
+        SUPPORTED_DATASETS
+        if args.dataset == "all"
+        else frozenset({normalize_dataset_name(args.dataset)})
     )
-    for dataset, filename in datasets.items():
+    for dataset in sorted(datasets):
+        filename = WEIGHTS[dataset]
         url = f"{BASE_URL}/{filename}"
         output = args.output_dir / filename
         with requests.get(url, stream=True, timeout=60) as response:

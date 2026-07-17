@@ -66,24 +66,20 @@ class DatasetMetadata(TypedDict):
 
     name: DatasetName
     labels: tuple[StrEnum, ...]
-    max_elements: int
 
 
 DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
     DatasetName.rico13: {
         "name": DatasetName.rico13,
         "labels": RICO_LABELS,
-        "max_elements": 9,
     },
     DatasetName.publaynet: {
         "name": DatasetName.publaynet,
         "labels": PUBLAYNET_LABELS,
-        "max_elements": 9,
     },
     DatasetName.magazine: {
         "name": DatasetName.magazine,
         "labels": MAGAZINE_LABELS,
-        "max_elements": 33,
     },
 }
 
@@ -134,7 +130,7 @@ def dataset_metadata(dataset_name: DatasetName | str) -> DatasetMetadata:
         ValueError: If the dataset name is unknown.
 
     Examples:
-        >>> dataset_metadata("rico")["max_elements"]
+        >>> max_elements_for_dataset("rico13")
         9
     """
     return DATASET_METADATA[normalize_dataset_name(dataset_name)]

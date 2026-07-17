@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import cast
 
+from laygen.common.labels import max_elements_for_dataset
+
 from .configuration_layoutganpp import LayoutGANPPConfig
-from .datasets import dataset_metadata, id2label_for_dataset
+from .datasets import id2label_for_dataset, normalize_dataset_name
 
 
 def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
@@ -36,7 +38,7 @@ def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
     """
     values = _checkpoint_values(args)
     dataset_name = str(values["dataset"])
-    metadata = dataset_metadata(dataset_name)
+    canonical_dataset = normalize_dataset_name(dataset_name)
     id2label = id2label_for_dataset(dataset_name)
     return LayoutGANPPConfig(
         dataset_name=dataset_name,
@@ -47,7 +49,7 @@ def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
         d_model=_required_int(values, "G_d_model"),
         nhead=_required_int(values, "G_nhead"),
         num_layers=_required_int(values, "G_num_layers"),
-        max_position_embeddings=_required_int(metadata, "max_elements"),
+        max_position_embeddings=max_elements_for_dataset(canonical_dataset),
     )
 
 
