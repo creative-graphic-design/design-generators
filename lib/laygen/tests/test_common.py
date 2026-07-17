@@ -97,9 +97,10 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
     assert metadata["pipeline_tag"] == "text-to-image"
-    assert metadata["language"] == "en"
+    assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    card.validate()
     assert "## Model Details" in text
     assert "## Uses" in text
     assert "### Out-of-Scope Use" in text
@@ -110,6 +111,8 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "## Evaluation" in text
     assert "### Results" in text
     assert "## Technical Specifications" in text
+    assert "Tokenizer exact" in text
+    assert "[More Information Needed]" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
     assert card.validate() is None

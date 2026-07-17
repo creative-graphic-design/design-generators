@@ -11,7 +11,7 @@ def test_layoutganpp_model_card_metadata_and_sections():
 
     assert metadata["license"] == "agpl-3.0"
     assert metadata["library_name"] == "transformers"
-    assert metadata["language"] == "en"
+    assert metadata["language"] == ["en"]
     assert metadata["datasets"] == ["creative-graphic-design/rico"]
     assert "layoutganpp" in metadata["tags"]
     assert "LayoutGANPPPipeline.from_pretrained" in text

@@ -36,11 +36,11 @@ def build_layout_model_card(
     card_data = ModelCardData(
         model_name=model_name,
         license=license,
-        language="en",
         library_name=library_name,
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
+        language=["en"],
     )
     card = ModelCard.from_template(
         card_data,
