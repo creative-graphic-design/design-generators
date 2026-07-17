@@ -45,11 +45,9 @@ posgen = { workspace = true }
 extend-select = ["ANN", "D"]
 
 [tool.ruff.lint.per-file-ignores]
-"lib/*/src/**/*.py" = ["D"]
 "lib/*/tests/*.py" = ["ANN", "D"]
 "lib/*/tests/**/*.py" = ["ANN", "D"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
-"models/*/src/**/*.py" = ["D"]
 "models/*/tests/*.py" = ["ANN", "D"]
 "models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]

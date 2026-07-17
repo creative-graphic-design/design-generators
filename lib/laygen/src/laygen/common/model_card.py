@@ -1,3 +1,5 @@
+"""Model-card builders shared by converted layout model packages."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -8,6 +10,16 @@ from huggingface_hub import ModelCard, ModelCardData
 
 @dataclass(frozen=True)
 class ParityMetric:
+    """Vendor-parity metric row included in generated model cards.
+
+    Attributes:
+        dataset: Dataset or checkpoint name.
+        tokenizer_exact: Exact-match ratio for tokenizer round-trips.
+        deterministic_exact: Exact-match ratio for deterministic samples.
+        logits_max_abs: Maximum absolute denoiser-logit difference.
+        logits_max_rel: Maximum relative denoiser-logit difference.
+    """
+
     dataset: str
     tokenizer_exact: str
     deterministic_exact: str
@@ -33,6 +45,36 @@ def build_layout_model_card(
     citation_bibtex: str,
     original_implementation_url: str,
 ) -> ModelCard:
+    """Build a Hugging Face model card for a layout-generation checkpoint.
+
+    Args:
+        model_id: Hub model id displayed in the card title.
+        model_name: Human-readable model name.
+        dataset_ids: Hub dataset ids used by the checkpoint.
+        license: SPDX-style license id for YAML metadata.
+        library_name: Hub library name, such as ``diffusers``.
+        pipeline_tag: Hub task tag.
+        tags: Additional Hub tags.
+        model_details: User-facing model description.
+        intended_uses: Direct-use description.
+        limitations: Known limitations and risks.
+        how_to_use: Python snippet without surrounding fences.
+        training_data: Training-data description.
+        parity_metrics: Parity table rows.
+        citation_bibtex: BibTeX citation without surrounding fences.
+        original_implementation_url: URL for the upstream implementation.
+
+    Returns:
+        Validated ``huggingface_hub.ModelCard`` instance.
+
+    Raises:
+        ValueError: If model-card metadata validation fails.
+
+    Examples:
+        >>> card = layoutdm_model_card(dataset="rico25")
+        >>> card.data.to_dict()["library_name"]
+        'diffusers'
+    """
     card_data = ModelCardData(
         model_name=model_name,
         license=license,
@@ -199,6 +241,24 @@ def layoutdm_model_card(
     dataset: str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
+    """Build the LayoutDM model card for a converted checkpoint.
+
+    Args:
+        dataset: LayoutDM dataset name, either ``"rico25"`` or ``"publaynet"``.
+        parity_metrics: Optional parity rows. Defaults to the checked conversion
+            metrics used by this package.
+
+    Returns:
+        Validated model card for the requested LayoutDM checkpoint.
+
+    Raises:
+        ValueError: If ``dataset`` is unsupported.
+
+    Examples:
+        >>> card = layoutdm_model_card(dataset="publaynet")
+        >>> card.data.to_dict()["datasets"]
+        ['creative-graphic-design/publaynet']
+    """
     dataset_id = _layoutdm_dataset_id(dataset)
     model_id = f"creative-graphic-design/layoutdm-{dataset}"
     model_name = f"LayoutDM {dataset}"
