@@ -16,6 +16,15 @@ Run commands from the repository root.
 uv sync --all-packages
 ```
 
+## Prerequisites
+
+The reproducibility commands execute the original LayoutGPT implementation from
+the vendor submodule.
+
+```bash
+git submodule update --init vendor/layout-gpt
+```
+
 ## Basic Usage
 
 ```python

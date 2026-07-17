@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import random
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, assert_never, cast
+from typing import Final, assert_never, cast
 
 from layout_gpt.enums import LayoutGPTSetting, coerce_enum
 
@@ -27,7 +27,7 @@ class LayoutExample:
 
     @classmethod
     def from_vendor_record(
-        cls, record: dict[str, Any], *, setting: str | LayoutGPTSetting
+        cls, record: Mapping[str, object], *, setting: str | LayoutGPTSetting
     ) -> LayoutExample:
         """Build an exemplar from the original NSR-1K JSON record."""
         normalized_setting = coerce_enum(setting, LayoutGPTSetting)
@@ -66,7 +66,7 @@ def load_nsr_examples(
     path: str | Path, *, setting: str | LayoutGPTSetting
 ) -> list[LayoutExample]:
     """Load LayoutGPT NSR-1K examples from a vendor-style JSON file."""
-    records = json.loads(Path(path).read_text())
+    records = cast(Sequence[Mapping[str, object]], json.loads(Path(path).read_text()))
     return [
         LayoutExample.from_vendor_record(record, setting=setting) for record in records
     ]

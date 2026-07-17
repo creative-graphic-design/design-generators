@@ -9,11 +9,58 @@ import random
 import runpy
 import sys
 import types
-from collections.abc import Iterator
+from collections.abc import Iterator, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Protocol, cast
 
 import torch
+
+
+class VendorRandom(Protocol):
+    """Random module surface used by the vendor script."""
+
+    def seed(self, value: int) -> None: ...
+
+    def shuffle(self, value: list[dict[str, object]]) -> None: ...
+
+
+class VendorArgs(Protocol):
+    """Mutable argparse namespace exposed by the vendor script."""
+
+    canvas_size: int
+    icl_type: str
+    setting: str
+    gpt_input_length_limit: int
+
+
+class VendorPromptFunction(Protocol):
+    """Prompt function signature used by the vendor LayoutGPT script."""
+
+    __globals__: MutableMapping[str, object]
+
+    def __call__(
+        self,
+        *,
+        text_input: object,
+        top_k: int,
+        tokenizer: ByteTokenizer,
+        supporting_examples: Sequence[dict[str, object]],
+        features: object | None,
+    ) -> object:
+        del text_input, top_k, tokenizer, supporting_examples, features
+        raise NotImplementedError
+
+
+class VendorParse2D(Protocol):
+    """2D vendor parser signature."""
+
+    def __call__(self, line: str, *, canvas_size: int) -> object: ...
+
+
+class VendorParse3D(Protocol):
+    """3D vendor parser signature."""
+
+    def __call__(self, line: str, *, unit: str) -> object: ...
 
 
 class ByteTokenizer:
@@ -30,6 +77,7 @@ class _TokenizedText:
 
 class _ClipStub(types.ModuleType):
     def tokenize(self, _text: str, *, truncate: bool = False) -> _TokenizedText:
+        del truncate
         return _TokenizedText()
 
 
@@ -63,26 +111,29 @@ def find_vendor_root(start: Path | None = None) -> Path:
     raise FileNotFoundError(msg)
 
 
-def build_golden(vendor_root: Path | None = None) -> dict[str, Any]:
+def build_golden(vendor_root: Path | None = None) -> dict[str, object]:
     """Execute vendor deterministic paths and return regenerated goldens."""
     root = find_vendor_root(vendor_root)
     vendor_2d = _load_vendor_module(root, "run_layoutgpt_2d.py")
     vendor_parser = _load_vendor_module(root, "parse_llm_output.py")
 
-    train_records = json.loads(
-        (root / "dataset/NSR-1K/counting/counting.train.json").read_text()
+    train_records = cast(
+        list[dict[str, object]],
+        json.loads((root / "dataset/NSR-1K/counting/counting.train.json").read_text()),
     )
-    val_records = json.loads(
-        (root / "dataset/NSR-1K/counting/counting.val.json").read_text()
+    val_records = cast(
+        list[dict[str, object]],
+        json.loads((root / "dataset/NSR-1K/counting/counting.val.json").read_text()),
     )
     candidates = train_records[:6]
 
     fixed_records = list(candidates)
-    vendor_2d["random"].seed(42)
-    vendor_2d["random"].shuffle(fixed_records)
+    vendor_random = cast(VendorRandom, vendor_2d["random"])
+    vendor_random.seed(42)
+    vendor_random.shuffle(fixed_records)
     fixed_records = fixed_records[:3]
 
-    args = vendor_2d["args"]
+    args = cast(VendorArgs, vendor_2d["args"])
     args.canvas_size = 64
     args.icl_type = "fixed-random"
     args.setting = "counting"
@@ -90,14 +141,18 @@ def build_golden(vendor_root: Path | None = None) -> dict[str, Any]:
 
     tokenizer = ByteTokenizer()
     query = val_records[0]["prompt"]
-    fixed_chat = vendor_2d["form_prompt_for_chatgpt"](
+    form_prompt_for_chatgpt = cast(
+        VendorPromptFunction, vendor_2d["form_prompt_for_chatgpt"]
+    )
+    form_prompt_for_gpt3 = cast(VendorPromptFunction, vendor_2d["form_prompt_for_gpt3"])
+    fixed_chat = form_prompt_for_chatgpt(
         text_input=query,
         top_k=3,
         tokenizer=tokenizer,
         supporting_examples=fixed_records,
         features=None,
     )
-    fixed_completion = vendor_2d["form_prompt_for_gpt3"](
+    fixed_completion = form_prompt_for_gpt3(
         text_input=query,
         top_k=3,
         tokenizer=tokenizer,
@@ -106,7 +161,7 @@ def build_golden(vendor_root: Path | None = None) -> dict[str, Any]:
     )
 
     args.icl_type = "k-similar"
-    function_globals = vendor_2d["form_prompt_for_gpt3"].__globals__
+    function_globals = form_prompt_for_gpt3.__globals__
     function_globals["device"] = "cpu"
     function_globals["clip_model"] = _ClipModelStub()
     function_globals["features"] = torch.tensor(
@@ -120,17 +175,16 @@ def build_golden(vendor_root: Path | None = None) -> dict[str, Any]:
     )
     function_globals["clip"] = _ClipStub("clip")
     k_candidates = candidates[:4]
-    k_completion = vendor_2d["form_prompt_for_gpt3"](
+    k_completion = form_prompt_for_gpt3(
         text_input=query,
         top_k=3,
         tokenizer=tokenizer,
         supporting_examples=k_candidates,
         features=function_globals["features"],
     )
+    features = cast(torch.Tensor, function_globals["features"])
     _, k_indices = (
-        (100.0 * torch.tensor([[0.0, 1.0]]) @ function_globals["features"].T)
-        .softmax(dim=-1)[0]
-        .topk(3)
+        (100.0 * torch.tensor([[0.0, 1.0]]) @ features.T).softmax(dim=-1)[0].topk(3)
     )
     k_similar_ids = [k_candidates[index]["id"] for index in k_indices.tolist()]
 
@@ -139,15 +193,13 @@ def build_golden(vendor_root: Path | None = None) -> dict[str, Any]:
         "clock2 {height: 50px; width: 40px; top: 48px; left: 40px; }",
         "clock {height: 10px; width: 10px; top: 0px; left: 64px; }",
     ]
-    parsed_2d = [
-        vendor_parser["parse_layout"](line, canvas_size=64) for line in parser_lines
-    ]
+    parse_layout = cast(VendorParse2D, vendor_parser["parse_layout"])
+    parsed_2d = [parse_layout(line, canvas_size=64) for line in parser_lines]
     parser_3d_lines = [
         "chair {length: 1.5m; width: 0.5m; height: 1m; orientation: 90 degrees; left: 2m; top: 3m; depth: 0m;}"
     ]
-    parsed_3d = [
-        vendor_parser["parse_3D_layout"](line, unit="m") for line in parser_3d_lines
-    ]
+    parse_3d_layout = cast(VendorParse3D, vendor_parser["parse_3D_layout"])
+    parsed_3d = [parse_3d_layout(line, unit="m") for line in parser_3d_lines]
 
     return {
         "metadata": {
@@ -184,7 +236,7 @@ def main() -> None:
         args.output.write_text(encoded + "\n")
 
 
-def _load_vendor_module(vendor_root: Path, filename: str) -> dict[str, Any]:
+def _load_vendor_module(vendor_root: Path, filename: str) -> dict[str, object]:
     with _vendor_runtime(vendor_root, filename):
         return runpy.run_path(str(vendor_root / filename))
 

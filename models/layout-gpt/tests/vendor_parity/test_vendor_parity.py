@@ -3,7 +3,7 @@
 import importlib.util
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Protocol, cast
 
 import pytest
 
@@ -16,6 +16,12 @@ from layout_gpt.parser import parse_3d_layout_line, parse_layout_line
 from layout_gpt.prompts import form_prompt_for_chatgpt, form_prompt_for_gpt3
 
 pytestmark = pytest.mark.vendor_parity
+
+
+class GoldenBuilder(Protocol):
+    """Callable exposed by the vendor golden generation script."""
+
+    def __call__(self, vendor_root: Path | None = None) -> dict[str, object]: ...
 
 
 def _vendor_root() -> Path:
@@ -92,16 +98,20 @@ def test_parser_matches_vendor_generated_golden() -> None:
 
     parsed_2d = [
         _normalize_2d(parse_layout_line(line, canvas_size=64))
-        for line in golden["parser_lines"]
+        for line in cast(list[str], golden["parser_lines"])
     ]
-    assert parsed_2d == [_normalize_vendor_parse(item) for item in golden["parsed_2d"]]
+    assert parsed_2d == [
+        _normalize_vendor_parse(item)
+        for item in cast(list[object], golden["parsed_2d"])
+    ]
 
     parsed_3d = [
         _normalize_3d(parse_3d_layout_line(line, unit="m"))
-        for line in golden["parser_3d_lines"]
+        for line in cast(list[str], golden["parser_3d_lines"])
     ]
     assert parsed_3d == [
-        _normalize_vendor_3d_parse(item) for item in golden["parsed_3d"]
+        _normalize_vendor_3d_parse(item)
+        for item in cast(list[object], golden["parsed_3d"])
     ]
 
 
@@ -116,7 +126,7 @@ def test_vendor_golden_metadata_documents_regeneration_policy() -> None:
     assert metadata["canvas_size"] == 64
 
 
-def _build_vendor_golden() -> dict[str, Any]:
+def _build_vendor_golden() -> dict[str, object]:
     module_path = (
         Path(__file__).resolve().parents[2] / "scripts/generate_vendor_golden.py"
     )
@@ -125,27 +135,29 @@ def _build_vendor_golden() -> dict[str, Any]:
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return cast(dict[str, Any], module.build_golden(_vendor_root()))
+    build_golden = cast(GoldenBuilder, getattr(module, "build_golden"))
+    return build_golden(_vendor_root())
 
 
-def _candidate_records(golden: dict[str, Any]) -> list[dict[str, Any]]:
+def _candidate_records(golden: dict[str, object]) -> list[dict[str, object]]:
     records = _train_records()
-    ids = set(golden["metadata"]["candidate_ids"])
+    metadata = cast(dict[str, object], golden["metadata"])
+    ids = set(cast(list[int | str], metadata["candidate_ids"]))
     return [record for record in records if record["id"] in ids]
 
 
-def _train_records() -> list[dict[str, Any]]:
+def _train_records() -> list[dict[str, object]]:
     return cast(
-        list[dict[str, Any]],
+        list[dict[str, object]],
         json.loads(
             (_vendor_root() / "dataset/NSR-1K/counting/counting.train.json").read_text()
         ),
     )
 
 
-def _val_records() -> list[dict[str, Any]]:
+def _val_records() -> list[dict[str, object]]:
     return cast(
-        list[dict[str, Any]],
+        list[dict[str, object]],
         json.loads(
             (_vendor_root() / "dataset/NSR-1K/counting/counting.val.json").read_text()
         ),

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Final, assert_never, cast
 
 import torch
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings

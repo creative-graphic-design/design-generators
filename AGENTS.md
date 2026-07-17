@@ -125,11 +125,13 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever
   the API can run without heavyweight assets, downloads, or credentials.
 - Each model package README uses a model-card style: overview, install/usage
-  snippet, supported checkpoints/Hub ids, datasets, vendor-parity summary with
-  numbers, license, citation, and original implementation link.
-- Each README includes `Reproducing Vendor Parity` with copy-pasteable commands
-  for download, vendor reference generation, parity tests, conversion, and
-  `from_pretrained` smoke tests.
+  snippet, supported checkpoints/Hub ids, datasets, reproducibility summary
+  with vendor-parity numbers, license, citation, and original implementation
+  link.
+- Each README includes `Reproducibility`, opening with one sentence that states
+  how to reproduce the original-implementation agreement checks, followed by
+  copy-pasteable commands for download, vendor reference generation, parity
+  tests, conversion, and `from_pretrained` smoke tests.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
 - Hub model cards are generated through `laygen.common.model_card` using the
@@ -147,5 +149,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 - CI resolves workspace members with `uv sync --all-packages`, then runs
   pre-commit with `SKIP=uv-lock`, `ty`, root tests, and workspace-member tests
   that are not marked `vendor_parity` or `integration`.
+- CI runs pytest with coverage gates: root coverage is measured separately from
+  each workspace member, and workspace coverage is not combined across members.
+- Coverage has a 90% floor for root and every workspace member. Do not lower
+  `fail_under` below 90; member-specific overrides may only raise the floor.
 - Do not add `uv lock --check` or uv-lock to CI; local uv global options are
   intentionally baked into `uv.lock` in this environment.

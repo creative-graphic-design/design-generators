@@ -3,7 +3,7 @@
 from typing import cast
 
 import torch
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from layout_gpt.enums import ICLType, LayoutGPTSetting

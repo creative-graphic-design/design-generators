@@ -7,7 +7,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 import pytest
 import torch
 
-from layout_generation_common.testing import assert_layout_output_schema
+from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.testing import assert_layout_output_schema
 from layout_gpt import LayoutGPTAgent
 from layout_gpt.enums import ConditionType, OutputType
 from layout_gpt.exemplars import LayoutExample
@@ -72,14 +73,15 @@ def test_public_call_returns_common_output_and_rejects_unsupported_conditions() 
         config=LayoutGPTConfig(icl_type="fixed-random", k=1, canvas_size=64),
     )
 
-    output = runner(
+    raw_output = runner(
         prompt="there is one cat in the image",
         train_examples=_examples(),
         generator=torch.Generator().manual_seed(42),
         return_intermediates=True,
     )
 
-    assert not isinstance(output, dict)
+    assert type(raw_output) is not dict
+    output = cast(LayoutGenerationOutput, raw_output)
     assert_layout_output_schema(output, batch_size=1)
     assert output.intermediates is not None
     with pytest.raises(ValueError, match="relation"):
