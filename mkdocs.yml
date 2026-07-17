@@ -1,0 +1,45 @@
+site_name: design-generators
+site_description: Transformers- and Diffusers-style layout and graphic-design generation packages.
+site_url: https://creative-graphic-design.github.io/design-generators/
+repo_url: https://github.com/creative-graphic-design/design-generators
+repo_name: creative-graphic-design/design-generators
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+
+nav:
+  - Overview: index.md
+  - Conventions: conventions.md
+  - API Reference: api/
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - lib/*/src
+            - models/*/src
+          options:
+            docstring_style: google
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
