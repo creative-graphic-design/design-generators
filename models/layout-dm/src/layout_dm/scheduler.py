@@ -9,7 +9,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 
-from layout_generation_common.discrete import (
+from laygen.common.discrete import (
     index_to_log_onehot,
     log_add_exp,
     log_onehot_to_index,
