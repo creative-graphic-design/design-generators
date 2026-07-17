@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 from transformers import PreTrainedTokenizer
@@ -32,7 +32,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
         cluster_centers_file: str | Path | None = None,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         if config is None:
             config = self._load_config(
@@ -41,7 +41,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 kwargs=kwargs,
             )
         elif isinstance(config, dict):
-            config = LayoutDMConfig(**config)
+            config = LayoutDMConfig(**cast(dict[str, Any], config))
         self.config = config
         if self.config.var_order != "c-x-y-w-h":
             raise NotImplementedError(
@@ -78,7 +78,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def var_names(self) -> tuple[str, ...]:
         return tuple(self.config.var_order.split("-"))
 
-    def __call__(self, *args, **kwargs) -> dict[str, torch.Tensor]:
+    def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
         if args:
             raise TypeError(
                 "LayoutDMTokenizer expects structured layout inputs; use "
@@ -89,15 +89,15 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 "LayoutDMTokenizer.__call__ requires bbox=... and labels=..."
             )
         return self.encode_layout(
-            bbox=kwargs["bbox"],
-            labels=kwargs["labels"],
-            mask=kwargs.get("mask"),
+            bbox=cast(torch.Tensor, kwargs["bbox"]),
+            labels=cast(torch.Tensor, kwargs["labels"]),
+            mask=cast(torch.Tensor | None, kwargs.get("mask")),
         )
 
     def get_vocab(self) -> dict[str, int]:
         return dict(self._token_to_id)
 
-    def _tokenize(self, text: str, **kwargs) -> list[str]:
+    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
         raise TypeError("LayoutDMTokenizer does not tokenize text")
 
     def _convert_token_to_id(self, token: str) -> int:
@@ -138,11 +138,15 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return (str(vocab_file), str(layout_config_file), str(cluster_centers_file))
 
     @classmethod
-    def from_pretrained(cls, path: str | Path, *args, **kwargs) -> "LayoutDMTokenizer":
+    def from_pretrained(
+        cls, path: str | Path, *args: object, **kwargs: object
+    ) -> "LayoutDMTokenizer":
         path = Path(path)
         if (path / "tokenizer").is_dir():
             path = path / "tokenizer"
-        return super().from_pretrained(path, *args, **kwargs)
+        return super().from_pretrained(
+            path, *cast(tuple[Any, ...], args), **cast(dict[str, Any], kwargs)
+        )
 
     @classmethod
     def _load_config(
@@ -150,7 +154,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         *,
         layout_config_file: str | Path | None,
         cluster_centers_file: str | Path | None,
-        kwargs: dict[str, Any],
+        kwargs: dict[str, object],
     ) -> LayoutDMConfig:
         layout_config = kwargs.pop("layout_config", None)
         if layout_config is None:
@@ -166,7 +170,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             layout_config["cluster_centers"] = {
                 key: [float(v) for v in values] for key, values in centers.items()
             }
-        return LayoutDMConfig(**layout_config)
+        return LayoutDMConfig(**cast(dict[str, Any], layout_config))
 
     def encode_layout(
         self,
@@ -231,19 +235,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         bbox = bbox.masked_fill(~mask.unsqueeze(-1), 0.0)
         return {"bbox": bbox.float(), "labels": labels, "mask": mask}
 
-    def encode(self, *args, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[override]
-        if args:
-            raise TypeError("Use encode_layout for structured LayoutDM inputs")
-        return self.encode_layout(**kwargs)
-
-    def decode(
-        self, input_ids: torch.Tensor, *args, **kwargs
-    ) -> dict[str, torch.Tensor]:  # type: ignore[override]
-        if args or kwargs:
-            raise TypeError("Use decode_layout for structured LayoutDM ids")
-        return self.decode_layout(input_ids)
-
-    def token_mask(self) -> torch.BoolTensor:
+    def token_mask(self) -> torch.Tensor:
         mask = torch.zeros(
             self.config.max_token_length, self.config.vocab_size, dtype=torch.bool
         )
@@ -320,7 +312,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             ).tolist()
         return torch.tensor(centers, device=device, dtype=torch.float64).flatten()
 
-    def _encode_bbox(self, bbox: torch.Tensor) -> torch.LongTensor:
+    def _encode_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
         bbox = bbox.to(dtype=torch.float64)
         pieces = []
         for i, key in enumerate(("x", "y", "w", "h")):
@@ -360,7 +352,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             pieces.append(ids + offset)
         return torch.stack(pieces, dim=-1)
 
-    def _decode_bbox(self, bbox_ids: torch.LongTensor) -> torch.FloatTensor:
+    def _decode_bbox(self, bbox_ids: torch.Tensor) -> torch.Tensor:
         ids = bbox_ids.clone()
         pieces = []
         for i, key in enumerate(("x", "y", "w", "h")):
@@ -382,7 +374,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             pieces.append(values)
         return torch.stack(pieces, dim=-1).clamp(0.0, 1.0).float()
 
-    def _mapping(self, key: str) -> dict[str, torch.LongTensor]:
+    def _mapping(self, key: str) -> dict[str, torch.Tensor]:
         if key == "c":
             full = list(range(self.config.num_categories)) + [
                 self.pad_token_id,

@@ -78,11 +78,11 @@ def denormalize_boxes(
     return out * scale
 
 
-def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.LongTensor:
+def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.Tensor:
     delta = 1.0 / num_bins
     values = values.clamp(0.0, 1.0 - delta)
     return (values * num_bins).round().long().clamp(0, num_bins - 1)
 
 
-def linear_continuize(ids: torch.LongTensor, *, num_bins: int) -> torch.FloatTensor:
+def linear_continuize(ids: torch.Tensor, *, num_bins: int) -> torch.Tensor:
     return ids.float().clamp(0, num_bins - 1) / num_bins
