@@ -99,7 +99,7 @@ jobs:
 
       - name: Run root tests
         env:
-          ROOT_COVERAGE_FAIL_UNDER: "65"
+          ROOT_COVERAGE_FAIL_UNDER: "90"
         run: |
           uv run pytest -m "not integration" \
             --cov=. \
@@ -109,7 +109,7 @@ jobs:
       - name: Run workspace member tests
         shell: bash
         env:
-          WORKSPACE_COVERAGE_FAIL_UNDER: "55"
+          WORKSPACE_COVERAGE_FAIL_UNDER: "90"
         run: |
           set -euo pipefail
 
@@ -141,7 +141,7 @@ jobs:
                 PYPROJECT_FILE="${pyproject_file}" \
                 DEFAULT_FAIL_UNDER="${WORKSPACE_COVERAGE_FAIL_UNDER}" \
                 uv run python -c \
-                  'import os, tomllib; data = tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb")); print(data.get("tool", {}).get("coverage", {}).get("report", {}).get("fail_under", os.environ["DEFAULT_FAIL_UNDER"]))'
+                  'import os, sys, tomllib; path = os.environ["PYPROJECT_FILE"]; data = tomllib.load(open(path, "rb")); floor = float(os.environ["DEFAULT_FAIL_UNDER"]); value = float(data.get("tool", {}).get("coverage", {}).get("report", {}).get("fail_under", floor)); sys.exit("coverage fail_under for {} is {:g}, below required floor {:g}".format(path, value, floor)) if value < floor else print("{:g}".format(value))'
               )"
 
               uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration" \

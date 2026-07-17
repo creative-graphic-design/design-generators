@@ -149,7 +149,7 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
   that are not marked `vendor_parity` or `integration`.
 - CI runs pytest with coverage gates: root coverage is measured separately from
   each workspace member, and workspace coverage is not combined across members.
-- Coverage thresholds are ratchets. Do not lower an existing `fail_under`;
-  increase it when tests raise the measured coverage.
+- Coverage has a 90% floor for root and every workspace member. Do not lower
+  `fail_under` below 90; member-specific overrides may only raise the floor.
 - Do not add `uv lock --check` or uv-lock to CI; local uv global options are
   intentionally baked into `uv.lock` in this environment.
