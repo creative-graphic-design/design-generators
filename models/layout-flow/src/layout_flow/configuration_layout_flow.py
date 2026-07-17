@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import math
-from enum import StrEnum
-from typing import Final, Literal, assert_never
+from typing import Final, Literal
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
 from laygen.common.bbox import BoxFormat
+from laygen.common.labels import (
+    DatasetName,
+    normalize_dataset_name as normalize_shared_dataset_name,
+)
 
 
 AttrEncoding = Literal["AnalogBit", "continuous", "discrete"]
@@ -16,13 +19,6 @@ SeqType = Literal["stacked", "seq", "seq_cond"]
 InitialDistributionName = Literal["gaussian", "uniform", "gmm", "gauss_uniform"]
 OdeSolverName = Literal["euler"]
 CoordinateRange = Literal["normalized_0_1"]
-
-
-class LayoutFlowDataset(StrEnum):
-    """Dataset variants supported by converted LayoutFlow checkpoints."""
-
-    rico25 = "rico25"
-    publaynet = "publaynet"
 
 
 RICO25_LAYOUT_FLOW_LABELS: Final[tuple[str, ...]] = (
@@ -64,23 +60,14 @@ PUBLAYNET_LAYOUT_FLOW_LABELS: Final[tuple[str, ...]] = (
 )
 
 
-_DATASET_ALIASES: Final[dict[str, LayoutFlowDataset]] = {
-    "rico": LayoutFlowDataset.rico25,
-    "rico25": LayoutFlowDataset.rico25,
-    "rico25_max25": LayoutFlowDataset.rico25,
-    "publaynet": LayoutFlowDataset.publaynet,
-    "publaynet_max25": LayoutFlowDataset.publaynet,
-}
-
-
-def normalize_dataset_name(dataset_name: LayoutFlowDataset | str) -> LayoutFlowDataset:
+def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """Normalize LayoutFlow dataset aliases.
 
     Args:
         dataset_name: Dataset enum value or string alias.
 
     Returns:
-        Canonical LayoutFlow dataset enum.
+        Canonical shared dataset enum.
 
     Raises:
         ValueError: If the dataset name is unsupported.
@@ -89,16 +76,10 @@ def normalize_dataset_name(dataset_name: LayoutFlowDataset | str) -> LayoutFlowD
         >>> str(normalize_dataset_name("rico25_max25"))
         'rico25'
     """
-    if isinstance(dataset_name, LayoutFlowDataset):
-        return dataset_name
-    key = dataset_name.lower().replace("-", "_")
-    try:
-        return _DATASET_ALIASES[key]
-    except KeyError as exc:
-        raise ValueError(f"Unknown LayoutFlow dataset_name: {dataset_name}") from exc
+    return normalize_shared_dataset_name(dataset_name)
 
 
-def default_id2label(dataset_name: LayoutFlowDataset | str) -> dict[int, str]:
+def default_id2label(dataset_name: DatasetName | str) -> dict[int, str]:
     """Return the LayoutFlow label vocabulary for a dataset.
 
     Args:
@@ -115,12 +96,12 @@ def default_id2label(dataset_name: LayoutFlowDataset | str) -> dict[int, str]:
         'text'
     """
     dataset = normalize_dataset_name(dataset_name)
-    if dataset is LayoutFlowDataset.rico25:
+    if dataset is DatasetName.rico25:
         labels = RICO25_LAYOUT_FLOW_LABELS
-    elif dataset is LayoutFlowDataset.publaynet:
+    elif dataset is DatasetName.publaynet:
         labels = PUBLAYNET_LAYOUT_FLOW_LABELS
     else:
-        assert_never(dataset)
+        raise ValueError(f"Unsupported LayoutFlow dataset_name: {dataset_name}")
     return dict(enumerate(labels))
 
 

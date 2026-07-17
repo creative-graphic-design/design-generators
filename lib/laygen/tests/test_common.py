@@ -15,6 +15,7 @@ from laygen.common.bbox import (
     xywh_to_ltrb,
     xywh_to_ltwh,
 )
+from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.discrete import (
     SamplingMode,
     batch_topk_mask,
@@ -153,6 +154,15 @@ def test_label_registry_aliases_and_errors():
     assert label2id_for_dataset("rico25")["Text"] == 0
     with pytest.raises(ValueError, match="Unknown dataset_name"):
         normalize_dataset_name("unknown")
+
+
+def test_condition_registry_aliases_and_errors():
+    assert normalize_condition_type(ConditionType.label) is ConditionType.label
+    assert normalize_condition_type("cat_cond") is ConditionType.label
+    assert normalize_condition_type("label-size") is ConditionType.label_size
+    assert normalize_condition_type("refine") is ConditionType.refinement
+    with pytest.raises(ValueError, match="Unsupported condition_type"):
+        normalize_condition_type("unknown")
 
 
 def test_output_schema():
