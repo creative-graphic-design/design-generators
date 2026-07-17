@@ -10,9 +10,9 @@ class DatasetName(StrEnum):
     """Canonical dataset names supported by the shared label registry."""
 
     rico25 = "rico25"
+    rico13 = "rico13"
     publaynet = "publaynet"
     magazine = "magazine"
-    crello = "crello"
 
 
 class Rico25Label(StrEnum):
@@ -45,6 +45,24 @@ class Rico25Label(StrEnum):
     bottom_navigation = "Bottom Navigation"
 
 
+class Rico13Label(StrEnum):
+    """RICO13 label names in dataset id order."""
+
+    text = "Text"
+    image = "Image"
+    icon = "Icon"
+    text_button = "Text Button"
+    list_item = "List Item"
+    input = "Input"
+    background_image = "Background Image"
+    card = "Card"
+    web_view = "Web View"
+    radio_button = "Radio Button"
+    drawer = "Drawer"
+    checkbox = "Checkbox"
+    advertisement = "Advertisement"
+
+
 class PubLayNetLabel(StrEnum):
     """PubLayNet label names in dataset id order."""
 
@@ -65,36 +83,26 @@ class MagazineLabel(StrEnum):
     headline_over_image = "headline-over-image"
 
 
-class CrelloLabel(StrEnum):
-    """Crello label names in dataset id order."""
-
-    colored_background = "coloredBackground"
-    image_element = "imageElement"
-    mask_element = "maskElement"
-    svg_element = "svgElement"
-    text_element = "textElement"
-
-
 RICO25_LABELS: Final[tuple[Rico25Label, ...]] = tuple(Rico25Label)
+RICO13_LABELS: Final[tuple[Rico13Label, ...]] = tuple(Rico13Label)
 PUBLAYNET_LABELS: Final[tuple[PubLayNetLabel, ...]] = tuple(PubLayNetLabel)
 MAGAZINE_LABELS: Final[tuple[MagazineLabel, ...]] = tuple(MagazineLabel)
-CRELLO_LABELS: Final[tuple[CrelloLabel, ...]] = tuple(CrelloLabel)
 
 _ALIASES: Final[dict[str, DatasetName]] = {
     "rico": DatasetName.rico25,
     "rico25": DatasetName.rico25,
     "rico25_max25": DatasetName.rico25,
+    "rico13": DatasetName.rico13,
     "publaynet": DatasetName.publaynet,
     "publaynet_max25": DatasetName.publaynet,
     "magazine": DatasetName.magazine,
-    "crello": DatasetName.crello,
 }
 
 _LABELS: Final[dict[DatasetName, tuple[StrEnum, ...]]] = {
     DatasetName.rico25: RICO25_LABELS,
+    DatasetName.rico13: RICO13_LABELS,
     DatasetName.publaynet: PUBLAYNET_LABELS,
     DatasetName.magazine: MAGAZINE_LABELS,
-    DatasetName.crello: CRELLO_LABELS,
 }
 
 

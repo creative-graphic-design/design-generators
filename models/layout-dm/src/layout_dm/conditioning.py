@@ -7,28 +7,9 @@ from typing import Literal
 
 import torch
 
+from laygen.common import ConditionType, normalize_condition_type
+
 from .tokenization_layout_dm import LayoutDMTokenizer
-
-
-CONDITION_ALIASES = {
-    "uncond": "unconditional",
-    "ugen": "unconditional",
-    "c": "label",
-    "cat_cond": "label",
-    "gen_t": "label",
-    "cwh": "label_size",
-    "size_cond": "label_size",
-    "gen_ts": "label_size",
-    "partial": "completion",
-    "complete": "completion",
-    "elem_compl": "completion",
-    "refine": "refinement",
-}
-
-
-def normalize_condition_type(condition_type: str) -> str:
-    """Normalize vendor condition aliases to canonical condition names."""
-    return CONDITION_ALIASES.get(condition_type, condition_type)
 
 
 @dataclass
@@ -47,7 +28,7 @@ class LayoutDMCondition:
 def build_condition(
     tokenizer: LayoutDMTokenizer,
     *,
-    cond_type: str,
+    cond_type: ConditionType | str,
     bbox: torch.Tensor,
     labels: torch.Tensor,
     mask: torch.Tensor,
@@ -75,13 +56,13 @@ def build_condition(
     element_mask = encoded["mask"].reshape(
         ids.shape[0], tokenizer.config.max_seq_length, 5
     )
-    if canonical == "label":
+    if canonical is ConditionType.label:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
         return LayoutDMCondition(
             input_ids=ids, mask=strong_mask, type="c", num_element=mask.sum(dim=1)
         )
-    if canonical == "label_size":
+    if canonical is ConditionType.label_size:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
         strong_mask[:, 3::5] = element_mask[..., 3]
@@ -89,14 +70,14 @@ def build_condition(
         return LayoutDMCondition(
             input_ids=ids, mask=strong_mask, type="cwh", num_element=mask.sum(dim=1)
         )
-    if canonical == "completion":
+    if canonical is ConditionType.completion:
         return LayoutDMCondition(
             input_ids=ids,
             mask=encoded["mask"],
             type="partial",
             num_element=mask.sum(dim=1),
         )
-    if canonical == "refinement":
+    if canonical is ConditionType.refinement:
         original = ids
         if noisy_bbox is not None:
             ids = tokenizer.encode_layout(bbox=noisy_bbox, labels=labels, mask=mask)[

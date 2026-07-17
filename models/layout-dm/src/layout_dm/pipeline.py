@@ -9,12 +9,13 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
+from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.discrete import log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
-from .conditioning import build_condition, normalize_condition_type
+from .conditioning import build_condition
 from .denoiser import LayoutDMDenoiser
 from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
@@ -68,7 +69,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
-        condition_type: str = "unconditional",
+        condition_type: ConditionType | str = ConditionType.unconditional,
         labels: torch.Tensor | np.ndarray | list[Any] | None = None,
         bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
         mask: torch.Tensor | np.ndarray | list[Any] | None = None,
@@ -121,7 +122,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
         condition = None
-        if canonical != "unconditional":
+        if canonical is not ConditionType.unconditional:
             if bbox is None or labels is None:
                 raise ValueError(
                     f"bbox and labels are required for condition_type={condition_type}"
@@ -190,7 +191,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             id2label=self.tokenizer.config.id2label,
             sequences=sequences,
             trajectory=trajectory,
-            intermediates={"condition_type": canonical}
+            intermediates={"condition_type": str(canonical)}
             if return_intermediates
             else None,
         )
