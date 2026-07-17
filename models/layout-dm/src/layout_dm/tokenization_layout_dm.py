@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
+from os import PathLike
 from pathlib import Path
-from typing import Any, cast
 
 import torch
 from transformers import PreTrainedTokenizer
@@ -47,7 +48,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
 
     def __init__(
         self,
-        config: LayoutDMConfig | dict[str, Any] | None = None,
+        config: LayoutDMConfig | Mapping[str, object] | None = None,
         *,
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
@@ -55,14 +56,16 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         **kwargs: object,
     ) -> None:
         """Initialize a LayoutDM tokenizer from config or saved files."""
-        if config is None:
+        if isinstance(config, LayoutDMConfig):
+            pass
+        elif config is None:
             config = self._load_config(
                 layout_config_file=layout_config_file,
                 cluster_centers_file=cluster_centers_file,
                 kwargs=kwargs,
             )
-        elif isinstance(config, dict):
-            config = LayoutDMConfig(**cast(dict[str, Any], config))
+        else:
+            config = _layout_config_from_mapping(config)
         self.config = config
         if self.config.var_order != "c-x-y-w-h":
             raise NotImplementedError(
@@ -101,34 +104,27 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         """Return the per-element variable names in token order."""
         return tuple(self.config.var_order.split("-"))
 
-    def __call__(self, *args: object, **kwargs: object) -> dict[str, torch.Tensor]:
+    def __call__(
+        self,
+        *,
+        bbox: torch.Tensor | list[object],
+        labels: torch.Tensor | list[object],
+        mask: torch.Tensor | list[object] | None = None,
+    ) -> dict[str, torch.Tensor]:
         """Encode structured layout tensors.
 
         Args:
-            *args: Positional arguments are not supported.
-            **kwargs: Must include ``bbox`` and ``labels`` and may include
-                ``mask``.
+            bbox: Normalized center ``xywh`` boxes.
+            labels: Dataset-local labels.
+            mask: Optional valid-element mask.
 
         Returns:
             Dictionary containing ``input_ids``, ``attention_mask``, and ``mask``.
-
-        Raises:
-            TypeError: If text-like positional inputs are passed, or if required
-                structured tensors are missing.
         """
-        if args:
-            raise TypeError(
-                "LayoutDMTokenizer expects structured layout inputs; use "
-                "encode_layout(bbox=..., labels=..., mask=...) instead of text."
-            )
-        if "bbox" not in kwargs or "labels" not in kwargs:
-            raise TypeError(
-                "LayoutDMTokenizer.__call__ requires bbox=... and labels=..."
-            )
         return self.encode_layout(
-            bbox=cast(torch.Tensor, kwargs["bbox"]),
-            labels=cast(torch.Tensor, kwargs["labels"]),
-            mask=cast(torch.Tensor | None, kwargs.get("mask")),
+            bbox=torch.as_tensor(bbox),
+            labels=torch.as_tensor(labels),
+            mask=None if mask is None else torch.as_tensor(mask),
         )
 
     def get_vocab(self) -> dict[str, int]:
@@ -190,13 +186,26 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
 
     @classmethod
     def from_pretrained(
-        cls, path: str | Path, *args: object, **kwargs: object
+        cls,
+        path: str | PathLike[str],
+        *args: object,
+        cache_dir: str | PathLike[str] | None = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: str | bool | None = None,
+        revision: str = "main",
+        **kwargs: object,
     ) -> "LayoutDMTokenizer":
         """Load a tokenizer from a pipeline or tokenizer directory.
 
         Args:
             path: Pipeline root or tokenizer subdirectory.
             *args: Additional ``PreTrainedTokenizer`` positional arguments.
+            cache_dir: Optional Transformers cache directory.
+            force_download: Whether to force file downloads.
+            local_files_only: Whether to avoid network access.
+            token: Optional Hub authentication token.
+            revision: Hub revision to load.
             **kwargs: Additional ``PreTrainedTokenizer`` keyword arguments.
 
         Returns:
@@ -206,7 +215,14 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         if (path / "tokenizer").is_dir():
             path = path / "tokenizer"
         return super().from_pretrained(
-            path, *cast(tuple[Any, ...], args), **cast(dict[str, Any], kwargs)
+            path,
+            *args,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
+            **kwargs,
         )
 
     @classmethod
@@ -226,12 +242,15 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             layout_config = json.loads(
                 Path(layout_config_file).read_text(encoding="utf-8")
             )
+        if not isinstance(layout_config, Mapping):
+            raise TypeError("layout_config must be a mapping")
+        config_data = dict(layout_config)
         if cluster_centers_file is not None and Path(cluster_centers_file).exists():
             centers = json.loads(Path(cluster_centers_file).read_text(encoding="utf-8"))
-            layout_config["cluster_centers"] = {
-                key: [float(v) for v in values] for key, values in centers.items()
-            }
-        return LayoutDMConfig(**cast(dict[str, Any], layout_config))
+            if not isinstance(centers, Mapping):
+                raise TypeError("cluster centers must be a mapping")
+            config_data["cluster_centers"] = _cluster_centers(centers)
+        return _layout_config_from_mapping(config_data)
 
     def encode_layout(
         self,
@@ -500,3 +519,100 @@ def _bucketize(
     to_ids = to_ids.to(inputs.device)
     index = torch.bucketize(inputs.reshape(-1), from_ids)
     return to_ids[index].reshape(inputs.shape).to(inputs.device)
+
+
+def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
+    return LayoutDMConfig(
+        dataset_name=_string(config["dataset_name"]),
+        id2label=_id2label(config.get("id2label")),
+        max_seq_length=_integer(config.get("max_seq_length"), 25),
+        num_bin_bboxes=_integer(config.get("num_bin_bboxes"), 32),
+        var_order=_string(config.get("var_order"), "c-x-y-w-h"),
+        shared_bbox_vocab=_string(config.get("shared_bbox_vocab"), "x-y-w-h"),
+        bbox_quantization=_string(config.get("bbox_quantization"), "kmeans"),
+        special_tokens=_string_tuple(config.get("special_tokens"), ("pad", "mask")),
+        cluster_centers=_cluster_centers_or_none(config.get("cluster_centers")),
+        hidden_size=_integer(config.get("hidden_size"), 464),
+        num_attention_heads=_integer(config.get("num_attention_heads"), 8),
+        num_hidden_layers=_integer(config.get("num_hidden_layers"), 4),
+        intermediate_size=_integer(config.get("intermediate_size"), 1856),
+        dropout=_floating(config.get("dropout"), 0.0),
+        timestep_type=_optional_string(config.get("timestep_type"), "adalayernorm"),
+        num_timesteps=_integer(config.get("num_timesteps"), 100),
+        q_type=_string(config.get("q_type"), "constrained"),
+        att_1=_floating(config.get("att_1"), 0.99999),
+        att_T=_floating(config.get("att_T"), 0.000009),
+        ctt_1=_floating(config.get("ctt_1"), 0.000009),
+        ctt_T=_floating(config.get("ctt_T"), 0.99999),
+    )
+
+
+def _string(value: object, default: str | None = None) -> str:
+    if value is None and default is not None:
+        return default
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"Expected string value, got {type(value).__name__}")
+
+
+def _optional_string(value: object, default: str | None = None) -> str | None:
+    if value is None:
+        return default
+    return _string(value)
+
+
+def _integer(value: object, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    raise TypeError(f"Expected integer value, got {type(value).__name__}")
+
+
+def _floating(value: object, default: float) -> float:
+    if value is None:
+        return default
+    if isinstance(value, int | float):
+        return float(value)
+    raise TypeError(f"Expected numeric value, got {type(value).__name__}")
+
+
+def _string_tuple(value: object, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None:
+        return default
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise TypeError(f"Expected string sequence, got {type(value).__name__}")
+    return tuple(_string(item) for item in value)
+
+
+def _id2label(value: object) -> dict[int | str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError(f"Expected id2label mapping, got {type(value).__name__}")
+    return {_label_id(key): _string(item) for key, item in value.items()}
+
+
+def _cluster_centers_or_none(value: object) -> dict[str, list[float]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError(f"Expected cluster center mapping, got {type(value).__name__}")
+    return _cluster_centers({key: item for key, item in value.items()})
+
+
+def _cluster_centers(value: Mapping[object, object]) -> dict[str, list[float]]:
+    centers: dict[str, list[float]] = {}
+    for key, items in value.items():
+        if isinstance(items, str) or not isinstance(items, Sequence):
+            raise TypeError("Cluster center values must be numeric sequences")
+        centers[_string(key)] = [_floating(item, 0.0) for item in items]
+    return centers
+
+
+def _label_id(value: object) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    raise TypeError(f"Expected label id, got {type(value).__name__}")

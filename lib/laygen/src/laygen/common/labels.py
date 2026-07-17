@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import Final
 
 
 class DatasetName(StrEnum):
     """Canonical dataset names supported by the shared label registry."""
 
-    rico25 = "rico25"
-    rico13 = "rico13"
-    publaynet = "publaynet"
-    magazine = "magazine"
+    rico25 = auto()
+    rico13 = auto()
+    publaynet = auto()
+    magazine = auto()
 
 
 class Rico25Label(StrEnum):

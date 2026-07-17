@@ -14,7 +14,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "laygen.common.outputs_diffusers requires the optional diffusers dependency."
     ) from exc
 
-from ._output_spec import dataclass_fields
+from .output_spec import dataclass_fields
 
 if TYPE_CHECKING:
 

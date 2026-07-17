@@ -1,5 +1,5 @@
 import torch
-from typing import Any, cast
+from typing import Literal, cast
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
@@ -91,7 +91,11 @@ def test_pipeline_validates_condition_and_output_type():
         raise AssertionError("missing conditional bbox should fail")
 
     try:
-        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+        pipe(
+            batch_size=1,
+            num_inference_steps=1,
+            output_type=cast(Literal["dataclass"], "tuple"),
+        )
     except ValueError as exc:
         assert "Unsupported output_type" in str(exc)
     else:

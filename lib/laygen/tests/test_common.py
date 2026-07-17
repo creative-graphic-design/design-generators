@@ -15,7 +15,11 @@ from laygen.common.bbox import (
     normalize_boxes,
     xywh_to_ltrb,
 )
-from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.conditions import (
+    ConditionAlias,
+    ConditionType,
+    normalize_condition_type,
+)
 from laygen.common.discrete import (
     SamplingMode,
     batch_topk_mask,
@@ -194,6 +198,8 @@ def test_condition_type_aliases_and_errors():
     assert normalize_condition_type("content") is ConditionType.content_image
     assert normalize_condition_type("coarse-to-fine") is ConditionType.hierarchical
     assert normalize_condition_type("retrieval_examples") is ConditionType.retrieval
+    assert ConditionAlias.gen_t.value == "gen_t"
+    assert ConditionType.label_size.value == "label_size"
     with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
 
