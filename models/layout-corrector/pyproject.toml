@@ -1,0 +1,40 @@
+[project]
+name = "layout-corrector"
+version = "0.1.0"
+description = "Layout-Corrector composite pipeline built on LayoutDM."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "laygen",
+    "layout-dm",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+convert = [
+    "huggingface-hub>=0.24",
+    "omegaconf>=2.3",
+    "pyyaml>=6",
+]
+download = [
+    "gdown>=6.1.0",
+]
+vendor = [
+    "fsspec",
+    "hydra-core~=1.3",
+    "omegaconf~=2.3",
+    "pycocotools",
+    "scikit-learn>=1.0",
+    "seaborn",
+    "torch-geometric>=2.5,<2.7",
+    "torchvision",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original Layout-Corrector starter kit, original deps, and optionally one GPU",
+]

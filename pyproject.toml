@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "layout-corrector",
     "layout-flow",
     "lace",
     "layoutganpp",
@@ -56,6 +57,7 @@ docs = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+layout-corrector = { workspace = true }
 layout-flow = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
