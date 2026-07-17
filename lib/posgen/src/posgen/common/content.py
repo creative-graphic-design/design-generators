@@ -15,9 +15,6 @@ class PositionContent:
         positions: Normalized `(x, y)` positions shaped `(batch, items, 2)`.
         mask: Boolean mask shaped `(batch, items)`.
 
-    Returns:
-        A dataclass carrying position-generation content.
-
     Raises:
         ValueError: Construction does not raise directly.
 

@@ -37,9 +37,6 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         corrector: Corrector model used to score and remask tokens.
         processor: Optional processor for conditional layout inputs.
 
-    Returns:
-        A pipeline that generates corrected layout boxes and labels.
-
     Raises:
         ValueError: Pipeline construction does not raise directly.
 

@@ -31,9 +31,6 @@ class LayoutCorrectorSamplingConfig:
         gumbel_temperature: Temperature for confidence Gumbel noise.
         time_adaptive_temperature: Whether to scale noise by timestep ratio.
 
-    Returns:
-        Dataclass carrying Layout-Corrector sampling options.
-
     Raises:
         ValueError: Construction does not raise directly.
 

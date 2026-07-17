@@ -40,9 +40,6 @@ class LayoutCorrectorConfig(ConfigMixin):
         gumbel_temperature: Temperature for confidence Gumbel noise.
         time_adaptive_temperature: Whether to scale noise by timestep ratio.
 
-    Returns:
-        A Diffusers-compatible corrector config.
-
     Raises:
         ValueError: If a supplied dataset, shape, or option is unsupported.
 

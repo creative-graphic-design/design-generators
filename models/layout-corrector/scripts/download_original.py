@@ -7,7 +7,10 @@ import shutil
 import zipfile
 from pathlib import Path
 
-import gdown
+try:
+    import gdown
+except ImportError:  # pragma: no cover - depends on optional download extra
+    gdown = None
 
 
 FILE_ID = "1og3l0enR67rDwiAN44K4RchcFYAgsbNq"
@@ -61,6 +64,10 @@ def _remove_incomplete_outputs(output_dir: Path, archive: Path) -> None:
 
 
 def _download_archive(file_id: str, archive: Path) -> None:
+    if gdown is None:
+        raise RuntimeError(
+            "layout-corrector download requires the optional 'download' extra"
+        )
     tmp_archive = archive.with_name(f"{archive.name}.tmp")
     tmp_archive.unlink(missing_ok=True)
     gdown.download(id=file_id, output=str(tmp_archive), quiet=False)
