@@ -11,6 +11,7 @@ from laygen.common.bbox import (
 )
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.labels import id2label_for_dataset
+from laygen.common.model_card import layoutdm_model_card
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
@@ -86,3 +87,23 @@ def test_output_variants_share_schema_and_mapping_behavior():
         diffusers.mask,
         diffusers.id2label,
     )
+
+
+def test_layoutdm_model_card_metadata_and_sections():
+    card = layoutdm_model_card(dataset="rico25")
+    metadata = card.data.to_dict()
+    text = str(card)
+
+    assert metadata["license"] == "apache-2.0"
+    assert metadata["library_name"] == "diffusers"
+    assert metadata["pipeline_tag"] == "text-to-image"
+    assert "layout-generation" in metadata["tags"]
+    assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    assert "## Model Details" in text
+    assert "## Intended Uses & Limitations" in text
+    assert "## How to Use" in text
+    assert "LayoutDMPipeline.from_pretrained" in text
+    assert "## Training Data" in text
+    assert "## Parity Summary" in text
+    assert "## Citation" in text
+    assert "https://github.com/CyberAgentAILab/layout-dm" in text
