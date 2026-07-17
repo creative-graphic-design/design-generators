@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "layout-flow",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -55,6 +56,7 @@ docs = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+layout-flow = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
@@ -63,6 +65,7 @@ posgen = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
+extend-exclude = ["vendor"]
 
 [tool.ruff.lint]
 extend-select = ["ANN", "D", "TID251"]
@@ -93,8 +96,8 @@ unresolved-import = "ignore"
 exclude = ["vendor"]
 
 [tool.pytest.ini_options]
-addopts = ["--import-mode=importlib"]
 testpaths = ["tests", "lib", "models"]
+addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original model weights and vendor dependencies",

@@ -1,0 +1,35 @@
+[project]
+name = "layout-flow"
+version = "0.1.0"
+description = "Diffusers-style LayoutFlow conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "huggingface-hub>=0.24",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "h5pickle",
+    "hydra-core~=1.3",
+    "lightning",
+    "omegaconf~=2.3",
+    "seaborn",
+    "torchcfm",
+    "torchdyn",
+    "torchdiffeq",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original LayoutFlow weights and vendor dependencies",
+]
