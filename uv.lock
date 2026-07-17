@@ -1798,11 +1798,16 @@ name = "layout-generation-common"
 version = "0.1.0"
 source = { editable = "models/common" }
 dependencies = [
-    { name = "diffusers", extra = ["torch"] },
     { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "torch" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+diffusers = [
+    { name = "diffusers", extra = ["torch"] },
 ]
 
 [package.dev-dependencies]
@@ -1812,11 +1817,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
+    { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusers'", specifier = ">=0.36.0" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "torch", specifier = ">=2.1" },
+    { name = "transformers", specifier = ">=5.0.0" },
 ]
+provides-extras = ["diffusers"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=6.0.0" }]

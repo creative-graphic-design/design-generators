@@ -4,14 +4,21 @@ from dataclasses import dataclass, make_dataclass
 from typing import TYPE_CHECKING, cast
 
 import torch
-from transformers.utils import ModelOutput
+
+try:
+    from diffusers.utils import BaseOutput
+except ImportError as exc:  # pragma: no cover - depends on optional extra
+    raise ImportError(
+        "layout_generation_common.outputs_diffusers requires the optional "
+        "diffusers dependency."
+    ) from exc
 
 from ._output_spec import dataclass_fields
 
 if TYPE_CHECKING:
 
     @dataclass
-    class LayoutGenerationOutput(ModelOutput):
+    class LayoutGenerationOutput(BaseOutput):
         bbox: torch.Tensor
         labels: torch.Tensor = cast(torch.Tensor, None)
         mask: torch.Tensor = cast(torch.Tensor, None)
@@ -25,6 +32,6 @@ else:
     LayoutGenerationOutput = make_dataclass(
         "LayoutGenerationOutput",
         dataclass_fields(),
-        bases=(ModelOutput,),
+        bases=(BaseOutput,),
         namespace={"__module__": __name__},
     )

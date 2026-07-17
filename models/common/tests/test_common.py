@@ -1,4 +1,5 @@
 import torch
+from transformers.utils import ModelOutput
 
 from layout_generation_common.bbox import (
     denormalize_boxes,
@@ -10,6 +11,9 @@ from layout_generation_common.bbox import (
 )
 from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
 from layout_generation_common.labels import id2label_for_dataset
+from layout_generation_common.outputs_diffusers import (
+    LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
+)
 from layout_generation_common.outputs import LayoutGenerationOutput
 from layout_generation_common.testing import assert_layout_output_schema
 
@@ -43,3 +47,42 @@ def test_output_schema():
         id2label=id2label_for_dataset("publaynet"),
     )
     assert_layout_output_schema(output, batch_size=1)
+
+
+def test_output_variants_share_schema_and_mapping_behavior():
+    bbox = torch.zeros(1, 2, 4)
+    labels = torch.zeros(1, 2, dtype=torch.long)
+    mask = torch.tensor([[True, False]])
+    id2label = id2label_for_dataset("publaynet")
+    canonical = LayoutGenerationOutput(
+        bbox=bbox,
+        labels=labels,
+        mask=mask,
+        id2label=id2label,
+    )
+    diffusers = DiffusersLayoutGenerationOutput(
+        bbox=bbox,
+        labels=labels,
+        mask=mask,
+        id2label=id2label,
+    )
+
+    assert isinstance(canonical, ModelOutput)
+    assert_layout_output_schema(canonical, batch_size=1)
+    assert_layout_output_schema(diffusers, batch_size=1)
+    assert canonical["bbox"] is canonical.bbox
+    assert diffusers["bbox"] is diffusers.bbox
+    assert "scores" not in canonical
+    assert "scores" not in diffusers
+    assert canonical.to_tuple() == (
+        canonical.bbox,
+        canonical.labels,
+        canonical.mask,
+        canonical.id2label,
+    )
+    assert diffusers.to_tuple() == (
+        diffusers.bbox,
+        diffusers.labels,
+        diffusers.mask,
+        diffusers.id2label,
+    )
