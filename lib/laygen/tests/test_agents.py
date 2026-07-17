@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass
 
+import pytest
+
+pytest.importorskip("pydantic_ai")
+
 from pydantic import BaseModel
 
 from laygen.agents import BaseLayoutAgent, layout_items_to_output, messages_to_text
