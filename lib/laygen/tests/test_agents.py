@@ -8,7 +8,13 @@ pytest.importorskip("pydantic_ai")
 
 from pydantic import BaseModel
 
-from laygen.agents import BaseLayoutAgent, layout_items_to_output, messages_to_text
+from laygen.agents import (
+    BaseExemplarSelector,
+    BaseLayoutAgent,
+    BaseResponseParser,
+    layout_items_to_output,
+    messages_to_text,
+)
 from laygen.agents.testing import assert_agent_output_schema, function_model_from_text
 from laygen.common import ConditionType
 from laygen.common.outputs import LayoutGenerationOutput
@@ -76,3 +82,16 @@ def test_base_layout_agent_runs_function_model_and_validates_request() -> None:
     assert condition_type is ConditionType.text
     assert box_format.value == "xywh"
     assert agent.output_to_dict(output)["id2label"] == {0: "button"}
+
+
+def test_base_parser_and_selector_helpers_raise_consistent_errors() -> None:
+    parser = BaseResponseParser[LayoutGenerationOutput](parser_name="toy")
+    selector = BaseExemplarSelector[ParsedItem]()
+
+    assert parser.repair_response_text("raw") == "raw"
+    with pytest.raises(RuntimeError, match="toy: bad output"):
+        raise parser.parser_error("bad output")
+    with pytest.raises(ValueError, match="requires at least one candidate"):
+        selector.validate_examples([])
+    with pytest.raises(ValueError, match="exemplar selector: bad candidates"):
+        raise selector.selection_error("bad candidates")

@@ -435,7 +435,7 @@ def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
     return dict(metric)
 
 
-_LAYOUTDM_BIBTEX = r"""
+_LAYOUTDM_BIBTEX: Final[str] = r"""
 @inproceedings{inoue2023layoutdm,
   title = {LayoutDM: Discrete Diffusion Model for Controllable Layout Generation},
   author = {Inoue, Naoto and Kikuchi, Kotaro and Simo-Serra, Edgar and Otani, Mayu and Yamaguchi, Kota},
