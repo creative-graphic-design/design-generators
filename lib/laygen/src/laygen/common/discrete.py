@@ -2,10 +2,44 @@
 
 from __future__ import annotations
 
+from enum import StrEnum, auto
+from typing import Final, assert_never
+
 import torch
 import torch.nn.functional as F
 
-LOG_EPS = -70.0
+LOG_EPS: Final[float] = -70.0
+
+
+class SamplingMode(StrEnum):
+    """Supported categorical sampling modes."""
+
+    deterministic = auto()
+    random = auto()
+    gumbel = auto()
+    top_k = auto()
+    top_p = auto()
+    top_k_top_p = auto()
+
+
+def normalize_sampling_mode(sampling: SamplingMode | str) -> SamplingMode:
+    """Convert a public sampling value to ``SamplingMode``.
+
+    Args:
+        sampling: Sampling enum or its string value.
+
+    Returns:
+        Normalized ``SamplingMode`` enum.
+
+    Raises:
+        ValueError: If ``sampling`` is not supported.
+    """
+    if isinstance(sampling, SamplingMode):
+        return sampling
+    try:
+        return SamplingMode(sampling)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported sampling mode: {sampling}") from exc
 
 
 def index_to_log_onehot(input_ids: torch.Tensor, vocab_size: int) -> torch.Tensor:
@@ -101,7 +135,7 @@ def _top_p_logits(logits: torch.Tensor, top_p: float) -> torch.Tensor:
 def sample_categorical(
     logits: torch.Tensor,
     *,
-    sampling: str = "random",
+    sampling: SamplingMode | str = SamplingMode.random,
     temperature: float = 1.0,
     top_k: int | None = None,
     top_p: float | None = None,
@@ -128,15 +162,33 @@ def sample_categorical(
         ... )
         tensor([[1]])
     """
-    if sampling == "deterministic":
-        return logits.argmax(dim=-1)
-    scaled = logits / temperature
-    if sampling in {"top_k", "top_k_top_p"} and top_k is not None:
-        scaled = top_k_logits(scaled, top_k, dim=-1)
-    if sampling in {"top_p", "top_k_top_p"} and top_p is not None:
-        scaled = _top_p_logits(scaled, top_p)
-    if sampling == "gumbel":
-        return (scaled + gumbel_noise_like(scaled, generator=generator)).argmax(dim=-1)
+    mode = normalize_sampling_mode(sampling)
+    match mode:
+        case SamplingMode.deterministic:
+            return logits.argmax(dim=-1)
+        case SamplingMode.random:
+            scaled = logits / temperature
+        case SamplingMode.gumbel:
+            scaled = logits / temperature
+            return (scaled + gumbel_noise_like(scaled, generator=generator)).argmax(
+                dim=-1
+            )
+        case SamplingMode.top_k:
+            scaled = logits / temperature
+            if top_k is not None:
+                scaled = top_k_logits(scaled, top_k, dim=-1)
+        case SamplingMode.top_p:
+            scaled = logits / temperature
+            if top_p is not None:
+                scaled = _top_p_logits(scaled, top_p)
+        case SamplingMode.top_k_top_p:
+            scaled = logits / temperature
+            if top_k is not None:
+                scaled = top_k_logits(scaled, top_k, dim=-1)
+            if top_p is not None:
+                scaled = _top_p_logits(scaled, top_p)
+        case _:
+            assert_never(mode)
     probs = scaled.softmax(dim=-1).reshape(-1, scaled.size(-1))
     sampled = torch.multinomial(probs, 1, generator=generator).reshape(
         scaled.shape[:-1]

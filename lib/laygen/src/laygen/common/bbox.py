@@ -2,12 +2,38 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum, auto
+from typing import assert_never
 
 import torch
 
 
-BoxFormat = Literal["xywh", "ltwh", "ltrb"]
+class BoxFormat(StrEnum):
+    """Supported bounding-box coordinate formats."""
+
+    xywh = auto()
+    ltwh = auto()
+    ltrb = auto()
+
+
+def normalize_box_format(box_format: BoxFormat | str) -> BoxFormat:
+    """Convert a public box-format value to ``BoxFormat``.
+
+    Args:
+        box_format: Box format enum or its string value.
+
+    Returns:
+        Normalized ``BoxFormat`` enum.
+
+    Raises:
+        ValueError: If ``box_format`` is not supported.
+    """
+    if isinstance(box_format, BoxFormat):
+        return box_format
+    try:
+        return BoxFormat(box_format)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported box_format: {box_format}") from exc
 
 
 def xywh_to_ltrb(bbox: torch.Tensor) -> torch.Tensor:
@@ -67,7 +93,7 @@ def normalize_boxes(
     bbox: torch.Tensor,
     *,
     canvas_size: tuple[int, int],
-    box_format: BoxFormat,
+    box_format: BoxFormat | str,
 ) -> torch.Tensor:
     """Normalize pixel boxes to center ``xywh`` coordinates.
 
@@ -94,20 +120,21 @@ def normalize_boxes(
     bbox = bbox.to(dtype=torch.float32)
     scale = _canvas_tensor(canvas_size, bbox.device, bbox.dtype)
     normalized = bbox / scale
-    if box_format == "xywh":
+    fmt = normalize_box_format(box_format)
+    if fmt is BoxFormat.xywh:
         return clamp_boxes(normalized)
-    if box_format == "ltwh":
+    if fmt is BoxFormat.ltwh:
         return clamp_boxes(ltwh_to_xywh(normalized))
-    if box_format == "ltrb":
+    if fmt is BoxFormat.ltrb:
         return clamp_boxes(ltrb_to_xywh(normalized))
-    raise ValueError(f"Unsupported box_format: {box_format}")
+    assert_never(fmt)
 
 
 def denormalize_boxes(
     bbox: torch.Tensor,
     *,
     canvas_size: tuple[int, int],
-    box_format: BoxFormat,
+    box_format: BoxFormat | str,
 ) -> torch.Tensor:
     """Convert normalized center ``xywh`` boxes to pixel-space boxes.
 
@@ -122,14 +149,15 @@ def denormalize_boxes(
     Raises:
         ValueError: If ``box_format`` is unsupported.
     """
-    if box_format == "xywh":
+    fmt = normalize_box_format(box_format)
+    if fmt is BoxFormat.xywh:
         out = bbox
-    elif box_format == "ltwh":
+    elif fmt is BoxFormat.ltwh:
         out = xywh_to_ltwh(bbox)
-    elif box_format == "ltrb":
+    elif fmt is BoxFormat.ltrb:
         out = xywh_to_ltrb(bbox)
     else:
-        raise ValueError(f"Unsupported box_format: {box_format}")
+        assert_never(fmt)
     scale = _canvas_tensor(canvas_size, out.device, out.dtype)
     return out * scale
 
