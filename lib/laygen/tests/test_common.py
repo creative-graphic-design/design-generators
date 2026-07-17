@@ -1,0 +1,88 @@
+import torch
+from transformers.utils import ModelOutput
+
+from laygen.common.bbox import (
+    denormalize_boxes,
+    linear_continuize,
+    linear_discretize,
+    ltrb_to_xywh,
+    normalize_boxes,
+    xywh_to_ltrb,
+)
+from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
+from laygen.common.labels import id2label_for_dataset
+from laygen.common.outputs_diffusers import (
+    LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
+)
+from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.testing import assert_layout_output_schema
+
+
+def test_bbox_conversions_roundtrip():
+    bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
+    assert torch.allclose(ltrb_to_xywh(xywh_to_ltrb(bbox)), bbox)
+    pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="ltrb")
+    assert torch.allclose(
+        normalize_boxes(pixels, canvas_size=(100, 200), box_format="ltrb"), bbox
+    )
+
+
+def test_linear_bins_roundtrip_shape():
+    values = torch.tensor([0.0, 0.25, 0.99])
+    ids = linear_discretize(values, num_bins=4)
+    assert ids.tolist() == [0, 1, 3]
+    assert linear_continuize(ids, num_bins=4).shape == values.shape
+
+
+def test_discrete_log_onehot_roundtrip():
+    ids = torch.tensor([[0, 2, 1]])
+    assert torch.equal(log_onehot_to_index(index_to_log_onehot(ids, 3)), ids)
+
+
+def test_output_schema():
+    output = LayoutGenerationOutput(
+        bbox=torch.zeros(1, 2, 4),
+        labels=torch.zeros(1, 2, dtype=torch.long),
+        mask=torch.tensor([[True, False]]),
+        id2label=id2label_for_dataset("publaynet"),
+    )
+    assert_layout_output_schema(output, batch_size=1)
+
+
+def test_output_variants_share_schema_and_mapping_behavior():
+    bbox = torch.zeros(1, 2, 4)
+    labels = torch.zeros(1, 2, dtype=torch.long)
+    mask = torch.tensor([[True, False]])
+    id2label = id2label_for_dataset("publaynet")
+    canonical = LayoutGenerationOutput(
+        bbox=bbox,
+        labels=labels,
+        mask=mask,
+        id2label=id2label,
+    )
+    diffusers = DiffusersLayoutGenerationOutput(
+        bbox=bbox,
+        labels=labels,
+        mask=mask,
+        id2label=id2label,
+    )
+
+    assert isinstance(canonical, ModelOutput)
+    assert_layout_output_schema(canonical, batch_size=1)
+    assert_layout_output_schema(diffusers, batch_size=1)
+    assert canonical["bbox"] is canonical.bbox
+    assert diffusers["bbox"] is diffusers.bbox
+    assert "scores" not in canonical
+    assert "scores" not in diffusers
+    assert canonical.to_tuple() == (
+        canonical.bbox,
+        canonical.labels,
+        canonical.mask,
+        canonical.id2label,
+    )
+    assert diffusers.to_tuple() == (
+        diffusers.bbox,
+        diffusers.labels,
+        diffusers.mask,
+        diffusers.id2label,
+    )

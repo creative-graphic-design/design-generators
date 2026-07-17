@@ -5,7 +5,7 @@ from typing import Any, Literal
 import torch
 from diffusers import DiffusionPipeline
 
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .constraints import beautify_layout
 from .modeling_lace import LaceTransformerModel

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-from layout_generation_common.labels import id2label_for_dataset, normalize_dataset_name
+from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 
 @dataclass

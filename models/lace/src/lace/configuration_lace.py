@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from layout_generation_common.labels import (
+from laygen.common.labels import (
     PUBLAYNET_LABELS,
     RICO13_LABELS,
     RICO25_LABELS,

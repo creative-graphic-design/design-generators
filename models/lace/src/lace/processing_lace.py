@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
-from layout_generation_common.bbox import ltrb_to_xywh, ltwh_to_xywh, normalize_boxes
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.bbox import ltrb_to_xywh, ltwh_to_xywh, normalize_boxes
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_lace import get_dataset_spec
 
