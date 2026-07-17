@@ -1,5 +1,6 @@
 import torch
 
+from laygen.common.discrete import SamplingMode
 from layout_dm.sampling import LayoutDMSamplingConfig
 from layout_dm.scheduler import LayoutDMScheduler
 
@@ -16,6 +17,6 @@ def test_scheduler_step_shape():
         torch.zeros(2, dtype=torch.long),
         sample,
         previous_timestep=1,
-        sampling=LayoutDMSamplingConfig(name="deterministic"),
+        sampling=LayoutDMSamplingConfig(name=SamplingMode.deterministic),
     )
     assert out.prev_sample.shape == (2, 10, 6)

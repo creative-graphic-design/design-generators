@@ -9,7 +9,9 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 
+from laygen.common.bbox import BoxFormat
 from laygen.common.discrete import log_onehot_to_index
+from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .conditioning import build_condition, normalize_condition_type
@@ -71,13 +73,11 @@ class LayoutDMPipeline(DiffusionPipeline):
         bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
         mask: torch.Tensor | np.ndarray | list[Any] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
-        sampling: Literal[
-            "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
-        ] = "random",
+        sampling: SamplingMode | str = SamplingMode.random,
         temperature: float = 1.0,
         top_k: int = 5,
         top_p: float = 0.9,

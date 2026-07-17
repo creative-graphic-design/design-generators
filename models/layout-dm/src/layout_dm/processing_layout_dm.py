@@ -7,7 +7,13 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
-from laygen.common.bbox import normalize_boxes
+from laygen.common.bbox import (
+    BoxFormat,
+    ltrb_to_xywh,
+    ltwh_to_xywh,
+    normalize_box_format,
+    normalize_boxes,
+)
 
 from .tokenization_layout_dm import LayoutDMTokenizer
 
@@ -38,7 +44,7 @@ class LayoutDMProcessor:
         bbox: torch.Tensor | np.ndarray | list[Any],
         labels: torch.Tensor | np.ndarray | list[Any],
         mask: torch.Tensor | np.ndarray | list[Any] | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
@@ -75,19 +81,14 @@ class LayoutDMProcessor:
             mask_t = torch.as_tensor(mask, dtype=torch.bool)
             if mask_t.ndim == 1:
                 mask_t = mask_t.unsqueeze(0)
+        fmt = normalize_box_format(box_format)
         if not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
-            bbox_t = normalize_boxes(
-                bbox_t, canvas_size=canvas_size, box_format=box_format
-            )
-        elif box_format == "ltwh":
-            from laygen.common.bbox import ltwh_to_xywh
-
+            bbox_t = normalize_boxes(bbox_t, canvas_size=canvas_size, box_format=fmt)
+        elif fmt is BoxFormat.ltwh:
             bbox_t = ltwh_to_xywh(bbox_t)
-        elif box_format == "ltrb":
-            from laygen.common.bbox import ltrb_to_xywh
-
+        elif fmt is BoxFormat.ltrb:
             bbox_t = ltrb_to_xywh(bbox_t)
         return self.tokenizer.encode_layout(bbox=bbox_t, labels=labels_t, mask=mask_t)
 

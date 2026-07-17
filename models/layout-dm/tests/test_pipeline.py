@@ -1,5 +1,6 @@
 import torch
 
+from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
@@ -63,6 +64,11 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     pipe = make_pipeline()
     pipe.save_pretrained(tmp_path)
     loaded = LayoutDMPipeline.from_pretrained(tmp_path)
-    out = loaded(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
+    out = loaded(
+        batch_size=1,
+        seed=0,
+        num_inference_steps=1,
+        sampling=SamplingMode.deterministic,
+    )
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
