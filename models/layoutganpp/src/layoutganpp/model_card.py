@@ -2,13 +2,36 @@
 
 from __future__ import annotations
 
+from enum import StrEnum, auto
 from pathlib import Path
-from typing import Final
+from typing import Final, TypedDict, assert_never
 
 from huggingface_hub import ModelCard
 from laygen.common.model_card import build_layout_model_card
 
 from .datasets import DatasetName, normalize_dataset_name
+
+
+class CheckpointKey(StrEnum):
+    """Dataset suffixes used in LayoutGAN++ checkpoint and Hub IDs."""
+
+    rico = auto()
+    publaynet = auto()
+    magazine = auto()
+
+
+class ParityMetricKey(StrEnum):
+    """Internal parity metric keys used in LayoutGAN++ model-card text."""
+
+    shape = auto()
+    smoke_shape = auto()
+
+
+class ParityMetricText(TypedDict):
+    """Model-card parity text snippets for a converted checkpoint."""
+
+    shape: str
+    smoke_shape: str
 
 
 _DATASET_IDS: Final[dict[DatasetName, str]] = {
@@ -17,10 +40,10 @@ _DATASET_IDS: Final[dict[DatasetName, str]] = {
     DatasetName.magazine: "creative-graphic-design/magazine",
 }
 
-_CHECKPOINT_KEYS: Final[dict[DatasetName, str]] = {
-    DatasetName.rico13: "rico",
-    DatasetName.publaynet: "publaynet",
-    DatasetName.magazine: "magazine",
+_CHECKPOINT_KEYS: Final[dict[DatasetName, CheckpointKey]] = {
+    DatasetName.rico13: CheckpointKey.rico,
+    DatasetName.publaynet: CheckpointKey.publaynet,
+    DatasetName.magazine: CheckpointKey.magazine,
 }
 
 _CHECKPOINT_IDS: Final[dict[DatasetName, str]] = {
@@ -34,10 +57,19 @@ _EXAMPLE_LABELS: Final[dict[DatasetName, str]] = {
     DatasetName.magazine: '[["text", "image"]]',
 }
 
-_PARITY_METRICS: Final[dict[DatasetName, dict[str, str]]] = {
-    DatasetName.rico13: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
-    DatasetName.publaynet: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
-    DatasetName.magazine: {"shape": "(3, 33, 4)", "smoke_shape": "(1, 2, 4)"},
+_PARITY_METRICS: Final[dict[DatasetName, ParityMetricText]] = {
+    DatasetName.rico13: {
+        "shape": "(3, 9, 4)",
+        "smoke_shape": "(1, 2, 4)",
+    },
+    DatasetName.publaynet: {
+        "shape": "(3, 9, 4)",
+        "smoke_shape": "(1, 2, 4)",
+    },
+    DatasetName.magazine: {
+        "shape": "(3, 33, 4)",
+        "smoke_shape": "(1, 2, 4)",
+    },
 }
 
 _BIBTEX: Final[str] = r"""
@@ -93,14 +125,15 @@ print(out.bbox, out.labels, out.mask)
             "layoutganpp",
             "layoutgan++",
             "transformers",
-            dataset_key,
+            str(dataset_key),
         ],
         model_details=(
             "Transformers-style conversion of the LayoutGAN++ generator from "
             "`Constrained Graphic Layout Generation via Latent Optimization` "
             f"for `{dataset_key}`. The model generates normalized center `xywh` "
             "layout boxes from category-label conditions. Vendor parity compares "
-            f"bbox tensors with shape {metrics['shape']} and observed max_abs=0 "
+            f"bbox tensors with shape {_parity_metric(metrics, ParityMetricKey.shape)} "
+            "and observed max_abs=0 "
             "and max_rel=0 against local const-layout fixtures."
         ),
         intended_uses=(
@@ -120,7 +153,7 @@ print(out.bbox, out.labels, out.mask)
         ),
         parity_metrics=[
             {
-                "dataset": dataset_key,
+                "dataset": str(dataset_key),
                 "tokenizer_exact": "n/a",
                 "deterministic_exact": "bbox exact",
                 "logits_max_abs": 0.0,
@@ -156,3 +189,11 @@ def write_layoutganpp_model_card(output_dir: Path, dataset: DatasetName | str) -
     readme_path = output_dir / "README.md"
     readme_path.write_text(str(layoutganpp_model_card(dataset)), encoding="utf-8")
     return readme_path
+
+
+def _parity_metric(metrics: ParityMetricText, key: ParityMetricKey) -> str:
+    if key is ParityMetricKey.shape:
+        return metrics["shape"]
+    if key is ParityMetricKey.smoke_shape:
+        return metrics["smoke_shape"]
+    assert_never(key)

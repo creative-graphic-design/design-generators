@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import Final, TypedDict
 
 from laygen.common.labels import DatasetName
@@ -46,6 +46,16 @@ class MagazineLabel(StrEnum):
     headline_over_image = "headline-over-image"
 
 
+class DatasetAlias(StrEnum):
+    """LayoutGAN++ dataset aliases accepted at public boundaries."""
+
+    rico = auto()
+    rico13 = auto()
+    publaynet = auto()
+    pub_laynet = auto()
+    magazine = auto()
+
+
 RICO_LABELS: Final[tuple[RicoLabel, ...]] = tuple(RicoLabel)
 PUBLAYNET_LABELS: Final[tuple[PubLayNetLabel, ...]] = tuple(PubLayNetLabel)
 MAGAZINE_LABELS: Final[tuple[MagazineLabel, ...]] = tuple(MagazineLabel)
@@ -77,12 +87,12 @@ DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
     },
 }
 
-_ALIASES: Final[dict[str, DatasetName]] = {
-    "rico": DatasetName.rico13,
-    "rico13": DatasetName.rico13,
-    "publaynet": DatasetName.publaynet,
-    "pub_laynet": DatasetName.publaynet,
-    "magazine": DatasetName.magazine,
+_ALIASES: Final[dict[DatasetAlias, DatasetName]] = {
+    DatasetAlias.rico: DatasetName.rico13,
+    DatasetAlias.rico13: DatasetName.rico13,
+    DatasetAlias.publaynet: DatasetName.publaynet,
+    DatasetAlias.pub_laynet: DatasetName.publaynet,
+    DatasetAlias.magazine: DatasetName.magazine,
 }
 
 
@@ -104,11 +114,11 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """
     if isinstance(dataset_name, DatasetName):
         return dataset_name
-    key = dataset_name.lower().replace("-", "_")
     try:
-        return _ALIASES[key]
-    except KeyError as exc:
+        alias = DatasetAlias(dataset_name.lower().replace("-", "_"))
+    except ValueError as exc:
         raise ValueError(f"Unknown layoutganpp dataset_name: {dataset_name}") from exc
+    return _ALIASES[alias]
 
 
 def dataset_metadata(dataset_name: DatasetName | str) -> DatasetMetadata:
