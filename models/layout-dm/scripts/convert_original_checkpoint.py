@@ -1,3 +1,5 @@
+"""Convert original LayoutDM checkpoints to Diffusers save_pretrained format."""
+
 from __future__ import annotations
 
 import argparse
@@ -20,10 +22,37 @@ from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
-    parser.add_argument("--starter-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert a downloaded original LayoutDM checkpoint into a local "
+            "Diffusers pipeline directory with tokenizer files and README.md model card."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico25", "publaynet"],
+        required=True,
+        help="Original LayoutDM checkpoint/dataset to convert.",
+    )
+    parser.add_argument(
+        "--starter-dir",
+        type=Path,
+        required=True,
+        help=(
+            "Path to the extracted original `download/` directory produced by "
+            "download_original.py."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help=(
+            "Destination save_pretrained directory, for example "
+            "`../../.cache/layout-dm/converted/layoutdm-rico25` from models/layout-dm."
+        ),
+    )
     args = parser.parse_args()
 
     checkpoint_name = (

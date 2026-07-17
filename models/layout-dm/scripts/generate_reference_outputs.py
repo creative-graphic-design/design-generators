@@ -1,3 +1,5 @@
+"""Generate local golden tensors from the original LayoutDM implementation."""
+
 from __future__ import annotations
 
 import argparse
@@ -76,13 +78,54 @@ def _synthetic_layout(tokenizer) -> dict[str, torch.Tensor]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
-    parser.add_argument("--starter-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--sampling", default="deterministic")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--batch-size", type=int, default=1)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the vendored original LayoutDM code and save tokenizer, denoiser, "
+            "and deterministic sampling fixtures for parity tests."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico25", "publaynet"],
+        required=True,
+        help="Original LayoutDM dataset/checkpoint used to generate fixtures.",
+    )
+    parser.add_argument(
+        "--starter-dir",
+        type=Path,
+        required=True,
+        help=(
+            "Path to the extracted original `download/` directory produced by "
+            "download_original.py."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help=(
+            "Fixture destination. Use tests/vendor_parity/fixtures/<dataset> from "
+            "models/layout-dm."
+        ),
+    )
+    parser.add_argument(
+        "--sampling",
+        default="deterministic",
+        help="Sampling mode for the generated unconditional sample fixture.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Torch random seed used before generating deterministic fixtures.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Batch size for denoiser and unconditional sampling fixtures.",
+    )
     args = parser.parse_args()
     if args.sampling != "deterministic":
         raise ValueError("Parity fixtures currently require deterministic sampling")
