@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from huggingface_hub import ModelCard, ModelCardData
+
+from .labels import DatasetName
+from .serialization import sanitize_for_yaml
 
 
 @dataclass(frozen=True)
@@ -44,39 +48,6 @@ def build_layout_model_card(
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]],
     citation_bibtex: str,
     original_implementation_url: str,
-    developers: str,
-    model_type: str,
-    paper_url: str,
-    direct_use: str,
-    downstream_use: str,
-    out_of_scope_use: str,
-    bias_recommendations: str,
-    preprocessing: str,
-    training_regime: str,
-    testing_data: str,
-    testing_factors: str,
-    testing_metrics: str,
-    model_specs: str,
-    software: str,
-    model_summary: str | None = None,
-    funded_by: str = "Not documented in the original release.",
-    shared_by: str = "creative-graphic-design",
-    base_model: str = "Not applicable: this is a converted original checkpoint.",
-    demo: str = "No hosted demo is packaged with this checkpoint.",
-    speeds_sizes_times: str = "Not documented in the original release.",
-    model_examination: str = "No separate interpretability examination is packaged with this converted checkpoint.",
-    hardware_type: str = "Not documented in the original release.",
-    hours_used: str = "Not documented in the original release.",
-    cloud_provider: str = "Not documented in the original release.",
-    cloud_region: str = "Not documented in the original release.",
-    co2_emitted: str = "Carbon emissions cannot be estimated from the released checkpoint bundle alone.",
-    compute_infrastructure: str = "Conversion and parity generation run locally through the documented uv workspace commands.",
-    hardware_requirements: str = "CPU is sufficient to load the pipeline; CUDA is recommended for generation and parity tests.",
-    citation_apa: str = "See the BibTeX citation above.",
-    glossary: str = "`bbox` uses normalized center `xywh` coordinates; `mask` marks valid layout elements.",
-    more_information: str = "See the package README for reproduction commands and conversion details.",
-    model_card_authors: str = "creative-graphic-design contributors.",
-    model_card_contact: str = "Use the model repository discussions or issues for questions.",
 ) -> ModelCard:
     """Build a Hugging Face model card for a layout-generation checkpoint.
 
@@ -96,39 +67,6 @@ def build_layout_model_card(
         parity_metrics: Parity table rows.
         citation_bibtex: BibTeX citation without surrounding fences.
         original_implementation_url: URL for the upstream implementation.
-        developers: Developer attribution.
-        model_type: Short model family description.
-        paper_url: URL for the paper or project page.
-        direct_use: Direct-use guidance.
-        downstream_use: Downstream-use guidance.
-        out_of_scope_use: Out-of-scope use guidance.
-        bias_recommendations: Recommendations for inspecting model risks.
-        preprocessing: Preprocessing description.
-        training_regime: Training procedure summary.
-        testing_data: Evaluation data description.
-        testing_factors: Evaluation factors covered by parity checks.
-        testing_metrics: Evaluation metrics covered by parity checks.
-        model_specs: Technical model specification summary.
-        software: Runtime software stack.
-        model_summary: Optional shorter summary used by the template header.
-        funded_by: Funding attribution when documented.
-        shared_by: Hub sharing organization.
-        base_model: Base model lineage.
-        demo: Demo availability.
-        speeds_sizes_times: Runtime or size notes.
-        model_examination: Model examination or interpretability notes.
-        hardware_type: Training hardware type.
-        hours_used: Training hours.
-        cloud_provider: Training cloud provider.
-        cloud_region: Training cloud region.
-        co2_emitted: Carbon-emission estimate.
-        compute_infrastructure: Conversion or evaluation compute notes.
-        hardware_requirements: Inference hardware requirements.
-        citation_apa: APA citation text.
-        glossary: Term glossary.
-        more_information: Additional information pointer.
-        model_card_authors: Model-card author attribution.
-        model_card_contact: Contact channel.
 
     Returns:
         Validated ``huggingface_hub.ModelCard`` instance.
@@ -142,76 +80,169 @@ def build_layout_model_card(
         'diffusers'
     """
     card_data = ModelCardData(
-        model_name=model_name,
-        license=license,
-        library_name=library_name,
-        pipeline_tag=pipeline_tag,
-        tags=list(tags),
-        datasets=list(dataset_ids),
+        model_name=cast(str, sanitize_for_yaml(model_name)),
+        license=cast(str, sanitize_for_yaml(license)),
+        library_name=cast(str, sanitize_for_yaml(library_name)),
+        pipeline_tag=cast(str, sanitize_for_yaml(pipeline_tag)),
+        tags=cast(list[str], sanitize_for_yaml(list(tags))),
+        datasets=cast(list[str], sanitize_for_yaml(list(dataset_ids))),
         language=["en"],
-        metrics=["vendor-parity"],
     )
     parity_table = _parity_table(parity_metrics)
     card = ModelCard.from_template(
         card_data,
         model_id=model_id,
-        model_summary=model_summary or model_details,
+        model_summary=(
+            f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
+            "conditional-free layout generation."
+        ),
         model_description=model_details,
-        developers=developers,
-        funded_by=funded_by,
-        shared_by=shared_by,
-        model_type=model_type,
+        developers="CyberAgentAILab released the original LayoutDM implementation.",
+        funded_by=(
+            "Funding for the original checkpoint is not separately reported in "
+            "this converted artifact."
+        ),
+        shared_by="creative-graphic-design",
+        model_type="Discrete diffusion model for layout generation.",
         language=(
             "The model does not process natural language inputs; metadata uses "
             "English for this model card and category label names."
         ),
         license=license,
-        base_model=base_model,
+        base_model=(
+            "Not applicable. This is a direct conversion of the original "
+            "LayoutDM checkpoint, not a fine-tuned derivative of a Hub model."
+        ),
         repo=original_implementation_url,
-        paper=paper_url,
-        demo=demo,
-        direct_use=f"{intended_uses}\n\n{direct_use}",
-        downstream_use=downstream_use,
-        out_of_scope_use=out_of_scope_use,
+        paper="https://arxiv.org/abs/2303.08137",
+        demo="No hosted demo is packaged with this checkpoint.",
+        direct_use=intended_uses,
+        downstream_use=(
+            "Use the generated normalized boxes, labels, and masks as layout "
+            "priors for design tooling, document analysis research, or "
+            "controlled rendering pipelines that perform their own validation."
+        ),
+        out_of_scope_use=(
+            "Do not use this checkpoint as an OCR model, image renderer, "
+            "semantic document understanding model, accessibility verifier, or "
+            "unreviewed production UI generator. The model predicts layout "
+            "structure only and can produce implausible or overlapping boxes."
+        ),
         bias_risks_limitations=limitations,
-        bias_recommendations=bias_recommendations,
+        bias_recommendations=(
+            "Inspect generated layouts before downstream use, validate boxes "
+            "against application constraints, and evaluate separately for each "
+            "target dataset or design domain."
+        ),
         get_started_code=f"```python\n{how_to_use.strip()}\n```",
         training_data=training_data,
-        preprocessing=preprocessing,
-        training_regime=training_regime,
-        speeds_sizes_times=speeds_sizes_times,
-        testing_data=testing_data,
-        testing_factors=testing_factors,
-        testing_metrics=testing_metrics,
+        preprocessing=(
+            "The converted tokenizer represents each layout element as "
+            "discrete category and bounding-box tokens. Bounding boxes use "
+            "normalized center `xywh` coordinates and dataset-specific cluster "
+            "centers stored with the tokenizer files."
+        ),
+        training_regime=(
+            "Original LayoutDM training regime as released by the upstream "
+            "project; this package converts the checkpoint and does not "
+            "retrain it."
+        ),
+        speeds_sizes_times=(
+            "Training speed, elapsed time, and hardware are not included in "
+            "the upstream checkpoint bundle used for conversion."
+        ),
+        testing_data=(
+            "Vendor parity tests use deterministic samples and forward-pass "
+            "golden tensors generated from the original LayoutDM implementation "
+            "for each converted dataset."
+        ),
+        testing_factors=(
+            "Parity is checked separately for each dataset conversion so that "
+            "dataset-specific tokenization and checkpoint weights are covered."
+        ),
+        testing_metrics=(
+            "Tokenizer exact-match count, deterministic token-sequence "
+            "exact-match count, and denoiser logits maximum absolute and "
+            "relative error versus the original implementation."
+        ),
         results=parity_table,
         results_summary=(
-            "Local vendor parity checks compare converted pipeline components "
-            "against the original implementation and checkpoint weights."
+            "The converted checkpoint matches the generated vendor reference "
+            "tensors exactly for tokenizer IO and deterministic sampling; "
+            "denoiser logits are within the reported numeric tolerance."
         ),
-        model_examination=model_examination,
-        hardware_type=hardware_type,
-        hours_used=hours_used,
-        cloud_provider=cloud_provider,
-        cloud_region=cloud_region,
-        co2_emitted=co2_emitted,
-        model_specs=model_specs,
-        compute_infrastructure=compute_infrastructure,
-        hardware_requirements=hardware_requirements,
-        software=software,
+        model_examination=(
+            "No separate interpretability study is packaged with this converted "
+            "checkpoint."
+        ),
+        hardware_type=(
+            "Original training hardware is not reported in this converted "
+            "artifact. Vendor parity regeneration is documented for "
+            "`CUDA_VISIBLE_DEVICES=0` when a CUDA device is available."
+        ),
+        hours_used=(
+            "Original training hours are not reported in this converted artifact."
+        ),
+        cloud_provider=(
+            "Original training cloud provider is not reported in this converted "
+            "artifact."
+        ),
+        cloud_region=(
+            "Original training compute region is not reported in this converted "
+            "artifact."
+        ),
+        co2_emitted=(
+            "Carbon emissions cannot be estimated from the released checkpoint "
+            "bundle alone."
+        ),
+        model_specs=(
+            "LayoutDM models layout generation as discrete diffusion over "
+            "category and bounding-box token sequences. This package exposes "
+            "the denoiser, tokenizer, scheduler, and Diffusers pipeline needed "
+            "to reproduce converted inference."
+        ),
+        compute_infrastructure=(
+            "Conversion and parity generation run locally through the `uv` "
+            "workspace commands documented in `models/layout-dm/README.md`."
+        ),
+        hardware_requirements=(
+            "CPU is sufficient for package loading and conversion. CUDA is "
+            "recommended for regenerating vendor parity references and running "
+            "the full parity test suite."
+        ),
+        software=(
+            "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
+            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+        ),
         citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
-        citation_apa=citation_apa,
-        glossary=glossary,
-        more_information=more_information,
-        model_card_authors=model_card_authors,
-        model_card_contact=model_card_contact,
+        citation_apa=(
+            "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
+            "(2023). LayoutDM: Discrete Diffusion Model for Controllable Layout "
+            "Generation. CVPR."
+        ),
+        glossary=(
+            "`xywh` means normalized center-x, center-y, width, and height. "
+            "`Tokenizer exact` counts matching encoded and decoded token "
+            "positions. `Logits max abs` and `logits max rel` are maximum "
+            "differences against the original denoiser outputs."
+        ),
+        more_information=(
+            "See the package README for copy-paste reproduction commands, "
+            "checkpoint conversion, and vendor parity fixture generation."
+        ),
+        model_card_authors="creative-graphic-design maintainers.",
+        model_card_contact=(
+            "Open an issue or pull request in the creative-graphic-design "
+            "design-generators repository."
+        ),
     )
-    card.validate(repo_type="model")
+    card.validate()
     return card
 
 
 def layoutdm_model_card(
     *,
-    dataset: str,
+    dataset: DatasetName | str,
     parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
 ) -> ModelCard:
     """Build the LayoutDM model card for a converted checkpoint.
@@ -275,9 +306,7 @@ print(out.bbox, out.labels, out.mask)
         ),
         limitations=(
             "The converted checkpoint follows the original LayoutDM release and is "
-            "intended for layout synthesis, not image rendering, OCR, or evaluation "
-            "of visual quality without downstream checks. Dataset-specific biases "
-            "from PubLayNet or Rico may appear in generated layouts."
+            "intended for layout synthesis, not for image rendering or OCR."
         ),
         how_to_use=how_to_use,
         training_data=(
@@ -287,52 +316,10 @@ print(out.bbox, out.labels, out.mask)
         parity_metrics=metrics,
         citation_bibtex=_LAYOUTDM_BIBTEX,
         original_implementation_url=("https://github.com/CyberAgentAILab/layout-dm"),
-        developers="CyberAgent AI Lab; converted by creative-graphic-design contributors.",
-        model_type="Discrete diffusion model for controllable layout generation.",
-        paper_url="https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html",
-        direct_use=(
-            "Generate normalized layout boxes, labels, and masks from the converted "
-            "Diffusers pipeline without fine-tuning."
-        ),
-        downstream_use=(
-            "Use generated layouts as inputs for document or UI rendering, "
-            "benchmarking, data augmentation, or layout editing systems."
-        ),
-        out_of_scope_use=(
-            "Do not use the model as an image generator, OCR system, safety-critical "
-            "document authoring system, or as a substitute for human review of "
-            "generated layouts."
-        ),
-        bias_recommendations=(
-            "Inspect generated layouts for dataset bias, overlap, category balance, "
-            "and downstream rendering constraints before deployment."
-        ),
-        preprocessing=(
-            "The original LayoutDM workflow quantizes bounding boxes into layout "
-            "tokens and stores outputs as max-25 sequences."
-        ),
-        training_regime="Original training regime from the upstream LayoutDM release.",
-        testing_data=(
-            f"Vendor parity tests use `{dataset_id}` checkpoint fixtures and local "
-            "golden outputs generated from the original implementation."
-        ),
-        testing_factors=(
-            "Parity is checked per dataset and covers tokenizer round trips, "
-            "deterministic generation, and denoiser logits."
-        ),
-        testing_metrics=(
-            "Tokenizer exact match count, deterministic exact match count, logits "
-            "maximum absolute difference, and logits maximum relative difference."
-        ),
-        model_specs=(
-            "Converted LayoutDM denoiser, tokenizer, processor, and scheduler wrapped "
-            "in a Diffusers-style pipeline."
-        ),
-        software="Python, PyTorch, Diffusers, Transformers, and laygen.common.",
     )
 
 
-def _layoutdm_dataset_id(dataset: str) -> str:
+def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return "creative-graphic-design/rico25"
     if dataset == "publaynet":

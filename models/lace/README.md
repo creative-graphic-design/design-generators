@@ -90,6 +90,12 @@ weights under `.cache/lace/original`, local reference metadata under
 The commands use `CUDA_VISIBLE_DEVICES=2`; change that value if your CUDA device
 assignment differs.
 
+Prerequisite for a fresh clone:
+
+```bash
+git submodule update --init vendor/lace
+```
+
 1. Download and extract the original checkpoint archive:
 
 ```bash

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Final
+from typing import Final, TypedDict
 
 from laygen.common.labels import (
     PUBLAYNET_LABELS,
@@ -62,6 +62,19 @@ class LaceDatasetSpec:
     def id2label(self) -> dict[int, str]:
         """Return the category id to label mapping."""
         return dict(enumerate(self.labels))
+
+
+class LaceModelConfigKwargs(TypedDict):
+    """Keyword arguments accepted by ``LaceTransformerModel``."""
+
+    seq_dim: int
+    max_seq_length: int
+    num_layers: int
+    dim_transformer: int
+    nhead: int
+    dim_feedforward: int
+    diffusion_step: int
+    timestep_type: str
 
 
 DATASET_SPECS: Final[dict[LaceDatasetName, LaceDatasetSpec]] = {
@@ -134,7 +147,7 @@ def get_dataset_spec(dataset: LaceDatasetName | str) -> LaceDatasetSpec:
     return DATASET_SPECS[normalize_dataset(dataset)]
 
 
-def default_model_config(dataset: LaceDatasetName | str) -> dict[str, Any]:
+def default_model_config(dataset: LaceDatasetName | str) -> LaceModelConfigKwargs:
     """Build the model config for a dataset.
 
     Args:

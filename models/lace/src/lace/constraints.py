@@ -55,13 +55,13 @@ def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Te
 
 def beautify_layout(
     bbox: torch.Tensor,
-    mask: torch.BoolTensor,
+    mask: torch.Tensor,
     overlap_weight: float = 1.0,
     alignment_weight: float = 1.0,
     xy_only: bool = False,
     num_steps: int = 1000,
     lr: float = 1e-4,
-) -> tuple[torch.Tensor, torch.BoolTensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Optimize generated boxes with overlap and alignment penalties.
 
     Args:

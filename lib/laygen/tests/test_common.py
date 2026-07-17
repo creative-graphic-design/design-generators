@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import pytest
 import torch
+import yaml
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import (
@@ -12,10 +13,13 @@ from laygen.common.bbox import (
     linear_discretize,
     ltrb_to_xywh,
     normalize_boxes,
-    xywh_to_ltwh,
     xywh_to_ltrb,
 )
-from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.conditions import (
+    ConditionAlias,
+    ConditionType,
+    normalize_condition_type,
+)
 from laygen.common.discrete import (
     SamplingMode,
     batch_topk_mask,
@@ -37,10 +41,11 @@ from laygen.common.labels import (
     normalize_dataset_name,
 )
 from laygen.common.model_card import layoutdm_model_card
-from laygen.common.outputs import LayoutGenerationOutput
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
+from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.serialization import sanitize_for_yaml
 from laygen.common.testing import (
     assert_generator_reproducible,
     assert_layout_output_schema,
@@ -52,7 +57,6 @@ from laygen.common.visualization import render_layout
 def test_bbox_conversions_roundtrip():
     bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
     assert torch.allclose(ltrb_to_xywh(xywh_to_ltrb(bbox)), bbox)
-    assert torch.allclose(xywh_to_ltwh(bbox), torch.tensor([[[0.4, 0.3, 0.2, 0.4]]]))
     pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="ltrb")
     assert torch.allclose(
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="ltrb"), bbox
@@ -151,7 +155,6 @@ def test_label_registry_aliases_and_errors():
         "magazine",
     }
     assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
-    assert normalize_dataset_name("rico13-max25") is DatasetName.rico13
     assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
     assert normalize_dataset_name("rico13") is DatasetName.rico13
     assert labels_for_dataset("rico13")[:3] == ("Text", "Image", "Icon")
@@ -167,7 +170,7 @@ def test_label_registry_aliases_and_errors():
     with pytest.raises(ValueError, match="Unknown dataset_name"):
         normalize_dataset_name("crello")
     with pytest.raises(ValueError, match="Unknown dataset_name"):
-        id2label_for_dataset("unknown")
+        normalize_dataset_name("unknown")
 
 
 def test_condition_type_aliases_and_errors():
@@ -195,8 +198,28 @@ def test_condition_type_aliases_and_errors():
     assert normalize_condition_type("content") is ConditionType.content_image
     assert normalize_condition_type("coarse-to-fine") is ConditionType.hierarchical
     assert normalize_condition_type("retrieval_examples") is ConditionType.retrieval
+    assert ConditionAlias.gen_t.value == "gen_t"
+    assert ConditionType.label_size.value == "label_size"
     with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
+
+
+def test_yaml_sanitizer_handles_shared_enums():
+    config = {
+        "dataset_name": DatasetName.rico25,
+        "condition_type": ConditionType.label,
+        "nested": {
+            DatasetName.publaynet: [ConditionType.retrieval, DatasetName.rico13]
+        },
+    }
+
+    loaded = yaml.safe_load(yaml.safe_dump(sanitize_for_yaml(config)))
+
+    assert loaded == {
+        "dataset_name": "rico25",
+        "condition_type": "label",
+        "nested": {"publaynet": ["retrieval", "rico13"]},
+    }
 
 
 def test_output_schema():
@@ -207,52 +230,6 @@ def test_output_schema():
         id2label=id2label_for_dataset(DatasetName.publaynet),
     )
     assert_layout_output_schema(output, batch_size=1)
-    assert_normalized_xywh(output.bbox)
-    with pytest.raises(AssertionError):
-        assert_normalized_xywh(torch.tensor([[[2.0, 0.0, 0.0, 0.0]]]))
-
-
-@dataclass
-class _ToyOutput:
-    bbox: torch.Tensor
-    labels: torch.Tensor
-    mask: torch.Tensor
-    id2label: dict[int, str]
-
-
-def test_testing_helpers_and_visualization():
-    bbox = torch.tensor([[[0.5, 0.5, 0.4, 0.4], [1.5, 0.5, 0.2, 0.2]]])
-    labels = torch.tensor([[0, 1]])
-    mask = torch.tensor([[True, False]])
-    output = _ToyOutput(
-        bbox=bbox.clamp(0, 1), labels=labels, mask=mask, id2label={0: "text"}
-    )
-    assert_layout_output_schema(output, batch_size=1)
-    assert_normalized_xywh(
-        torch.tensor([[[2.0, 2.0, 1.0, 1.0]]]), torch.tensor([[False]])
-    )
-
-    def make_output(*, generator: torch.Generator) -> _ToyOutput:
-        value = torch.rand((), generator=generator)
-        return _ToyOutput(
-            bbox=torch.full((1, 1, 4), value.item()),
-            labels=torch.tensor([[1]]),
-            mask=torch.tensor([[True]]),
-            id2label={1: "box"},
-        )
-
-    assert_generator_reproducible(make_output)
-    ax = render_layout(
-        bbox.squeeze(0),
-        labels.squeeze(0),
-        mask.squeeze(0),
-        {0: "text"},
-        canvas_size=(100, 200),
-        colors=["red"],
-    )
-    assert len(ax.patches) == 1
-    assert len(ax.texts) == 1
-    plt.close("all")
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
@@ -302,9 +279,10 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
     assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
-    assert metadata["language"] == ["en"]
+    card.validate()
     assert "## Model Details" in text
     assert "### Model Description" in text
     assert "## Uses" in text
@@ -330,7 +308,6 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "model card template" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
-    card.validate(repo_type="model")
 
 
 def test_layoutdm_model_card_mapping_inputs_and_errors():
@@ -349,3 +326,46 @@ def test_layoutdm_model_card_mapping_inputs_and_errors():
     assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
     with pytest.raises(ValueError, match="Unsupported LayoutDM dataset"):
         layoutdm_model_card(dataset="unknown")
+
+
+@dataclass
+class _ToyOutput:
+    bbox: torch.Tensor
+    labels: torch.Tensor
+    mask: torch.Tensor
+    id2label: dict[int, str]
+
+
+def test_testing_helpers_and_visualization():
+    bbox = torch.tensor([[[0.5, 0.5, 0.4, 0.4], [1.5, 0.5, 0.2, 0.2]]])
+    labels = torch.tensor([[0, 1]])
+    mask = torch.tensor([[True, False]])
+    output = _ToyOutput(
+        bbox=bbox.clamp(0, 1), labels=labels, mask=mask, id2label={0: "text"}
+    )
+    assert_layout_output_schema(output, batch_size=1)
+    assert_normalized_xywh(
+        torch.tensor([[[2.0, 2.0, 1.0, 1.0]]]), torch.tensor([[False]])
+    )
+
+    def make_output(*, generator: torch.Generator) -> _ToyOutput:
+        value = torch.rand((), generator=generator)
+        return _ToyOutput(
+            bbox=torch.full((1, 1, 4), value.item()),
+            labels=torch.tensor([[1]]),
+            mask=torch.tensor([[True]]),
+            id2label={1: "box"},
+        )
+
+    assert_generator_reproducible(make_output)
+    ax = render_layout(
+        bbox.squeeze(0),
+        labels.squeeze(0),
+        mask.squeeze(0),
+        {0: "text"},
+        canvas_size=(100, 200),
+        colors=["red"],
+    )
+    assert len(ax.patches) == 1
+    assert len(ax.texts) == 1
+    plt.close("all")

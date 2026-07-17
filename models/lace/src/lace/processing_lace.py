@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -102,9 +104,9 @@ class LaceProcessor(ConfigMixin):
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list,
-        labels: torch.Tensor | np.ndarray | list,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        bbox: torch.Tensor | np.ndarray | list[object],
+        labels: torch.Tensor | np.ndarray | list[object],
+        mask: torch.Tensor | np.ndarray | list[object] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -283,4 +285,16 @@ class LaceProcessor(ConfigMixin):
             Loaded processor.
         """
         del kwargs
-        return cls.from_config(cls.load_config(path))
+        raw_config = cls.load_config(path)
+        config_obj = raw_config[0] if isinstance(raw_config, tuple) else raw_config
+        config = cast(Mapping[str, object], config_obj)
+        labels_obj = config["labels"]
+        if not isinstance(labels_obj, list | tuple):
+            raise TypeError("processor config labels must be a sequence")
+        max_len_obj = config.get("max_seq_length", 25)
+        max_seq_length = max_len_obj if isinstance(max_len_obj, int) else 25
+        return cls(
+            dataset=str(config["dataset"]),
+            labels=[str(label) for label in labels_obj],
+            max_seq_length=max_seq_length,
+        )

@@ -333,7 +333,7 @@ class LacePipeline(DiffusionPipeline):
         real_layout: torch.Tensor | None,
         completion_ratio: float,
         generator: torch.Generator | None,
-    ) -> torch.BoolTensor | None:
+    ) -> torch.Tensor | None:
         """Build the fixed-channel mask for conditional generation."""
         if real_layout is None or condition_type is ConditionType.refinement:
             return None

@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import Final
 
 
 class DatasetName(StrEnum):
     """Canonical dataset names supported by the shared label registry."""
 
-    rico25 = "rico25"
-    rico13 = "rico13"
-    publaynet = "publaynet"
-    magazine = "magazine"
+    rico25 = auto()
+    rico13 = auto()
+    publaynet = auto()
+    magazine = auto()
 
 
 class Rico25Label(StrEnum):
@@ -93,7 +93,6 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "rico25": DatasetName.rico25,
     "rico25_max25": DatasetName.rico25,
     "rico13": DatasetName.rico13,
-    "rico13_max25": DatasetName.rico13,
     "publaynet": DatasetName.publaynet,
     "publaynet_max25": DatasetName.publaynet,
     "magazine": DatasetName.magazine,

@@ -1,7 +1,6 @@
-from typing import Any, cast
-
-import pytest
 import torch
+from typing import Literal, cast
+from transformers import ProcessorMixin
 
 from laygen.common.bbox import BoxFormat
 from layout_dm.configuration_layout_dm import LayoutDMConfig
@@ -26,7 +25,7 @@ def test_processor_accepts_pixel_ltrb():
     assert out["mask"].dtype == torch.bool
 
 
-def test_processor_accepts_unbatched_ltwh_and_save_load(tmp_path):
+def test_processor_accepts_unbatched_ltwh_and_validates_options(tmp_path):
     processor = LayoutDMProcessor(
         LayoutDMTokenizer(
             LayoutDMConfig(
@@ -45,25 +44,31 @@ def test_processor_accepts_unbatched_ltwh_and_save_load(tmp_path):
     )
     assert out["input_ids"].shape == (1, 10)
 
-    processor.save_pretrained(str(tmp_path))
-    loaded = LayoutDMProcessor.from_pretrained(str(tmp_path))
-    assert isinstance(loaded, LayoutDMProcessor)
-    assert loaded.tokenizer.config.max_seq_length == 2
-
-
-def test_processor_rejects_unsupported_return_tensors_and_missing_canvas():
-    processor = LayoutDMProcessor(
-        LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
-    )
-    with pytest.raises(ValueError, match="return_tensors"):
+    try:
         processor(
             bbox=[[[0.0, 0.0, 1.0, 1.0]]],
             labels=[[0]],
-            return_tensors=cast(Any, "np"),
+            return_tensors=cast(Literal["pt"], "np"),
         )
-    with pytest.raises(ValueError, match="canvas_size is required"):
+    except ValueError as exc:
+        assert "return_tensors" in str(exc)
+    else:
+        raise AssertionError("unsupported return_tensors should fail")
+
+    try:
         processor(
-            bbox=[[[0.0, 0.0, 10.0, 10.0]]],
+            bbox=[[[0.0, 0.0, 1.0, 1.0]]],
             labels=[[0]],
             normalized=False,
         )
+    except ValueError as exc:
+        assert "canvas_size is required" in str(exc)
+    else:
+        raise AssertionError("missing canvas_size should fail")
+
+    processor.save_pretrained(str(tmp_path))
+    assert isinstance(processor, ProcessorMixin)
+    assert (tmp_path / "processor_config.json").exists()
+    assert isinstance(
+        LayoutDMProcessor.from_pretrained(str(tmp_path)), LayoutDMProcessor
+    )

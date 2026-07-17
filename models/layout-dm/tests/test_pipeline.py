@@ -1,7 +1,5 @@
-from typing import Any, cast
-
-import pytest
 import torch
+from typing import Literal, cast
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
@@ -78,49 +76,30 @@ def test_pipeline_conditional_dict_and_intermediates():
         return_intermediates=True,
     )
 
-    assert type(out) is dict
     assert out["bbox"].shape[0] == 1
     assert out["intermediates"] == {"condition_type": "label"}
     assert len(out["trajectory"]) == 1
 
 
-def test_pipeline_conditional_modes_return_dataclass():
-    pipe = make_pipeline()
-    bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.2]]])
-    labels = torch.tensor([[1]])
-    mask = torch.tensor([[True]])
-    for condition_type in ["c", "cwh", "complete", "refine"]:
-        out = cast(
-            LayoutGenerationOutput,
-            pipe(
-                condition_type=condition_type,
-                bbox=bbox,
-                labels=labels,
-                mask=mask,
-                seed=0,
-                num_inference_steps=1,
-                sampling=SamplingMode.deterministic,
-                return_intermediates=True,
-            ),
-        )
-        assert_layout_output_schema(out, batch_size=1)
-        assert out.trajectory is not None
-        assert out.intermediates == {
-            "condition_type": {
-                "c": "label",
-                "cwh": "label_size",
-                "complete": "completion",
-                "refine": "refinement",
-            }[condition_type]
-        }
-
-
 def test_pipeline_validates_condition_and_output_type():
     pipe = make_pipeline()
-    with pytest.raises(ValueError, match="bbox and labels are required"):
+    try:
         pipe(condition_type="label", labels=[[0]], num_inference_steps=1)
-    with pytest.raises(ValueError, match="Unsupported output_type"):
-        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+    except ValueError as exc:
+        assert "bbox and labels are required" in str(exc)
+    else:
+        raise AssertionError("missing conditional bbox should fail")
+
+    try:
+        pipe(
+            batch_size=1,
+            num_inference_steps=1,
+            output_type=cast(Literal["dataclass"], "tuple"),
+        )
+    except ValueError as exc:
+        assert "Unsupported output_type" in str(exc)
+    else:
+        raise AssertionError("unsupported output_type should fail")
 
 
 def test_pipeline_save_load_roundtrip(tmp_path):

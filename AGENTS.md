@@ -125,11 +125,13 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever
   the API can run without heavyweight assets, downloads, or credentials.
 - Each model package README uses a model-card style: overview, install/usage
-  snippet, supported checkpoints/Hub ids, datasets, vendor-parity summary with
-  numbers, license, citation, and original implementation link.
-- Each README includes `Reproducing Vendor Parity` with copy-pasteable commands
-  for download, vendor reference generation, parity tests, conversion, and
-  `from_pretrained` smoke tests.
+  snippet, supported checkpoints/Hub ids, datasets, reproducibility summary
+  with vendor-parity numbers, license, citation, and original implementation
+  link.
+- Each README includes `Reproducibility`, opening with one sentence that states
+  how to reproduce the original-implementation agreement checks, followed by
+  copy-pasteable commands for download, vendor reference generation, parity
+  tests, conversion, and `from_pretrained` smoke tests.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
 - Hub model cards are generated through `laygen.common.model_card` using the

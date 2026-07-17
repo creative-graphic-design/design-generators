@@ -23,8 +23,8 @@ class LaceSchedulerOutput(BaseOutput):
         pred_original_sample: Scheduler estimate of the clean layout tensor.
     """
 
-    prev_sample: torch.FloatTensor
-    pred_original_sample: torch.FloatTensor
+    prev_sample: torch.Tensor
+    pred_original_sample: torch.Tensor
 
 
 class BetaSchedule(StrEnum):

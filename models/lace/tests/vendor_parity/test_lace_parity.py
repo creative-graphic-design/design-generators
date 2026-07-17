@@ -54,7 +54,7 @@ def test_denoiser_logits_match_vendor(dataset: str, checkpoint: str) -> None:
     finally:
         sys.path.pop(0)
     config = default_model_config(dataset)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     vendor = TransformerEncoder(
         num_layers=config["num_layers"],
         dim_seq=config["seq_dim"],
@@ -64,7 +64,7 @@ def test_denoiser_logits_match_vendor(dataset: str, checkpoint: str) -> None:
         diffusion_step=config["diffusion_step"],
         device=device,
     ).eval()
-    model = LaceTransformerModel(**config).to(device).eval()
+    model = LaceTransformerModel(**config).eval()
     state = convert_state_dict(load_vendor_state_dict(path))
     vendor.load_state_dict(state, strict=True)
     model.load_state_dict(state, strict=True)

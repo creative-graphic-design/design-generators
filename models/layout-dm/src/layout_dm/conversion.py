@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 
 from laygen.common.model_card import layoutdm_model_card
+from laygen.common.labels import DatasetName
 
 
 def remap_denoiser_key(key: str) -> str:
@@ -49,7 +50,7 @@ def load_cluster_centers(starter_dir: Path, dataset: str) -> dict[str, list[floa
     return centers
 
 
-def write_layoutdm_model_card(output_dir: Path, dataset: str) -> Path:
+def write_layoutdm_model_card(output_dir: Path, dataset: DatasetName | str) -> Path:
     """Write a LayoutDM model card to a converted pipeline directory."""
     path = output_dir / "README.md"
     path.write_text(str(layoutdm_model_card(dataset=dataset)), encoding="utf-8")

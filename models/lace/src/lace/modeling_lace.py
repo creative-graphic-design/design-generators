@@ -6,7 +6,7 @@ import copy
 import math
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Callable
+from typing import Callable, cast
 
 import torch
 import torch.nn.functional as F
@@ -73,7 +73,7 @@ def normalize_activation(
         ValueError: If the activation name is unsupported.
     """
     if callable(name):
-        return name
+        return cast(ActivationFn, name)
     try:
         return ActivationName(name)
     except ValueError as exc:

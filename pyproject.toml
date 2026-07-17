@@ -3,7 +3,14 @@ name = "design-generators"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+authors = [
+    { name = "Shunsuke Kitada" },
+]
+license = "Apache-2.0"
 requires-python = ">=3.11"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+]
 dependencies = [
     "lace",
     "layout-dm",
@@ -51,11 +58,11 @@ layout-dm = { workspace = true }
 laygen = { workspace = true }
 posgen = { workspace = true }
 
-[tool.ruff.lint]
-extend-select = ["ANN", "D"]
-
 [tool.ruff]
 exclude = ["vendor"]
+
+[tool.ruff.lint]
+extend-select = ["ANN", "D", "TID251"]
 
 [tool.ruff.lint.per-file-ignores]
 "lib/*/tests/*.py" = ["ANN", "D"]
@@ -64,36 +71,30 @@ exclude = ["vendor"]
 "models/*/tests/*.py" = ["ANN", "D"]
 "models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
-"tests/*.py" = ["ANN", "D"]
-"tests/**/*.py" = ["ANN", "D"]
+"tests/*.py" = ["D"]
+"tests/**/*.py" = ["D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.Any".msg = "Use precise types; justify exceptions with noqa + reason"
+
 [tool.ty.rules]
 all = "error"
-invalid-argument-type = "ignore"
-invalid-return-type = "ignore"
 missing-override-decorator = "ignore"
-missing-type-argument = "ignore"
 unsupported-base = "ignore"
 unresolved-import = "ignore"
 
 [tool.ty.src]
-exclude = [
-    "models/common",
-    "models/layout-dm",
-    "models/lace/scripts",
-    "models/lace/tests",
-    "vendor",
-]
+exclude = ["vendor"]
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
 testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
-    "vendor_parity: requires original weights and vendor dependencies",
+    "vendor_parity: requires original model weights and vendor dependencies",
 ]
 
 [tool.coverage.run]
