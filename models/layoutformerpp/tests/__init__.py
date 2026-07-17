@@ -1,1 +1,0 @@
-"""LayoutFormer++ tests package."""
