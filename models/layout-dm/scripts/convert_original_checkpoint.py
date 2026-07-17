@@ -6,6 +6,7 @@ from pathlib import Path
 import torch
 import yaml
 
+from laygen.common.model_card import layoutdm_model_card
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.conversion import load_cluster_centers, split_original_state_dict
 from layout_dm.denoiser import LayoutDMDenoiser
@@ -73,6 +74,10 @@ def main() -> None:
         processor=LayoutDMProcessor(tokenizer),
     )
     pipe.save_pretrained(args.output_dir, safe_serialization=True)
+    (args.output_dir / "README.md").write_text(
+        str(layoutdm_model_card(dataset=args.dataset)),
+        encoding="utf-8",
+    )
     print(args.output_dir)
 
 
