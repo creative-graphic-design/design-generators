@@ -2,6 +2,7 @@
 name = "layout-dm"
 version = "0.1.0"
 description = "Diffusers-style LayoutDM conversion package."
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "diffusers[torch]>=0.36.0",
