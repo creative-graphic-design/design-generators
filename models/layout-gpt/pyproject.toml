@@ -1,0 +1,33 @@
+[project]
+name = "layout-gpt"
+version = "0.1.0"
+description = "Provider-agnostic Pydantic AI agent for LayoutGPT."
+requires-python = ">=3.11"
+dependencies = [
+    "laygen[agents]",
+    "pydantic>=2.0.0",
+    "pydantic-ai>=2.7.0",
+    "torch>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "cssutils>=2.9.0",
+    "numpy>=1.26.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "vendor_parity: deterministic checks that execute read-only vendor code",
+]
