@@ -3,32 +3,61 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import StrEnum
+from typing import Final, assert_never
 
 import torch
 
 from .tokenization_layout_dm import LayoutDMTokenizer
 
 
-CONDITION_ALIASES = {
-    "uncond": "unconditional",
-    "ugen": "unconditional",
-    "c": "label",
-    "cat_cond": "label",
-    "gen_t": "label",
-    "cwh": "label_size",
-    "size_cond": "label_size",
-    "gen_ts": "label_size",
-    "partial": "completion",
-    "complete": "completion",
-    "elem_compl": "completion",
-    "refine": "refinement",
+class ConditionType(StrEnum):
+    """Canonical LayoutDM condition modes."""
+
+    unconditional = "unconditional"
+    label = "label"
+    label_size = "label_size"
+    completion = "completion"
+    refinement = "refinement"
+
+
+class ConditionEncodingType(StrEnum):
+    """Token-mask condition encodings consumed by the scheduler."""
+
+    label = "c"
+    label_size = "cwh"
+    completion = "partial"
+    refinement = "refinement"
+
+
+CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
+    "uncond": ConditionType.unconditional,
+    "ugen": ConditionType.unconditional,
+    "c": ConditionType.label,
+    "cat_cond": ConditionType.label,
+    "gen_t": ConditionType.label,
+    "cwh": ConditionType.label_size,
+    "size_cond": ConditionType.label_size,
+    "gen_ts": ConditionType.label_size,
+    "partial": ConditionType.completion,
+    "complete": ConditionType.completion,
+    "elem_compl": ConditionType.completion,
+    "refine": ConditionType.refinement,
 }
 
 
-def normalize_condition_type(condition_type: str) -> str:
+def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
     """Normalize vendor condition aliases to canonical condition names."""
-    return CONDITION_ALIASES.get(condition_type, condition_type)
+    if isinstance(condition_type, ConditionType):
+        return condition_type
+    if condition_type in CONDITION_ALIASES:
+        return CONDITION_ALIASES[condition_type]
+    try:
+        return ConditionType(condition_type)
+    except ValueError as exc:
+        raise ValueError(
+            f"Unsupported LayoutDM condition_type: {condition_type}"
+        ) from exc
 
 
 @dataclass
@@ -37,7 +66,7 @@ class LayoutDMCondition:
 
     input_ids: torch.Tensor
     mask: torch.Tensor
-    type: Literal["c", "cwh", "partial", "refinement"]
+    type: ConditionEncodingType
     num_element: torch.Tensor | None = None
     original_input_ids: torch.Tensor | None = None
     weak_mask: torch.Tensor | None = None
@@ -75,28 +104,38 @@ def build_condition(
     element_mask = encoded["mask"].reshape(
         ids.shape[0], tokenizer.config.max_seq_length, 5
     )
-    if canonical == "label":
+    if canonical is ConditionType.unconditional:
+        raise NotImplementedError(
+            "Unconditional generation does not build token constraints"
+        )
+    if canonical is ConditionType.label:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
         return LayoutDMCondition(
-            input_ids=ids, mask=strong_mask, type="c", num_element=mask.sum(dim=1)
+            input_ids=ids,
+            mask=strong_mask,
+            type=ConditionEncodingType.label,
+            num_element=mask.sum(dim=1),
         )
-    if canonical == "label_size":
+    if canonical is ConditionType.label_size:
         strong_mask = torch.zeros_like(ids, dtype=torch.bool)
         strong_mask[:, 0::5] = element_mask[..., 0]
         strong_mask[:, 3::5] = element_mask[..., 3]
         strong_mask[:, 4::5] = element_mask[..., 4]
         return LayoutDMCondition(
-            input_ids=ids, mask=strong_mask, type="cwh", num_element=mask.sum(dim=1)
+            input_ids=ids,
+            mask=strong_mask,
+            type=ConditionEncodingType.label_size,
+            num_element=mask.sum(dim=1),
         )
-    if canonical == "completion":
+    if canonical is ConditionType.completion:
         return LayoutDMCondition(
             input_ids=ids,
             mask=encoded["mask"],
-            type="partial",
+            type=ConditionEncodingType.completion,
             num_element=mask.sum(dim=1),
         )
-    if canonical == "refinement":
+    if canonical is ConditionType.refinement:
         original = ids
         if noisy_bbox is not None:
             ids = tokenizer.encode_layout(bbox=noisy_bbox, labels=labels, mask=mask)[
@@ -105,8 +144,8 @@ def build_condition(
         return LayoutDMCondition(
             input_ids=ids,
             mask=encoded["mask"],
-            type="refinement",
+            type=ConditionEncodingType.refinement,
             num_element=mask.sum(dim=1),
             original_input_ids=original,
         )
-    raise NotImplementedError(f"Unsupported LayoutDM condition_type: {cond_type}")
+    assert_never(canonical)

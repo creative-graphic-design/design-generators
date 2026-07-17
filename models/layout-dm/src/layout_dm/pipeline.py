@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, assert_never
 
 import numpy as np
 import torch
@@ -14,12 +15,29 @@ from laygen.common.discrete import log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
-from .conditioning import build_condition, normalize_condition_type
+from .conditioning import ConditionType, build_condition, normalize_condition_type
 from .denoiser import LayoutDMDenoiser
 from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
 from .scheduler import LayoutDMScheduler
 from .tokenization_layout_dm import LayoutDMTokenizer
+
+
+class OutputType(StrEnum):
+    """Supported pipeline output containers."""
+
+    dataclass = "dataclass"
+    dict = "dict"
+
+
+def normalize_output_type(output_type: OutputType | str) -> OutputType:
+    """Normalize a public output type value to ``OutputType``."""
+    if isinstance(output_type, OutputType):
+        return output_type
+    try:
+        return OutputType(output_type)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported output_type: {output_type}") from exc
 
 
 class LayoutDMPipeline(DiffusionPipeline):
@@ -81,7 +99,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         temperature: float = 1.0,
         top_k: int = 5,
         top_p: float = 0.9,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
@@ -121,7 +139,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             generator = torch.Generator(device=self.device).manual_seed(seed)
         canonical = normalize_condition_type(condition_type)
         condition = None
-        if canonical != "unconditional":
+        if canonical is not ConditionType.unconditional:
             if bbox is None or labels is None:
                 raise ValueError(
                     f"bbox and labels are required for condition_type={condition_type}"
@@ -194,11 +212,12 @@ class LayoutDMPipeline(DiffusionPipeline):
             if return_intermediates
             else None,
         )
-        if output_type == "dict":
+        normalized_output_type = normalize_output_type(output_type)
+        if normalized_output_type is OutputType.dict:
             return dict(output)
-        if output_type != "dataclass":
-            raise ValueError(f"Unsupported output_type: {output_type}")
-        return output
+        if normalized_output_type is OutputType.dataclass:
+            return output
+        assert_never(normalized_output_type)
 
     generate = __call__
 

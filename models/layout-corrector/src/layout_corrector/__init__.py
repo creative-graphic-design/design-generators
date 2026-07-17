@@ -3,9 +3,10 @@
 from .configuration_layout_corrector import LayoutCorrectorConfig
 from .corrector import LayoutCorrectorModel, LayoutCorrectorOutput
 from .pipeline import LayoutCorrectorPipeline
-from .sampling import LayoutCorrectorSamplingConfig
+from .sampling import CorrectorMaskMode, LayoutCorrectorSamplingConfig
 
 __all__ = [
+    "CorrectorMaskMode",
     "LayoutCorrectorConfig",
     "LayoutCorrectorModel",
     "LayoutCorrectorOutput",

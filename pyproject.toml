@@ -27,8 +27,10 @@ training = [
 
 [dependency-groups]
 dev = [
+    "mkdocs-gen-files>=0.6.1",
     "pre-commit>=4.6.0",
     "pytest>=6.0.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
@@ -90,6 +92,19 @@ markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original model weights and vendor dependencies",
 ]
+
+[tool.coverage.run]
+branch = true
+omit = [
+    "tests/*",
+    "tests/**/*",
+    "scripts/*",
+    "scripts/**/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.vulture]
 min_confidence = 70

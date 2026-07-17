@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Any, Sequence, assert_never
 
 import numpy as np
 import torch
@@ -15,8 +15,11 @@ from layout_dm.conditioning import (
     normalize_condition_type,
 )
 from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.pipeline import OutputType, normalize_output_type
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
+from laygen.common.bbox import BoxFormat
+from laygen.common.discrete import SamplingMode
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
@@ -24,6 +27,7 @@ from .corrector import LayoutCorrectorModel
 from .sampling import (
     LayoutCorrectorSamplingConfig,
     add_confidence_gumbel_noise,
+    CorrectorMaskMode,
     select_tokens_to_remask,
     should_apply_corrector,
 )
@@ -75,17 +79,15 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str = "unconditional",
-        labels: torch.Tensor | np.ndarray | list | None = None,
-        bbox: torch.Tensor | np.ndarray | list | None = None,
-        mask: torch.Tensor | np.ndarray | list | None = None,
+        labels: torch.Tensor | np.ndarray | list[Any] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
+        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
-        sampling: Literal[
-            "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
-        ] = "random",
+        sampling: SamplingMode | str = SamplingMode.random,
         temperature: float = 1.0,
         top_k: int = 5,
         top_p: float = 0.9,
@@ -93,13 +95,13 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         corrector_t_list: Sequence[int] | None = None,
         corrector_start: int = -1,
         corrector_end: int = -1,
-        corrector_mask_mode: Literal["thresh", "topk"] | None = None,
+        corrector_mask_mode: CorrectorMaskMode | str | None = None,
         corrector_mask_threshold: float | None = None,
         corrector_temperature: float | None = None,
         use_gumbel_noise: bool | None = None,
         gumbel_temperature: float | None = None,
         time_adaptive_temperature: bool | None = None,
-        output_type: Literal["dataclass", "dict"] = "dataclass",
+        output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
@@ -276,11 +278,12 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             if return_intermediates
             else None,
         )
-        if output_type == "dict":
+        normalized_output_type = normalize_output_type(output_type)
+        if normalized_output_type is OutputType.dict:
             return dict(output)
-        if output_type != "dataclass":
-            raise ValueError(f"Unsupported output_type: {output_type}")
-        return output
+        if normalized_output_type is OutputType.dataclass:
+            return output
+        assert_never(normalized_output_type)
 
     generate = __call__
 

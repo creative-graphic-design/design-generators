@@ -86,7 +86,7 @@ Prerequisites: run from the repository root and use an environment with CUDA whe
 1. Download the original starter kit. This creates `.cache/layout-corrector/original/layout_corrector_starter.zip` and extracts `.cache/layout-corrector/original/layout_corrector_starter_kit/download`.
 
 ```bash
-uv run --package layout-corrector python models/layout-corrector/scripts/download_original.py \
+uv run --package layout-corrector --extra download python models/layout-corrector/scripts/download_original.py \
   --output-dir .cache/layout-corrector/original
 ```
 
@@ -128,7 +128,7 @@ done
 5. Run parity. This executes nine checks and prints exact-match and logits tolerance values.
 
 ```bash
-CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector pytest \
+CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector --extra vendor pytest \
   models/layout-corrector/tests/vendor_parity \
   -q -m vendor_parity -s
 ```
@@ -136,7 +136,7 @@ CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector pytest \
 6. Convert a Layout-Corrector checkpoint and run a `from_pretrained` smoke test.
 
 ```bash
-uv run --package layout-corrector python models/layout-corrector/scripts/convert_original_checkpoint.py \
+uv run --package layout-corrector --extra convert python models/layout-corrector/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download \
   --corrector-job-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download/pretrained_weights/rico25/layout_corrector/0 \

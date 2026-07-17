@@ -14,10 +14,10 @@ From the repository root:
 uv sync --package layout-dm
 ```
 
-For conversion from the original checkpoint bundle:
+For download and conversion from the original checkpoint bundle:
 
 ```bash
-uv sync --package layout-dm --extra convert
+uv sync --package layout-dm --extra download --extra convert
 ```
 
 ## Usage
@@ -79,7 +79,7 @@ Run these commands from the repository root unless a block explicitly changes di
 This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+uv run --package layout-dm --extra download python models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original
 ```
 
@@ -136,7 +136,7 @@ uv run --package layout-dm --extra convert python models/layout-dm/scripts/conve
 ### 4. Run Vendor Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
 ```
 
 Expected result with the fixtures and converted checkpoints above:

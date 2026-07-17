@@ -3,11 +3,38 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import StrEnum
+from typing import assert_never
 
 import torch
 
-from laygen.common.discrete import batch_topk_mask, gumbel_noise_like
+from laygen.common.discrete import (
+    SamplingMode,
+    batch_topk_mask,
+    gumbel_noise_like,
+    normalize_sampling_mode,
+)
+
+
+class CorrectorMaskMode(StrEnum):
+    """Supported token remasking modes for Layout-Corrector."""
+
+    thresh = "thresh"
+    topk = "topk"
+
+
+def normalize_corrector_mask_mode(
+    corrector_mask_mode: CorrectorMaskMode | str,
+) -> CorrectorMaskMode:
+    """Normalize a public remasking mode to ``CorrectorMaskMode``."""
+    if isinstance(corrector_mask_mode, CorrectorMaskMode):
+        return corrector_mask_mode
+    try:
+        return CorrectorMaskMode(corrector_mask_mode)
+    except ValueError as exc:
+        raise ValueError(
+            f"Unsupported corrector mask mode: {corrector_mask_mode}"
+        ) from exc
 
 
 @dataclass
@@ -39,9 +66,7 @@ class LayoutCorrectorSamplingConfig:
         (10,)
     """
 
-    sampling: Literal[
-        "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
-    ] = "random"
+    sampling: SamplingMode | str = SamplingMode.random
     temperature: float = 1.0
     top_k: int = 5
     top_p: float = 0.9
@@ -50,12 +75,19 @@ class LayoutCorrectorSamplingConfig:
     corrector_t_list: tuple[int, ...] = (10, 20, 30)
     corrector_start: int = -1
     corrector_end: int = -1
-    corrector_mask_mode: Literal["thresh", "topk"] = "thresh"
+    corrector_mask_mode: CorrectorMaskMode | str = CorrectorMaskMode.thresh
     corrector_mask_threshold: float = 0.7
     corrector_temperature: float = 1.0
     use_gumbel_noise: bool = True
     gumbel_temperature: float = 1.0
     time_adaptive_temperature: bool = False
+
+    def __post_init__(self) -> None:
+        """Normalize public string modes to enum values."""
+        self.sampling = normalize_sampling_mode(self.sampling)
+        self.corrector_mask_mode = normalize_corrector_mask_mode(
+            self.corrector_mask_mode
+        )
 
 
 def should_apply_corrector(
@@ -141,7 +173,7 @@ def select_tokens_to_remask(
     confidence_logits: torch.FloatTensor,
     *,
     mask_ratio: float,
-    mode: Literal["thresh", "topk"],
+    mode: CorrectorMaskMode | str,
     threshold: float,
     temperature: float = 1.0,
 ) -> torch.BoolTensor:
@@ -167,10 +199,11 @@ def select_tokens_to_remask(
     """
     if confidence_logits.ndim != 2:
         raise ValueError("confidence_logits must be rank-2")
-    if mode == "thresh":
+    normalized_mode = normalize_corrector_mask_mode(mode)
+    if normalized_mode is CorrectorMaskMode.thresh:
         confidence = torch.sigmoid(confidence_logits / temperature)
         return confidence < threshold
-    if mode == "topk":
+    if normalized_mode is CorrectorMaskMode.topk:
         num_token = confidence_logits.shape[1]
         k = torch.full(
             (confidence_logits.shape[0],),
@@ -179,4 +212,4 @@ def select_tokens_to_remask(
             dtype=torch.long,
         )
         return batch_topk_mask(-confidence_logits, k)
-    raise ValueError(f"Unsupported corrector mask mode: {mode}")
+    assert_never(normalized_mode)

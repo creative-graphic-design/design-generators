@@ -1,11 +1,14 @@
 import torch
+import pytest
 
 from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
+from layout_corrector import CorrectorMaskMode
 from layout_dm import (
     LayoutDMDenoiser,
     LayoutDMPipeline,
     LayoutDMScheduler,
     LayoutDMTokenizer,
+    OutputType,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
@@ -128,3 +131,67 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     assert isinstance(output, LayoutGenerationOutput)
     assert output.id2label is not None
     assert output.id2label[4] == "figure"
+
+
+def test_pipeline_accepts_enum_modes_and_dict_output():
+    pipe = tiny_pipeline()
+
+    output = pipe(
+        batch_size=1,
+        seed=7,
+        num_inference_steps=1,
+        sampling="deterministic",
+        corrector_t_list=(),
+        corrector_mask_mode=CorrectorMaskMode.topk,
+        output_type=OutputType.dict,
+    )
+
+    assert isinstance(output, dict)
+    assert output["bbox"].shape == (1, 2, 4)
+
+
+def test_pipeline_rejects_unknown_output_type():
+    pipe = tiny_pipeline()
+
+    with pytest.raises(ValueError, match="Unsupported output_type"):
+        pipe(batch_size=1, num_inference_steps=1, output_type="tuple")
+
+
+def test_pipeline_runs_conditioned_corrector_branch_with_intermediates():
+    pipe = tiny_pipeline()
+
+    output = pipe(
+        seed=0,
+        condition_type="label",
+        labels=[[0, 1]],
+        bbox=[[[0.5, 0.5, 0.2, 0.2], [0.25, 0.25, 0.1, 0.1]]],
+        mask=[[True, False]],
+        num_inference_steps=2,
+        sampling="deterministic",
+        corrector_t_list=(2,),
+        corrector_steps=1,
+        corrector_mask_mode=CorrectorMaskMode.thresh,
+        corrector_mask_threshold=0.5,
+        use_gumbel_noise=True,
+        time_adaptive_temperature=True,
+        return_intermediates=True,
+    )
+
+    assert isinstance(output, LayoutGenerationOutput)
+    assert output.scores is not None
+    assert output.trajectory is not None
+    assert output.intermediates == {"condition_type": "label"}
+
+
+def test_pipeline_requires_conditioned_bbox_and_labels():
+    pipe = tiny_pipeline()
+
+    with pytest.raises(ValueError, match="bbox and labels"):
+        pipe(condition_type="label", labels=[[0]], num_inference_steps=1)
+
+
+def test_pipeline_mask_ratio_clamps_timestep_range():
+    pipe = tiny_pipeline()
+
+    assert pipe._mask_ratio(torch.tensor([-1])) == 0.0
+    assert pipe._mask_ratio(torch.tensor([999])) == 1.0

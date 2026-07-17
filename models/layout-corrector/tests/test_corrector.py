@@ -1,6 +1,8 @@
 import torch
+import pytest
 
 from layout_corrector import LayoutCorrectorModel
+from layout_corrector.corrector import AggregatedCategoricalTransformer
 
 
 def tiny_model(**kwargs):
@@ -39,3 +41,39 @@ def test_padding_positions_forced_high_when_not_vocab():
     logits = model.calc_confidence_score(input_ids, timesteps, padding_mask)
 
     assert torch.equal(logits[:, -2:], torch.full((1, 2), 1000.0))
+
+
+def test_corrector_model_accepts_position_embedding_branch():
+    model = tiny_model(pos_emb="default", timestep_type=None)
+    output = model(
+        input_ids=torch.randint(0, 16, (1, 10)),
+        timesteps=torch.tensor([1]),
+    )
+
+    assert output.logits.shape == (1, 10)
+
+
+def test_corrector_model_rejects_unsupported_modes():
+    with pytest.raises(ValueError, match="recon_type"):
+        tiny_model(recon_type="bad")
+    with pytest.raises(ValueError, match="target"):
+        tiny_model(target="bad")
+    with pytest.raises(ValueError, match="transformer_type"):
+        tiny_model(transformer_type="bad")
+
+
+def test_aggregated_transformer_rejects_bad_token_length():
+    with pytest.raises(ValueError, match="max_token_length"):
+        AggregatedCategoricalTransformer(
+            vocab_size=16,
+            max_token_length=11,
+            hidden_size=8,
+            num_attention_heads=2,
+            num_hidden_layers=1,
+            intermediate_size=16,
+            dropout=0.0,
+            timestep_type=None,
+            pos_emb="none",
+            num_attributes_per_element=5,
+            num_timesteps=10,
+        )

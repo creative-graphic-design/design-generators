@@ -1,11 +1,12 @@
 import torch
+import pytest
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser
-from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.pipeline import LayoutDMPipeline, OutputType
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.scheduler import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
@@ -72,3 +73,25 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     )
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
+
+
+def test_pipeline_accepts_output_type_enum_and_dict_output():
+    pipe = make_pipeline()
+
+    out = pipe(
+        batch_size=1,
+        seed=0,
+        num_inference_steps=1,
+        sampling=SamplingMode.deterministic,
+        output_type=OutputType.dict,
+    )
+
+    assert isinstance(out, dict)
+    assert out["bbox"].shape[-1] == 4
+
+
+def test_pipeline_rejects_unknown_output_type():
+    pipe = make_pipeline()
+
+    with pytest.raises(ValueError, match="Unsupported output_type"):
+        pipe(batch_size=1, num_inference_steps=1, output_type="tuple")
