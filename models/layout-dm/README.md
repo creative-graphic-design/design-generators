@@ -130,6 +130,13 @@ Expected result with the fixtures above:
 
 The conversion step writes Diffusers pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a `README.md` model card.
 
+Expected local output roots:
+
+```text
+.cache/layout-dm/converted/layoutdm-rico25/
+.cache/layout-dm/converted/layoutdm-publaynet/
+```
+
 ```bash
 cd models/layout-dm
 uv run --package layout-dm --extra convert python scripts/convert_original_checkpoint.py \
@@ -161,10 +168,6 @@ for dataset in ("rico25", "publaynet"):
     print(dataset, out.bbox.shape, out.labels.shape)
 PY
 ```
-
-## Model Cards
-
-Each converted output directory includes a `README.md` model card.
 
 ## Vendor Links
 

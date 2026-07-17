@@ -87,11 +87,7 @@ def build_layout_model_card(
         model_summary=(
             f"{model_name} is a {library_name}-format checkpoint for layout generation."
         ),
-        model_description=(
-            f"{model_details}\n\n"
-            "This card follows the Hugging Face Hub model card template and "
-            "the annotated model card section structure."
-        ),
+        model_description=model_details,
         developers=developed_by,
         funded_by=(
             "Funding for the original checkpoint is not separately reported in this "
