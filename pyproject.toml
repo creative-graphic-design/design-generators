@@ -5,8 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "layout-generation-common",
-    "layoutprompter",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -28,6 +26,7 @@ training = [
 dev = [
     "pre-commit>=4.6.0",
     "pytest>=6.0.0",
+    "pytest-cov>=7.0.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
@@ -61,12 +60,6 @@ testpaths = ["tests", "src"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: tests that execute read-only vendor reference code",
-]
-
-[tool.uv.workspace]
-members = [
-    "models/common",
-    "models/layoutprompter",
 ]
 
 [tool.uv.sources]

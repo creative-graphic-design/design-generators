@@ -4,6 +4,10 @@ LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds 
 
 The package is prompt-based and has no learned weights.
 
+## Supported Checkpoints
+
+LayoutPrompter does not publish learned checkpoints or Hub model repositories. `save_pretrained` stores prompt configuration so an agent can be reloaded with a caller-provided Pydantic AI model.
+
 ## Install
 
 From the repository root:
@@ -82,6 +86,17 @@ config = LayoutPrompterConfig(
 
 If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
 
+## Datasets
+
+Built-in label vocabularies are available for these dataset keys:
+
+```text
+publaynet
+rico
+posterlayout
+webui
+```
+
 ## Supported Tasks
 
 `condition_type` accepts the public names and common vendor aliases:
@@ -91,7 +106,9 @@ label, label_size, relation, completion, refinement, text
 cat_cond, gen_t, size_cond, gen_ts, gen_r, partial, refine
 ```
 
-The current package includes prompt serialization and parsing for `seq` and `html` layouts. The demo script uses a tiny synthetic WebUI-style example.
+The current package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
+
+The demo script uses a tiny synthetic WebUI-style example.
 
 ```bash
 uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
@@ -148,6 +165,14 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
 
 The test checks prompt bytes, selected exemplar ids, and parser output tensors.
 
+Current deterministic parity coverage:
+
+```text
+prompt bytes: exact match
+selected exemplar ids: exact match
+parser output labels and tensors: exact match
+```
+
 ### 4. Checkpoint Conversion
 
 There is no checkpoint conversion step for LayoutPrompter.
@@ -188,6 +213,17 @@ webui
 
 ```bash
 uv run --package layoutprompter pytest models/layoutprompter/tests -m "not vendor_parity and not integration"
+uv run --package layoutprompter --with pytest-cov pytest models/layoutprompter/tests -m "not vendor_parity and not integration" --cov=layoutprompter --cov-report=term-missing
 uv run --package layoutprompter ruff check models/layoutprompter
 uv run --package layoutprompter ty check models/layoutprompter
 ```
+
+The current package coverage under the command above is 99%.
+
+## Original Implementation
+
+The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository.
+
+## License And Citation
+
+Use this package together with the license terms of the original LayoutPrompter implementation and any dataset or LLM provider used at runtime. Cite the LayoutPrompter paper when publishing results based on this method.

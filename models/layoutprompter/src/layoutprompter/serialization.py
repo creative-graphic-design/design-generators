@@ -6,7 +6,13 @@ from typing import Any
 
 from typing_extensions import override
 
-from layoutprompter.data import CANVAS_SIZE, LAYOUT_DOMAIN, id2label
+from layoutprompter.data import (
+    CANVAS_SIZE,
+    LAYOUT_DOMAIN,
+    LayoutPrompterDataset,
+    id2label,
+    normalize_dataset,
+)
 
 PREAMBLE = (
     "Please generate a layout based on the given information. "
@@ -385,7 +391,7 @@ SERIALIZER_MAP: dict[str, type[Serializer]] = {
 
 
 def create_serializer(
-    dataset: str,
+    dataset: LayoutPrompterDataset | str,
     task: str,
     input_format: str,
     output_format: str,
@@ -395,11 +401,12 @@ def create_serializer(
     add_unk_token: bool = False,
 ) -> Serializer:
     """Create a task serializer."""
-    width, height = CANVAS_SIZE[dataset]
+    normalized_dataset = normalize_dataset(dataset)
+    width, height = CANVAS_SIZE[normalized_dataset]
     return SERIALIZER_MAP[task](
         input_format=input_format,
         output_format=output_format,
-        index2label=id2label(dataset),
+        index2label=id2label(normalized_dataset),
         canvas_width=width,
         canvas_height=height,
         add_index_token=add_index_token,
@@ -412,16 +419,19 @@ def build_prompt(
     serializer: Serializer,
     exemplars: list[dict[str, Any]],
     test_data: dict[str, Any],
-    dataset: str,
+    dataset: LayoutPrompterDataset | str,
     *,
     max_length: int = 8000,
     separator_in_samples: str = "\n",
     separator_between_samples: str = "\n\n",
 ) -> str:
     """Build the final few-shot LayoutPrompter prompt."""
+    normalized_dataset = normalize_dataset(dataset)
     prompt = [
         PREAMBLE.format(
-            serializer.task_type, LAYOUT_DOMAIN[dataset], *CANVAS_SIZE[dataset]
+            serializer.task_type,
+            LAYOUT_DOMAIN[normalized_dataset],
+            *CANVAS_SIZE[normalized_dataset],
         )
     ]
     for exemplar in exemplars:

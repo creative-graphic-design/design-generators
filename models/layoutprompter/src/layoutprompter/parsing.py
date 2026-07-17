@@ -8,20 +8,28 @@ import torch
 
 from layout_generation_common.bbox import normalize_boxes
 from layout_generation_common.outputs import LayoutGenerationOutput
-from layoutprompter.data import CANVAS_SIZE, id2label, label2id
+from layoutprompter.data import (
+    CANVAS_SIZE,
+    LayoutPrompterDataset,
+    id2label,
+    label2id,
+    normalize_dataset,
+)
 from layoutprompter.schemas import LayoutPrompterOutput
 
 
 class Parser:
     """Parse raw or structured predictions into the common output schema."""
 
-    def __init__(self, dataset: str, output_format: str) -> None:
+    def __init__(
+        self, dataset: LayoutPrompterDataset | str, output_format: str
+    ) -> None:
         """Create a parser for one dataset and output format."""
-        self.dataset = dataset
+        self.dataset = normalize_dataset(dataset)
         self.output_format = output_format
-        self.id2label = id2label(dataset)
-        self.label2id = label2id(dataset)
-        self.canvas_size = CANVAS_SIZE[dataset]
+        self.id2label = id2label(self.dataset)
+        self.label2id = label2id(self.dataset)
+        self.canvas_size = CANVAS_SIZE[self.dataset]
 
     def parse_one(
         self, prediction: str | LayoutPrompterOutput

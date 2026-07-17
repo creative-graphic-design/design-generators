@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
-DATASET_LABELS: dict[str, tuple[str, ...]] = {
-    "publaynet": ("text", "title", "list", "table", "figure"),
-    "rico": (
+from enum import StrEnum
+from typing import Final
+
+
+class LayoutPrompterDataset(StrEnum):
+    """Supported LayoutPrompter dataset vocabularies."""
+
+    PUBLAYNET = "publaynet"
+    RICO = "rico"
+    POSTERLAYOUT = "posterlayout"
+    WEBUI = "webui"
+
+
+DATASET_LABELS: Final[dict[LayoutPrompterDataset, tuple[str, ...]]] = {
+    LayoutPrompterDataset.PUBLAYNET: ("text", "title", "list", "table", "figure"),
+    LayoutPrompterDataset.RICO: (
         "text",
         "image",
         "icon",
@@ -31,8 +44,8 @@ DATASET_LABELS: dict[str, tuple[str, ...]] = {
         "number stepper",
         "date picker",
     ),
-    "posterlayout": ("text", "logo", "underlay"),
-    "webui": (
+    LayoutPrompterDataset.POSTERLAYOUT: ("text", "logo", "underlay"),
+    LayoutPrompterDataset.WEBUI: (
         "text",
         "link",
         "button",
@@ -46,26 +59,34 @@ DATASET_LABELS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-CANVAS_SIZE: dict[str, tuple[int, int]] = {
-    "rico": (90, 160),
-    "publaynet": (120, 160),
-    "posterlayout": (102, 150),
-    "webui": (120, 120),
+CANVAS_SIZE: Final[dict[LayoutPrompterDataset, tuple[int, int]]] = {
+    LayoutPrompterDataset.RICO: (90, 160),
+    LayoutPrompterDataset.PUBLAYNET: (120, 160),
+    LayoutPrompterDataset.POSTERLAYOUT: (102, 150),
+    LayoutPrompterDataset.WEBUI: (120, 120),
 }
 
-LAYOUT_DOMAIN: dict[str, str] = {
-    "rico": "android",
-    "publaynet": "document",
-    "posterlayout": "poster",
-    "webui": "web",
+LAYOUT_DOMAIN: Final[dict[LayoutPrompterDataset, str]] = {
+    LayoutPrompterDataset.RICO: "android",
+    LayoutPrompterDataset.PUBLAYNET: "document",
+    LayoutPrompterDataset.POSTERLAYOUT: "poster",
+    LayoutPrompterDataset.WEBUI: "web",
 }
 
 
-def id2label(dataset: str) -> dict[int, str]:
+def normalize_dataset(dataset: LayoutPrompterDataset | str) -> LayoutPrompterDataset:
+    """Return a supported dataset enum from a public string value."""
+    try:
+        return LayoutPrompterDataset(dataset)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported dataset: {dataset}") from exc
+
+
+def id2label(dataset: LayoutPrompterDataset | str) -> dict[int, str]:
     """Return public 0-based dataset-local label mapping."""
-    return dict(enumerate(DATASET_LABELS[dataset]))
+    return dict(enumerate(DATASET_LABELS[normalize_dataset(dataset)]))
 
 
-def label2id(dataset: str) -> dict[str, int]:
+def label2id(dataset: LayoutPrompterDataset | str) -> dict[str, int]:
     """Return public 0-based dataset-local label ids."""
     return {label: index for index, label in id2label(dataset).items()}
