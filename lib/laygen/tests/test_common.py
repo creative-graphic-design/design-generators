@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+
+import matplotlib.pyplot as plt
 import pytest
 import torch
 from transformers.utils import ModelOutput
@@ -25,15 +28,22 @@ from laygen.common.discrete import (
     sample_categorical,
     top_k_logits,
 )
-from laygen.common.labels import DatasetName, id2label_for_dataset
+from laygen.common.labels import (
+    DatasetName,
+    id2label_for_dataset,
+    label2id_for_dataset,
+    labels_for_dataset,
+    normalize_dataset_name,
+)
 from laygen.common.model_card import layoutdm_model_card
+from laygen.common.outputs import LayoutGenerationOutput
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
-from laygen.common.outputs import LayoutGenerationOutput
 from laygen.common.testing import (
     assert_generator_reproducible,
     assert_layout_output_schema,
+    assert_normalized_xywh,
 )
 from laygen.common.visualization import render_layout
 
@@ -46,18 +56,12 @@ def test_bbox_conversions_roundtrip():
     assert torch.allclose(
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="ltrb"), bbox
     )
-    ltwh_pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="ltwh")
-    assert torch.allclose(
-        normalize_boxes(ltwh_pixels, canvas_size=(100, 200), box_format="ltwh"), bbox
-    )
-    xywh_pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="xywh")
-    assert torch.allclose(
-        normalize_boxes(xywh_pixels, canvas_size=(100, 200), box_format="xywh"), bbox
-    )
-    pixels_from_enum = denormalize_boxes(
-        bbox, canvas_size=(100, 200), box_format=BoxFormat.ltrb
-    )
-    assert torch.allclose(pixels_from_enum, pixels)
+    for box_format in (BoxFormat.ltrb, BoxFormat.ltwh, BoxFormat.xywh):
+        pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format=box_format)
+        assert torch.allclose(
+            normalize_boxes(pixels, canvas_size=(100, 200), box_format=box_format),
+            bbox,
+        )
     with pytest.raises(ValueError, match="Unsupported box_format"):
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="bad")
 
@@ -82,7 +86,8 @@ def test_discrete_sampling_helpers_cover_modes():
     with pytest.raises(ValueError, match="Unsupported sampling mode"):
         normalize_sampling_mode("unknown")
     assert torch.equal(
-        sample_categorical(logits, sampling="deterministic"), torch.tensor([[2, 0]])
+        sample_categorical(logits, sampling=SamplingMode.deterministic),
+        torch.tensor([[2, 0]]),
     )
 
     generator = torch.Generator().manual_seed(0)
@@ -103,31 +108,51 @@ def test_discrete_sampling_helpers_cover_modes():
         )
         assert sampled.shape == logits.shape[:-1]
 
-    assert torch.equal(
-        top_k_logits(logits, k=0),
-        logits,
-    )
+    assert torch.equal(top_k_logits(logits, k=0), logits)
     masked = top_k_logits(logits, k=1)
     assert masked[0, 0, 0].item() == pytest.approx(-70.0)
     assert torch.allclose(
         log_add_exp(torch.tensor([0.0]), torch.tensor([0.0])),
         torch.tensor([torch.log(torch.tensor(2.0))]),
     )
-    gathered = extract(torch.arange(4.0), torch.tensor([1, 3]), torch.Size([2, 3, 4]))
-    assert gathered.shape == (2, 1, 1)
+    assert extract(
+        torch.arange(4.0), torch.tensor([1, 3]), torch.Size([2, 3, 4])
+    ).shape == (
+        2,
+        1,
+        1,
+    )
     assert gumbel_noise_like(torch.zeros(2, 3), generator=generator).shape == (2, 3)
     assert log_sample_categorical(logits.movedim(-1, 1), generator=generator).shape == (
         1,
         2,
     )
+
+
+def test_batch_topk_mask_edges():
+    scores = torch.tensor([[1.0, 3.0, 2.0], [2.0, 1.0, 0.0]])
     assert torch.equal(
-        batch_topk_mask(
-            torch.tensor([[1.0, 3.0, 2.0], [2.0, 1.0, 0.0]]), torch.tensor([2, 0])
-        ),
+        batch_topk_mask(scores, torch.tensor([2, 0])),
         torch.tensor([[False, True, True], [False, False, False]]),
     )
+    assert not batch_topk_mask(scores, torch.tensor([0, 0])).any()
     with pytest.raises(ValueError, match="rank-2"):
-        batch_topk_mask(torch.zeros(1, 1, 1), torch.tensor([1]))
+        batch_topk_mask(scores.unsqueeze(0), torch.tensor([1]))
+
+
+def test_label_registry_aliases_and_errors():
+    assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
+    assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
+    assert labels_for_dataset("publaynet") == (
+        "text",
+        "title",
+        "list",
+        "table",
+        "figure",
+    )
+    assert label2id_for_dataset("rico25")["Text"] == 0
+    with pytest.raises(ValueError, match="Unknown dataset_name"):
+        normalize_dataset_name("unknown")
 
 
 def test_output_schema():
@@ -140,9 +165,17 @@ def test_output_schema():
     assert_layout_output_schema(output, batch_size=1)
 
 
+@dataclass
+class _ToyOutput:
+    bbox: torch.Tensor
+    labels: torch.Tensor
+    mask: torch.Tensor
+    id2label: dict[int, str]
+
+
 def test_testing_helper_checks_generator_reproducibility():
-    def sample(*, generator: torch.Generator) -> LayoutGenerationOutput:
-        return LayoutGenerationOutput(
+    def sample(*, generator: torch.Generator) -> _ToyOutput:
+        return _ToyOutput(
             bbox=torch.rand(1, 2, 4, generator=generator),
             labels=torch.zeros(1, 2, dtype=torch.long),
             mask=torch.ones(1, 2, dtype=torch.bool),
@@ -150,6 +183,9 @@ def test_testing_helper_checks_generator_reproducibility():
         )
 
     assert_generator_reproducible(sample)
+    assert_normalized_xywh(
+        torch.tensor([[[2.0, 2.0, 1.0, 1.0]]]), torch.tensor([[False]])
+    )
 
 
 def test_render_layout_adds_patches_and_text():
@@ -166,6 +202,7 @@ def test_render_layout_adds_patches_and_text():
     )
     assert len(ax.patches) == 2
     assert [text.get_text() for text in ax.texts] == ["text", "99"]
+    plt.close("all")
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
@@ -244,4 +281,21 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "model card template" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
-    assert "[More Information Needed]" not in text
+
+
+def test_layoutdm_model_card_mapping_inputs_and_errors():
+    card = layoutdm_model_card(
+        dataset="publaynet",
+        parity_metrics=[
+            {
+                "dataset": "publaynet",
+                "tokenizer_exact": "1/1",
+                "deterministic_exact": "1/1",
+                "logits_max_abs": 0.0,
+                "logits_max_rel": 0.0,
+            }
+        ],
+    )
+    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
+    with pytest.raises(ValueError, match="Unsupported LayoutDM dataset"):
+        layoutdm_model_card(dataset="unknown")
