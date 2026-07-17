@@ -139,14 +139,15 @@ Write `models/<slug>/README.md` in model-card style. Include:
 - install and `from_pretrained` usage
 - supported checkpoints and intended Hub ids
 - datasets and pinned configs
-- vendor-parity summary with numbers
+- reproducibility summary with vendor-parity numbers
 - license status and citation
-- `Reproducing Vendor Parity`
+- `Reproducibility`
 
-The `Reproducing Vendor Parity` section must be copy-pasteable and ordered:
-download vendor assets, generate vendor references with `CUDA_VISIBLE_DEVICES`,
-run `pytest -m vendor_parity`, convert checkpoints, and run `from_pretrained`
-smoke tests.
+The `Reproducibility` section must open with one sentence that states how to
+reproduce the original-implementation agreement checks. The remaining commands
+must be copy-pasteable and ordered: download vendor assets, generate vendor
+references with `CUDA_VISIBLE_DEVICES`, run `pytest -m vendor_parity`, convert
+checkpoints, and run `from_pretrained` smoke tests.
 
 Generate Hub model cards through `laygen.common.model_card` and the official
 Hugging Face template. Do not push model weights or Hub repos from ordinary
