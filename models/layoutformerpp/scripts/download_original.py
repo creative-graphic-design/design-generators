@@ -28,17 +28,18 @@ def main() -> None:
     parser.add_argument(
         "--allow-pattern",
         action="append",
-        default=["ckpts/**", "**/vocab.json"],
+        default=None,
         help=(
             "Hugging Face Hub allow pattern to download. May be passed multiple "
             "times. Default: ckpts/** and **/vocab.json"
         ),
     )
     args = parser.parse_args()
+    allow_patterns = args.allow_pattern or ["ckpts/**", "**/vocab.json"]
     snapshot_download(
         repo_id="jzy124/LayoutFormer",
         local_dir=args.output_dir,
-        allow_patterns=args.allow_pattern,
+        allow_patterns=allow_patterns,
         repo_type="model",
     )
 

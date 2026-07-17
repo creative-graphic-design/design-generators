@@ -14,11 +14,10 @@ From the repository root:
 uv sync --package layoutformerpp
 ```
 
-Run package-local commands with the workspace member selected:
+Run package-local tests with the workspace member selected:
 
 ```bash
-cd models/layoutformerpp
-uv run --package layoutformerpp pytest
+uv run --package layoutformerpp pytest models/layoutformerpp/tests
 ```
 
 ## Usage
@@ -76,8 +75,10 @@ Current local parity coverage:
 Verified command:
 
 ```bash
-cd models/layoutformerpp
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest tests/vendor_parity -m vendor_parity -q
+CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+  models/layoutformerpp/tests/vendor_parity \
+  -m vendor_parity \
+  -q
 ```
 
 Full generation parity for all RICO and PubLayNet public checkpoints is tracked as follow-up work.
@@ -86,46 +87,47 @@ Full generation parity for all RICO and PubLayNet public checkpoints is tracked 
 
 Prerequisites:
 
-- Run commands from `models/layoutformerpp`.
+- Run commands from the repository root.
 - Use `uv sync --package layoutformerpp` once before the first run.
-- Keep downloaded weights and generated outputs under `../../.cache/layoutformerpp/`; these files are local artifacts and are not committed.
+- Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed.
 - Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
 
-1. Download the released LayoutFormer++ checkpoint and vocabulary files into `../../.cache/layoutformerpp/original`.
+1. Download the `rico_gen_t` LayoutFormer++ checkpoint and vocabulary files into `.cache/layoutformerpp/original`.
 
 ```bash
-uv run --package layoutformerpp python scripts/download_original.py \
-  --output-dir ../../.cache/layoutformerpp/original
+uv run --package layoutformerpp python models/layoutformerpp/scripts/download_original.py \
+  --output-dir .cache/layoutformerpp/original \
+  --allow-pattern "ckpts/rico_gen_t/**"
 ```
 
-2. Generate the local vendor reference metadata for the `rico_gen_t` fixture. The metadata output path is `../../.cache/layoutformerpp/reference/rico_gen_t/metadata.json`.
+2. Generate the local vendor reference metadata for the `rico_gen_t` fixture. The metadata output path is `.cache/layoutformerpp/reference/rico_gen_t/metadata.json`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python scripts/export_reference.py \
+CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
   --dataset rico \
   --task gen_t \
   --seed 500 \
-  --output-dir ../../.cache/layoutformerpp/reference/rico_gen_t
+  --output-dir .cache/layoutformerpp/reference/rico_gen_t
 ```
 
 3. Run the vendor parity tests against the cached checkpoint and vendor source.
 
 ```bash
 CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
-  tests/vendor_parity \
+  models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
 ```
 
-4. Convert the `rico_gen_t` checkpoint into Transformers `save_pretrained` format. The output directory is `../../.cache/layoutformerpp/converted/rico_gen_t`, including the generated Hub `README.md` model card.
+4. Convert the `rico_gen_t` checkpoint into Transformers `save_pretrained` format. The output directory is `.cache/layoutformerpp/converted/rico_gen_t`, including the generated `README.md` model card.
 
 ```bash
-uv run --package layoutformerpp python scripts/convert_checkpoint.py \
-  --checkpoint ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar \
+uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
+  --checkpoint .cache/layoutformerpp/original/ckpts/rico_gen_t/final_checkpoint.pth.tar \
   --dataset rico \
   --task gen_t \
-  --vocab-json ../../.cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json \
-  --output-dir ../../.cache/layoutformerpp/converted/rico_gen_t
+  --vocab-json .cache/layoutformerpp/original/ckpts/rico_gen_t/vocab.json \
+  --output-dir .cache/layoutformerpp/converted/rico_gen_t
 ```
 
 5. Smoke-test `from_pretrained` from the converted artifact.
@@ -137,7 +139,7 @@ from layoutformerpp import (
     LayoutFormerPPProcessor,
 )
 
-path = "../../.cache/layoutformerpp/converted/rico_gen_t"
+path = ".cache/layoutformerpp/converted/rico_gen_t"
 model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
 processor = LayoutFormerPPProcessor.from_pretrained(path)
 print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)

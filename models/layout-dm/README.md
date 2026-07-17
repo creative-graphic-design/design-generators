@@ -128,7 +128,7 @@ Expected result with the fixtures above:
 
 ### 4. Convert Checkpoints And Smoke Test from_pretrained
 
-The conversion step writes Diffusers pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a Hub-style `README.md` model card.
+The conversion step writes Diffusers pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a `README.md` model card.
 
 ```bash
 cd models/layout-dm
