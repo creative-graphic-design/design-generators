@@ -1,3 +1,5 @@
+"""Input processor for LayoutDM structured layout tensors."""
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -11,9 +13,23 @@ from .tokenization_layout_dm import LayoutDMTokenizer
 
 
 class LayoutDMProcessor:
+    """Normalize layout arrays and encode them with ``LayoutDMTokenizer``.
+
+    Args:
+        tokenizer: Tokenizer used to encode processed layouts.
+
+    Examples:
+        >>> from layout_dm.configuration_layout_dm import LayoutDMConfig
+        >>> from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
+        >>> processor = LayoutDMProcessor(LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet")))
+        >>> sorted(processor(bbox=[[[0.5, 0.5, 0.2, 0.2]]], labels=[[0]]))
+        ['attention_mask', 'input_ids', 'mask']
+    """
+
     config_name = "processor_config.json"
 
     def __init__(self, tokenizer: LayoutDMTokenizer) -> None:
+        """Initialize the processor with a tokenizer."""
         self.tokenizer = tokenizer
 
     def __call__(
@@ -27,6 +43,25 @@ class LayoutDMProcessor:
         canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
     ) -> dict[str, torch.Tensor]:
+        """Process a layout batch into model input tensors.
+
+        Args:
+            bbox: Layout boxes in ``box_format``.
+            labels: Integer labels matching the layout boxes.
+            mask: Optional valid-element mask. All elements are valid when omitted.
+            box_format: Input box format.
+            normalized: Whether boxes are already normalized to ``[0, 1]``.
+            canvas_size: Pixel canvas size required when ``normalized=False``.
+            return_tensors: Tensor backend. Only ``"pt"`` is supported.
+
+        Returns:
+            Tokenizer output containing ``input_ids``, ``attention_mask``, and
+            ``mask`` tensors.
+
+        Raises:
+            ValueError: If ``return_tensors`` is not ``"pt"`` or if
+                ``canvas_size`` is missing for pixel-space boxes.
+        """
         if return_tensors != "pt":
             raise ValueError("LayoutDMProcessor only supports return_tensors='pt'")
         bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
@@ -57,8 +92,10 @@ class LayoutDMProcessor:
         return self.tokenizer.encode_layout(bbox=bbox_t, labels=labels_t, mask=mask_t)
 
     def save_pretrained(self, save_directory: str) -> None:
+        """Save the processor state through the underlying tokenizer."""
         self.tokenizer.save_pretrained(save_directory)
 
     @classmethod
     def from_pretrained(cls, path: str) -> "LayoutDMProcessor":
+        """Load a processor from a tokenizer directory."""
         return cls(LayoutDMTokenizer.from_pretrained(path))

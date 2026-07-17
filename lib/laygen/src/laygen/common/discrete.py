@@ -1,3 +1,5 @@
+"""Discrete diffusion tensor utilities shared by layout generators."""
+
 from __future__ import annotations
 
 import torch
@@ -7,6 +9,23 @@ LOG_EPS = -70.0
 
 
 def index_to_log_onehot(input_ids: torch.Tensor, vocab_size: int) -> torch.Tensor:
+    """Convert categorical ids to log one-hot tensors.
+
+    Args:
+        input_ids: Integer tensor with categorical ids.
+        vocab_size: Size of the categorical vocabulary.
+
+    Returns:
+        Log one-hot tensor shaped ``(batch, vocab, ...)``.
+
+    Raises:
+        ValueError: If any id is outside the vocabulary.
+
+    Examples:
+        >>> import torch
+        >>> index_to_log_onehot(torch.tensor([[0, 1]]), 3).shape
+        torch.Size([1, 3, 2])
+    """
     if input_ids.numel() and input_ids.max().item() >= vocab_size:
         raise ValueError(
             f"input id {input_ids.max().item()} exceeds vocab_size {vocab_size}"
@@ -17,10 +36,12 @@ def index_to_log_onehot(input_ids: torch.Tensor, vocab_size: int) -> torch.Tenso
 
 
 def log_onehot_to_index(log_x: torch.Tensor) -> torch.Tensor:
+    """Convert log one-hot tensors back to categorical ids."""
     return log_x.argmax(dim=1)
 
 
 def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
     maximum = torch.maximum(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
@@ -28,6 +49,7 @@ def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 def extract(
     values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
 ) -> torch.Tensor:
+    """Gather timestep values and reshape them for broadcast operations."""
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
     return out.reshape(batch, *((1,) * (len(broadcast_shape) - 1)))
@@ -38,6 +60,7 @@ def gumbel_noise_like(
     *,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
+    """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
     uniform = torch.rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
     return -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
 
@@ -47,10 +70,12 @@ def log_sample_categorical(
     *,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
+    """Sample categorical ids from log probabilities with Gumbel-max."""
     return (logits + gumbel_noise_like(logits, generator=generator)).argmax(dim=1)
 
 
 def top_k_logits(logits: torch.Tensor, k: int, dim: int = -1) -> torch.Tensor:
+    """Mask logits outside the top-k entries along ``dim``."""
     if k <= 0 or k >= logits.size(dim):
         return logits
     values = torch.topk(logits, k, dim=dim).values
@@ -82,6 +107,27 @@ def sample_categorical(
     top_p: float | None = None,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
+    """Sample categorical ids from logits using LayoutDM sampling modes.
+
+    Args:
+        logits: Tensor whose last dimension is the categorical vocabulary.
+        sampling: Sampling mode name.
+        temperature: Positive temperature used before random sampling.
+        top_k: Number of logits retained for top-k modes.
+        top_p: Cumulative probability retained for top-p modes.
+        generator: Optional torch generator for deterministic sampling.
+
+    Returns:
+        Tensor of sampled ids with shape ``logits.shape[:-1]``.
+
+    Examples:
+        >>> import torch
+        >>> sample_categorical(
+        ...     torch.tensor([[[0.0, 1.0]]]),
+        ...     sampling="deterministic",
+        ... )
+        tensor([[1]])
+    """
     if sampling == "deterministic":
         return logits.argmax(dim=-1)
     scaled = logits / temperature
@@ -99,6 +145,7 @@ def sample_categorical(
 
 
 def batch_topk_mask(scores: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
+    """Return a per-row boolean mask for the top ``k`` scores."""
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
     max_k = int(k.max().item()) if k.numel() else 0

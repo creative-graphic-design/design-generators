@@ -1,3 +1,5 @@
+"""Bounding-box conversion and quantization helpers for layout packages."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -9,11 +11,27 @@ BoxFormat = Literal["xywh", "ltwh", "ltrb"]
 
 
 def xywh_to_ltrb(bbox: torch.Tensor) -> torch.Tensor:
+    """Convert normalized center ``xywh`` boxes to ``ltrb`` boxes.
+
+    Args:
+        bbox: Tensor with the last dimension ordered as center x, center y,
+            width, and height.
+
+    Returns:
+        Tensor with the same leading shape and last dimension ordered as left,
+        top, right, and bottom.
+
+    Examples:
+        >>> import torch
+        >>> xywh_to_ltrb(torch.tensor([[0.5, 0.5, 0.2, 0.4]])).shape
+        torch.Size([1, 4])
+    """
     x, y, w, h = bbox.unbind(dim=-1)
     return torch.stack((x - w / 2, y - h / 2, x + w / 2, y + h / 2), dim=-1)
 
 
 def ltrb_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
+    """Convert ``ltrb`` boxes to normalized center ``xywh`` boxes."""
     left, top, right, bottom = bbox.unbind(dim=-1)
     return torch.stack(
         ((left + right) / 2, (top + bottom) / 2, right - left, bottom - top),
@@ -22,16 +40,19 @@ def ltrb_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
 
 
 def ltwh_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
+    """Convert left-top-width-height boxes to center ``xywh`` boxes."""
     left, top, width, height = bbox.unbind(dim=-1)
     return torch.stack((left + width / 2, top + height / 2, width, height), dim=-1)
 
 
 def xywh_to_ltwh(bbox: torch.Tensor) -> torch.Tensor:
+    """Convert center ``xywh`` boxes to left-top-width-height boxes."""
     x, y, w, h = bbox.unbind(dim=-1)
     return torch.stack((x - w / 2, y - h / 2, w, h), dim=-1)
 
 
 def clamp_boxes(bbox: torch.Tensor) -> torch.Tensor:
+    """Clamp normalized box coordinates into the inclusive ``[0, 1]`` range."""
     return bbox.clamp(0.0, 1.0)
 
 
@@ -48,6 +69,28 @@ def normalize_boxes(
     canvas_size: tuple[int, int],
     box_format: BoxFormat,
 ) -> torch.Tensor:
+    """Normalize pixel boxes to center ``xywh`` coordinates.
+
+    Args:
+        bbox: Tensor containing pixel-space boxes.
+        canvas_size: Canvas size as ``(width, height)``.
+        box_format: Input box format.
+
+    Returns:
+        Tensor containing normalized center ``xywh`` boxes.
+
+    Raises:
+        ValueError: If ``box_format`` is unsupported.
+
+    Examples:
+        >>> import torch
+        >>> normalize_boxes(
+        ...     torch.tensor([[[0.0, 0.0, 10.0, 10.0]]]),
+        ...     canvas_size=(100, 100),
+        ...     box_format="ltrb",
+        ... ).shape
+        torch.Size([1, 1, 4])
+    """
     bbox = bbox.to(dtype=torch.float32)
     scale = _canvas_tensor(canvas_size, bbox.device, bbox.dtype)
     normalized = bbox / scale
@@ -66,6 +109,19 @@ def denormalize_boxes(
     canvas_size: tuple[int, int],
     box_format: BoxFormat,
 ) -> torch.Tensor:
+    """Convert normalized center ``xywh`` boxes to pixel-space boxes.
+
+    Args:
+        bbox: Normalized center ``xywh`` tensor.
+        canvas_size: Canvas size as ``(width, height)``.
+        box_format: Requested output box format.
+
+    Returns:
+        Tensor in the requested pixel-space format.
+
+    Raises:
+        ValueError: If ``box_format`` is unsupported.
+    """
     if box_format == "xywh":
         out = bbox
     elif box_format == "ltwh":
@@ -79,10 +135,12 @@ def denormalize_boxes(
 
 
 def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+    """Map normalized continuous values to evenly spaced integer bins."""
     delta = 1.0 / num_bins
     values = values.clamp(0.0, 1.0 - delta)
     return (values * num_bins).round().long().clamp(0, num_bins - 1)
 
 
 def linear_continuize(ids: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+    """Map evenly spaced integer bins back to normalized continuous values."""
     return ids.float().clamp(0, num_bins - 1) / num_bins

@@ -1,3 +1,5 @@
+"""Sampling configuration for LayoutDM reverse diffusion."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,6 +8,8 @@ from typing import Literal
 
 @dataclass
 class LayoutDMSamplingConfig:
+    """Sampling parameters passed from the pipeline to the scheduler."""
+
     name: Literal[
         "deterministic", "random", "gumbel", "top_k", "top_p", "top_k_top_p"
     ] = "random"
