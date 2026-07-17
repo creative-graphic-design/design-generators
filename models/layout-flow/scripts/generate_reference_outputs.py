@@ -11,6 +11,7 @@ from typing import Final
 import torch
 
 from laygen.common.labels import DatasetName
+from laygen.common.vendor import vendor_root
 from layout_flow import LayoutFlowConfig
 from layout_flow.configuration_layout_flow import normalize_dataset_name
 
@@ -56,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vendor-dir",
         type=Path,
-        default=REPO_ROOT / "vendor" / "layout-flow",
+        default=Path("vendor/layout-flow"),
         help="Path to the read-only original LayoutFlow source checkout.",
     )
     parser.add_argument(
@@ -75,7 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    sys.path.insert(0, str(args.vendor_dir.resolve()))
+    vendor_dir = vendor_root(
+        "layout-flow",
+        marker=Path("src/models/backbone/layoutdm_backbone.py"),
+        path=args.vendor_dir,
+    )
+    sys.path.insert(0, str(vendor_dir))
     from src.models.backbone.layoutdm_backbone import LayoutDMBackbone
 
     datasets = (

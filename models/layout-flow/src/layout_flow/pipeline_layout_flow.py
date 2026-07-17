@@ -12,6 +12,7 @@ import torch
 from diffusers import DiffusionPipeline
 
 from laygen.common.bbox import BoxFormat
+from laygen.common.labels import DatasetName
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
@@ -56,7 +57,11 @@ class LayoutFlowPipeline(DiffusionPipeline):
         """
         super().__init__()
         self.register_modules(model=model, scheduler=scheduler)
-        dataset_name = "rico25" if model.config.num_labels == 26 else "publaynet"
+        dataset_name = (
+            DatasetName.rico25
+            if model.config.num_labels == 26
+            else DatasetName.publaynet
+        )
         self.layout_flow_config = config or LayoutFlowConfig(dataset_name=dataset_name)
         self.processor = processor or LayoutFlowProcessor(self.layout_flow_config)
         self.model.eval()

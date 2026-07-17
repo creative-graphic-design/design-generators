@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
@@ -38,9 +39,11 @@ from laygen.common.labels import (
     id2label_for_dataset,
     label2id_for_dataset,
     labels_for_dataset,
+    max_elements_for_dataset,
     normalize_dataset_name,
 )
 from laygen.common.model_card import layoutdm_model_card
+from laygen.common.output_spec import LAYOUT_GENERATION_OUTPUT_FIELDS, OutputField
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
@@ -51,6 +54,7 @@ from laygen.common.testing import (
     assert_layout_output_schema,
     assert_normalized_xywh,
 )
+from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
 
 
@@ -167,6 +171,10 @@ def test_label_registry_aliases_and_errors():
     )
     assert label2id_for_dataset("rico25")["Text"] == 0
     assert id2label_for_dataset("rico13")[12] == "Advertisement"
+    assert max_elements_for_dataset(DatasetName.rico25) == 25
+    assert max_elements_for_dataset(DatasetName.rico13) == 9
+    assert max_elements_for_dataset("publaynet") == 9
+    assert max_elements_for_dataset("magazine") == 33
     with pytest.raises(ValueError, match="Unknown dataset_name"):
         normalize_dataset_name("crello")
     with pytest.raises(ValueError, match="Unknown dataset_name"):
@@ -233,6 +241,9 @@ def test_output_schema():
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
+    assert tuple(field.name for field in LAYOUT_GENERATION_OUTPUT_FIELDS) == tuple(
+        OutputField
+    )
     bbox = torch.zeros(1, 2, 4)
     labels = torch.zeros(1, 2, dtype=torch.long)
     mask = torch.tensor([[True, False]])
@@ -326,6 +337,48 @@ def test_layoutdm_model_card_mapping_inputs_and_errors():
     assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
     with pytest.raises(ValueError, match="Unsupported LayoutDM dataset"):
         layoutdm_model_card(dataset="unknown")
+
+
+def test_vendor_root_resolution(tmp_path):
+    vendor_dir = tmp_path / "vendor" / "const-layout"
+    marker = "model/layoutganpp.py"
+    (vendor_dir / "model").mkdir(parents=True)
+    (vendor_dir / marker).write_text("")
+
+    assert vendor_root("const-layout", path=vendor_dir, marker=marker) == vendor_dir
+
+
+def test_vendor_root_sibling_worktree_and_uninitialized_errors(tmp_path):
+    repo_root = tmp_path / "design-generators=impl-layoutganpp"
+    repo_root.mkdir()
+    requested = Path("vendor/const-layout")
+    marker = "model/layoutganpp.py"
+    sibling_vendor = tmp_path / "design-generators" / requested
+    (sibling_vendor / "model").mkdir(parents=True)
+    (sibling_vendor / marker).write_text("")
+
+    assert (
+        vendor_root(
+            "const-layout",
+            path=requested,
+            marker=marker,
+            repo_root=repo_root,
+            cwd=repo_root,
+        )
+        == sibling_vendor
+    )
+
+    empty_repo_root = tmp_path / "design-generators-empty"
+    empty_vendor = empty_repo_root / requested
+    empty_vendor.mkdir(parents=True)
+    with pytest.raises(FileNotFoundError, match="git submodule update --init"):
+        vendor_root(
+            "const-layout",
+            path=requested,
+            marker=marker,
+            repo_root=empty_repo_root,
+            cwd=empty_repo_root,
+        )
 
 
 @dataclass

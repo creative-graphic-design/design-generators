@@ -10,6 +10,7 @@ from typing import Final
 import torch
 
 from laygen.common.labels import DatasetName
+from laygen.common.vendor import vendor_root
 from layout_flow.configuration_layout_flow import (
     LayoutFlowConfig,
     normalize_dataset_name,
@@ -73,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vendor-dir",
         type=Path,
-        default=REPO_ROOT / "vendor" / "layout-flow",
+        default=Path("vendor/layout-flow"),
         help="Path to the read-only original LayoutFlow source checkout.",
     )
     return parser
@@ -85,8 +86,12 @@ def main() -> None:
     dataset = normalize_dataset_name(args.dataset)
     checkpoint = args.checkpoint or default_checkpoint(dataset)
     output_dir = args.output_dir or default_output_dir(dataset)
-    vendor_dir = args.vendor_dir
-    sys.path.insert(0, str(vendor_dir.resolve()))
+    vendor_dir = vendor_root(
+        "layout-flow",
+        marker=Path("src/models/backbone/layoutdm_backbone.py"),
+        path=args.vendor_dir,
+    )
+    sys.path.insert(0, str(vendor_dir))
     raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
     state_dict = raw.get("state_dict", raw)
     config = LayoutFlowConfig(dataset_name=str(dataset))

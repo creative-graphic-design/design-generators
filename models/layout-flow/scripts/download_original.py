@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Final
 
 from huggingface_hub import snapshot_download
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_OUTPUT_DIR = REPO_ROOT / ".cache" / "layout-flow" / "original"
+REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
+DEFAULT_OUTPUT_DIR: Final[Path] = REPO_ROOT / ".cache" / "layout-flow" / "original"
 
 
 def build_parser() -> argparse.ArgumentParser:

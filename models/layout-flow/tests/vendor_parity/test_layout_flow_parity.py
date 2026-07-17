@@ -6,17 +6,22 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.vendor import vendor_root
 from layout_flow import LayoutFlowConfig, LayoutFlowTransformerModel
 from layout_flow.conversion import convert_lightning_state_dict
 
 
 ROOT = Path(__file__).resolve().parents[4]
-VENDOR_DIR = ROOT / "vendor" / "layout-flow"
 CHECKPOINT_DIR = ROOT / ".cache" / "layout-flow" / "original" / "checkpoints"
 
 
 def _load_vendor_backbone():
-    sys.path.insert(0, str(VENDOR_DIR))
+    vendor_dir = vendor_root(
+        "layout-flow",
+        marker=Path("src/models/backbone/layoutdm_backbone.py"),
+        repo_root=ROOT,
+    )
+    sys.path.insert(0, str(vendor_dir))
     from src.models.backbone.layoutdm_backbone import LayoutDMBackbone
 
     return LayoutDMBackbone
