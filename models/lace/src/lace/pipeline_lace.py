@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final, assert_never
 
 import torch
 from diffusers import DiffusionPipeline
 
+from laygen.common import ConditionType
+from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
@@ -18,40 +20,36 @@ from .processing_lace import LaceProcessor
 from .scheduling_lace import LaceScheduler
 
 
-class ConditionType(StrEnum):
-    """Canonical LACE conditioning modes."""
-
-    unconditional = "unconditional"
-    label = "label"
-    label_size = "label_size"
-    completion = "completion"
-    refinement = "refinement"
-
-
 class PipelineOutputType(StrEnum):
     """Supported LACE pipeline output containers."""
 
-    dataclass = "dataclass"
-    dict = "dict"
+    dataclass = auto()
+    dict = auto()
 
 
-_CONDITION_ALIASES: Final[dict[str | None, ConditionType]] = {
-    None: ConditionType.unconditional,
-    "none": ConditionType.unconditional,
-    "uncond": ConditionType.unconditional,
-    "unconditional": ConditionType.unconditional,
-    "c": ConditionType.label,
-    "label": ConditionType.label,
-    "category": ConditionType.label,
-    "cwh": ConditionType.label_size,
-    "label_size": ConditionType.label_size,
-    "label+size": ConditionType.label_size,
-    "complete": ConditionType.completion,
-    "partial": ConditionType.completion,
-    "completion": ConditionType.completion,
-    "refine": ConditionType.refinement,
-    "refinement": ConditionType.refinement,
+class LaceConditionAlias(StrEnum):
+    """LACE-specific public condition aliases not in the shared registry."""
+
+    none = auto()
+    category = auto()
+    label_size_plus = "label+size"
+
+
+_LACE_CONDITION_ALIASES: Final[dict[LaceConditionAlias, ConditionType]] = {
+    LaceConditionAlias.none: ConditionType.unconditional,
+    LaceConditionAlias.category: ConditionType.label,
+    LaceConditionAlias.label_size_plus: ConditionType.label_size,
 }
+
+_SUPPORTED_CONDITION_TYPES: Final[frozenset[ConditionType]] = frozenset(
+    {
+        ConditionType.unconditional,
+        ConditionType.label,
+        ConditionType.label_size,
+        ConditionType.completion,
+        ConditionType.refinement,
+    }
+)
 
 
 def normalize_condition_type(
@@ -73,12 +71,23 @@ def normalize_condition_type(
         True
     """
     if isinstance(condition_type, ConditionType):
-        return condition_type
-    key = None if condition_type is None else condition_type.lower()
-    try:
-        return _CONDITION_ALIASES[key]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported LACE condition_type: {condition_type}") from exc
+        canonical = condition_type
+    elif condition_type is None:
+        canonical = ConditionType.unconditional
+    else:
+        try:
+            canonical = normalize_shared_condition_type(condition_type)
+        except ValueError:
+            key = condition_type.lower().replace("-", "_")
+            try:
+                canonical = _LACE_CONDITION_ALIASES[LaceConditionAlias(key)]
+            except ValueError as exc:
+                raise ValueError(
+                    f"Unsupported LACE condition_type: {condition_type}"
+                ) from exc
+    if canonical not in _SUPPORTED_CONDITION_TYPES:
+        raise ValueError(f"Unsupported LACE condition_type: {condition_type}")
+    return canonical
 
 
 def normalize_output_type(output_type: PipelineOutputType | str) -> PipelineOutputType:
@@ -366,4 +375,4 @@ class LacePipeline(DiffusionPipeline):
             return element_mask.unsqueeze(-1).expand(-1, -1, seq_dim)
         if condition_type is ConditionType.unconditional:
             return None
-        assert_never(condition_type)
+        raise ValueError(f"Unsupported LACE condition_type: {condition_type}")

@@ -3,33 +3,35 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 from huggingface_hub import ModelCard
+from laygen.common.labels import DatasetName
 from laygen.common.model_card import ParityMetric, build_layout_model_card
 
 from .configuration_lace import normalize_dataset
 
-_MODEL_IDS = {
-    "publaynet": "creative-graphic-design/lace-publaynet",
-    "rico13": "creative-graphic-design/lace-rico13",
-    "rico25": "creative-graphic-design/lace-rico25",
+_MODEL_IDS: Final[dict[DatasetName, str]] = {
+    DatasetName.publaynet: "creative-graphic-design/lace-publaynet",
+    DatasetName.rico13: "creative-graphic-design/lace-rico13",
+    DatasetName.rico25: "creative-graphic-design/lace-rico25",
 }
 
-_DATASET_IDS = {
-    "publaynet": "creative-graphic-design/publaynet",
-    "rico13": "creative-graphic-design/rico13",
-    "rico25": "creative-graphic-design/rico25",
+_DATASET_IDS: Final[dict[DatasetName, str]] = {
+    DatasetName.publaynet: "creative-graphic-design/publaynet",
+    DatasetName.rico13: "creative-graphic-design/rico13",
+    DatasetName.rico25: "creative-graphic-design/rico25",
 }
 
-_PARITY_METRICS = {
-    "publaynet": ParityMetric(
+_PARITY_METRICS: Final[dict[DatasetName, ParityMetric]] = {
+    DatasetName.publaynet: ParityMetric(
         dataset="publaynet",
         tokenizer_exact="n/a",
         deterministic_exact="n/a",
         logits_max_abs=0.0,
         logits_max_rel=0.0,
     ),
-    "rico25": ParityMetric(
+    DatasetName.rico25: ParityMetric(
         dataset="rico25",
         tokenizer_exact="n/a",
         deterministic_exact="n/a",
@@ -51,7 +53,7 @@ _LACE_BIBTEX = r"""
 
 
 def lace_model_card(
-    dataset: str,
+    dataset: DatasetName | str,
     *,
     parity_metrics: list[ParityMetric] | None = None,
 ) -> ModelCard:
@@ -67,7 +69,8 @@ def lace_model_card(
     Raises:
         ValueError: If the dataset is unsupported.
     """
-    dataset_key = str(normalize_dataset(dataset))
+    dataset_key = normalize_dataset(dataset)
+    dataset_name = str(dataset_key)
     model_id = _MODEL_IDS[dataset_key]
     metrics = parity_metrics
     if metrics is None:
@@ -83,13 +86,13 @@ print(out.bbox, out.labels, out.mask)
 """
     details = (
         "Diffusers-format conversion of the LACE checkpoint for "
-        f"`{dataset_key}`. LACE is a continuous diffusion layout generation model "
+        f"`{dataset_name}`. LACE is a continuous diffusion layout generation model "
         "from the paper 'Towards Aligned Layout Generation via Diffusion Model "
         "with Aesthetic Constraints' (https://arxiv.org/abs/2402.04754). "
         "The pipeline generates normalized center `xywh` layout boxes, "
         "category labels, and masks."
     )
-    if dataset_key == "rico13":
+    if dataset_key is DatasetName.rico13:
         details += (
             " The public vendor checkpoint archive used for local parity "
             "verification does not include `rico13_best.pt`; Rico13 parity "
@@ -97,7 +100,7 @@ print(out.bbox, out.labels, out.mask)
         )
     return build_layout_model_card(
         model_id=model_id,
-        model_name=f"LACE {dataset_key}",
+        model_name=f"LACE {dataset_name}",
         dataset_ids=[_DATASET_IDS[dataset_key]],
         license="mit",
         library_name="diffusers",
@@ -106,7 +109,7 @@ print(out.bbox, out.labels, out.mask)
             "layout-generation",
             "lace",
             "diffusers",
-            dataset_key,
+            dataset_name,
         ],
         model_details=details,
         intended_uses=(
@@ -132,7 +135,7 @@ print(out.bbox, out.labels, out.mask)
 
 def write_lace_model_card(
     output_dir: str | Path,
-    dataset: str,
+    dataset: DatasetName | str,
     *,
     parity_metrics: list[ParityMetric] | None = None,
 ) -> Path:

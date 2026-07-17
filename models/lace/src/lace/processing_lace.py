@@ -77,7 +77,7 @@ class LaceProcessor(ConfigMixin):
         spec = get_dataset_spec(dataset)
         return cls(
             dataset=str(spec.dataset),
-            labels=list(spec.labels),
+            labels=[str(label) for label in spec.labels],
             max_seq_length=spec.max_seq_length,
         )
 

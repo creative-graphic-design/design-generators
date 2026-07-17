@@ -3,22 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Final, TypedDict
 
 from laygen.common.labels import (
+    DatasetName,
     PUBLAYNET_LABELS,
     RICO13_LABELS,
     RICO25_LABELS,
+    PubLayNetLabel,
+    Rico13Label,
+    Rico25Label,
+    normalize_dataset_name,
 )
 
-
-class LaceDatasetName(StrEnum):
-    """Canonical dataset names supported by LACE."""
-
-    publaynet = "publaynet"
-    rico13 = "rico13"
-    rico25 = "rico25"
+LaceDatasetName = DatasetName
+LaceLabel = PubLayNetLabel | Rico13Label | Rico25Label
 
 
 @dataclass(frozen=True)
@@ -35,8 +34,8 @@ class LaceDatasetSpec:
         dim_feedforward: Feed-forward hidden size.
     """
 
-    dataset: LaceDatasetName
-    labels: tuple[str, ...]
+    dataset: DatasetName
+    labels: tuple[LaceLabel, ...]
     max_seq_length: int = 25
     dim_transformer: int = 512
     nhead: int = 16
@@ -61,7 +60,7 @@ class LaceDatasetSpec:
     @property
     def id2label(self) -> dict[int, str]:
         """Return the category id to label mapping."""
-        return dict(enumerate(self.labels))
+        return dict(enumerate(str(label) for label in self.labels))
 
 
 class LaceModelConfigKwargs(TypedDict):
@@ -77,40 +76,35 @@ class LaceModelConfigKwargs(TypedDict):
     timestep_type: str
 
 
-DATASET_SPECS: Final[dict[LaceDatasetName, LaceDatasetSpec]] = {
-    LaceDatasetName.publaynet: LaceDatasetSpec(
-        dataset=LaceDatasetName.publaynet,
-        labels=tuple(str(label) for label in PUBLAYNET_LABELS),
+DATASET_SPECS: Final[dict[DatasetName, LaceDatasetSpec]] = {
+    DatasetName.publaynet: LaceDatasetSpec(
+        dataset=DatasetName.publaynet,
+        labels=PUBLAYNET_LABELS,
         dim_transformer=1024,
     ),
-    LaceDatasetName.rico13: LaceDatasetSpec(
-        dataset=LaceDatasetName.rico13,
-        labels=tuple(str(label) for label in RICO13_LABELS),
+    DatasetName.rico13: LaceDatasetSpec(
+        dataset=DatasetName.rico13,
+        labels=RICO13_LABELS,
     ),
-    LaceDatasetName.rico25: LaceDatasetSpec(
-        dataset=LaceDatasetName.rico25,
-        labels=tuple(str(label) for label in RICO25_LABELS),
+    DatasetName.rico25: LaceDatasetSpec(
+        dataset=DatasetName.rico25,
+        labels=RICO25_LABELS,
     ),
 }
 
-_ALIASES: Final[dict[str, LaceDatasetName]] = {
-    "publaynet": LaceDatasetName.publaynet,
-    "publaynet_max25": LaceDatasetName.publaynet,
-    "rico13": LaceDatasetName.rico13,
-    "rico13_max25": LaceDatasetName.rico13,
-    "rico25": LaceDatasetName.rico25,
-    "rico25_max25": LaceDatasetName.rico25,
+_LACE_DATASET_ALIASES: Final[dict[str, DatasetName]] = {
+    "rico13_max25": DatasetName.rico13,
 }
 
 
-def normalize_dataset(dataset: LaceDatasetName | str) -> LaceDatasetName:
-    """Normalize a public dataset name to a LACE dataset enum.
+def normalize_dataset(dataset: DatasetName | str) -> DatasetName:
+    """Normalize a public dataset name to the shared dataset enum.
 
     Args:
         dataset: Canonical dataset enum or a supported string alias.
 
     Returns:
-        Canonical LACE dataset name.
+        Canonical shared dataset name.
 
     Raises:
         ValueError: If the dataset is unsupported.
@@ -119,16 +113,18 @@ def normalize_dataset(dataset: LaceDatasetName | str) -> LaceDatasetName:
         >>> str(normalize_dataset("rico13_max25"))
         'rico13'
     """
-    if isinstance(dataset, LaceDatasetName):
+    if isinstance(dataset, DatasetName):
         return dataset
     key = dataset.lower().replace("-", "_")
+    if key in _LACE_DATASET_ALIASES:
+        return _LACE_DATASET_ALIASES[key]
     try:
-        return _ALIASES[key]
-    except KeyError as exc:
+        return normalize_dataset_name(dataset)
+    except ValueError as exc:
         raise ValueError(f"Unsupported LACE dataset: {dataset}") from exc
 
 
-def get_dataset_spec(dataset: LaceDatasetName | str) -> LaceDatasetSpec:
+def get_dataset_spec(dataset: DatasetName | str) -> LaceDatasetSpec:
     """Return dataset metadata for a LACE checkpoint.
 
     Args:
@@ -147,7 +143,7 @@ def get_dataset_spec(dataset: LaceDatasetName | str) -> LaceDatasetSpec:
     return DATASET_SPECS[normalize_dataset(dataset)]
 
 
-def default_model_config(dataset: LaceDatasetName | str) -> LaceModelConfigKwargs:
+def default_model_config(dataset: DatasetName | str) -> LaceModelConfigKwargs:
     """Build the model config for a dataset.
 
     Args:

@@ -6,23 +6,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-def _xywh_to_ltrb_split(bbox: torch.Tensor) -> list[torch.Tensor]:
-    xc, yc, w, h = bbox
-    return [xc - w / 2, yc - h / 2, xc + w / 2, yc + h / 2]
-
-
-def _xywh_to_ltrb(bbox_xywh: torch.Tensor) -> torch.Tensor:
-    bbox_ltrb = torch.zeros_like(bbox_xywh)
-    bbox_xy = torch.abs(bbox_xywh[:, :, :2])
-    bbox_wh = torch.abs(bbox_xywh[:, :, 2:])
-    bbox_ltrb[:, :, :2] = bbox_xy - 0.5 * bbox_wh
-    bbox_ltrb[:, :, 2:] = bbox_xy + 0.5 * bbox_wh
-    return bbox_ltrb
+from laygen.common.bbox import xywh_to_ltrb
 
 
 def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    bbox_ltrb = _xywh_to_ltrb(bbox_xywh)
+    bbox_ltrb = xywh_to_ltrb(torch.abs(bbox_xywh))
     n_box = bbox_ltrb.shape[1]
     area = (bbox_ltrb[:, :, 2] - bbox_ltrb[:, :, 0]) * (
         bbox_ltrb[:, :, 3] - bbox_ltrb[:, :, 1]
@@ -41,9 +29,10 @@ def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Ten
 
 
 def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    bbox_ltrb = xywh_to_ltrb(bbox).permute(2, 0, 1)
+    xl, yt, xr, yb = bbox_ltrb
     bbox_t = bbox.permute(2, 0, 1)
-    xl, yt, xr, yb = _xywh_to_ltrb_split(bbox_t)
-    xc, yc = bbox_t[0], bbox_t[1]
+    xc, yc = bbox_t[:2]
     coords = torch.stack([xl, xc, xr, yt, yc, yb], dim=1)
     coords = coords.unsqueeze(-1) - coords.unsqueeze(-2)
     idx = torch.arange(coords.size(2), device=coords.device)
