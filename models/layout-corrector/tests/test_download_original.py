@@ -5,6 +5,7 @@ import shutil
 import zipfile
 from pathlib import Path
 from types import ModuleType
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).parents[3]
@@ -48,7 +49,7 @@ def test_download_replaces_partial_archive_and_extraction(
         shutil.copyfile(source_archive, output)
         return output
 
-    monkeypatch.setattr(module.gdown, "download", fake_download)
+    monkeypatch.setattr(module, "gdown", SimpleNamespace(download=fake_download))
 
     starter_dir = module.ensure_downloaded(output_dir, file_id="file-id")
 
@@ -68,7 +69,7 @@ def test_download_reextracts_complete_archive_without_network(
     def fail_download(*args: object, **kwargs: object) -> object:
         raise AssertionError("network should not be used for a complete archive")
 
-    monkeypatch.setattr(module.gdown, "download", fail_download)
+    monkeypatch.setattr(module, "gdown", SimpleNamespace(download=fail_download))
 
     starter_dir = module.ensure_downloaded(output_dir)
 
