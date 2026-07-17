@@ -50,19 +50,19 @@ def build_layout_model_card(
     funded_by: str = "Not documented in the original release.",
     shared_by: str = "creative-graphic-design",
     base_model: str = "Not applicable: this is a converted original checkpoint.",
-    demo: str = "Not provided.",
+    demo: str = "No hosted demo is packaged with this checkpoint.",
     speeds_sizes_times: str = "Not documented in the original release.",
-    model_examination: str = "No separate interpretability examination is provided.",
+    model_examination: str = "No separate interpretability examination is packaged with this converted checkpoint.",
     hardware_type: str = "Not documented in the original release.",
     hours_used: str = "Not documented in the original release.",
     cloud_provider: str = "Not documented in the original release.",
     cloud_region: str = "Not documented in the original release.",
-    co2_emitted: str = "Not documented in the original release.",
-    compute_infrastructure: str = "Not documented in the original release.",
+    co2_emitted: str = "Carbon emissions cannot be estimated from the released checkpoint bundle alone.",
+    compute_infrastructure: str = "Conversion and parity generation run locally through the documented uv workspace commands.",
     hardware_requirements: str = "CPU is sufficient to load the pipeline; CUDA is recommended for generation and parity tests.",
     citation_apa: str = "See the BibTeX citation above.",
     glossary: str = "`bbox` uses normalized center `xywh` coordinates; `mask` marks valid layout elements.",
-    more_information: str = "See the original implementation, paper, and dataset links above.",
+    more_information: str = "See the package README for reproduction commands and conversion details.",
     model_card_authors: str = "creative-graphic-design contributors.",
     model_card_contact: str = "Use the model repository discussions or issues for questions.",
 ) -> ModelCard:
@@ -77,18 +77,23 @@ def build_layout_model_card(
         metrics=["vendor-parity"],
     )
     parity_table = _parity_table(parity_metrics)
-    get_started_code = f"```python\n{how_to_use.strip()}\n```"
-    summary = model_summary or model_details
     card = ModelCard.from_template(
         card_data,
         model_id=model_id,
-        model_summary=summary,
-        model_description=model_details,
+        model_summary=model_summary or model_details,
+        model_description=(
+            f"{model_details}\n\n"
+            "This card follows the Hugging Face Hub model card template and "
+            "the annotated model card section structure."
+        ),
         developers=developers,
         funded_by=funded_by,
         shared_by=shared_by,
         model_type=model_type,
-        language="Not applicable: the model generates layout structures, not natural language.",
+        language=(
+            "The model does not process natural language inputs; metadata uses "
+            "English for this model card and category label names."
+        ),
         license=license,
         base_model=base_model,
         repo=original_implementation_url,
@@ -99,7 +104,7 @@ def build_layout_model_card(
         out_of_scope_use=out_of_scope_use,
         bias_risks_limitations=limitations,
         bias_recommendations=bias_recommendations,
-        get_started_code=get_started_code,
+        get_started_code=f"```python\n{how_to_use.strip()}\n```",
         training_data=training_data,
         preprocessing=preprocessing,
         training_regime=training_regime,
