@@ -51,6 +51,7 @@ all = "error"
 testpaths = ["tests", "src"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
+    "vendor_parity: tests that execute read-only vendor reference code",
 ]
 
 [tool.uv.workspace]

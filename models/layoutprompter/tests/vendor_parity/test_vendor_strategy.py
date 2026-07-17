@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
+import pytest
 import torch
 
 from layoutprompter.parsing import Parser
@@ -16,8 +17,11 @@ from layoutprompter.serialization import build_prompt, create_serializer
 from layoutprompter.vendor_parity import fixture_records
 
 
+@pytest.mark.vendor_parity
 def test_prompt_selection_and_parser_match_vendor_golden(tmp_path: Path) -> None:
     """Prompt bytes, selected exemplars, and parsed tensors match vendor golden."""
+    if not _vendor_available():
+        pytest.skip("LayoutPrompter vendor source is not available")
     golden = _generate_vendor_golden(tmp_path)
     train_data, test_data = fixture_records()
 
@@ -53,3 +57,17 @@ def _generate_vendor_golden(tmp_path: Path) -> dict[str, object]:
         cwd=Path(__file__).parents[2],
     )
     return json.loads(output.read_text(encoding="utf-8"))
+
+
+def _vendor_available() -> bool:
+    repo_root = Path(__file__).resolve().parents[4]
+    candidates = [
+        repo_root / "vendor" / "ms-layout-generation" / "LayoutPrompter" / "src",
+        repo_root.parent
+        / "design-generators"
+        / "vendor"
+        / "ms-layout-generation"
+        / "LayoutPrompter"
+        / "src",
+    ]
+    return any((candidate / "serialization.py").exists() for candidate in candidates)
