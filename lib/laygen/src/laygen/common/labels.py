@@ -55,6 +55,7 @@ _ALIASES = {
     "publaynet_max25": "publaynet",
     "magazine": "magazine",
     "crello": "crello",
+    "crello_bbox": "crello",
 }
 
 _LABELS = {

@@ -6,6 +6,8 @@ from pathlib import Path
 import torch
 import yaml
 
+from laygen.common.labels import normalize_dataset_name
+from laygen.common.model_card import layoutdm_model_card
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.conversion import load_cluster_centers, split_original_state_dict
 from layout_dm.denoiser import LayoutDMDenoiser
@@ -15,28 +17,50 @@ from layout_dm.scheduler import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
 
+def _checkpoint_dir(starter_dir: Path, dataset: str, seed: int) -> Path:
+    candidates = [
+        starter_dir / "pretrained_weights" / dataset / "layoutdm" / str(seed),
+    ]
+    if dataset == "rico25":
+        candidates.append(
+            starter_dir / "pretrained_weights" / "layoutdm_rico" / str(seed)
+        )
+    if dataset == "publaynet":
+        candidates.append(
+            starter_dir / "pretrained_weights" / "layoutdm_publaynet" / str(seed)
+        )
+    for path in candidates:
+        if (path / "best_model.pt").is_file() and (path / "config.yaml").is_file():
+            return path
+    raise FileNotFoundError(f"No LayoutDM checkpoint found for {dataset}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
+    parser.add_argument(
+        "--dataset",
+        choices=["rico25", "publaynet", "crello", "crello-bbox"],
+        required=True,
+    )
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--starter-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
 
-    checkpoint_name = (
-        "layoutdm_rico" if args.dataset == "rico25" else "layoutdm_publaynet"
-    )
-    checkpoint_dir = args.starter_dir / "pretrained_weights" / checkpoint_name / "0"
+    checkpoint_dataset = "crello-bbox" if args.dataset == "crello" else args.dataset
+    dataset_name = normalize_dataset_name(args.dataset)
+    checkpoint_dir = _checkpoint_dir(args.starter_dir, checkpoint_dataset, args.seed)
     with (checkpoint_dir / "config.yaml").open() as f:
         original_config = yaml.safe_load(f)
     data_cfg = original_config["data"]
     config = LayoutDMConfig(
-        dataset_name=args.dataset,
+        dataset_name=dataset_name,
         max_seq_length=25,
         num_bin_bboxes=data_cfg.get("num_bin_bboxes", 32),
         var_order=data_cfg.get("var_order", "c-x-y-w-h"),
         shared_bbox_vocab=data_cfg.get("shared_bbox_vocab", "x-y-w-h"),
         bbox_quantization=data_cfg.get("bbox_quantization", "kmeans"),
-        cluster_centers=load_cluster_centers(args.starter_dir, args.dataset),
+        cluster_centers=load_cluster_centers(args.starter_dir, checkpoint_dataset),
     )
     tokenizer = LayoutDMTokenizer(config)
     denoiser = LayoutDMDenoiser(
@@ -73,6 +97,10 @@ def main() -> None:
         processor=LayoutDMProcessor(tokenizer),
     )
     pipe.save_pretrained(args.output_dir, safe_serialization=True)
+    (args.output_dir / "README.md").write_text(
+        str(layoutdm_model_card(dataset=dataset_name)),
+        encoding="utf-8",
+    )
     print(args.output_dir)
 
 
