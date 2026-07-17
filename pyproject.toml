@@ -30,6 +30,7 @@ dev = [
     "pytest>=6.0.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
+    "vulture>=2.16",
 ]
 
 [tool.uv.workspace]
@@ -39,7 +40,34 @@ members = ["models/*"]
 layout-dm = { workspace = true }
 layout-generation-common = { workspace = true }
 
+[tool.ruff.lint]
+extend-select = ["ANN", "D"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**/*.py" = ["ANN", "D"]
+"tests/*.py" = ["D"]
+"tests/**/*.py" = ["D"]
+"models/*/scripts/**/*.py" = ["ANN", "D"]
+"models/*/tests/**/*.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.src]
+exclude = ["models/common/**", "models/layout-dm/**"]
+
 [tool.pytest.ini_options]
+testpaths = ["tests", "src", "models"]
 markers = [
-    "vendor_parity: requires original LayoutDM weights and vendor dependencies",
+    "integration: tests that require external downloads or heavyweight runtime setup",
+    "vendor_parity: requires original weights and vendor dependencies",
 ]
+
+[tool.vulture]
+min_confidence = 70
+sort_by_size = true
+paths = ["main.py"]
+verbose = true
