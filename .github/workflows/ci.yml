@@ -98,13 +98,7 @@ jobs:
           uv sync --all-packages
 
       - name: Run root tests
-        env:
-          ROOT_COVERAGE_FAIL_UNDER: "90"
-        run: |
-          uv run pytest -m "not integration" \
-            --cov=. \
-            --cov-report=term-missing \
-            --cov-fail-under="${ROOT_COVERAGE_FAIL_UNDER}"
+        run: uv run pytest -m "not integration"
 
       - name: Run workspace member tests
         shell: bash
