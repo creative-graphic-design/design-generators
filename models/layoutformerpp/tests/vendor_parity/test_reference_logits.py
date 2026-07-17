@@ -18,9 +18,11 @@ from layoutformerpp import (
 from layoutformerpp.conversion import load_original_state_dict
 from layoutformerpp.serialization import build_default_tokens
 from laygen.common.labels import labels_for_dataset
+from laygen.common.vendor import vendor_root
 
 
 PUBLIC_TASKS = ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen")
+VENDOR_MARKER = Path("LayoutFormer++/src/model/layout_transformer/model.py")
 
 
 @dataclass(frozen=True)
@@ -71,9 +73,21 @@ def _case_paths(repo_root: Path, case: ParityCase) -> tuple[Path, Path, Path | N
     vocab = checkpoint_dir / "vocab.json"
     return (
         checkpoint,
-        repo_root / "vendor/ms-layout-generation/LayoutFormer++/src",
+        _vendor_src(repo_root),
         (vocab if vocab.exists() else None),
     )
+
+
+def _vendor_src(repo_root: Path) -> Path:
+    try:
+        root = vendor_root(
+            "ms-layout-generation",
+            marker=VENDOR_MARKER,
+            repo_root=repo_root,
+        )
+    except FileNotFoundError:
+        return repo_root / "vendor/ms-layout-generation/LayoutFormer++/src"
+    return root / "LayoutFormer++/src"
 
 
 def _vendor_modules(vendor_src: Path):

@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "layoutganpp",
     "layout-dm",
     "laygen",
     "layoutformerpp",
@@ -54,6 +55,7 @@ docs = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
@@ -88,7 +90,7 @@ unresolved-import = "ignore"
 testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
-    "vendor_parity: requires original LayoutDM weights and vendor dependencies",
+    "vendor_parity: requires original LayoutDM, LayoutGAN++, or LayoutFormer++ weights and vendor dependencies",
 ]
 
 [tool.coverage.run]
