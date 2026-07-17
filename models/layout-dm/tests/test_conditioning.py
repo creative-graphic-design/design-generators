@@ -1,7 +1,8 @@
 import pytest
 import torch
 
-from layout_dm.conditioning import build_condition, normalize_condition_type
+from laygen.common import ConditionType, normalize_condition_type
+from layout_dm.conditioning import build_condition
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
@@ -19,7 +20,9 @@ def test_build_condition_modes():
     labels = torch.tensor([[0, 1]])
     mask = torch.tensor([[True, False]])
 
-    assert normalize_condition_type("gen_t") == "label"
+    assert normalize_condition_type("gen_t") is ConditionType.label
+    assert normalize_condition_type("gen_ts") is ConditionType.label_size
+    assert normalize_condition_type("gen_r") is ConditionType.relation
     label = build_condition(
         tokenizer, cond_type="label", bbox=bbox, labels=labels, mask=mask
     )
@@ -47,7 +50,16 @@ def test_build_condition_modes():
     assert refinement.type == "refinement"
     assert refinement.original_input_ids is not None
 
-    with pytest.raises(ValueError, match="Unsupported LayoutDM condition_type"):
+    with pytest.raises(
+        NotImplementedError, match="Unsupported LayoutDM condition_type"
+    ):
         build_condition(
-            tokenizer, cond_type="unknown", bbox=bbox, labels=labels, mask=mask
+            tokenizer,
+            cond_type=ConditionType.relation,
+            bbox=bbox,
+            labels=labels,
+            mask=mask,
         )
+
+    with pytest.raises(ValueError, match="Unknown condition_type"):
+        normalize_condition_type("unknown")

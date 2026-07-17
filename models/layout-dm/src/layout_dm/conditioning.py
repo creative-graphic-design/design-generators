@@ -4,21 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Final, assert_never
 
 import torch
 
+from laygen.common import ConditionType, normalize_condition_type
+
 from .tokenization_layout_dm import LayoutDMTokenizer
-
-
-class ConditionType(StrEnum):
-    """Canonical LayoutDM condition modes."""
-
-    unconditional = "unconditional"
-    label = "label"
-    label_size = "label_size"
-    completion = "completion"
-    refinement = "refinement"
 
 
 class ConditionEncodingType(StrEnum):
@@ -28,36 +19,6 @@ class ConditionEncodingType(StrEnum):
     label_size = "cwh"
     completion = "partial"
     refinement = "refinement"
-
-
-CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
-    "uncond": ConditionType.unconditional,
-    "ugen": ConditionType.unconditional,
-    "c": ConditionType.label,
-    "cat_cond": ConditionType.label,
-    "gen_t": ConditionType.label,
-    "cwh": ConditionType.label_size,
-    "size_cond": ConditionType.label_size,
-    "gen_ts": ConditionType.label_size,
-    "partial": ConditionType.completion,
-    "complete": ConditionType.completion,
-    "elem_compl": ConditionType.completion,
-    "refine": ConditionType.refinement,
-}
-
-
-def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
-    """Normalize vendor condition aliases to canonical condition names."""
-    if isinstance(condition_type, ConditionType):
-        return condition_type
-    if condition_type in CONDITION_ALIASES:
-        return CONDITION_ALIASES[condition_type]
-    try:
-        return ConditionType(condition_type)
-    except ValueError as exc:
-        raise ValueError(
-            f"Unsupported LayoutDM condition_type: {condition_type}"
-        ) from exc
 
 
 @dataclass
@@ -76,7 +37,7 @@ class LayoutDMCondition:
 def build_condition(
     tokenizer: LayoutDMTokenizer,
     *,
-    cond_type: str,
+    cond_type: ConditionType | str,
     bbox: torch.Tensor,
     labels: torch.Tensor,
     mask: torch.Tensor,
@@ -148,4 +109,4 @@ def build_condition(
             num_element=mask.sum(dim=1),
             original_input_ids=original,
         )
-    assert_never(canonical)
+    raise NotImplementedError(f"Unsupported LayoutDM condition_type: {cond_type}")
