@@ -31,6 +31,22 @@ RICO25_LABELS: tuple[str, ...] = (
 
 PUBLAYNET_LABELS: tuple[str, ...] = ("text", "title", "list", "table", "figure")
 
+RICO13_LABELS: tuple[str, ...] = (
+    "Toolbar",
+    "Image",
+    "Text",
+    "Icon",
+    "Text Button",
+    "Input",
+    "List Item",
+    "Advertisement",
+    "Pager Indicator",
+    "Web View",
+    "Background Image",
+    "Drawer",
+    "Modal",
+)
+
 MAGAZINE_LABELS: tuple[str, ...] = (
     "text",
     "image",
@@ -49,6 +65,8 @@ CRELLO_LABELS: tuple[str, ...] = (
 
 _ALIASES = {
     "rico": "rico25",
+    "rico13": "rico13",
+    "rico13_max25": "rico13",
     "rico25": "rico25",
     "rico25_max25": "rico25",
     "publaynet": "publaynet",
@@ -58,6 +76,7 @@ _ALIASES = {
 }
 
 _LABELS = {
+    "rico13": RICO13_LABELS,
     "rico25": RICO25_LABELS,
     "publaynet": PUBLAYNET_LABELS,
     "magazine": MAGAZINE_LABELS,

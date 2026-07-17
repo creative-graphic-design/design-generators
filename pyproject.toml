@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "lace",
     "layout-dm",
     "layout-generation-common",
     "transformers[torch,vision]>=5.0.0",
@@ -37,30 +38,47 @@ dev = [
 members = ["models/*"]
 
 [tool.uv.sources]
+lace = { workspace = true }
 layout-dm = { workspace = true }
 layout-generation-common = { workspace = true }
 
 [tool.ruff.lint]
 extend-select = ["ANN", "D"]
 
+[tool.ruff]
+exclude = ["vendor"]
+
 [tool.ruff.lint.per-file-ignores]
+"models/**/src/**/*.py" = ["ANN", "D"]
 "models/**/scripts/**/*.py" = ["ANN", "D"]
-"models/**/tests/*.py" = ["D"]
-"models/**/tests/**/*.py" = ["D"]
+"models/**/tests/*.py" = ["ANN", "D"]
+"models/**/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
-"tests/*.py" = ["D"]
-"tests/**/*.py" = ["D"]
+"tests/*.py" = ["ANN", "D"]
+"tests/**/*.py" = ["ANN", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ty.rules]
 all = "error"
+invalid-argument-type = "ignore"
+invalid-return-type = "ignore"
+missing-override-decorator = "ignore"
+missing-type-argument = "ignore"
+unsupported-base = "ignore"
 
 [tool.ty.src]
-exclude = ["models/common", "models/layout-dm"]
+exclude = [
+    "models/common",
+    "models/layout-dm",
+    "models/lace/scripts",
+    "models/lace/tests",
+    "vendor",
+]
 
 [tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
 testpaths = ["tests", "src", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
