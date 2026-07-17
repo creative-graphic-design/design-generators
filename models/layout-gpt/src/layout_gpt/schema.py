@@ -1,0 +1,111 @@
+"""Typed LayoutGPT request and response schemas."""
+
+from typing import Literal, cast
+
+import torch
+from layout_generation_common.outputs import LayoutGenerationOutput
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+
+class LayoutItem2D(BaseModel):
+    """A parsed 2D CSS layout item."""
+
+    label: str
+    left: float = Field(ge=0.0)
+    top: float = Field(ge=0.0)
+    width: float = Field(ge=0.0)
+    height: float = Field(ge=0.0)
+
+    model_config = ConfigDict(frozen=True)
+
+    @computed_field
+    @property
+    def bbox_ltrb(self) -> tuple[float, float, float, float]:
+        """Normalized ``left, top, right, bottom`` box."""
+        return (self.left, self.top, self.left + self.width, self.top + self.height)
+
+    @computed_field
+    @property
+    def bbox_xywh(self) -> tuple[float, float, float, float]:
+        """Normalized center ``xywh`` box."""
+        return (
+            self.left + self.width / 2,
+            self.top + self.height / 2,
+            self.width,
+            self.height,
+        )
+
+
+class LayoutItem3D(BaseModel):
+    """A parsed 3D CSS layout item."""
+
+    label: str
+    length: float
+    width: float
+    height: float
+    orientation: float
+    left: float
+    top: float
+    depth: float
+
+    model_config = ConfigDict(frozen=True)
+
+
+class RawLayoutResponse(BaseModel):
+    """Structured model response before CSS parsing."""
+
+    text: str
+
+
+class LayoutGPTOutput(BaseModel):
+    """Pydantic representation of a parsed LayoutGPT response."""
+
+    prompt: str
+    canvas_size: int
+    items: list[LayoutItem2D]
+    raw_text: str
+    id2label: dict[int, str]
+    selected_exemplar_ids: list[str | int] = Field(default_factory=list)
+    prompt_messages: list[dict[str, str]] | None = None
+
+    model_config = ConfigDict(frozen=True)
+
+    def to_layout_generation_output(self) -> LayoutGenerationOutput:
+        """Convert to the shared public layout output schema."""
+        labels = {label: idx for idx, label in self.id2label.items()}
+        bbox_values = [item.bbox_xywh for item in self.items]
+        label_values = [labels[item.label] for item in self.items]
+        bbox = cast(torch.FloatTensor, torch.tensor([bbox_values], dtype=torch.float32))
+        label_tensor = cast(
+            torch.LongTensor, torch.tensor([label_values], dtype=torch.long)
+        )
+        mask = cast(
+            torch.BoolTensor, torch.ones((1, len(self.items)), dtype=torch.bool)
+        )
+        return LayoutGenerationOutput(
+            bbox=bbox,
+            labels=label_tensor,
+            mask=mask,
+            id2label=self.id2label,
+            intermediates={
+                "prompt": self.prompt,
+                "raw_text": self.raw_text,
+                "selected_exemplar_ids": self.selected_exemplar_ids,
+                "prompt_messages": self.prompt_messages,
+            },
+        )
+
+
+class LayoutGPTConfig(BaseModel):
+    """Runtime configuration for LayoutGPT prompt and provider behavior."""
+
+    setting: Literal["counting", "spatial"] = "counting"
+    icl_type: Literal["fixed-random", "k-similar"] = "k-similar"
+    k: int = Field(default=8, ge=0)
+    canvas_size: int = Field(default=256, gt=0)
+    gpt_input_length_limit: int = Field(default=3000, gt=0)
+    chat: bool = True
+    temperature: float = 0.7
+    top_p: float = 1.0
+    n_iter: int = Field(default=1, ge=1)
+    fixed_random_seed: int = 42
