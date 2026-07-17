@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Final, assert_never, cast
 
 import torch
-from laygen.common import ConditionType, normalize_condition_type
+from laygen.common import ConditionType, OutputField, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.outputs import LayoutGenerationOutput
 from pydantic_ai import Agent
@@ -212,16 +212,19 @@ class LayoutGPTAgent:
         if not return_intermediates:
             output.intermediates = None
         if normalized_output_type is OutputType.dict:
-            return {
-                "bbox": output.bbox,
-                "labels": output.labels,
-                "mask": output.mask,
-                "id2label": output.id2label,
-                "sequences": output.sequences,
-                "scores": output.scores,
-                "trajectory": output.trajectory,
-                "intermediates": output.intermediates,
-            }
+            return cast(
+                LayoutGPTOutputDict,
+                {
+                    str(OutputField.bbox): output.bbox,
+                    str(OutputField.labels): output.labels,
+                    str(OutputField.mask): output.mask,
+                    str(OutputField.id2label): output.id2label,
+                    str(OutputField.sequences): output.sequences,
+                    str(OutputField.scores): output.scores,
+                    str(OutputField.trajectory): output.trajectory,
+                    str(OutputField.intermediates): output.intermediates,
+                },
+            )
         if normalized_output_type is OutputType.dataclass:
             return output
         assert_never(normalized_output_type)

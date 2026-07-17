@@ -14,6 +14,7 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final, Protocol, cast
 
+from laygen.common.vendor import vendor_root as resolve_vendor_root
 import torch
 from typing_extensions import TypedDict
 
@@ -141,25 +142,9 @@ class _StoppingCriteria:
     pass
 
 
-def find_vendor_root(start: Path | None = None) -> Path:
-    """Locate the read-only vendor/layout-gpt checkout."""
-    root = start or Path(__file__).resolve().parents[3]
-    candidates = [
-        root,
-        root / "vendor" / "layout-gpt",
-        Path(str(root).split("=", 1)[0]) / "vendor" / "layout-gpt",
-    ]
-    required = Path(VENDOR_2D_SCRIPT)
-    for candidate in candidates:
-        if (candidate / required).exists():
-            return candidate
-    msg = "vendor/layout-gpt is not available"
-    raise FileNotFoundError(msg)
-
-
 def build_golden(vendor_root: Path | None = None) -> VendorGolden:
     """Execute vendor deterministic paths and return regenerated goldens."""
-    root = find_vendor_root(vendor_root)
+    root = resolve_vendor_root("layout-gpt", marker=VENDOR_2D_SCRIPT, path=vendor_root)
     vendor_2d = _load_vendor_module(root, VENDOR_2D_SCRIPT)
     vendor_parser = _load_vendor_module(root, VENDOR_PARSER_SCRIPT)
 

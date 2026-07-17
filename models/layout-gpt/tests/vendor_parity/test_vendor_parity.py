@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Protocol, cast
 
+from laygen.common.vendor import vendor_root as resolve_vendor_root
 import pytest
 from typing_extensions import TypedDict
 
@@ -17,6 +18,9 @@ from layout_gpt.parser import parse_3d_layout_line, parse_layout_line
 from layout_gpt.prompts import form_prompt_for_chatgpt, form_prompt_for_gpt3
 
 pytestmark = pytest.mark.vendor_parity
+
+COUNTING_TRAIN_JSON = Path("dataset/NSR-1K/counting/counting.train.json")
+COUNTING_VAL_JSON = Path("dataset/NSR-1K/counting/counting.val.json")
 
 
 class GoldenMetadata(TypedDict):
@@ -47,16 +51,10 @@ class GoldenBuilder(Protocol):
 
 
 def _vendor_root() -> Path:
-    worktree_root = Path(__file__).resolve().parents[4]
-    candidates = [
-        worktree_root / "vendor" / "layout-gpt",
-        Path(str(worktree_root).split("=", 1)[0]) / "vendor" / "layout-gpt",
-    ]
-    required_file = Path("dataset/NSR-1K/counting/counting.train.json")
-    for candidate in candidates:
-        if (candidate / required_file).exists():
-            return candidate
-    pytest.skip("vendor/layout-gpt is not available")
+    try:
+        return resolve_vendor_root("layout-gpt", marker=COUNTING_TRAIN_JSON)
+    except FileNotFoundError as exc:
+        pytest.skip(str(exc))
 
 
 def test_prompt_and_exemplar_selection_match_vendor_generated_golden() -> None:
@@ -166,18 +164,14 @@ def _candidate_records(golden: VendorGolden) -> list[dict[str, object]]:
 def _train_records() -> list[dict[str, object]]:
     return cast(
         list[dict[str, object]],
-        json.loads(
-            (_vendor_root() / "dataset/NSR-1K/counting/counting.train.json").read_text()
-        ),
+        json.loads((_vendor_root() / COUNTING_TRAIN_JSON).read_text()),
     )
 
 
 def _val_records() -> list[dict[str, object]]:
     return cast(
         list[dict[str, object]],
-        json.loads(
-            (_vendor_root() / "dataset/NSR-1K/counting/counting.val.json").read_text()
-        ),
+        json.loads((_vendor_root() / COUNTING_VAL_JSON).read_text()),
     )
 
 
