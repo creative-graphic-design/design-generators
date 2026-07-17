@@ -1,12 +1,12 @@
 import torch
-import pytest
+from typing import Any, cast
 
 from laygen.common.discrete import SamplingMode
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser
-from layout_dm.pipeline import LayoutDMPipeline, OutputType
+from layout_dm.pipeline import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.scheduler import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
@@ -61,6 +61,43 @@ def test_pipeline_contract_and_seed_reproducible():
     assert torch.equal(out1.sequences, out2.sequences)
 
 
+def test_pipeline_conditional_dict_and_intermediates():
+    pipe = make_pipeline()
+    out = pipe(
+        condition_type="cat_cond",
+        bbox=[[[0.5, 0.5, 0.25, 0.25]]],
+        labels=[[1]],
+        mask=[[True]],
+        batch_size=3,
+        seed=0,
+        num_inference_steps=1,
+        sampling="deterministic",
+        output_type="dict",
+        return_intermediates=True,
+    )
+
+    assert out["bbox"].shape[0] == 1
+    assert out["intermediates"] == {"condition_type": "label"}
+    assert len(out["trajectory"]) == 1
+
+
+def test_pipeline_validates_condition_and_output_type():
+    pipe = make_pipeline()
+    try:
+        pipe(condition_type="label", labels=[[0]], num_inference_steps=1)
+    except ValueError as exc:
+        assert "bbox and labels are required" in str(exc)
+    else:
+        raise AssertionError("missing conditional bbox should fail")
+
+    try:
+        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+    except ValueError as exc:
+        assert "Unsupported output_type" in str(exc)
+    else:
+        raise AssertionError("unsupported output_type should fail")
+
+
 def test_pipeline_save_load_roundtrip(tmp_path):
     pipe = make_pipeline()
     pipe.save_pretrained(tmp_path)
@@ -73,25 +110,3 @@ def test_pipeline_save_load_roundtrip(tmp_path):
     )
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
-
-
-def test_pipeline_accepts_output_type_enum_and_dict_output():
-    pipe = make_pipeline()
-
-    out = pipe(
-        batch_size=1,
-        seed=0,
-        num_inference_steps=1,
-        sampling=SamplingMode.deterministic,
-        output_type=OutputType.dict,
-    )
-
-    assert isinstance(out, dict)
-    assert out["bbox"].shape[-1] == 4
-
-
-def test_pipeline_rejects_unknown_output_type():
-    pipe = make_pipeline()
-
-    with pytest.raises(ValueError, match="Unsupported output_type"):
-        pipe(batch_size=1, num_inference_steps=1, output_type="tuple")

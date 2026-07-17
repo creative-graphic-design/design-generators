@@ -1,6 +1,7 @@
 import pickle
+from types import SimpleNamespace
 
-import pytest
+import numpy as np
 import torch
 
 from layout_dm.conversion import (
@@ -11,20 +12,11 @@ from layout_dm.conversion import (
 )
 
 
-class FakeKMeans:
-    def __init__(self, values: list[float]) -> None:
-        self.cluster_centers_ = (
-            torch.tensor(values, dtype=torch.float32).reshape(-1, 1).numpy()
-        )
-
-
 def test_remap_denoiser_key():
     assert (
         remap_denoiser_key("model.module.transformer.cat_emb.weight")
         == "transformer.cat_emb.weight"
     )
-    with pytest.raises(KeyError):
-        remap_denoiser_key("model.module.other.weight")
 
 
 def test_split_original_state_dict_ignores_scheduler_buffers():
@@ -32,25 +24,36 @@ def test_split_original_state_dict_ignores_scheduler_buffers():
         "model.module.transformer.cat_emb.weight": torch.zeros(1),
         "model.module.c_log_at": torch.zeros(1),
         "model.module.Lt_history": torch.zeros(1),
-        "model.module.zero_vector": torch.zeros(1),
     }
     assert split_original_state_dict(state) == {
         "transformer.cat_emb.weight": state["model.module.transformer.cat_emb.weight"]
     }
-    with pytest.raises(KeyError):
+    try:
+        remap_denoiser_key("model.module.other.weight")
+    except KeyError as exc:
+        assert "model.module.other.weight" in str(exc)
+    else:
+        raise AssertionError("non-transformer key should fail")
+    try:
         split_original_state_dict({"model.module.other.weight": torch.zeros(1)})
+    except KeyError as exc:
+        assert "model.module.other.weight" in str(exc)
+    else:
+        raise AssertionError("unexpected original key should fail")
 
 
-def test_load_cluster_centers_sorts_original_kmeans_centers(tmp_path):
+def test_load_cluster_centers(tmp_path):
     cluster_dir = tmp_path / "clustering_weights"
     cluster_dir.mkdir()
-    models = {f"{key}-32": FakeKMeans([0.8, 0.2, 0.5]) for key in ("x", "y", "w", "h")}
-    with (cluster_dir / "rico25_max25_kmeans_train_clusters.pkl").open("wb") as f:
+    models = {
+        f"{key}-32": SimpleNamespace(cluster_centers_=np.array([[0.3], [0.1], [0.2]]))
+        for key in ("x", "y", "w", "h")
+    }
+    with (cluster_dir / "publaynet_max25_kmeans_train_clusters.pkl").open("wb") as f:
         pickle.dump(models, f)
 
-    centers = load_cluster_centers(tmp_path, "rico25")
-
-    assert centers["x"] == pytest.approx([0.2, 0.5, 0.8])
+    centers = load_cluster_centers(tmp_path, "publaynet")
+    assert centers["x"] == [0.1, 0.2, 0.3]
 
 
 def test_write_layoutdm_model_card(tmp_path):

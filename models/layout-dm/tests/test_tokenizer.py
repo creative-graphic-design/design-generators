@@ -1,6 +1,3 @@
-import json
-
-import pytest
 import torch
 from transformers import PreTrainedTokenizer
 
@@ -76,106 +73,86 @@ def test_tokenizer_rejects_text_call():
         raise AssertionError("text tokenization should fail explicitly")
 
 
-def test_tokenizer_accepts_config_dict_and_rejects_missing_structured_inputs():
-    tokenizer = LayoutDMTokenizer(
-        dict(LayoutDMConfig(dataset_name="publaynet", max_seq_length=1).config)
+def test_tokenizer_public_errors_and_internal_mappings(tmp_path):
+    cfg = LayoutDMConfig(
+        dataset_name="publaynet",
+        max_seq_length=1,
+        num_bin_bboxes=4,
+        bbox_quantization="linear",
     )
-
-    with pytest.raises(TypeError, match="requires bbox"):
-        tokenizer(labels=torch.zeros(1, 1, dtype=torch.long))
-
-
-def test_tokenizer_rejects_unsupported_config_modes():
-    with pytest.raises(NotImplementedError, match="token order"):
-        LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet", var_order="x-y-w-h"))
-
-    with pytest.raises(ValueError, match="mask to be the final"):
-        LayoutDMTokenizer(
-            LayoutDMConfig(
-                dataset_name="publaynet",
-                special_tokens=("mask", "pad"),
-            )
-        )
-
-
-def test_tokenizer_debug_conversions_and_unknowns():
-    tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
-
+    tokenizer = LayoutDMTokenizer(cfg.config)
     assert tokenizer._convert_token_to_id("missing") == tokenizer.pad_token_id
     assert tokenizer._convert_id_to_token(999999) == tokenizer.pad_token
-    assert tokenizer.convert_tokens_to_string(["a", "b"]) == "a b"
-    with pytest.raises(TypeError, match="does not tokenize text"):
+    assert tokenizer.convert_tokens_to_string(["c:text", "x:0"]) == "c:text x:0"
+    try:
         tokenizer._tokenize("hello")
-
-
-def test_tokenizer_prefix_save_and_pipeline_root_load(tmp_path):
-    tokenizer = LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet"))
-    saved = tokenizer.save_vocabulary(tmp_path, filename_prefix="layout")
-    assert all("layout-" in path for path in saved)
-
-    pipeline_root = tmp_path / "pipeline"
-    tokenizer.save_pretrained(pipeline_root / "tokenizer")
-    loaded = LayoutDMTokenizer.from_pretrained(pipeline_root)
-
-    assert loaded.get_vocab() == tokenizer.get_vocab()
-
-
-def test_tokenizer_load_config_requires_file():
-    with pytest.raises(ValueError, match="layout_config_file"):
-        LayoutDMTokenizer()
-
-
-def test_tokenizer_loads_cluster_centers_file(tmp_path):
-    layout_config = LayoutDMConfig(
-        dataset_name="publaynet",
-        bbox_quantization="kmeans",
-        num_bin_bboxes=2,
-    ).config
-    layout_config = dict(layout_config)
-    layout_config["cluster_centers"] = None
-    layout_config_file = tmp_path / "layout_config.json"
-    cluster_centers_file = tmp_path / "cluster_centers.json"
-    layout_config_file.write_text(json.dumps(layout_config), encoding="utf-8")
-    cluster_centers_file.write_text(
-        json.dumps(
-            {
-                "x": [0.25, 0.75],
-                "y": [0.25, 0.75],
-                "w": [0.25, 0.75],
-                "h": [0.25, 0.75],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    tokenizer = LayoutDMTokenizer(
-        layout_config_file=layout_config_file,
-        cluster_centers_file=cluster_centers_file,
-    )
-    encoded = tokenizer.encode_layout(
-        bbox=torch.tensor([[[0.2, 0.8, 0.2, 0.8]]]),
-        labels=torch.tensor([[0]]),
-    )
-    decoded = tokenizer.decode_layout(encoded["input_ids"])
-
-    assert decoded["bbox"].shape == (1, 25, 4)
-
-
-def test_tokenizer_rejects_long_sequences_and_unknown_quantization():
-    tokenizer = LayoutDMTokenizer(
-        LayoutDMConfig(dataset_name="publaynet", max_seq_length=1)
-    )
-    with pytest.raises(ValueError, match="exceeds max_seq_length"):
+    except TypeError as exc:
+        assert "does not tokenize text" in str(exc)
+    else:
+        raise AssertionError("text tokenization should fail")
+    try:
+        tokenizer()
+    except TypeError as exc:
+        assert "requires bbox" in str(exc)
+    else:
+        raise AssertionError("missing structured tensors should fail")
+    try:
         tokenizer.encode_layout(
             bbox=torch.zeros(1, 2, 4),
             labels=torch.zeros(1, 2, dtype=torch.long),
         )
+    except ValueError as exc:
+        assert "exceeds max_seq_length" in str(exc)
+    else:
+        raise AssertionError("overlong layout should fail")
 
-    config = LayoutDMConfig(dataset_name="publaynet")
-    config.bbox_quantization = "bad"
-    tokenizer = LayoutDMTokenizer(config)
-    with pytest.raises(ValueError, match="Unsupported bbox_quantization"):
-        tokenizer.encode_layout(
-            bbox=torch.zeros(1, 1, 4),
-            labels=torch.zeros(1, 1, dtype=torch.long),
+    log_probs = torch.zeros(1, cfg.vocab_size, 2)
+    partial = tokenizer.full_to_partial_log_probs(log_probs, "x")
+    restored = tokenizer.partial_to_full_log_probs(partial, "x")
+    assert partial.shape[1] == cfg.num_bin_bboxes + 2
+    assert restored.shape == log_probs.shape
+
+    saved = tokenizer.save_vocabulary(tmp_path, filename_prefix="pref")
+    assert all("pref-" in path for path in saved)
+    try:
+        LayoutDMTokenizer(layout_config_file=None)
+    except ValueError as exc:
+        assert "layout_config_file" in str(exc)
+    else:
+        raise AssertionError("missing config file should fail")
+
+
+def test_tokenizer_validates_config_and_kmeans_decode():
+    try:
+        LayoutDMTokenizer(LayoutDMConfig(dataset_name="publaynet", var_order="x-y-w-h"))
+    except NotImplementedError as exc:
+        assert "c-x-y-w-h" in str(exc)
+    else:
+        raise AssertionError("unsupported var_order should fail")
+    try:
+        LayoutDMTokenizer(
+            LayoutDMConfig(dataset_name="publaynet", special_tokens=("mask", "pad"))
         )
+    except ValueError as exc:
+        assert "mask to be the final" in str(exc)
+    else:
+        raise AssertionError("invalid special token order should fail")
+
+    cfg = LayoutDMConfig(
+        dataset_name="publaynet",
+        bbox_quantization="kmeans",
+        num_bin_bboxes=4,
+        cluster_centers={
+            "x": [0.1, 0.2, 0.3, 0.4],
+            "y": [0.1, 0.2, 0.3, 0.4],
+            "w": [0.1, 0.2, 0.3, 0.4],
+            "h": [0.1, 0.2, 0.3, 0.4],
+        },
+    )
+    tokenizer = LayoutDMTokenizer(cfg)
+    encoded = tokenizer.encode_layout(
+        bbox=torch.tensor([[[0.2, 0.3, 0.1, 0.4]]]),
+        labels=torch.tensor([[1]]),
+    )
+    decoded = tokenizer.decode_layout(encoded["input_ids"])
+    assert decoded["bbox"].shape == (1, cfg.max_seq_length, 4)

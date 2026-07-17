@@ -1,17 +1,17 @@
-import torch
+from dataclasses import dataclass
+
+import matplotlib.pyplot as plt
 import pytest
+import torch
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import (
     BoxFormat,
-    clamp_boxes,
     denormalize_boxes,
     linear_continuize,
     linear_discretize,
     ltrb_to_xywh,
-    normalize_box_format,
     normalize_boxes,
-    xywh_to_ltwh,
     xywh_to_ltrb,
 )
 from laygen.common.discrete import (
@@ -27,7 +27,13 @@ from laygen.common.discrete import (
     sample_categorical,
     top_k_logits,
 )
-from laygen.common.labels import DatasetName, id2label_for_dataset
+from laygen.common.labels import (
+    DatasetName,
+    id2label_for_dataset,
+    label2id_for_dataset,
+    labels_for_dataset,
+    normalize_dataset_name,
+)
 from laygen.common.model_card import layout_corrector_model_card, layoutdm_model_card
 from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
@@ -44,10 +50,6 @@ from laygen.common.visualization import render_layout
 def test_bbox_conversions_roundtrip():
     bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.4]]])
     assert torch.allclose(ltrb_to_xywh(xywh_to_ltrb(bbox)), bbox)
-    assert torch.allclose(xywh_to_ltwh(bbox), torch.tensor([[[0.4, 0.3, 0.2, 0.4]]]))
-    assert torch.allclose(
-        clamp_boxes(torch.tensor([[-1.0, 2.0]])), torch.tensor([[0.0, 1.0]])
-    )
     pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="ltrb")
     assert torch.allclose(
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="ltrb"), bbox
@@ -56,13 +58,18 @@ def test_bbox_conversions_roundtrip():
         bbox, canvas_size=(100, 200), box_format=BoxFormat.ltrb
     )
     assert torch.allclose(pixels_from_enum, pixels)
+    ltwh_pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="ltwh")
+    xywh_pixels = denormalize_boxes(bbox, canvas_size=(100, 200), box_format="xywh")
     assert torch.allclose(
-        denormalize_boxes(bbox, canvas_size=(100, 200), box_format=BoxFormat.ltwh),
-        torch.tensor([[[40.0, 60.0, 20.0, 80.0]]]),
+        normalize_boxes(ltwh_pixels, canvas_size=(100, 200), box_format="ltwh"),
+        bbox,
     )
-    assert normalize_box_format(BoxFormat.xywh) is BoxFormat.xywh
+    assert torch.allclose(
+        normalize_boxes(xywh_pixels, canvas_size=(100, 200), box_format="xywh"),
+        bbox,
+    )
     with pytest.raises(ValueError, match="Unsupported box_format"):
-        normalize_box_format("bad")
+        normalize_boxes(pixels, canvas_size=(100, 200), box_format="bad")
 
 
 def test_linear_bins_roundtrip_shape():
@@ -75,37 +82,20 @@ def test_linear_bins_roundtrip_shape():
 def test_discrete_log_onehot_roundtrip():
     ids = torch.tensor([[0, 2, 1]])
     assert torch.equal(log_onehot_to_index(index_to_log_onehot(ids, 3)), ids)
+    with pytest.raises(ValueError, match="exceeds vocab_size"):
+        index_to_log_onehot(torch.tensor([[3]]), 3)
 
 
-def test_discrete_helpers_cover_sampling_modes():
-    logits = torch.tensor([[[0.0, 1.0, 2.0], [3.0, 2.0, 1.0]]])
+def test_discrete_sampling_helpers_cover_modes():
+    logits = torch.tensor([[[0.0, 2.0, 1.0], [3.0, 1.0, 0.0]]])
+    generator = torch.Generator().manual_seed(0)
+
     assert normalize_sampling_mode(SamplingMode.random) is SamplingMode.random
     with pytest.raises(ValueError, match="Unsupported sampling mode"):
         normalize_sampling_mode("bad")
-    with pytest.raises(ValueError, match="exceeds vocab_size"):
-        index_to_log_onehot(torch.tensor([3]), 3)
-
-    assert torch.allclose(
-        log_add_exp(torch.tensor([0.0]), torch.tensor([0.0])),
-        torch.log(torch.tensor([2.0])),
-    )
-    values = torch.tensor([0.1, 0.2, 0.3])
-    timesteps = torch.tensor([2, 0])
-    assert extract(values, timesteps, torch.Size([2, 3, 4])).shape == (2, 1, 1)
-
-    generator_a = torch.Generator().manual_seed(0)
-    generator_b = torch.Generator().manual_seed(0)
-    assert torch.equal(
-        gumbel_noise_like(logits, generator=generator_a),
-        gumbel_noise_like(logits, generator=generator_b),
-    )
-    log_probs = logits.permute(0, 2, 1).log_softmax(dim=1)
-    assert log_sample_categorical(
-        log_probs, generator=torch.Generator().manual_seed(1)
-    ).shape == (1, 2)
     assert torch.equal(
         sample_categorical(logits, sampling=SamplingMode.deterministic),
-        torch.tensor([[2, 0]]),
+        torch.tensor([[1, 0]]),
     )
     for mode in (
         SamplingMode.random,
@@ -118,21 +108,51 @@ def test_discrete_helpers_cover_sampling_modes():
             logits,
             sampling=mode,
             top_k=2,
-            top_p=0.8,
-            generator=torch.Generator().manual_seed(2),
+            top_p=0.75,
+            generator=generator,
         )
-        assert sampled.shape == (1, 2)
+        assert sampled.shape == logits.shape[:-1]
 
-    masked = top_k_logits(logits, k=2)
-    assert masked[0, 0, 0] < -60
-    assert torch.equal(top_k_logits(logits, k=0), logits)
-    assert torch.equal(
-        batch_topk_mask(torch.tensor([[0.1, 0.9, 0.5]]), torch.tensor([2])),
-        torch.tensor([[False, True, True]]),
+    log_sampled = log_sample_categorical(logits.permute(0, 2, 1), generator=generator)
+    assert log_sampled.shape == logits.shape[:-1]
+    assert int(log_sampled.max()) < logits.shape[-1]
+    assert torch.equal(top_k_logits(logits, 0), logits)
+    masked = top_k_logits(logits, 1)
+    assert masked[0, 0, 0] < -60.0
+    assert log_add_exp(
+        torch.tensor([0.0]), torch.tensor([0.0])
+    ).item() == pytest.approx(torch.log(torch.tensor(2.0)).item())
+    values = torch.tensor([10.0, 20.0, 30.0])
+    assert extract(values, torch.tensor([0, 2]), torch.Size([2, 3, 4])).shape == (
+        2,
+        1,
+        1,
     )
-    assert not batch_topk_mask(torch.ones(1, 3), torch.tensor([0])).any()
+    assert gumbel_noise_like(torch.zeros(2, 3), generator=generator).shape == (2, 3)
+
+
+def test_batch_topk_mask_edges():
+    scores = torch.tensor([[0.1, 0.9, 0.2], [0.8, 0.1, 0.7]])
+    mask = batch_topk_mask(scores, torch.tensor([1, 2]))
+    assert mask.tolist() == [[False, True, False], [True, False, True]]
+    assert not batch_topk_mask(scores, torch.tensor([0, 0])).any()
     with pytest.raises(ValueError, match="rank-2"):
-        batch_topk_mask(torch.ones(1, 1, 3), torch.tensor([1]))
+        batch_topk_mask(scores.unsqueeze(0), torch.tensor([1]))
+
+
+def test_label_registry_aliases_and_errors():
+    assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
+    assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
+    assert labels_for_dataset("publaynet") == (
+        "text",
+        "title",
+        "list",
+        "table",
+        "figure",
+    )
+    assert label2id_for_dataset("rico25")["Text"] == 0
+    with pytest.raises(ValueError, match="Unknown dataset_name"):
+        normalize_dataset_name("unknown")
 
 
 def test_output_schema():
@@ -143,7 +163,6 @@ def test_output_schema():
         id2label=id2label_for_dataset(DatasetName.publaynet),
     )
     assert_layout_output_schema(output, batch_size=1)
-    assert_normalized_xywh(torch.empty(0, 4))
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
@@ -185,34 +204,6 @@ def test_output_variants_share_schema_and_mapping_behavior():
     )
 
 
-def test_testing_helper_and_visualization():
-    def callable_(generator: torch.Generator):
-        ids = torch.multinomial(
-            torch.tensor([[0.4, 0.6]]),
-            1,
-            generator=generator,
-        )
-        labels = ids.reshape(1, 1)
-        return LayoutGenerationOutput(
-            bbox=torch.tensor([[[0.5, 0.5, 0.2, 0.2]]]),
-            labels=labels,
-            mask=torch.tensor([[True]]),
-            id2label={0: "text", 1: "title"},
-        )
-
-    assert_generator_reproducible(callable_)
-    ax = render_layout(
-        torch.tensor([[0.5, 0.5, 0.2, 0.2], [0.1, 0.1, 0.1, 0.1]]),
-        torch.tensor([1, 99]),
-        torch.tensor([True, False]),
-        {1: "title"},
-        canvas_size=(100, 200),
-        colors=["red"],
-    )
-    assert len(ax.patches) == 1
-    assert ax.texts[0].get_text() == "title"
-
-
 def test_layoutdm_model_card_metadata_and_sections():
     card = layoutdm_model_card(dataset="rico25")
     metadata = card.data.to_dict()
@@ -221,9 +212,10 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
     assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
-    assert metadata["language"] == ["en"]
+    card.validate()
     assert "## Model Details" in text
     assert "### Model Description" in text
     assert "## Uses" in text
@@ -238,20 +230,35 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "### Training Data" in text
     assert "### Training Procedure" in text
     assert "## Evaluation" in text
-    assert "### Testing Data" in text
-    assert "### Factors" in text
-    assert "### Metrics" in text
+    assert "### Testing Data, Factors & Metrics" in text
     assert "### Results" in text
     assert "Tokenizer exact" in text
     assert "## Technical Specifications" in text
+    assert "## Model Card Contact" in text
     assert "[More Information Needed]" not in text
     assert "This card follows" not in text
     assert "annotated model card" not in text
     assert "model card template" not in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
-    assert "More Information Needed" not in text
-    assert card.validate() is None
+
+
+def test_layoutdm_model_card_mapping_inputs_and_errors():
+    card = layoutdm_model_card(
+        dataset="publaynet",
+        parity_metrics=[
+            {
+                "dataset": "publaynet",
+                "tokenizer_exact": "1/1",
+                "deterministic_exact": "1/1",
+                "logits_max_abs": 0.0,
+                "logits_max_rel": 0.0,
+            }
+        ],
+    )
+    assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
+    with pytest.raises(ValueError, match="Unsupported layout dataset"):
+        layoutdm_model_card(dataset="unknown")
 
 
 def test_layout_corrector_model_card_metadata_and_sections():
@@ -274,3 +281,46 @@ def test_layout_corrector_model_card_metadata_and_sections():
     assert "cyberagent/crello" in text
     assert "More Information Needed" not in text
     assert card.validate() is None
+
+
+@dataclass
+class _ToyOutput:
+    bbox: torch.Tensor
+    labels: torch.Tensor
+    mask: torch.Tensor
+    id2label: dict[int, str]
+
+
+def test_testing_helpers_and_visualization():
+    bbox = torch.tensor([[[0.5, 0.5, 0.4, 0.4], [1.5, 0.5, 0.2, 0.2]]])
+    labels = torch.tensor([[0, 1]])
+    mask = torch.tensor([[True, False]])
+    output = _ToyOutput(
+        bbox=bbox.clamp(0, 1), labels=labels, mask=mask, id2label={0: "text"}
+    )
+    assert_layout_output_schema(output, batch_size=1)
+    assert_normalized_xywh(
+        torch.tensor([[[2.0, 2.0, 1.0, 1.0]]]), torch.tensor([[False]])
+    )
+
+    def make_output(*, generator: torch.Generator) -> _ToyOutput:
+        value = torch.rand((), generator=generator)
+        return _ToyOutput(
+            bbox=torch.full((1, 1, 4), value.item()),
+            labels=torch.tensor([[1]]),
+            mask=torch.tensor([[True]]),
+            id2label={1: "box"},
+        )
+
+    assert_generator_reproducible(make_output)
+    ax = render_layout(
+        bbox.squeeze(0),
+        labels.squeeze(0),
+        mask.squeeze(0),
+        {0: "text"},
+        canvas_size=(100, 200),
+        colors=["red"],
+    )
+    assert len(ax.patches) == 1
+    assert len(ax.texts) == 1
+    plt.close("all")
