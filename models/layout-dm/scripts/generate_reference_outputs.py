@@ -1,3 +1,5 @@
+"""Generate local LayoutDM vendor parity reference tensors."""
+
 from __future__ import annotations
 
 import argparse
@@ -76,13 +78,43 @@ def _synthetic_layout(tokenizer) -> dict[str, torch.Tensor]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
-    parser.add_argument("--starter-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--sampling", default="deterministic")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--batch-size", type=int, default=1)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the original LayoutDM implementation and save tokenizer, denoiser, "
+            "and deterministic sampling fixtures for vendor parity tests."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico25", "publaynet"],
+        required=True,
+        help="Dataset/checkpoint family for fixture generation.",
+    )
+    parser.add_argument(
+        "--starter-dir",
+        type=Path,
+        default=Path(".cache/layout-dm/original/layoutdm_starter"),
+        help="Extracted original LayoutDM starter directory.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="Output fixture directory containing tokenizer_io.pt and related files.",
+    )
+    parser.add_argument(
+        "--sampling",
+        default="deterministic",
+        help="Sampling mode; parity fixtures require deterministic sampling.",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="Torch RNG seed.")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Batch size for generated denoiser and sampling fixtures.",
+    )
     args = parser.parse_args()
     if args.sampling != "deterministic":
         raise ValueError("Parity fixtures currently require deterministic sampling")

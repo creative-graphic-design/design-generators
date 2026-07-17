@@ -1,3 +1,5 @@
+"""Convert original Layout-Corrector checkpoints to a Diffusers composite pipeline."""
+
 from __future__ import annotations
 
 import argparse
@@ -26,13 +28,53 @@ def _parity_metrics(dataset: str) -> list[ParityMetric]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True)
-    parser.add_argument("--starter-dir", type=Path, required=True)
-    parser.add_argument("--corrector-job-dir", type=Path, required=True)
-    parser.add_argument("--layout-dm-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--push-to-hub", default=None)
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert released Layout-Corrector weights and a converted LayoutDM "
+            "pipeline into a save_pretrained LayoutCorrectorPipeline directory."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["rico25", "publaynet", "crello", "crello-bbox"],
+        required=True,
+        help="Dataset/checkpoint family to convert.",
+    )
+    parser.add_argument(
+        "--starter-dir",
+        type=Path,
+        default=Path(
+            ".cache/layout-corrector/original/layout_corrector_starter_kit/download"
+        ),
+        help="Extracted starter-kit download directory containing pretrained_weights.",
+    )
+    parser.add_argument(
+        "--corrector-job-dir",
+        type=Path,
+        required=True,
+        help=(
+            "Corrector checkpoint seed directory, or a directory containing seed "
+            "subdirectories with config.yaml and best_model.pt."
+        ),
+    )
+    parser.add_argument(
+        "--layout-dm-dir",
+        type=Path,
+        required=True,
+        help="Converted LayoutDM save_pretrained directory for the matching dataset/seed.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="Output save_pretrained directory for the composite pipeline.",
+    )
+    parser.add_argument(
+        "--push-to-hub",
+        default=None,
+        help="Reserved Hub repo id for future upload support; conversion stays local.",
+    )
     args = parser.parse_args()
     seed_dirs = discover_seed_dirs(args.corrector_job_dir)
     if not seed_dirs:

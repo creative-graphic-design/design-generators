@@ -1,3 +1,5 @@
+"""Convert original LayoutDM checkpoints to a Diffusers pipeline."""
+
 from __future__ import annotations
 
 import argparse
@@ -39,15 +41,37 @@ def _checkpoint_dir(starter_dir: Path, dataset: str, seed: int) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert released LayoutDM weights into a save_pretrained "
+            "LayoutDMPipeline directory with a Hub README model card."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "--dataset",
         choices=["rico25", "publaynet", "crello", "crello-bbox"],
         required=True,
+        help="Dataset/checkpoint family to convert.",
     )
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--starter-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Original checkpoint seed subdirectory.",
+    )
+    parser.add_argument(
+        "--starter-dir",
+        type=Path,
+        default=Path(".cache/layout-dm/original/layoutdm_starter"),
+        help="Extracted starter directory containing pretrained_weights.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="Output save_pretrained directory.",
+    )
     args = parser.parse_args()
 
     checkpoint_dataset = "crello-bbox" if args.dataset == "crello" else args.dataset

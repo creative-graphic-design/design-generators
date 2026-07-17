@@ -1,3 +1,5 @@
+"""Download and extract the original LayoutDM starter kit."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,11 +13,24 @@ URL = "https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/lay
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/layout-dm/original")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Download the original LayoutDM starter archive and extract it under "
+            "the requested cache directory."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--url", default=URL)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path(".cache/layout-dm/original"),
+        help="Directory for layoutdm_starter.zip and extracted starter files.",
+    )
+    parser.add_argument(
+        "--url",
+        default=URL,
+        help="Original LayoutDM starter archive URL.",
+    )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     archive = args.output_dir / "layoutdm_starter.zip"
