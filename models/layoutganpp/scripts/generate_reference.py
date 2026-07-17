@@ -1,0 +1,145 @@
+"""Generate LayoutGAN++ vendor-reference bbox fixtures for parity tests."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Final, cast
+
+import torch
+
+from laygen.common.vendor import vendor_root
+from layoutganpp.datasets import labels_for_dataset
+
+_VENDOR_MODEL: Final[Path] = Path("model") / "layoutganpp.py"
+
+
+def _arg(args: object, key: str) -> str:
+    if isinstance(args, Mapping):
+        return str(cast(Mapping[str, object], args)[key])
+    return getattr(args, key)
+
+
+def _arg_int(args: object, key: str) -> int:
+    return int(_arg(args, key))
+
+
+def _synthetic_labels(
+    *, batch_size: int, seq_len: int, num_labels: int, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor]:
+    labels = torch.arange(seq_len, dtype=torch.long, device=device).remainder(
+        num_labels
+    )
+    labels = labels.unsqueeze(0).repeat(batch_size, 1)
+    lengths = torch.arange(seq_len, seq_len - batch_size, -1, device=device).clamp_min(
+        1
+    )
+    positions = torch.arange(seq_len, device=device).unsqueeze(0)
+    attention_mask = positions < lengths.unsqueeze(1)
+    return labels, attention_mask
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the vendored const-layout LayoutGAN++ generator and save a "
+            "deterministic bbox fixture for the converted-model parity tests."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--vendor-dir",
+        type=Path,
+        default=Path("vendor/const-layout"),
+        help="Path to the original const-layout repository checkout.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        default=Path(".cache/layoutganpp/original/layoutganpp_rico.pth.tar"),
+        help=(
+            "Original checkpoint to load. The dataset is read from the checkpoint "
+            "args, so changing this path selects the matching dataset."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(".cache/layoutganpp/fixtures/rico/reference_seed0.pt"),
+        help="Output .pt fixture consumed by tests/vendor_parity.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed used for the synthetic latent tensor.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=3,
+        help="Number of synthetic label rows in the saved fixture.",
+    )
+    args = parser.parse_args()
+
+    vendor_dir = vendor_root(
+        "const-layout",
+        marker=_VENDOR_MODEL,
+        path=args.vendor_dir,
+    )
+    sys.path.insert(0, str(vendor_dir))
+    from model.layoutganpp import Generator
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(args.checkpoint, map_location=device)
+    train_args = checkpoint["args"]
+    dataset_name = str(_arg(train_args, "dataset"))
+    num_labels = len(labels_for_dataset(dataset_name))
+    seq_len = 33 if dataset_name == "magazine" else 9
+    model = (
+        Generator(
+            _arg_int(train_args, "latent_size"),
+            num_labels,
+            d_model=_arg_int(train_args, "G_d_model"),
+            nhead=_arg_int(train_args, "G_nhead"),
+            num_layers=_arg_int(train_args, "G_num_layers"),
+        )
+        .eval()
+        .to(device)
+    )
+    model.load_state_dict(checkpoint["netG"])
+    generator = torch.Generator(device=device).manual_seed(args.seed)
+    labels, attention_mask = _synthetic_labels(
+        batch_size=args.batch_size,
+        seq_len=seq_len,
+        num_labels=num_labels,
+        device=device,
+    )
+    latents = torch.randn(
+        labels.size(0),
+        labels.size(1),
+        _arg_int(train_args, "latent_size"),
+        generator=generator,
+        device=device,
+    )
+    with torch.no_grad():
+        bbox = model(latents, labels, ~attention_mask)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "dataset": dataset_name,
+            "seed": args.seed,
+            "labels": labels.cpu(),
+            "attention_mask": attention_mask.cpu(),
+            "latents": latents.cpu(),
+            "bbox": bbox.cpu(),
+        },
+        args.output,
+    )
+    print(args.output)
+
+
+if __name__ == "__main__":
+    main()

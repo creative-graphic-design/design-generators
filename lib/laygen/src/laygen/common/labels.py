@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import Final
+from typing import Final, TypedDict
 
 
 class DatasetName(StrEnum):
@@ -83,6 +83,13 @@ class MagazineLabel(StrEnum):
     headline_over_image = "headline-over-image"
 
 
+class DatasetMetadata(TypedDict):
+    """Shared metadata keyed by canonical dataset name."""
+
+    labels: tuple[StrEnum, ...]
+    max_elements: int
+
+
 RICO25_LABELS: Final[tuple[Rico25Label, ...]] = tuple(Rico25Label)
 RICO13_LABELS: Final[tuple[Rico13Label, ...]] = tuple(Rico13Label)
 PUBLAYNET_LABELS: Final[tuple[PubLayNetLabel, ...]] = tuple(PubLayNetLabel)
@@ -98,11 +105,11 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "magazine": DatasetName.magazine,
 }
 
-_LABELS: Final[dict[DatasetName, tuple[StrEnum, ...]]] = {
-    DatasetName.rico25: RICO25_LABELS,
-    DatasetName.rico13: RICO13_LABELS,
-    DatasetName.publaynet: PUBLAYNET_LABELS,
-    DatasetName.magazine: MAGAZINE_LABELS,
+DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
+    DatasetName.rico25: {"labels": RICO25_LABELS, "max_elements": 25},
+    DatasetName.rico13: {"labels": RICO13_LABELS, "max_elements": 9},
+    DatasetName.publaynet: {"labels": PUBLAYNET_LABELS, "max_elements": 9},
+    DatasetName.magazine: {"labels": MAGAZINE_LABELS, "max_elements": 33},
 }
 
 
@@ -133,7 +140,8 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
 
 def labels_for_dataset(dataset_name: DatasetName | str) -> tuple[str, ...]:
     """Return the ordered label vocabulary for a dataset."""
-    return tuple(str(label) for label in _LABELS[normalize_dataset_name(dataset_name)])
+    metadata = DATASET_METADATA[normalize_dataset_name(dataset_name)]
+    return tuple(str(label) for label in metadata["labels"])
 
 
 def id2label_for_dataset(dataset_name: DatasetName | str) -> dict[int, str]:
@@ -144,3 +152,8 @@ def id2label_for_dataset(dataset_name: DatasetName | str) -> dict[int, str]:
 def label2id_for_dataset(dataset_name: DatasetName | str) -> dict[str, int]:
     """Return a label-name to integer-id mapping for a dataset."""
     return {label: i for i, label in id2label_for_dataset(dataset_name).items()}
+
+
+def max_elements_for_dataset(dataset_name: DatasetName | str) -> int:
+    """Return the shared maximum element count for a dataset."""
+    return DATASET_METADATA[normalize_dataset_name(dataset_name)]["max_elements"]
