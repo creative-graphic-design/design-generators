@@ -1,6 +1,7 @@
 import pickle
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
@@ -17,6 +18,8 @@ def test_remap_denoiser_key():
         remap_denoiser_key("model.module.transformer.cat_emb.weight")
         == "transformer.cat_emb.weight"
     )
+    with pytest.raises(KeyError, match="model.module.other.weight"):
+        remap_denoiser_key("model.module.other.weight")
 
 
 def test_split_original_state_dict_ignores_scheduler_buffers():
@@ -28,24 +31,39 @@ def test_split_original_state_dict_ignores_scheduler_buffers():
     assert split_original_state_dict(state) == {
         "transformer.cat_emb.weight": state["model.module.transformer.cat_emb.weight"]
     }
-
-
-def test_conversion_rejects_unknown_keys_and_loads_centers(tmp_path):
-    with pytest.raises(KeyError):
-        remap_denoiser_key("other.weight")
-    with pytest.raises(KeyError):
+    with pytest.raises(KeyError, match="model.module.other.weight"):
         split_original_state_dict({"model.module.other.weight": torch.zeros(1)})
 
+
+def test_load_cluster_centers(tmp_path):
+    cluster_dir = tmp_path / "clustering_weights"
+    cluster_dir.mkdir()
+    models = {
+        f"{key}-32": SimpleNamespace(cluster_centers_=np.array([[0.3], [0.1], [0.2]]))
+        for key in ("x", "y", "w", "h")
+    }
+    with (cluster_dir / "publaynet_max25_kmeans_train_clusters.pkl").open("wb") as f:
+        pickle.dump(models, f)
+
+    centers = load_cluster_centers(tmp_path, "publaynet")
+    assert centers == {
+        "x": [0.1, 0.2, 0.3],
+        "y": [0.1, 0.2, 0.3],
+        "w": [0.1, 0.2, 0.3],
+        "h": [0.1, 0.2, 0.3],
+    }
+
+
+def test_load_cluster_centers_sorts_float32_values(tmp_path):
+    cluster_dir = tmp_path / "clustering_weights"
+    cluster_dir.mkdir()
     models = {
         f"{key}-32": SimpleNamespace(
             cluster_centers_=torch.tensor([[0.2], [0.1]]).numpy()
         )
         for key in ("x", "y", "w", "h")
     }
-    cluster_dir = tmp_path / "clustering_weights"
-    cluster_dir.mkdir()
-    path = cluster_dir / "publaynet_max25_kmeans_train_clusters.pkl"
-    with path.open("wb") as f:
+    with (cluster_dir / "publaynet_max25_kmeans_train_clusters.pkl").open("wb") as f:
         pickle.dump(models, f)
 
     centers = load_cluster_centers(tmp_path, "publaynet")

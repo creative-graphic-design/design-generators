@@ -923,6 +923,7 @@ training = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "mkdocs-gen-files" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -952,9 +953,10 @@ provides-extras = ["diffusion", "download", "llm-agent", "training"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "mkdocs-gen-files", specifier = ">=0.6.1" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", specifier = ">=6.0.0" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.1.5" },
     { name = "ty", specifier = ">=0.0.10" },
     { name = "vulture", specifier = ">=2.16" },

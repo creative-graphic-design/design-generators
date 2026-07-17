@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pytest
 import torch
@@ -63,21 +63,28 @@ def test_pipeline_contract_and_seed_reproducible():
     assert torch.equal(out1.sequences, out2.sequences)
 
 
-def test_pipeline_save_load_roundtrip(tmp_path):
+def test_pipeline_conditional_dict_and_intermediates():
     pipe = make_pipeline()
-    pipe.save_pretrained(tmp_path)
-    loaded = LayoutDMPipeline.from_pretrained(tmp_path)
-    out = loaded(
-        batch_size=1,
+    out = pipe(
+        condition_type="cat_cond",
+        bbox=[[[0.5, 0.5, 0.25, 0.25]]],
+        labels=[[1]],
+        mask=[[True]],
+        batch_size=3,
         seed=0,
         num_inference_steps=1,
-        sampling=SamplingMode.deterministic,
+        sampling="deterministic",
+        output_type="dict",
+        return_intermediates=True,
     )
-    assert isinstance(out, LayoutGenerationOutput)
-    assert_layout_output_schema(out, batch_size=1)
+
+    assert type(out) is dict
+    assert out["bbox"].shape[0] == 1
+    assert out["intermediates"] == {"condition_type": "label"}
+    assert len(out["trajectory"]) == 1
 
 
-def test_pipeline_conditional_modes_dict_output_and_errors():
+def test_pipeline_conditional_modes_return_dataclass():
     pipe = make_pipeline()
     bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.2]]])
     labels = torch.tensor([[1]])
@@ -107,15 +114,24 @@ def test_pipeline_conditional_modes_dict_output_and_errors():
             }[condition_type]
         }
 
-    dict_out = pipe(
+
+def test_pipeline_validates_condition_and_output_type():
+    pipe = make_pipeline()
+    with pytest.raises(ValueError, match="bbox and labels are required"):
+        pipe(condition_type="label", labels=[[0]], num_inference_steps=1)
+    with pytest.raises(ValueError, match="Unsupported output_type"):
+        pipe(batch_size=1, num_inference_steps=1, output_type=cast(Any, "tuple"))
+
+
+def test_pipeline_save_load_roundtrip(tmp_path):
+    pipe = make_pipeline()
+    pipe.save_pretrained(tmp_path)
+    loaded = LayoutDMPipeline.from_pretrained(tmp_path)
+    out = loaded(
         batch_size=1,
         seed=0,
         num_inference_steps=1,
         sampling=SamplingMode.deterministic,
-        output_type="dict",
     )
-    assert type(dict_out) is dict
-    with pytest.raises(ValueError, match="bbox and labels are required"):
-        pipe(condition_type="label", num_inference_steps=1)
-    with pytest.raises(ValueError, match="Unsupported output_type"):
-        pipe(output_type="tuple", num_inference_steps=1)
+    assert isinstance(out, LayoutGenerationOutput)
+    assert_layout_output_schema(out, batch_size=1)

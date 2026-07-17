@@ -15,30 +15,31 @@ def test_build_condition_modes_and_noisy_refinement() -> None:
             num_bin_bboxes=4,
         )
     )
-    bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.2], [0.2, 0.2, 0.1, 0.1]]])
+    bbox = torch.tensor([[[0.5, 0.5, 0.25, 0.25], [0.2, 0.2, 0.1, 0.1]]])
     noisy_bbox = torch.tensor([[[0.4, 0.4, 0.2, 0.2], [0.2, 0.2, 0.1, 0.1]]])
-    labels = torch.tensor([[1, 2]])
+    labels = torch.tensor([[0, 1]])
     mask = torch.tensor([[True, False]])
 
     assert normalize_condition_type("gen_t") == "label"
-    assert (
-        build_condition(
-            tokenizer, cond_type="label", bbox=bbox, labels=labels, mask=mask
-        ).type
-        == "c"
+
+    label = build_condition(
+        tokenizer, cond_type="label", bbox=bbox, labels=labels, mask=mask
     )
-    assert (
-        build_condition(
-            tokenizer, cond_type="label_size", bbox=bbox, labels=labels, mask=mask
-        ).type
-        == "cwh"
+    assert label.type == "c"
+    assert label.mask[0, 0]
+    assert not label.mask[0, 1]
+
+    label_size = build_condition(
+        tokenizer, cond_type="label_size", bbox=bbox, labels=labels, mask=mask
     )
-    assert (
-        build_condition(
-            tokenizer, cond_type="completion", bbox=bbox, labels=labels, mask=mask
-        ).type
-        == "partial"
+    assert label_size.type == "cwh"
+    assert label_size.mask[0, 3]
+
+    completion = build_condition(
+        tokenizer, cond_type="completion", bbox=bbox, labels=labels, mask=mask
     )
+    assert completion.type == "partial"
+
     refinement = build_condition(
         tokenizer,
         cond_type="refinement",
