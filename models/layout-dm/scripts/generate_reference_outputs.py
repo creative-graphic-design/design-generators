@@ -94,7 +94,7 @@ def main() -> None:
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(".cache/layout-dm/original/layoutdm_starter"),
+        default=Path(".cache/layout-dm/original/download"),
         help="Extracted original LayoutDM starter directory.",
     )
     parser.add_argument(

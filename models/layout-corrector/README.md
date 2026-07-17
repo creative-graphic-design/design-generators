@@ -90,7 +90,7 @@ uv run --package layout-corrector python models/layout-corrector/scripts/downloa
   --output-dir .cache/layout-corrector/original
 ```
 
-2. Download the LayoutDM starter kit used by the nested LayoutDM parity fixtures. This creates `.cache/layout-dm/original/layoutdm_starter`.
+2. Download the LayoutDM starter kit used by the nested LayoutDM parity fixtures. This creates `.cache/layout-dm/original/download`.
 
 ```bash
 uv run --package layout-dm --extra download python models/layout-dm/scripts/download_original.py \
@@ -103,7 +103,7 @@ uv run --package layout-dm --extra download python models/layout-dm/scripts/down
 for dataset in rico25 publaynet; do
   CUDA_VISIBLE_DEVICES=5 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
     --dataset "${dataset}" \
-    --starter-dir .cache/layout-dm/original/layoutdm_starter \
+    --starter-dir .cache/layout-dm/original/download \
     --output-dir "models/layout-dm/tests/vendor_parity/fixtures/${dataset}" \
     --sampling deterministic \
     --seed 0 \

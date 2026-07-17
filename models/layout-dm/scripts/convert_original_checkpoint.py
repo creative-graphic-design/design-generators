@@ -63,7 +63,7 @@ def main() -> None:
     parser.add_argument(
         "--starter-dir",
         type=Path,
-        default=Path(".cache/layout-dm/original/layoutdm_starter"),
+        default=Path(".cache/layout-dm/original/download"),
         help="Extracted starter directory containing pretrained_weights.",
     )
     parser.add_argument(

@@ -76,7 +76,7 @@ Run these commands from the repository root unless a block explicitly changes di
 
 ### 1. Download Original Weights
 
-This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/layoutdm_starter`.
+This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
 
 ```bash
 uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
@@ -95,7 +95,7 @@ This writes local-only parity fixtures for each dataset:
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset rico25 \
-  --starter-dir .cache/layout-dm/original/layoutdm_starter \
+  --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/rico25 \
   --sampling deterministic \
   --seed 0 \
@@ -103,26 +103,14 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/l
 
 CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset publaynet \
-  --starter-dir .cache/layout-dm/original/layoutdm_starter \
+  --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/publaynet \
   --sampling deterministic \
   --seed 0 \
   --batch-size 1
 ```
 
-### 3. Run Vendor Parity Tests
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
-```
-
-Expected result with the fixtures above:
-
-```text
-6 passed
-```
-
-### 4. Convert Checkpoints And Smoke Test from_pretrained
+### 3. Convert Checkpoints
 
 The conversion step writes Diffusers pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a `README.md` model card.
 
@@ -136,14 +124,28 @@ Expected local output roots:
 ```bash
 uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
-  --starter-dir .cache/layout-dm/original/layoutdm_starter \
+  --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25
 
 uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
-  --starter-dir .cache/layout-dm/original/layoutdm_starter \
+  --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-publaynet
 ```
+
+### 4. Run Vendor Parity Tests
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
+```
+
+Expected result with the fixtures and converted checkpoints above:
+
+```text
+6 passed
+```
+
+### 5. Smoke Test from_pretrained
 
 Smoke test both converted checkpoints:
 

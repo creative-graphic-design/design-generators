@@ -36,5 +36,5 @@ def test_reproducing_vendor_parity_bash_blocks_run_from_repo_root():
     assert "python models/layout-dm/scripts/download_original.py" in joined
     assert "python models/layout-dm/scripts/generate_reference_outputs.py" in joined
     assert "python models/layout-dm/scripts/convert_original_checkpoint.py" in joined
-    assert "--starter-dir .cache/layout-dm/original/layoutdm_starter" in joined
+    assert "--starter-dir .cache/layout-dm/original/download" in joined
     assert "uv run --package layout-dm --extra vendor" in joined
