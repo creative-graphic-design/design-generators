@@ -1,5 +1,5 @@
 [project]
-name = "layout-generation-common"
+name = "laygen"
 version = "0.1.0"
 description = "Shared layout generation schemas and utilities."
 requires-python = ">=3.11"

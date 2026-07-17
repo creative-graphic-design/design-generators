@@ -5,7 +5,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
-from layout_generation_common.bbox import normalize_boxes
+from laygen.common.bbox import normalize_boxes
 
 from .tokenization_layout_dm import LayoutDMTokenizer
 
@@ -47,11 +47,11 @@ class LayoutDMProcessor:
                 bbox_t, canvas_size=canvas_size, box_format=box_format
             )
         elif box_format == "ltwh":
-            from layout_generation_common.bbox import ltwh_to_xywh
+            from laygen.common.bbox import ltwh_to_xywh
 
             bbox_t = ltwh_to_xywh(bbox_t)
         elif box_format == "ltrb":
-            from layout_generation_common.bbox import ltrb_to_xywh
+            from laygen.common.bbox import ltrb_to_xywh
 
             bbox_t = ltrb_to_xywh(bbox_t)
         return self.tokenizer.encode_layout(bbox=bbox_t, labels=labels_t, mask=mask_t)

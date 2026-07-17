@@ -1,0 +1,1 @@
+"""Shared layout-generation utilities."""

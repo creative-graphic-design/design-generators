@@ -9,8 +9,7 @@ try:
     from diffusers.utils import BaseOutput
 except ImportError as exc:  # pragma: no cover - depends on optional extra
     raise ImportError(
-        "layout_generation_common.outputs_diffusers requires the optional "
-        "diffusers dependency."
+        "laygen.common.outputs_diffusers requires the optional diffusers dependency."
     ) from exc
 
 from ._output_spec import dataclass_fields

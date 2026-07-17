@@ -1,6 +1,6 @@
 import torch
 
-from layout_generation_common.testing import assert_layout_output_schema
+from laygen.common.testing import assert_layout_output_schema
 from layoutganpp import (
     LayoutGANPPConfig,
     LayoutGANPPModel,

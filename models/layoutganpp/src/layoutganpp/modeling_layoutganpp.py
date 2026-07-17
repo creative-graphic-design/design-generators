@@ -8,7 +8,7 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 

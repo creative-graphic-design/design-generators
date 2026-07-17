@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Transformers-style LayoutGAN++ conversion package."
 requires-python = ">=3.11"
 dependencies = [
-    "layout-generation-common",
+    "laygen",
     "numpy>=1.24",
     "pillow>=10.0.0",
     "torch>=2.1",
@@ -29,7 +29,7 @@ vendor = [
 ]
 
 [tool.uv.sources]
-layout-generation-common = { workspace = true }
+laygen = { workspace = true }
 
 [tool.pytest.ini_options]
 markers = [

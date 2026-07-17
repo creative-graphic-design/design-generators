@@ -1,7 +1,7 @@
 import torch
 from transformers.utils import ModelOutput
 
-from layout_generation_common.bbox import (
+from laygen.common.bbox import (
     denormalize_boxes,
     linear_continuize,
     linear_discretize,
@@ -9,13 +9,13 @@ from layout_generation_common.bbox import (
     normalize_boxes,
     xywh_to_ltrb,
 )
-from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
-from layout_generation_common.labels import id2label_for_dataset
-from layout_generation_common.outputs_diffusers import (
+from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
+from laygen.common.labels import id2label_for_dataset
+from laygen.common.outputs_diffusers import (
     LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
 )
-from layout_generation_common.outputs import LayoutGenerationOutput
-from layout_generation_common.testing import assert_layout_output_schema
+from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.testing import assert_layout_output_schema
 
 
 def test_bbox_conversions_roundtrip():

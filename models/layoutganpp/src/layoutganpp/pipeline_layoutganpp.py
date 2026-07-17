@@ -5,7 +5,7 @@ from typing import Literal
 import torch
 from transformers import Pipeline
 
-from layout_generation_common.outputs import LayoutGenerationOutput
+from laygen.common.outputs import LayoutGenerationOutput
 
 from .modeling_layoutganpp import LayoutGANPPModel
 from .processing_layoutganpp import LayoutGANPPProcessor
