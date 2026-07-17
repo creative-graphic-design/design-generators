@@ -116,8 +116,9 @@ uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
 
 Without `OPENAI_API_KEY`, the demo exits with a skip message.
 
-## Reproducing Vendor Parity
+## Reproducibility
 
+This section reproduces the parity verification against the original implementation.
 Use these commands to regenerate deterministic reference data and run the
 vendor parity checks. The generated JSON is written to `/tmp`.
 
@@ -156,7 +157,7 @@ Generated file:
 /tmp/layoutprompter_vendor_golden.json
 ```
 
-### 3. Run Vendor Parity
+### 3. Run Parity Checks
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
@@ -165,7 +166,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
 
 The test checks prompt bytes, selected exemplar ids, and parser output tensors.
 
-Current deterministic parity coverage:
+Parity results:
 
 ```text
 prompt bytes: exact match
