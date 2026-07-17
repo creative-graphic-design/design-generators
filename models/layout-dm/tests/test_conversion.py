@@ -35,4 +35,5 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "pipeline_tag: text-to-image" in text
     assert "creative-graphic-design/rico25" in text
     assert "LayoutDMPipeline.from_pretrained" in text
-    assert "## Parity Summary" in text
+    assert "## Evaluation" in text
+    assert "### Results" in text

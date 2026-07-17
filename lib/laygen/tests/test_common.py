@@ -97,13 +97,19 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
     assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["language"] == "en"
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/rico25"]
     assert "## Model Details" in text
-    assert "## Intended Uses & Limitations" in text
-    assert "## How to Use" in text
+    assert "## Uses" in text
+    assert "### Out-of-Scope Use" in text
+    assert "## Bias, Risks, and Limitations" in text
+    assert "## How to Get Started with the Model" in text
     assert "LayoutDMPipeline.from_pretrained" in text
-    assert "## Training Data" in text
-    assert "## Parity Summary" in text
+    assert "## Training Details" in text
+    assert "## Evaluation" in text
+    assert "### Results" in text
+    assert "## Technical Specifications" in text
     assert "## Citation" in text
     assert "https://github.com/CyberAgentAILab/layout-dm" in text
+    assert card.validate() is None

@@ -36,55 +36,66 @@ def build_layout_model_card(
     card_data = ModelCardData(
         model_name=model_name,
         license=license,
+        language="en",
         library_name=library_name,
         pipeline_tag=pipeline_tag,
         tags=list(tags),
         datasets=list(dataset_ids),
     )
-    parity_table = _parity_table(parity_metrics)
-    content = f"""---
-{card_data.to_yaml()}
----
-
-# {model_name}
-
-## Model Details
-
-Hub repository: `{model_id}`
-
-{model_details}
-
-Original implementation: {original_implementation_url}
-
-## Intended Uses & Limitations
-
-{intended_uses}
-
-### Limitations
-
-{limitations}
-
-## How to Use
-
-```python
-{how_to_use.strip()}
-```
-
-## Training Data
-
-{training_data}
-
-## Parity Summary
-
-{parity_table}
-
-## Citation
-
-```bibtex
-{citation_bibtex.strip()}
-```
-"""
-    return ModelCard(content)
+    card = ModelCard.from_template(
+        card_data,
+        template_str=_LAYOUT_MODEL_CARD_TEMPLATE,
+        metadata=card_data.to_yaml(),
+        model_name=model_name,
+        model_id=model_id,
+        model_details=model_details,
+        direct_uses=intended_uses,
+        downstream_uses=(
+            "Use the generated structured layouts as intermediate data for "
+            "research prototypes, layout evaluation, or downstream rendering "
+            "systems that separately validate visual quality and content safety."
+        ),
+        out_of_scope_uses=(
+            "Do not use this checkpoint as an image renderer, OCR system, "
+            "document parser, or production design automation system without "
+            "task-specific evaluation and human review."
+        ),
+        limitations=limitations,
+        recommendations=(
+            "Validate outputs on the target dataset, inspect generated layouts "
+            "before publication, and rerun the parity tests when changing "
+            "conversion code or dependencies."
+        ),
+        how_to_use=how_to_use.strip(),
+        training_data=training_data,
+        training_procedure=(
+            "The converted checkpoint preserves the released upstream weights. "
+            "This repository does not retrain the model during conversion."
+        ),
+        testing_data=(
+            "Local deterministic fixtures generated from the original "
+            "implementation with fixed labels, masks, and latent tensors."
+        ),
+        evaluation_factors=(
+            "Architecture compatibility, tokenizer/processor behavior where "
+            "applicable, deterministic generation, and numeric parity against "
+            "the released checkpoint."
+        ),
+        evaluation_metrics=(
+            "Exact deterministic comparisons and maximum absolute/relative "
+            "differences for generated tensors."
+        ),
+        evaluation_results=_parity_table(parity_metrics),
+        technical_specs=(
+            f"Library: `{library_name}`. Pipeline tag: `{pipeline_tag}`. "
+            "Generated bounding boxes are normalized center `xywh` tensors with "
+            "padding represented by masks."
+        ),
+        original_implementation_url=original_implementation_url,
+        citation_bibtex=citation_bibtex.strip(),
+    )
+    card.validate()
+    return card
 
 
 def layoutdm_model_card(
@@ -180,6 +191,111 @@ def _metric_dict(metric: ParityMetric | Mapping[str, object]) -> dict[str, objec
             "logits_max_rel": metric.logits_max_rel,
         }
     return dict(metric)
+
+
+_LAYOUT_MODEL_CARD_TEMPLATE = """---
+{{ metadata }}
+---
+
+# {{ model_name }}
+
+## Model Details
+
+### Model Description
+
+Hub repository: `{{ model_id }}`
+
+{{ model_details }}
+
+Original implementation: {{ original_implementation_url }}
+
+### Developed by
+
+The original checkpoint and architecture were developed by the authors cited
+below. This repository provides a converted checkpoint interface for layout
+generation research.
+
+### Model type
+
+Neural graphic layout generation model.
+
+### License
+
+See the `license` value in the card metadata.
+
+### Finetuned from model
+
+Not applicable. This is a conversion of the released upstream checkpoint, not a
+finetuned derivative.
+
+## Uses
+
+### Direct Use
+
+{{ direct_uses }}
+
+### Downstream Use
+
+{{ downstream_uses }}
+
+### Out-of-Scope Use
+
+{{ out_of_scope_uses }}
+
+## Bias, Risks, and Limitations
+
+{{ limitations }}
+
+### Recommendations
+
+{{ recommendations }}
+
+## How to Get Started with the Model
+
+```python
+{{ how_to_use }}
+```
+
+## Training Details
+
+### Training Data
+
+{{ training_data }}
+
+### Training Procedure
+
+{{ training_procedure }}
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+{{ testing_data }}
+
+#### Factors
+
+{{ evaluation_factors }}
+
+#### Metrics
+
+{{ evaluation_metrics }}
+
+### Results
+
+{{ evaluation_results }}
+
+## Technical Specifications
+
+{{ technical_specs }}
+
+## Citation
+
+```bibtex
+{{ citation_bibtex }}
+```
+"""
 
 
 _LAYOUTDM_BIBTEX = r"""
