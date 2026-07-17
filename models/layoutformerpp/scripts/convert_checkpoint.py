@@ -11,7 +11,10 @@ from layoutformerpp import (
     LayoutFormerPPProcessor,
     LayoutFormerPPTokenizer,
 )
-from layoutformerpp.conversion import load_original_state_dict
+from layoutformerpp.conversion import (
+    load_original_state_dict,
+    write_layoutformerpp_model_card,
+)
 from layoutformerpp.serialization import build_default_tokens
 from laygen.common.labels import labels_for_dataset
 
@@ -55,6 +58,9 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(args.output_dir, safe_serialization=True)
     processor.save_pretrained(args.output_dir)
+    write_layoutformerpp_model_card(
+        args.output_dir, dataset=args.dataset, task=args.task
+    )
 
 
 if __name__ == "__main__":

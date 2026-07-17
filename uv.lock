@@ -1863,6 +1863,7 @@ name = "layoutformerpp"
 version = "0.1.0"
 source = { editable = "models/layoutformerpp" }
 dependencies = [
+    { name = "huggingface-hub" },
     { name = "laygen" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -1884,6 +1885,7 @@ vendor = [
 
 [package.metadata]
 requires-dist = [
+    { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
