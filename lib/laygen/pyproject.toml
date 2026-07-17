@@ -12,6 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+agents = [
+    "pydantic-ai>=2.7.0",
+]
 diffusers = [
     "diffusers[torch]>=0.36.0",
 ]

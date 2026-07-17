@@ -2342,6 +2342,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+agents = [
+    { name = "pydantic-ai" },
+]
 diffusers = [
     { name = "diffusers", extra = ["torch"] },
 ]
@@ -2357,10 +2360,11 @@ requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.24" },
+    { name = "pydantic-ai", marker = "extra == 'agents'", specifier = ">=2.7.0" },
     { name = "torch", specifier = ">=2.1" },
     { name = "transformers", specifier = ">=5.0.0" },
 ]
-provides-extras = ["diffusers"]
+provides-extras = ["agents", "diffusers"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=6.0.0" }]
@@ -2539,7 +2543,7 @@ name = "layout-gpt"
 version = "0.1.0"
 source = { editable = "models/layout-gpt" }
 dependencies = [
-    { name = "laygen" },
+    { name = "laygen", extra = ["agents"] },
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "torch" },
@@ -2561,7 +2565,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cssutils", marker = "extra == 'vendor'", specifier = ">=2.9.0" },
-    { name = "laygen", editable = "lib/laygen" },
+    { name = "laygen", extras = ["agents"], editable = "lib/laygen" },
     { name = "numpy", marker = "extra == 'vendor'", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pydantic-ai", specifier = ">=2.7.0" },

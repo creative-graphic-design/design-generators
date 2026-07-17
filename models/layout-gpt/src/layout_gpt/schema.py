@@ -1,8 +1,8 @@
 """Typed LayoutGPT request and response schemas."""
 
-from typing import Final, cast
+from typing import Final
 
-import torch
+from laygen.agents import layout_items_to_output
 from laygen.common.outputs import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -83,26 +83,14 @@ class LayoutGPTOutput(BaseModel):
 
     def to_layout_generation_output(self) -> LayoutGenerationOutput:
         """Convert to the shared public layout output schema."""
-        labels = {label: idx for idx, label in self.id2label.items()}
-        bbox_values = [item.bbox_xywh for item in self.items]
-        label_values = [labels[item.label] for item in self.items]
-        bbox = cast(torch.FloatTensor, torch.tensor([bbox_values], dtype=torch.float32))
-        label_tensor = cast(
-            torch.LongTensor, torch.tensor([label_values], dtype=torch.long)
-        )
-        mask = cast(
-            torch.BoolTensor, torch.ones((1, len(self.items)), dtype=torch.bool)
-        )
         intermediates: LayoutGPTIntermediates = {
             "prompt": self.prompt,
             "raw_text": self.raw_text,
             "selected_exemplar_ids": self.selected_exemplar_ids,
             "prompt_messages": self.prompt_messages,
         }
-        return LayoutGenerationOutput(
-            bbox=bbox,
-            labels=label_tensor,
-            mask=mask,
+        return layout_items_to_output(
+            self.items,
             id2label=self.id2label,
             intermediates=intermediates,
         )
