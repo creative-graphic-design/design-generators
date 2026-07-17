@@ -139,11 +139,10 @@ git submodule update --init vendor/ms-layout-generation
 ```
 
 ```text
-The script looks for the vendor source at one of:
-- vendor/ms-layout-generation/LayoutPrompter/src
-- ../design-generators/vendor/ms-layout-generation/LayoutPrompter/src
+The script resolves vendor/ms-layout-generation through laygen.common.vendor_root()
+and then imports LayoutPrompter/src from that checkout.
 
-Set LAYOUTPROMPTER_VENDOR_SRC to another src directory if needed.
+Set LAYOUTPROMPTER_VENDOR_SRC to another LayoutPrompter/src directory if needed.
 Set CUDA_VISIBLE_DEVICES for the same command shape used by model packages; this script does not use CUDA.
 ```
 

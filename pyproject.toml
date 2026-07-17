@@ -12,9 +12,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "layoutganpp",
     "layout-dm",
     "layoutprompter",
     "laygen",
+    "posgen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -53,6 +55,7 @@ docs = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 layoutprompter = { workspace = true }
 laygen = { workspace = true }
@@ -87,7 +90,7 @@ unresolved-import = "ignore"
 testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
-    "vendor_parity: tests that execute read-only vendor reference code or require original weights",
+    "vendor_parity: tests that execute read-only vendor reference code or require original weights and vendor dependencies",
 ]
 
 [tool.coverage.run]
