@@ -10,9 +10,10 @@ from pathlib import Path
 
 import torch
 
-VENDOR_ROOT = Path(
-    "/root/ghq/github.com/creative-graphic-design/design-generators/vendor/layout-dm"
-)
+
+def _default_vendor_root() -> Path:
+    """Return the repo-local default path for the vendored LayoutDM sources."""
+    return Path(__file__).resolve().parents[3] / "vendor" / "layout-dm"
 
 
 def _dataset_paths(dataset: str) -> tuple[str, str]:
@@ -23,8 +24,8 @@ def _dataset_paths(dataset: str) -> tuple[str, str]:
     raise ValueError(dataset)
 
 
-def _patch_vendor_paths(starter_dir: Path) -> None:
-    sys.path.insert(0, str(VENDOR_ROOT / "src" / "trainer"))
+def _patch_vendor_paths(starter_dir: Path, vendor_dir: Path) -> None:
+    sys.path.insert(0, str(vendor_dir / "src" / "trainer"))
     import trainer.global_configs as global_configs
 
     global_configs.ROOT = str(starter_dir)
@@ -101,6 +102,15 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--vendor-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the vendored original LayoutDM repository. If omitted, "
+            "vendor/layout-dm at the repository root is used."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         required=True,
@@ -127,10 +137,13 @@ def main() -> None:
         help="Batch size for denoiser and unconditional sampling fixtures.",
     )
     args = parser.parse_args()
+    vendor_dir = (
+        args.vendor_dir if args.vendor_dir is not None else _default_vendor_root()
+    )
     if args.sampling != "deterministic":
         raise ValueError("Parity fixtures currently require deterministic sampling")
 
-    _patch_vendor_paths(args.starter_dir)
+    _patch_vendor_paths(args.starter_dir, vendor_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -205,6 +218,7 @@ def main() -> None:
         "batch_size": args.batch_size,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "starter_dir": str(args.starter_dir),
+        "vendor_dir": str(vendor_dir),
         "device": str(device),
         "vocab_size": tokenizer.N_total,
         "max_token_length": tokenizer.max_token_length,

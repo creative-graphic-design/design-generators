@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_reproducing_vendor_parity_code_fences_are_tagged():
+def test_reproducibility_code_fences_are_tagged():
     readme = Path(__file__).resolve().parents[1] / "README.md"
     section = readme.read_text(encoding="utf-8").split(
         "## Reproducibility", maxsplit=1

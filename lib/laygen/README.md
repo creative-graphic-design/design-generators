@@ -11,6 +11,7 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 | `laygen.common.outputs` | Canonical layout output on `transformers.utils.ModelOutput`. |
 | `laygen.common.outputs_diffusers` | Diffusers pipeline output on `diffusers.utils.BaseOutput`. Requires the `diffusers` extra. |
 | `laygen.common.bbox` | Normalized layout box conversion, clamping, discretization, and continuization helpers. |
+| `laygen.common.conditions` | Canonical `ConditionType` enum and vendor alias normalization. |
 | `laygen.common.labels` | Dataset label vocabularies and `id2label` / `label2id` maps. |
 | `laygen.common.discrete` | Discrete diffusion tensor helpers and categorical sampling utilities. |
 | `laygen.common.visualization` | Lightweight layout rendering helpers for quick inspection. |
@@ -74,6 +75,17 @@ from laygen.common.labels import id2label_for_dataset, label2id_for_dataset
 
 print(id2label_for_dataset("publaynet"))
 print(label2id_for_dataset("rico25")["Text"])
+PY
+```
+
+Normalize public and vendor condition names through the shared condition enum.
+
+```bash
+uv run --package laygen python - <<'PY'
+from laygen.common import normalize_condition_type
+
+print(normalize_condition_type("gen_t"))
+print(normalize_condition_type("gen_r"))
 PY
 ```
 
