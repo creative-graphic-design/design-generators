@@ -1,0 +1,30 @@
+[project]
+name = "lace"
+version = "0.1.0"
+description = "Diffusers-style LACE layout generation package"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8.0",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "torch>=2.0",
+    "transformers>=4.57.0",
+]
+
+[project.optional-dependencies]
+hub = ["huggingface-hub>=0.24"]
+metrics = ["prdc>=0.2", "scipy>=1.10"]
+vendor = [
+    "fsspec>=2024.0",
+    "matplotlib>=3.7",
+    "pycocotools>=2.0",
+    "seaborn>=0.13",
+    "torch-geometric>=2.5",
+    "tqdm>=4.66",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

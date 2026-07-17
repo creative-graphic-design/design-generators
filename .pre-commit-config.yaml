@@ -38,3 +38,9 @@ repos:
         entry: uv run --package design-generators vulture
         language: system
         pass_filenames: false
+
+      - id: pytest-models
+        name: pytest models
+        entry: uv run pytest models/
+        language: system
+        pass_filenames: false
