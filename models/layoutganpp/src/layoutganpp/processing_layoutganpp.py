@@ -8,7 +8,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 from .datasets import id2label_for_dataset, normalize_dataset_name
 
 
-class ConstLayoutProcessor:
+class LayoutGANPPProcessor:
     config_name = "preprocessor_config.json"
 
     def __init__(
@@ -29,7 +29,7 @@ class ConstLayoutProcessor:
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
         if return_tensors != "pt":
-            raise ValueError("ConstLayoutProcessor only supports return_tensors='pt'")
+            raise ValueError("LayoutGANPPProcessor only supports return_tensors='pt'")
         rows = self._normalize_rows(labels)
         max_len = max(len(row) for row in rows)
         if not padding and len({len(row) for row in rows}) != 1:
@@ -90,7 +90,7 @@ class ConstLayoutProcessor:
         (path / self.config_name).write_text(json.dumps(payload, indent=2) + "\n")
 
     @classmethod
-    def from_pretrained(cls, path: str) -> "ConstLayoutProcessor":
+    def from_pretrained(cls, path: str) -> "LayoutGANPPProcessor":
         from pathlib import Path
         import json
 
@@ -125,8 +125,8 @@ class ConstLayoutProcessor:
             raise ValueError(f"Unknown label: {label}") from exc
 
 
-def processor_for_dataset(dataset_name: str) -> ConstLayoutProcessor:
-    return ConstLayoutProcessor(
+def processor_for_dataset(dataset_name: str) -> LayoutGANPPProcessor:
+    return LayoutGANPPProcessor(
         dataset_name=dataset_name,
         id2label=id2label_for_dataset(dataset_name),
     )

@@ -1,5 +1,5 @@
 [project]
-name = "const-layout"
+name = "layoutganpp"
 version = "0.1.0"
 description = "Transformers-style LayoutGAN++ conversion package."
 requires-python = ">=3.11"

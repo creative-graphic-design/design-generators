@@ -2,18 +2,18 @@ import torch
 import pytest
 
 from layout_generation_common.testing import assert_layout_output_schema
-from const_layout import ConstLayoutConfig, ConstLayoutForGeneration
+from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
 
 
-def make_model() -> ConstLayoutForGeneration:
-    config = ConstLayoutConfig(
+def make_model() -> LayoutGANPPModel:
+    config = LayoutGANPPConfig(
         dataset_name="publaynet",
         latent_size=4,
         d_model=16,
         nhead=4,
         num_layers=1,
     )
-    return ConstLayoutForGeneration(config).eval()
+    return LayoutGANPPModel(config).eval()
 
 
 def test_forward_bbox_range_and_shape():

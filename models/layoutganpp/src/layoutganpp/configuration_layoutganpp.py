@@ -5,8 +5,8 @@ from transformers import PretrainedConfig
 from .datasets import dataset_metadata, id2label_for_dataset
 
 
-class ConstLayoutConfig(PretrainedConfig):
-    model_type = "const-layout"
+class LayoutGANPPConfig(PretrainedConfig):
+    model_type = "layoutganpp"
 
     def __init__(
         self,
@@ -46,4 +46,4 @@ class ConstLayoutConfig(PretrainedConfig):
         self.max_position_embeddings = max_position_embeddings or int(
             metadata["max_elements"]
         )
-        self.architectures = ["ConstLayoutForGeneration"]
+        self.architectures = ["LayoutGANPPModel"]

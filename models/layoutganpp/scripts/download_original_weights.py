@@ -16,7 +16,7 @@ BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output-dir", type=Path, default=Path(".cache/const-layout/original")
+        "--output-dir", type=Path, default=Path(".cache/layoutganpp/original")
     )
     parser.add_argument("--dataset", choices=[*WEIGHTS, "all"], default="all")
     args = parser.parse_args()

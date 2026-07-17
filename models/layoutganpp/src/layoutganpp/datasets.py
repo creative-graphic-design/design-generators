@@ -54,7 +54,7 @@ def normalize_dataset_name(dataset_name: str) -> str:
     try:
         return _ALIASES[key]
     except KeyError as exc:
-        raise ValueError(f"Unknown const-layout dataset_name: {dataset_name}") from exc
+        raise ValueError(f"Unknown layoutganpp dataset_name: {dataset_name}") from exc
 
 
 def dataset_metadata(dataset_name: str) -> dict[str, object]:

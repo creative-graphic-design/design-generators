@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from const_layout import ConstLayoutForGeneration
+from layoutganpp import LayoutGANPPModel
 
 DATASETS = ("rico", "publaynet", "magazine")
 
@@ -11,11 +11,9 @@ DATASETS = ("rico", "publaynet", "magazine")
 def _paths(dataset: str) -> tuple[Path, Path]:
     root = Path(__file__).parents[4]
     fixture = (
-        root / ".cache" / "const-layout" / "fixtures" / dataset / "reference_seed0.pt"
+        root / ".cache" / "layoutganpp" / "fixtures" / dataset / "reference_seed0.pt"
     )
-    converted = (
-        root / ".cache" / "const-layout" / "converted" / f"const-layout-{dataset}"
-    )
+    converted = root / ".cache" / "layoutganpp" / "converted" / f"layoutganpp-{dataset}"
     return fixture, converted
 
 
@@ -26,7 +24,7 @@ def test_layoutganpp_bbox_parity(dataset: str):
     if not fixture.exists() or not converted_dir.exists():
         pytest.skip("Const-layout parity fixtures and converted weights are local-only")
     data = torch.load(fixture, map_location="cpu")
-    model = ConstLayoutForGeneration.from_pretrained(converted_dir).eval()
+    model = LayoutGANPPModel.from_pretrained(converted_dir).eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     with torch.no_grad():

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 
-from const_layout.datasets import labels_for_dataset
+from layoutganpp.datasets import labels_for_dataset
 
 
 def _arg(args: object, key: str) -> object:

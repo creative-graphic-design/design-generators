@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "const-layout",
+    "layoutganpp",
     "layout-dm",
     "layout-generation-common",
     "transformers[torch,vision]>=5.0.0",
@@ -38,7 +38,7 @@ dev = [
 members = ["models/*"]
 
 [tool.uv.sources]
-const-layout = { workspace = true }
+layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 layout-generation-common = { workspace = true }
 
@@ -48,7 +48,7 @@ extend-select = ["ANN", "D"]
 [tool.ruff.lint.per-file-ignores]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
 "models/*/src/**/*.py" = ["D"]
-"models/const-layout/src/**/*.py" = ["ANN", "D"]
+"models/layoutganpp/src/**/*.py" = ["ANN", "D"]
 "models/*/tests/*.py" = ["ANN", "D"]
 "models/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
@@ -65,7 +65,7 @@ unsupported-base = "ignore"
 unresolved-import = "ignore"
 
 [tool.ty.src]
-exclude = ["models/const-layout/**"]
+exclude = ["models/layoutganpp/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "models"]

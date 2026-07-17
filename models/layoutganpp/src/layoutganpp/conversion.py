@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from .configuration_const_layout import ConstLayoutConfig
+from .configuration_layoutganpp import LayoutGANPPConfig
 from .datasets import dataset_metadata, id2label_for_dataset
 
 
-def config_from_checkpoint_args(args: Any) -> ConstLayoutConfig:
+def config_from_checkpoint_args(args: Any) -> LayoutGANPPConfig:
     values = vars(args) if hasattr(args, "__dict__") else dict(args)
     dataset_name = values["dataset"]
     metadata = dataset_metadata(dataset_name)
     id2label = id2label_for_dataset(dataset_name)
-    return ConstLayoutConfig(
+    return LayoutGANPPConfig(
         dataset_name=dataset_name,
         latent_size=int(values["latent_size"]),
         num_labels=len(id2label),

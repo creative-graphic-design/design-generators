@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from const_layout.conversion import config_from_checkpoint_args
-from const_layout import ConstLayoutConfig, ConstLayoutForGeneration
+from layoutganpp.conversion import config_from_checkpoint_args
+from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
 
 
 def test_config_from_checkpoint_args():
@@ -21,8 +21,8 @@ def test_config_from_checkpoint_args():
 
 
 def test_state_dict_uses_vendor_generator_keys():
-    model = ConstLayoutForGeneration(
-        ConstLayoutConfig(
+    model = LayoutGANPPModel(
+        LayoutGANPPConfig(
             dataset_name="publaynet",
             latent_size=4,
             d_model=16,

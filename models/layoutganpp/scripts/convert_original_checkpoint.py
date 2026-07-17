@@ -5,9 +5,9 @@ from pathlib import Path
 
 import torch
 
-from const_layout.conversion import config_from_checkpoint_args
-from const_layout.modeling_const_layout import ConstLayoutForGeneration
-from const_layout.processing_const_layout import ConstLayoutProcessor
+from layoutganpp.conversion import config_from_checkpoint_args
+from layoutganpp.modeling_layoutganpp import LayoutGANPPModel
+from layoutganpp.processing_layoutganpp import LayoutGANPPProcessor
 
 
 def main() -> None:
@@ -18,10 +18,10 @@ def main() -> None:
 
     checkpoint = torch.load(args.input_checkpoint, map_location="cpu")
     config = config_from_checkpoint_args(checkpoint["args"])
-    model = ConstLayoutForGeneration(config)
+    model = LayoutGANPPModel(config)
     model.load_state_dict(checkpoint["netG"], strict=True)
     model.save_pretrained(args.output_dir, safe_serialization=True)
-    processor = ConstLayoutProcessor(
+    processor = LayoutGANPPProcessor(
         dataset_name=config.dataset_name, id2label=config.id2label
     )
     processor.save_pretrained(str(args.output_dir))

@@ -10,11 +10,11 @@ from transformers.utils import ModelOutput
 
 from layout_generation_common.outputs import LayoutGenerationOutput
 
-from .configuration_const_layout import ConstLayoutConfig
+from .configuration_layoutganpp import LayoutGANPPConfig
 
 
 @dataclass
-class ConstLayoutModelOutput(ModelOutput):
+class LayoutGANPPModelOutput(ModelOutput):
     bbox: torch.FloatTensor
     labels: torch.LongTensor | None = None
     mask: torch.BoolTensor | None = None
@@ -41,12 +41,12 @@ def normalize_condition_type(condition_type: str) -> str:
         ) from exc
 
 
-class ConstLayoutForGeneration(PreTrainedModel):
-    config_class = ConstLayoutConfig
-    base_model_prefix = "const_layout"
+class LayoutGANPPModel(PreTrainedModel):
+    config_class = LayoutGANPPConfig
+    base_model_prefix = "layoutganpp"
     supports_gradient_checkpointing = False
 
-    def __init__(self, config: ConstLayoutConfig) -> None:
+    def __init__(self, config: LayoutGANPPConfig) -> None:
         super().__init__(config)
         self.fc_z = nn.Linear(config.latent_size, config.d_model // 2)
         self.emb_label = nn.Embedding(config.num_labels, config.d_model // 2)
@@ -71,7 +71,7 @@ class ConstLayoutForGeneration(PreTrainedModel):
         padding_mask: torch.BoolTensor | None = None,
         return_dict: bool = True,
     ) -> (
-        ConstLayoutModelOutput
+        LayoutGANPPModelOutput
         | tuple[torch.FloatTensor, torch.LongTensor, torch.BoolTensor]
     ):
         labels = labels.to(dtype=torch.long)
@@ -110,7 +110,7 @@ class ConstLayoutForGeneration(PreTrainedModel):
         mask = ~padding_mask
         if not return_dict:
             return bbox, labels, mask
-        return ConstLayoutModelOutput(
+        return LayoutGANPPModelOutput(
             bbox=bbox, labels=labels, mask=mask, latents=latents
         )
 
@@ -143,10 +143,10 @@ class ConstLayoutForGeneration(PreTrainedModel):
         canonical = normalize_condition_type(condition_type)
         if canonical == "unconditional":
             raise ValueError(
-                "const-layout v1 requires labels; unconditional is unsupported"
+                "layoutganpp v1 requires labels; unconditional is unsupported"
             )
         if labels is None:
-            raise ValueError("labels are required for const-layout generation")
+            raise ValueError("labels are required for layoutganpp generation")
 
         device = next(self.parameters()).device
         labels = torch.as_tensor(labels, dtype=torch.long, device=device)

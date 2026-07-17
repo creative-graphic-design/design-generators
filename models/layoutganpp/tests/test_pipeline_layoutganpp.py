@@ -1,34 +1,34 @@
 import torch
 
 from layout_generation_common.testing import assert_layout_output_schema
-from const_layout import (
-    ConstLayoutConfig,
-    ConstLayoutForGeneration,
-    ConstLayoutPipeline,
+from layoutganpp import (
+    LayoutGANPPConfig,
+    LayoutGANPPModel,
+    LayoutGANPPPipeline,
 )
 
 
 def test_pipeline_contract_and_save_load(tmp_path):
-    config = ConstLayoutConfig(
+    config = LayoutGANPPConfig(
         dataset_name="publaynet",
         latent_size=4,
         d_model=16,
         nhead=4,
         num_layers=1,
     )
-    model = ConstLayoutForGeneration(config).eval()
-    pipeline = ConstLayoutPipeline(model)
+    model = LayoutGANPPModel(config).eval()
+    pipeline = LayoutGANPPPipeline(model)
     out = pipeline(labels=[["text", "figure"]], seed=0)
     assert_layout_output_schema(out, batch_size=1)
     pipeline.save_pretrained(str(tmp_path))
-    loaded_pipeline = ConstLayoutPipeline.from_pretrained(str(tmp_path))
+    loaded_pipeline = LayoutGANPPPipeline.from_pretrained(str(tmp_path))
     loaded = loaded_pipeline(labels=[["text", "figure"]], seed=0)
     assert loaded.bbox.shape == out.bbox.shape
 
 
 def test_generator_wins_over_seed():
-    model = ConstLayoutForGeneration(
-        ConstLayoutConfig(
+    model = LayoutGANPPModel(
+        LayoutGANPPConfig(
             dataset_name="publaynet",
             latent_size=4,
             d_model=16,

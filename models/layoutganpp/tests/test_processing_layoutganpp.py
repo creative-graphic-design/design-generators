@@ -1,10 +1,10 @@
 import torch
 
-from const_layout import (
+from layoutganpp import (
     MAGAZINE_LABELS,
     PUBLAYNET_LABELS,
     RICO_LABELS,
-    ConstLayoutProcessor,
+    LayoutGANPPProcessor,
     labels_for_dataset,
 )
 
@@ -16,7 +16,7 @@ def test_dataset_vocabularies_match_vendor_order():
 
 
 def test_processor_encodes_strings_and_padding():
-    processor = ConstLayoutProcessor("publaynet")
+    processor = LayoutGANPPProcessor("publaynet")
     encoded = processor([["text", "figure"], ["title"]])
     assert torch.equal(encoded["labels"], torch.tensor([[0, 4], [1, 0]]))
     assert torch.equal(
@@ -25,7 +25,7 @@ def test_processor_encodes_strings_and_padding():
 
 
 def test_processor_decode_records():
-    processor = ConstLayoutProcessor("publaynet")
+    processor = LayoutGANPPProcessor("publaynet")
     records = processor.batch_decode(
         bbox=torch.tensor([[[0.5, 0.5, 0.2, 0.2], [0.0, 0.0, 0.0, 0.0]]]),
         labels=torch.tensor([[0, 1]]),
@@ -40,7 +40,7 @@ def test_processor_decode_records():
 
 
 def test_processor_save_load_roundtrip(tmp_path):
-    processor = ConstLayoutProcessor("magazine")
+    processor = LayoutGANPPProcessor("magazine")
     processor.save_pretrained(str(tmp_path))
-    loaded = ConstLayoutProcessor.from_pretrained(str(tmp_path))
+    loaded = LayoutGANPPProcessor.from_pretrained(str(tmp_path))
     assert loaded.id2label == processor.id2label

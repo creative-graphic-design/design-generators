@@ -7,19 +7,19 @@ from transformers import Pipeline
 
 from layout_generation_common.outputs import LayoutGenerationOutput
 
-from .modeling_const_layout import ConstLayoutForGeneration
-from .processing_const_layout import ConstLayoutProcessor
+from .modeling_layoutganpp import LayoutGANPPModel
+from .processing_layoutganpp import LayoutGANPPProcessor
 
 
-class ConstLayoutPipeline(Pipeline):
+class LayoutGANPPPipeline(Pipeline):
     def __init__(
         self,
-        model: ConstLayoutForGeneration,
-        processor: ConstLayoutProcessor | None = None,
+        model: LayoutGANPPModel,
+        processor: LayoutGANPPProcessor | None = None,
         **kwargs,
     ) -> None:
         super().__init__(model=model, tokenizer=None, framework="pt", **kwargs)
-        self.processor = processor or ConstLayoutProcessor(
+        self.processor = processor or LayoutGANPPProcessor(
             dataset_name=model.config.dataset_name,
             id2label=model.config.id2label,
         )
@@ -30,7 +30,7 @@ class ConstLayoutPipeline(Pipeline):
     def preprocess(self, inputs=None, **kwargs):
         labels = kwargs.pop("labels", inputs)
         if labels is None:
-            raise ValueError("labels are required for ConstLayoutPipeline")
+            raise ValueError("labels are required for LayoutGANPPPipeline")
         encoded = self.processor(labels)
         encoded.update(kwargs)
         return encoded
@@ -74,7 +74,7 @@ class ConstLayoutPipeline(Pipeline):
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
         del batch_size
         if labels is None:
-            raise ValueError("labels are required for const-layout v1")
+            raise ValueError("labels are required for layoutganpp v1")
         if isinstance(labels, torch.Tensor):
             encoded_labels = labels
             resolved_mask = attention_mask if attention_mask is not None else mask
@@ -109,8 +109,8 @@ class ConstLayoutPipeline(Pipeline):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: str, **kwargs):
-        model = ConstLayoutForGeneration.from_pretrained(
+        model = LayoutGANPPModel.from_pretrained(
             pretrained_model_name_or_path, **kwargs
         )
-        processor = ConstLayoutProcessor.from_pretrained(pretrained_model_name_or_path)
+        processor = LayoutGANPPProcessor.from_pretrained(pretrained_model_name_or_path)
         return cls(model=model, processor=processor)
