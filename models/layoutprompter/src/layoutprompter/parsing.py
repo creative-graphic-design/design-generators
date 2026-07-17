@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import assert_never
 
 from laygen.common import LayoutGenerationOutput
 from laygen.common.bbox import normalize_boxes
@@ -10,11 +11,12 @@ import torch
 
 from layoutprompter.data import (
     CANVAS_SIZE,
-    LayoutPrompterDataset,
+    SupportedDataset,
     id2label,
     label2id,
     normalize_dataset,
 )
+from layoutprompter.enums import PromptFormat
 from layoutprompter.schemas import LayoutPrompterOutput
 
 
@@ -22,11 +24,14 @@ class Parser:
     """Parse raw or structured predictions into the common output schema."""
 
     def __init__(
-        self, dataset: LayoutPrompterDataset | str, output_format: str
+        self, dataset: SupportedDataset | str, output_format: PromptFormat | str
     ) -> None:
         """Create a parser for one dataset and output format."""
         self.dataset = normalize_dataset(dataset)
-        self.output_format = output_format
+        try:
+            self.output_format = PromptFormat(output_format)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported output format: {output_format}") from exc
         self.id2label = id2label(self.dataset)
         self.label2id = label2id(self.dataset)
         self.canvas_size = CANVAS_SIZE[self.dataset]
@@ -37,12 +42,12 @@ class Parser:
         """Parse one prediction into ``LayoutGenerationOutput``."""
         if isinstance(prediction, LayoutPrompterOutput):
             labels, pixel_ltwh = self._extract_from_structured(prediction)
-        elif self.output_format == "seq":
+        elif self.output_format is PromptFormat.SEQ:
             labels, pixel_ltwh = self._extract_from_seq(prediction)
-        elif self.output_format == "html":
+        elif self.output_format is PromptFormat.HTML:
             labels, pixel_ltwh = self._extract_from_html(prediction)
         else:
-            raise ValueError(f"Unsupported output format: {self.output_format}")
+            assert_never(self.output_format)
         bbox = normalize_boxes(
             pixel_ltwh, canvas_size=self.canvas_size, box_format="ltwh"
         ).unsqueeze(0)
@@ -66,12 +71,12 @@ class Parser:
         self, prediction: str
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Parse string output as vendor-compatible normalized top-left ``xywh``."""
-        if self.output_format == "seq":
+        if self.output_format is PromptFormat.SEQ:
             labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
-        elif self.output_format == "html":
+        elif self.output_format is PromptFormat.HTML:
             labels, pixel_ltwh = self._extract_from_html(prediction)
         else:
-            raise ValueError(f"Unsupported output format: {self.output_format}")
+            assert_never(self.output_format)
         width, height = self.canvas_size
         scale = pixel_ltwh.new_tensor((width, height, width, height))
         return labels, pixel_ltwh / scale

@@ -4,10 +4,13 @@ from layoutprompter.agent import (
     ConditionType,
     LayoutPrompter,
     LayoutPrompterConfig,
+)
+from layoutprompter.enums import (
+    LayoutPrompterDataset,
+    LayoutPrompterTask,
     OutputType,
     PromptFormat,
 )
-from layoutprompter.data import LayoutPrompterDataset
 from layoutprompter.schemas import LayoutPrompterOutput
 
 __all__ = [
@@ -15,6 +18,7 @@ __all__ = [
     "LayoutPrompter",
     "LayoutPrompterConfig",
     "LayoutPrompterDataset",
+    "LayoutPrompterTask",
     "LayoutPrompterOutput",
     "OutputType",
     "PromptFormat",

@@ -109,7 +109,7 @@ def test_base_selector_candidate_truncation_shuffle_and_errors() -> None:
 
     with pytest.raises(NotImplementedError):
         ExemplarSelection(train_data, -1, 1)(_record([0], [[0, 0, 1, 1]]))
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError, match="Unsupported LayoutPrompter task"):
         create_selector("unknown", train_data, -1, 1)
 
 

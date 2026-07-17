@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
+from typing import Final
 
 import torch
 from typing_extensions import override
 
+from layoutprompter.enums import LayoutPrompterTask, normalize_layoutprompter_task
+from layoutprompter.records import LayoutRecordInput, LayoutRecordKey, record_value
 from layoutprompter.similarity import labels_bboxes_similarity, labels_similarity
 
-LayoutRecord = Mapping[str, object]
+LayoutRecord = LayoutRecordInput
+K = LayoutRecordKey
+
+BALANCED_LABEL_WEIGHT: Final[float] = 0.5
+BALANCED_BBOX_WEIGHT: Final[float] = 0.5
+BBOX_ONLY_LABEL_WEIGHT: Final[float] = 0.0
+BBOX_ONLY_BBOX_WEIGHT: Final[float] = 1.0
+POSTER_MASK_SIZE: Final[tuple[int, int]] = (102, 150)
 
 
 class ExemplarSelection:
@@ -40,7 +50,7 @@ class ExemplarSelection:
         raise NotImplementedError
 
     def _is_filter(self, data: LayoutRecord) -> bool:
-        bboxes = torch.as_tensor(data["discrete_gold_bboxes"])
+        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
         return bool((bboxes[:, 2:] == 0).sum().bool().item())
 
     def _retrieve_exemplars(
@@ -64,11 +74,13 @@ class GenTypeExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by label overlap."""
-        test_labels = torch.as_tensor(test_data["labels"])
+        test_labels = torch.as_tensor(record_value(test_data, K.labels))
         scores = [
             (
                 index,
-                labels_similarity(torch.as_tensor(train_data["labels"]), test_labels),
+                labels_similarity(
+                    torch.as_tensor(record_value(train_data, K.labels)), test_labels
+                ),
             )
             for index, train_data in enumerate(self.train_data)
         ]
@@ -78,19 +90,19 @@ class GenTypeExemplarSelection(ExemplarSelection):
 class GenTypeSizeExemplarSelection(ExemplarSelection):
     """Select exemplars by labels and element sizes."""
 
-    labels_weight = 0.5
-    bboxes_weight = 0.5
+    labels_weight = BALANCED_LABEL_WEIGHT
+    bboxes_weight = BALANCED_BBOX_WEIGHT
 
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by label and size similarity."""
-        test_labels = torch.as_tensor(test_data["labels"])
-        test_bboxes = torch.as_tensor(test_data["bboxes"])[:, 2:]
+        test_labels = torch.as_tensor(record_value(test_data, K.labels))
+        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))[:, 2:]
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(train_data["labels"]),
-                torch.as_tensor(train_data["bboxes"])[:, 2:],
+                torch.as_tensor(record_value(train_data, K.labels)),
+                torch.as_tensor(record_value(train_data, K.bboxes))[:, 2:],
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -107,19 +119,19 @@ class GenRelationExemplarSelection(GenTypeExemplarSelection):
 class CompletionExemplarSelection(ExemplarSelection):
     """Select layout-completion exemplars by the first visible element."""
 
-    labels_weight = 0.0
-    bboxes_weight = 1.0
+    labels_weight = BBOX_ONLY_LABEL_WEIGHT
+    bboxes_weight = BBOX_ONLY_BBOX_WEIGHT
 
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by the first partial element."""
-        test_labels = torch.as_tensor(test_data["labels"])[:1]
-        test_bboxes = torch.as_tensor(test_data["bboxes"])[:1, :]
+        test_labels = torch.as_tensor(record_value(test_data, K.labels))[:1]
+        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))[:1, :]
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(train_data["labels"])[:1],
-                torch.as_tensor(train_data["bboxes"])[:1, :],
+                torch.as_tensor(record_value(train_data, K.labels))[:1],
+                torch.as_tensor(record_value(train_data, K.bboxes))[:1, :],
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -132,19 +144,19 @@ class CompletionExemplarSelection(ExemplarSelection):
 class RefinementExemplarSelection(ExemplarSelection):
     """Select refinement exemplars by labels and noisy boxes."""
 
-    labels_weight = 0.5
-    bboxes_weight = 0.5
+    labels_weight = BALANCED_LABEL_WEIGHT
+    bboxes_weight = BALANCED_BBOX_WEIGHT
 
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by noisy layout similarity."""
-        test_labels = torch.as_tensor(test_data["labels"])
-        test_bboxes = torch.as_tensor(test_data["bboxes"])
+        test_labels = torch.as_tensor(record_value(test_data, K.labels))
+        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(train_data["labels"]),
-                torch.as_tensor(train_data["bboxes"]),
+                torch.as_tensor(record_value(train_data, K.labels)),
+                torch.as_tensor(record_value(train_data, K.bboxes)),
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -161,12 +173,12 @@ class ContentAwareExemplarSelection(ExemplarSelection):
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by content-mask IoU."""
         test_mask = self._to_binary_mask(
-            torch.as_tensor(test_data["discrete_content_bboxes"])
+            torch.as_tensor(record_value(test_data, K.discrete_content_bboxes))
         )
         scores = []
         for index, train_data in enumerate(self.train_data):
             train_mask = self._to_binary_mask(
-                torch.as_tensor(train_data["discrete_content_bboxes"])
+                torch.as_tensor(record_value(train_data, K.discrete_content_bboxes))
             )
             intersection = torch.logical_and(train_mask, test_mask).sum()
             union = torch.logical_or(train_mask, test_mask).sum()
@@ -174,7 +186,7 @@ class ContentAwareExemplarSelection(ExemplarSelection):
         return self._retrieve_exemplars(scores)
 
     def _to_binary_mask(self, content_bboxes: torch.Tensor) -> torch.Tensor:
-        width, height = 102, 150
+        width, height = POSTER_MASK_SIZE
         mask = torch.zeros((height, width), dtype=torch.bool)
         for left, top, box_width, box_height in content_bboxes.long().tolist():
             mask[top : top + box_height, left : left + box_width] = True
@@ -187,27 +199,33 @@ class TextToLayoutExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by text embedding similarity."""
-        test_embedding = torch.as_tensor(test_data["embedding"])
+        test_embedding = torch.as_tensor(record_value(test_data, K.embedding))
         scores = [
-            (index, float(torch.as_tensor(train_data["embedding"]) @ test_embedding.T))
+            (
+                index,
+                float(
+                    torch.as_tensor(record_value(train_data, K.embedding))
+                    @ test_embedding.T
+                ),
+            )
             for index, train_data in enumerate(self.train_data)
         ]
         return self._retrieve_exemplars(scores)
 
 
-SELECTOR_MAP: dict[str, type[ExemplarSelection]] = {
-    "gent": GenTypeExemplarSelection,
-    "gents": GenTypeSizeExemplarSelection,
-    "genr": GenRelationExemplarSelection,
-    "completion": CompletionExemplarSelection,
-    "refinement": RefinementExemplarSelection,
-    "content": ContentAwareExemplarSelection,
-    "text": TextToLayoutExemplarSelection,
+SELECTOR_MAP: Final[dict[LayoutPrompterTask, type[ExemplarSelection]]] = {
+    LayoutPrompterTask.gent: GenTypeExemplarSelection,
+    LayoutPrompterTask.gents: GenTypeSizeExemplarSelection,
+    LayoutPrompterTask.genr: GenRelationExemplarSelection,
+    LayoutPrompterTask.completion: CompletionExemplarSelection,
+    LayoutPrompterTask.refinement: RefinementExemplarSelection,
+    LayoutPrompterTask.content: ContentAwareExemplarSelection,
+    LayoutPrompterTask.text: TextToLayoutExemplarSelection,
 }
 
 
 def create_selector(
-    task: str,
+    task: LayoutPrompterTask | str,
     train_data: Sequence[LayoutRecord],
     candidate_size: int,
     num_prompt: int,
@@ -216,6 +234,7 @@ def create_selector(
     seed: int | None = None,
 ) -> ExemplarSelection:
     """Create a selector for a LayoutPrompter task."""
-    return SELECTOR_MAP[task](
+    normalized_task = normalize_layoutprompter_task(task)
+    return SELECTOR_MAP[normalized_task](
         train_data, candidate_size, num_prompt, shuffle=shuffle, seed=seed
     )

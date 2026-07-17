@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
-
 import torch
 
-LayoutRecord: TypeAlias = dict[str, object]
+from layoutprompter.records import LayoutRecord, LayoutRecordKey
+
+K = LayoutRecordKey
 
 
 def fixture_records() -> tuple[list[LayoutRecord], LayoutRecord]:
@@ -30,9 +30,9 @@ def _record(
 ) -> LayoutRecord:
     tensor_bboxes = torch.tensor(bboxes)
     return {
-        "id": identifier,
-        "labels": torch.tensor(labels),
-        "bboxes": tensor_bboxes,
-        "discrete_bboxes": tensor_bboxes,
-        "discrete_gold_bboxes": tensor_bboxes,
+        K.id.value: identifier,
+        K.labels.value: torch.tensor(labels),
+        K.bboxes.value: tensor_bboxes,
+        K.discrete_bboxes.value: tensor_bboxes,
+        K.discrete_gold_bboxes.value: tensor_bboxes,
     }

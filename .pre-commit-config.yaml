@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: ty
         name: ty
-        entry: uv run ty check .
+        entry: uv run ty check tests lib models
         language: system
         pass_filenames: false
 

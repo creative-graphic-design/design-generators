@@ -9,11 +9,10 @@ import pytest
 import torch
 from pydantic_ai.models.test import TestModel
 
-from laygen.common import BoxFormat, LayoutGenerationOutput
+from laygen.common import BoxFormat, DatasetName, LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 from layoutprompter.agent import ConditionType, OutputType, PromptFormat
-from layoutprompter.data import LayoutPrompterDataset
 from layoutprompter.schemas import LayoutElement, PixelBBox
 
 
@@ -78,7 +77,7 @@ def test_save_pretrained_round_trip_preserves_prompt_config(tmp_path: Path) -> N
     assert loaded.config.output_format == "html"
     assert loaded.config.shuffle is False
     assert loaded.config.seed == 7
-    assert isinstance(loaded.config.dataset, LayoutPrompterDataset)
+    assert isinstance(loaded.config.dataset, DatasetName)
     assert isinstance(loaded.config.condition_type, ConditionType)
     assert isinstance(loaded.config.output_format, PromptFormat)
 
@@ -109,7 +108,7 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
     )
     prompter = LayoutPrompter(
         LayoutPrompterConfig(
-            dataset=LayoutPrompterDataset.PUBLAYNET,
+            dataset=DatasetName.publaynet,
             condition_type=ConditionType.label,
             input_format=PromptFormat.SEQ,
             output_format=PromptFormat.SEQ,

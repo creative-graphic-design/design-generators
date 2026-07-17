@@ -70,7 +70,7 @@ jobs:
           uv sync --all-packages --group docs
 
       - name: Run ty
-        run: uv run ty check .
+        run: uv run ty check tests lib models
 
   test:
     name: Test

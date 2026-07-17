@@ -3,20 +3,33 @@
 from __future__ import annotations
 
 import torch
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
+from typing import Final, assert_never
 from typing_extensions import override
 
 from layoutprompter.data import (
     CANVAS_SIZE,
     LAYOUT_DOMAIN,
-    LayoutPrompterDataset,
+    SupportedDataset,
     id2label,
     normalize_dataset,
 )
+from layoutprompter.enums import (
+    LayoutPrompterTask,
+    PromptFormat,
+    normalize_layoutprompter_task,
+)
+from layoutprompter.records import (
+    LayoutRecordInput,
+    LayoutRecordKey,
+    optional_record_value,
+    record_value,
+)
 
-LayoutRecord = Mapping[str, object]
+LayoutRecord = LayoutRecordInput
+K = LayoutRecordKey
 
-PREAMBLE = (
+PREAMBLE: Final[str] = (
     "Please generate a layout based on the given information. "
     "You need to ensure that the generated layout looks realistic, with elements well aligned and avoiding unnecessary overlap.\n"
     "Task Description: {}\n"
@@ -24,25 +37,30 @@ PREAMBLE = (
     "Canvas Size: canvas width is {}px, canvas height is {}px"
 )
 
-HTML_PREFIX = '<html>\n<body>\n<div class="canvas" style="left: 0px; top: 0px; width: {}px; height: {}px"></div>\n'
-HTML_SUFFIX = "</body>\n</html>"
-HTML_TEMPLATE = (
+HTML_PREFIX: Final[str] = (
+    '<html>\n<body>\n<div class="canvas" style="left: 0px; top: 0px; width: {}px; height: {}px"></div>\n'
+)
+HTML_SUFFIX: Final[str] = "</body>\n</html>"
+HTML_TEMPLATE: Final[str] = (
     '<div class="{}" style="left: {}px; top: {}px; width: {}px; height: {}px"></div>\n'
 )
-HTML_TEMPLATE_WITH_INDEX = '<div class="{}" style="index: {}; left: {}px; top: {}px; width: {}px; height: {}px"></div>\n'
+HTML_TEMPLATE_WITH_INDEX: Final[str] = (
+    '<div class="{}" style="index: {}; left: {}px; top: {}px; width: {}px; height: {}px"></div>\n'
+)
+DEFAULT_MAX_LENGTH: Final[int] = 8000
 
 
 class Serializer:
     """Base serializer for seq/html prompt examples."""
 
     task_type = ""
-    constraint_type: list[str] = []
+    constraint_type: tuple[str, ...] = ()
 
     def __init__(
         self,
         *,
-        input_format: str,
-        output_format: str,
+        input_format: PromptFormat | str,
+        output_format: PromptFormat | str,
         index2label: dict[int, str],
         canvas_width: int,
         canvas_height: int,
@@ -53,8 +71,14 @@ class Serializer:
         unk_token: str = "<unk>",
     ) -> None:
         """Create a serializer with vendor token options."""
-        self.input_format = input_format
-        self.output_format = output_format
+        try:
+            self.input_format = PromptFormat(input_format)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported input format: {input_format}") from exc
+        try:
+            self.output_format = PromptFormat(output_format)
+        except ValueError as exc:
+            raise ValueError(f"Unsupported output format: {output_format}") from exc
         self.index2label = index2label
         self.canvas_width = canvas_width
         self.canvas_height = canvas_height
@@ -66,24 +90,24 @@ class Serializer:
 
     def build_input(self, data: LayoutRecord) -> str:
         """Serialize test constraints."""
-        if self.input_format == "seq":
+        if self.input_format is PromptFormat.SEQ:
             return self._build_seq_input(data)
-        if self.input_format == "html":
+        if self.input_format is PromptFormat.HTML:
             return self._build_html_input(data)
-        raise ValueError(f"Unsupported input format: {self.input_format}")
+        assert_never(self.input_format)
 
     def build_output(
         self,
         data: LayoutRecord,
-        label_key: str = "labels",
-        bbox_key: str = "discrete_gold_bboxes",
+        label_key: LayoutRecordKey = K.labels,
+        bbox_key: LayoutRecordKey = K.discrete_gold_bboxes,
     ) -> str:
         """Serialize an exemplar output layout."""
-        if self.output_format == "seq":
+        if self.output_format is PromptFormat.SEQ:
             return self._build_seq_output(data, label_key, bbox_key)
-        if self.output_format == "html":
+        if self.output_format is PromptFormat.HTML:
             return self._build_html_output(data, label_key, bbox_key)
-        raise ValueError(f"Unsupported output format: {self.output_format}")
+        assert_never(self.output_format)
 
     def _build_seq_input(self, data: LayoutRecord) -> str:
         raise NotImplementedError
@@ -92,10 +116,10 @@ class Serializer:
         raise NotImplementedError
 
     def _build_seq_output(
-        self, data: LayoutRecord, label_key: str, bbox_key: str
+        self, data: LayoutRecord, label_key: LayoutRecordKey, bbox_key: LayoutRecordKey
     ) -> str:
-        labels = torch.as_tensor(data[label_key])
-        bboxes = torch.as_tensor(data[bbox_key])
+        labels = torch.as_tensor(record_value(data, label_key))
+        bboxes = torch.as_tensor(record_value(data, bbox_key))
         tokens: list[str] = []
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
@@ -107,10 +131,10 @@ class Serializer:
         return " ".join(tokens)
 
     def _build_html_output(
-        self, data: LayoutRecord, label_key: str, bbox_key: str
+        self, data: LayoutRecord, label_key: LayoutRecordKey, bbox_key: LayoutRecordKey
     ) -> str:
-        labels = torch.as_tensor(data[label_key])
-        bboxes = torch.as_tensor(data[bbox_key])
+        labels = torch.as_tensor(record_value(data, label_key))
+        bboxes = torch.as_tensor(record_value(data, bbox_key))
         template = HTML_TEMPLATE_WITH_INDEX if self.add_index_token else HTML_TEMPLATE
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
         for index in range(len(labels)):
@@ -127,12 +151,12 @@ class GenTypeSerializer(Serializer):
     """Serializer for element-type conditioned generation."""
 
     task_type = "generation conditioned on given element types"
-    constraint_type = ["Element Type Constraint: "]
+    constraint_type = ("Element Type Constraint: ",)
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = torch.as_tensor(data["labels"])
+        labels = torch.as_tensor(record_value(data, K.labels))
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -146,7 +170,7 @@ class GenTypeSerializer(Serializer):
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        labels = torch.as_tensor(data["labels"])
+        labels = torch.as_tensor(record_value(data, K.labels))
         for index in range(len(labels)):
             label = self.index2label[int(labels[index])]
             if self.add_unk_token:
@@ -180,13 +204,13 @@ class GenTypeSizeSerializer(GenTypeSerializer):
     """Serializer for element-type and size conditioned generation."""
 
     task_type = "generation conditioned on given element types and sizes"
-    constraint_type = ["Element Type and Size Constraint: "]
+    constraint_type = ("Element Type and Size Constraint: ",)
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = torch.as_tensor(data["labels"])
-        bboxes = torch.as_tensor(data["discrete_gold_bboxes"])
+        labels = torch.as_tensor(record_value(data, K.labels))
+        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -201,8 +225,8 @@ class GenTypeSizeSerializer(GenTypeSerializer):
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        labels = torch.as_tensor(data["labels"])
-        bboxes = torch.as_tensor(data["discrete_gold_bboxes"])
+        labels = torch.as_tensor(record_value(data, K.labels))
+        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
         for index in range(len(labels)):
             label = self.index2label[int(labels[index])]
             width, height = [int(value) for value in bboxes[index].tolist()[2:]]
@@ -233,7 +257,7 @@ class GenRelationSerializer(GenTypeSerializer):
         "'A equal B' means that the area of A and the ares of B are very close. "
         "Here, center coordinate = (left + width / 2, top + height / 2), area = width * height"
     )
-    constraint_type = ["Element Type Constraint: ", "Element Relationship Constraint: "]
+    constraint_type = ("Element Type Constraint: ", "Element Relationship Constraint: ")
     relation_types = (
         "smaller",
         "equal",
@@ -251,7 +275,9 @@ class GenRelationSerializer(GenTypeSerializer):
         type_constraints = self.constraint_type[0] + super(
             GenTypeSerializer, self
         ).build_input(data)
-        relations = torch.as_tensor(data.get("relations", torch.empty((0, 5))))
+        relations = torch.as_tensor(
+            optional_record_value(data, K.relations, torch.empty((0, 5)))
+        )
         if len(relations) == 0:
             return type_constraints
         relation_tokens: list[str] = []
@@ -280,28 +306,32 @@ class CompletionSerializer(Serializer):
     """Serializer for layout completion."""
 
     task_type = "layout completion"
-    constraint_type = ["Partial Layout: "]
+    constraint_type = ("Partial Layout: ",)
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         return self._build_seq_output(
             {
-                "labels": torch.as_tensor(data["labels"])[:1],
-                "bboxes": torch.as_tensor(data["discrete_bboxes"])[:1],
+                K.labels.value: torch.as_tensor(record_value(data, K.labels))[:1],
+                K.bboxes.value: torch.as_tensor(record_value(data, K.discrete_bboxes))[
+                    :1
+                ],
             },
-            "labels",
-            "bboxes",
+            K.labels,
+            K.bboxes,
         )
 
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
         return self._build_html_output(
             {
-                "labels": torch.as_tensor(data["labels"])[:1],
-                "bboxes": torch.as_tensor(data["discrete_bboxes"])[:1],
+                K.labels.value: torch.as_tensor(record_value(data, K.labels))[:1],
+                K.bboxes.value: torch.as_tensor(record_value(data, K.discrete_bboxes))[
+                    :1
+                ],
             },
-            "labels",
-            "bboxes",
+            K.labels,
+            K.bboxes,
         )
 
     @override
@@ -314,15 +344,15 @@ class RefinementSerializer(Serializer):
     """Serializer for noisy-layout refinement."""
 
     task_type = "layout refinement"
-    constraint_type = ["Noise Layout: "]
+    constraint_type = ("Noise Layout: ",)
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
-        return self._build_seq_output(data, "labels", "discrete_bboxes")
+        return self._build_seq_output(data, K.labels, K.discrete_bboxes)
 
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
-        return self._build_html_output(data, "labels", "discrete_bboxes")
+        return self._build_html_output(data, K.labels, K.discrete_bboxes)
 
     @override
     def build_input(self, data: LayoutRecord) -> str:
@@ -339,11 +369,11 @@ class TextToLayoutSerializer(Serializer):
         "Please do not exceed the boundaries of the canvas. "
         "Besides, do not generate elements at the edge of the canvas, that is, reduce top: 0px and left: 0px predictions as much as possible."
     )
-    constraint_type = ["Text: "]
+    constraint_type = ("Text: ",)
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
-        return str(data["text"])
+        return str(record_value(data, K.text))
 
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
@@ -362,12 +392,12 @@ class ContentAwareSerializer(GenTypeSerializer):
         "content-aware layout generation\n"
         "Please place the following elements to avoid salient content, and underlay must be the background of text or logo."
     )
-    constraint_type = ["Content Constraint: ", "Element Type Constraint: "]
+    constraint_type = ("Content Constraint: ", "Element Type Constraint: ")
 
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         content_tokens = []
-        content_bboxes = torch.as_tensor(data["discrete_content_bboxes"])
+        content_bboxes = torch.as_tensor(record_value(data, K.discrete_content_bboxes))
         for index, bbox in enumerate(content_bboxes):
             left, top, width, height = [int(value) for value in bbox.tolist()]
             content_tokens.append(
@@ -389,22 +419,22 @@ class ContentAwareSerializer(GenTypeSerializer):
         return Serializer.build_input(self, data)
 
 
-SERIALIZER_MAP: dict[str, type[Serializer]] = {
-    "gent": GenTypeSerializer,
-    "gents": GenTypeSizeSerializer,
-    "genr": GenRelationSerializer,
-    "completion": CompletionSerializer,
-    "refinement": RefinementSerializer,
-    "content": ContentAwareSerializer,
-    "text": TextToLayoutSerializer,
+SERIALIZER_MAP: Final[dict[LayoutPrompterTask, type[Serializer]]] = {
+    LayoutPrompterTask.gent: GenTypeSerializer,
+    LayoutPrompterTask.gents: GenTypeSizeSerializer,
+    LayoutPrompterTask.genr: GenRelationSerializer,
+    LayoutPrompterTask.completion: CompletionSerializer,
+    LayoutPrompterTask.refinement: RefinementSerializer,
+    LayoutPrompterTask.content: ContentAwareSerializer,
+    LayoutPrompterTask.text: TextToLayoutSerializer,
 }
 
 
 def create_serializer(
-    dataset: LayoutPrompterDataset | str,
-    task: str,
-    input_format: str,
-    output_format: str,
+    dataset: SupportedDataset | str,
+    task: LayoutPrompterTask | str,
+    input_format: PromptFormat | str,
+    output_format: PromptFormat | str,
     *,
     add_index_token: bool = True,
     add_sep_token: bool = True,
@@ -413,7 +443,8 @@ def create_serializer(
     """Create a task serializer."""
     normalized_dataset = normalize_dataset(dataset)
     width, height = CANVAS_SIZE[normalized_dataset]
-    return SERIALIZER_MAP[task](
+    normalized_task = normalize_layoutprompter_task(task)
+    return SERIALIZER_MAP[normalized_task](
         input_format=input_format,
         output_format=output_format,
         index2label=id2label(normalized_dataset),
@@ -429,9 +460,9 @@ def build_prompt(
     serializer: Serializer,
     exemplars: Sequence[LayoutRecord],
     test_data: LayoutRecord,
-    dataset: LayoutPrompterDataset | str,
+    dataset: SupportedDataset | str,
     *,
-    max_length: int = 8000,
+    max_length: int = DEFAULT_MAX_LENGTH,
     separator_in_samples: str = "\n",
     separator_between_samples: str = "\n\n",
 ) -> str:

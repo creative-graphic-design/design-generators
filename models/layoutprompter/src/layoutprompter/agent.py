@@ -6,14 +6,14 @@ import os
 import json
 from dataclasses import dataclass
 from dataclasses import asdict
-from collections.abc import Mapping, Sequence
-from enum import StrEnum
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, assert_never
 
 from laygen.common import (
     BoxFormat,
     ConditionType,
+    DatasetName,
     LayoutGenerationOutput,
     normalize_box_format,
     normalize_condition_type,
@@ -21,36 +21,31 @@ from laygen.common import (
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 
-from layoutprompter.data import LayoutPrompterDataset, normalize_dataset
+from layoutprompter.data import SupportedDataset, normalize_dataset
+from layoutprompter.enums import LayoutPrompterTask, OutputType, PromptFormat
 from layoutprompter.parsing import Parser
+from layoutprompter.records import LayoutRecordInput
 from layoutprompter.schemas import LayoutPrompterOutput
 from layoutprompter.selection import create_selector
 from layoutprompter.serialization import build_prompt, create_serializer
 
-LayoutRecord = Mapping[str, object]
+DEFAULT_CANDIDATE_SIZE: Final[int] = -1
+DEFAULT_NUM_PROMPT: Final[int] = 3
+DEFAULT_MAX_LENGTH: Final[int] = 8000
+DEFAULT_TEMPERATURE: Final[float] = 0.7
+DEFAULT_TOP_P: Final[float] = 1.0
+DEFAULT_MODEL: Final[str] = "openai:gpt-4o-mini"
+
+LayoutRecord = LayoutRecordInput
 
 
-class PromptFormat(StrEnum):
-    """Supported LayoutPrompter prompt encodings."""
-
-    SEQ = "seq"
-    HTML = "html"
-
-
-class OutputType(StrEnum):
-    """Supported return containers for the shared call interface."""
-
-    DATACLASS = "dataclass"
-    DICT = "dict"
-
-
-TASK_ALIASES: Final[dict[ConditionType, str]] = {
-    ConditionType.label: "gent",
-    ConditionType.label_size: "gents",
-    ConditionType.relation: "genr",
-    ConditionType.completion: "completion",
-    ConditionType.refinement: "refinement",
-    ConditionType.text: "text",
+TASK_ALIASES: Final[dict[ConditionType, LayoutPrompterTask]] = {
+    ConditionType.label: LayoutPrompterTask.gent,
+    ConditionType.label_size: LayoutPrompterTask.gents,
+    ConditionType.relation: LayoutPrompterTask.genr,
+    ConditionType.completion: LayoutPrompterTask.completion,
+    ConditionType.refinement: LayoutPrompterTask.refinement,
+    ConditionType.text: LayoutPrompterTask.text,
 }
 
 
@@ -104,17 +99,17 @@ class LayoutPrompterConfig:
         'gent'
     """
 
-    dataset: LayoutPrompterDataset | str = LayoutPrompterDataset.PUBLAYNET
+    dataset: SupportedDataset | str = DatasetName.publaynet
     condition_type: ConditionType | str = ConditionType.label
     input_format: PromptFormat | str = PromptFormat.SEQ
     output_format: PromptFormat | str = PromptFormat.SEQ
-    candidate_size: int = -1
-    num_prompt: int = 3
+    candidate_size: int = DEFAULT_CANDIDATE_SIZE
+    num_prompt: int = DEFAULT_NUM_PROMPT
     shuffle: bool = True
     seed: int | None = None
-    max_length: int = 8000
-    temperature: float = 0.7
-    top_p: float = 1.0
+    max_length: int = DEFAULT_MAX_LENGTH
+    temperature: float = DEFAULT_TEMPERATURE
+    top_p: float = DEFAULT_TOP_P
     model: str | Model | None = None
 
     def __post_init__(self) -> None:
@@ -131,7 +126,7 @@ class LayoutPrompterConfig:
         )
 
     @property
-    def task(self) -> str:
+    def task(self) -> LayoutPrompterTask:
         """Return the vendor task key."""
         condition_type = normalize_condition_type(self.condition_type)
         try:
@@ -427,5 +422,5 @@ class LayoutPrompter:
         return (
             os.getenv("LAYOUTPROMPTER_MODEL")
             or os.getenv("PYDANTIC_AI_MODEL")
-            or "openai:gpt-4o-mini"
+            or DEFAULT_MODEL
         )
