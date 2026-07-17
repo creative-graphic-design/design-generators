@@ -5,7 +5,7 @@ from typing import Literal
 
 import torch
 
-from layout_generation_common.discrete import batch_topk_mask, gumbel_noise_like
+from laygen.common.discrete import batch_topk_mask, gumbel_noise_like
 
 
 @dataclass

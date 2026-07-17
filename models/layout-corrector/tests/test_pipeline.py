@@ -8,7 +8,7 @@ from layout_dm import (
     LayoutDMTokenizer,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
-from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 
 def tiny_layout_dm():

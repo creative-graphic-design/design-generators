@@ -9,7 +9,7 @@ from diffusers.utils import BaseOutput
 from torch import nn
 
 from layout_dm.transformer import Block, ElementPositionalEmbedding, TransformerEncoder
-from layout_generation_common.labels import id2label_for_dataset, normalize_dataset_name
+from laygen.common.labels import id2label_for_dataset, normalize_dataset_name
 
 
 @dataclass

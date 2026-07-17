@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "layout-corrector",
     "layout-dm",
-    "layout-generation-common",
+    "laygen",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -35,12 +35,13 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["models/*"]
+members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 layout-dm = { workspace = true }
 layout-corrector = { workspace = true }
-layout-generation-common = { workspace = true }
+laygen = { workspace = true }
+posgen = { workspace = true }
 
 [tool.ruff]
 extend-exclude = ["vendor"]
@@ -49,6 +50,9 @@ extend-exclude = ["vendor"]
 extend-select = ["ANN", "D"]
 
 [tool.ruff.lint.per-file-ignores]
+"lib/*/src/**/*.py" = ["D"]
+"lib/*/tests/*.py" = ["ANN", "D"]
+"lib/*/tests/**/*.py" = ["ANN", "D"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
 "models/*/src/**/*.py" = ["D"]
 "models/*/tests/*.py" = ["ANN", "D"]
@@ -77,7 +81,7 @@ exclude = ["vendor/"]
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
-testpaths = ["tests", "models"]
+testpaths = ["tests", "lib", "models"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "vendor_parity: requires original model weights and vendor dependencies",
@@ -86,5 +90,5 @@ markers = [
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["main.py", "models"]
+paths = ["main.py", "lib", "models"]
 verbose = false

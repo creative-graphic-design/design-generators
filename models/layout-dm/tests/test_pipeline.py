@@ -1,7 +1,7 @@
 import torch
 
-from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
-from layout_generation_common.testing import assert_layout_output_schema
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser
 from layout_dm.pipeline import LayoutDMPipeline

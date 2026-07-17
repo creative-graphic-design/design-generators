@@ -15,8 +15,8 @@ from layout_dm.conditioning import (
 from layout_dm.pipeline import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
-from layout_generation_common.discrete import index_to_log_onehot, log_onehot_to_index
-from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
+from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
+from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
 from .corrector import LayoutCorrectorModel
 from .sampling import (
