@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "layout-generation-common",
+    "layoutprompter",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -50,6 +52,16 @@ testpaths = ["tests", "src"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
 ]
+
+[tool.uv.workspace]
+members = [
+    "models/common",
+    "models/layoutprompter",
+]
+
+[tool.uv.sources]
+layout-generation-common = { workspace = true }
+layoutprompter = { workspace = true }
 
 [tool.vulture]
 min_confidence = 70
