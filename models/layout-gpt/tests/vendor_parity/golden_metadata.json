@@ -1,0 +1,7 @@
+{
+  "canvas_size": 64,
+  "golden_policy": "Regenerate deterministic prompt/selection/parser goldens from vendor/layout-gpt via scripts/generate_vendor_golden.py. Golden payloads are not committed.",
+  "k": 3,
+  "seed": 42,
+  "setting": "counting"
+}

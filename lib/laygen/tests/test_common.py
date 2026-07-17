@@ -44,9 +44,6 @@ from laygen.common.labels import (
 )
 from laygen.common.model_card import layoutdm_model_card
 from laygen.common.output_spec import LAYOUT_GENERATION_OUTPUT_FIELDS, OutputField
-from laygen.common.outputs_diffusers import (
-    LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
-)
 from laygen.common.outputs import LayoutGenerationOutput
 from laygen.common.serialization import sanitize_for_yaml
 from laygen.common.testing import (
@@ -241,6 +238,11 @@ def test_output_schema():
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
+    pytest.importorskip("diffusers")
+    from laygen.common.outputs_diffusers import (
+        LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
+    )
+
     assert tuple(field.name for field in LAYOUT_GENERATION_OUTPUT_FIELDS) == tuple(
         OutputField
     )
