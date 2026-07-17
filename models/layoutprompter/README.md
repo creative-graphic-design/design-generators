@@ -101,7 +101,8 @@ Without `OPENAI_API_KEY`, the demo exits with a skip message.
 
 ## Reproducing Vendor Parity
 
-The deterministic vendor parity test compares the port against golden data regenerated from the read-only LayoutPrompter vendor code. The generated JSON is written to a temporary path and is not committed.
+Use these commands to regenerate deterministic reference data and run the
+vendor parity checks. The generated JSON is written to `/tmp`.
 
 ### 1. Weights
 
@@ -116,12 +117,12 @@ printf 'LayoutPrompter has no learned weights.\n'
 Prerequisites:
 
 ```text
-The vendor source must exist at one of:
+The script looks for the vendor source at one of:
 - vendor/ms-layout-generation/LayoutPrompter/src
 - ../design-generators/vendor/ms-layout-generation/LayoutPrompter/src
 
 Set LAYOUTPROMPTER_VENDOR_SRC to another src directory if needed.
-CUDA_VISIBLE_DEVICES is accepted for consistency with model packages, but this script does not use CUDA.
+Set CUDA_VISIBLE_DEVICES for the same command shape used by model packages; this script does not use CUDA.
 ```
 
 Command:
@@ -177,7 +178,7 @@ with TemporaryDirectory() as tmpdir:
 PY
 ```
 
-Expected output:
+Smoke output:
 
 ```text
 webui
