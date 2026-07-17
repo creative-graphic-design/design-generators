@@ -147,5 +147,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 - CI resolves workspace members with `uv sync --all-packages`, then runs
   pre-commit with `SKIP=uv-lock`, `ty`, root tests, and workspace-member tests
   that are not marked `vendor_parity` or `integration`.
+- CI runs pytest with coverage gates: root coverage is measured separately from
+  each workspace member, and workspace coverage is not combined across members.
+- Coverage thresholds are ratchets. Do not lower an existing `fail_under`;
+  increase it when tests raise the measured coverage.
 - Do not add `uv lock --check` or uv-lock to CI; local uv global options are
   intentionally baked into `uv.lock` in this environment.

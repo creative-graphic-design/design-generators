@@ -98,10 +98,18 @@ jobs:
           uv sync --all-packages
 
       - name: Run root tests
-        run: uv run pytest -m "not integration"
+        env:
+          ROOT_COVERAGE_FAIL_UNDER: "65"
+        run: |
+          uv run pytest -m "not integration" \
+            --cov=. \
+            --cov-report=term-missing \
+            --cov-fail-under="${ROOT_COVERAGE_FAIL_UNDER}"
 
       - name: Run workspace member tests
         shell: bash
+        env:
+          WORKSPACE_COVERAGE_FAIL_UNDER: "55"
         run: |
           set -euo pipefail
 
@@ -124,7 +132,22 @@ jobs:
                   'import os, tomllib; print(tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb"))["project"]["name"])'
               )"
 
-              uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration"
+              import_package="$(
+                MEMBER_DIR="${member_dir}" uv run python -c \
+                  'import os, pathlib; src = pathlib.Path(os.environ["MEMBER_DIR"]) / "src"; print(sorted(path.name for path in src.iterdir() if path.is_dir() and (path / "__init__.py").exists())[0])'
+              )"
+
+              fail_under="$(
+                PYPROJECT_FILE="${pyproject_file}" \
+                DEFAULT_FAIL_UNDER="${WORKSPACE_COVERAGE_FAIL_UNDER}" \
+                uv run python -c \
+                  'import os, tomllib; data = tomllib.load(open(os.environ["PYPROJECT_FILE"], "rb")); print(data.get("tool", {}).get("coverage", {}).get("report", {}).get("fail_under", os.environ["DEFAULT_FAIL_UNDER"]))'
+              )"
+
+              uv run --package "${package_name}" pytest "${tests_dir}" -m "not vendor_parity and not integration" \
+                --cov="${import_package}" \
+                --cov-report=term-missing \
+                --cov-fail-under="${fail_under}"
             done
 
   docs:
