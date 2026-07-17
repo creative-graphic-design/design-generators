@@ -1,4 +1,5 @@
 from typing import cast
+from collections.abc import Callable
 
 import torch
 import pytest
@@ -87,8 +88,10 @@ def test_invalid_inputs_raise():
         model(latents=torch.zeros(1, 1, 4), labels=torch.tensor([[0, 1]]))
     with pytest.raises(ValueError, match="last dimension"):
         model(latents=torch.zeros(1, 1, 2), labels=torch.tensor([[0]]))
-    with pytest.raises(ValueError, match="Unsupported generation kwargs"):
-        model.generate(labels=torch.tensor([[0]]), unsupported=True)
+    unsupported_kwargs: dict[str, object] = {"unsupported": True}
+    generate = cast(Callable[..., object], model.generate)
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        generate(labels=torch.tensor([[0]]), **unsupported_kwargs)
     with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
     with pytest.raises(ValueError, match="Unsupported output_type"):

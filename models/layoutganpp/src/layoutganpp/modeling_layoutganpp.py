@@ -205,7 +205,6 @@ class LayoutGANPPModel(PreTrainedModel):
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: torch.Tensor | None = None,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts from label conditions.
 
@@ -226,7 +225,6 @@ class LayoutGANPPModel(PreTrainedModel):
             output_type: Return format, either `dataclass` or `dict`.
             return_intermediates: Whether to include generation intermediates.
             latents: Optional fixed latent vectors.
-            **model_kwargs: Additional keyword arguments, rejected if present.
 
         Returns:
             A layout generation dataclass or dictionary.
@@ -243,9 +241,6 @@ class LayoutGANPPModel(PreTrainedModel):
         """
         del bbox, num_elements, normalized, canvas_size, num_inference_steps
         normalize_box_format(box_format)
-        if model_kwargs:
-            unknown = ", ".join(sorted(model_kwargs))
-            raise ValueError(f"Unsupported generation kwargs: {unknown}")
         canonical = normalize_condition_type(condition_type)
         if canonical is ConditionType.unconditional:
             raise ValueError(

@@ -199,7 +199,6 @@ class LayoutGANPPPipeline(Pipeline):
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: torch.Tensor | None = None,
-        **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate LayoutGAN++ boxes from labels.
 
@@ -220,7 +219,6 @@ class LayoutGANPPPipeline(Pipeline):
             output_type: Return format, either `dataclass` or `dict`.
             return_intermediates: Whether to include generation intermediates.
             latents: Optional fixed latent vectors.
-            **model_kwargs: Additional keyword arguments forwarded to generation.
 
         Returns:
             A layout generation dataclass or dictionary.
@@ -247,9 +245,6 @@ class LayoutGANPPPipeline(Pipeline):
                 resolved_mask = attention_mask
             else:
                 resolved_mask = encoded["attention_mask"] if mask is None else mask
-        if model_kwargs:
-            unknown = ", ".join(sorted(model_kwargs))
-            raise ValueError(f"Unsupported generation kwargs: {unknown}")
         return self._layoutganpp_model().generate(
             condition_type=condition_type,
             bbox=bbox,

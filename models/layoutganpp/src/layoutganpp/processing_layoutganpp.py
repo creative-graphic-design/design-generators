@@ -5,13 +5,14 @@ from __future__ import annotations
 from typing import Literal
 
 import torch
+from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
 from .configuration_layoutganpp import Id2LabelMapping
 from .datasets import DatasetName, id2label_for_dataset, normalize_dataset_name
 
 
-class LayoutGANPPProcessor:
+class LayoutGANPPProcessor(ProcessorMixin):
     """Encode LayoutGAN++ labels and decode generated layouts.
 
     Args:
@@ -44,6 +45,7 @@ class LayoutGANPPProcessor:
             >>> LayoutGANPPProcessor("publaynet").id2label[0]
             'text'
         """
+        self.chat_template = None
         self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or id2label_for_dataset(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
@@ -148,51 +150,6 @@ class LayoutGANPPProcessor:
                 )
             records.append(row)
         return records
-
-    def save_pretrained(self, save_directory: str) -> None:
-        """Save processor metadata to a directory.
-
-        Args:
-            save_directory: Directory that will receive the processor config file.
-
-        Examples:
-            >>> from tempfile import TemporaryDirectory
-            >>> processor = LayoutGANPPProcessor()
-            >>> with TemporaryDirectory() as tmp:
-            ...     processor.save_pretrained(tmp)
-        """
-        from pathlib import Path
-        import json
-
-        path = Path(save_directory)
-        path.mkdir(parents=True, exist_ok=True)
-        payload = {"dataset_name": self.dataset_name, "id2label": self.id2label}
-        (path / self.config_name).write_text(json.dumps(payload, indent=2) + "\n")
-
-    @classmethod
-    def from_pretrained(cls, path: str) -> "LayoutGANPPProcessor":
-        """Load processor metadata from a directory.
-
-        Args:
-            path: Directory containing `preprocessor_config.json`.
-
-        Returns:
-            A loaded `LayoutGANPPProcessor`.
-
-        Raises:
-            FileNotFoundError: If the processor config is missing.
-
-        Examples:
-            >>> # LayoutGANPPProcessor.from_pretrained("./layoutganpp-rico")
-        """
-        from pathlib import Path
-        import json
-
-        payload = json.loads((Path(path) / cls.config_name).read_text())
-        return cls(
-            dataset_name=payload["dataset_name"],
-            id2label={int(k): v for k, v in payload["id2label"].items()},
-        )
 
     def _normalize_rows(
         self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
