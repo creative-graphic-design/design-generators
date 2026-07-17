@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: pytest-models
         name: pytest models
-        entry: bash -c 'uv run --package laygen pytest lib/laygen && uv run --package posgen pytest lib/posgen && uv run --package layout-dm pytest models/layout-dm && uv run --package layoutganpp pytest models/layoutganpp'
+        entry: bash -c 'uv run --package laygen --extra diffusers pytest lib/laygen && uv run --package posgen pytest lib/posgen && uv run --package layout-dm pytest models/layout-dm && uv run --package layoutganpp pytest models/layoutganpp'
         language: system
         pass_filenames: false
 
