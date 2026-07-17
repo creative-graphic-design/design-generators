@@ -65,7 +65,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 Public outputs use normalized center `xywh` boxes in `[0, 1]`; padding is represented by `mask`, not by a public label id.
 
-## Vendor Parity
+## Parity Results
 
 Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.NeuralODE(..., solver="euler")` path using the released checkpoints.
 
@@ -74,7 +74,9 @@ Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.Ne
 | PubLayNet | 0.0 | 0.0 | 0.0 | 0.0 |
 | RICO25 | 0.0 | 0.0 | 0.0 | 0.0 |
 
-## Reproducing vendor parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Run the commands below from the repository root. The original source under `vendor/layout-flow` is read-only; downloads and generated artifacts are written under `.cache/layout-flow`.
 
