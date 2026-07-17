@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "layout-flow",
     "layout-dm",
     "layout-generation-common",
     "transformers[torch,vision]>=5.0.0",
@@ -37,11 +38,15 @@ dev = [
 members = ["models/*"]
 
 [tool.uv.sources]
+layout-flow = { workspace = true }
 layout-dm = { workspace = true }
 layout-generation-common = { workspace = true }
 
 [tool.ruff.lint]
 extend-select = ["ANN", "D"]
+
+[tool.ruff]
+extend-exclude = ["vendor"]
 
 [tool.ruff.lint.per-file-ignores]
 "models/**/*.py" = ["ANN", "D"]
@@ -56,7 +61,7 @@ convention = "google"
 all = "error"
 
 [tool.ty.src]
-exclude = ["models/common/**", "models/layout-dm/**", "vendor/**"]
+exclude = ["models/common/**", "models/layout-dm/**", "models/layout-flow/**", "vendor/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src", "models"]
