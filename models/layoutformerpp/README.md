@@ -146,7 +146,7 @@ PY
 
 ## Model Cards
 
-`scripts/convert_checkpoint.py` writes a Hugging Face Hub `README.md` model card into each converted output directory. The card includes Hub YAML metadata plus official-template sections for model details, uses, risks and limitations, getting started, training details, evaluation, technical specifications, and citation.
+Each converted output directory includes a `README.md` model card.
 
 ## License
 
