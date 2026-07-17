@@ -151,7 +151,7 @@ magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
 
 ## Generated Model Cards
 
-`models/layoutganpp/scripts/convert_original_checkpoint.py` writes a checkpoint-specific `README.md` by calling `layoutganpp.model_card.write_layoutganpp_model_card()`, which uses `laygen.common.model_card.build_layout_model_card()`. This keeps Hub metadata and parity summaries aligned with the package README.
+Each converted checkpoint directory includes a Hub-style `README.md` model card.
 
 ## Limitations
 
