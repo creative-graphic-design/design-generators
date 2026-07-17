@@ -8,7 +8,7 @@ import torch
 from diffusers import DiffusionPipeline
 
 from layout_generation_common.discrete import log_onehot_to_index
-from layout_generation_common.outputs import LayoutGenerationOutput
+from layout_generation_common.outputs_diffusers import LayoutGenerationOutput
 
 from .conditioning import build_condition, normalize_condition_type
 from .denoiser import LayoutDMDenoiser
