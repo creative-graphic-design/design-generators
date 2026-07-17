@@ -25,3 +25,6 @@ layout-generation-common = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "vendor_parity: deterministic checks that execute read-only vendor code",
+]

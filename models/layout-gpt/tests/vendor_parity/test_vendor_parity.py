@@ -15,6 +15,8 @@ from layout_gpt.exemplars import (
 from layout_gpt.parser import parse_3d_layout_line, parse_layout_line
 from layout_gpt.prompts import form_prompt_for_chatgpt, form_prompt_for_gpt3
 
+pytestmark = pytest.mark.vendor_parity
+
 
 def _vendor_root() -> Path:
     worktree_root = Path(__file__).resolve().parents[4]
