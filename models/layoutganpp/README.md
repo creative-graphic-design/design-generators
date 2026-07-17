@@ -67,7 +67,7 @@ print(processor.batch_decode(out.bbox, out.labels, out.mask))
 
 This section reproduces the parity verification against the original implementation.
 
-Prerequisites: run these commands from the repository root. The command examples keep all local artifacts under `.cache/layoutganpp/` and never modify `vendor/const-layout`.
+Prerequisites: run these commands from the repository root. Initialize the original implementation with `git submodule update --init vendor/const-layout` before generating vendor references. The command examples keep all local artifacts under `.cache/layoutganpp/` and never modify `vendor/const-layout`.
 
 Step 1 downloads the original released checkpoints. Generated files are `.cache/layoutganpp/original/layoutganpp_{rico,publaynet,magazine}.pth.tar`.
 

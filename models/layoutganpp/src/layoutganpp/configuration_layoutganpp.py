@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
 
 from .datasets import DatasetName, dataset_metadata, id2label_for_dataset
+
+Id2LabelMapping = Mapping[int, str] | Mapping[str, str]
 
 
 class LayoutGANPPConfig(PretrainedConfig):
@@ -36,10 +40,10 @@ class LayoutGANPPConfig(PretrainedConfig):
 
     def __init__(
         self,
-        dataset_name: DatasetName | str = DatasetName.rico,
+        dataset_name: DatasetName | str = DatasetName.rico13,
         latent_size: int = 4,
         num_labels: int | None = None,
-        id2label: dict[int | str, str] | None = None,
+        id2label: Id2LabelMapping | None = None,
         label2id: dict[str, int] | None = None,
         d_model: int = 512,
         nhead: int = 8,
@@ -82,8 +86,9 @@ class LayoutGANPPConfig(PretrainedConfig):
         super().__init__(
             id2label=normalized_id2label,
             label2id=normalized_label2id,
-            **kwargs,
         )
+        for key, value in kwargs.items():
+            setattr(self, key, value)
         self.dataset_name = str(metadata["name"])
         self.latent_size = latent_size
         self.num_labels = resolved_num_labels

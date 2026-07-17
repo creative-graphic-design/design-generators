@@ -1,8 +1,11 @@
+from typing import cast
+
 import torch
 import pytest
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.testing import assert_layout_output_schema
+from laygen.common.outputs import LayoutGenerationOutput
 from layoutganpp import (
     ConditionType,
     LayoutGANPPConfig,
@@ -51,6 +54,8 @@ def test_generate_seed_is_reproducible():
     labels = torch.tensor([[0, 1, 2]])
     out1 = model.generate(labels=labels, seed=123)
     out2 = model.generate(labels=labels, seed=123)
+    assert isinstance(out1, LayoutGenerationOutput)
+    assert isinstance(out2, LayoutGenerationOutput)
     assert_layout_output_schema(out1, batch_size=1)
     torch.testing.assert_close(out1.bbox, out2.bbox)
 
@@ -61,6 +66,8 @@ def test_explicit_latents_are_deterministic():
     latents = torch.randn(1, 3, model.config.latent_size)
     out1 = model.generate(labels=labels, latents=latents, seed=1)
     out2 = model.generate(labels=labels, latents=latents, seed=999)
+    assert isinstance(out1, LayoutGenerationOutput)
+    assert isinstance(out2, LayoutGenerationOutput)
     torch.testing.assert_close(out1.bbox, out2.bbox)
 
 
@@ -82,7 +89,7 @@ def test_invalid_inputs_raise():
         model(latents=torch.zeros(1, 1, 2), labels=torch.tensor([[0]]))
     with pytest.raises(ValueError, match="Unsupported generation kwargs"):
         model.generate(labels=torch.tensor([[0]]), unsupported=True)
-    with pytest.raises(ValueError, match="Unsupported condition_type"):
+    with pytest.raises(ValueError, match="Unknown condition_type"):
         normalize_condition_type("unknown")
     with pytest.raises(ValueError, match="Unsupported output_type"):
         normalize_output_type("unknown")
@@ -100,6 +107,14 @@ def test_generate_enums_masks_and_dict_output():
         return_intermediates=True,
         latents=latents,
     )
-    assert out["bbox"].shape == (1, 2, 4)
-    assert out["mask"].tolist() == [[True, False]]
-    assert out["intermediates"]["condition_type"] == ConditionType.label
+    assert isinstance(out, dict)
+    intermediates = out["intermediates"]
+    assert isinstance(intermediates, dict)
+    intermediates = cast(dict[str, object], intermediates)
+    bbox = out["bbox"]
+    mask = out["mask"]
+    assert isinstance(bbox, torch.Tensor)
+    assert isinstance(mask, torch.Tensor)
+    assert bbox.shape == (1, 2, 4)
+    assert mask.tolist() == [[True, False]]
+    assert intermediates["condition_type"] == ConditionType.label

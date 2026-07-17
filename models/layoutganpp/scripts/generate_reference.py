@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 import torch
 
@@ -13,15 +15,19 @@ from layoutganpp.datasets import labels_for_dataset
 _VENDOR_MODEL = Path("model") / "layoutganpp.py"
 
 
-def _arg(args: object, key: str) -> object:
-    if isinstance(args, dict):
-        return args[key]
+def _arg(args: object, key: str) -> str:
+    if isinstance(args, Mapping):
+        return str(cast(Mapping[str, object], args)[key])
     return getattr(args, key)
+
+
+def _arg_int(args: object, key: str) -> int:
+    return int(_arg(args, key))
 
 
 def _synthetic_labels(
     *, batch_size: int, seq_len: int, num_labels: int, device: torch.device
-) -> tuple[torch.LongTensor, torch.BoolTensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     labels = torch.arange(seq_len, dtype=torch.long, device=device).remainder(
         num_labels
     )
@@ -128,11 +134,11 @@ def main() -> None:
     seq_len = 33 if dataset_name == "magazine" else 9
     model = (
         Generator(
-            int(_arg(train_args, "latent_size")),
+            _arg_int(train_args, "latent_size"),
             num_labels,
-            d_model=int(_arg(train_args, "G_d_model")),
-            nhead=int(_arg(train_args, "G_nhead")),
-            num_layers=int(_arg(train_args, "G_num_layers")),
+            d_model=_arg_int(train_args, "G_d_model"),
+            nhead=_arg_int(train_args, "G_nhead"),
+            num_layers=_arg_int(train_args, "G_num_layers"),
         )
         .eval()
         .to(device)
@@ -148,7 +154,7 @@ def main() -> None:
     latents = torch.randn(
         labels.size(0),
         labels.size(1),
-        int(_arg(train_args, "latent_size")),
+        _arg_int(train_args, "latent_size"),
         generator=generator,
         device=device,
     )

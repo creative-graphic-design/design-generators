@@ -43,8 +43,8 @@ Vendor parity fixtures are regenerated from the original implementation with fix
 
 ## Documentation
 
-Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, vendor-parity summary, license, citation, and original implementation link.
+Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 
-Each model README includes a `Reproducibility` section with copy-pasteable commands for downloading assets, generating original-implementation references, running parity tests, converting checkpoints, and running `from_pretrained` smoke tests.
+Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running `from_pretrained` smoke tests.
 
 Public API docstrings are the source for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections. Examples should be runnable doctest-style snippets when the API can run without heavyweight assets.

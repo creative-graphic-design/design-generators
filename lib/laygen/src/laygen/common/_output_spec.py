@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any
 
 import torch
 
@@ -12,8 +11,8 @@ LAYOUT_GENERATION_OUTPUT_FIELDS = (
     ("id2label", dict[int, str], None),
     ("sequences", torch.Tensor | None, None),
     ("scores", torch.Tensor | None, None),
-    ("trajectory", Any | None, None),
-    ("intermediates", Any | None, None),
+    ("trajectory", object | None, None),
+    ("intermediates", object | None, None),
 )
 
 

@@ -7,6 +7,7 @@ from typing import Literal
 import torch
 from transformers.tokenization_utils_base import BatchEncoding
 
+from .configuration_layoutganpp import Id2LabelMapping
 from .datasets import DatasetName, id2label_for_dataset, normalize_dataset_name
 
 
@@ -27,8 +28,8 @@ class LayoutGANPPProcessor:
 
     def __init__(
         self,
-        dataset_name: DatasetName | str = DatasetName.rico,
-        id2label: dict[int | str, str] | None = None,
+        dataset_name: DatasetName | str = DatasetName.rico13,
+        id2label: Id2LabelMapping | None = None,
     ) -> None:
         """Initialize a LayoutGAN++ processor.
 
@@ -204,8 +205,18 @@ class LayoutGANPPProcessor:
             raise ValueError("labels must not be empty")
         first = labels[0]
         if isinstance(first, list):
-            return labels  # type: ignore[return-value]
-        return [labels]  # type: ignore[list-item]
+            rows: list[list[str | int]] = []
+            for row in labels:
+                if not isinstance(row, list):
+                    raise ValueError("labels must be a flat list or list of rows")
+                rows.append(row)
+            return rows
+        row = []
+        for label in labels:
+            if isinstance(label, list):
+                raise ValueError("labels must be a flat list or list of rows")
+            row.append(label)
+        return [row]
 
     def _label_to_id(self, label: str | int) -> int:
         if isinstance(label, int):

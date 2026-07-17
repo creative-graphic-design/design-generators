@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import cast
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 from .datasets import dataset_metadata, id2label_for_dataset
@@ -39,18 +40,27 @@ def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
     id2label = id2label_for_dataset(dataset_name)
     return LayoutGANPPConfig(
         dataset_name=dataset_name,
-        latent_size=int(values["latent_size"]),
+        latent_size=_required_int(values, "latent_size"),
         num_labels=len(id2label),
         id2label=id2label,
         label2id={v: k for k, v in id2label.items()},
-        d_model=int(values["G_d_model"]),
-        nhead=int(values["G_nhead"]),
-        num_layers=int(values["G_num_layers"]),
-        max_position_embeddings=int(metadata["max_elements"]),
+        d_model=_required_int(values, "G_d_model"),
+        nhead=_required_int(values, "G_nhead"),
+        num_layers=_required_int(values, "G_num_layers"),
+        max_position_embeddings=_required_int(metadata, "max_elements"),
     )
 
 
 def _checkpoint_values(args: object) -> Mapping[str, object]:
     if isinstance(args, Mapping):
-        return args
+        return cast(Mapping[str, object], args)
     return vars(args)
+
+
+def _required_int(values: Mapping[str, object], key: str) -> int:
+    value = values[key]
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return int(value)
+    raise TypeError(f"{key} must be an int-compatible checkpoint value")

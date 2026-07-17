@@ -1,5 +1,6 @@
 import torch
-from typing import Any, cast
+from typing import Literal, cast
+from transformers import ProcessorMixin
 
 from laygen.common.bbox import BoxFormat
 from layout_dm.configuration_layout_dm import LayoutDMConfig
@@ -47,7 +48,7 @@ def test_processor_accepts_unbatched_ltwh_and_validates_options(tmp_path):
         processor(
             bbox=[[[0.0, 0.0, 1.0, 1.0]]],
             labels=[[0]],
-            return_tensors=cast(Any, "np"),
+            return_tensors=cast(Literal["pt"], "np"),
         )
     except ValueError as exc:
         assert "return_tensors" in str(exc)
@@ -66,6 +67,8 @@ def test_processor_accepts_unbatched_ltwh_and_validates_options(tmp_path):
         raise AssertionError("missing canvas_size should fail")
 
     processor.save_pretrained(str(tmp_path))
+    assert isinstance(processor, ProcessorMixin)
+    assert (tmp_path / "processor_config.json").exists()
     assert isinstance(
         LayoutDMProcessor.from_pretrained(str(tmp_path)), LayoutDMProcessor
     )

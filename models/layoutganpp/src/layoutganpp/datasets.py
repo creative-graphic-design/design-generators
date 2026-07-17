@@ -5,13 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Final, TypedDict
 
-
-class DatasetName(StrEnum):
-    """Canonical LayoutGAN++ dataset names."""
-
-    rico = "rico"
-    publaynet = "publaynet"
-    magazine = "magazine"
+from laygen.common.labels import DatasetName
 
 
 class RicoLabel(StrEnum):
@@ -66,8 +60,8 @@ class DatasetMetadata(TypedDict):
 
 
 DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
-    DatasetName.rico: {
-        "name": DatasetName.rico,
+    DatasetName.rico13: {
+        "name": DatasetName.rico13,
         "labels": RICO_LABELS,
         "max_elements": 9,
     },
@@ -84,8 +78,8 @@ DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
 }
 
 _ALIASES: Final[dict[str, DatasetName]] = {
-    "rico": DatasetName.rico,
-    "rico13": DatasetName.rico,
+    "rico": DatasetName.rico13,
+    "rico13": DatasetName.rico13,
     "publaynet": DatasetName.publaynet,
     "pub_laynet": DatasetName.publaynet,
     "magazine": DatasetName.magazine,

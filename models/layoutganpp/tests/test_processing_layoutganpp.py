@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import torch
 import pytest
 
@@ -16,7 +18,7 @@ def test_dataset_vocabularies_match_vendor_order():
     assert labels_for_dataset("rico") == RICO_LABELS
     assert labels_for_dataset("publaynet") == PUBLAYNET_LABELS
     assert labels_for_dataset("magazine") == MAGAZINE_LABELS
-    assert labels_for_dataset(DatasetName.rico)[0] == "Toolbar"
+    assert labels_for_dataset(DatasetName.rico13)[0] == "Toolbar"
     assert label2id_for_dataset("rico")["Toolbar"] == 0
     with pytest.raises(ValueError, match="Unknown"):
         labels_for_dataset("missing")
@@ -65,7 +67,7 @@ def test_processor_error_branches_and_tensor_rows():
     batched = processor(torch.tensor([[0, 1], [2, 3]]))
     assert batched["attention_mask"].tolist() == [[True, True], [True, True]]
     with pytest.raises(ValueError, match="return_tensors"):
-        processor(["text"], return_tensors="np")  # type: ignore[arg-type]
+        processor(["text"], return_tensors=cast(Literal["pt"], "np"))
     with pytest.raises(ValueError, match="Ragged"):
         processor([["text"], ["title", "figure"]], padding=False)
     with pytest.raises(ValueError, match="empty"):

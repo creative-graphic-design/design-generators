@@ -8,10 +8,6 @@ def test_reproducibility_code_fences_are_tagged():
     section = readme.read_text(encoding="utf-8").split(
         "## Reproducibility", maxsplit=1
     )[1]
-    assert (
-        "This section reproduces the parity verification against the original "
-        "implementation."
-    ) in section
     section = section.split("## Vendor Links", maxsplit=1)[0]
     fence_lines = [line for line in section.splitlines() if line.startswith("```")]
 
@@ -21,5 +17,5 @@ def test_reproducibility_code_fences_are_tagged():
 
     assert all(fence in {"```bash", "```text"} for fence in opening_fences)
     assert all(fence == "```" for fence in closing_fences)
-    assert opening_fences.count("```bash") == 5
+    assert opening_fences.count("```bash") == 6
     assert opening_fences.count("```text") == 2

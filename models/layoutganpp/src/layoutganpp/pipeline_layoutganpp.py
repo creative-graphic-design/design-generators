@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import cast
+
 import torch
 from transformers import Pipeline
 from transformers.tokenization_utils_base import BatchEncoding
 
 from laygen.common.bbox import BoxFormat
+from laygen.common.conditions import ConditionType
 from laygen.common.outputs import LayoutGenerationOutput
 
-from .modeling_layoutganpp import ConditionType, LayoutGANPPModel, OutputType
+from .modeling_layoutganpp import LayoutGANPPModel, OutputType
 from .processing_layoutganpp import LayoutGANPPProcessor
 
 
@@ -19,7 +23,8 @@ class LayoutGANPPPipeline(Pipeline):
     Args:
         model: LayoutGAN++ model instance.
         processor: Optional processor for label encoding and decoding.
-        **kwargs: Extra `Pipeline` keyword arguments.
+        device: Optional torch device passed to the base pipeline.
+        binary_output: Whether the base pipeline should produce binary output.
 
     Examples:
         >>> model = LayoutGANPPModel(LayoutGANPPConfig(num_labels=2))
@@ -32,21 +37,29 @@ class LayoutGANPPPipeline(Pipeline):
         self,
         model: LayoutGANPPModel,
         processor: LayoutGANPPProcessor | None = None,
-        **kwargs: object,
+        device: int | torch.device | None = None,
+        binary_output: bool = False,
     ) -> None:
         """Initialize a LayoutGAN++ pipeline.
 
         Args:
             model: LayoutGAN++ model instance.
             processor: Optional processor for label encoding and decoding.
-            **kwargs: Extra `Pipeline` keyword arguments.
+            device: Optional torch device passed to the base pipeline.
+            binary_output: Whether the base pipeline should produce binary output.
 
         Examples:
             >>> pipe = LayoutGANPPPipeline(LayoutGANPPModel(LayoutGANPPConfig()))
             >>> isinstance(pipe.processor, LayoutGANPPProcessor)
             True
         """
-        super().__init__(model=model, tokenizer=None, framework="pt", **kwargs)
+        super().__init__(
+            model=model,
+            tokenizer=None,
+            framework="pt",
+            device=device,
+            binary_output=binary_output,
+        )
         self.processor = processor or LayoutGANPPProcessor(
             dataset_name=model.config.dataset_name,
             id2label=model.config.id2label,
@@ -57,12 +70,14 @@ class LayoutGANPPPipeline(Pipeline):
     ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
         return {}, kwargs, {}
 
-    def preprocess(self, inputs: object = None, **kwargs: object) -> BatchEncoding:
+    def preprocess(  # ty: ignore[invalid-method-override]
+        self, input_: object = None, **preprocess_parameters: object
+    ) -> BatchEncoding:
         """Encode pipeline inputs into model inputs.
 
         Args:
-            inputs: Labels supplied as the positional pipeline input.
-            **kwargs: Keyword labels and generation arguments.
+            input_: Labels supplied as the positional pipeline input.
+            **preprocess_parameters: Keyword labels and generation arguments.
 
         Returns:
             Batch encoding containing label IDs, attention mask, and generation kwargs.
@@ -75,31 +90,77 @@ class LayoutGANPPPipeline(Pipeline):
             >>> "labels" in pipe.preprocess(["Toolbar"])
             True
         """
-        labels = kwargs.pop("labels", inputs)
+        labels = preprocess_parameters.pop("labels", input_)
         if labels is None:
             raise ValueError("labels are required for LayoutGANPPPipeline")
-        encoded = self.processor(labels)
-        encoded.update(kwargs)
+        encoded = self._layoutganpp_processor()(
+            cast(list[list[str | int]] | list[str | int] | torch.Tensor, labels)
+        )
+        encoded.update(preprocess_parameters)
         return encoded
 
-    def _forward(
-        self, model_inputs: dict[str, object]
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    def _forward(  # ty: ignore[invalid-method-override]
+        self, model_inputs: dict[str, object], **forward_params: object
+    ) -> LayoutGenerationOutput | dict[str, object]:
+        del forward_params
         labels = torch.as_tensor(model_inputs.pop("labels"), dtype=torch.long)
         attention_mask = torch.as_tensor(
             model_inputs.pop("attention_mask"), dtype=torch.bool
         )
-        return self.model.generate(
+        condition_type = cast(
+            ConditionType | str, model_inputs.pop("condition_type", ConditionType.label)
+        )
+        bbox = cast(torch.Tensor | None, model_inputs.pop("bbox", None))
+        mask = cast(torch.Tensor | None, model_inputs.pop("mask", None))
+        num_elements = cast(
+            int | list[int] | torch.Tensor | None,
+            model_inputs.pop("num_elements", None),
+        )
+        box_format = cast(
+            BoxFormat | str, model_inputs.pop("box_format", BoxFormat.xywh)
+        )
+        normalized = cast(bool, model_inputs.pop("normalized", True))
+        canvas_size = cast(
+            tuple[int, int] | None, model_inputs.pop("canvas_size", None)
+        )
+        seed = cast(int | None, model_inputs.pop("seed", None))
+        generator = cast(torch.Generator | None, model_inputs.pop("generator", None))
+        num_inference_steps = cast(
+            int | None, model_inputs.pop("num_inference_steps", None)
+        )
+        output_type = cast(
+            OutputType | str, model_inputs.pop("output_type", OutputType.dataclass)
+        )
+        return_intermediates = cast(
+            bool, model_inputs.pop("return_intermediates", False)
+        )
+        latents = cast(torch.Tensor | None, model_inputs.pop("latents", None))
+        if model_inputs:
+            unknown = ", ".join(sorted(model_inputs))
+            raise ValueError(f"Unsupported generation kwargs: {unknown}")
+        return self._layoutganpp_model().generate(
+            condition_type=condition_type,
+            bbox=bbox,
             labels=labels,
+            mask=mask,
             attention_mask=attention_mask,
-            **model_inputs,
+            num_elements=num_elements,
+            box_format=box_format,
+            normalized=normalized,
+            canvas_size=canvas_size,
+            seed=seed,
+            generator=generator,
+            num_inference_steps=num_inference_steps,
+            output_type=output_type,
+            return_intermediates=return_intermediates,
+            latents=latents,
         )
 
     def postprocess(
         self,
-        model_outputs: LayoutGenerationOutput | dict[str, torch.Tensor],
+        model_outputs: LayoutGenerationOutput | dict[str, object],
         **kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Return generated layouts from the pipeline output.
 
         Args:
@@ -121,17 +182,14 @@ class LayoutGANPPPipeline(Pipeline):
     @torch.no_grad()
     def __call__(
         self,
-        labels: list[list[str | int]]
-        | list[str | int]
-        | torch.LongTensor
-        | None = None,
+        labels: list[list[str | int]] | list[str | int] | torch.Tensor | None = None,
         *,
         batch_size: int = 1,
         condition_type: ConditionType | str = ConditionType.label,
-        bbox: torch.FloatTensor | None = None,
-        mask: torch.BoolTensor | None = None,
-        attention_mask: torch.BoolTensor | None = None,
-        num_elements: int | list[int] | torch.LongTensor | None = None,
+        bbox: torch.Tensor | None = None,
+        mask: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
+        num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -140,9 +198,9 @@ class LayoutGANPPPipeline(Pipeline):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        latents: torch.FloatTensor | None = None,
+        latents: torch.Tensor | None = None,
         **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate LayoutGAN++ boxes from labels.
 
         Args:
@@ -183,17 +241,20 @@ class LayoutGANPPPipeline(Pipeline):
             encoded_labels = labels
             resolved_mask = attention_mask if attention_mask is not None else mask
         else:
-            encoded = self.processor(labels)
+            encoded = self._layoutganpp_processor()(labels)
             encoded_labels = encoded["labels"]
             if attention_mask is not None:
                 resolved_mask = attention_mask
             else:
                 resolved_mask = encoded["attention_mask"] if mask is None else mask
-        return self.model.generate(
+        if model_kwargs:
+            unknown = ", ".join(sorted(model_kwargs))
+            raise ValueError(f"Unsupported generation kwargs: {unknown}")
+        return self._layoutganpp_model().generate(
             condition_type=condition_type,
             bbox=bbox,
-            labels=encoded_labels,
-            mask=resolved_mask,
+            labels=cast(torch.Tensor, encoded_labels),
+            mask=cast(torch.Tensor | None, resolved_mask),
             num_elements=num_elements,
             box_format=box_format,
             normalized=normalized,
@@ -204,14 +265,20 @@ class LayoutGANPPPipeline(Pipeline):
             output_type=output_type,
             return_intermediates=return_intermediates,
             latents=latents,
-            **model_kwargs,
         )
 
-    def save_pretrained(self, save_directory: str, **kwargs: object) -> None:
+    def save_pretrained(  # ty: ignore[invalid-method-override]
+        self,
+        save_directory: str | Path,
+        *,
+        safe_serialization: bool = True,
+        **kwargs: str | bool | None,
+    ) -> None:
         """Save the pipeline model and processor.
 
         Args:
             save_directory: Directory where model and processor files are written.
+            safe_serialization: Whether to save model weights as safetensors.
             **kwargs: Extra keyword arguments passed to model saving.
 
         Examples:
@@ -220,8 +287,12 @@ class LayoutGANPPPipeline(Pipeline):
             >>> with TemporaryDirectory() as tmp:
             ...     pipe.save_pretrained(tmp)
         """
-        self.model.save_pretrained(save_directory, **kwargs)
-        self.processor.save_pretrained(save_directory)
+        self._layoutganpp_model().save_pretrained(
+            save_directory,
+            safe_serialization=safe_serialization,
+            **kwargs,
+        )
+        self._layoutganpp_processor().save_pretrained(str(save_directory))
 
     @classmethod
     def from_pretrained(
@@ -247,3 +318,9 @@ class LayoutGANPPPipeline(Pipeline):
         )
         processor = LayoutGANPPProcessor.from_pretrained(pretrained_model_name_or_path)
         return cls(model=model, processor=processor)
+
+    def _layoutganpp_model(self) -> LayoutGANPPModel:
+        return cast(LayoutGANPPModel, self.model)
+
+    def _layoutganpp_processor(self) -> LayoutGANPPProcessor:
+        return cast(LayoutGANPPProcessor, self.processor)

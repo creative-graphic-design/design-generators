@@ -32,7 +32,7 @@ def test_config_from_checkpoint_mapping_and_bad_args():
             "G_num_layers": "2",
         }
     )
-    assert config.dataset_name == "rico"
+    assert config.dataset_name == "rico13"
     with pytest.raises(TypeError):
         config_from_checkpoint_args(object())
 

@@ -12,24 +12,30 @@ from .datasets import DatasetName, normalize_dataset_name
 
 
 _DATASET_IDS: Final[dict[DatasetName, str]] = {
-    DatasetName.rico: "creative-graphic-design/rico",
+    DatasetName.rico13: "creative-graphic-design/rico",
     DatasetName.publaynet: "creative-graphic-design/publaynet",
     DatasetName.magazine: "creative-graphic-design/magazine",
 }
 
+_CHECKPOINT_KEYS: Final[dict[DatasetName, str]] = {
+    DatasetName.rico13: "rico",
+    DatasetName.publaynet: "publaynet",
+    DatasetName.magazine: "magazine",
+}
+
 _CHECKPOINT_IDS: Final[dict[DatasetName, str]] = {
-    dataset: f"creative-graphic-design/layoutganpp-{dataset}"
-    for dataset in _DATASET_IDS
+    dataset: f"creative-graphic-design/layoutganpp-{key}"
+    for dataset, key in _CHECKPOINT_KEYS.items()
 }
 
 _EXAMPLE_LABELS: Final[dict[DatasetName, str]] = {
-    DatasetName.rico: '[["Toolbar", "Image"]]',
+    DatasetName.rico13: '[["Toolbar", "Image"]]',
     DatasetName.publaynet: '[["text", "figure"]]',
     DatasetName.magazine: '[["text", "image"]]',
 }
 
 _PARITY_METRICS: Final[dict[DatasetName, dict[str, str]]] = {
-    DatasetName.rico: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
+    DatasetName.rico13: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
     DatasetName.publaynet: {"shape": "(3, 9, 4)", "smoke_shape": "(1, 2, 4)"},
     DatasetName.magazine: {"shape": "(3, 33, 4)", "smoke_shape": "(1, 2, 4)"},
 }
@@ -65,7 +71,7 @@ def layoutganpp_model_card(dataset: DatasetName | str) -> ModelCard:
         True
     """
     dataset_name = normalize_dataset_name(dataset)
-    dataset_key = str(dataset_name)
+    dataset_key = _CHECKPOINT_KEYS[dataset_name]
     model_id = _CHECKPOINT_IDS[dataset_name]
     metrics = _PARITY_METRICS[dataset_name]
     how_to_use = f"""

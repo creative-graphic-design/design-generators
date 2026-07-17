@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final, assert_never
+from typing import assert_never
 
 import torch
 from torch import nn
@@ -12,6 +12,7 @@ from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
+from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.outputs import LayoutGenerationOutput
 
 from .configuration_layoutganpp import LayoutGANPPConfig
@@ -33,17 +34,10 @@ class LayoutGANPPModelOutput(ModelOutput):
         (1, 1, 4)
     """
 
-    bbox: torch.FloatTensor
-    labels: torch.LongTensor | None = None
-    mask: torch.BoolTensor | None = None
-    latents: torch.FloatTensor | None = None
-
-
-class ConditionType(StrEnum):
-    """Supported LayoutGAN++ generation condition modes."""
-
-    label = auto()
-    unconditional = auto()
+    bbox: torch.Tensor
+    labels: torch.Tensor | None = None
+    mask: torch.Tensor | None = None
+    latents: torch.Tensor | None = None
 
 
 class OutputType(StrEnum):
@@ -51,43 +45,6 @@ class OutputType(StrEnum):
 
     dataclass = auto()
     dict = auto()
-
-
-_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
-    "label": ConditionType.label,
-    "c": ConditionType.label,
-    "cat_cond": ConditionType.label,
-}
-
-
-def normalize_condition_type(condition_type: ConditionType | str) -> ConditionType:
-    """Normalize a LayoutGAN++ generation condition type.
-
-    Args:
-        condition_type: User-facing condition type or alias.
-
-    Returns:
-        Canonical condition type accepted by `LayoutGANPPModel.generate`.
-
-    Raises:
-        ValueError: If the condition type is unsupported.
-
-    Examples:
-        >>> str(normalize_condition_type("cat-cond"))
-        'label'
-    """
-    if isinstance(condition_type, ConditionType):
-        return condition_type
-    key = condition_type.lower().replace("-", "_")
-    if key == "unconditional":
-        return ConditionType.unconditional
-    try:
-        return _CONDITION_ALIASES[key]
-    except KeyError as exc:
-        supported = ("label", "c", "cat_cond")
-        raise ValueError(
-            f"Unsupported condition_type={condition_type}; {supported=}"
-        ) from exc
 
 
 def normalize_output_type(output_type: OutputType | str) -> OutputType:
@@ -160,15 +117,12 @@ class LayoutGANPPModel(PreTrainedModel):
 
     def forward(
         self,
-        latents: torch.FloatTensor,
-        labels: torch.LongTensor,
-        attention_mask: torch.BoolTensor | None = None,
-        padding_mask: torch.BoolTensor | None = None,
+        latents: torch.Tensor,
+        labels: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        padding_mask: torch.Tensor | None = None,
         return_dict: bool = True,
-    ) -> (
-        LayoutGANPPModelOutput
-        | tuple[torch.FloatTensor, torch.LongTensor, torch.BoolTensor]
-    ):
+    ) -> LayoutGANPPModelOutput | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Run a forward pass from latents and label IDs.
 
         Args:
@@ -237,11 +191,11 @@ class LayoutGANPPModel(PreTrainedModel):
         *,
         batch_size: int = 1,
         condition_type: ConditionType | str = ConditionType.label,
-        bbox: torch.FloatTensor | None = None,
-        labels: torch.LongTensor | None = None,
-        mask: torch.BoolTensor | None = None,
-        attention_mask: torch.BoolTensor | None = None,
-        num_elements: int | list[int] | torch.LongTensor | None = None,
+        bbox: torch.Tensor | None = None,
+        labels: torch.Tensor | None = None,
+        mask: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
+        num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -250,9 +204,9 @@ class LayoutGANPPModel(PreTrainedModel):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        latents: torch.FloatTensor | None = None,
+        latents: torch.Tensor | None = None,
         **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts from label conditions.
 
         Args:
@@ -297,6 +251,8 @@ class LayoutGANPPModel(PreTrainedModel):
             raise ValueError(
                 "layoutganpp v1 requires labels; unconditional is unsupported"
             )
+        if canonical is not ConditionType.label:
+            raise ValueError(f"Unsupported condition_type for layoutganpp: {canonical}")
         if labels is None:
             raise ValueError("labels are required for layoutganpp generation")
 
@@ -331,6 +287,10 @@ class LayoutGANPPModel(PreTrainedModel):
             attention_mask=attention_mask,
             return_dict=True,
         )
+        assert isinstance(out, LayoutGANPPModelOutput)
+        assert out.labels is not None
+        assert out.mask is not None
+        assert out.latents is not None
         layout = LayoutGenerationOutput(
             bbox=out.bbox.detach().cpu(),
             labels=out.labels.detach().cpu(),
@@ -358,7 +318,7 @@ class LayoutGANPPModel(PreTrainedModel):
         generator: torch.Generator | None,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> torch.FloatTensor:
+    ) -> torch.Tensor:
         if generator is None and seed is not None:
             generator = torch.Generator(device=device).manual_seed(seed)
         return torch.randn(shape, generator=generator, device=device, dtype=dtype)

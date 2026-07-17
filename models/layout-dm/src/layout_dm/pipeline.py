@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 import torch
@@ -70,9 +70,9 @@ class LayoutDMPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: torch.Tensor | np.ndarray | list[Any] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[Any] | None = None,
-        mask: torch.Tensor | np.ndarray | list[Any] | None = None,
+        labels: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+        mask: torch.Tensor | np.ndarray | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
