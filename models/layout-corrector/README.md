@@ -90,11 +90,18 @@ uv run --package layout-corrector python models/layout-corrector/scripts/downloa
   --output-dir .cache/layout-corrector/original
 ```
 
-2. Generate LayoutDM reference fixtures when refreshing LayoutDM golden files. Layout-Corrector logits parity does not need committed golden tensors, but LayoutDM parity fixtures remain useful for the nested pipeline.
+2. Download the LayoutDM starter kit used by the nested LayoutDM parity fixtures. This creates `.cache/layout-dm/original/layoutdm_starter`.
+
+```bash
+uv run --package layout-dm --extra download python models/layout-dm/scripts/download_original.py \
+  --output-dir .cache/layout-dm/original
+```
+
+3. Generate LayoutDM reference fixtures when refreshing LayoutDM golden files. Layout-Corrector logits parity does not need committed golden tensors, but LayoutDM parity fixtures remain useful for the nested pipeline.
 
 ```bash
 for dataset in rico25 publaynet; do
-  CUDA_VISIBLE_DEVICES=5 uv run --package layout-dm python models/layout-dm/scripts/generate_reference_outputs.py \
+  CUDA_VISIBLE_DEVICES=5 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
     --dataset "${dataset}" \
     --starter-dir .cache/layout-dm/original/layoutdm_starter \
     --output-dir "models/layout-dm/tests/vendor_parity/fixtures/${dataset}" \
@@ -104,12 +111,12 @@ for dataset in rico25 publaynet; do
 done
 ```
 
-3. Convert the nested LayoutDM checkpoints for all supported Layout-Corrector starter-kit datasets and seeds. Outputs are written under `.cache/layout-corrector/converted/layoutdm/<dataset>/<seed>`.
+4. Convert the nested LayoutDM checkpoints for all supported Layout-Corrector starter-kit datasets and seeds. Outputs are written under `.cache/layout-corrector/converted/layoutdm/<dataset>/<seed>`.
 
 ```bash
 for dataset in rico25 publaynet crello-bbox; do
   for seed in 0 1 2; do
-    uv run --package layout-dm python models/layout-dm/scripts/convert_original_checkpoint.py \
+    uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
       --dataset "${dataset}" \
       --seed "${seed}" \
       --starter-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download \
@@ -118,7 +125,7 @@ for dataset in rico25 publaynet crello-bbox; do
 done
 ```
 
-4. Run parity. This executes nine checks and prints exact-match and logits tolerance values.
+5. Run parity. This executes nine checks and prints exact-match and logits tolerance values.
 
 ```bash
 CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector pytest \
@@ -126,7 +133,7 @@ CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector pytest \
   -q -m vendor_parity -s
 ```
 
-5. Convert a Layout-Corrector checkpoint and run a `from_pretrained` smoke test.
+6. Convert a Layout-Corrector checkpoint and run a `from_pretrained` smoke test.
 
 ```bash
 uv run --package layout-corrector python models/layout-corrector/scripts/convert_original_checkpoint.py \
