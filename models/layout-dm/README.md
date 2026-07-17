@@ -61,7 +61,7 @@ The converted checkpoints follow the original LayoutDM release:
 - Rico25: mobile UI layouts with at most 25 elements.
 - PubLayNet: document page layouts with at most 25 elements.
 
-## Vendor Parity
+## Parity Results
 
 Local fixtures compare the converted Diffusers pipeline against the original LayoutDM implementation.
 
@@ -70,7 +70,9 @@ Local fixtures compare the converted Diffusers pipeline against the original Lay
 | Rico25 | 125/125 | 125/125 | 0 | 0 |
 | PubLayNet | 125/125 | 125/125 | 0 | 0 |
 
-## Reproducing Vendor Parity
+## Reproducibility
+
+This section reproduces the parity verification against the original implementation.
 
 Run these commands from the repository root unless a block explicitly changes directory. The commands assume CUDA is available as device `0`, the vendored original implementation is present at `vendor/layout-dm`, and generated files may be written under `.cache/` and `models/layout-dm/tests/vendor_parity/fixtures/`. If this worktree does not contain the vendor submodule contents, pass `--vendor-dir /path/to/design-generators/vendor/layout-dm` to `generate_reference_outputs.py`.
 
