@@ -24,7 +24,14 @@ def _load_model_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return LayoutFormerPPForConditionalGeneration.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return LayoutFormerPPForConditionalGeneration.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -35,7 +42,14 @@ def _load_processor_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return LayoutFormerPPProcessor.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return LayoutFormerPPProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -158,22 +172,18 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         Raises:
             ValueError: If processor inputs are invalid.
         """
-        _ = (
-            mask,
-            num_elements,
-            normalized,
-            canvas_size,
-            num_inference_steps,
-            return_intermediates,
-        )
+        _ = (num_elements, num_inference_steps, return_intermediates)
         encoded = self.processor(
             condition_type=condition_type,
             batch_size=batch_size,
             return_tensors="pt",
             labels=labels,
             bbox=bbox,
+            mask=mask,
             relations=relations,
             box_format=box_format,
+            normalized=normalized,
+            canvas_size=canvas_size,
         )
         model_device = next(self.model.parameters()).device
         input_ids = encoded["input_ids"].to(model_device)

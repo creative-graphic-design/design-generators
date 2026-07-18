@@ -24,7 +24,14 @@ def _load_model_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return LayoutGANPPModel.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return LayoutGANPPModel.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -35,7 +42,14 @@ def _load_processor_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return LayoutGANPPProcessor.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return LayoutGANPPProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,

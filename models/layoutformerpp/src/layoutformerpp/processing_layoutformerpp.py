@@ -9,7 +9,7 @@ from typing import Final, Literal, assert_never, cast
 import torch
 from transformers import BatchEncoding, ProcessorMixin
 
-from laygen.common.bbox import BoxFormat, normalize_box_format
+from laygen.common.bbox import BoxFormat, normalize_box_format, normalize_boxes
 from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_common_condition_type,
@@ -169,41 +169,118 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         raise ValueError(f"Unknown label: {label}")
 
     def _prepare_labels(
-        self, labels: list[list[int | str]] | None, batch_size: int
+        self,
+        labels: list[list[int | str]] | None,
+        batch_size: int,
+        mask: list[list[bool]] | None = None,
     ) -> list[list[int]]:
         if labels is None:
             return [[] for _ in range(batch_size)]
-        return [
-            [self._label_to_internal_id(label) for label in item] for item in labels
-        ]
+        rows: list[list[int]] = []
+        for row_idx, item in enumerate(labels):
+            row_mask = None if mask is None else mask[row_idx]
+            rows.append(
+                [
+                    self._label_to_internal_id(label)
+                    for idx, label in enumerate(item)
+                    if row_mask is None or row_mask[idx]
+                ]
+            )
+        return rows
+
+    def _prepare_mask(
+        self,
+        mask: torch.Tensor | list[list[bool]] | list[bool] | None,
+        *,
+        batch_size: int,
+        row_lengths: list[int],
+    ) -> list[list[bool]] | None:
+        if mask is None:
+            return None
+        mask_tensor = torch.as_tensor(mask, dtype=torch.bool)
+        if mask_tensor.ndim == 1:
+            mask_tensor = mask_tensor.unsqueeze(0)
+        if mask_tensor.ndim != 2:
+            raise ValueError("mask must have shape (batch, sequence)")
+        if mask_tensor.size(0) != batch_size:
+            raise ValueError("mask batch dimension must match labels or batch_size")
+        rows = mask_tensor.tolist()
+        for row, expected_length in zip(rows, row_lengths, strict=True):
+            if len(row) < expected_length:
+                raise ValueError("mask sequence length must cover all labels")
+        return rows
 
     def _prepare_bbox(
-        self, bbox: object, *, labels: list[list[int]], box_format: BoxFormat | str
+        self,
+        bbox: object,
+        *,
+        labels: list[list[int]],
+        box_format: BoxFormat | str,
+        mask: list[list[bool]] | None = None,
+        normalized: bool = True,
+        canvas_size: tuple[int, int] | None = None,
     ) -> list[list[list[int]]]:
         if bbox is None:
             return [[[0, 0, 1, 1] for _ in item] for item in labels]
         tensor = torch.as_tensor(bbox, dtype=torch.float32)
+        if tensor.ndim == 2:
+            tensor = tensor.unsqueeze(0)
+        discrete_box_format = box_format
+        if not normalized:
+            if canvas_size is None:
+                raise ValueError("canvas_size is required when normalized=False")
+            tensor = normalize_boxes(
+                tensor,
+                canvas_size=canvas_size,
+                box_format=box_format,
+            )
+            discrete_box_format = BoxFormat.xywh
         discrete = public_to_discrete_ltwh(
-            tensor, box_format=box_format, x_grid=self.x_grid, y_grid=self.y_grid
+            tensor,
+            box_format=discrete_box_format,
+            x_grid=self.x_grid,
+            y_grid=self.y_grid,
         )
-        return discrete.tolist()
+        rows = discrete.tolist()
+        if mask is None:
+            return rows
+        return [
+            [box for idx, box in enumerate(row) if row_mask[idx]]
+            for row, row_mask in zip(rows, mask, strict=True)
+        ]
 
     def __call__(
         self,
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: list[list[int | str]] | None = None,
         bbox: object = None,
+        mask: torch.Tensor | list[list[bool]] | list[bool] | None = None,
         relations: list[list[tuple[int, int, int, int, int]]] | None = None,
         batch_size: int | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
+        normalized: bool = True,
+        canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
         """Build tokenized model inputs for a public condition."""
         condition = self.normalize_condition_type(condition_type)
         batch_size = batch_size or (len(labels) if labels is not None else 1)
-        internal_labels = self._prepare_labels(labels, batch_size)
+        row_lengths = (
+            [len(row) for row in labels] if labels is not None else [0] * batch_size
+        )
+        prepared_mask = self._prepare_mask(
+            mask,
+            batch_size=batch_size,
+            row_lengths=row_lengths,
+        )
+        internal_labels = self._prepare_labels(labels, batch_size, prepared_mask)
         internal_bbox = self._prepare_bbox(
-            bbox, labels=internal_labels, box_format=box_format
+            bbox,
+            labels=internal_labels,
+            box_format=box_format,
+            mask=prepared_mask,
+            normalized=normalized,
+            canvas_size=canvas_size,
         )
         texts: list[str] = []
         for idx in range(batch_size):

@@ -35,7 +35,14 @@ def _load_seq2seq_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return AutoModelForSeq2SeqLM.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return AutoModelForSeq2SeqLM.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -46,7 +53,14 @@ def _load_processor_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
+    if subfolder is not None:
+        return ParseThenPlaceProcessor.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
     return ParseThenPlaceProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,

@@ -33,6 +33,43 @@ def test_processor_label_condition_and_postprocess() -> None:
     assert out.id2label[0] == "Text"
 
 
+def test_processor_masks_padded_condition_rows_and_normalizes_pixels() -> None:
+    processor = LayoutFormerPPProcessor.from_config(dataset="rico", task="completion")
+
+    masked = processor(
+        condition_type="completion",
+        labels=[["Text", "Image"]],
+        bbox=[[[0.1, 0.1, 0.2, 0.2], [0.8, 0.8, 0.1, 0.1]]],
+        mask=torch.tensor([[True, False]]),
+    )
+    decoded = processor.tokenizer.batch_decode(
+        masked["input_ids"], skip_special_tokens=True
+    )
+
+    assert decoded == ["label_1 0 0 25 25"]
+
+    pixel = processor(
+        condition_type="label_size",
+        labels=[["Text"]],
+        bbox=torch.tensor([[[50.0, 50.0, 20.0, 20.0]]]),
+        normalized=False,
+        canvas_size=(100, 100),
+    )
+    decoded_pixel = processor.tokenizer.batch_decode(
+        pixel["input_ids"], skip_special_tokens=True
+    )
+
+    assert decoded_pixel == ["label_1 25 25"]
+
+    with pytest.raises(ValueError, match="canvas_size is required"):
+        processor(
+            condition_type="label_size",
+            labels=[["Text"]],
+            bbox=torch.tensor([[[50.0, 50.0, 20.0, 20.0]]]),
+            normalized=False,
+        )
+
+
 def test_processor_condition_aliases_and_error_paths() -> None:
     processor = LayoutFormerPPProcessor.from_config(
         dataset="rico", task=ConditionType.relation
