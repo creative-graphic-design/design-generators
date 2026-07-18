@@ -115,6 +115,6 @@ Example output:
 
 ## References
 
-- #2 tracks the original layout-generation model split.
-- #64 defines the `lib/laygen`, `laygen.common.*`, `laygen.modeling_outputs`, `laygen.pipelines.*`, and `lib/posgen` migration layout.
-- #81 defines the `laygen.nn` and `laygen.schedulers` shared-module restructuring.
+- [Issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) tracks the original layout-generation model split.
+- [Issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64) defines the `lib/laygen`, `laygen.common.*`, `laygen.modeling_outputs`, `laygen.pipelines.*`, and `lib/posgen` migration layout.
+- [Issue #81 (laygen shared modules)](https://github.com/creative-graphic-design/design-generators/issues/81) defines the `laygen.nn` and `laygen.schedulers` shared-module restructuring.
