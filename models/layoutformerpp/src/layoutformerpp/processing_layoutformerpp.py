@@ -16,7 +16,7 @@ from laygen.common.conditions import (
 )
 from laygen.common.labels import DatasetName
 from laygen.common.labels import labels_for_dataset
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .tasks import (
     OutputType,

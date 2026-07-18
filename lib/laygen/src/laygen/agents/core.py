@@ -20,9 +20,9 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "Install with `uv sync --extra agents` or depend on `laygen[agents]`."
     ) from exc
 
-from laygen.common import ConditionType, OutputField, normalize_condition_type
+from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")
@@ -231,16 +231,16 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
         return normalized_condition_type, normalized_box_format
 
     def output_to_dict(self, output: LayoutGenerationOutput) -> dict[str, object]:
-        """Serialize the shared output with canonical ``OutputField`` keys."""
+        """Serialize the shared output with canonical layout schema keys."""
         return {
-            str(OutputField.bbox): output.bbox,
-            str(OutputField.labels): output.labels,
-            str(OutputField.mask): output.mask,
-            str(OutputField.id2label): output.id2label,
-            str(OutputField.sequences): output.sequences,
-            str(OutputField.scores): output.scores,
-            str(OutputField.trajectory): output.trajectory,
-            str(OutputField.intermediates): output.intermediates,
+            "bbox": output.bbox,
+            "labels": output.labels,
+            "mask": output.mask,
+            "id2label": output.id2label,
+            "sequences": output.sequences,
+            "scores": output.scores,
+            "trajectory": output.trajectory,
+            "intermediates": output.intermediates,
         }
 
     def repair_response_text(self, text: str) -> str:

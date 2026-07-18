@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from enum import StrEnum, auto
-from typing import assert_never
 
-import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from laygen.schedulers.continuous import (
+    BetaSchedule,
+    DDIMDiscretization,
+    make_beta_schedule,
+    make_ddim_timesteps,
+    normalize_beta_schedule,
+    normalize_ddim_discretization,
+)
 
 
 @dataclass
@@ -25,210 +29,6 @@ class LaceSchedulerOutput(BaseOutput):
 
     prev_sample: torch.Tensor
     pred_original_sample: torch.Tensor
-
-
-class BetaSchedule(StrEnum):
-    """Supported DDPM beta schedules."""
-
-    linear = auto()
-    const = auto()
-    quad = auto()
-    jsd = auto()
-    sigmoid = auto()
-    cosine = auto()
-    cosine_reverse = auto()
-    cosine_anneal = auto()
-
-
-class DDIMDiscretization(StrEnum):
-    """Supported DDIM timestep discretization methods."""
-
-    uniform = auto()
-    quad = auto()
-    new = auto()
-
-
-def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
-    """Normalize a beta schedule value.
-
-    Args:
-        schedule: Schedule enum or string value.
-
-    Returns:
-        Canonical beta schedule enum.
-
-    Raises:
-        ValueError: If the schedule is unsupported.
-    """
-    if isinstance(schedule, BetaSchedule):
-        return schedule
-    try:
-        return BetaSchedule(schedule)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported beta schedule: {schedule}") from exc
-
-
-def normalize_ddim_discretization(
-    method: DDIMDiscretization | str,
-) -> DDIMDiscretization:
-    """Normalize a DDIM timestep discretization method.
-
-    Args:
-        method: Method enum or string value.
-
-    Returns:
-        Canonical DDIM discretization enum.
-
-    Raises:
-        ValueError: If the method is unsupported.
-    """
-    if isinstance(method, DDIMDiscretization):
-        return method
-    try:
-        return DDIMDiscretization(method)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported ddim discretization: {method}") from exc
-
-
-def make_beta_schedule(
-    schedule: BetaSchedule | str = BetaSchedule.cosine,
-    num_timesteps: int = 1000,
-    start: float = 0.0001,
-    end: float = 0.02,
-) -> torch.Tensor:
-    """Create the beta schedule used by the LACE diffusion process.
-
-    Args:
-        schedule: Schedule enum or string value.
-        num_timesteps: Number of training timesteps.
-        start: Initial beta value for schedules that use a range.
-        end: Final beta value for schedules that use a range.
-
-    Returns:
-        One-dimensional beta tensor.
-
-    Raises:
-        ValueError: If the schedule is unsupported.
-    """
-    canonical = normalize_beta_schedule(schedule)
-    if canonical is BetaSchedule.linear:
-        return torch.linspace(start, end, num_timesteps)
-    if canonical is BetaSchedule.const:
-        return end * torch.ones(num_timesteps)
-    if canonical is BetaSchedule.quad:
-        return torch.linspace(start**0.5, end**0.5, num_timesteps) ** 2
-    if canonical is BetaSchedule.jsd:
-        return 1.0 / torch.linspace(num_timesteps, 1, num_timesteps)
-    if canonical is BetaSchedule.sigmoid:
-        betas = torch.linspace(-6, 6, num_timesteps)
-        return torch.sigmoid(betas) * (end - start) + start
-    if canonical is BetaSchedule.cosine:
-        max_beta = 0.999
-        cosine_s = 0.008
-        return torch.tensor(
-            [
-                min(
-                    1
-                    - (
-                        math.cos(
-                            ((i + 1) / num_timesteps + cosine_s)
-                            / (1 + cosine_s)
-                            * math.pi
-                            / 2
-                        )
-                        ** 2
-                    )
-                    / (
-                        math.cos(
-                            (i / num_timesteps + cosine_s)
-                            / (1 + cosine_s)
-                            * math.pi
-                            / 2
-                        )
-                        ** 2
-                    ),
-                    max_beta,
-                )
-                for i in range(num_timesteps)
-            ]
-        )
-    if canonical is BetaSchedule.cosine_reverse:
-        max_beta = 0.999
-        cosine_s = 0.008
-        return torch.tensor(
-            [
-                min(
-                    1
-                    - (
-                        math.cos(
-                            ((i + 1) / num_timesteps + cosine_s)
-                            / (1 + cosine_s)
-                            * math.pi
-                            / 2
-                        )
-                        ** 2
-                    )
-                    / (
-                        math.cos(
-                            (i / num_timesteps + cosine_s)
-                            / (1 + cosine_s)
-                            * math.pi
-                            / 2
-                        )
-                        ** 2
-                    ),
-                    max_beta,
-                )
-                for i in range(num_timesteps)
-            ]
-        )
-    if canonical is BetaSchedule.cosine_anneal:
-        return torch.tensor(
-            [
-                start
-                + 0.5
-                * (end - start)
-                * (1 - math.cos(t / (num_timesteps - 1) * math.pi))
-                for t in range(num_timesteps)
-            ]
-        )
-    assert_never(canonical)
-
-
-def make_ddim_timesteps(
-    method: DDIMDiscretization | str,
-    num_ddim_timesteps: int,
-    num_ddpm_timesteps: int,
-) -> np.ndarray:
-    """Create one-indexed DDIM timesteps matching the vendor implementation.
-
-    Args:
-        method: Discretization enum or string value.
-        num_ddim_timesteps: Number of inference timesteps.
-        num_ddpm_timesteps: Number of training timesteps.
-
-    Returns:
-        NumPy array of one-indexed timesteps.
-
-    Raises:
-        ValueError: If the method is unsupported.
-    """
-    canonical = normalize_ddim_discretization(method)
-    if canonical is DDIMDiscretization.uniform:
-        c = num_ddpm_timesteps // num_ddim_timesteps
-        timesteps = np.asarray(list(range(0, num_ddpm_timesteps, c)))
-    elif canonical is DDIMDiscretization.quad:
-        timesteps = (
-            np.linspace(0, np.sqrt(num_ddpm_timesteps * 0.8), num_ddim_timesteps) ** 2
-        ).astype(int)
-    elif canonical is DDIMDiscretization.new:
-        c = (num_ddpm_timesteps - 50) // (num_ddim_timesteps - 50)
-        timesteps = np.asarray(
-            list(range(0, 50)) + list(range(50, num_ddpm_timesteps - 50, c))
-        )
-    else:
-        assert_never(canonical)
-    return timesteps + 1
 
 
 class LaceScheduler(SchedulerMixin, ConfigMixin):

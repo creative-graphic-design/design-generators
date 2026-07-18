@@ -14,12 +14,16 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 ## Sources Of Truth
 
 - Umbrella policy, target table, execution order, interface decisions, data
-  policy, and status tracking live in issue #2.
-- The living implementation checklist is issue #60. Check it before starting a
-  model package and quote verification results in the PR body.
-- Shared library structure is issue #64: workspace members are `lib/*` and
-  `models/*`; shared layout helpers import from `laygen.common`; poster helpers
-  import from `posgen.common` when needed.
+  policy, and status tracking live in
+  [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2).
+- The living implementation checklist is
+  [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60).
+  Check it before starting a model package and quote verification results in
+  the PR body.
+- Shared library structure is
+  [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64):
+  workspace members are `lib/*` and `models/*`; shared layout helpers import
+  from `laygen.common`; poster helpers import from `posgen.common` when needed.
 - A model issue's plan comment plus all later amendment comments define that
   model's design. Amendments override earlier plan text.
 
@@ -60,10 +64,10 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 - Return the common layout schema: `bbox`, `labels`, `mask`, and `id2label`,
   with optional `sequences`, `scores`, `trajectory`, and `intermediates`.
-- Transformers models return `laygen.common.outputs.LayoutGenerationOutput`;
-  Diffusers pipelines return `laygen.common.outputs_diffusers.LayoutGenerationOutput`.
-  Both come from one `_output_spec.py` field spec and schema tests use field
-  duck typing.
+- Transformers models return `laygen.modeling_outputs.LayoutGenerationOutput`;
+  Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`.
+  Both are explicit dataclasses and schema tests assert field names, order, and
+  defaults stay aligned.
 - Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor
   internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
 - Public `mask=True` means a valid element. Padding is represented by `mask`,
@@ -99,7 +103,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 ## Data
 
 - Prefer datasets hosted by the `creative-graphic-design` Hugging Face org.
-  Check issue #2 before adding a new data source.
+  Check
+  [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2)
+  before adding a new data source.
 - Use `creative-graphic-design/Rico` with
   `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` for RICO25;
   the default config is metadata-only. RICO13 needs a vendor-derived mapping.
@@ -107,9 +113,12 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
   could download the full dataset.
 - Crello uses `cyberagent/crello` as the canonical source until an org mirror
   exists; `creative-graphic-design/Desigen` is not a Crello substitute.
-- Respect pinned dataset quirks from issue #2 and issue #60: Magazine is
-  polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb`
-  boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
+- Respect pinned dataset quirks from
+  [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2)
+  and
+  [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60):
+  Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel
+  `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
 
 ## Documentation
 

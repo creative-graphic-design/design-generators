@@ -5,8 +5,6 @@ from .conditions import ConditionAlias, ConditionType, normalize_condition_type
 from .discrete import SamplingMode, normalize_sampling_mode
 from .labels import DatasetName, max_elements_for_dataset, normalize_dataset_name
 from .model_card import ParityMetric, build_layout_model_card, layoutdm_model_card
-from .output_spec import OutputField
-from .outputs import LayoutGenerationOutput
 from .serialization import sanitize_for_yaml
 
 __all__ = [
@@ -14,8 +12,6 @@ __all__ = [
     "ConditionType",
     "ConditionAlias",
     "DatasetName",
-    "LayoutGenerationOutput",
-    "OutputField",
     "ParityMetric",
     "SamplingMode",
     "build_layout_model_card",

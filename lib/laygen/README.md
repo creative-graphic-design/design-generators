@@ -4,28 +4,16 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 
 `laygen` holds code that is useful to more than one layout model. Model-specific checkpoint loading, tokenizers, schedulers, and pipelines stay in each model package.
 
-## Module Map
-
-| Module | Purpose |
-| --- | --- |
-| `laygen.common.outputs` | Canonical layout output on `transformers.utils.ModelOutput`. |
-| `laygen.common.outputs_diffusers` | Diffusers pipeline output on `diffusers.utils.BaseOutput`. Requires the `diffusers` extra. |
-| `laygen.common.bbox` | Normalized layout box conversion, clamping, discretization, and continuization helpers. |
-| `laygen.common.conditions` | Canonical `ConditionType` enum and vendor alias normalization. |
-| `laygen.common.labels` | Dataset label vocabularies and `id2label` / `label2id` maps. |
-| `laygen.common.discrete` | Discrete diffusion tensor helpers and categorical sampling utilities. |
-| `laygen.common.visualization` | Lightweight layout rendering helpers for quick inspection. |
-| `laygen.common.testing` | Duck-typed schema assertions shared by model tests. |
-| `laygen.common.model_card` | Model-card builders used by converted layout model packages. |
+API reference pages are generated on the documentation site: <https://creative-graphic-design.github.io/design-generators/>.
 
 ## Usage
 
-Use `laygen.common.outputs.LayoutGenerationOutput` for Transformers-style code paths and shared utilities that should not import Diffusers.
+Use `laygen.modeling_outputs.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities. Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
 uv run --package laygen python - <<'PY'
 import torch
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 out = LayoutGenerationOutput(
     bbox=torch.zeros(1, 2, 4),
@@ -37,12 +25,12 @@ print(out["bbox"].shape)
 PY
 ```
 
-Use `laygen.common.outputs_diffusers.LayoutGenerationOutput` only inside Diffusers pipeline packages.
+Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
-uv run --package laygen --extra diffusers python - <<'PY'
+uv run --package laygen python - <<'PY'
 import torch
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 out = LayoutGenerationOutput(
     bbox=torch.zeros(1, 1, 4),
@@ -52,6 +40,16 @@ out = LayoutGenerationOutput(
 )
 print(out.to_tuple()[0].shape)
 PY
+```
+
+Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use Diffusers under the hood while preserving vendor aliases such as `quad`.
+
+```python
+from laygen.schedulers.continuous import get_beta_schedule, get_ddim_timesteps
+
+betas = get_beta_schedule("quad", num_timesteps=8)
+timesteps = get_ddim_timesteps("uniform", 4, 100)
+print(betas.shape, timesteps.tolist())
 ```
 
 Convert boxes through normalized center `xywh` when crossing package boundaries.
@@ -108,13 +106,15 @@ Example output:
 
 ## Design Rules
 
-- `outputs` and `outputs_diffusers` share one field definition from `laygen.common.output_spec`; add or rename output fields there first.
+- Keep `laygen.modeling_outputs.LayoutGenerationOutput` and `laygen.pipelines.pipeline_output.LayoutGenerationOutput` field names, order, and defaults aligned when adding or renaming output fields.
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.
-- `laygen` may provide optional Diffusers integration, but the default import path must stay usable without importing Diffusers.
+- `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
+- Diffusers is a normal laygen dependency. Keep schema-only helpers independent of Diffusers imports unless they specifically target Diffusers pipeline outputs.
 
 ## References
 
-- #2 tracks the original layout-generation model split.
-- #64 defines the `lib/laygen`, `laygen.common.*`, and `lib/posgen` migration layout.
+- [Issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) tracks the original layout-generation model split.
+- [Issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64) defines the `lib/laygen`, `laygen.common.*`, `laygen.modeling_outputs`, `laygen.pipelines.*`, and `lib/posgen` migration layout.
+- [Issue #81 (laygen shared modules)](https://github.com/creative-graphic-design/design-generators/issues/81) defines the `laygen.nn` and `laygen.schedulers` shared-module restructuring.

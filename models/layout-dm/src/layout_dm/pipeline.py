@@ -13,7 +13,7 @@ from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.discrete import log_onehot_to_index
 from laygen.common.discrete import SamplingMode
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .conditioning import build_condition
 from .denoiser import LayoutDMDenoiser

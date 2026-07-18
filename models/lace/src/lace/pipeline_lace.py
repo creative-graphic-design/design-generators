@@ -13,7 +13,7 @@ from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_lace import normalize_dataset
 from .constraints import beautify_layout

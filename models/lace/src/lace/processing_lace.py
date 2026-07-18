@@ -16,16 +16,15 @@ from laygen.common.bbox import (
     normalize_boxes,
     normalize_box_format,
 )
-from laygen.common import OutputField
 from laygen.common.labels import DatasetName
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_lace import get_dataset_spec, normalize_dataset
 
 LACE_LAYOUT_KEY: Final[str] = "layout"
-LACE_BBOX_KEY: Final[str] = str(OutputField.bbox)
-LACE_LABELS_KEY: Final[str] = str(OutputField.labels)
-LACE_MASK_KEY: Final[str] = str(OutputField.mask)
+LACE_BBOX_KEY: Final[str] = "bbox"
+LACE_LABELS_KEY: Final[str] = "labels"
+LACE_MASK_KEY: Final[str] = "mask"
 
 
 class LaceProcessor(ProcessorMixin):

@@ -11,7 +11,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .modeling_layoutganpp import LayoutGANPPModel, OutputType
 from .processing_layoutganpp import LayoutGANPPProcessor

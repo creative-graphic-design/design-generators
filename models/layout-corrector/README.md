@@ -153,17 +153,31 @@ for dataset in rico25 publaynet; do
 done
 ```
 
-4. Convert the nested LayoutDM checkpoints for all supported Layout-Corrector starter-kit datasets and seeds. Outputs are written under `.cache/layout-corrector/converted/layoutdm/<dataset>/<seed>`.
+4. Convert the nested LayoutDM checkpoints for the supported LayoutDM datasets, then copy those converted pipelines into the Layout-Corrector parity directory structure. The current LayoutDM conversion script reads the released seed-0 checkpoint for each dataset and does not accept a `--seed` argument. Layout-Corrector logits parity only needs the nested tokenizer and scheduler interface, so the same converted nested LayoutDM pipeline is reused across corrector seeds. Crello-bbox uses the PubLayNet-compatible nested LayoutDM pipeline used by the parity test.
 
 ```bash
-for dataset in rico25 publaynet crello-bbox; do
+for dataset in rico25 publaynet; do
+  uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+    --dataset "${dataset}" \
+    --starter-dir .cache/layout-dm/original/download \
+    --output-dir ".cache/layout-corrector/converted/layoutdm/${dataset}/base"
+done
+
+for dataset in rico25 publaynet; do
   for seed in 0 1 2; do
-    uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
-      --dataset "${dataset}" \
-      --seed "${seed}" \
-      --starter-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download \
-      --output-dir ".cache/layout-corrector/converted/layoutdm/${dataset}/${seed}"
+    rm -rf ".cache/layout-corrector/converted/layoutdm/${dataset}/${seed}"
+    cp -a \
+      ".cache/layout-corrector/converted/layoutdm/${dataset}/base" \
+      ".cache/layout-corrector/converted/layoutdm/${dataset}/${seed}"
   done
+done
+
+for seed in 0 1 2; do
+  rm -rf ".cache/layout-corrector/converted/layoutdm/crello-bbox/${seed}"
+  mkdir -p .cache/layout-corrector/converted/layoutdm/crello-bbox
+  cp -a \
+    .cache/layout-corrector/converted/layoutdm/publaynet/base \
+    ".cache/layout-corrector/converted/layoutdm/crello-bbox/${seed}"
 done
 ```
 
