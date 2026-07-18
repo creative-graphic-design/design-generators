@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 
 from laygen.common.testing import assert_layout_output_schema
@@ -57,6 +59,41 @@ def test_pipeline_output_schema_and_generator_precedence() -> None:
     assert isinstance(out2, LayoutGenerationOutput)
     assert_layout_output_schema(out1, batch_size=1)
     assert torch.allclose(out1.bbox, out2.bbox)
+
+
+def test_pipeline_no_cfg_dict_intermediates_and_num_elements() -> None:
+    pipe = tiny_pipe()
+    out = cast(
+        dict[str, object],
+        pipe(
+            labels=[["cat"]],
+            caption_embeds=torch.zeros(1, 3, 4),
+            caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+            concept_embeds=torch.zeros(1, 1, 4),
+            num_inference_steps=1,
+            guidance_scale=1.0,
+            output_type="dict",
+            return_intermediates=True,
+            seed=0,
+        ),
+    )
+    assert cast(torch.Tensor, out["bbox"]).shape == (1, 2, 4)
+    intermediates = cast(dict[str, object], out["intermediates"])
+    nested_intermediates = cast(dict[str, object], intermediates["intermediates"])
+    assert nested_intermediates["trajectory"]
+    try:
+        pipe(
+            labels=[["cat"]],
+            caption_embeds=torch.zeros(1, 3, 4),
+            caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+            concept_embeds=torch.zeros(1, 1, 4),
+            num_elements=2,
+            num_inference_steps=1,
+        )
+    except ValueError as exc:
+        assert "num_elements" in str(exc)
+    else:
+        raise AssertionError("num_elements mismatch should fail")
 
 
 def test_pipeline_rejects_unsupported_condition() -> None:

@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import torch
 
 from layousyn.scheduling_layousyn import LayouSynScheduler
@@ -12,6 +14,10 @@ def test_scheduler_generator_reproducible() -> None:
         scheduler.initial_sample(1, 2, 4, device=torch.device("cpu"), generator=g1),
         scheduler.initial_sample(1, 2, 4, device=torch.device("cpu"), generator=g2),
     )
+    noised = scheduler.add_noise(
+        torch.zeros(1, 2, 4), torch.ones(1, 2, 4), torch.tensor([1])
+    )
+    assert noised.shape == (1, 2, 4)
 
 
 def test_ddim_step_shape() -> None:
@@ -22,6 +28,45 @@ def test_ddim_step_shape() -> None:
     assert isinstance(out, LayouSynSchedulerOutput)
     assert out.prev_sample.shape == sample.shape
     assert out.pred_original_sample.shape == sample.shape
+    tuple_out = scheduler.step(
+        model_output, torch.tensor([1]), sample, return_dict=False
+    )
+    assert isinstance(tuple_out, tuple)
+
+
+def test_ddpm_and_error_paths() -> None:
+    scheduler = LayouSynScheduler(num_train_timesteps=4)
+    sample = torch.zeros(1, 2, 4)
+    model_output = torch.zeros(1, 4, 4)
+    out = scheduler.step(model_output, torch.tensor([1]), sample, sampling_type="ddpm")
+    assert isinstance(out, LayouSynSchedulerOutput)
+    for kwargs, message in [
+        ({"prediction_type": "sample"}, "prediction_type"),
+        ({"variance_type": "fixed"}, "variance_type"),
+    ]:
+        try:
+            LayouSynScheduler(**kwargs)
+        except ValueError as exc:
+            assert message in str(exc)
+        else:
+            raise AssertionError(f"expected failure containing {message}")
+    try:
+        scheduler.step(
+            model_output,
+            torch.tensor([1]),
+            sample,
+            sampling_type=cast(Literal["ddim"], "bad"),
+        )
+    except ValueError as exc:
+        assert "sampling_type" in str(exc)
+    else:
+        raise AssertionError("bad sampling type should fail")
+    try:
+        scheduler.set_timesteps(5)
+    except ValueError as exc:
+        assert "cannot exceed" in str(exc)
+    else:
+        raise AssertionError("too many timesteps should fail")
 
 
 def test_scheduler_respacing_matches_vendor_single_section() -> None:
