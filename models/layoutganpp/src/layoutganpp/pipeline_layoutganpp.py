@@ -2,27 +2,67 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import ClassVar, cast
 
 import torch
-from transformers import Pipeline
+from transformers import PretrainedConfig
 from transformers.tokenization_utils_base import BatchEncoding
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
+from .configuration_layoutganpp import LayoutGANPPConfig
 from .modeling_layoutganpp import LayoutGANPPModel, OutputType
 from .processing_layoutganpp import LayoutGANPPProcessor
 
 
-class LayoutGANPPPipeline(Pipeline):
+def _load_model_component(
+    pretrained_model_name_or_path: str | Path,
+    *,
+    local_files_only: bool = False,
+    subfolder: str | None = None,
+) -> object:
+    if subfolder is not None:
+        return LayoutGANPPModel.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
+    return LayoutGANPPModel.from_pretrained(
+        pretrained_model_name_or_path,
+        local_files_only=local_files_only,
+    )
+
+
+def _load_processor_component(
+    pretrained_model_name_or_path: str | Path,
+    *,
+    local_files_only: bool = False,
+    subfolder: str | None = None,
+) -> object:
+    if subfolder is not None:
+        return LayoutGANPPProcessor.from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            subfolder=subfolder,
+        )
+    return LayoutGANPPProcessor.from_pretrained(
+        pretrained_model_name_or_path,
+        local_files_only=local_files_only,
+    )
+
+
+class LayoutGANPPPipeline(LayoutGenerationPipeline):
     """Transformers pipeline for LayoutGAN++ label-conditioned generation.
 
     Args:
         model: LayoutGAN++ model instance.
         processor: Optional processor for label encoding and decoding.
+        config: Optional root pipeline config. Defaults to `model.config`.
         device: Optional torch device passed to the base pipeline.
         binary_output: Whether the base pipeline should produce binary output.
 
@@ -33,10 +73,30 @@ class LayoutGANPPPipeline(Pipeline):
         'layoutganpp'
     """
 
+    config_class: ClassVar[type[PretrainedConfig]] = LayoutGANPPConfig
+    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
+        "model": PipelineComponentSpec(
+            attribute_name="model",
+            loader=_load_model_component,
+            marker_file="config.json",
+        ),
+        "processor": PipelineComponentSpec(
+            attribute_name="processor",
+            loader=_load_processor_component,
+            marker_file="processor_config.json",
+            save_with_is_main_process=False,
+        ),
+    }
+
+    config: LayoutGANPPConfig
+    model: LayoutGANPPModel
+    processor: LayoutGANPPProcessor
+
     def __init__(
         self,
         model: LayoutGANPPModel,
         processor: LayoutGANPPProcessor | None = None,
+        config: LayoutGANPPConfig | None = None,
         device: int | torch.device | None = None,
         binary_output: bool = False,
     ) -> None:
@@ -45,6 +105,7 @@ class LayoutGANPPPipeline(Pipeline):
         Args:
             model: LayoutGAN++ model instance.
             processor: Optional processor for label encoding and decoding.
+            config: Optional root pipeline config.
             device: Optional torch device passed to the base pipeline.
             binary_output: Whether the base pipeline should produce binary output.
 
@@ -53,16 +114,36 @@ class LayoutGANPPPipeline(Pipeline):
             >>> isinstance(pipe.processor, LayoutGANPPProcessor)
             True
         """
-        super().__init__(
-            model=model,
-            tokenizer=None,
-            framework="pt",
-            device=device,
-            binary_output=binary_output,
-        )
+        _ = binary_output
+        super().__init__(config or model.config)
+        self.config = config or model.config
+        self.model = model
         self.processor = processor or LayoutGANPPProcessor(
             dataset_name=model.config.dataset_name,
             id2label=model.config.id2label,
+        )
+        if device is not None:
+            resolved_device = (
+                torch.device("cpu")
+                if isinstance(device, int) and device < 0
+                else torch.device(f"cuda:{device}")
+                if isinstance(device, int)
+                else device
+            )
+            self.to(resolved_device)
+
+    @classmethod
+    def _from_pretrained_components(
+        cls,
+        *,
+        config: PretrainedConfig,
+        components: Mapping[str, object | None],
+    ) -> "LayoutGANPPPipeline":
+        """Build a pipeline from loaded root components."""
+        return cls(
+            config=cast(LayoutGANPPConfig, config),
+            model=cast(LayoutGANPPModel, components["model"]),
+            processor=cast(LayoutGANPPProcessor, components["processor"]),
         )
 
     def _sanitize_parameters(
@@ -70,7 +151,7 @@ class LayoutGANPPPipeline(Pipeline):
     ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
         return {}, kwargs, {}
 
-    def preprocess(  # ty: ignore[invalid-method-override]
+    def preprocess(
         self, input_: object = None, **preprocess_parameters: object
     ) -> BatchEncoding:
         """Encode pipeline inputs into model inputs.
@@ -99,7 +180,7 @@ class LayoutGANPPPipeline(Pipeline):
         encoded.update(preprocess_parameters)
         return encoded
 
-    def _forward(  # ty: ignore[invalid-method-override]
+    def _forward(
         self, model_inputs: dict[str, object], **forward_params: object
     ) -> LayoutGenerationOutput | dict[str, object]:
         del forward_params
@@ -199,7 +280,7 @@ class LayoutGANPPPipeline(Pipeline):
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: torch.Tensor | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
         """Generate LayoutGAN++ boxes from labels.
 
         Args:
@@ -262,60 +343,8 @@ class LayoutGANPPPipeline(Pipeline):
             latents=latents,
         )
 
-    def save_pretrained(  # ty: ignore[invalid-method-override]
-        self,
-        save_directory: str | Path,
-        *,
-        safe_serialization: bool = True,
-        **kwargs: str | bool | None,
-    ) -> None:
-        """Save the pipeline model and processor.
-
-        Args:
-            save_directory: Directory where model and processor files are written.
-            safe_serialization: Whether to save model weights as safetensors.
-            **kwargs: Extra keyword arguments passed to model saving.
-
-        Examples:
-            >>> from tempfile import TemporaryDirectory
-            >>> pipe = LayoutGANPPPipeline(LayoutGANPPModel(LayoutGANPPConfig()))
-            >>> with TemporaryDirectory() as tmp:
-            ...     pipe.save_pretrained(tmp)
-        """
-        self._layoutganpp_model().save_pretrained(
-            save_directory,
-            safe_serialization=safe_serialization,
-            **kwargs,
-        )
-        self._layoutganpp_processor().save_pretrained(str(save_directory))
-
-    @classmethod
-    def from_pretrained(
-        cls, pretrained_model_name_or_path: str, **kwargs: object
-    ) -> "LayoutGANPPPipeline":
-        """Load a LayoutGAN++ pipeline from a pretrained directory or Hub ID.
-
-        Args:
-            pretrained_model_name_or_path: Local path or Hugging Face Hub model ID.
-            **kwargs: Extra keyword arguments passed to model loading.
-
-        Returns:
-            A loaded `LayoutGANPPPipeline`.
-
-        Raises:
-            OSError: If model or processor files cannot be loaded.
-
-        Examples:
-            >>> # LayoutGANPPPipeline.from_pretrained("creative-graphic-design/layoutganpp-rico")
-        """
-        model = LayoutGANPPModel.from_pretrained(
-            pretrained_model_name_or_path, **kwargs
-        )
-        processor = LayoutGANPPProcessor.from_pretrained(pretrained_model_name_or_path)
-        return cls(model=model, processor=processor)
-
     def _layoutganpp_model(self) -> LayoutGANPPModel:
-        return cast(LayoutGANPPModel, self.model)
+        return self.model
 
     def _layoutganpp_processor(self) -> LayoutGANPPProcessor:
-        return cast(LayoutGANPPProcessor, self.processor)
+        return self.processor

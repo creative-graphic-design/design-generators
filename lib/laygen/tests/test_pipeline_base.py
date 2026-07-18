@@ -13,6 +13,9 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
 
+LOADER_CALLS: list[tuple[str | Path, str | None, bool]] = []
+
+
 class ToyConfig(PretrainedConfig):
     model_type = "toy-layout-pipeline"
 
@@ -64,8 +67,9 @@ def load_toy_model(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
-    _ = local_files_only
+    _ = subfolder, local_files_only
     return ToyModel(Path(pretrained_model_name_or_path, "component.txt").read_text())
 
 
@@ -73,11 +77,22 @@ def load_toy_processor(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
+    subfolder: str | None = None,
 ) -> object:
-    _ = local_files_only
+    _ = subfolder, local_files_only
     return ToyProcessor(
         Path(pretrained_model_name_or_path, "processor.txt").read_text()
     )
+
+
+def record_loader(
+    pretrained_model_name_or_path: str | Path,
+    *,
+    local_files_only: bool = False,
+    subfolder: str | None = None,
+) -> object:
+    LOADER_CALLS.append((pretrained_model_name_or_path, subfolder, local_files_only))
+    return ToyModel(str(pretrained_model_name_or_path))
 
 
 class ToyPipeline(LayoutGenerationPipeline):
@@ -181,6 +196,45 @@ def test_pipeline_base_requires_missing_required_component(tmp_path: Path) -> No
 
     with pytest.raises(FileNotFoundError, match="Required pipeline component"):
         ToyPipeline.from_pretrained(tmp_path, local_files_only=True)
+
+
+def test_pipeline_base_delegates_hub_id_loading_without_marker_check() -> None:
+    class HubToyPipeline(ToyPipeline):
+        component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
+            "model": PipelineComponentSpec(
+                attribute_name="model",
+                loader=record_loader,
+                subfolder="model",
+                marker_file="component.txt",
+            ),
+            "processor": PipelineComponentSpec(
+                attribute_name="processor",
+                loader=record_loader,
+                config_subfolder_attribute="processor_subfolder",
+                marker_file="processor.txt",
+                save_with_is_main_process=False,
+            ),
+            "optional": PipelineComponentSpec(
+                attribute_name="optional",
+                required=False,
+            ),
+        }
+
+    LOADER_CALLS.clear()
+    config = ToyConfig(label="hub")
+    config.processor_subfolder = "processor"  # type: ignore[attr-defined]
+
+    loaded = HubToyPipeline.from_pretrained(
+        "creative-graphic-design/toy-layout",
+        config=config,
+        local_files_only=True,
+    )
+
+    assert loaded.model.name == "creative-graphic-design/toy-layout"
+    assert LOADER_CALLS == [
+        ("creative-graphic-design/toy-layout", "model", True),
+        ("creative-graphic-design/toy-layout", "processor", True),
+    ]
 
 
 def test_pipeline_base_device_dtype_and_generator_seed_precedence() -> None:

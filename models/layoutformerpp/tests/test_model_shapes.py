@@ -5,6 +5,7 @@ from layoutformerpp import (
     ConditionType,
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
+    LayoutFormerPPPipeline,
     LayoutFormerPPProcessor,
     LayoutGenerationOutput,
 )
@@ -33,7 +34,7 @@ def test_tiny_model_forward_and_generation() -> None:
         labels=labels,
     )
     assert outputs.logits.shape[:2] == labels.shape
-    generated = model.generate_sequences(
+    generated = model._generate_sequences(
         encoded["input_ids"], encoded["attention_mask"], max_length=3
     )
     assert generated.shape == (1, 3)
@@ -80,7 +81,7 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
         assert step == current.numel()
         return [model.eos_token_id], None
 
-    constrained = model.generate_sequences(
+    constrained = model._generate_sequences(
         encoded["input_ids"],
         encoded["attention_mask"],
         max_length=3,
@@ -100,8 +101,8 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
         dropout=0.0,
     )
     plain_model = LayoutFormerPPForConditionalGeneration(plain_config)
-    sampled = plain_model.generate_layout(
-        processor=processor,
+    pipe = LayoutFormerPPPipeline(model=plain_model, processor=processor)
+    sampled = pipe(
         condition_type=ConditionType.unconditional,
         batch_size=1,
         max_length=1,
@@ -112,5 +113,4 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
     assert sampled.sequences is not None
     assert sampled.sequences.shape == (1, 1)
 
-    with pytest.raises(ValueError, match="processor is required"):
-        model.generate_layout()
+    assert not hasattr(model, "generate_layout")

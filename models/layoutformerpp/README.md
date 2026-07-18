@@ -23,16 +23,10 @@ uv run --package layoutformerpp pytest models/layoutformerpp/tests
 ## Usage
 
 ```python
-from layoutformerpp import (
-    LayoutFormerPPForConditionalGeneration,
-    LayoutFormerPPPipeline,
-    LayoutFormerPPProcessor,
-)
+from layoutformerpp import LayoutFormerPPPipeline
 
 model_id = "creative-graphic-design/layoutformerpp-rico-label"
-model = LayoutFormerPPForConditionalGeneration.from_pretrained(model_id)
-processor = LayoutFormerPPProcessor.from_pretrained(model_id)
-pipe = LayoutFormerPPPipeline(model=model, processor=processor)
+pipe = LayoutFormerPPPipeline.from_pretrained(model_id)
 
 out = pipe(condition_type="label", labels=[["Text", "Image"]], max_length=16)
 print(out.bbox)     # normalized center xywh, shape (B, S, 4)
@@ -64,9 +58,9 @@ Each released task has an incompatible task-specific checkpoint, so Hub ids incl
 - `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens.
 - `creative-graphic-design/PubLayNet`: COCO-style document layout boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
-## Parity results
+## Parity Results
 
-Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README.
+Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README. On `CUDA_VISIBLE_DEVICES=3`, the vendor-parity suite passed 29/29 cases.
 
 | Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
 | --- | --- | --- | ---: | ---: | ---: | --- |
@@ -87,7 +81,7 @@ Verified command:
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
@@ -119,7 +113,7 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/download_or
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+    CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
       --dataset "$dataset" \
       --task "$task" \
       --seed 500 \
@@ -132,7 +126,7 @@ done
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
@@ -156,17 +150,17 @@ done
 
 ```bash
 uv run --package layoutformerpp python - <<'PY'
-from layoutformerpp import (
-    LayoutFormerPPForConditionalGeneration,
-    LayoutFormerPPProcessor,
-)
+from layoutformerpp import LayoutFormerPPPipeline
 
 for dataset in ("rico", "publaynet"):
     for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
         path = f".cache/layoutformerpp/converted/{dataset}_{task}"
-        model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
-        processor = LayoutFormerPPProcessor.from_pretrained(path)
-        print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)
+        pipe = LayoutFormerPPPipeline.from_pretrained(path, local_files_only=True)
+        print(
+            pipe.config.dataset,
+            pipe.config.task,
+            pipe.processor.tokenizer.vocab_size,
+        )
 PY
 ```
 
