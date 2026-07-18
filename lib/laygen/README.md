@@ -4,25 +4,7 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 
 `laygen` holds code that is useful to more than one layout model. Model-specific checkpoint loading, tokenizers, schedulers, and pipelines stay in each model package.
 
-## Module Map
-
-| Module | Purpose |
-| --- | --- |
-| `laygen.modeling_outputs` | Canonical layout output on `transformers.utils.ModelOutput`. |
-| `laygen.pipelines.pipeline_output` | Diffusers pipeline output on `diffusers.utils.BaseOutput`; Diffusers is a normal laygen dependency because shared schedulers also use it. |
-| `laygen.common.bbox` | Normalized layout box conversion, clamping, discretization, and continuization helpers. |
-| `laygen.common.conditions` | Canonical `ConditionType` enum and vendor alias normalization. |
-| `laygen.common.labels` | Dataset label vocabularies and `id2label` / `label2id` maps. |
-| `laygen.common.discrete` | Discrete diffusion tensor helpers and categorical sampling utilities. |
-| `laygen.common.visualization` | Lightweight layout rendering helpers for quick inspection. |
-| `laygen.common.testing` | Duck-typed schema assertions shared by model tests. |
-| `laygen.common.model_card` | Model-card builders used by converted layout model packages. |
-| `laygen.nn.activations` | Shared activation enum and resolver; `gelu2` maps the VQ-Diffusion / QuickGELU branch to Transformers `ACT2FN["quick_gelu"]`. |
-| `laygen.nn.embeddings` | VQ-Diffusion-derived timestep embeddings plus the LayoutDM-specific element/attribute positional embedding. |
-| `laygen.nn.norms` | VQ-Diffusion-derived adaptive layer and instance normalization used by LayoutDM and LACE. |
-| `laygen.nn.blocks` | VQ-Diffusion-derived timestep transformer encoder block and encoder stack kept key-compatible with converted checkpoints. |
-| `laygen.nn.module_utils` | Shared module cloning helper used by the VQ-Diffusion-derived transformer stacks and LayoutFlow. |
-| `laygen.schedulers.continuous` | CompVis latent-diffusion-style beta and DDIM timestep helpers; common schedules delegate to Diffusers schedulers. |
+API reference pages are generated on the documentation site: <https://creative-graphic-design.github.io/design-generators/>.
 
 ## Usage
 
