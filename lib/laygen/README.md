@@ -8,9 +8,8 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 
 | Module | Purpose |
 | --- | --- |
-| `laygen.outputs` | Canonical output field names, the shared output field specification, and explicit backend output aliases. |
-| `laygen.outputs.transformers` | Canonical layout output on `transformers.utils.ModelOutput`. |
-| `laygen.outputs.diffusers` | Diffusers pipeline output on `diffusers.utils.BaseOutput`; Diffusers is a normal laygen dependency because shared schedulers also use it. |
+| `laygen.modeling_outputs` | Canonical layout output on `transformers.utils.ModelOutput`. |
+| `laygen.pipelines.pipeline_output` | Diffusers pipeline output on `diffusers.utils.BaseOutput`; Diffusers is a normal laygen dependency because shared schedulers also use it. |
 | `laygen.common.bbox` | Normalized layout box conversion, clamping, discretization, and continuization helpers. |
 | `laygen.common.conditions` | Canonical `ConditionType` enum and vendor alias normalization. |
 | `laygen.common.labels` | Dataset label vocabularies and `id2label` / `label2id` maps. |
@@ -27,12 +26,12 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 
 ## Usage
 
-Use `laygen.outputs.transformers.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities. Use `laygen.outputs.diffusers.LayoutGenerationOutput` inside Diffusers pipeline packages.
+Use `laygen.modeling_outputs.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities. Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
 uv run --package laygen python - <<'PY'
 import torch
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 out = LayoutGenerationOutput(
     bbox=torch.zeros(1, 2, 4),
@@ -44,12 +43,12 @@ print(out["bbox"].shape)
 PY
 ```
 
-Use `laygen.outputs.diffusers.LayoutGenerationOutput` inside Diffusers pipeline packages.
+Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
 uv run --package laygen python - <<'PY'
 import torch
-from laygen.outputs.diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 out = LayoutGenerationOutput(
     bbox=torch.zeros(1, 1, 4),
@@ -125,15 +124,15 @@ Example output:
 
 ## Design Rules
 
-- `laygen.outputs.transformers` and `laygen.outputs.diffusers` share one field definition from `laygen.outputs._spec`; add or rename output fields there first.
+- Keep `laygen.modeling_outputs.LayoutGenerationOutput` and `laygen.pipelines.pipeline_output.LayoutGenerationOutput` field names, order, and defaults aligned when adding or renaming output fields.
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.
-- `laygen.outputs` owns output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
+- `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - Diffusers is a normal laygen dependency. Keep schema-only helpers independent of Diffusers imports unless they specifically target Diffusers pipeline outputs.
 
 ## References
 
 - #2 tracks the original layout-generation model split.
-- #64 defines the `lib/laygen`, `laygen.common.*`, `laygen.outputs.*`, and `lib/posgen` migration layout.
+- #64 defines the `lib/laygen`, `laygen.common.*`, `laygen.modeling_outputs`, `laygen.pipelines.*`, and `lib/posgen` migration layout.
 - #81 defines the `laygen.nn` and `laygen.schedulers` shared-module restructuring.

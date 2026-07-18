@@ -60,10 +60,10 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 - Return the common layout schema: `bbox`, `labels`, `mask`, and `id2label`,
   with optional `sequences`, `scores`, `trajectory`, and `intermediates`.
-- Transformers models return `laygen.outputs.transformers.LayoutGenerationOutput`;
-  Diffusers pipelines return `laygen.outputs.diffusers.LayoutGenerationOutput`.
-  Both come from one `laygen.outputs._spec` field spec and schema tests use
-  field duck typing.
+- Transformers models return `laygen.modeling_outputs.LayoutGenerationOutput`;
+  Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`.
+  Both are explicit dataclasses and schema tests assert field names, order, and
+  defaults stay aligned.
 - Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor
   internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
 - Public `mask=True` means a valid element. Padding is represented by `mask`,

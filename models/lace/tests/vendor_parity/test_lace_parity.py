@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from laygen.common.vendor import vendor_root
-from laygen.outputs.diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from lace import build_pipeline_from_vendor_checkpoint, default_model_config
 from lace.conversion import convert_state_dict, load_vendor_state_dict

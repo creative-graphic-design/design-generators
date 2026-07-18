@@ -13,7 +13,7 @@ from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 

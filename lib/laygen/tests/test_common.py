@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -43,13 +43,6 @@ from laygen.common.labels import (
     normalize_dataset_name,
 )
 from laygen.common.model_card import layoutdm_model_card
-from laygen.outputs import (
-    LAYOUT_GENERATION_OUTPUT_FIELDS,
-    DiffusersLayoutGenerationOutput,
-    OutputField,
-    TransformersLayoutGenerationOutput,
-)
-from laygen.outputs.transformers import LayoutGenerationOutput
 from laygen.common.serialization import sanitize_for_yaml
 from laygen.common.testing import (
     assert_generator_reproducible,
@@ -58,6 +51,7 @@ from laygen.common.testing import (
 )
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 def test_bbox_conversions_roundtrip():
@@ -244,15 +238,28 @@ def test_output_schema():
 
 def test_output_variants_share_schema_and_mapping_behavior():
     pytest.importorskip("diffusers")
-    from laygen.outputs.diffusers import (
+    from laygen.pipelines.pipeline_output import (
         LayoutGenerationOutput as DiffusersModuleLayoutGenerationOutput,
     )
 
-    assert TransformersLayoutGenerationOutput is LayoutGenerationOutput
-    assert DiffusersLayoutGenerationOutput is DiffusersModuleLayoutGenerationOutput
-    assert tuple(field.name for field in LAYOUT_GENERATION_OUTPUT_FIELDS) == tuple(
-        OutputField
+    expected_names = (
+        "bbox",
+        "labels",
+        "mask",
+        "id2label",
+        "sequences",
+        "scores",
+        "trajectory",
+        "intermediates",
     )
+    expected_defaults = (MISSING, None, None, None, None, None, None, None)
+    transformers_fields = fields(LayoutGenerationOutput)
+    diffusers_fields = fields(DiffusersModuleLayoutGenerationOutput)
+
+    assert tuple(field.name for field in transformers_fields) == expected_names
+    assert tuple(field.name for field in diffusers_fields) == expected_names
+    assert tuple(field.default for field in transformers_fields) == expected_defaults
+    assert tuple(field.default for field in diffusers_fields) == expected_defaults
     bbox = torch.zeros(1, 2, 4)
     labels = torch.zeros(1, 2, dtype=torch.long)
     mask = torch.tensor([[True, False]])

@@ -3,7 +3,7 @@ from typing import cast
 
 import torch
 
-from laygen.outputs.diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_flow import (
     LayoutFlowConfig,

@@ -8,7 +8,7 @@ import pytest
 import torch
 
 from laygen.common import ConditionType
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_gpt import LayoutGPTAgent
 from layout_gpt.enums import OutputType

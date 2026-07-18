@@ -5,7 +5,6 @@ import pytest
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
-from laygen.outputs import OutputField
 
 from layoutformerpp import (
     ConditionType,
@@ -72,9 +71,9 @@ def test_processor_postprocess_padding_dict_and_errors() -> None:
         sequences, box_format=BoxFormat.ltwh, output_type=OutputType.dict
     )
     assert isinstance(out, dict)
-    labels = out[OutputField.labels]
-    mask = out[OutputField.mask]
-    intermediates = cast(dict[str, object], out[OutputField.intermediates])
+    labels = out["labels"]
+    mask = out["mask"]
+    intermediates = cast(dict[str, object], out["intermediates"])
     assert isinstance(labels, torch.Tensor)
     assert isinstance(mask, torch.Tensor)
     assert isinstance(intermediates, dict)

@@ -15,7 +15,7 @@ datasets:
 
 # LayoutGAN++
 
-Transformers-style LayoutGAN++ conversion package for `Constrained Graphic Layout Generation via Latent Optimization` (ACM MM 2021). It ports the released generator checkpoints from the original const-layout implementation and returns canonical `laygen.outputs.transformers.LayoutGenerationOutput` objects.
+Transformers-style LayoutGAN++ conversion package for `Constrained Graphic Layout Generation via Latent Optimization` (ACM MM 2021). It ports the released generator checkpoints from the original const-layout implementation and returns canonical `laygen.modeling_outputs.LayoutGenerationOutput` objects.
 
 Original implementation: https://github.com/ktrk115/const_layout
 

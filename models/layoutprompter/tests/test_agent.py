@@ -12,7 +12,7 @@ from pydantic_ai.models.test import TestModel
 from laygen.agents import BaseLayoutAgent
 from laygen.common import BoxFormat, DatasetName
 from laygen.common.testing import assert_layout_output_schema
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 from layoutprompter.agent import ConditionType, OutputType, PromptFormat
 from layoutprompter.schemas import LayoutElement, PixelBBox

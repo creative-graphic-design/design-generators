@@ -11,7 +11,7 @@ from layout_dm import (
     LayoutDMTokenizer,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
-from laygen.outputs.diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 
 def tiny_layout_dm():

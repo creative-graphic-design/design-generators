@@ -8,7 +8,7 @@ from typing import assert_never
 import torch
 from laygen.agents import BaseResponseParser
 from laygen.common.bbox import normalize_boxes
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from layoutprompter.data import (
     CANVAS_SIZE,

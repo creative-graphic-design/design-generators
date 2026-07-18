@@ -14,7 +14,7 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
-from laygen.outputs.transformers import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 from .tasks import OutputType
