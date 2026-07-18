@@ -22,8 +22,7 @@ from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.discrete import SamplingMode
-from laygen.common.output_spec import OutputField
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_layout_corrector import CorrectorReconType
 from .corrector import LayoutCorrectorModel
@@ -285,9 +284,9 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         sequences = log_onehot_to_index(sample).detach().cpu()
         decoded = self.layout_dm.tokenizer.decode_layout(sequences)
         output = LayoutGenerationOutput(
-            bbox=decoded[str(OutputField.bbox)],
-            labels=decoded[str(OutputField.labels)],
-            mask=decoded[str(OutputField.mask)],
+            bbox=decoded["bbox"],
+            labels=decoded["labels"],
+            mask=decoded["mask"],
             id2label=dict(self.corrector.id2label),
             sequences=sequences,
             scores=torch.stack(scores) if scores else None,

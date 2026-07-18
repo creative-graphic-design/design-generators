@@ -13,7 +13,7 @@ from diffusers import DiffusionPipeline
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
 from .modeling_layout_flow import LayoutFlowTransformerModel

@@ -9,7 +9,7 @@ from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
 from .processing_layoutformerpp import LayoutFormerPPProcessor, OutputType

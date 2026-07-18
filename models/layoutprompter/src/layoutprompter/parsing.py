@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 from typing import assert_never
 
-from laygen.agents import BaseResponseParser
-from laygen.common import LayoutGenerationOutput
-from laygen.common.bbox import normalize_boxes
 import torch
+from laygen.agents import BaseResponseParser
+from laygen.common.bbox import normalize_boxes
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from layoutprompter.data import (
     CANVAS_SIZE,

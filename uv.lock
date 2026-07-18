@@ -2365,6 +2365,8 @@ name = "laygen"
 version = "0.1.0"
 source = { editable = "lib/laygen" }
 dependencies = [
+    { name = "diffusers", extra = ["torch"] },
+    { name = "einops" },
     { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -2377,9 +2379,6 @@ dependencies = [
 agents = [
     { name = "pydantic-ai" },
 ]
-diffusers = [
-    { name = "diffusers", extra = ["torch"] },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -2388,7 +2387,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusers'", specifier = ">=0.36.0" },
+    { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
+    { name = "einops", specifier = ">=0.8" },
     { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.24" },
@@ -2396,7 +2396,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.1" },
     { name = "transformers", specifier = ">=5.0.0" },
 ]
-provides-extras = ["agents", "diffusers"]
+provides-extras = ["agents"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=6.0.0" }]

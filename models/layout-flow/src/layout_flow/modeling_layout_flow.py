@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import math
 from dataclasses import dataclass
 from typing import Callable
@@ -16,15 +15,17 @@ from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
 from torch import Tensor, nn
 
+from laygen.nn import clone_module_list, get_activation
+
 from .configuration_layout_flow import AttrEncoding, SeqType
 
 
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
-    return nn.ModuleList(copy.deepcopy(module) for _ in range(n))
+    return clone_module_list(module, n)
 
 
 def _gelu2(x: torch.Tensor) -> torch.Tensor:
-    return x * F.sigmoid(1.702 * x)
+    return get_activation("gelu2")(x)
 
 
 def _get_activation_fn(
@@ -32,13 +33,7 @@ def _get_activation_fn(
 ) -> Callable[[Tensor], Tensor]:
     if not isinstance(activation, str):
         return activation
-    if activation == "relu":
-        return F.relu
-    if activation == "gelu":
-        return F.gelu
-    if activation == "gelu2":
-        return _gelu2
-    raise ValueError(f"Unsupported activation: {activation}")
+    return get_activation(activation)
 
 
 class PositionalEncoding(nn.Module):
