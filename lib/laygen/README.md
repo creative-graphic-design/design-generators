@@ -9,7 +9,7 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 | Module | Purpose |
 | --- | --- |
 | `laygen.common.outputs` | Canonical layout output on `transformers.utils.ModelOutput`. |
-| `laygen.common.outputs_diffusers` | Diffusers pipeline output on `diffusers.utils.BaseOutput`. Requires the `diffusers` extra. |
+| `laygen.common.outputs_diffusers` | Diffusers pipeline output on `diffusers.utils.BaseOutput`; Diffusers is a normal laygen dependency because shared schedulers also use it. |
 | `laygen.common.bbox` | Normalized layout box conversion, clamping, discretization, and continuization helpers. |
 | `laygen.common.conditions` | Canonical `ConditionType` enum and vendor alias normalization. |
 | `laygen.common.labels` | Dataset label vocabularies and `id2label` / `label2id` maps. |
@@ -17,10 +17,16 @@ Shared layout-generation schemas and utilities for the design-generators workspa
 | `laygen.common.visualization` | Lightweight layout rendering helpers for quick inspection. |
 | `laygen.common.testing` | Duck-typed schema assertions shared by model tests. |
 | `laygen.common.model_card` | Model-card builders used by converted layout model packages. |
+| `laygen.nn.activations` | Shared activation enum and resolver; `gelu2` maps the VQ-Diffusion / QuickGELU branch to Transformers `ACT2FN["quick_gelu"]`. |
+| `laygen.nn.embeddings` | VQ-Diffusion-derived timestep embeddings plus the LayoutDM-specific element/attribute positional embedding. |
+| `laygen.nn.norms` | VQ-Diffusion-derived adaptive layer and instance normalization used by LayoutDM and LACE. |
+| `laygen.nn.blocks` | VQ-Diffusion-derived timestep transformer encoder block and encoder stack kept key-compatible with converted checkpoints. |
+| `laygen.nn.module_utils` | Shared module cloning helper used by the VQ-Diffusion-derived transformer stacks and LayoutFlow. |
+| `laygen.schedulers.continuous` | CompVis latent-diffusion-style beta and DDIM timestep helpers; common schedules delegate to Diffusers schedulers. |
 
 ## Usage
 
-Use `laygen.common.outputs.LayoutGenerationOutput` for Transformers-style code paths and shared utilities that should not import Diffusers.
+Use `laygen.common.outputs.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities. Use `laygen.common.outputs_diffusers.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
 uv run --package laygen python - <<'PY'
@@ -37,10 +43,10 @@ print(out["bbox"].shape)
 PY
 ```
 
-Use `laygen.common.outputs_diffusers.LayoutGenerationOutput` only inside Diffusers pipeline packages.
+Use `laygen.common.outputs_diffusers.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
-uv run --package laygen --extra diffusers python - <<'PY'
+uv run --package laygen python - <<'PY'
 import torch
 from laygen.common.outputs_diffusers import LayoutGenerationOutput
 
@@ -52,6 +58,16 @@ out = LayoutGenerationOutput(
 )
 print(out.to_tuple()[0].shape)
 PY
+```
+
+Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use Diffusers under the hood while preserving vendor aliases such as `quad`.
+
+```python
+from laygen.schedulers.continuous import get_beta_schedule, get_ddim_timesteps
+
+betas = get_beta_schedule("quad", num_timesteps=8)
+timesteps = get_ddim_timesteps("uniform", 4, 100)
+print(betas.shape, timesteps.tolist())
 ```
 
 Convert boxes through normalized center `xywh` when crossing package boundaries.
@@ -112,9 +128,11 @@ Example output:
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.
-- `laygen` may provide optional Diffusers integration, but the default import path must stay usable without importing Diffusers.
+- `laygen.common` remains the schema and utility layer; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
+- Diffusers is a normal laygen dependency. Keep schema-only helpers independent of Diffusers imports unless they specifically target Diffusers pipeline outputs.
 
 ## References
 
 - #2 tracks the original layout-generation model split.
 - #64 defines the `lib/laygen`, `laygen.common.*`, and `lib/posgen` migration layout.
+- #81 defines the `laygen.nn` and `laygen.schedulers` shared-module restructuring.

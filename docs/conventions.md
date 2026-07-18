@@ -4,7 +4,7 @@ This project exposes research implementations through package interfaces that be
 
 ## Workspace Packages
 
-Workspace members live under `lib/*` and `models/*`. Shared layout-generation helpers use the `laygen.common` namespace, while poster and content-aware helpers use `posgen.common` when shared code is needed.
+Workspace members live under `lib/*` and `models/*`. Shared layout-generation schemas and utility functions use the `laygen.common` namespace. Shared layout neural-network modules live under `laygen.nn`, and shared layout scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
 
 Run member-specific commands with the package selected:
 
