@@ -131,6 +131,13 @@ Implement parity in this order:
 For LLM API methods, parity checks cover prompt byte identity, exemplar
 selection, parser behavior, and repair/retry policy.
 
+Vendor parity is complete only after the released weights have been obtained,
+the vendor code has generated reference outputs, the real comparison suite has
+passed, and a local `save_pretrained` -> `from_pretrained` smoke test has
+passed. A skip-only hook plus a follow-up issue is not a completed parity path:
+the coordinator must be able to independently rerun and accept the parity
+suite, and hooks that only skip leave nothing to verify.
+
 ## README And Model Cards
 
 Write `models/<slug>/README.md` in model-card style. Include:
@@ -142,6 +149,12 @@ Write `models/<slug>/README.md` in model-card style. Include:
 - reproducibility summary with vendor-parity numbers
 - license status and citation
 - `Reproducibility`
+
+Every model README must include a top-level `## Parity Results` section. Put
+the vendor-parity summary in a numeric table that states what was compared, the
+number of cases, the match criterion, and the result. Prose inside
+`## Reproducibility` is not enough. Use `models/layout-dm/README.md` as the
+reference format.
 
 The `Reproducibility` section must open with one sentence that states how to
 reproduce the original-implementation agreement checks. The remaining commands
@@ -178,6 +191,13 @@ Open the PR against `main`. In the PR description, include:
 - tests run locally
 - Hub publish status; normally "not pushed"
 - follow-ups and unresolved source/license questions
+
+PR bodies must follow `.github/PULL_REQUEST_TEMPLATE.md`: `Summary`, `Changes`,
+`Verification`, `Checklist`, and `Deviations / Follow-ups`. The
+`gh pr create --body` command bypasses GitHub's template auto-fill, so
+CLI-created PRs must use `--body-file .github/PULL_REQUEST_TEMPLATE.md` as the
+starting point and fill in that structure. Mark checklist items with `[x]` only
+when they were actually verified.
 
 Do not self-merge. Completion is a PR with green CI or a clearly documented CI
 blocker.
