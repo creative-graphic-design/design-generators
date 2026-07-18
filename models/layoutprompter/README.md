@@ -1,6 +1,6 @@
 # LayoutPrompter
 
-LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds prompts from layout exemplars, calls a provider-configured LLM, and returns normalized layout tensors through `LayoutGenerationOutput`.
+LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds prompts from layout exemplars, calls a provider-configured LLM, and returns normalized layout arrays through `NumpyLayoutGenerationOutput`.
 
 The package is prompt-based and has no learned weights.
 
@@ -21,7 +21,7 @@ Run package commands with `uv run --package layoutprompter ...`.
 ## Basic Usage
 
 ```python
-import torch
+import numpy as np
 from pydantic_ai.models.test import TestModel
 
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
@@ -39,15 +39,15 @@ model = TestModel(
 
 train_data = [
     {
-        "labels": torch.tensor([0, 2]),
-        "bboxes": torch.tensor([[8, 10, 20, 15], [70, 80, 10, 12]]),
-        "discrete_gold_bboxes": torch.tensor([[8, 10, 20, 15], [70, 80, 10, 12]]),
+        "labels": np.asarray([0, 2]),
+        "bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
+        "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
     }
 ]
 test_data = {
-    "labels": torch.tensor([0, 2]),
-    "bboxes": torch.tensor([[0, 0, 1, 1], [0, 0, 1, 1]]),
-    "discrete_gold_bboxes": torch.tensor([[0, 0, 1, 1], [0, 0, 1, 1]]),
+    "labels": np.asarray([0, 2]),
+    "bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
+    "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
 }
 
 agent = LayoutPrompter(

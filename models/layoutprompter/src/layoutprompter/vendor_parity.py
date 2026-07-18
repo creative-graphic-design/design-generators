@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import torch
+import numpy as np
 
 from layoutprompter.records import LayoutRecord, LayoutRecordKey
 
@@ -28,11 +28,11 @@ def parser_prediction() -> str:
 def _record(
     identifier: str, labels: list[int], bboxes: list[list[int]]
 ) -> LayoutRecord:
-    tensor_bboxes = torch.tensor(bboxes)
+    array_bboxes = np.asarray(bboxes, dtype=np.int64)
     return {
         K.id.value: identifier,
-        K.labels.value: torch.tensor(labels),
-        K.bboxes.value: tensor_bboxes,
-        K.discrete_bboxes.value: tensor_bboxes,
-        K.discrete_gold_bboxes.value: tensor_bboxes,
+        K.labels.value: np.asarray(labels, dtype=np.int64),
+        K.bboxes.value: array_bboxes,
+        K.discrete_bboxes.value: array_bboxes,
+        K.discrete_gold_bboxes.value: array_bboxes,
     }

@@ -18,7 +18,7 @@ from laygen.common import (
     normalize_box_format,
     normalize_condition_type,
 )
-from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
 from pydantic_ai.settings import ModelSettings
 
 from layoutprompter.data import SupportedDataset, normalize_dataset
@@ -153,7 +153,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         ValueError: If the config contains an unsupported mode.
 
     Examples:
-        >>> import torch
+        >>> import numpy as np
         >>> from pydantic_ai.models.test import TestModel
         >>> model = TestModel(custom_output_args={"elements": []})
         >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
@@ -202,12 +202,12 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             KeyError: If required record fields are missing.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(
             ...     LayoutPrompterConfig(model=TestModel(), shuffle=False, num_prompt=1)
@@ -234,7 +234,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
 
     def run_sync(
         self, train_data: Sequence[LayoutRecord], test_data: LayoutRecord
-    ) -> LayoutGenerationOutput:
+    ) -> NumpyLayoutGenerationOutput:
         """Run the Pydantic AI model and return the common layout schema.
 
         Args:
@@ -242,19 +242,19 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             test_data: Test record containing task-specific constraints.
 
         Returns:
-            A `LayoutGenerationOutput` with normalized center `xywh` boxes.
+            A `NumpyLayoutGenerationOutput` with normalized center `xywh` boxes.
 
         Raises:
             RuntimeError: If the model output cannot be parsed.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> model = TestModel(custom_output_args={"elements": []})
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
             >>> agent.run_sync([record], record).labels.shape[0]
@@ -289,7 +289,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.DATACLASS,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> NumpyLayoutGenerationOutput | dict[str, object]:
         """Expose the shared generation signature for LayoutPrompter.
 
         Args:
@@ -307,26 +307,26 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             normalized: Accepted for shared interface compatibility.
             canvas_size: Accepted for shared interface compatibility.
             num_inference_steps: Accepted for shared interface compatibility.
-            output_type: `dataclass` for `LayoutGenerationOutput`, or `dict`.
+            output_type: `dataclass` for `NumpyLayoutGenerationOutput`, or `dict`.
             return_intermediates: Accepted for shared interface compatibility.
 
         Returns:
-            A `LayoutGenerationOutput` or dictionary representation.
+            A `NumpyLayoutGenerationOutput` or dictionary representation.
 
         Raises:
             ValueError: If `box_format` or `output_type` is unsupported.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> model = TestModel(custom_output_args={"elements": []})
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
-            >>> isinstance(agent(train_data=[record], test_data=record), LayoutGenerationOutput)
+            >>> isinstance(agent(train_data=[record], test_data=record), NumpyLayoutGenerationOutput)
             True
         """
         if condition_type is not None:

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from collections.abc import Sequence
 from enum import StrEnum, auto
 from typing import TypeAlias
 
-import torch
+import numpy as np
+from numpy.typing import NDArray
 from typing_extensions import NotRequired, TypedDict
+
+NumericArray: TypeAlias = (
+    NDArray[np.int64] | NDArray[np.int32] | NDArray[np.float32] | NDArray[np.float64]
+)
 
 
 class LayoutRecordKey(StrEnum):
@@ -28,14 +34,14 @@ class LayoutRecord(TypedDict, total=False):
     """Structured LayoutPrompter record accepted by prompt and selector code."""
 
     id: NotRequired[str]
-    labels: torch.Tensor
-    bboxes: torch.Tensor
-    discrete_bboxes: NotRequired[torch.Tensor]
-    discrete_gold_bboxes: torch.Tensor
-    discrete_content_bboxes: NotRequired[torch.Tensor]
-    relations: NotRequired[torch.Tensor]
+    labels: NDArray[np.int64] | Sequence[int]
+    bboxes: NumericArray | Sequence[Sequence[int | float]]
+    discrete_bboxes: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
+    discrete_gold_bboxes: NumericArray | Sequence[Sequence[int | float]]
+    discrete_content_bboxes: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
+    relations: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
     text: NotRequired[str]
-    embedding: NotRequired[torch.Tensor]
+    embedding: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
 
 
 LayoutRecordInput: TypeAlias = LayoutRecord | Mapping[str, object]

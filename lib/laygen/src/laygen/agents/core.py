@@ -6,9 +6,9 @@ import os
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final, Generic, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Final, Generic, Protocol, TypeVar, cast
 
-import torch
+import numpy as np
 
 try:
     from pydantic_ai import Agent
@@ -22,7 +22,10 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
-from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+
+if TYPE_CHECKING:
+    from laygen.modeling_outputs import LayoutGenerationOutput
 
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")
@@ -56,7 +59,7 @@ class PromptBuilder(Protocol[ExampleT]):
 class ResponseParser(Protocol):
     """Strategy that converts provider text into a shared layout output."""
 
-    def __call__(self, text: str, *, canvas_size: int) -> LayoutGenerationOutput:
+    def __call__(self, text: str, *, canvas_size: int) -> NumpyLayoutGenerationOutput:
         """Parse provider ``text`` into the shared output schema."""
         ...
 
@@ -105,6 +108,30 @@ class LayoutItem2DLike(Protocol):
         ...
 
 
+class LayoutOutputLike(Protocol):
+    """Minimal shared layout output fields used for dict serialization."""
+
+    @property
+    def bbox(self) -> object:
+        """Layout boxes."""
+        ...
+
+    @property
+    def labels(self) -> object:
+        """Layout labels."""
+        ...
+
+    @property
+    def mask(self) -> object:
+        """Valid element mask."""
+        ...
+
+    @property
+    def id2label(self) -> dict[int, str]:
+        """Dataset-local label names."""
+        ...
+
+
 def messages_to_text(messages: object) -> str:
     """Convert provider chat messages to deterministic plain text.
 
@@ -126,14 +153,40 @@ def layout_items_to_output(
     id2label: Mapping[int, str],
     intermediates: object | None = None,
 ) -> LayoutGenerationOutput:
-    """Build the shared normalized center-``xywh`` layout output schema."""
+    """Build the torch-backed shared normalized center-``xywh`` output schema."""
+    import torch
+
+    from laygen.modeling_outputs import LayoutGenerationOutput
+
     label2id = {label: idx for idx, label in id2label.items()}
     bbox_values = [item.bbox_xywh for item in items]
     label_values = [label2id[item.label] for item in items]
-    bbox = cast(torch.FloatTensor, torch.tensor([bbox_values], dtype=torch.float32))
-    labels = cast(torch.LongTensor, torch.tensor([label_values], dtype=torch.long))
-    mask = cast(torch.BoolTensor, torch.ones((1, len(items)), dtype=torch.bool))
+    bbox = torch.tensor([bbox_values], dtype=torch.float32)
+    labels = torch.tensor([label_values], dtype=torch.long)
+    mask = torch.ones((1, len(items)), dtype=torch.bool)
     return LayoutGenerationOutput(
+        bbox=bbox,
+        labels=labels,
+        mask=mask,
+        id2label=dict(id2label),
+        intermediates=intermediates,
+    )
+
+
+def layout_items_to_numpy_output(
+    items: Sequence[LayoutItem2DLike],
+    *,
+    id2label: Mapping[int, str],
+    intermediates: object | None = None,
+) -> NumpyLayoutGenerationOutput:
+    """Build the numpy-backed shared normalized center-``xywh`` output schema."""
+    label2id = {label: idx for idx, label in id2label.items()}
+    bbox_values = [item.bbox_xywh for item in items]
+    label_values = [label2id[item.label] for item in items]
+    bbox = np.asarray([bbox_values], dtype=np.float32)
+    labels = np.asarray([label_values], dtype=np.int64)
+    mask = np.ones((1, len(items)), dtype=np.bool_)
+    return NumpyLayoutGenerationOutput(
         bbox=bbox,
         labels=labels,
         mask=mask,
@@ -230,17 +283,17 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
             raise ValueError(msg)
         return normalized_condition_type, normalized_box_format
 
-    def output_to_dict(self, output: LayoutGenerationOutput) -> dict[str, object]:
+    def output_to_dict(self, output: LayoutOutputLike) -> dict[str, object]:
         """Serialize the shared output with canonical layout schema keys."""
         return {
             "bbox": output.bbox,
             "labels": output.labels,
             "mask": output.mask,
             "id2label": output.id2label,
-            "sequences": output.sequences,
-            "scores": output.scores,
-            "trajectory": output.trajectory,
-            "intermediates": output.intermediates,
+            "sequences": getattr(output, "sequences", None),
+            "scores": getattr(output, "scores", None),
+            "trajectory": getattr(output, "trajectory", None),
+            "intermediates": getattr(output, "intermediates", None),
         }
 
     def repair_response_text(self, text: str) -> str:

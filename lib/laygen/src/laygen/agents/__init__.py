@@ -14,6 +14,7 @@ from .core import (
     ModelLike,
     PromptBuilder,
     ResponseParser,
+    layout_items_to_numpy_output,
     layout_items_to_output,
     messages_to_text,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "ModelLike",
     "PromptBuilder",
     "ResponseParser",
+    "layout_items_to_numpy_output",
     "layout_items_to_output",
     "messages_to_text",
 ]

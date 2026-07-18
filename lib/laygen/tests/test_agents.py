@@ -12,12 +12,13 @@ from laygen.agents import (
     BaseExemplarSelector,
     BaseLayoutAgent,
     BaseResponseParser,
+    layout_items_to_numpy_output,
     layout_items_to_output,
     messages_to_text,
 )
 from laygen.agents.testing import assert_agent_output_schema, function_model_from_text
 from laygen.common import ConditionType
-from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
 
 
 class RawText(BaseModel):
@@ -45,13 +46,21 @@ class ToyAgent(BaseLayoutAgent[RawText]):
             instructions="Return one label.",
         )
 
-    def run_sync(self) -> LayoutGenerationOutput:
+    def run_sync(self) -> NumpyLayoutGenerationOutput:
         """Run the toy model and convert the raw label into layout output."""
         raw = self.run_raw_sync("make a button")
-        return layout_items_to_output(
+        return layout_items_to_numpy_output(
             [ParsedItem(raw.text, (0.5, 0.5, 0.25, 0.25))],
             id2label={0: raw.text},
         )
+
+
+def test_layout_items_to_output_keeps_torch_compatibility() -> None:
+    output = layout_items_to_output(
+        [ParsedItem("button", (0.5, 0.5, 0.25, 0.25))],
+        id2label={0: "button"},
+    )
+    assert output.labels.tolist() == [[0]]
 
 
 def test_messages_to_text_handles_chat_messages() -> None:
@@ -85,7 +94,7 @@ def test_base_layout_agent_runs_function_model_and_validates_request() -> None:
 
 
 def test_base_parser_and_selector_helpers_raise_consistent_errors() -> None:
-    parser = BaseResponseParser[LayoutGenerationOutput](parser_name="toy")
+    parser = BaseResponseParser[NumpyLayoutGenerationOutput](parser_name="toy")
     selector = BaseExemplarSelector[ParsedItem]()
 
     assert parser.repair_response_text("raw") == "raw"
