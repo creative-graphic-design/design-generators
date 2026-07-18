@@ -18,7 +18,6 @@ from laygen.common.testing import assert_layout_output_schema
 from laygen.modeling_outputs import LayoutGenerationOutput
 from parse_then_place import (
     ParseThenPlaceConfig,
-    ParseThenPlaceForConditionalGeneration,
     ParseThenPlacePipeline,
     ParseThenPlaceProcessor,
 )
@@ -81,14 +80,15 @@ class FakeGenerationModel(PreTrainedModel):
         self.saved_kwargs = {"is_main_process": is_main_process, **kwargs}
         root = Path(save_directory)
         root.mkdir(parents=True, exist_ok=True)
+        (root / "config.json").write_text("{}")
         (root / "fake_model.txt").write_text("saved")
 
 
 def _pipeline() -> ParseThenPlacePipeline:
-    config = ParseThenPlaceConfig(dataset_name="rico")
-    model = ParseThenPlaceForConditionalGeneration(config)
-    processor = ParseThenPlaceProcessor.from_config("rico")
-    return ParseThenPlacePipeline(model=model, processor=processor)
+    return ParseThenPlacePipeline(
+        config=ParseThenPlaceConfig(dataset_name="rico"),
+        processor=ParseThenPlaceProcessor.from_config("rico"),
+    )
 
 
 def test_pipeline_accepts_text_aliases_with_layout_text_smoke() -> None:
@@ -125,7 +125,7 @@ def test_pipeline_requires_prompt_without_layout_text_shortcut() -> None:
 def test_generator_prevents_seed_global_set_seed() -> None:
     pipe = _pipeline()
 
-    with patch("parse_then_place.modeling_parse_then_place.set_seed") as mocked:
+    with patch("parse_then_place.pipeline_parse_then_place.set_seed") as mocked:
         pipe(
             prompt="create a simple screen",
             seed=123,
@@ -136,34 +136,19 @@ def test_generator_prevents_seed_global_set_seed() -> None:
     mocked.assert_not_called()
 
 
-def test_model_save_and_from_pretrained_smoke() -> None:
-    config = ParseThenPlaceConfig(dataset_name="rico")
-    model = ParseThenPlaceForConditionalGeneration(config)
-
-    with tempfile.TemporaryDirectory() as tmp:
-        output_dir = Path(tmp)
-        model.save_pretrained(output_dir)
-        loaded = ParseThenPlaceForConditionalGeneration.from_pretrained(
-            output_dir,
-            local_files_only=True,
-        )
-
-    assert loaded.config.dataset_name == "rico"
-    assert loaded.config.id2label[4] == "text"
-
-
-def test_model_parse_place_and_save_submodels() -> None:
+def test_pipeline_parse_place_and_save_stages() -> None:
     parser = FakeGenerationModel(torch.tensor([[1, 2]]))
     placement = FakeGenerationModel(torch.tensor([[3, 4]]))
-    model = ParseThenPlaceForConditionalGeneration(
-        ParseThenPlaceConfig(dataset_name="rico"),
+    pipe = ParseThenPlacePipeline(
+        config=ParseThenPlaceConfig(dataset_name="rico"),
+        processor=ParseThenPlaceProcessor.from_config("rico"),
         parser=parser,
         placement=placement,
     )
     generator = torch.Generator().manual_seed(7)
 
-    parsed = model.parse(torch.tensor([[0, 1]]), generation_max_length=12)
-    placed = model.place(
+    parsed = pipe.parse(torch.tensor([[0, 1]]), generation_max_length=12)
+    placed = pipe.place(
         torch.tensor([[0, 1]]),
         generation_max_length=13,
         num_return_sequences=2,
@@ -179,31 +164,33 @@ def test_model_parse_place_and_save_submodels() -> None:
     assert placement.generate_kwargs["generator"] is generator
 
     with tempfile.TemporaryDirectory() as tmp:
-        model.save_pretrained(tmp, is_main_process=False)
-        output_dir = Path(tmp)
-        assert (output_dir / "semantic_parser" / "fake_model.txt").exists()
-        assert (output_dir / "placement" / "fake_model.txt").exists()
+        with patch.object(pipe.processor, "save_pretrained") as save_processor:
+            pipe.save_pretrained(tmp, is_main_process=False)
+            save_processor.assert_called_once_with(Path(tmp))
+            output_dir = Path(tmp)
+            assert (output_dir / "config.json").exists()
+            assert (output_dir / "semantic_parser" / "fake_model.txt").exists()
+            assert (output_dir / "placement" / "fake_model.txt").exists()
 
     assert parser.saved_kwargs == {"is_main_process": False}
     assert placement.saved_kwargs == {"is_main_process": False}
 
 
-def test_model_parse_and_place_require_submodels() -> None:
-    model = ParseThenPlaceForConditionalGeneration(
-        ParseThenPlaceConfig(dataset_name="rico")
-    )
+def test_pipeline_parse_and_place_require_stages() -> None:
+    pipe = _pipeline()
 
-    with pytest.raises(ValueError, match="Parser submodel"):
-        model.parse(torch.tensor([[0, 1]]))
+    with pytest.raises(ValueError, match="Parser stage"):
+        pipe.parse(torch.tensor([[0, 1]]))
 
-    with pytest.raises(ValueError, match="Placement submodel"):
-        model.place(torch.tensor([[0, 1]]))
+    with pytest.raises(ValueError, match="Placement stage"):
+        pipe.place(torch.tensor([[0, 1]]))
 
 
-def test_model_from_pretrained_accepts_config_variants_and_loads_subfolders() -> None:
+def test_pipeline_from_pretrained_loads_standard_stage_subfolders() -> None:
     config = ParseThenPlaceConfig(dataset_name="web")
     parser = FakeGenerationModel(torch.tensor([[1, 2]]))
     placement = FakeGenerationModel(torch.tensor([[3, 4]]))
+    processor = ParseThenPlaceProcessor.from_config("web")
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -212,43 +199,44 @@ def test_model_from_pretrained_accepts_config_variants_and_loads_subfolders() ->
         (root / "placement").mkdir()
         (root / "semantic_parser" / "config.json").write_text("{}")
         with patch(
-            "parse_then_place.modeling_parse_then_place.AutoModelForSeq2SeqLM.from_pretrained",
+            "parse_then_place.pipeline_parse_then_place.AutoModelForSeq2SeqLM.from_pretrained",
             side_effect=[parser, placement],
         ) as load_model:
-            loaded = ParseThenPlaceForConditionalGeneration.from_pretrained(
+            loaded = ParseThenPlacePipeline.from_pretrained(
                 root,
                 config=PretrainedConfig.from_dict(config.to_dict()),
+                processor=processor,
                 local_files_only=True,
             )
 
     assert loaded.parser is parser
     assert loaded.placement is placement
+    assert loaded.processor is processor
     assert load_model.call_count == 2
 
     with pytest.raises(TypeError, match="config must be"):
-        ParseThenPlaceForConditionalGeneration.from_pretrained(
+        ParseThenPlacePipeline.from_pretrained(
             Path("missing"),
-            config=object(),
+            config=object(),  # ty: ignore[invalid-argument-type]
         )
 
 
-def test_model_generate_layout_full_path_and_dict_output() -> None:
+def test_pipeline_generate_full_path_and_dict_output() -> None:
     tokenizer = FakeTokenizer()
     parser = FakeGenerationModel(torch.tensor([[1, 2], [3, 4]]))
     placement = FakeGenerationModel(torch.tensor([[1, 2], [3, 4], [5, 6], [7, 8]]))
-    model = ParseThenPlaceForConditionalGeneration(
-        ParseThenPlaceConfig(dataset_name="rico", num_return_sequences=2),
+    pipe = ParseThenPlacePipeline(
+        config=ParseThenPlaceConfig(dataset_name="rico", num_return_sequences=2),
+        processor=ParseThenPlaceProcessor(
+            parser_tokenizer=tokenizer,
+            placement_tokenizer=tokenizer,
+        ),
         parser=parser,
         placement=placement,
     )
-    processor = ParseThenPlaceProcessor(
-        parser_tokenizer=tokenizer,
-        placement_tokenizer=tokenizer,
-    )
 
-    with patch("parse_then_place.modeling_parse_then_place.set_seed") as mocked_seed:
-        output = model.generate_layout(
-            processor=processor,
+    with patch("parse_then_place.pipeline_parse_then_place.set_seed") as mocked_seed:
+        output = pipe(
             prompt=["create text", "create image"],
             seed=99,
             output_candidate="best",
@@ -264,11 +252,8 @@ def test_model_generate_layout_full_path_and_dict_output() -> None:
     assert intermediates["logical_forms"] == ["text 0 0 10 20", "text 0 0 10 20"]
 
 
-def test_model_generate_layout_requires_processor_tokenizers_for_inference() -> None:
-    model = ParseThenPlaceForConditionalGeneration(
-        ParseThenPlaceConfig(dataset_name="rico")
-    )
-    processor = ParseThenPlaceProcessor.from_config("rico")
+def test_pipeline_requires_processor_tokenizers_for_inference() -> None:
+    pipe = _pipeline()
 
     with pytest.raises(ValueError, match="parser_tokenizer"):
-        model.generate_layout(processor=processor, prompt="create text")
+        pipe(prompt="create text")

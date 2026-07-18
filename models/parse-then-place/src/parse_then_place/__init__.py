@@ -10,14 +10,12 @@ from .labels import (
     normalize_dataset_name,
     normalize_stage2_mode,
 )
-from .modeling_parse_then_place import ParseThenPlaceForConditionalGeneration
 from .pipeline_parse_then_place import ParseThenPlacePipeline
 from .processing_parse_then_place import ParseThenPlaceProcessor
 
 __all__ = [
     "ParseThenPlaceConfig",
     "ParseThenPlaceDatasetName",
-    "ParseThenPlaceForConditionalGeneration",
     "ParseThenPlacePipeline",
     "ParseThenPlaceProcessor",
     "Stage2Mode",

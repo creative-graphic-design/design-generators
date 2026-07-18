@@ -2,9 +2,10 @@
 
 Transformers-style conversion package for **A Parse-Then-Place Approach for
 Generating Graphic Layouts from Textual Descriptions**. The package exposes the
-two-stage text-to-layout workflow as a composite model and pipeline:
-semantic parser -> placement constraint -> placement model -> common
-`LayoutGenerationOutput`.
+two-stage text-to-layout workflow through `ParseThenPlacePipeline`, which owns
+standard seq2seq stage models loaded from `semantic_parser/` and `placement/`
+subfolders: semantic parser -> placement constraint -> placement model ->
+common `LayoutGenerationOutput`.
 
 ## Install And Usage
 
@@ -12,22 +13,20 @@ semantic parser -> placement constraint -> placement model -> common
 uv run --package parse-then-place python - <<'PY'
 from parse_then_place import (
     ParseThenPlaceConfig,
-    ParseThenPlaceForConditionalGeneration,
     ParseThenPlacePipeline,
     ParseThenPlaceProcessor,
 )
 
 config = ParseThenPlaceConfig(dataset_name="rico")
-model = ParseThenPlaceForConditionalGeneration(config)
 processor = ParseThenPlaceProcessor.from_config("rico")
-pipe = ParseThenPlacePipeline(model=model, processor=processor)
+pipe = ParseThenPlacePipeline(config=config, processor=processor)
 out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
 print(out.bbox.shape, out.labels.tolist())
 PY
 ```
 
 Full checkpoint inference requires converted `semantic_parser/` and
-`placement/` subfolders.
+`placement/` subfolders containing standard `AutoModelForSeq2SeqLM` weights.
 
 The original adapter/deepspeed training stack uses legacy pins
 (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that
@@ -64,7 +63,7 @@ original stage-2 placement checkpoint using the vendor generation settings.
 
 Reproduce original-implementation agreement by downloading vendor assets,
 generating fixed-seed references on one GPU, running marked parity tests, then
-converting and smoke-loading the composite checkpoint.
+converting and smoke-loading the pipeline checkpoint.
 
 ```bash
 uv run --package parse-then-place python models/parse-then-place/scripts/download_original_assets.py \
@@ -92,14 +91,18 @@ uv run --package parse-then-place python models/parse-then-place/scripts/convert
 uv run --package parse-then-place python - <<'PY'
 from pathlib import Path
 
-from parse_then_place import ParseThenPlaceForConditionalGeneration
+from parse_then_place import ParseThenPlacePipeline
 
 root = Path(".cache/parse-then-place/converted/rico-finetune")
-model = ParseThenPlaceForConditionalGeneration.from_pretrained(
+pipeline = ParseThenPlacePipeline.from_pretrained(
     root,
     local_files_only=True,
 )
-print(model.config.dataset_name, model.parser is not None, model.placement is not None)
+print(
+    pipeline.config.dataset_name,
+    pipeline.parser is not None,
+    pipeline.placement is not None,
+)
 PY
 ```
 

@@ -10,7 +10,7 @@ from transformers import T5ForConditionalGeneration, T5Tokenizer  # ty: ignore[p
 
 from parse_then_place import (
     ParseThenPlaceConfig,
-    ParseThenPlaceForConditionalGeneration,
+    ParseThenPlacePipeline,
     ParseThenPlaceProcessor,
 )
 
@@ -52,23 +52,23 @@ def test_stage2_reference_matches_converted_place() -> None:
     placement = T5ForConditionalGeneration.from_pretrained(ckpt_dir)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     placement.to(device)  # ty: ignore[invalid-argument-type]
-    model = ParseThenPlaceForConditionalGeneration(
-        ParseThenPlaceConfig(
+    pipeline = ParseThenPlacePipeline(
+        config=ParseThenPlaceConfig(
             dataset_name=dataset_name,
             stage2_mode=stage2_mode,
             num_return_sequences=int(metadata["num_return_sequences"]),
             temperature=float(metadata["temperature"]),
         ),
+        processor=ParseThenPlaceProcessor(
+            placement_tokenizer=tokenizer,
+            dataset_name=dataset_name,
+        ),
         placement=placement,
     )
-    processor = ParseThenPlaceProcessor(
-        placement_tokenizer=tokenizer,
-        dataset_name=dataset_name,
-    )
-    encoded = processor.encode_placement_inputs(reference["source_texts"])
+    encoded = pipeline.processor.encode_placement_inputs(reference["source_texts"])
     input_ids = encoded["input_ids"].to(device)
     attention_mask = encoded["attention_mask"].to(device)
-    generated_ids = model.place(
+    generated_ids = pipeline.place(
         input_ids,
         attention_mask=attention_mask,
         generation_max_length=int(metadata["max_length"]),
