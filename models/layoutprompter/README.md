@@ -238,3 +238,5 @@ The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-lay
 ## License And Citation
 
 Use this package together with the license terms of the original LayoutPrompter implementation and any dataset or LLM provider used at runtime. Cite the LayoutPrompter paper when publishing results based on this method.
+
+<!-- ci-docs-skip proof: model README markdown-only change -->
