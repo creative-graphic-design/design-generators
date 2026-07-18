@@ -15,6 +15,7 @@ REQUIRED_ARTIFACTS: Final[tuple[str, ...]] = (
     "vocab.json",
     "random_emb.torch",
 )
+IGNORED_CHECKPOINT_KEYS: Final[frozenset[str]] = frozenset({"position_ids"})
 
 
 def find_ema_checkpoint(
@@ -81,13 +82,16 @@ def config_from_original(
     """
     artifacts = validate_checkpoint_artifacts(checkpoint_dir)
     args = json.loads(artifacts["training_args.json"].read_text(encoding="utf-8"))
+    vocab_size = int(args.get("vocab_size", 0))
     vocab = json.loads(artifacts["vocab.json"].read_text(encoding="utf-8"))
     vocab = {str(k): int(v) for k, v in vocab.items()}
+    if "MASK" not in vocab and vocab_size:
+        vocab["MASK"] = vocab_size - 1
     return LayoutDiffusionConfig(
         dataset_name=dataset_name,
         vocab=vocab,
-        vocab_size=int(args.get("vocab_size", len(vocab))),
-        seq_length=int(args.get("seq_length", 121)),
+        vocab_size=vocab_size or len(vocab),
+        seq_length=int(args.get("seq_length") or 121),
         diffusion_steps=int(args.get("diffusion_steps", 200)),
         noise_schedule=str(args.get("noise_schedule", "gaussian_refine_pow2.5")),
         num_channels=int(args.get("num_channels", 128)),
@@ -106,7 +110,13 @@ def remap_transformer_state_dict(
     Returns:
         Remapped state dict with ``module.`` prefixes removed.
     """
-    return {key.removeprefix("module."): value for key, value in state_dict.items()}
+    remapped = {}
+    for key, value in state_dict.items():
+        new_key = key.removeprefix("module.")
+        if new_key in IGNORED_CHECKPOINT_KEYS:
+            continue
+        remapped[new_key] = value
+    return remapped
 
 
 def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Tensor]:

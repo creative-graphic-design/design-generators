@@ -71,7 +71,9 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         if vocab_file is not None and Path(vocab_file).exists():
             raw_vocab = json.loads(Path(vocab_file).read_text(encoding="utf-8"))
             config.vocab = {str(k): int(v) for k, v in raw_vocab.items()}
-            config.vocab_size = len(config.vocab)
+            if "MASK" not in config.vocab:
+                config.vocab["MASK"] = config.vocab_size - 1
+            config.vocab_size = max(config.vocab.values()) + 1
         self.config = config
         self._token_to_id = dict(config.vocab)
         self._id_to_token = {idx: token for token, idx in self._token_to_id.items()}

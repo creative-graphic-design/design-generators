@@ -17,6 +17,13 @@ def test_remap_transformer_state_dict_removes_module_prefix() -> None:
     assert remap_transformer_state_dict({"module.foo": tensor}) == {"foo": tensor}
 
 
+def test_remap_transformer_state_dict_drops_nonpersistent_position_ids() -> None:
+    tensor = torch.ones(1)
+    assert remap_transformer_state_dict({"position_ids": tensor, "foo": tensor}) == {
+        "foo": tensor
+    }
+
+
 def test_validate_checkpoint_artifacts_reports_missing(tmp_path) -> None:
     with pytest.raises(FileNotFoundError):
         validate_checkpoint_artifacts(tmp_path)

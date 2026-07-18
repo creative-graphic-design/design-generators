@@ -5,8 +5,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import torch
-
 from layoutdiffusion import (
     LayoutDiffusionPipeline,
     LayoutDiffusionScheduler,
@@ -16,6 +14,7 @@ from layoutdiffusion import (
 from layoutdiffusion.conversion import (
     config_from_original,
     find_ema_checkpoint,
+    IGNORED_CHECKPOINT_KEYS,
     load_original_state_dict,
     remap_transformer_state_dict,
 )
@@ -51,15 +50,9 @@ def main() -> None:
         dropout=cfg.dropout,
     )
     checkpoint = find_ema_checkpoint(args.checkpoint_dir, args.checkpoint_name)
-    missing, unexpected = transformer.load_state_dict(
-        remap_transformer_state_dict(load_original_state_dict(checkpoint)),
-        strict=False,
-    )
-    random_emb_path = args.checkpoint_dir / "random_emb.torch"
-    if "word_embedding.weight" in missing and random_emb_path.exists():
-        transformer.word_embedding.weight.data.copy_(
-            torch.load(random_emb_path, map_location="cpu")
-        )
+    original_state = load_original_state_dict(checkpoint)
+    remapped_state = remap_transformer_state_dict(original_state)
+    transformer.load_state_dict(remapped_state, strict=True)
     scheduler = LayoutDiffusionScheduler(
         num_train_timesteps=cfg.diffusion_steps,
         vocab_size=cfg.vocab_size,
@@ -73,8 +66,10 @@ def main() -> None:
     pipe = LayoutDiffusionPipeline(transformer, scheduler, tokenizer)
     pipe.save_pretrained(args.output_dir, safe_serialization=args.safe_serialization)
     print(f"saved={args.output_dir}")
-    print(f"missing={list(missing)}")
-    print(f"unexpected={list(unexpected)}")
+    print(f"checkpoint={checkpoint}")
+    print(f"original_keys={len(original_state)}")
+    print(f"loaded_keys={len(remapped_state)}")
+    print(f"ignored_keys={sorted(IGNORED_CHECKPOINT_KEYS)}")
 
 
 if __name__ == "__main__":

@@ -299,7 +299,7 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
             log_ct = _extract(self.log_cumprod_ct.to(device), t, (batch_size, 1, 1))
             log_at1 = _extract(self.log_cumprod_at1.to(device), t, (batch_size, 1, 1))
             log_ct1 = _extract(self.log_cumprod_ct1.to(device), t, (batch_size, 1, 1))
-            q_coord = self.q_mats[t].to(device)
+            q_coord = self.q_mats[t.detach().cpu()].to(device)
         else:
             log_at = _extract(self.log_at.to(device), t, (batch_size, 1, 1))
             log_bt1 = _extract(self.log_bt1.to(device), t, (batch_size, 1, 1))
@@ -307,7 +307,7 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
             log_ct = _extract(self.log_ct.to(device), t, (batch_size, 1, 1))
             log_at1 = _extract(self.log_at1.to(device), t, (batch_size, 1, 1))
             log_ct1 = _extract(self.log_ct1.to(device), t, (batch_size, 1, 1))
-            q_coord = self.q_onestep_mats[t].to(device)
+            q_coord = self.q_onestep_mats[t.detach().cpu()].to(device)
         log_1_min_ct = _log_1_min_a(log_ct)
         log_1_min_ct1 = _log_1_min_a(log_ct1)
         eye_special = torch.eye(self.num_special_tokens, device=device).expand(
