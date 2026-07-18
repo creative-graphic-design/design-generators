@@ -116,6 +116,19 @@ uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
 
 Without `OPENAI_API_KEY`, the demo exits with a skip message.
 
+## Parity Results
+
+The numpy-only implementation was checked against the original LayoutPrompter
+vendor path and the previous torch-backed package output on the deterministic
+WebUI fixture.
+
+| Check | Cases | Result |
+| --- | ---: | --- |
+| Prompt byte equality | 1/1 prompt fixture | Exact byte match |
+| Exemplar selection | 2/2 selected exemplar ids | Exact id match |
+| Parser golden output | 2/2 arrays (`labels`, `bbox`) | Exact value match |
+| Torch-to-numpy output equivalence | 1/1 public parser fixture | Exact JSON match for `bbox`, `labels`, `mask`, and `id2label` |
+
 ## Reproducibility
 
 This section reproduces the parity verification against the original implementation.
@@ -169,13 +182,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
 
 The test checks prompt bytes, selected exemplar ids, and parser output tensors.
 
-Parity results:
-
-```text
-prompt bytes: exact match
-selected exemplar ids: exact match
-parser output labels and tensors: exact match
-```
+See `Parity Results` for the measured agreement table.
 
 ### 4. Checkpoint Conversion
 
