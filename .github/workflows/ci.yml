@@ -7,6 +7,47 @@ on:
       - main
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      non_markdown: ${{ steps.filter.outputs.non_markdown }}
+      docs_content: ${{ steps.docs_filter.outputs.docs_content }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Detect non-markdown changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: every
+          filters: |
+            non_markdown:
+              - '**'
+              - '!**/*.md'
+
+      - name: Detect documentation content changes
+        id: docs_filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs_content:
+              - 'docs/**'
+              - 'mkdocs.yml'
+              - 'scripts/gen_ref_pages.py'
+              - 'lib/**'
+              - 'models/**'
+              - 'README.md'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -44,6 +85,8 @@ jobs:
 
   typecheck:
     name: Typecheck
+    needs: changes
+    if: needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -74,6 +117,8 @@ jobs:
 
   test:
     name: Test
+    needs: changes
+    if: needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -153,6 +198,8 @@ jobs:
 
   docs:
     name: Documentation
+    needs: changes
+    if: needs.changes.outputs.docs_content == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -186,8 +233,10 @@ jobs:
 
   pages:
     name: Deploy Pages
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: docs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docs_content == 'true'
+    needs:
+      - changes
+      - docs
     runs-on: ubuntu-latest
     permissions:
       pages: write

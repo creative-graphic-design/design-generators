@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import ClassVar, Final, assert_never
+import numpy as np
 from typing_extensions import override
 
+from layoutprompter.arrays import as_float_array, as_int_array
 from layoutprompter.data import (
     CANVAS_SIZE,
     LAYOUT_DOMAIN,
@@ -104,8 +105,8 @@ class Serializer:
     def _build_seq_output(
         self, data: LayoutRecord, label_key: LayoutRecordKey, bbox_key: LayoutRecordKey
     ) -> str:
-        labels = torch.as_tensor(record_value(data, label_key))
-        bboxes = torch.as_tensor(record_value(data, bbox_key))
+        labels = as_int_array(record_value(data, label_key))
+        bboxes = as_float_array(record_value(data, bbox_key))
         tokens: list[str] = []
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
@@ -119,8 +120,8 @@ class Serializer:
     def _build_html_output(
         self, data: LayoutRecord, label_key: LayoutRecordKey, bbox_key: LayoutRecordKey
     ) -> str:
-        labels = torch.as_tensor(record_value(data, label_key))
-        bboxes = torch.as_tensor(record_value(data, bbox_key))
+        labels = as_int_array(record_value(data, label_key))
+        bboxes = as_float_array(record_value(data, bbox_key))
         template = HTML_TEMPLATE_WITH_INDEX if self.add_index_token else HTML_TEMPLATE
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
         for index in range(len(labels)):
@@ -142,7 +143,7 @@ class GenTypeSerializer(Serializer):
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = torch.as_tensor(record_value(data, K.labels))
+        labels = as_int_array(record_value(data, K.labels))
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -156,7 +157,7 @@ class GenTypeSerializer(Serializer):
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        labels = torch.as_tensor(record_value(data, K.labels))
+        labels = as_int_array(record_value(data, K.labels))
         for index in range(len(labels)):
             label = self.index2label[int(labels[index])]
             if self.add_unk_token:
@@ -195,8 +196,8 @@ class GenTypeSizeSerializer(GenTypeSerializer):
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         tokens: list[str] = []
-        labels = torch.as_tensor(record_value(data, K.labels))
-        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
+        labels = as_int_array(record_value(data, K.labels))
+        bboxes = as_float_array(record_value(data, K.discrete_gold_bboxes))
         for index in range(len(labels)):
             tokens.append(self.index2label[int(labels[index])])
             if self.add_index_token:
@@ -211,8 +212,8 @@ class GenTypeSizeSerializer(GenTypeSerializer):
     @override
     def _build_html_input(self, data: LayoutRecord) -> str:
         html = [HTML_PREFIX.format(self.canvas_width, self.canvas_height)]
-        labels = torch.as_tensor(record_value(data, K.labels))
-        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
+        labels = as_int_array(record_value(data, K.labels))
+        bboxes = as_float_array(record_value(data, K.discrete_gold_bboxes))
         for index in range(len(labels)):
             label = self.index2label[int(labels[index])]
             width, height = [int(value) for value in bboxes[index].tolist()[2:]]
@@ -261,8 +262,8 @@ class GenRelationSerializer(GenTypeSerializer):
         type_constraints = self.constraint_type[0] + super(
             GenTypeSerializer, self
         ).build_input(data)
-        relations = torch.as_tensor(
-            optional_record_value(data, K.relations, torch.empty((0, 5)))
+        relations = as_int_array(
+            optional_record_value(data, K.relations, np.empty((0, 5), dtype=np.int64))
         )
         if len(relations) == 0:
             return type_constraints
@@ -298,8 +299,8 @@ class CompletionSerializer(Serializer):
     def _build_seq_input(self, data: LayoutRecord) -> str:
         return self._build_seq_output(
             {
-                K.labels.value: torch.as_tensor(record_value(data, K.labels))[:1],
-                K.bboxes.value: torch.as_tensor(record_value(data, K.discrete_bboxes))[
+                K.labels.value: as_int_array(record_value(data, K.labels))[:1],
+                K.bboxes.value: as_float_array(record_value(data, K.discrete_bboxes))[
                     :1
                 ],
             },
@@ -311,8 +312,8 @@ class CompletionSerializer(Serializer):
     def _build_html_input(self, data: LayoutRecord) -> str:
         return self._build_html_output(
             {
-                K.labels.value: torch.as_tensor(record_value(data, K.labels))[:1],
-                K.bboxes.value: torch.as_tensor(record_value(data, K.discrete_bboxes))[
+                K.labels.value: as_int_array(record_value(data, K.labels))[:1],
+                K.bboxes.value: as_float_array(record_value(data, K.discrete_bboxes))[
                     :1
                 ],
             },
@@ -383,7 +384,7 @@ class ContentAwareSerializer(GenTypeSerializer):
     @override
     def _build_seq_input(self, data: LayoutRecord) -> str:
         content_tokens = []
-        content_bboxes = torch.as_tensor(record_value(data, K.discrete_content_bboxes))
+        content_bboxes = as_float_array(record_value(data, K.discrete_content_bboxes))
         for index, bbox in enumerate(content_bboxes):
             left, top, width, height = [int(value) for value in bbox.tolist()]
             content_tokens.append(
