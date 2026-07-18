@@ -61,16 +61,19 @@ uv run --package parse-then-place python models/parse-then-place/scripts/downloa
   --output-dir /tmp/parse-then-place-assets
 
 CUDA_VISIBLE_DEVICES=4 uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
+  --original-root /tmp/parse-then-place-assets \
   --dataset-name rico \
   --stage2-mode finetune \
   --seed 42 \
+  --num-examples 1 \
   --output-dir /tmp/parse-then-place-reference/rico-finetune
 
-CUDA_VISIBLE_DEVICES=4 uv run --package parse-then-place pytest \
-  models/parse-then-place/tests/vendor_parity -m vendor_parity
+CUDA_VISIBLE_DEVICES=4 PARSE_THEN_PLACE_ORIGINAL_ROOT=/tmp/parse-then-place-assets \
+  PARSE_THEN_PLACE_REFERENCE_DIR=/tmp/parse-then-place-reference/rico-finetune \
+  uv run --package parse-then-place pytest models/parse-then-place/tests/vendor_parity -m vendor_parity
 
 uv run --package parse-then-place python models/parse-then-place/scripts/convert_original_checkpoint.py \
-  --original-root /path/to/Parse-Then-Place \
+  --original-root /tmp/parse-then-place-assets \
   --dataset-name rico \
   --stage2-mode finetune \
   --output-dir /tmp/parse-then-place-rico-finetune

@@ -7,7 +7,9 @@ import shutil
 from pathlib import Path
 from typing import cast
 
+import torch
 from transformers import (
+    AutoModelForSeq2SeqLM,  # ty: ignore[possibly-missing-import]
     AutoTokenizer,  # ty: ignore[possibly-missing-import]
     PreTrainedTokenizerBase,
     T5ForConditionalGeneration,  # ty: ignore[possibly-missing-import]
@@ -38,13 +40,18 @@ def convert_original_checkpoint(
     parser_output.mkdir(parents=True, exist_ok=True)
     placement_output.mkdir(parents=True, exist_ok=True)
 
-    if parser_state_path is not None:
-        shutil.copy2(parser_state_path, parser_output / "pytorch_model.bin")
     parser_tokenizer = cast(
         PreTrainedTokenizerBase,
         AutoTokenizer.from_pretrained(parser_base_model),
     )
     parser_tokenizer.save_pretrained(parser_output)
+    if parser_state_path is not None:
+        parser = AutoModelForSeq2SeqLM.from_pretrained(parser_base_model)
+        state = torch.load(parser_state_path, map_location="cpu")
+        parser.load_state_dict(state, strict=False)
+        parser.save_pretrained(parser_output)
+    else:
+        shutil.rmtree(parser_output)
 
     stage2_root = original_root / "ckpt" / dataset_name / "stage2" / stage2_mode
     placement = T5ForConditionalGeneration.from_pretrained(stage2_root)

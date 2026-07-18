@@ -210,6 +210,7 @@ def test_model_from_pretrained_accepts_config_variants_and_loads_subfolders() ->
         config.save_pretrained(root)
         (root / "semantic_parser").mkdir()
         (root / "placement").mkdir()
+        (root / "semantic_parser" / "config.json").write_text("{}")
         with patch(
             "parse_then_place.modeling_parse_then_place.AutoModelForSeq2SeqLM.from_pretrained",
             side_effect=[parser, placement],

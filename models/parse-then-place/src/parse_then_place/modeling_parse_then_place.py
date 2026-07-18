@@ -66,7 +66,7 @@ class ParseThenPlaceForConditionalGeneration(PreTrainedModel):
         root = Path(pretrained_model_name_or_path)
         parser_path = root / config.parser_subfolder
         placement_path = root / config.placement_subfolder
-        if parser is None and parser_path.exists():
+        if parser is None and (parser_path / "config.json").exists():
             parser = AutoModelForSeq2SeqLM.from_pretrained(
                 parser_path, local_files_only=local_files_only
             )
