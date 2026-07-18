@@ -21,6 +21,7 @@ dependencies = [
     "layoutganpp",
     "layout-dm",
     "layoutprompter",
+    "layousyn",
     "laygen",
     "layoutformerpp",
     "parse-then-place",
@@ -72,6 +73,7 @@ lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
 layoutprompter = { workspace = true }
+layousyn = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
