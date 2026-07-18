@@ -2,6 +2,7 @@ import torch
 import pytest
 
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.pipelines import LayoutGenerationPipeline
 from laygen.common.testing import assert_layout_output_schema
 from layoutganpp import (
     ConditionType,
@@ -22,11 +23,13 @@ def test_pipeline_contract_and_save_load(tmp_path):
     )
     model = LayoutGANPPModel(config).eval()
     pipeline = LayoutGANPPPipeline(model)
+    assert isinstance(pipeline, LayoutGenerationPipeline)
     out = pipeline(labels=[["text", "figure"]], seed=0)
     assert isinstance(out, LayoutGenerationOutput)
     assert_layout_output_schema(out, batch_size=1)
     pipeline.save_pretrained(str(tmp_path))
     loaded_pipeline = LayoutGANPPPipeline.from_pretrained(str(tmp_path))
+    assert isinstance(loaded_pipeline, LayoutGenerationPipeline)
     loaded = loaded_pipeline(labels=[["text", "figure"]], seed=0)
     assert isinstance(loaded, LayoutGenerationOutput)
     assert loaded.bbox.shape == out.bbox.shape

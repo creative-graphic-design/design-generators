@@ -23,16 +23,10 @@ uv run --package layoutformerpp pytest models/layoutformerpp/tests
 ## Usage
 
 ```python
-from layoutformerpp import (
-    LayoutFormerPPForConditionalGeneration,
-    LayoutFormerPPPipeline,
-    LayoutFormerPPProcessor,
-)
+from layoutformerpp import LayoutFormerPPPipeline
 
 model_id = "creative-graphic-design/layoutformerpp-rico-label"
-model = LayoutFormerPPForConditionalGeneration.from_pretrained(model_id)
-processor = LayoutFormerPPProcessor.from_pretrained(model_id)
-pipe = LayoutFormerPPPipeline(model=model, processor=processor)
+pipe = LayoutFormerPPPipeline.from_pretrained(model_id)
 
 out = pipe(condition_type="label", labels=[["Text", "Image"]], max_length=16)
 print(out.bbox)     # normalized center xywh, shape (B, S, 4)
@@ -156,17 +150,17 @@ done
 
 ```bash
 uv run --package layoutformerpp python - <<'PY'
-from layoutformerpp import (
-    LayoutFormerPPForConditionalGeneration,
-    LayoutFormerPPProcessor,
-)
+from layoutformerpp import LayoutFormerPPPipeline
 
 for dataset in ("rico", "publaynet"):
     for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
         path = f".cache/layoutformerpp/converted/{dataset}_{task}"
-        model = LayoutFormerPPForConditionalGeneration.from_pretrained(path)
-        processor = LayoutFormerPPProcessor.from_pretrained(path)
-        print(model.config.dataset, model.config.task, processor.tokenizer.vocab_size)
+        pipe = LayoutFormerPPPipeline.from_pretrained(path, local_files_only=True)
+        print(
+            pipe.config.dataset,
+            pipe.config.task,
+            pipe.processor.tokenizer.vocab_size,
+        )
 PY
 ```
 

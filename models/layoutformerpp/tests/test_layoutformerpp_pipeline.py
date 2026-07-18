@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from laygen.pipelines import LayoutGenerationPipeline
+
 from layoutformerpp import (
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
@@ -22,11 +24,14 @@ def test_save_load_smoke(tmp_path: Path) -> None:
         dropout=0.0,
     )
     model = LayoutFormerPPForConditionalGeneration(config)
-    model.save_pretrained(tmp_path)
-    processor.save_pretrained(tmp_path)
-    loaded_model = LayoutFormerPPForConditionalGeneration.from_pretrained(tmp_path)
-    loaded_processor = LayoutFormerPPProcessor.from_pretrained(tmp_path)
-    pipe = LayoutFormerPPPipeline(model=loaded_model, processor=loaded_processor)
+    pipe = LayoutFormerPPPipeline(model=model, processor=processor)
+    assert isinstance(pipe, LayoutGenerationPipeline)
+
+    pipe.save_pretrained(tmp_path)
+    loaded_pipe = LayoutFormerPPPipeline.from_pretrained(tmp_path)
+    assert isinstance(loaded_pipe, LayoutGenerationPipeline)
+
+    pipe = loaded_pipe
     out = pipe(condition_type="label", labels=[["Text"]], max_length=2)
     assert isinstance(out, LayoutGenerationOutput)
     assert out.sequences is not None
