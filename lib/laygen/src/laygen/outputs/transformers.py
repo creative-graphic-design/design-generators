@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 import torch
 from transformers.utils import ModelOutput
 
-from .output_spec import dataclass_fields
+from ._spec import dataclass_fields
 
 if TYPE_CHECKING:
 
@@ -54,3 +54,5 @@ else:
         bases=(ModelOutput,),
         namespace={"__module__": __name__},
     )
+
+__all__ = ["LayoutGenerationOutput"]

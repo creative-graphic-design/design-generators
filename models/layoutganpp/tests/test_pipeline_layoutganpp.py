@@ -1,7 +1,7 @@
 import torch
 import pytest
 
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs.transformers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layoutganpp import (
     ConditionType,

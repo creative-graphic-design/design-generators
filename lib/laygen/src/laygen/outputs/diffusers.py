@@ -11,10 +11,10 @@ try:
     from diffusers.utils import BaseOutput
 except ImportError as exc:  # pragma: no cover - packaging/environment issue
     raise ImportError(
-        "laygen.common.outputs_diffusers requires the diffusers dependency."
+        "laygen.outputs.diffusers requires the diffusers dependency."
     ) from exc
 
-from .output_spec import dataclass_fields
+from ._spec import dataclass_fields
 
 if TYPE_CHECKING:
 
@@ -60,3 +60,5 @@ else:
         bases=(BaseOutput,),
         namespace={"__module__": __name__},
     )
+
+__all__ = ["LayoutGenerationOutput"]

@@ -20,9 +20,10 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "Install with `uv sync --extra agents` or depend on `laygen[agents]`."
     ) from exc
 
-from laygen.common import ConditionType, OutputField, normalize_condition_type
+from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs import OutputField
+from laygen.outputs.transformers import LayoutGenerationOutput
 
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")

@@ -15,10 +15,10 @@ from laygen.common import (
     BoxFormat,
     ConditionType,
     DatasetName,
-    LayoutGenerationOutput,
     normalize_box_format,
     normalize_condition_type,
 )
+from laygen.outputs.transformers import LayoutGenerationOutput
 from pydantic_ai.settings import ModelSettings
 
 from layoutprompter.data import SupportedDataset, normalize_dataset

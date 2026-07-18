@@ -43,8 +43,13 @@ from laygen.common.labels import (
     normalize_dataset_name,
 )
 from laygen.common.model_card import layoutdm_model_card
-from laygen.common.output_spec import LAYOUT_GENERATION_OUTPUT_FIELDS, OutputField
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs import (
+    LAYOUT_GENERATION_OUTPUT_FIELDS,
+    DiffusersLayoutGenerationOutput,
+    OutputField,
+    TransformersLayoutGenerationOutput,
+)
+from laygen.outputs.transformers import LayoutGenerationOutput
 from laygen.common.serialization import sanitize_for_yaml
 from laygen.common.testing import (
     assert_generator_reproducible,
@@ -239,10 +244,12 @@ def test_output_schema():
 
 def test_output_variants_share_schema_and_mapping_behavior():
     pytest.importorskip("diffusers")
-    from laygen.common.outputs_diffusers import (
-        LayoutGenerationOutput as DiffusersLayoutGenerationOutput,
+    from laygen.outputs.diffusers import (
+        LayoutGenerationOutput as DiffusersModuleLayoutGenerationOutput,
     )
 
+    assert TransformersLayoutGenerationOutput is LayoutGenerationOutput
+    assert DiffusersLayoutGenerationOutput is DiffusersModuleLayoutGenerationOutput
     assert tuple(field.name for field in LAYOUT_GENERATION_OUTPUT_FIELDS) == tuple(
         OutputField
     )
@@ -256,7 +263,7 @@ def test_output_variants_share_schema_and_mapping_behavior():
         mask=mask,
         id2label=id2label,
     )
-    diffusers = DiffusersLayoutGenerationOutput(
+    diffusers = DiffusersModuleLayoutGenerationOutput(
         bbox=bbox,
         labels=labels,
         mask=mask,

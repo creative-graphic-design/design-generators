@@ -6,7 +6,7 @@ import pytest
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.testing import assert_layout_output_schema
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs.transformers import LayoutGenerationOutput
 from layoutganpp import (
     ConditionType,
     LayoutGANPPConfig,

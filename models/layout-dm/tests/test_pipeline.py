@@ -2,7 +2,7 @@ import torch
 from typing import Literal, cast
 
 from laygen.common.discrete import SamplingMode
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.outputs.diffusers import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.denoiser import LayoutDMDenoiser

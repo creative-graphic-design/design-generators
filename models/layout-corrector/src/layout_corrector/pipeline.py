@@ -22,8 +22,8 @@ from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.discrete import SamplingMode
-from laygen.common.output_spec import OutputField
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.outputs import OutputField
+from laygen.outputs.diffusers import LayoutGenerationOutput
 
 from .configuration_layout_corrector import CorrectorReconType
 from .corrector import LayoutCorrectorModel

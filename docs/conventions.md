@@ -4,7 +4,7 @@ This project exposes research implementations through package interfaces that be
 
 ## Workspace Packages
 
-Workspace members live under `lib/*` and `models/*`. Shared layout-generation schemas and utility functions use the `laygen.common` namespace. Shared layout neural-network modules live under `laygen.nn`, and shared layout scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+Workspace members live under `lib/*` and `models/*`. Shared layout-generation output schemas use `laygen.outputs`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
 
 Run member-specific commands with the package selected:
 
@@ -17,6 +17,8 @@ Original implementations stay under `vendor/` and are treated as read-only refer
 ## Public Outputs
 
 Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
+
+Transformers-style APIs return `laygen.outputs.transformers.LayoutGenerationOutput`; Diffusers pipelines return `laygen.outputs.diffusers.LayoutGenerationOutput`. Both output classes share their field definition through `laygen.outputs._spec`.
 
 Public `bbox` values are normalized center `xywh` coordinates in `[0, 1]`, even when vendor code uses `ltwh`, `ltrb`, bins, analog bits, or text tokens internally. Public `mask=True` means a valid element, and padding is represented by `mask` rather than a reserved public label id.
 

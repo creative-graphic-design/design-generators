@@ -3,7 +3,7 @@
 from typing import Final
 
 from laygen.agents import layout_items_to_output
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs.transformers import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from layout_gpt.enums import ICLType, LayoutGPTSetting

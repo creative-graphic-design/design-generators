@@ -9,7 +9,7 @@ import torch
 from laygen.agents import BaseLayoutAgent, ModelLike
 from laygen.common import ConditionType
 from laygen.common.bbox import BoxFormat
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.outputs.transformers import LayoutGenerationOutput
 from pydantic_ai.settings import ModelSettings
 
 from layout_gpt.enums import ICLType, OutputType, coerce_enum

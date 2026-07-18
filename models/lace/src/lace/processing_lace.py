@@ -16,9 +16,9 @@ from laygen.common.bbox import (
     normalize_boxes,
     normalize_box_format,
 )
-from laygen.common import OutputField
 from laygen.common.labels import DatasetName
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.outputs import OutputField
+from laygen.outputs.diffusers import LayoutGenerationOutput
 
 from .configuration_lace import get_dataset_spec, normalize_dataset
 

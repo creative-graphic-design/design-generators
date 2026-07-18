@@ -5,7 +5,7 @@ import pytest
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
-from laygen.common.output_spec import OutputField
+from laygen.outputs import OutputField
 
 from layoutformerpp import (
     ConditionType,

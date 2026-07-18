@@ -4,7 +4,7 @@ from typing import cast
 import pytest
 import torch
 
-from laygen.common.outputs_diffusers import LayoutGenerationOutput
+from laygen.outputs.diffusers import LayoutGenerationOutput
 
 from lace import (
     ConditionType,
