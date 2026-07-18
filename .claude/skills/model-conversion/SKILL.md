@@ -141,9 +141,11 @@ suite, and hooks that only skip leave nothing to verify.
 ## README And Model Cards
 
 Start `models/<slug>/README.md` from
-`references/model-readme-template.md`, then fill every placeholder with the
-target issue's concrete model, checkpoint, dataset, parity, license, and
-citation details. Keep the final README in model-card style. Include:
+`references/model-readme-template.md`, which follows the Hugging Face Hub model
+card metadata spec and the `huggingface_hub` official
+`modelcard_template.md` headings. Fill every placeholder with the target
+issue's concrete model, checkpoint, dataset, parity, license, and citation
+details. Keep the final README in model-card style. Include:
 
 - overview and original implementation link
 - install and `from_pretrained` usage
