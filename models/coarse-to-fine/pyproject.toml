@@ -1,0 +1,27 @@
+[project]
+name = "coarse-to-fine"
+version = "0.1.0"
+description = "Transformers-style Coarse-to-Fine layout generation conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "huggingface-hub>=0.24",
+]
+vendor = [
+    "pycocotools>=2.0",
+    "pytorch-fid>=0.3",
+    "torchvision",
+    "wandb",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }

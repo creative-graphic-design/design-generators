@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "coarse-to-fine",
     "layout-corrector",
     "layout-flow",
     "layout-gpt",
@@ -60,6 +61,7 @@ docs = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+coarse-to-fine = { workspace = true }
 layout-corrector = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
