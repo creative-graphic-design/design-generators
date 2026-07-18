@@ -227,7 +227,7 @@ def test_model_from_pretrained_accepts_config_variants_and_loads_subfolders() ->
 
     with pytest.raises(TypeError, match="config must be"):
         ParseThenPlaceForConditionalGeneration.from_pretrained(
-            Path("/tmp/missing"),
+            Path("missing"),
             config=object(),
         )
 

@@ -50,6 +50,16 @@ Datasets are RICO text-to-layout and WebUI as distributed by the original
 repository. WebUI is not yet mirrored under the `creative-graphic-design` org,
 so conversion scripts accept the original asset tree as the interim source.
 
+## Parity Results
+
+Local references compare the converted Parse-Then-Place wrapper against the
+original stage-2 placement checkpoint using the vendor generation settings.
+
+| Check | Cases | Criterion | Result |
+| --- | ---: | --- | ---: |
+| RICO finetune stage-2 token ids | 1 prompt x 5 samples | Exact generated token-id sequence match | 5/5 |
+| RICO finetune stage-2 decoded layouts | 1 prompt x 5 samples | Exact decoded layout string match | 5/5 |
+
 ## Reproducibility
 
 Reproduce original-implementation agreement by downloading vendor assets,
@@ -58,34 +68,38 @@ converting and smoke-loading the composite checkpoint.
 
 ```bash
 uv run --package parse-then-place python models/parse-then-place/scripts/download_original_assets.py \
-  --output-dir /tmp/parse-then-place-assets
+  --output-dir .cache/parse-then-place/assets
 
 CUDA_VISIBLE_DEVICES=4 uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
-  --original-root /tmp/parse-then-place-assets \
+  --original-root .cache/parse-then-place/assets \
   --dataset-name rico \
   --stage2-mode finetune \
   --seed 42 \
   --num-examples 1 \
-  --output-dir /tmp/parse-then-place-reference/rico-finetune
+  --output-dir .cache/parse-then-place/reference/rico-finetune
 
-CUDA_VISIBLE_DEVICES=4 PARSE_THEN_PLACE_ORIGINAL_ROOT=/tmp/parse-then-place-assets \
-  PARSE_THEN_PLACE_REFERENCE_DIR=/tmp/parse-then-place-reference/rico-finetune \
+CUDA_VISIBLE_DEVICES=4 PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-then-place/assets \
+  PARSE_THEN_PLACE_REFERENCE_DIR=.cache/parse-then-place/reference/rico-finetune \
   uv run --package parse-then-place pytest models/parse-then-place/tests/vendor_parity -m vendor_parity
 
 uv run --package parse-then-place python models/parse-then-place/scripts/convert_original_checkpoint.py \
-  --original-root /tmp/parse-then-place-assets \
+  --original-root .cache/parse-then-place/assets \
   --dataset-name rico \
   --stage2-mode finetune \
-  --output-dir /tmp/parse-then-place-rico-finetune
+  --parser-state-path .cache/parse-then-place/assets/ckpt/rico/stage1/pytorch_model.bin \
+  --output-dir .cache/parse-then-place/converted/rico-finetune
 
 uv run --package parse-then-place python - <<'PY'
+from pathlib import Path
+
 from parse_then_place import ParseThenPlaceForConditionalGeneration
 
+root = Path(".cache/parse-then-place/converted/rico-finetune")
 model = ParseThenPlaceForConditionalGeneration.from_pretrained(
-    "/tmp/parse-then-place-rico-finetune",
+    root,
     local_files_only=True,
 )
-print(model.config.dataset_name)
+print(model.config.dataset_name, model.parser is not None, model.placement is not None)
 PY
 ```
 
