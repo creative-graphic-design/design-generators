@@ -3,36 +3,66 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
-import torch
+import numpy as np
+
+if TYPE_CHECKING:
+    import torch
+
+    ArrayLike: TypeAlias = np.ndarray | torch.Tensor
+else:
+    ArrayLike: TypeAlias = object
 
 
 class LayoutOutputLike(Protocol):
     """Duck-typed layout output protocol used by shared test helpers."""
 
-    bbox: torch.Tensor
-    labels: torch.Tensor
-    mask: torch.Tensor
-    id2label: dict[int, str]
+    @property
+    def bbox(self) -> ArrayLike:
+        """Layout boxes shaped ``(batch, elements, 4)``."""
+        ...
+
+    @property
+    def labels(self) -> ArrayLike:
+        """Layout labels shaped ``(batch, elements)``."""
+        ...
+
+    @property
+    def mask(self) -> ArrayLike:
+        """Valid-element mask shaped ``(batch, elements)``."""
+        ...
+
+    @property
+    def id2label(self) -> dict[int, str]:
+        """Dataset-local label names keyed by public label id."""
+        ...
 
 
-def assert_mask_valid(mask: torch.Tensor) -> None:
+def assert_mask_valid(mask: ArrayLike) -> None:
     """Assert that a valid-element mask has the public mask schema."""
-    assert mask.dtype == torch.bool
-    assert mask.ndim == 2
+    assert str(getattr(mask, "dtype")) in {"bool", "torch.bool"}
+    assert getattr(mask, "ndim") == 2
 
 
-def assert_normalized_xywh(
-    bbox: torch.Tensor, mask: torch.Tensor | None = None
-) -> None:
+def assert_normalized_xywh(bbox: ArrayLike, mask: ArrayLike | None = None) -> None:
     """Assert that boxes are normalized center ``xywh`` tensors."""
-    assert bbox.dtype.is_floating_point
-    assert bbox.shape[-1] == 4
+    if isinstance(bbox, np.ndarray):
+        assert np.issubdtype(bbox.dtype, np.floating)
+    else:
+        torch_bbox = cast("torch.Tensor", bbox)
+        assert torch_bbox.dtype.is_floating_point
+    assert getattr(bbox, "shape")[-1] == 4
     values = bbox if mask is None else bbox[mask]
-    if values.numel():
-        assert torch.all(values >= 0.0)
-        assert torch.all(values <= 1.0)
+    value_count = values.size if isinstance(values, np.ndarray) else values.numel()
+    if value_count:
+        if isinstance(values, np.ndarray):
+            assert np.all(values >= 0.0)
+            assert np.all(values <= 1.0)
+        else:
+            torch_values = cast("torch.Tensor", values)
+            assert torch_values.ge(0.0).all()
+            assert torch_values.le(1.0).all()
 
 
 def assert_layout_output_schema(
@@ -48,24 +78,35 @@ def assert_layout_output_schema(
     Raises:
         AssertionError: If the object does not satisfy the shared schema.
     """
-    assert output.bbox.ndim == 3 and output.bbox.shape[-1] == 4
-    assert output.labels.shape == output.mask.shape == output.bbox.shape[:2]
-    assert output.labels.dtype == torch.long
-    assert_mask_valid(output.mask)
-    assert_normalized_xywh(output.bbox, output.mask)
+    bbox = output.bbox
+    labels = output.labels
+    mask = output.mask
+    assert getattr(bbox, "ndim") == 3 and getattr(bbox, "shape")[-1] == 4
+    assert (
+        getattr(labels, "shape") == getattr(mask, "shape") == getattr(bbox, "shape")[:2]
+    )
+    assert str(getattr(labels, "dtype")) in {"int64", "torch.int64"}
+    assert_mask_valid(mask)
+    assert_normalized_xywh(bbox, mask)
     assert isinstance(output.id2label, dict)
     if batch_size is not None:
-        assert output.bbox.shape[0] == batch_size
+        assert getattr(bbox, "shape")[0] == batch_size
 
 
 def assert_generator_reproducible(
     callable_: Callable[..., LayoutOutputLike],
 ) -> None:
     """Assert that a callable is reproducible with identical torch generators."""
+    import torch
+
     g1 = torch.Generator().manual_seed(0)
     g2 = torch.Generator().manual_seed(0)
     out1 = callable_(generator=g1)
     out2 = callable_(generator=g2)
-    assert torch.equal(out1.labels, out2.labels)
-    assert torch.equal(out1.mask, out2.mask)
-    assert torch.allclose(out1.bbox, out2.bbox)
+    assert torch.equal(
+        cast("torch.Tensor", out1.labels), cast("torch.Tensor", out2.labels)
+    )
+    assert torch.equal(cast("torch.Tensor", out1.mask), cast("torch.Tensor", out2.mask))
+    assert torch.allclose(
+        cast("torch.Tensor", out1.bbox), cast("torch.Tensor", out2.bbox)
+    )
