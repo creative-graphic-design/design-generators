@@ -41,7 +41,7 @@ def test_reference_generation_artifact_matches_when_available(
     )
     latent_z = data["latent_z"].permute(1, 0, 2).to(device)
     with torch.no_grad():
-        actual = model.decode_hierarchy(latent_z)
+        actual = model._decode_hierarchy(latent_z)
 
     for key in (
         "group_bounding_box_logits",

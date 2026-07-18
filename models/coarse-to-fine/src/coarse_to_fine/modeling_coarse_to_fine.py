@@ -2,22 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import torch
 import torch.nn as nn
 from transformers import PreTrainedModel
 
-from laygen.common.bbox import BoxFormat
-from laygen.common.conditions import ConditionType, normalize_condition_type
-from laygen.modeling_outputs import LayoutGenerationOutput
-
 from .configuration_coarse_to_fine import CoarseToFineConfig
-from .hierarchy import decode_hierarchy_from_logits, flatten_hierarchy
-from .types import OutputType, normalize_output_type
-
-if TYPE_CHECKING:
-    from .processing_coarse_to_fine import CoarseToFineProcessor
 
 
 def make_seq_first(arg: torch.Tensor) -> torch.Tensor:
@@ -464,24 +455,15 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         generator: torch.Generator | None,
         device: torch.device,
     ) -> torch.FloatTensor:
+        sample_device = generator.device if generator is not None else device
         return cast(
             torch.FloatTensor,
             torch.randn(
                 (1, batch_size, self.config.d_z),
                 generator=generator,
-                device=device,
-            ),
+                device=sample_device,
+            ).to(device),
         )
-
-    def _normalize_generation_condition(
-        self, condition_type: ConditionType | str
-    ) -> ConditionType:
-        condition = normalize_condition_type(condition_type)
-        if condition is not ConditionType.unconditional:
-            raise NotImplementedError(
-                "Coarse-to-Fine released checkpoints support only unconditional generation"
-            )
-        return condition
 
     def forward(
         self,
@@ -590,7 +572,7 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         return output
 
     @torch.no_grad()
-    def decode_hierarchy(self, latent_z: torch.FloatTensor) -> dict[str, torch.Tensor]:
+    def _decode_hierarchy(self, latent_z: torch.FloatTensor) -> dict[str, torch.Tensor]:
         """Decode raw hierarchy logits from a seq-first latent tensor."""
         z = latent_z.to(self.device)
         group_embd, group_bbox, group_label = self.group_decoder.inference(
@@ -622,110 +604,3 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
                 elem_label.reshape(groups * seq, batch_size, -1)
             ).reshape(batch_size, groups, seq, -1),
         }
-
-    @torch.no_grad()
-    def generate_layout(
-        self,
-        *,
-        batch_size: int = 1,
-        seed: int | None = None,
-        generator: torch.Generator | None = None,
-        latent_z: torch.FloatTensor | None = None,
-        condition_type: ConditionType | str = ConditionType.unconditional,
-        processor: CoarseToFineProcessor | None = None,
-        output_type: OutputType | str = OutputType.dataclass,
-        return_intermediates: bool = False,
-        labels: object = None,
-        bbox: object = None,
-        mask: object = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
-        box_format: BoxFormat | str = BoxFormat.xywh,
-        normalized: bool = True,
-        canvas_size: tuple[int, int] | None = None,
-        num_inference_steps: int | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
-        """Generate a layout with the released unconditional checkpoint path.
-
-        Args:
-            batch_size: Number of layouts to generate.
-            seed: Optional seed used only when ``generator`` is absent.
-            generator: Local torch generator. Takes precedence over ``seed``.
-            latent_z: Optional latent tensor with shape ``(1, B, d_z)``.
-            condition_type: Public condition name or alias.
-            processor: Optional processor used for output post-processing.
-            output_type: ``"dataclass"`` or ``"dict"``.
-            return_intermediates: Whether to retain hierarchy metadata.
-            labels: Unsupported v1 condition input.
-            bbox: Unsupported v1 condition input.
-            mask: Unsupported v1 condition input.
-            num_elements: Unsupported v1 condition input.
-            box_format: Public input box format.
-            normalized: Whether inputs are normalized.
-            canvas_size: Optional canvas size for future conditioned paths.
-            num_inference_steps: Unused; kept for shared API compatibility.
-
-        Returns:
-            Shared layout output or dictionary.
-
-        Raises:
-            NotImplementedError: If a supported public condition is requested
-                but no released Coarse-to-Fine checkpoint implements it.
-
-        Examples:
-            >>> config = CoarseToFineConfig(d_model=16, d_z=16, n_heads=4, dim_feedforward=32, n_layers=1, n_layers_decoder=1, max_num_elements=2)
-            >>> model = CoarseToFineForLayoutGeneration(config).eval()
-            >>> out = model.generate_layout(batch_size=1, seed=0)
-            >>> out.bbox.shape[0]
-            1
-        """
-        _ = (
-            labels,
-            bbox,
-            mask,
-            num_elements,
-            box_format,
-            normalized,
-            canvas_size,
-            num_inference_steps,
-        )
-        self._normalize_generation_condition(condition_type)
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
-        if latent_z is None:
-            sampled_z = self._sample_latent(
-                batch_size=batch_size, generator=generator, device=self.device
-            )
-        else:
-            sampled_z = cast(torch.FloatTensor, latent_z.to(self.device))
-            batch_size = (
-                sampled_z.size(1) if sampled_z.dim() == 3 else sampled_z.size(0)
-            )
-        raw = self.decode_hierarchy(sampled_z)
-        hierarchy = decode_hierarchy_from_logits(
-            group_bbox_logits=raw["group_bounding_box_logits"],
-            group_label_logits=raw["label_in_one_group_logits"],
-            grouped_bbox_logits=raw["grouped_bbox_logits"],
-            grouped_label_logits=raw["grouped_label_logits"],
-            num_labels=self.config.num_labels,
-            group_eos_index=self.config.group_eos_index,
-            element_eos_id=self.config.element_eos_id,
-            discrete_x_grid=self.config.discrete_x_grid,
-            discrete_y_grid=self.config.discrete_y_grid,
-        )
-        id2label = (
-            dict(processor.id2label)
-            if processor is not None
-            else {int(key): str(value) for key, value in self.config.id2label.items()}
-        )
-        output = flatten_hierarchy(
-            hierarchy, id2label=id2label, max_num_elements=self.config.max_num_elements
-        )
-        output.sequences = cast(torch.Tensor, hierarchy.discrete_relative_bbox)
-        output.scores = None
-        output.trajectory = raw if return_intermediates else None
-        if not return_intermediates:
-            output.intermediates = None
-        normalized_output_type = normalize_output_type(output_type)
-        if normalized_output_type is OutputType.dict:
-            return dict(output)
-        return output

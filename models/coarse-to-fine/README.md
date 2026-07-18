@@ -58,7 +58,7 @@ Coarse-to-Fine has structured tensor heads for labels, group label histograms, a
 
 ## Parity Results
 
-Local fixtures compare the converted Transformers model against the original
+Local fixtures compare the converted model/pipeline against the original
 Microsoft Coarse-to-Fine implementation with a fixed latent tensor. Vendor
 reference tensors are regenerated on demand and are not committed.
 
@@ -146,13 +146,18 @@ Expected result with the fixtures above:
 
 ```bash
 uv run --package coarse-to-fine python - <<'PY'
-from coarse_to_fine import CoarseToFineForLayoutGeneration, CoarseToFineProcessor
+from coarse_to_fine import (
+    CoarseToFineForLayoutGeneration,
+    CoarseToFinePipeline,
+    CoarseToFineProcessor,
+)
 
 for dataset in ("rico25", "publaynet"):
     path = f".cache/coarse-to-fine/converted/{dataset}"
     model = CoarseToFineForLayoutGeneration.from_pretrained(path)
     processor = CoarseToFineProcessor.from_pretrained(path)
-    out = model.generate_layout(batch_size=1, seed=0, processor=processor)
+    pipe = CoarseToFinePipeline(model=model, processor=processor)
+    out = pipe(batch_size=1, seed=0)
     assert out.bbox.shape == (1, 20, 4)
     assert out.labels.shape == (1, 20)
     assert bool(out.mask.any())

@@ -11,6 +11,7 @@ from coarse_to_fine import (
     CoarseToFineProcessor,
 )
 from coarse_to_fine.conversion import strip_module_prefix
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 def tiny_config() -> CoarseToFineConfig:
@@ -29,16 +30,17 @@ def tiny_config() -> CoarseToFineConfig:
     )
 
 
-def test_generate_layout_reproducible_with_generator():
+def test_pipeline_reproducible_with_generator():
     model = CoarseToFineForLayoutGeneration(tiny_config()).eval()
     processor = CoarseToFineProcessor(
         dataset="publaynet", x_grid=8, y_grid=8, max_num_elements=2
     )
+    pipe = CoarseToFinePipeline(model=model, processor=processor)
 
     gen_a = torch.Generator().manual_seed(0)
     gen_b = torch.Generator().manual_seed(0)
-    out_a = model.generate_layout(batch_size=2, generator=gen_a, processor=processor)
-    out_b = model.generate_layout(batch_size=2, generator=gen_b, processor=processor)
+    out_a = cast(LayoutGenerationOutput, pipe(batch_size=2, generator=gen_a))
+    out_b = cast(LayoutGenerationOutput, pipe(batch_size=2, generator=gen_b))
 
     torch.testing.assert_close(out_a.bbox, out_b.bbox)
     torch.testing.assert_close(out_a.labels, out_b.labels)
@@ -47,20 +49,34 @@ def test_generate_layout_reproducible_with_generator():
 
 def test_generator_wins_over_seed():
     model = CoarseToFineForLayoutGeneration(tiny_config()).eval()
+    processor = CoarseToFineProcessor(
+        dataset="publaynet", x_grid=8, y_grid=8, max_num_elements=2
+    )
+    pipe = CoarseToFinePipeline(model=model, processor=processor)
 
     gen_a = torch.Generator().manual_seed(12)
     gen_b = torch.Generator().manual_seed(12)
-    out_a = model.generate_layout(batch_size=1, seed=0, generator=gen_a)
-    out_b = model.generate_layout(batch_size=1, seed=999, generator=gen_b)
+    out_a = cast(LayoutGenerationOutput, pipe(batch_size=1, seed=0, generator=gen_a))
+    out_b = cast(LayoutGenerationOutput, pipe(batch_size=1, seed=999, generator=gen_b))
 
     torch.testing.assert_close(out_a.bbox, out_b.bbox)
 
 
 def test_unsupported_conditions_raise_explicitly():
     model = CoarseToFineForLayoutGeneration(tiny_config()).eval()
+    processor = CoarseToFineProcessor(
+        dataset="publaynet", x_grid=8, y_grid=8, max_num_elements=2
+    )
+    pipe = CoarseToFinePipeline(model=model, processor=processor)
 
     with pytest.raises(NotImplementedError):
-        model.generate_layout(condition_type="label")
+        pipe(condition_type="label")
+
+
+def test_model_does_not_publish_generate_layout():
+    model = CoarseToFineForLayoutGeneration(tiny_config()).eval()
+
+    assert not hasattr(model, "generate_layout")
 
 
 def test_forward_teacher_forcing_shapes():
@@ -131,9 +147,8 @@ def test_save_pretrained_from_pretrained_smoke():
         processor.save_pretrained(tmp)
         loaded_model = CoarseToFineForLayoutGeneration.from_pretrained(tmp)
         loaded_processor = CoarseToFineProcessor.from_pretrained(tmp)
-        out = loaded_model.generate_layout(
-            batch_size=1, seed=0, processor=loaded_processor
-        )
+        pipe = CoarseToFinePipeline(model=loaded_model, processor=loaded_processor)
+        out = cast(LayoutGenerationOutput, pipe(batch_size=1, seed=0))
 
     assert out.bbox.shape[0] == 1
     assert loaded_processor.id2label[0] == "text"
