@@ -7,6 +7,30 @@ on:
       - main
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      non_markdown: ${{ steps.filter.outputs.non_markdown }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Detect non-markdown changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          predicate-quantifier: every
+          filters: |
+            non_markdown:
+              - '**'
+              - '!**/*.md'
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -44,6 +68,8 @@ jobs:
 
   typecheck:
     name: Typecheck
+    needs: changes
+    if: needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -74,6 +100,8 @@ jobs:
 
   test:
     name: Test
+    needs: changes
+    if: needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
