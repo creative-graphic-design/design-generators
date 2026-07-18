@@ -2,7 +2,7 @@
 
 Shared layout-generation schemas and utilities for the design-generators workspace.
 
-`laygen` holds code that is useful to more than one layout model. Model-specific checkpoint loading, tokenizers, schedulers, and pipelines stay in each model package.
+`laygen` holds code that is useful to more than one layout model. Model-specific tokenizers and generation logic stay in each model package; shared pipeline loading rules, output schemas, bbox helpers, schedulers, and model-card helpers live here.
 
 API reference pages are generated on the documentation site: <https://creative-graphic-design.github.io/design-generators/>.
 
@@ -40,6 +40,22 @@ out = LayoutGenerationOutput(
 )
 print(out.to_tuple()[0].shape)
 PY
+```
+
+Subclass `laygen.pipelines.LayoutGenerationPipeline` for Transformers-side pipeline packages that load a root config plus model or processor subfolders.
+
+```python
+from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+
+
+class MyPipeline(LayoutGenerationPipeline):
+    component_specs = {
+        "model": PipelineComponentSpec(
+            attribute_name="model",
+            subfolder="model",
+            loader=load_model,
+        )
+    }
 ```
 
 Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use Diffusers under the hood while preserving vendor aliases such as `quad`.
@@ -110,6 +126,7 @@ Example output:
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.
+- `laygen.pipelines.LayoutGenerationPipeline` owns the shared Transformers-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
 - `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - Diffusers is a normal laygen dependency. Keep schema-only helpers independent of Diffusers imports unless they specifically target Diffusers pipeline outputs.
 
