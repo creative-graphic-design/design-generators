@@ -10,6 +10,7 @@ from laygen.schedulers.continuous import (
     DDIMDiscretization,
     get_beta_schedule,
     get_ddim_timesteps,
+    get_layousyn_beta_schedule,
     make_beta_schedule,
     make_ddim_timesteps,
     normalize_beta_schedule,
@@ -169,3 +170,31 @@ def test_scheduler_normalizers_reject_unknown_values() -> None:
         assert "Unsupported ddim discretization" in str(exc)
     else:
         raise AssertionError("unsupported ddim discretization should fail")
+
+
+def test_layousyn_scaled_cosine_matches_vendor_formula() -> None:
+    def alpha_bar(t: float, alpha_scale: float) -> float:
+        out = math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2
+        return (out * alpha_scale**2) / (out * (alpha_scale**2 - 1) + 1)
+
+    expected = torch.tensor(
+        [
+            min(1 - alpha_bar((i + 1) / 8, 2.0) / alpha_bar(i / 8, 2.0), 0.999)
+            for i in range(8)
+        ],
+        dtype=torch.float64,
+    )
+    assert torch.equal(
+        get_layousyn_beta_schedule("squaredcos_cap_v2", 8, alpha_scale=2.0),
+        expected,
+    )
+
+
+def test_layousyn_linear_alpha_scale_matches_vendor_formula() -> None:
+    betas = torch.linspace(0.0001 * 125, 0.02 * 125, 8, dtype=torch.float64)
+    alpha_cumprod = torch.cumprod(1 - betas, dim=0)
+    updated = (4.0 * alpha_cumprod) / (3.0 * alpha_cumprod + 1.0)
+    expected = torch.cat((1 - updated[:1], 1 - updated[1:] / updated[:-1]), dim=0)
+    assert torch.equal(
+        get_layousyn_beta_schedule("linear", 8, alpha_scale=2.0), expected
+    )

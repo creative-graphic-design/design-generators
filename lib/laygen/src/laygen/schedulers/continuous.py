@@ -163,6 +163,65 @@ def get_beta_schedule(
     raise ValueError(f"Unsupported beta schedule: {schedule}")
 
 
+def get_layousyn_beta_schedule(
+    schedule: Literal["linear", "squaredcos_cap_v2"] = "linear",
+    num_timesteps: int = 100,
+    *,
+    alpha_scale: float = 1.0,
+) -> torch.Tensor:
+    """Create LayouSyn/OpenAI-style beta schedules.
+
+    Origin:
+        This preserves `vendor/lay-your-scene/layousyn/diffusion/
+        gaussian_diffusion.py` exactly, including the LayYourScene-specific
+        ``alpha_scale`` transform for both the linear and squared-cosine
+        schedules.
+
+    Args:
+        schedule: Vendor schedule name.
+        num_timesteps: Number of diffusion timesteps.
+        alpha_scale: Vendor alpha-bar scaling factor.
+
+    Returns:
+        One-dimensional beta tensor in float64 precision.
+
+    Raises:
+        ValueError: If the schedule is unsupported.
+    """
+    if schedule == "linear":
+        scale = 1000 / num_timesteps
+        betas = torch.linspace(
+            scale * 0.0001,
+            scale * 0.02,
+            num_timesteps,
+            dtype=torch.float64,
+        )
+        if alpha_scale == 1.0:
+            return betas
+        alpha_cumprod = torch.cumprod(1 - betas, dim=0)
+        alpha_scaled = (alpha_scale**2 * alpha_cumprod) / (
+            (alpha_scale**2 - 1) * alpha_cumprod + 1.0
+        )
+        first = 1 - alpha_scaled[:1]
+        rest = 1 - alpha_scaled[1:] / alpha_scaled[:-1]
+        return torch.cat((first, rest), dim=0)
+    if schedule == "squaredcos_cap_v2":
+        betas = []
+        for i in range(num_timesteps):
+            t1 = i / num_timesteps
+            t2 = (i + 1) / num_timesteps
+            alpha_1 = _layousyn_scaled_cosine_alpha_bar(t1, alpha_scale)
+            alpha_2 = _layousyn_scaled_cosine_alpha_bar(t2, alpha_scale)
+            betas.append(min(1 - alpha_2 / alpha_1, 0.999))
+        return torch.tensor(betas, dtype=torch.float64)
+    raise ValueError(f"Unsupported LayouSyn beta schedule: {schedule}")
+
+
+def _layousyn_scaled_cosine_alpha_bar(timestep: float, alpha_scale: float) -> float:
+    alpha = math.cos((timestep + 0.008) / 1.008 * math.pi / 2) ** 2
+    return (alpha * alpha_scale**2) / (alpha * (alpha_scale**2 - 1) + 1)
+
+
 def get_ddim_timesteps(
     method: DDIMDiscretization | str,
     num_ddim_timesteps: int,
