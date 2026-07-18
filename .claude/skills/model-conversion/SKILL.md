@@ -122,6 +122,16 @@ Before implementing or reviewing a plan, verify these rules:
   model methods such as `generate_layout`. This keeps layout orchestration,
   condition normalization, output schema construction, and `generator`/`seed`
   precedence in one public surface.
+- Transformers-side layout pipelines must subclass
+  `laygen.pipelines.LayoutGenerationPipeline`. Plain pipeline classes and
+  `transformers.Pipeline` subclasses are non-conforming because
+  `transformers.Pipeline` is designed for registered single-model tasks with
+  the preprocess, `_forward`, and postprocess contract, not custom layout tasks
+  or multi-model composition. The shared laygen base gives Transformers-side
+  packages the pipeline role that `DiffusionPipeline` gives Diffusers packages:
+  subfolder `from_pretrained`/`save_pretrained`, device and dtype handling,
+  `generator` over `seed`, and a `__call__` contract returning
+  `laygen.modeling_outputs.LayoutGenerationOutput`.
 - Do not fully override `from_pretrained` or `save_pretrained` in a way that
   bypasses the standard loading and serialization machinery. If an override is
   unavoidable, document the reason in the PR body. Standard loading is what
@@ -163,12 +173,22 @@ Implement parity in this order:
 4. Add `tests/vendor_parity/` tests that skip cleanly when weights, vendor deps,
    or goldens are absent.
 5. Compare exact token/id outputs where deterministic; compare logits and
-   floating outputs with documented tolerances.
+   floating outputs by bitwise equality by default.
 6. Add `save_pretrained` -> `from_pretrained` smoke tests that run without
    network or vendor weights.
 
 For LLM API methods, parity checks cover prompt byte identity, exemplar
 selection, parser behavior, and repair/retry policy.
+
+Use tolerance-based floating parity only after identifying and justifying the
+root cause in the PR body. When outputs diverge, first check alignment of TF32
+settings, attention implementation paths such as SDPA versus vendor handwritten
+attention, floating-point operation order, and dtype derivation order. These
+are recurring parity hazards, as seen in the LACE `SinusoidalPosEmb` path and
+the four-factor LayouSyn parity investigation. If replacing vendor code with a
+shared implementation, verify equivalence on vendor real-scale inputs before
+claiming parity; tiny synthetic inputs can hide scale-dependent numeric drift.
+This keeps tolerance thresholds from masking accidental behavior changes.
 
 Vendor parity is complete only after the released weights have been obtained,
 the vendor code has generated reference outputs, the real comparison suite has

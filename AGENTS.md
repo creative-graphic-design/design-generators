@@ -71,6 +71,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
   Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`.
   Both are explicit dataclasses and schema tests assert field names, order, and
   defaults stay aligned.
+- Transformers-side layout pipelines subclass
+  `laygen.pipelines.LayoutGenerationPipeline`; plain classes and
+  `transformers.Pipeline` subclasses are non-conforming.
 - Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor
   internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
 - Public `mask=True` means a valid element. Padding is represented by `mask`,
