@@ -8,7 +8,7 @@ from typing import assert_never
 import numpy as np
 from numpy.typing import NDArray
 from laygen.agents import BaseResponseParser
-from laygen.modeling_outputs import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from layoutprompter.data import (
     CANVAS_SIZE,
@@ -21,7 +21,7 @@ from layoutprompter.enums import PromptFormat
 from layoutprompter.schemas import LayoutPrompterOutput
 
 
-class Parser(BaseResponseParser[NumpyLayoutGenerationOutput]):
+class Parser(BaseResponseParser[LayoutGenerationOutput]):
     """Parse raw or structured predictions into the common output schema."""
 
     def __init__(
@@ -39,15 +39,15 @@ class Parser(BaseResponseParser[NumpyLayoutGenerationOutput]):
 
     def __call__(
         self, text: str, *, canvas_size: int | None = None
-    ) -> NumpyLayoutGenerationOutput:
+    ) -> LayoutGenerationOutput:
         """Parse repaired provider text through the shared parser protocol."""
         del canvas_size
         return self.parse_one(self.repair_response_text(text))
 
     def parse_one(
         self, prediction: str | LayoutPrompterOutput
-    ) -> NumpyLayoutGenerationOutput:
-        """Parse one prediction into ``NumpyLayoutGenerationOutput``."""
+    ) -> LayoutGenerationOutput:
+        """Parse one prediction into ``LayoutGenerationOutput``."""
         if isinstance(prediction, LayoutPrompterOutput):
             labels, pixel_ltwh = self._extract_from_structured(prediction)
         elif self.output_format is PromptFormat.SEQ:
@@ -59,13 +59,13 @@ class Parser(BaseResponseParser[NumpyLayoutGenerationOutput]):
         bbox = _normalize_ltwh(pixel_ltwh, canvas_size=self.canvas_size)[None, ...]
         label_tensor = labels.astype(np.int64, copy=False)[None, ...]
         mask = np.ones_like(label_tensor, dtype=np.bool_)
-        return NumpyLayoutGenerationOutput(
+        return LayoutGenerationOutput(
             bbox=bbox, labels=label_tensor, mask=mask, id2label=self.id2label
         )
 
-    def parse_many(self, predictions: list[str]) -> list[NumpyLayoutGenerationOutput]:
+    def parse_many(self, predictions: list[str]) -> list[LayoutGenerationOutput]:
         """Parse all valid string predictions and skip malformed ones."""
-        parsed: list[NumpyLayoutGenerationOutput] = []
+        parsed: list[LayoutGenerationOutput] = []
         for prediction in predictions:
             try:
                 parsed.append(self.parse_one(prediction))

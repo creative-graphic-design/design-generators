@@ -11,8 +11,8 @@ from pydantic_ai.models.test import TestModel
 
 from laygen.agents import BaseLayoutAgent
 from laygen.common import BoxFormat, DatasetName
-from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
+from laygen.modeling_outputs import LayoutGenerationOutput
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 from layoutprompter.agent import ConditionType, OutputType, PromptFormat
 from layoutprompter.schemas import LayoutElement, PixelBBox
@@ -130,7 +130,7 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
     labels = cast(np.ndarray, dict_output["labels"])
     assert labels.tolist() == [[0]]
     dataclass_output = cast(
-        NumpyLayoutGenerationOutput,
+        LayoutGenerationOutput,
         prompter(train_data=train_data, test_data=test_data),
     )
     assert dataclass_output.labels.tolist() == [[0]]

@@ -14,8 +14,8 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "Install with `uv sync --extra agents` or depend on `laygen[agents]`."
     ) from exc
 
-from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 def function_model_from_text(text: str) -> FunctionModel:
@@ -33,10 +33,10 @@ def test_model_from_text(text: str) -> TestModel:
 
 
 def assert_agent_output_schema(
-    run_agent: Callable[[], NumpyLayoutGenerationOutput],
+    run_agent: Callable[[], LayoutGenerationOutput],
     *,
     batch_size: int = 1,
-) -> NumpyLayoutGenerationOutput:
+) -> LayoutGenerationOutput:
     """Run an agent callable and assert the shared output schema."""
     output = run_agent()
     assert_layout_output_schema(output, batch_size=batch_size)

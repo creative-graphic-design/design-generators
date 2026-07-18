@@ -18,7 +18,7 @@ from laygen.common import (
     normalize_box_format,
     normalize_condition_type,
 )
-from laygen.modeling_outputs import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 from pydantic_ai.settings import ModelSettings
 
 from layoutprompter.data import SupportedDataset, normalize_dataset
@@ -234,7 +234,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
 
     def run_sync(
         self, train_data: Sequence[LayoutRecord], test_data: LayoutRecord
-    ) -> NumpyLayoutGenerationOutput:
+    ) -> LayoutGenerationOutput:
         """Run the Pydantic AI model and return the common layout schema.
 
         Args:
@@ -242,7 +242,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             test_data: Test record containing task-specific constraints.
 
         Returns:
-            A `NumpyLayoutGenerationOutput` with normalized center `xywh` boxes.
+            A `LayoutGenerationOutput` with normalized center `xywh` boxes.
 
         Raises:
             RuntimeError: If the model output cannot be parsed.
@@ -289,7 +289,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.DATACLASS,
         return_intermediates: bool = False,
-    ) -> NumpyLayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Expose the shared generation signature for LayoutPrompter.
 
         Args:
@@ -307,11 +307,11 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             normalized: Accepted for shared interface compatibility.
             canvas_size: Accepted for shared interface compatibility.
             num_inference_steps: Accepted for shared interface compatibility.
-            output_type: `dataclass` for `NumpyLayoutGenerationOutput`, or `dict`.
+            output_type: `dataclass` for `LayoutGenerationOutput`, or `dict`.
             return_intermediates: Accepted for shared interface compatibility.
 
         Returns:
-            A `NumpyLayoutGenerationOutput` or dictionary representation.
+            A `LayoutGenerationOutput` or dictionary representation.
 
         Raises:
             ValueError: If `box_format` or `output_type` is unsupported.
@@ -326,7 +326,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
-            >>> isinstance(agent(train_data=[record], test_data=record), NumpyLayoutGenerationOutput)
+            >>> isinstance(agent(train_data=[record], test_data=record), LayoutGenerationOutput)
             True
         """
         if condition_type is not None:

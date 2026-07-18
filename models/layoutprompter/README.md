@@ -1,6 +1,6 @@
 # LayoutPrompter
 
-LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds prompts from layout exemplars, calls a provider-configured LLM, and returns normalized layout arrays through `NumpyLayoutGenerationOutput`.
+LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds prompts from layout exemplars, calls a provider-configured LLM, and returns normalized layout arrays through `LayoutGenerationOutput`.
 
 The package is prompt-based and has no learned weights.
 

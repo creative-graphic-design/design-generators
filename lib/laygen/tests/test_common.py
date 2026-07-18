@@ -1,5 +1,8 @@
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
+import subprocess
+import sys
+import textwrap
 
 import matplotlib.pyplot as plt
 import pytest
@@ -51,7 +54,7 @@ from laygen.common.testing import (
 )
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
-from laygen.modeling_outputs import LayoutGenerationOutput, NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 def test_bbox_conversions_roundtrip():
@@ -234,6 +237,46 @@ def test_output_schema():
         id2label=id2label_for_dataset(DatasetName.publaynet),
     )
     assert_layout_output_schema(output, batch_size=1)
+    numpy_output = LayoutGenerationOutput(
+        bbox=torch.zeros(1, 2, 4).numpy(),
+        labels=torch.zeros(1, 2, dtype=torch.long).numpy(),
+        mask=torch.tensor([[True, False]]).numpy(),
+        id2label=id2label_for_dataset(DatasetName.publaynet),
+    )
+    assert_layout_output_schema(numpy_output, batch_size=1)
+
+
+def test_modeling_output_import_and_numpy_values_do_not_require_torch():
+    code = textwrap.dedent(
+        """
+        import importlib.util
+        import sys
+
+        import numpy as np
+
+        original_find_spec = importlib.util.find_spec
+
+        def find_spec_without_torch(name, package=None):
+            if name == "torch" or name.startswith("torch."):
+                return None
+            return original_find_spec(name, package)
+
+        importlib.util.find_spec = find_spec_without_torch
+
+        from laygen.modeling_outputs import LayoutGenerationOutput
+
+        output = LayoutGenerationOutput(
+            bbox=np.zeros((1, 1, 4), dtype=np.float32),
+            labels=np.zeros((1, 1), dtype=np.int64),
+            mask=np.ones((1, 1), dtype=bool),
+            id2label={0: "text"},
+        )
+        assert output["bbox"].shape == (1, 1, 4)
+        assert output.to_tuple()[0].shape == (1, 1, 4)
+        assert "torch" not in sys.modules
+        """
+    )
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_output_variants_share_schema_and_mapping_behavior():
@@ -254,14 +297,11 @@ def test_output_variants_share_schema_and_mapping_behavior():
     )
     expected_defaults = (MISSING, None, None, None, None, None, None, None)
     transformers_fields = fields(LayoutGenerationOutput)
-    numpy_fields = fields(NumpyLayoutGenerationOutput)
     diffusers_fields = fields(DiffusersModuleLayoutGenerationOutput)
 
     assert tuple(field.name for field in transformers_fields) == expected_names
-    assert tuple(field.name for field in numpy_fields) == expected_names
     assert tuple(field.name for field in diffusers_fields) == expected_names
     assert tuple(field.default for field in transformers_fields) == expected_defaults
-    assert tuple(field.default for field in numpy_fields) == expected_defaults
     assert tuple(field.default for field in diffusers_fields) == expected_defaults
     bbox = torch.zeros(1, 2, 4)
     labels = torch.zeros(1, 2, dtype=torch.long)

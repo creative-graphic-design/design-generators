@@ -6,9 +6,7 @@ import os
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, Generic, Protocol, TypeVar, cast
-
-import numpy as np
+from typing import Final, Generic, Protocol, TypeVar, cast
 
 try:
     from pydantic_ai import Agent
@@ -22,10 +20,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
-from laygen.modeling_outputs import NumpyLayoutGenerationOutput
-
-if TYPE_CHECKING:
-    from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")
@@ -59,7 +54,7 @@ class PromptBuilder(Protocol[ExampleT]):
 class ResponseParser(Protocol):
     """Strategy that converts provider text into a shared layout output."""
 
-    def __call__(self, text: str, *, canvas_size: int) -> NumpyLayoutGenerationOutput:
+    def __call__(self, text: str, *, canvas_size: int) -> LayoutGenerationOutput:
         """Parse provider ``text`` into the shared output schema."""
         ...
 
@@ -165,28 +160,6 @@ def layout_items_to_output(
     labels = torch.tensor([label_values], dtype=torch.long)
     mask = torch.ones((1, len(items)), dtype=torch.bool)
     return LayoutGenerationOutput(
-        bbox=bbox,
-        labels=labels,
-        mask=mask,
-        id2label=dict(id2label),
-        intermediates=intermediates,
-    )
-
-
-def layout_items_to_numpy_output(
-    items: Sequence[LayoutItem2DLike],
-    *,
-    id2label: Mapping[int, str],
-    intermediates: object | None = None,
-) -> NumpyLayoutGenerationOutput:
-    """Build the numpy-backed shared normalized center-``xywh`` output schema."""
-    label2id = {label: idx for idx, label in id2label.items()}
-    bbox_values = [item.bbox_xywh for item in items]
-    label_values = [label2id[item.label] for item in items]
-    bbox = np.asarray([bbox_values], dtype=np.float32)
-    labels = np.asarray([label_values], dtype=np.int64)
-    mask = np.ones((1, len(items)), dtype=np.bool_)
-    return NumpyLayoutGenerationOutput(
         bbox=bbox,
         labels=labels,
         mask=mask,
