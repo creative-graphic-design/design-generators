@@ -22,7 +22,7 @@ def tiny_pipe() -> LayouSynPipeline:
             y_in_channels=4,
             class_dropout_prob=0.0,
         ),
-        scheduler=LayouSynScheduler(num_train_timesteps=2),
+        scheduler=LayouSynScheduler(num_train_timesteps=100),
         processor=LayouSynProcessor(
             max_in_len=2,
             max_y_len=3,
@@ -36,6 +36,7 @@ def test_pipeline_output_schema_and_generator_precedence() -> None:
     pipe = tiny_pipe()
     caption_embeds = torch.zeros(1, 3, 4)
     caption_padding_mask = torch.ones(1, 3, dtype=torch.bool)
+    caption_padding_mask[:, 0] = False
     concept_embeds = torch.zeros(1, 1, 4)
     out1 = pipe(
         labels=[["cat"]],
@@ -43,6 +44,7 @@ def test_pipeline_output_schema_and_generator_precedence() -> None:
         caption_padding_mask=caption_padding_mask,
         concept_embeds=concept_embeds,
         num_inference_steps=1,
+        guidance_scale=1.0,
         seed=123,
         generator=torch.Generator().manual_seed(0),
     )
@@ -52,6 +54,7 @@ def test_pipeline_output_schema_and_generator_precedence() -> None:
         caption_padding_mask=caption_padding_mask,
         concept_embeds=concept_embeds,
         num_inference_steps=1,
+        guidance_scale=1.0,
         seed=999,
         generator=torch.Generator().manual_seed(0),
     )
@@ -68,7 +71,7 @@ def test_pipeline_no_cfg_dict_intermediates_and_num_elements() -> None:
         pipe(
             labels=[["cat"]],
             caption_embeds=torch.zeros(1, 3, 4),
-            caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+            caption_padding_mask=torch.tensor([[False, True, True]]),
             concept_embeds=torch.zeros(1, 1, 4),
             num_inference_steps=1,
             guidance_scale=1.0,
@@ -85,7 +88,7 @@ def test_pipeline_no_cfg_dict_intermediates_and_num_elements() -> None:
         pipe(
             labels=[["cat"]],
             caption_embeds=torch.zeros(1, 3, 4),
-            caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+            caption_padding_mask=torch.tensor([[False, True, True]]),
             concept_embeds=torch.zeros(1, 1, 4),
             num_elements=2,
             num_inference_steps=1,

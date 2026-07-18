@@ -52,6 +52,8 @@ def parity_assets() -> tuple[
 ]:
     reference_dir, converted_dir = _parity_paths()
     device = _device()
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     metadata = cast(
         dict[str, object], json.loads((reference_dir / "inputs.json").read_text())
     )
@@ -92,14 +94,14 @@ def test_layousyn_alpha_scale_and_respacing_match_vendor(
     assert torch.allclose(
         pipe.scheduler.original_betas.cpu().double(),
         reference["original_betas"].cpu().double(),
-        atol=1e-8,
-        rtol=1e-8,
+        atol=0,
+        rtol=0,
     )
     assert torch.allclose(
         pipe.scheduler.betas.cpu().double(),
         reference["respaced_betas"].cpu().double(),
-        atol=2e-8,
-        rtol=2e-8,
+        atol=0,
+        rtol=0,
     )
 
 
@@ -125,7 +127,7 @@ def test_layousyn_denoiser_logits_match_vendor(
             caption_padding_mask=inputs["caption_padding_mask"],
             guidance_scale=cast(float, metadata["cfg_scale"]),
         )
-    assert torch.allclose(logits, reference["denoiser_logits"], atol=2e-3, rtol=2e-3)
+    assert torch.allclose(logits, reference["denoiser_logits"], atol=0, rtol=0)
 
 
 @pytest.mark.vendor_parity
@@ -153,11 +155,11 @@ def test_layousyn_scheduler_first_step_matches_vendor(
     assert torch.allclose(
         step.pred_original_sample,
         reference["first_pred_xstart"],
-        atol=4e-5,
-        rtol=4e-5,
+        atol=0,
+        rtol=0,
     )
     assert torch.allclose(
-        step.prev_sample, reference["first_prev_sample"], atol=2e-5, rtol=2e-5
+        step.prev_sample, reference["first_prev_sample"], atol=0, rtol=0
     )
 
 
@@ -188,5 +190,5 @@ def test_layousyn_full_sample_matches_vendor(
         )
     output = cast(LayoutGenerationOutput, output)
     assert torch.allclose(
-        output.bbox.to(device), reference["public_bbox"], atol=2e-3, rtol=2e-3
+        output.bbox.to(device), reference["public_bbox"], atol=0, rtol=0
     )

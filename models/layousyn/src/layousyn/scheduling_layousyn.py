@@ -48,7 +48,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         self.sampling_type = sampling_type
         self.original_betas = get_layousyn_beta_schedule(
             beta_schedule, num_train_timesteps, alpha_scale=alpha_scale
-        ).float()
+        )
         self.timestep_map = torch.arange(num_train_timesteps, dtype=torch.long)
         self.model_timesteps = torch.empty(0, dtype=torch.long)
         self.timesteps = torch.empty(0, dtype=torch.long)
@@ -57,33 +57,31 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     def _set_betas(self, betas: torch.Tensor) -> None:
         """Set derived buffers from the active beta sequence."""
-        self.betas = betas.float()
-        alphas = 1.0 - betas
+        self.betas = betas.double()
+        alphas = 1.0 - self.betas
         alphas_cumprod = torch.cumprod(alphas, dim=0)
-        self.alphas_cumprod = alphas_cumprod.float()
+        self.alphas_cumprod = alphas_cumprod
         self.alphas_cumprod_prev = torch.cat(
             [torch.ones(1, dtype=torch.float64), alphas_cumprod[:-1]]
-        ).float()
-        posterior_variance = (
-            betas * (1.0 - self.alphas_cumprod_prev.double()) / (1.0 - alphas_cumprod)
         )
-        self.posterior_variance = posterior_variance.float()
+        posterior_variance = (
+            self.betas * (1.0 - self.alphas_cumprod_prev) / (1.0 - alphas_cumprod)
+        )
+        self.posterior_variance = posterior_variance
         clipped = torch.log(
             torch.cat([posterior_variance[1:2], posterior_variance[1:]])
         )
-        self.posterior_log_variance_clipped = clipped.float()
-        self.sqrt_recip_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod).float()
-        self.sqrt_recipm1_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod - 1).float()
+        self.posterior_log_variance_clipped = clipped
+        self.sqrt_recip_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod)
+        self.sqrt_recipm1_alphas_cumprod = torch.sqrt(1.0 / alphas_cumprod - 1)
         self.posterior_mean_coef1 = (
-            betas
-            * torch.sqrt(self.alphas_cumprod_prev.double())
-            / (1.0 - alphas_cumprod)
-        ).float()
+            self.betas * torch.sqrt(self.alphas_cumprod_prev) / (1.0 - alphas_cumprod)
+        )
         self.posterior_mean_coef2 = (
-            (1.0 - self.alphas_cumprod_prev.double())
+            (1.0 - self.alphas_cumprod_prev)
             * torch.sqrt(alphas)
             / (1.0 - alphas_cumprod)
-        ).float()
+        )
 
     def set_timesteps(
         self,
@@ -105,7 +103,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
                 last_alpha_cumprod = alpha_cumprod
                 timestep_map.append(index)
         self.timestep_map = torch.tensor(timestep_map, dtype=torch.long, device=device)
-        self._set_betas(torch.stack(new_betas).to(dtype=torch.float32))
+        self._set_betas(torch.stack(new_betas))
         self.timesteps = torch.arange(
             len(timestep_map) - 1, -1, -1, dtype=torch.long, device=device
         )
@@ -258,7 +256,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
     def _extract(
         values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
     ) -> torch.Tensor:
-        out = values.to(device=timesteps.device).gather(0, timesteps)
+        out = values.to(device=timesteps.device).gather(0, timesteps).float()
         while out.ndim < len(broadcast_shape):
             out = out.unsqueeze(-1)
         return out

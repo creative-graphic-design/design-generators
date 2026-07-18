@@ -57,9 +57,9 @@ class ScalarEmbedder(nn.Module):
         half = dim // 2
         freqs = torch.exp(
             -math.log(max_period)
-            * torch.arange(start=0, end=half, dtype=torch.float32, device=scalar.device)
+            * torch.arange(start=0, end=half, dtype=torch.float32)
             / half
-        )
+        ).to(device=scalar.device)
         args = scalar[:, None].float() * freqs[None]
         embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
         if dim % 2:
@@ -232,12 +232,11 @@ class DiTBlock(nn.Module):
                 modulate_sa + pos_embed + x_enc,
                 modulate_sa,
                 key_padding_mask=x_padding_mask,
-                need_weights=False,
             )[0]
         )
         x_concat = torch.cat([x + pos_embed + x_enc, x_enc + pos_embed], dim=1)
         x_res, x_enc_res = self.cross_attn(
-            x_concat, y, y, key_padding_mask=y_padding_mask, need_weights=False
+            x_concat, y, y, key_padding_mask=y_padding_mask
         )[0].chunk(2, dim=1)
         x = x + x_res
         x_enc = x_enc + x_enc_res
@@ -297,7 +296,6 @@ class DiTUCBlock(nn.Module):
                 modulate_sa,
                 modulate_sa,
                 key_padding_mask=x_padding_mask,
-                need_weights=False,
             )[0]
         )
         return x + gate_mlp.unsqueeze(1) * self.mlp(

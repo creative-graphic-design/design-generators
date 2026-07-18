@@ -64,6 +64,8 @@ def save_reference_outputs(
     if len(concepts) == 0:
         raise ValueError("At least one --concept is required")
 
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
     config = Config.from_json(str(ckpt_config))
     model = load_model(str(ckpt), config, device=device)
@@ -181,6 +183,8 @@ def save_reference_outputs(
         "caption_model_name": f"google/t5-v1_1-{config.t5_size}",
         "concept_model_name": f"sentence-transformers/sentence-t5-{config.t5_size}",
         "device": device,
+        "torch_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+        "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
         "torch_initial_seed": torch.initial_seed(),
     }
     (out / "inputs.json").write_text(json.dumps(metadata, indent=2, sort_keys=True))

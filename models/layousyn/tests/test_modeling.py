@@ -25,7 +25,7 @@ def test_model_forward_shape() -> None:
         aspect_ratio=torch.ones(1),
         concept_embeds=torch.zeros(1, 2, 4),
         caption_embeds=torch.zeros(1, 3, 4),
-        caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+        caption_padding_mask=torch.tensor([[False, True, True]]),
     )
     assert out.shape == (1, 4, 4)
 
@@ -46,7 +46,7 @@ def test_forward_with_cfg_preserves_shape() -> None:
         aspect_ratio=torch.ones(2),
         concept_embeds=torch.zeros(2, 2, 4),
         caption_embeds=torch.zeros(2, 3, 4),
-        caption_padding_mask=torch.ones(2, 3, dtype=torch.bool),
+        caption_padding_mask=torch.tensor([[False, True, True], [False, True, True]]),
         guidance_scale=2.0,
     )
     assert out.shape == (2, 4, 4)

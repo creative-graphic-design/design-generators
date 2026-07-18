@@ -20,15 +20,16 @@ model = LayouSynDiTModel(
 )
 pipe = LayouSynPipeline(
     model=model,
-    scheduler=LayouSynScheduler(num_train_timesteps=2),
+    scheduler=LayouSynScheduler(num_train_timesteps=100),
     processor=LayouSynProcessor(max_in_len=2, max_y_len=3, concept_in_channels=4, y_in_channels=4),
 )
 out = pipe(
     labels=[["person", "bench"]],
     caption_embeds=torch.zeros(1, 3, 4),
-    caption_padding_mask=torch.ones(1, 3, dtype=torch.bool),
+    caption_padding_mask=torch.tensor([[False, True, True]]),
     concept_embeds=torch.zeros(1, 2, 4),
     num_inference_steps=1,
+    guidance_scale=1.0,
     seed=0,
 )
 print(out.bbox.shape)
@@ -62,10 +63,15 @@ Lay-Your-Scene implementation on the Grit checkpoint using real
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
-| Alpha-scale beta respacing | 1 | `timestep_map` exact, helper betas exact, scheduler betas max abs <= 2e-8 | pass; helper exact, scheduler max abs <= 1.85e-8 |
-| Denoiser logits | 1 | max abs <= 2e-3, max rel <= 2e-3 | pass; max abs 1.2935e-3 |
-| First DDIM scheduler step | 1 | `pred_xstart` max abs <= 4e-5 and `prev_sample` max abs <= 2e-5 | pass; 3.0518e-5 / 4.7684e-7 |
-| Full 40-step sample public bbox | 1 | normalized public `xywh` max abs <= 2e-3 | pass; max abs 5.2923e-4 |
+| Alpha-scale beta respacing | 1 | `timestep_map`, helper betas, and scheduler betas exact | pass; max abs 0 |
+| Denoiser logits | 1 | exact tensor match | pass; max abs 0 |
+| First DDIM scheduler step | 1 | exact `pred_xstart` and `prev_sample` tensor match | pass; max abs 0 / 0 |
+| Full 40-step sample public bbox | 1 | exact normalized public `xywh` tensor match | pass; max abs 0 |
+
+The parity path matches the original implementation with TF32 enabled, the
+vendor `nn.MultiheadAttention` `need_weights=True` code path, and the vendor
+CPU-to-device timestep-frequency embedding order. Those settings remove the
+previous denoiser-logit and full-sample drift.
 
 ## Reproducibility
 
