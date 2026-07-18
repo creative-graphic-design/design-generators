@@ -58,9 +58,9 @@ Each released task has an incompatible task-specific checkpoint, so Hub ids incl
 - `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens.
 - `creative-graphic-design/PubLayNet`: COCO-style document layout boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
-## Parity results
+## Parity Results
 
-Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README.
+Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README. On `CUDA_VISIBLE_DEVICES=3`, the vendor-parity suite passed 29/29 cases.
 
 | Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
 | --- | --- | --- | ---: | ---: | ---: | --- |
@@ -81,7 +81,7 @@ Verified command:
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
@@ -113,7 +113,7 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/download_or
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+    CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
       --dataset "$dataset" \
       --task "$task" \
       --seed 500 \
@@ -126,7 +126,7 @@ done
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=4 uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q
