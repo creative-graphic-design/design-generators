@@ -51,6 +51,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
+- When creating any issue, set both the milestone and the native Priority issue
+  field; do not leave either unset. Set the native Priority field through
+  GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the
   parity suite and confirms the results.
