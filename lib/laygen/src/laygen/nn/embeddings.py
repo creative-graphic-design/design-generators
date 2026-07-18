@@ -1,4 +1,9 @@
-"""Embedding modules shared by layout-generation models."""
+"""Embedding modules shared by layout-generation models.
+
+``SinusoidalPosEmb`` follows the VQ-Diffusion-derived timestep embedding used
+by the LayoutDM and LACE vendor backbones. ``ElementPositionalEmbedding`` is a
+LayoutDM-specific element/attribute position embedding.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +16,12 @@ from torch import nn
 
 
 class TimestepEmbeddingType(StrEnum):
-    """Supported timestep-conditioned normalization variants."""
+    """Supported timestep-conditioned normalization variants.
+
+    Origin:
+        These names come from VQ-Diffusion-derived adaptive normalization modes
+        used by the LayoutDM and LACE vendor backbones.
+    """
 
     adalayernorm = auto()
     adainnorm = auto()
@@ -25,6 +35,10 @@ def normalize_timestep_embedding(
     timestep_type: TimestepEmbeddingType | str | None,
 ) -> TimestepEmbeddingType | None:
     """Normalize a timestep embedding mode.
+
+    Origin:
+        This normalizes the VQ-Diffusion-derived adaptive normalization mode
+        names exposed by LayoutDM and LACE checkpoints.
 
     Args:
         timestep_type: Embedding enum, string value, or ``None``.
@@ -45,6 +59,11 @@ def normalize_timestep_embedding(
 
 class SinusoidalPosEmb(nn.Module):
     """Sinusoidal timestep or position embedding.
+
+    Origin:
+        This is the VQ-Diffusion-style sinusoidal timestep embedding carried by
+        LayoutDM and LACE. The vendor operation order is preserved exactly
+        because LACE denoiser parity is bit-sensitive at ``rescale_steps=4000``.
 
     Args:
         num_steps: Maximum number of positions or timesteps.
@@ -79,6 +98,10 @@ class SinusoidalPosEmb(nn.Module):
 
 class ElementPositionalEmbedding(nn.Module):
     """Learned element and attribute positional embedding.
+
+    Origin:
+        This learned element/attribute positional embedding is specific to
+        CyberAgentAILab LayoutDM and is reused by Layout-Corrector.
 
     Args:
         dim_model: Embedding dimension.

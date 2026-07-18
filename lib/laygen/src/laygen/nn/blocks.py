@@ -1,4 +1,9 @@
-"""Transformer encoder blocks shared by layout-generation models."""
+"""Transformer encoder blocks shared by layout-generation models.
+
+The timestep-aware encoder layer follows Microsoft VQ-Diffusion's
+``transformer_utils.Block`` structure as carried by LayoutDM, LACE, and
+Layout-Corrector vendor code.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +20,11 @@ from .norms import AdaInsNorm, AdaLayerNorm
 
 class TimestepTransformerEncoderLayer(nn.Module):
     """Transformer encoder block with optional adaptive normalization.
+
+    Origin:
+        This class follows VQ-Diffusion ``Block`` rather than Diffusers
+        ``BasicTransformerBlock`` so checkpoint keys and adaptive norm call
+        conventions stay compatible with LayoutDM, LACE, and Layout-Corrector.
 
     Args:
         d_model: Hidden dimension.
@@ -128,6 +138,10 @@ class TimestepTransformerEncoderLayer(nn.Module):
 
 class TimestepTransformerEncoder(nn.Module):
     """Stack of cloned timestep transformer encoder layers.
+
+    Origin:
+        This is the VQ-Diffusion-style cloned ``TransformerEncoder`` wrapper
+        used by LayoutDM and Layout-Corrector around the shared ``Block`` layer.
 
     Args:
         encoder_layer: Layer to clone for the stack.

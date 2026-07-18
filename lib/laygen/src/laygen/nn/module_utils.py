@@ -1,4 +1,8 @@
-"""Small module-construction helpers."""
+"""Small module-construction helpers.
+
+``clone_module_list`` is the deep-copy ``ModuleList`` helper used by the
+VQ-Diffusion-derived LayoutDM/LACE blocks and the LayoutFlow vendor backbone.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,10 @@ from torch import nn
 
 def clone_module_list(module: nn.Module, n: int) -> nn.ModuleList:
     """Return ``n`` deep-copied modules in a ``ModuleList``.
+
+    Origin:
+        This is the mechanical clone helper used by VQ-Diffusion-derived
+        LayoutDM/LACE transformer stacks and by the LayoutFlow vendor backbone.
 
     Args:
         module: Module to clone.

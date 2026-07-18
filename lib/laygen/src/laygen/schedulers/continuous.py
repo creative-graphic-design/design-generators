@@ -1,4 +1,9 @@
-"""Continuous diffusion scheduler adapters backed by Diffusers."""
+"""Continuous diffusion scheduler adapters backed by Diffusers.
+
+The beta/DDIM helper names follow CompVis latent-diffusion
+``ldm/modules/diffusionmodules/util.py`` utilities as carried by LACE vendor
+``diffusion_utils.py``. Common schedules are delegated to Diffusers schedulers.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +18,12 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
 
 class BetaSchedule(StrEnum):
-    """Supported DDPM beta schedules."""
+    """Supported DDPM beta schedules.
+
+    Origin:
+        These schedule names mirror CompVis latent-diffusion
+        ``make_beta_schedule`` aliases used by the LACE vendor scheduler.
+    """
 
     linear = auto()
     const = auto()
@@ -26,7 +36,12 @@ class BetaSchedule(StrEnum):
 
 
 class DDIMDiscretization(StrEnum):
-    """Supported DDIM timestep discretization methods."""
+    """Supported DDIM timestep discretization methods.
+
+    Origin:
+        These discretization names mirror CompVis latent-diffusion
+        ``make_ddim_timesteps`` modes used by the LACE vendor scheduler.
+    """
 
     uniform = auto()
     quad = auto()
@@ -35,6 +50,10 @@ class DDIMDiscretization(StrEnum):
 
 def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
     """Normalize a beta schedule value.
+
+    Origin:
+        This preserves the CompVis latent-diffusion schedule aliases exposed by
+        the LACE vendor configuration.
 
     Args:
         schedule: Schedule enum or string value.
@@ -57,6 +76,10 @@ def normalize_ddim_discretization(
     method: DDIMDiscretization | str,
 ) -> DDIMDiscretization:
     """Normalize a DDIM timestep discretization method.
+
+    Origin:
+        This preserves the CompVis latent-diffusion DDIM discretization aliases
+        exposed by the LACE vendor configuration.
 
     Args:
         method: Method enum or string value.
@@ -96,6 +119,11 @@ def get_beta_schedule(
     end: float = 0.02,
 ) -> torch.Tensor:
     """Create a beta schedule, delegating common schedules to Diffusers.
+
+    Origin:
+        The public API follows CompVis latent-diffusion ``make_beta_schedule``.
+        Common DDPM schedules delegate to Diffusers ``DDPMScheduler`` while
+        legacy LACE-only aliases remain custom for compatibility.
 
     Args:
         schedule: Schedule enum or string value.
@@ -143,6 +171,11 @@ def get_ddim_timesteps(
     steps_offset: int = 1,
 ) -> np.ndarray:
     """Create ascending vendor-order DDIM timesteps.
+
+    Origin:
+        The public API follows CompVis latent-diffusion ``make_ddim_timesteps``.
+        The uniform branch adapts Diffusers ``DDIMScheduler`` back to LACE's
+        ascending one-indexed vendor order.
 
     Args:
         method: Discretization enum or string value.

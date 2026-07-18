@@ -1,4 +1,9 @@
-"""Adaptive normalization layers shared by layout-generation models."""
+"""Adaptive normalization layers shared by layout-generation models.
+
+These adaptive normalization layers follow Microsoft VQ-Diffusion's
+``AdaLayerNorm``/``AdaInsNorm`` utilities as carried by the LayoutDM and LACE
+vendor backbones.
+"""
 
 from __future__ import annotations
 
@@ -36,6 +41,10 @@ class _AdaNorm(nn.Module):
 class AdaLayerNorm(_AdaNorm):
     """Adaptive layer normalization conditioned on diffusion timestep.
 
+    Origin:
+        This module follows VQ-Diffusion ``AdaLayerNorm`` and keeps the vendor
+        submodule names used by LayoutDM, LACE, and Layout-Corrector checkpoints.
+
     Args:
         n_embd: Hidden dimension.
         max_timestep: Maximum diffusion timestep.
@@ -61,6 +70,10 @@ class AdaLayerNorm(_AdaNorm):
 
 class AdaInsNorm(_AdaNorm):
     """Adaptive instance normalization conditioned on diffusion timestep.
+
+    Origin:
+        This module follows VQ-Diffusion ``AdaInsNorm`` as used by the LACE
+        vendor backbone; Diffusers has no key-compatible AdaInstanceNorm path.
 
     Args:
         n_embd: Hidden dimension.

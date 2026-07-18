@@ -1,4 +1,8 @@
-"""Activation helpers shared by layout-generation transformer modules."""
+"""Activation helpers shared by layout-generation transformer modules.
+
+The ``gelu2`` alias follows Microsoft VQ-Diffusion's GELU2/QuickGELU
+activation used by the LayoutDM, LACE, and LayoutFlow vendor backbones.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,12 @@ from transformers.activations import ACT2FN
 
 
 class ActivationName(StrEnum):
-    """Supported feed-forward activation names."""
+    """Supported feed-forward activation names.
+
+    Origin:
+        ``gelu2`` is the VQ-Diffusion GELU2/QuickGELU branch carried through the
+        LayoutDM, LACE, and LayoutFlow vendor transformer utilities.
+    """
 
     relu = auto()
     gelu = auto()
@@ -25,6 +34,10 @@ def normalize_activation(
     name: ActivationName | str | ActivationFn,
 ) -> ActivationName | ActivationFn:
     """Normalize an activation name while preserving custom callables.
+
+    Origin:
+        The closed string set keeps the activation names used by
+        VQ-Diffusion-derived LayoutDM, LACE, and LayoutFlow backbones.
 
     Args:
         name: Activation enum, string value, or callable.
@@ -45,6 +58,10 @@ def normalize_activation(
 
 def get_activation(name: ActivationName | str | ActivationFn) -> ActivationFn:
     """Return the activation callable for a supported activation name.
+
+    Origin:
+        The ``gelu2`` branch resolves to Transformers ``ACT2FN["quick_gelu"]``,
+        which is formula-equivalent to VQ-Diffusion's GELU2 implementation.
 
     Args:
         name: Activation enum, string value, or callable.
