@@ -52,6 +52,7 @@ def test_rico_layout_text_to_output_normalizes_ltwh_to_center_xywh() -> None:
     output = cast(LayoutGenerationOutput, output)
     assert_layout_output_schema(output, batch_size=1)
     expected = torch.tensor([[[5 / 144, 10 / 256, 10 / 144, 20 / 256]]])
+    assert isinstance(output.bbox, torch.Tensor)
     assert torch.allclose(output.bbox, expected)
     assert output.labels.tolist() == [[4]]
     assert output.mask.tolist() == [[True]]
