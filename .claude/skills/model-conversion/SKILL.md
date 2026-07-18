@@ -140,7 +140,10 @@ suite, and hooks that only skip leave nothing to verify.
 
 ## README And Model Cards
 
-Write `models/<slug>/README.md` in model-card style. Include:
+Start `models/<slug>/README.md` from
+`references/model-readme-template.md`, then fill every placeholder with the
+target issue's concrete model, checkpoint, dataset, parity, license, and
+citation details. Keep the final README in model-card style. Include:
 
 - overview and original implementation link
 - install and `from_pretrained` usage
@@ -153,8 +156,8 @@ Write `models/<slug>/README.md` in model-card style. Include:
 Every model README must include a top-level `## Parity Results` section. Put
 the vendor-parity summary in a numeric table that states what was compared, the
 number of cases, the match criterion, and the result. Prose inside
-`## Reproducibility` is not enough. Use `models/layout-dm/README.md` as the
-reference format.
+`## Reproducibility` is not enough. Use
+`references/model-readme-template.md` as the reference format.
 
 The `Reproducibility` section must open with one sentence that states how to
 reproduce the original-implementation agreement checks. The remaining commands
