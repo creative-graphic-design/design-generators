@@ -16,7 +16,7 @@ import sys
 import types
 from itertools import permutations
 from pathlib import Path
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Final
 
 from laygen.common.vendor import vendor_root
@@ -43,7 +43,7 @@ def generate_golden() -> dict[str, object]:
         vendor_selection = importlib.import_module("selection")
         vendor_serialization = importlib.import_module("serialization")
 
-        train_data, test_data = fixture_records()
+        train_data, test_data = _vendor_fixture_records()
         serializer = getattr(vendor_serialization, "create_serializer")(
             str(_PARITY_DATASET),
             str(_PARITY_TASK),
@@ -111,6 +111,21 @@ def _install_vendor_stubs() -> None:
     setattr(scipy_optimize, "linear_sum_assignment", _linear_sum_assignment)
     sys.modules.setdefault("scipy", scipy_module)
     sys.modules.setdefault("scipy.optimize", scipy_optimize)
+
+
+def _vendor_fixture_records() -> tuple[list[dict[str, object]], dict[str, object]]:
+    train_data, test_data = fixture_records()
+    return [_torch_record(record) for record in train_data], _torch_record(test_data)
+
+
+def _torch_record(record: Mapping[str, object]) -> dict[str, object]:
+    import numpy as np
+    import torch
+
+    converted: dict[str, object] = {}
+    for key, value in record.items():
+        converted[key] = torch.tensor(value) if isinstance(value, np.ndarray) else value
+    return converted
 
 
 def _vendor_src() -> Path:

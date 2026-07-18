@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 from typing import Final
 
 from laygen.agents import BaseExemplarSelector
-import torch
+import numpy as np
+from numpy.typing import NDArray
 from typing_extensions import override
 
+from layoutprompter.arrays import as_float_array, as_int_array
 from layoutprompter.enums import LayoutPrompterTask, normalize_layoutprompter_task
 from layoutprompter.records import LayoutRecordInput, LayoutRecordKey, record_value
 from layoutprompter.similarity import labels_bboxes_similarity, labels_similarity
@@ -49,8 +51,8 @@ class ExemplarSelection(BaseExemplarSelector[LayoutRecord]):
         raise NotImplementedError
 
     def _is_filter(self, data: LayoutRecord) -> bool:
-        bboxes = torch.as_tensor(record_value(data, K.discrete_gold_bboxes))
-        return bool((bboxes[:, 2:] == 0).sum().bool().item())
+        bboxes = as_float_array(record_value(data, K.discrete_gold_bboxes))
+        return bool(np.any(bboxes[:, 2:] == 0))
 
     def _retrieve_exemplars(
         self, scores: list[tuple[int, float]]
@@ -73,12 +75,12 @@ class GenTypeExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by label overlap."""
-        test_labels = torch.as_tensor(record_value(test_data, K.labels))
+        test_labels = as_int_array(record_value(test_data, K.labels))
         scores = [
             (
                 index,
                 labels_similarity(
-                    torch.as_tensor(record_value(train_data, K.labels)), test_labels
+                    as_int_array(record_value(train_data, K.labels)), test_labels
                 ),
             )
             for index, train_data in enumerate(self.train_data)
@@ -95,13 +97,13 @@ class GenTypeSizeExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by label and size similarity."""
-        test_labels = torch.as_tensor(record_value(test_data, K.labels))
-        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))[:, 2:]
+        test_labels = as_int_array(record_value(test_data, K.labels))
+        test_bboxes = as_float_array(record_value(test_data, K.bboxes))[:, 2:]
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(record_value(train_data, K.labels)),
-                torch.as_tensor(record_value(train_data, K.bboxes))[:, 2:],
+                as_int_array(record_value(train_data, K.labels)),
+                as_float_array(record_value(train_data, K.bboxes))[:, 2:],
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -124,13 +126,13 @@ class CompletionExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by the first partial element."""
-        test_labels = torch.as_tensor(record_value(test_data, K.labels))[:1]
-        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))[:1, :]
+        test_labels = as_int_array(record_value(test_data, K.labels))[:1]
+        test_bboxes = as_float_array(record_value(test_data, K.bboxes))[:1, :]
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(record_value(train_data, K.labels))[:1],
-                torch.as_tensor(record_value(train_data, K.bboxes))[:1, :],
+                as_int_array(record_value(train_data, K.labels))[:1],
+                as_float_array(record_value(train_data, K.bboxes))[:1, :],
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -149,13 +151,13 @@ class RefinementExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by noisy layout similarity."""
-        test_labels = torch.as_tensor(record_value(test_data, K.labels))
-        test_bboxes = torch.as_tensor(record_value(test_data, K.bboxes))
+        test_labels = as_int_array(record_value(test_data, K.labels))
+        test_bboxes = as_float_array(record_value(test_data, K.bboxes))
         scores = []
         for index, train_data in enumerate(self.train_data):
             score = labels_bboxes_similarity(
-                torch.as_tensor(record_value(train_data, K.labels)),
-                torch.as_tensor(record_value(train_data, K.bboxes)),
+                as_int_array(record_value(train_data, K.labels)),
+                as_float_array(record_value(train_data, K.bboxes)),
                 test_labels,
                 test_bboxes,
                 self.labels_weight,
@@ -172,22 +174,24 @@ class ContentAwareExemplarSelection(ExemplarSelection):
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by content-mask IoU."""
         test_mask = self._to_binary_mask(
-            torch.as_tensor(record_value(test_data, K.discrete_content_bboxes))
+            as_float_array(record_value(test_data, K.discrete_content_bboxes))
         )
         scores = []
         for index, train_data in enumerate(self.train_data):
             train_mask = self._to_binary_mask(
-                torch.as_tensor(record_value(train_data, K.discrete_content_bboxes))
+                as_float_array(record_value(train_data, K.discrete_content_bboxes))
             )
-            intersection = torch.logical_and(train_mask, test_mask).sum()
-            union = torch.logical_or(train_mask, test_mask).sum()
+            intersection = np.logical_and(train_mask, test_mask).sum()
+            union = np.logical_or(train_mask, test_mask).sum()
             scores.append((index, float((intersection + 1) / (union + 1))))
         return self._retrieve_exemplars(scores)
 
-    def _to_binary_mask(self, content_bboxes: torch.Tensor) -> torch.Tensor:
+    def _to_binary_mask(self, content_bboxes: NDArray[np.float32]) -> NDArray[np.bool_]:
         width, height = POSTER_MASK_SIZE
-        mask = torch.zeros((height, width), dtype=torch.bool)
-        for left, top, box_width, box_height in content_bboxes.long().tolist():
+        mask = np.zeros((height, width), dtype=np.bool_)
+        for left, top, box_width, box_height in content_bboxes.astype(
+            np.int64
+        ).tolist():
             mask[top : top + box_height, left : left + box_width] = True
         return mask
 
@@ -198,13 +202,15 @@ class TextToLayoutExemplarSelection(ExemplarSelection):
     @override
     def __call__(self, test_data: LayoutRecord) -> list[LayoutRecord]:
         """Return exemplars ranked by text embedding similarity."""
-        test_embedding = torch.as_tensor(record_value(test_data, K.embedding))
+        test_embedding = as_float_array(record_value(test_data, K.embedding))
         scores = [
             (
                 index,
                 float(
-                    torch.as_tensor(record_value(train_data, K.embedding))
-                    @ test_embedding.T
+                    np.sum(
+                        as_float_array(record_value(train_data, K.embedding))
+                        * test_embedding
+                    )
                 ),
             )
             for index, train_data in enumerate(self.train_data)

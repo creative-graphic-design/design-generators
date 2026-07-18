@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+import numpy as np
 import pytest
 
 pytest.importorskip("pydantic_ai")
@@ -48,10 +49,20 @@ class ToyAgent(BaseLayoutAgent[RawText]):
     def run_sync(self) -> LayoutGenerationOutput:
         """Run the toy model and convert the raw label into layout output."""
         raw = self.run_raw_sync("make a button")
-        return layout_items_to_output(
-            [ParsedItem(raw.text, (0.5, 0.5, 0.25, 0.25))],
+        return LayoutGenerationOutput(
+            bbox=np.asarray([[(0.5, 0.5, 0.25, 0.25)]], dtype=np.float32),
+            labels=np.asarray([[0]], dtype=np.int64),
+            mask=np.ones((1, 1), dtype=np.bool_),
             id2label={0: raw.text},
         )
+
+
+def test_layout_items_to_output_keeps_torch_compatibility() -> None:
+    output = layout_items_to_output(
+        [ParsedItem("button", (0.5, 0.5, 0.25, 0.25))],
+        id2label={0: "button"},
+    )
+    assert output.labels.tolist() == [[0]]
 
 
 def test_messages_to_text_handles_chat_messages() -> None:

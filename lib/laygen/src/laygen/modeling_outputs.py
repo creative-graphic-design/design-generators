@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-import torch
+import numpy as np
 from transformers.utils import ModelOutput
+
+if TYPE_CHECKING:
+    import torch
 
 
 @dataclass
@@ -24,23 +27,23 @@ class LayoutGenerationOutput(ModelOutput):
         intermediates: Optional model-specific debug or auxiliary data.
 
     Examples:
-        >>> import torch
+        >>> import numpy as np
         >>> output = LayoutGenerationOutput(
-        ...     bbox=torch.zeros(1, 1, 4),
-        ...     labels=torch.zeros(1, 1, dtype=torch.long),
-        ...     mask=torch.ones(1, 1, dtype=torch.bool),
+        ...     bbox=np.zeros((1, 1, 4), dtype=np.float32),
+        ...     labels=np.zeros((1, 1), dtype=np.int64),
+        ...     mask=np.ones((1, 1), dtype=bool),
         ...     id2label={0: "text"},
         ... )
         >>> output["bbox"].shape
-        torch.Size([1, 1, 4])
+        (1, 1, 4)
     """
 
-    bbox: torch.Tensor
-    labels: torch.Tensor = cast(torch.Tensor, None)
-    mask: torch.Tensor = cast(torch.Tensor, None)
+    bbox: torch.Tensor | np.ndarray
+    labels: torch.Tensor | np.ndarray = cast("torch.Tensor | np.ndarray", None)
+    mask: torch.Tensor | np.ndarray = cast("torch.Tensor | np.ndarray", None)
     id2label: dict[int, str] = cast(dict[int, str], None)
-    sequences: torch.Tensor | None = None
-    scores: torch.Tensor | None = None
+    sequences: torch.Tensor | np.ndarray | None = None
+    scores: torch.Tensor | np.ndarray | None = None
     trajectory: object | None = None
     intermediates: object | None = None
 

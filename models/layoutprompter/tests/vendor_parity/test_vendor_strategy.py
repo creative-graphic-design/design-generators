@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-import torch
+import numpy as np
 
 from layoutprompter.parsing import Parser
 from layoutprompter.selection import GenTypeExemplarSelection
@@ -42,9 +42,9 @@ def test_prompt_selection_and_parser_match_vendor_golden(tmp_path: Path) -> None
     labels, bboxes = Parser("webui", "seq").parse_vendor_compatible(
         cast(str, golden["parser_prediction"])
     )
-    assert torch.equal(labels, torch.tensor(cast(list[int], golden["parser_labels"])))
-    assert torch.equal(
-        bboxes, torch.tensor(cast(list[list[float]], golden["parser_bboxes"]))
+    assert np.array_equal(labels, np.asarray(cast(list[int], golden["parser_labels"])))
+    assert np.array_equal(
+        bboxes, np.asarray(cast(list[list[float]], golden["parser_bboxes"]))
     )
 
 

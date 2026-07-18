@@ -14,8 +14,8 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "Install with `uv sync --extra agents` or depend on `laygen[agents]`."
     ) from exc
 
-from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 
 def function_model_from_text(text: str) -> FunctionModel:

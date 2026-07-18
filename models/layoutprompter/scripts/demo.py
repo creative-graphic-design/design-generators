@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-import torch
+import numpy as np
 
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 
@@ -17,15 +17,15 @@ def main() -> None:
         return
     train_data = [
         {
-            "labels": torch.tensor([0, 1]),
-            "bboxes": torch.tensor([[10, 10, 40, 20], [60, 80, 30, 20]]),
-            "discrete_gold_bboxes": torch.tensor([[10, 10, 40, 20], [60, 80, 30, 20]]),
+            "labels": np.asarray([0, 1]),
+            "bboxes": np.asarray([[10, 10, 40, 20], [60, 80, 30, 20]]),
+            "discrete_gold_bboxes": np.asarray([[10, 10, 40, 20], [60, 80, 30, 20]]),
         }
     ]
     test_data = {
-        "labels": torch.tensor([0, 1]),
-        "bboxes": torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0]]),
-        "discrete_gold_bboxes": torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0]]),
+        "labels": np.asarray([0, 1]),
+        "bboxes": np.asarray([[0, 0, 0, 0], [0, 0, 0, 0]]),
+        "discrete_gold_bboxes": np.asarray([[0, 0, 0, 0], [0, 0, 0, 0]]),
     }
     prompter = LayoutPrompter(
         LayoutPrompterConfig(model=model, shuffle=False, num_prompt=1)

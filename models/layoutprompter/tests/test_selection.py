@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import torch
+import numpy as np
 import pytest
 
 from laygen.agents import BaseExemplarSelector
@@ -18,11 +18,11 @@ from layoutprompter.similarity import (
 )
 
 
-def _record(labels: list[int], bboxes: list[list[int]]) -> dict[str, torch.Tensor]:
+def _record(labels: list[int], bboxes: list[list[int]]) -> dict[str, object]:
     return {
-        "labels": torch.tensor(labels),
-        "bboxes": torch.tensor(bboxes),
-        "discrete_gold_bboxes": torch.tensor(bboxes),
+        "labels": np.asarray(labels),
+        "bboxes": np.asarray(bboxes),
+        "discrete_gold_bboxes": np.asarray(bboxes),
     }
 
 
@@ -68,28 +68,28 @@ def test_content_and_text_selectors_rank_expected_exemplars() -> None:
     content_train = [
         {
             **_record([0], [[0, 0, 1, 1]]),
-            "discrete_content_bboxes": torch.tensor([[0, 0, 10, 10]]),
+            "discrete_content_bboxes": np.asarray([[0, 0, 10, 10]]),
         },
         {
             **_record([0], [[0, 0, 1, 1]]),
-            "discrete_content_bboxes": torch.tensor([[50, 50, 10, 10]]),
+            "discrete_content_bboxes": np.asarray([[50, 50, 10, 10]]),
         },
     ]
     content_test = {
         **_record([0], [[0, 0, 1, 1]]),
-        "discrete_content_bboxes": torch.tensor([[0, 0, 9, 9]]),
+        "discrete_content_bboxes": np.asarray([[0, 0, 9, 9]]),
     }
     assert create_selector("content", content_train, -1, 1, shuffle=False)(
         content_test
     ) == [content_train[0]]
 
     text_train = [
-        {**_record([0], [[0, 0, 1, 1]]), "embedding": torch.tensor([[0.0, 1.0]])},
-        {**_record([0], [[0, 0, 1, 1]]), "embedding": torch.tensor([[1.0, 0.0]])},
+        {**_record([0], [[0, 0, 1, 1]]), "embedding": np.asarray([[0.0, 1.0]])},
+        {**_record([0], [[0, 0, 1, 1]]), "embedding": np.asarray([[1.0, 0.0]])},
     ]
     text_test = {
         **_record([0], [[0, 0, 1, 1]]),
-        "embedding": torch.tensor([[1.0, 0.0]]),
+        "embedding": np.asarray([[1.0, 0.0]]),
     }
     assert create_selector("text", text_train, -1, 1, shuffle=False)(text_test) == [
         text_train[1]
@@ -117,28 +117,36 @@ def test_base_selector_candidate_truncation_shuffle_and_errors() -> None:
 
 def test_similarity_helpers_cover_empty_and_rectangular_assignments() -> None:
     """Similarity helpers handle empty and rectangular matching cases."""
-    assert labels_similarity(torch.tensor([]), torch.tensor([])) == 0.0
     assert (
-        bboxes_similarity(
-            torch.tensor([]), torch.empty((0, 4)), torch.tensor([0]), torch.ones((1, 4))
+        labels_similarity(
+            np.asarray([], dtype=np.int64), np.asarray([], dtype=np.int64)
         )
         == 0.0
     )
     assert (
         bboxes_similarity(
-            torch.tensor([0, 0]),
-            torch.tensor([[0.0, 0.0], [1.0, 1.0]]),
-            torch.tensor([0]),
-            torch.tensor([[0.0, 0.0]]),
+            np.asarray([], dtype=np.int64),
+            np.empty((0, 4), dtype=np.float32),
+            np.asarray([0]),
+            np.ones((1, 4), dtype=np.float32),
+        )
+        == 0.0
+    )
+    assert (
+        bboxes_similarity(
+            np.asarray([0, 0]),
+            np.asarray([[0.0, 0.0], [1.0, 1.0]], dtype=np.float32),
+            np.asarray([0]),
+            np.asarray([[0.0, 0.0]], dtype=np.float32),
         )
         > 0.0
     )
     assert (
         labels_bboxes_similarity(
-            torch.tensor([0]),
-            torch.tensor([[0.0, 0.0]]),
-            torch.tensor([0]),
-            torch.tensor([[0.0, 0.0]]),
+            np.asarray([0]),
+            np.asarray([[0.0, 0.0]], dtype=np.float32),
+            np.asarray([0]),
+            np.asarray([[0.0, 0.0]], dtype=np.float32),
             0.5,
             0.5,
         )

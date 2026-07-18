@@ -5,13 +5,16 @@ from __future__ import annotations
 from collections import Counter
 from itertools import permutations
 
-import torch
+import numpy as np
+from numpy.typing import NDArray
 
 
-def labels_similarity(labels_1: torch.Tensor, labels_2: torch.Tensor) -> float:
+def labels_similarity(
+    labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
+) -> float:
     """Compute the vendor multiset label overlap score."""
-    values_1 = [int(value) for value in labels_1.tolist()]
-    values_2 = [int(value) for value in labels_2.tolist()]
+    values_1 = [int(value) for value in labels_1.reshape(-1).tolist()]
+    values_2 = [int(value) for value in labels_2.reshape(-1).tolist()]
     counts_1 = Counter(values_1)
     counts_2 = Counter(values_2)
     intersection = sum(
@@ -23,17 +26,17 @@ def labels_similarity(labels_1: torch.Tensor, labels_2: torch.Tensor) -> float:
 
 
 def bboxes_similarity(
-    labels_1: torch.Tensor,
-    bboxes_1: torch.Tensor,
-    labels_2: torch.Tensor,
-    bboxes_2: torch.Tensor,
+    labels_1: NDArray[np.int64],
+    bboxes_1: NDArray[np.float32],
+    labels_2: NDArray[np.int64],
+    bboxes_2: NDArray[np.float32],
 ) -> float:
     """Compute LayoutPrompter's label-masked bbox matching score."""
     if len(labels_1) == 0 or len(labels_2) == 0:
         return 0.0
-    distance = torch.cdist(bboxes_1.float(), bboxes_2.float()) * 2
-    scores = torch.pow(0.5, distance)
-    scores = scores * (labels_1.unsqueeze(-1) == labels_2.unsqueeze(0))
+    distance = np.linalg.norm(bboxes_1[:, None, :] - bboxes_2[None, :, :], axis=-1) * 2
+    scores = np.power(0.5, distance)
+    scores = scores * (labels_1[:, None] == labels_2[None, :])
     row_count, col_count = scores.shape
     if row_count <= col_count:
         best = max(
@@ -49,10 +52,10 @@ def bboxes_similarity(
 
 
 def labels_bboxes_similarity(
-    labels_1: torch.Tensor,
-    bboxes_1: torch.Tensor,
-    labels_2: torch.Tensor,
-    bboxes_2: torch.Tensor,
+    labels_1: NDArray[np.int64],
+    bboxes_1: NDArray[np.float32],
+    labels_2: NDArray[np.int64],
+    bboxes_2: NDArray[np.float32],
     labels_weight: float,
     bboxes_weight: float,
 ) -> float:

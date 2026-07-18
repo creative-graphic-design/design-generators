@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
+from typing import TYPE_CHECKING
 from typing import assert_never
 
-import torch
+if TYPE_CHECKING:
+    import torch
 
 
 class BoxFormat(StrEnum):
@@ -52,12 +54,16 @@ def xywh_to_ltrb(bbox: torch.Tensor) -> torch.Tensor:
         >>> xywh_to_ltrb(torch.tensor([[0.5, 0.5, 0.2, 0.4]])).shape
         torch.Size([1, 4])
     """
+    import torch
+
     x, y, w, h = bbox.unbind(dim=-1)
     return torch.stack((x - w / 2, y - h / 2, x + w / 2, y + h / 2), dim=-1)
 
 
 def ltrb_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
     """Convert ``ltrb`` boxes to normalized center ``xywh`` boxes."""
+    import torch
+
     left, top, right, bottom = bbox.unbind(dim=-1)
     return torch.stack(
         ((left + right) / 2, (top + bottom) / 2, right - left, bottom - top),
@@ -67,12 +73,16 @@ def ltrb_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
 
 def ltwh_to_xywh(bbox: torch.Tensor) -> torch.Tensor:
     """Convert left-top-width-height boxes to center ``xywh`` boxes."""
+    import torch
+
     left, top, width, height = bbox.unbind(dim=-1)
     return torch.stack((left + width / 2, top + height / 2, width, height), dim=-1)
 
 
 def xywh_to_ltwh(bbox: torch.Tensor) -> torch.Tensor:
     """Convert center ``xywh`` boxes to left-top-width-height boxes."""
+    import torch
+
     x, y, w, h = bbox.unbind(dim=-1)
     return torch.stack((x - w / 2, y - h / 2, w, h), dim=-1)
 
@@ -85,6 +95,8 @@ def clamp_boxes(bbox: torch.Tensor) -> torch.Tensor:
 def _canvas_tensor(
     canvas_size: tuple[int, int], device: torch.device, dtype: torch.dtype
 ) -> torch.Tensor:
+    import torch
+
     width, height = canvas_size
     return torch.tensor((width, height, width, height), device=device, dtype=dtype)
 
@@ -117,6 +129,8 @@ def normalize_boxes(
         ... ).shape
         torch.Size([1, 1, 4])
     """
+    import torch
+
     bbox = bbox.to(dtype=torch.float32)
     scale = _canvas_tensor(canvas_size, bbox.device, bbox.dtype)
     normalized = bbox / scale

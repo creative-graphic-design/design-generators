@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import torch
+import numpy as np
 
 from laygen.agents import BaseResponseParser
 from laygen.common.testing import (
@@ -18,13 +18,13 @@ from layoutprompter.vendor_parity import fixture_records, parser_prediction
 
 def _sample() -> dict[str, object]:
     return {
-        "labels": torch.tensor([0, 1]),
-        "bboxes": torch.tensor([[10, 20, 30, 40], [50, 60, 20, 10]]),
-        "discrete_bboxes": torch.tensor([[10, 20, 30, 40], [50, 60, 20, 10]]),
-        "discrete_gold_bboxes": torch.tensor([[10, 20, 30, 40], [50, 60, 20, 10]]),
-        "relations": torch.tensor([[1, 1, 0, 0, 6], [-1, 0, 1, 1, 3]]),
+        "labels": np.asarray([0, 1]),
+        "bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
+        "discrete_bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
+        "discrete_gold_bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
+        "relations": np.asarray([[1, 1, 0, 0, 6], [-1, 0, 1, 1, 3]]),
         "text": "A compact page with a title and text.",
-        "discrete_content_bboxes": torch.tensor([[1, 2, 3, 4], [10, 12, 5, 6]]),
+        "discrete_content_bboxes": np.asarray([[1, 2, 3, 4], [10, 12, 5, 6]]),
     }
 
 
@@ -32,11 +32,11 @@ def test_seq_prompt_matches_vendor_strategy() -> None:
     """Seq prompts include preamble, exemplar input/output, and final constraint."""
     serializer = create_serializer("publaynet", "gent", "seq", "seq")
     exemplar = {
-        "labels": torch.tensor([0, 1]),
-        "discrete_gold_bboxes": torch.tensor([[10, 20, 30, 40], [50, 60, 20, 10]]),
+        "labels": np.asarray([0, 1]),
+        "discrete_gold_bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
     }
     test_data = {
-        "labels": torch.tensor([0, 1]),
+        "labels": np.asarray([0, 1]),
         "discrete_gold_bboxes": exemplar["discrete_gold_bboxes"],
     }
     prompt = build_prompt(serializer, [exemplar], test_data, "publaynet")
@@ -139,11 +139,11 @@ def test_parser_outputs_common_normalized_center_xywh_schema() -> None:
     assert isinstance(parser, BaseResponseParser)
     output = parser.parse_one("text 0 12 16 24 32 | title 1 60 80 12 16")
     callable_output = parser("text 0 12 16 24 32 | title 1 60 80 12 16")
-    assert torch.equal(callable_output.labels, output.labels)
+    assert np.array_equal(callable_output.labels, output.labels)
     assert_layout_output_schema(output, batch_size=1)
     assert_normalized_xywh(output.bbox, output.mask)
     assert output.labels.tolist() == [[0, 1]]
-    assert torch.allclose(output.bbox[0, 0], torch.tensor([0.2, 0.2, 0.2, 0.2]))
+    assert np.allclose(output.bbox[0, 0], np.asarray([0.2, 0.2, 0.2, 0.2]))
 
 
 def test_parser_handles_structured_many_and_vendor_compatible_paths() -> None:
@@ -163,13 +163,13 @@ def test_parser_handles_structured_many_and_vendor_compatible_paths() -> None:
 
     labels, bbox = parser.parse_vendor_compatible("text 12 16 24 32")
     assert labels.tolist() == [0]
-    assert torch.allclose(bbox[0], torch.tensor([0.1, 0.1, 0.2, 0.2]))
+    assert np.allclose(bbox[0], np.asarray([0.1, 0.1, 0.2, 0.2]))
     html_labels, html_bbox = Parser("publaynet", "html").parse_vendor_compatible(
         '<html><body><div class="canvas" style="left: 0px; top: 0px; width: 120px; height: 160px"></div>'
         '<div class="text" style="left: 12px; top: 16px; width: 24px; height: 32px"></div></body></html>'
     )
     assert html_labels.tolist() == [0]
-    assert torch.allclose(html_bbox[0], torch.tensor([0.1, 0.1, 0.2, 0.2]))
+    assert np.allclose(html_bbox[0], np.asarray([0.1, 0.1, 0.2, 0.2]))
     with pytest.raises(ValueError, match="Unsupported output format"):
         Parser("publaynet", "json").parse_vendor_compatible("text 12 16 24 32")
     with pytest.raises(RuntimeError, match="No vendor seq"):
@@ -184,7 +184,7 @@ def test_html_parser_skips_canvas_and_normalizes_labels() -> None:
     )
     output = Parser("publaynet", "html").parse_one(html)
     assert output.labels.tolist() == [[4]]
-    assert torch.allclose(output.bbox[0, 0], torch.tensor([0.5, 0.5, 0.5, 0.5]))
+    assert np.allclose(output.bbox[0, 0], np.asarray([0.5, 0.5, 0.5, 0.5]))
 
 
 def test_parser_rejects_malformed_html_and_unknown_output_format() -> None:

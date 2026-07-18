@@ -8,8 +8,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Generic, Protocol, TypeVar, cast
 
-import torch
-
 try:
     from pydantic_ai import Agent
     from pydantic_ai.models import Model
@@ -105,6 +103,30 @@ class LayoutItem2DLike(Protocol):
         ...
 
 
+class LayoutOutputLike(Protocol):
+    """Minimal shared layout output fields used for dict serialization."""
+
+    @property
+    def bbox(self) -> object:
+        """Layout boxes."""
+        ...
+
+    @property
+    def labels(self) -> object:
+        """Layout labels."""
+        ...
+
+    @property
+    def mask(self) -> object:
+        """Valid element mask."""
+        ...
+
+    @property
+    def id2label(self) -> dict[int, str]:
+        """Dataset-local label names."""
+        ...
+
+
 def messages_to_text(messages: object) -> str:
     """Convert provider chat messages to deterministic plain text.
 
@@ -126,13 +148,17 @@ def layout_items_to_output(
     id2label: Mapping[int, str],
     intermediates: object | None = None,
 ) -> LayoutGenerationOutput:
-    """Build the shared normalized center-``xywh`` layout output schema."""
+    """Build the torch-backed shared normalized center-``xywh`` output schema."""
+    import torch
+
+    from laygen.modeling_outputs import LayoutGenerationOutput
+
     label2id = {label: idx for idx, label in id2label.items()}
     bbox_values = [item.bbox_xywh for item in items]
     label_values = [label2id[item.label] for item in items]
-    bbox = cast(torch.FloatTensor, torch.tensor([bbox_values], dtype=torch.float32))
-    labels = cast(torch.LongTensor, torch.tensor([label_values], dtype=torch.long))
-    mask = cast(torch.BoolTensor, torch.ones((1, len(items)), dtype=torch.bool))
+    bbox = torch.tensor([bbox_values], dtype=torch.float32)
+    labels = torch.tensor([label_values], dtype=torch.long)
+    mask = torch.ones((1, len(items)), dtype=torch.bool)
     return LayoutGenerationOutput(
         bbox=bbox,
         labels=labels,
@@ -230,17 +256,17 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
             raise ValueError(msg)
         return normalized_condition_type, normalized_box_format
 
-    def output_to_dict(self, output: LayoutGenerationOutput) -> dict[str, object]:
+    def output_to_dict(self, output: LayoutOutputLike) -> dict[str, object]:
         """Serialize the shared output with canonical layout schema keys."""
         return {
             "bbox": output.bbox,
             "labels": output.labels,
             "mask": output.mask,
             "id2label": output.id2label,
-            "sequences": output.sequences,
-            "scores": output.scores,
-            "trajectory": output.trajectory,
-            "intermediates": output.intermediates,
+            "sequences": getattr(output, "sequences", None),
+            "scores": getattr(output, "scores", None),
+            "trajectory": getattr(output, "trajectory", None),
+            "intermediates": getattr(output, "intermediates", None),
         }
 
     def repair_response_text(self, text: str) -> str:

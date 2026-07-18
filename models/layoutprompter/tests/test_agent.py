@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import pytest
-import torch
 from pydantic_ai.models.test import TestModel
 
 from laygen.agents import BaseLayoutAgent
@@ -22,15 +22,15 @@ def test_agent_runs_with_pydantic_ai_test_model_without_network() -> None:
     """The agent accepts a TestModel and parses structured output."""
     train_data = [
         {
-            "labels": torch.tensor([0, 1]),
-            "bboxes": torch.tensor([[10, 10, 20, 20], [40, 40, 30, 30]]),
-            "discrete_gold_bboxes": torch.tensor([[10, 10, 20, 20], [40, 40, 30, 30]]),
+            "labels": np.asarray([0, 1]),
+            "bboxes": np.asarray([[10, 10, 20, 20], [40, 40, 30, 30]]),
+            "discrete_gold_bboxes": np.asarray([[10, 10, 20, 20], [40, 40, 30, 30]]),
         }
     ]
     test_data = {
-        "labels": torch.tensor([0, 1]),
-        "bboxes": torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0]]),
-        "discrete_gold_bboxes": torch.tensor([[0, 0, 1, 1], [0, 0, 1, 1]]),
+        "labels": np.asarray([0, 1]),
+        "bboxes": np.asarray([[0, 0, 0, 0], [0, 0, 0, 0]]),
+        "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
     }
     model = TestModel(
         custom_output_args={
@@ -89,15 +89,15 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
     """The public call boundary accepts string-compatible enums."""
     train_data = [
         {
-            "labels": torch.tensor([0]),
-            "bboxes": torch.tensor([[10, 10, 20, 20]]),
-            "discrete_gold_bboxes": torch.tensor([[10, 10, 20, 20]]),
+            "labels": np.asarray([0]),
+            "bboxes": np.asarray([[10, 10, 20, 20]]),
+            "discrete_gold_bboxes": np.asarray([[10, 10, 20, 20]]),
         }
     ]
     test_data = {
-        "labels": torch.tensor([0]),
-        "bboxes": torch.tensor([[0, 0, 1, 1]]),
-        "discrete_gold_bboxes": torch.tensor([[0, 0, 1, 1]]),
+        "labels": np.asarray([0]),
+        "bboxes": np.asarray([[0, 0, 1, 1]]),
+        "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1]]),
     }
     model = TestModel(
         custom_output_args={
@@ -127,10 +127,11 @@ def test_call_supports_shared_signature_dict_output_and_enum_inputs() -> None:
         output_type=OutputType.DICT,
     )
     dict_output = cast(dict[str, object], output)
-    labels = cast(torch.Tensor, dict_output["labels"])
+    labels = cast(np.ndarray, dict_output["labels"])
     assert labels.tolist() == [[0]]
     dataclass_output = cast(
-        LayoutGenerationOutput, prompter(train_data=train_data, test_data=test_data)
+        LayoutGenerationOutput,
+        prompter(train_data=train_data, test_data=test_data),
     )
     assert dataclass_output.labels.tolist() == [[0]]
 
@@ -152,25 +153,23 @@ def test_config_and_call_reject_unsupported_modes() -> None:
         )
     )
     with pytest.raises(ValueError, match="Unsupported box_format"):
-        prompter(
-            train_data=[], test_data={"labels": torch.tensor([])}, box_format="bad"
-        )
+        prompter(train_data=[], test_data={"labels": np.asarray([])}, box_format="bad")
     with pytest.raises(ValueError, match="Unsupported output_type"):
         prompter(
             train_data=[],
-            test_data={"labels": torch.tensor([])},
+            test_data={"labels": np.asarray([])},
             output_type="json",
         )
     with pytest.raises(ValueError, match="Unknown condition_type"):
         prompter(
             train_data=[],
-            test_data={"labels": torch.tensor([])},
+            test_data={"labels": np.asarray([])},
             condition_type="unknown",
         )
     with pytest.raises(TypeError, match="unexpected keyword"):
         getattr(prompter, "__call__")(
             train_data=[],
-            test_data={"labels": torch.tensor([])},
+            test_data={"labels": np.asarray([])},
             unsupported=True,
         )
 

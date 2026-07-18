@@ -153,7 +153,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         ValueError: If the config contains an unsupported mode.
 
     Examples:
-        >>> import torch
+        >>> import numpy as np
         >>> from pydantic_ai.models.test import TestModel
         >>> model = TestModel(custom_output_args={"elements": []})
         >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
@@ -202,12 +202,12 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             KeyError: If required record fields are missing.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(
             ...     LayoutPrompterConfig(model=TestModel(), shuffle=False, num_prompt=1)
@@ -248,13 +248,13 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             RuntimeError: If the model output cannot be parsed.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> model = TestModel(custom_output_args={"elements": []})
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
             >>> agent.run_sync([record], record).labels.shape[0]
@@ -317,13 +317,13 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
             ValueError: If `box_format` or `output_type` is unsupported.
 
         Examples:
-            >>> import torch
+            >>> import numpy as np
             >>> from pydantic_ai.models.test import TestModel
             >>> model = TestModel(custom_output_args={"elements": []})
             >>> record = {
-            ...     "labels": torch.tensor([0]),
-            ...     "bboxes": torch.tensor([[1, 2, 3, 4]]),
-            ...     "discrete_gold_bboxes": torch.tensor([[1, 2, 3, 4]]),
+            ...     "labels": np.asarray([0]),
+            ...     "bboxes": np.asarray([[1, 2, 3, 4]]),
+            ...     "discrete_gold_bboxes": np.asarray([[1, 2, 3, 4]]),
             ... }
             >>> agent = LayoutPrompter(LayoutPrompterConfig(model=model, num_prompt=1))
             >>> isinstance(agent(train_data=[record], test_data=record), LayoutGenerationOutput)
