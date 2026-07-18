@@ -23,8 +23,13 @@ conversion.
    - the target model issue plan comment
    - every later amendment or review comment on the target issue
 3. Treat target-issue amendments as higher priority than the original plan.
-4. Add the `in-progress` label to the target model issue.
-5. Confirm the model slug, Python package name, Hub repo ids, datasets, license
+4. For plans that add public methods or override `from_pretrained`,
+   `save_pretrained`, `generate`, or other entry points on Hugging Face base
+   classes, require an explicit justification line before `plan-agreed`. The
+   coordinator must check that line before applying `plan-agreed`, so
+   non-idiomatic APIs are caught while the plan is still cheap to change.
+5. Add the `in-progress` label to the target model issue.
+6. Confirm the model slug, Python package name, Hub repo ids, datasets, license
    status, and whether the implementation belongs in Transformers, Diffusers, a
    recipe, training code, or Pydantic AI.
 
@@ -99,6 +104,50 @@ Discrete-vocabulary layout tokenizers should subclass
 conflict. Serialize special tokens and auxiliary artifacts such as cluster
 centers with tokenizer files.
 
+### Public API Idioms
+
+Transformers and Diffusers base classes should keep their upstream contracts.
+Before implementing or reviewing a plan, verify these rules:
+
+- A `transformers.PreTrainedModel` subclass must implement `forward`. If the
+  computation structurally cannot be represented as one forward pass, such as a
+  multi-stage composition through decoded text, do not make the composite a
+  `PreTrainedModel`; compose the stages in the pipeline layer instead. This
+  keeps the model class loadable, callable, and inspectable through standard
+  Transformers behavior, while the pipeline owns cross-model orchestration as
+  Diffusers pipelines do.
+- Model classes expose only standard model entry points: `forward` and, when
+  the model is token-generative, token-level `generate`. Layout-level APIs that
+  return `LayoutGenerationOutput` belong on `pipeline.__call__`; do not add
+  model methods such as `generate_layout`. This keeps layout orchestration,
+  condition normalization, output schema construction, and `generator`/`seed`
+  precedence in one public surface.
+- Transformers-side layout pipelines must subclass
+  `laygen.pipelines.LayoutGenerationPipeline`. Plain pipeline classes and
+  `transformers.Pipeline` subclasses are non-conforming because
+  `transformers.Pipeline` is designed for registered single-model tasks with
+  the preprocess, `_forward`, and postprocess contract, not custom layout tasks
+  or multi-model composition. The shared laygen base gives Transformers-side
+  packages the pipeline role that `DiffusionPipeline` gives Diffusers packages:
+  subfolder `from_pretrained`/`save_pretrained`, device and dtype handling,
+  `generator` over `seed`, and a `__call__` contract returning
+  `laygen.modeling_outputs.LayoutGenerationOutput`.
+- Do not fully override `from_pretrained` or `save_pretrained` in a way that
+  bypasses the standard loading and serialization machinery. If an override is
+  unavoidable, document the reason in the PR body. Standard loading is what
+  makes local smoke tests, Hub checkpoints, config round-trips, and downstream
+  tooling work predictably.
+- Use upstream class suffixes only when the class satisfies the upstream
+  contract. For example, `ForConditionalGeneration` implies seq2seq-style
+  `forward` plus `generate`; do not reuse that suffix for classes that cannot
+  satisfy those methods. Class names should tell users which Transformers idiom
+  is safe to rely on.
+- Vendor-specific decoding that cannot be expressed as a stateless
+  `LogitsProcessor` may live as a model-side helper called by the pipeline, but
+  it must not become the public generation API. This allows stateful or
+  layout-aware decoding internals without teaching users a second, model-level
+  generation surface.
+
 ## Data
 
 Keep dataset loading behind processors so sources can change without touching
@@ -124,12 +173,22 @@ Implement parity in this order:
 4. Add `tests/vendor_parity/` tests that skip cleanly when weights, vendor deps,
    or goldens are absent.
 5. Compare exact token/id outputs where deterministic; compare logits and
-   floating outputs with documented tolerances.
+   floating outputs by bitwise equality by default.
 6. Add `save_pretrained` -> `from_pretrained` smoke tests that run without
    network or vendor weights.
 
 For LLM API methods, parity checks cover prompt byte identity, exemplar
 selection, parser behavior, and repair/retry policy.
+
+Use tolerance-based floating parity only after identifying and justifying the
+root cause in the PR body. When outputs diverge, first check alignment of TF32
+settings, attention implementation paths such as SDPA versus vendor handwritten
+attention, floating-point operation order, and dtype derivation order. These
+are recurring parity hazards, as seen in the LACE `SinusoidalPosEmb` path and
+the four-factor LayouSyn parity investigation. If replacing vendor code with a
+shared implementation, verify equivalence on vendor real-scale inputs before
+claiming parity; tiny synthetic inputs can hide scale-dependent numeric drift.
+This keeps tolerance thresholds from masking accidental behavior changes.
 
 Vendor parity is complete only after the released weights have been obtained,
 the vendor code has generated reference outputs, the real comparison suite has

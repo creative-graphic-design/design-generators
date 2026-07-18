@@ -51,6 +51,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
+- When creating any issue, set both the milestone and the native Priority issue
+  field; do not leave either unset. Set the native Priority field through
+  GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the
   parity suite and confirms the results.
@@ -68,6 +71,9 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
   Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`.
   Both are explicit dataclasses and schema tests assert field names, order, and
   defaults stay aligned.
+- Transformers-side layout pipelines subclass
+  `laygen.pipelines.LayoutGenerationPipeline`; plain classes and
+  `transformers.Pipeline` subclasses are non-conforming.
 - Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor
   internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
 - Public `mask=True` means a valid element. Padding is represented by `mask`,
