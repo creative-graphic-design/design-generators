@@ -4,7 +4,7 @@ This project exposes research implementations through package interfaces that be
 
 ## Workspace Packages
 
-Workspace members live under `lib/*` and `models/*`. Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+Workspace members live under `lib/*` and `models/*`. Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
 
 Run member-specific commands with the package selected:
 
@@ -19,6 +19,8 @@ Original implementations stay under `vendor/` and are treated as read-only refer
 Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
 
 Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults.
+
+Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`. The shared base handles root `PretrainedConfig` loading, declared subfolder components, `save_pretrained`, `to(device, dtype)`, and generator-over-seed precedence; each model package implements its own `__call__` orchestration and returns the canonical Transformers-style layout output.
 
 Public `bbox` values are normalized center `xywh` coordinates in `[0, 1]`, even when vendor code uses `ltwh`, `ltrb`, bins, analog bits, or text tokens internally. Public `mask=True` means a valid element, and padding is represented by `mask` rather than a reserved public label id.
 

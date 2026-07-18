@@ -125,7 +125,7 @@ def test_pipeline_requires_prompt_without_layout_text_shortcut() -> None:
 def test_generator_prevents_seed_global_set_seed() -> None:
     pipe = _pipeline()
 
-    with patch("parse_then_place.pipeline_parse_then_place.set_seed") as mocked:
+    with patch("laygen.pipelines.base.set_seed") as mocked:
         pipe(
             prompt="create a simple screen",
             seed=123,
@@ -198,6 +198,7 @@ def test_pipeline_from_pretrained_loads_standard_stage_subfolders() -> None:
         (root / "semantic_parser").mkdir()
         (root / "placement").mkdir()
         (root / "semantic_parser" / "config.json").write_text("{}")
+        (root / "placement" / "config.json").write_text("{}")
         with patch(
             "parse_then_place.pipeline_parse_then_place.AutoModelForSeq2SeqLM.from_pretrained",
             side_effect=[parser, placement],
@@ -235,7 +236,7 @@ def test_pipeline_generate_full_path_and_dict_output() -> None:
         placement=placement,
     )
 
-    with patch("parse_then_place.pipeline_parse_then_place.set_seed") as mocked_seed:
+    with patch("laygen.pipelines.base.set_seed") as mocked_seed:
         output = pipe(
             prompt=["create text", "create image"],
             seed=99,

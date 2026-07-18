@@ -2,24 +2,80 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal, cast  # noqa: TID251 - Transformers generate/save_pretrained stubs require Any casts.
+from typing import ClassVar, Literal, Protocol, cast
 
 import torch
-from transformers import AutoModelForSeq2SeqLM, PreTrainedModel, set_seed  # ty: ignore[possibly-missing-import]
+from transformers import AutoModelForSeq2SeqLM, PreTrainedModel  # ty: ignore[possibly-missing-import]
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
 from .configuration_parse_then_place import ParseThenPlaceConfig
 from .processing_parse_then_place import ParseThenPlaceProcessor
 
 
-class ParseThenPlacePipeline:
+class _GenerationModel(Protocol):
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+        *,
+        max_length: int,
+        **generate_kwargs: object,
+    ) -> torch.Tensor:
+        """Generate token ids."""
+
+
+def _load_seq2seq_component(
+    pretrained_model_name_or_path: str | Path,
+    *,
+    local_files_only: bool = False,
+) -> object:
+    return AutoModelForSeq2SeqLM.from_pretrained(
+        pretrained_model_name_or_path,
+        local_files_only=local_files_only,
+    )
+
+
+def _load_processor_component(
+    pretrained_model_name_or_path: str | Path,
+    *,
+    local_files_only: bool = False,
+) -> object:
+    return ParseThenPlaceProcessor.from_pretrained(
+        pretrained_model_name_or_path,
+        local_files_only=local_files_only,
+    )
+
+
+class ParseThenPlacePipeline(LayoutGenerationPipeline):
     """Compose standard seq2seq parser and placement models."""
+
+    config_class: ClassVar[type[PretrainedConfig]] = ParseThenPlaceConfig
+    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
+        "parser": PipelineComponentSpec(
+            attribute_name="parser",
+            loader=_load_seq2seq_component,
+            config_subfolder_attribute="parser_subfolder",
+            required=False,
+        ),
+        "placement": PipelineComponentSpec(
+            attribute_name="placement",
+            loader=_load_seq2seq_component,
+            config_subfolder_attribute="placement_subfolder",
+        ),
+        "processor": PipelineComponentSpec(
+            attribute_name="processor",
+            loader=_load_processor_component,
+            marker_file="processor_config.json",
+            save_with_is_main_process=False,
+        ),
+    }
 
     config: ParseThenPlaceConfig
     parser: PreTrainedModel | None
@@ -35,6 +91,7 @@ class ParseThenPlacePipeline:
         placement: PreTrainedModel | None = None,
     ) -> None:
         """Initialize the composite pipeline."""
+        super().__init__(config)
         self.config = config
         self.processor = processor
         self.parser = parser
@@ -50,68 +107,44 @@ class ParseThenPlacePipeline:
         processor: ParseThenPlaceProcessor | None = None,
         local_files_only: bool = False,
         config: ParseThenPlaceConfig | PretrainedConfig | None = None,
-    ) -> "ParseThenPlacePipeline":
+    ) -> "ParseThenPlacePipeline":  # ty: ignore[invalid-method-override]
         """Load a composite pipeline from a root directory."""
-        if config is None:
-            parsed_config = ParseThenPlaceConfig.from_pretrained(
+        components: dict[str, object] = {}
+        if parser is not None:
+            components["parser"] = parser
+        if placement is not None:
+            components["placement"] = placement
+        if processor is None:
+            loaded = super().from_pretrained(
                 pretrained_model_name_or_path,
                 local_files_only=local_files_only,
+                config=config,
+                components=components,
             )
-        elif isinstance(config, ParseThenPlaceConfig):
-            parsed_config = config
-        elif isinstance(config, PretrainedConfig):
-            parsed_config = ParseThenPlaceConfig.from_dict(config.to_dict())
-        else:
-            raise TypeError("config must be a ParseThenPlaceConfig")
-        root = Path(pretrained_model_name_or_path)
-        if parser is None:
-            parser_path = root / parsed_config.parser_subfolder
-            if (parser_path / "config.json").exists():
-                parser = AutoModelForSeq2SeqLM.from_pretrained(
-                    parser_path,
-                    local_files_only=local_files_only,
-                )
-        if placement is None:
-            placement = AutoModelForSeq2SeqLM.from_pretrained(
-                root / parsed_config.placement_subfolder,
-                local_files_only=local_files_only,
-            )
-        if processor is None:
-            processor = ParseThenPlaceProcessor.from_pretrained(
-                root,
-                local_files_only=local_files_only,
-            )
-        return cls(
-            config=parsed_config,
-            processor=processor,
-            parser=parser,
-            placement=placement,
+            return cast(ParseThenPlacePipeline, loaded)
+        components["processor"] = processor
+        loaded = super().from_pretrained(
+            pretrained_model_name_or_path,
+            local_files_only=local_files_only,
+            config=config,
+            components=components,
         )
+        return cast(ParseThenPlacePipeline, loaded)
 
-    def save_pretrained(
-        self,
-        save_directory: str | Path,
+    @classmethod
+    def _from_pretrained_components(
+        cls,
         *,
-        is_main_process: bool = True,
-        **kwargs: object,
-    ) -> None:
-        """Save composite config, processor, and available stage models."""
-        root = Path(save_directory)
-        root.mkdir(parents=True, exist_ok=True)
-        self.config.save_pretrained(root)
-        self.processor.save_pretrained(root)
-        if self.parser is not None:
-            cast(Any, self.parser).save_pretrained(
-                root / self.config.parser_subfolder,
-                is_main_process=is_main_process,
-                **kwargs,
-            )
-        if self.placement is not None:
-            cast(Any, self.placement).save_pretrained(
-                root / self.config.placement_subfolder,
-                is_main_process=is_main_process,
-                **kwargs,
-            )
+        config: PretrainedConfig,
+        components: Mapping[str, object | None],
+    ) -> "ParseThenPlacePipeline":
+        """Build a pipeline from loaded config and components."""
+        return cls(
+            config=cast(ParseThenPlaceConfig, config),
+            processor=cast(ParseThenPlaceProcessor, components["processor"]),
+            parser=cast(PreTrainedModel | None, components.get("parser")),
+            placement=cast(PreTrainedModel | None, components["placement"]),
+        )
 
     @torch.no_grad()
     def parse(
@@ -125,14 +158,14 @@ class ParseThenPlacePipeline:
         """Generate logical-form token ids with the parser stage."""
         if self.parser is None:
             raise ValueError("Parser stage is not loaded")
-        generated = cast(Any, self.parser).generate(
+        generated = cast(_GenerationModel, self.parser).generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
             max_length=generation_max_length
             or self.config.parser_generation_max_length,
             **generate_kwargs,
         )
-        return cast(torch.Tensor, generated)
+        return generated
 
     @torch.no_grad()
     def place(
@@ -152,7 +185,7 @@ class ParseThenPlacePipeline:
             raise ValueError("Placement stage is not loaded")
         if generator is not None:
             generate_kwargs["generator"] = generator
-        generated = cast(Any, self.placement).generate(
+        generated = cast(_GenerationModel, self.placement).generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
             max_length=generation_max_length
@@ -163,7 +196,7 @@ class ParseThenPlacePipeline:
             do_sample=do_sample,
             **generate_kwargs,
         )
-        return cast(torch.Tensor, generated)
+        return generated
 
     def __call__(
         self,
@@ -187,7 +220,7 @@ class ParseThenPlacePipeline:
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         layout_text: str | list[str] | list[list[str]] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
         """Generate a layout from natural-language text."""
         _ = (
             batch_size,
@@ -217,8 +250,10 @@ class ParseThenPlacePipeline:
             )
         if prompt is None:
             raise ValueError("prompt is required for Parse-Then-Place generation")
-        if generator is None and seed is not None:
-            set_seed(seed)
+        generation_generator = self.prepare_generator(
+            generator=generator,
+            seed=seed,
+        )
         prompts = [prompt] if isinstance(prompt, str) else list(prompt)
         parser_inputs = self.processor(prompts)
         if "input_ids" not in parser_inputs:
@@ -245,7 +280,7 @@ class ParseThenPlacePipeline:
             attention_mask=placement_encoded.get("attention_mask"),
             num_return_sequences=return_sequences,
             temperature=temperature,
-            generator=generator,
+            generator=generation_generator,
         )
         grouped = self.processor.decode_layout_sequences(
             placement_ids,
