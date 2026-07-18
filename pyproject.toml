@@ -45,6 +45,7 @@ training = [
 
 [dependency-groups]
 dev = [
+    "beartype>=0.22.9,<0.23",
     "mkdocs-gen-files>=0.6.1",
     "pre-commit>=4.6.0",
     "pytest>=6.0.0",

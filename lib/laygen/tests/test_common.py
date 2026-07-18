@@ -249,19 +249,29 @@ def test_output_schema():
 def test_modeling_output_import_and_numpy_values_do_not_require_torch():
     code = textwrap.dedent(
         """
+        import builtins
         import importlib.util
+        import os
         import sys
 
         import numpy as np
 
+        os.environ["USE_TORCH"] = "0"
         original_find_spec = importlib.util.find_spec
+        original_import = builtins.__import__
 
         def find_spec_without_torch(name, package=None):
             if name == "torch" or name.startswith("torch."):
                 return None
             return original_find_spec(name, package)
 
+        def import_without_torch(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "torch" or name.startswith("torch."):
+                raise ImportError("blocked torch import")
+            return original_import(name, globals, locals, fromlist, level)
+
         importlib.util.find_spec = find_spec_without_torch
+        builtins.__import__ = import_without_torch
 
         from laygen.modeling_outputs import LayoutGenerationOutput
 

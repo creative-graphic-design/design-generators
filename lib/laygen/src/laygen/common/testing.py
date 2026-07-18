@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 import numpy as np
+
+from laygen.common.typing import LayoutBBoxes, LayoutLabels, LayoutMask
 
 if TYPE_CHECKING:
     import torch
@@ -19,17 +22,17 @@ class LayoutOutputLike(Protocol):
     """Duck-typed layout output protocol used by shared test helpers."""
 
     @property
-    def bbox(self) -> ArrayLike:
+    def bbox(self) -> LayoutBBoxes:
         """Layout boxes shaped ``(batch, elements, 4)``."""
         ...
 
     @property
-    def labels(self) -> ArrayLike:
+    def labels(self) -> LayoutLabels:
         """Layout labels shaped ``(batch, elements)``."""
         ...
 
     @property
-    def mask(self) -> ArrayLike:
+    def mask(self) -> LayoutMask:
         """Valid-element mask shaped ``(batch, elements)``."""
         ...
 
@@ -110,3 +113,24 @@ def assert_generator_reproducible(
     assert torch.allclose(
         cast("torch.Tensor", out1.bbox), cast("torch.Tensor", out2.bbox)
     )
+
+
+def install_jaxtyping_runtime_hook(
+    modules: Sequence[str],
+) -> AbstractContextManager[object]:
+    """Install the test-only jaxtyping runtime checker for target modules.
+
+    Args:
+        modules: Importable module or package names to hook before import.
+
+    Returns:
+        Context manager returned by :func:`jaxtyping.install_import_hook`.
+
+    Examples:
+        >>> hook = install_jaxtyping_runtime_hook(["laygen.modeling_outputs"])
+        >>> hasattr(hook, "__enter__")
+        True
+    """
+    from jaxtyping import install_import_hook
+
+    return install_import_hook(modules, "beartype.beartype")

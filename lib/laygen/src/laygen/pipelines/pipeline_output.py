@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
-import torch
-
 try:
     from diffusers.utils import BaseOutput
 except ImportError as exc:  # pragma: no cover - packaging/environment issue
@@ -14,15 +12,23 @@ except ImportError as exc:  # pragma: no cover - packaging/environment issue
         "laygen.pipelines.pipeline_output requires the diffusers dependency."
     ) from exc
 
+from laygen.common.torch_typing import (
+    TorchLayoutBBoxes,
+    TorchLayoutLabels,
+    TorchLayoutMask,
+    TorchPayload,
+)
+
 
 @dataclass
 class LayoutGenerationOutput(BaseOutput):
     """Layout-generation output for Diffusers pipelines.
 
     Attributes:
-        bbox: Normalized center ``xywh`` boxes with shape ``(batch, seq, 4)``.
-        labels: Dataset-local integer labels with shape ``(batch, seq)``.
-        mask: Boolean valid-element mask with shape ``(batch, seq)``.
+        bbox: Normalized center ``xywh`` boxes with shape
+            ``(batch, elements, 4)``.
+        labels: Dataset-local integer labels with shape ``(batch, elements)``.
+        mask: Boolean valid-element mask with shape ``(batch, elements)``.
         id2label: Mapping from integer label ids to display names.
         sequences: Optional raw token sequences.
         scores: Optional per-token or per-element scores.
@@ -41,12 +47,12 @@ class LayoutGenerationOutput(BaseOutput):
         torch.Size([1, 1, 4])
     """
 
-    bbox: torch.Tensor
-    labels: torch.Tensor = cast(torch.Tensor, None)
-    mask: torch.Tensor = cast(torch.Tensor, None)
+    bbox: TorchLayoutBBoxes
+    labels: TorchLayoutLabels = cast(TorchLayoutLabels, None)
+    mask: TorchLayoutMask = cast(TorchLayoutMask, None)
     id2label: dict[int, str] = cast(dict[int, str], None)
-    sequences: torch.Tensor | None = None
-    scores: torch.Tensor | None = None
+    sequences: TorchPayload = None
+    scores: TorchPayload = None
     trajectory: object | None = None
     intermediates: object | None = None
 
