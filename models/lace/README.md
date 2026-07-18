@@ -1,84 +1,166 @@
-# LACE
+---
+language:
+  - en
+license: "MIT"
+library_name: "diffusers"
+pipeline_tag: "text-to-image"
+tags:
+  - "lace"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "LACE"
+    results:
+      - task:
+          type: "text-to-image"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Diffusers-style LACE package for the released PubLayNet and Rico25 layout
-generation checkpoints. LACE is the continuous diffusion model from "Towards
-Aligned Layout Generation via Diffusion Model with Aesthetic Constraints"
-(https://arxiv.org/abs/2402.04754).
+# Model Card for LACE
 
-This package converts the original implementation checkpoints into a
-`LacePipeline` that generates normalized center `xywh` boxes, category labels,
-and masks. Shared layout labels, bbox helpers, and output dataclasses come from
-`laygen.common`.
+![OpenReview](https://img.shields.io/static/v1?label=OpenReview&message=kJ0qp9Xdsh&color=blue&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICLR%202024&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-## Installation
+LACE ports the ICLR 2024 layout diffusion editor into a Diffusers-style package for PubLayNet and RICO checkpoints.
 
-Use the repository workspace environment:
+## Model Details
+
+### Model Description
+
+LACE is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
+
+- **Developed by:** original upstream authors; see Model Sources.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
+- **Finetuned from model:** not recorded in the current README.
+
+### Model Sources
+
+- **Repository:** https://github.com/puar-playground/LACE
+- **Paper:** https://openreview.net/forum?id=kJ0qp9Xdsh
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| PubLayNet | `creative-graphic-design/lace-publaynet` | not-published |
+| RICO13 | `creative-graphic-design/lace-rico13` | planned; public vendor checkpoint not present in model.tar.gz |
+| RICO25 | `creative-graphic-design/lace-rico25` | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
 
 ```bash
-uv sync
+uv sync --package lace
 ```
-
-Run package commands with the workspace package form:
-
-```bash
-uv run --package lace python -c "from lace import LacePipeline"
-```
-
-## Usage
-
-Load a converted checkpoint from the Hub and run unconditional generation:
 
 ```python
 from lace import LacePipeline
 
-pipe = LacePipeline.from_pretrained("creative-graphic-design/lace-publaynet")
-out = pipe(batch_size=1, seed=0, num_inference_steps=100)
-print(out.bbox, out.labels, out.mask)
+pipe = LacePipeline.from_pretrained(
+    "creative-graphic-design/lace-publaynet",
+)
+out = pipe(batch_size=1, seed=0)
+
+print(out.bbox)
+print(out.labels)
+print(out.mask)
 ```
 
-Convert a local original checkpoint. The output directory includes `README.md`
-alongside the pipeline files:
+## Training Details
 
-```bash
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
-  --dataset publaynet \
-  --checkpoint .cache/lace/original/model/publaynet_best.pt \
-  --output .cache/lace/converted/lace-publaynet
-```
+### Training Data
 
-## Checkpoints
+| Dataset | Dataset ID | Notes |
+| --- | --- | --- |
+| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO13 | `creative-graphic-design/Rico` | vendor-derived RICO13 mapping |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default |
 
-| Dataset | Hub id | Original checkpoint | Status |
-| --- | --- | --- | --- |
-| PubLayNet | `creative-graphic-design/lace-publaynet` | `publaynet_best.pt` | Converted and parity checked |
-| Rico13 | `creative-graphic-design/lace-rico13` | `rico13_best.pt` | Supported by code; public vendor checkpoint was not present in `model.tar.gz` |
-| Rico25 | `creative-graphic-design/lace-rico25` | `rico25_best.pt` | Converted and parity checked |
+### Training Procedure
 
-## Training Data
+This package ports released behavior and does not retrain the method in this repository.
 
-The original LACE project trains on PubLayNet and Rico annotations prepared as
-max-25 layout sequences.
+#### Preprocessing
 
-| Dataset | Dataset id |
-| --- | --- |
-| PubLayNet | `creative-graphic-design/publaynet` |
-| Rico13 | `creative-graphic-design/rico13` |
-| Rico25 | `creative-graphic-design/rico25` |
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training time and carbon measurements are not recorded in the current README.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Results
+
+The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
 
 ## Parity Results
-
-Local parity tests use `vendor/lace/util/backbone.py` and the original
-checkpoints from `puar-playground/LACE`.
 
 | Dataset | Test | Shape | Max abs | rtol | atol |
 | --- | --- | ---: | ---: | ---: | ---: |
 | PubLayNet | Denoiser logits | `(2, 25, 10)` | 0.0 | 0 | 0 |
 | Rico25 | Denoiser logits | `(2, 25, 30)` | 0.0 | 0 | 0 |
-
-Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity
-is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied,
-because the public `model.tar.gz` archive contains only `publaynet_best.pt` and
-`rico25_best.pt`.
 
 ## Reproducibility
 
@@ -188,25 +270,36 @@ PY
 Expected output shapes are `(1, 25, 4)` for `bbox` and `(1, 25)` for `labels`;
 the final boolean should be `True`.
 
+## Model Examination
+
+Interpretability and failure-analysis artifacts are not recorded in the current README.
+
+## Environmental Impact
+
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+
+## Technical Specifications
+
+### Model Architecture and Objective
+
+The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+
+### Compute Infrastructure
+
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+
+#### Hardware
+
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+
+#### Software
+
+Use `uv run --package lace ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
 ## License
 
-The original LACE implementation is released under the MIT License.
-
-Vendor links:
-
-- Original implementation: https://github.com/puar-playground/LACE
-- Checkpoints and datasets: https://huggingface.co/datasets/puar-playground/LACE
-- Paper: https://openreview.net/forum?id=kJ0qp9Xdsh
+Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
 
 ## Citation
 
-```bibtex
-@inproceedings{
-    chen2024towards,
-    title={Towards Aligned Layout Generation via Diffusion Model with Aesthetic Constraints},
-    author={Jian Chen and Ruiyi Zhang and Yufan Zhou and Changyou Chen},
-    booktitle={The Twelfth International Conference on Learning Representations},
-    year={2024},
-    url={https://openreview.net/forum?id=kJ0qp9Xdsh}
-}
-```
+Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.

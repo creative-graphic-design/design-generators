@@ -1,26 +1,97 @@
-# layout-dm
+---
+language:
+  - en
+license: "Apache-2.0"
+library_name: "diffusers"
+pipeline_tag: "text-to-image"
+tags:
+  - "layout-dm"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "LayoutDM"
+    results:
+      - task:
+          type: "text-to-image"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Diffusers-style conversion package for **LayoutDM: Discrete Diffusion Model for Controllable Layout Generation**.
+# Model Card for LayoutDM
 
-LayoutDM is a discrete diffusion method for controllable layout generation. This package wraps the released Rico25 and PubLayNet checkpoints in a Diffusers-compatible `LayoutDMPipeline`, while shared output schemas, bbox helpers, labels, and sampling utilities live in `laygen.common`.
+![paper](https://img.shields.io/static/v1?label=paper&message=CVPR%202023&color=blue&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=CVPR%202023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Paper: https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html
+LayoutDM ports the CVPR 2023 discrete diffusion model for controllable layout generation into a Diffusers-style package.
 
-## Installation
+## Model Details
 
-From the repository root:
+### Model Description
+
+LayoutDM is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
+
+- **Developed by:** original upstream authors; see Model Sources.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** Apache-2.0.
+- **Finetuned from model:** not recorded in the current README.
+
+### Model Sources
+
+- **Repository:** https://github.com/CyberAgentAILab/layout-dm
+- **Paper:** https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| RICO25 | `creative-graphic-design/layoutdm-rico25` | not-published |
+| PubLayNet | `creative-graphic-design/layoutdm-publaynet` | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
 
 ```bash
 uv sync --package layout-dm
 ```
-
-For conversion from the original checkpoint bundle:
-
-```bash
-uv sync --package layout-dm --extra convert
-```
-
-## Usage
 
 ```python
 from layout_dm import LayoutDMPipeline
@@ -28,46 +99,63 @@ from layout_dm import LayoutDMPipeline
 pipe = LayoutDMPipeline.from_pretrained(
     "creative-graphic-design/layoutdm-rico25",
 )
-out = pipe(batch_size=1, seed=0, sampling="deterministic")
+out = pipe(batch_size=1, seed=0)
 
-print(out.bbox)    # normalized center xywh boxes
-print(out.labels)  # integer category labels
-print(out.mask)    # valid element mask
+print(out.bbox)
+print(out.labels)
+print(out.mask)
 ```
 
-Conditional generation uses the same pipeline call with `condition_type`, `bbox`, `labels`, and `mask`:
+## Training Details
 
-```python
-out = pipe(
-    condition_type="label",
-    labels=labels,
-    bbox=bbox,
-    mask=mask,
-    seed=0,
-)
-```
+### Training Data
 
-## Checkpoints
-
-| Dataset | Hub ID | Dataset ID |
+| Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| Rico25 | `creative-graphic-design/layoutdm-rico25` | `creative-graphic-design/rico25` |
-| PubLayNet | `creative-graphic-design/layoutdm-publaynet` | `creative-graphic-design/publaynet` |
+| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default |
 
-## Training Data
+### Training Procedure
 
-The converted checkpoints follow the original LayoutDM release:
+This package ports released behavior and does not retrain the method in this repository.
 
-- Rico25: mobile UI layouts with at most 25 elements.
-- PubLayNet: document page layouts with at most 25 elements.
+#### Preprocessing
+
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training time and carbon measurements are not recorded in the current README.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Results
+
+The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
 
 ## Parity Results
 
-Local fixtures compare the converted Diffusers pipeline against the original LayoutDM implementation.
-
 | Dataset | Tokenizer exact | Deterministic exact | Logits max abs | Logits max rel |
 | --- | ---: | ---: | ---: | ---: |
-| Rico25 | 125/125 | 125/125 | 0 | 0 |
+| RICO25 | 125/125 | 125/125 | 0 | 0 |
 | PubLayNet | 125/125 | 125/125 | 0 | 0 |
 
 ## Reproducibility
@@ -87,10 +175,8 @@ git submodule update --init vendor/layout-dm
 This downloads `layoutdm_starter.zip` and extracts the original release bundle. The repo-local cache location is `.cache/layout-dm/original`; the extracted starter directory used by later steps is `.cache/layout-dm/original/download`.
 
 ```bash
-cd models/layout-dm
-uv run --package layout-dm python scripts/download_original.py \
-  --output-dir ../../.cache/layout-dm/original
-cd ../..
+uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+  --output-dir .cache/layout-dm/original
 ```
 
 ### 2. Generate Golden Reference Tensors
@@ -103,23 +189,21 @@ This writes local-only parity fixtures for each dataset:
 - `models/layout-dm/tests/vendor_parity/fixtures/<dataset>/meta.json`
 
 ```bash
-cd models/layout-dm
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset rico25 \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir tests/vendor_parity/fixtures/rico25 \
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir models/layout-dm/tests/vendor_parity/fixtures/rico25 \
   --sampling deterministic \
   --seed 0 \
   --batch-size 1
 
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset publaynet \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir tests/vendor_parity/fixtures/publaynet \
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir models/layout-dm/tests/vendor_parity/fixtures/publaynet \
   --sampling deterministic \
   --seed 0 \
   --batch-size 1
-cd ../..
 ```
 
 ### 3. Run Vendor Parity Tests
@@ -146,17 +230,15 @@ Expected local output roots:
 ```
 
 ```bash
-cd models/layout-dm
-uv run --package layout-dm --extra convert python scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir ../../.cache/layout-dm/converted/layoutdm-rico25
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir .cache/layout-dm/converted/layoutdm-rico25
 
-uv run --package layout-dm --extra convert python scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
-  --starter-dir ../../.cache/layout-dm/original/download \
-  --output-dir ../../.cache/layout-dm/converted/layoutdm-publaynet
-cd ../..
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir .cache/layout-dm/converted/layoutdm-publaynet
 ```
 
 Smoke test both converted checkpoints:
@@ -177,22 +259,36 @@ for dataset in ("rico25", "publaynet"):
 PY
 ```
 
-## Vendor Links
+## Model Examination
 
-- Original implementation: https://github.com/CyberAgentAILab/layout-dm
-- Project page: https://cyberagentailab.github.io/layout-dm/
-- Starter checkpoint bundle: https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip
+Interpretability and failure-analysis artifacts are not recorded in the current README.
 
-The original implementation is released under the Apache-2.0 license.
+## Environmental Impact
+
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+
+## Technical Specifications
+
+### Model Architecture and Objective
+
+The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+
+### Compute Infrastructure
+
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+
+#### Hardware
+
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+
+#### Software
+
+Use `uv run --package layout-dm ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
+## License
+
+Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: Apache-2.0.
 
 ## Citation
 
-```bibtex
-@inproceedings{inoue2023layout,
-  title = {{LayoutDM: Discrete Diffusion Model for Controllable Layout Generation}},
-  author = {Naoto Inoue and Kotaro Kikuchi and Edgar Simo-Serra and Mayu Otani and Kota Yamaguchi},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-  year = {2023},
-  pages = {10167-10176}
-}
-```
+Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.

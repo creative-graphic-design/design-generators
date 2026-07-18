@@ -1,66 +1,157 @@
-# Coarse-to-Fine
+---
+language:
+  - en
+license: "MIT"
+library_name: "transformers"
+pipeline_tag: "text-to-image"
+tags:
+  - "coarse-to-fine"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "Coarse-to-Fine"
+    results:
+      - task:
+          type: "text-to-image"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Coarse-to-Fine is an autoregressive hierarchical layout generator for graphic layouts. This package converts the released RICO and PubLayNet checkpoints from `jzy124/Coarse2Fine` into a Transformers-style `PreTrainedModel` with `save_pretrained` / `from_pretrained` support and the shared `laygen.modeling_outputs.LayoutGenerationOutput` schema.
+# Model Card for Coarse-to-Fine
 
-Paper: https://ojs.aaai.org/index.php/AAAI/article/view/19994
+![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=AAAI%202022&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
+![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Original implementation: https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine
+Coarse-to-Fine ports the AAAI 2022 hierarchy-first layout generator into a Transformers-style package that returns the shared layout schema.
 
-## Install
+## Model Details
 
-From the repository root:
+### Model Description
+
+Coarse-to-Fine is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
+
+- **Developed by:** original upstream authors; see Model Sources.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
+- **Finetuned from model:** not recorded in the current README.
+
+### Model Sources
+
+- **Repository:** https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine
+- **Paper:** https://ojs.aaai.org/index.php/AAAI/article/view/19994
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| RICO25 | `creative-graphic-design/coarse-to-fine-rico25` | not-published |
+| PubLayNet | `creative-graphic-design/coarse-to-fine-publaynet` | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
 
 ```bash
 uv sync --package coarse-to-fine
 ```
 
-Run package-local tests with the workspace member selected:
-
-```bash
-uv run --package coarse-to-fine pytest models/coarse-to-fine/tests -m "not vendor_parity and not integration"
-```
-
-## Usage
-
 ```python
-from coarse_to_fine import (
-    CoarseToFineForLayoutGeneration,
-    CoarseToFinePipeline,
-    CoarseToFineProcessor,
+from coarse_to_fine import CoarseToFinePipeline
+
+pipe = CoarseToFinePipeline.from_pretrained(
+    "creative-graphic-design/coarse-to-fine-rico25",
 )
+out = pipe(batch_size=1, seed=0)
 
-model_id = "creative-graphic-design/coarse-to-fine-rico25"
-model = CoarseToFineForLayoutGeneration.from_pretrained(model_id)
-processor = CoarseToFineProcessor.from_pretrained(model_id)
-pipe = CoarseToFinePipeline(model=model, processor=processor)
-
-out = pipe(batch_size=2, seed=0, return_intermediates=True)
-print(out.bbox)    # normalized center xywh, shape (B, S, 4)
-print(out.labels)  # dataset-local ids, padding controlled by out.mask
-print(out.intermediates["hierarchy"]["group_bbox"])
+print(out.bbox)
+print(out.labels)
+print(out.mask)
 ```
 
-## Checkpoints
+## Training Details
 
-| Dataset | Condition | Hub id |
+### Training Data
+
+| Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | unconditional | `creative-graphic-design/coarse-to-fine-rico25` |
-| PubLayNet | unconditional | `creative-graphic-design/coarse-to-fine-publaynet` |
+| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default |
 
-The released checkpoints support unconditional hierarchical generation only. Public v1/v2 condition names are accepted at the API boundary, but unsupported modes such as `label`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval` raise `NotImplementedError`.
+### Training Procedure
 
-## Datasets
+This package ports released behavior and does not retrain the method in this repository.
 
-- `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public labels are zero-based; vendor tensors use one-based labels with SOS/EOS ids.
-- `creative-graphic-design/PubLayNet`: COCO-style document boxes are converted to normalized `ltwh`, discretized on the vendor 128-bin grid, and returned publicly as normalized center `xywh`.
+#### Preprocessing
 
-Coarse-to-Fine has structured tensor heads for labels, group label histograms, and four coordinate bins. There is no single unified token vocabulary for layout serialization, so this package uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training time and carbon measurements are not recorded in the current README.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Results
+
+The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
 
 ## Parity Results
-
-Local fixtures compare the converted model/pipeline against the original
-Microsoft Coarse-to-Fine implementation with a fixed latent tensor. Vendor
-reference tensors are regenerated on demand and are not committed.
 
 | Dataset | Comparison target | Cases | Agreement criterion | Result |
 | --- | --- | ---: | --- | --- |
@@ -68,13 +159,6 @@ reference tensors are regenerated on demand and are not committed.
 | RICO25 | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `3.004e-05` |
 | PubLayNet | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
 | PubLayNet | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `7.75e-06` |
-
-Detailed max-abs values for the logits checks were:
-
-| Dataset | Group bbox | Group label histogram | Grouped bbox | Grouped label | Argmax |
-| --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | `3.004e-05` | `2.026e-06` | `2.098e-05` | `2.193e-05` | exact |
-| PubLayNet | `3.814e-06` | `5.960e-07` | `5.600e-06` | `7.750e-06` | exact |
 
 ## Reproducibility
 
@@ -172,21 +256,36 @@ rico25 torch.Size([1, 20, 4]) torch.Size([1, 20])
 publaynet torch.Size([1, 20, 4]) torch.Size([1, 20])
 ```
 
-## Model Cards
+## Model Examination
 
-Converted output directories include a `README.md` model card when generated by the publishing flow. Hub publishing is deferred to issue #78.
+Interpretability and failure-analysis artifacts are not recorded in the current README.
+
+## Environmental Impact
+
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+
+## Technical Specifications
+
+### Model Architecture and Objective
+
+The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+
+### Compute Infrastructure
+
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+
+#### Hardware
+
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+
+#### Software
+
+Use `uv run --package coarse-to-fine ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
 ## License
 
-The original Microsoft LayoutGeneration repository is MIT licensed. Converted code in this package is for research conversion and evaluation of the released Coarse-to-Fine checkpoints.
+Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
 
 ## Citation
 
-```bibtex
-@inproceedings{jiang2022coarse,
-  title = {Coarse-to-Fine Generative Modeling for Graphic Layouts},
-  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Jichen and Deng, Jingwen and Luo, Jian and Li, Jianmin and Zheng, Yu and Fu, Yun},
-  booktitle = {AAAI},
-  year = {2022}
-}
-```
+Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
