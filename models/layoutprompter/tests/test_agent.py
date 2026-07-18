@@ -11,7 +11,7 @@ from pydantic_ai.models.test import TestModel
 
 from laygen.agents import BaseLayoutAgent
 from laygen.common import BoxFormat, DatasetName
-from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 from layoutprompter.agent import ConditionType, OutputType, PromptFormat

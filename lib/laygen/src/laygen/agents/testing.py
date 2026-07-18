@@ -14,7 +14,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
         "Install with `uv sync --extra agents` or depend on `laygen[agents]`."
     ) from exc
 
-from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 from laygen.common.testing import assert_layout_output_schema
 
 

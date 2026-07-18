@@ -18,7 +18,7 @@ from laygen.agents import (
 )
 from laygen.agents.testing import assert_agent_output_schema, function_model_from_text
 from laygen.common import ConditionType
-from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 
 
 class RawText(BaseModel):

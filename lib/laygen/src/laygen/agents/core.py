@@ -22,7 +22,7 @@ except ImportError as exc:  # pragma: no cover - depends on optional extra
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
-from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 
 if TYPE_CHECKING:
     from laygen.modeling_outputs import LayoutGenerationOutput

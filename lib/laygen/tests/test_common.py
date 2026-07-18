@@ -51,7 +51,7 @@ from laygen.common.testing import (
 )
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
-from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput, NumpyLayoutGenerationOutput
 
 
 def test_bbox_conversions_roundtrip():
@@ -254,11 +254,14 @@ def test_output_variants_share_schema_and_mapping_behavior():
     )
     expected_defaults = (MISSING, None, None, None, None, None, None, None)
     transformers_fields = fields(LayoutGenerationOutput)
+    numpy_fields = fields(NumpyLayoutGenerationOutput)
     diffusers_fields = fields(DiffusersModuleLayoutGenerationOutput)
 
     assert tuple(field.name for field in transformers_fields) == expected_names
+    assert tuple(field.name for field in numpy_fields) == expected_names
     assert tuple(field.name for field in diffusers_fields) == expected_names
     assert tuple(field.default for field in transformers_fields) == expected_defaults
+    assert tuple(field.default for field in numpy_fields) == expected_defaults
     assert tuple(field.default for field in diffusers_fields) == expected_defaults
     bbox = torch.zeros(1, 2, 4)
     labels = torch.zeros(1, 2, dtype=torch.long)

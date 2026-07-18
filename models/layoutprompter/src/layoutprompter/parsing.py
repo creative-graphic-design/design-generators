@@ -8,7 +8,7 @@ from typing import assert_never
 import numpy as np
 from numpy.typing import NDArray
 from laygen.agents import BaseResponseParser
-from laygen.common.outputs_numpy import NumpyLayoutGenerationOutput
+from laygen.modeling_outputs import NumpyLayoutGenerationOutput
 
 from layoutprompter.data import (
     CANVAS_SIZE,
