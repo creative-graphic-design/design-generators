@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from enum import StrEnum, auto
+from collections.abc import Callable
 from typing import Literal, assert_never
 
 import numpy as np
@@ -33,6 +34,16 @@ class BetaSchedule(StrEnum):
     cosine = auto()
     cosine_reverse = auto()
     cosine_anneal = auto()
+
+
+class LayoutDiffusionBetaSchedule(StrEnum):
+    """LayoutDiffusion vendor-only beta schedules."""
+
+    sqrt = auto()
+    mix_sqrt = auto()
+    trunc_cos = auto()
+    trunc_lin = auto()
+    pw_lin = auto()
 
 
 class DDIMDiscretization(StrEnum):
@@ -70,6 +81,20 @@ def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
         return BetaSchedule(schedule)
     except ValueError as exc:
         raise ValueError(f"Unsupported beta schedule: {schedule}") from exc
+
+
+def normalize_layoutdiffusion_beta_schedule(
+    schedule: LayoutDiffusionBetaSchedule | str,
+) -> LayoutDiffusionBetaSchedule:
+    """Normalize a LayoutDiffusion-only beta schedule name."""
+    if isinstance(schedule, LayoutDiffusionBetaSchedule):
+        return schedule
+    try:
+        return LayoutDiffusionBetaSchedule(schedule)
+    except ValueError as exc:
+        raise ValueError(
+            f"Unsupported LayoutDiffusion beta schedule: {schedule}"
+        ) from exc
 
 
 def normalize_ddim_discretization(
@@ -110,6 +135,100 @@ def _diffusers_beta_schedule(
     if schedule is BetaSchedule.sigmoid:
         return "sigmoid"
     return None
+
+
+def _betas_for_alpha_bar(
+    num_timesteps: int,
+    alpha_bar: Callable[[float], float],
+    *,
+    include_initial: bool = False,
+    max_beta: float = 0.999,
+) -> torch.Tensor:
+    betas = []
+    if include_initial:
+        betas.append(min(1 - alpha_bar(0), max_beta))
+        stop = num_timesteps - 1
+    else:
+        stop = num_timesteps
+    for i in range(stop):
+        t1 = i / num_timesteps
+        t2 = (i + 1) / num_timesteps
+        betas.append(min(1 - alpha_bar(t2) / alpha_bar(t1), max_beta))
+    return torch.tensor(betas, dtype=torch.float64)
+
+
+def get_layoutdiffusion_beta_schedule(
+    schedule: LayoutDiffusionBetaSchedule | str,
+    num_timesteps: int,
+) -> torch.Tensor:
+    """Create LayoutDiffusion vendor-only beta schedules.
+
+    Origin:
+        These formulas are copied narrowly from LayoutDiffusion's vendored
+        OpenAI ``improved_diffusion.gaussian_diffusion.get_named_beta_schedule``
+        branches for names not exposed by Diffusers.
+
+    Args:
+        schedule: LayoutDiffusion schedule enum or string value.
+        num_timesteps: Number of diffusion timesteps.
+
+    Returns:
+        Float64 beta tensor matching the vendor NumPy formula.
+
+    Raises:
+        ValueError: If ``schedule`` is not a LayoutDiffusion-only schedule.
+
+    Examples:
+        >>> get_layoutdiffusion_beta_schedule("sqrt", 4).shape
+        torch.Size([4])
+    """
+    canonical = normalize_layoutdiffusion_beta_schedule(schedule)
+    if canonical is LayoutDiffusionBetaSchedule.sqrt:
+        return _betas_for_alpha_bar(num_timesteps, lambda t: 1 - np.sqrt(t + 0.0001))
+    if canonical is LayoutDiffusionBetaSchedule.mix_sqrt:
+        return _betas_for_alpha_bar(
+            num_timesteps,
+            lambda t: (
+                (1 - np.cbrt(t / 2.0 + 0.000001))
+                if t < 0.5
+                else min(
+                    1 - np.sqrt(2.0 * t - 1.0 + 0.0001),
+                    1 - np.cbrt(t / 2.0 + 0.000001),
+                )
+            ),
+        )
+    if canonical is LayoutDiffusionBetaSchedule.trunc_cos:
+        return _betas_for_alpha_bar(
+            num_timesteps,
+            lambda t: np.cos((t + 0.1) / 1.1 * np.pi / 2) ** 2,
+            include_initial=True,
+        )
+    if canonical is LayoutDiffusionBetaSchedule.trunc_lin:
+        scale = 1000 / num_timesteps
+        return torch.from_numpy(
+            np.linspace(
+                scale * 0.0001 + 0.01,
+                scale * 0.02 + 0.01,
+                num_timesteps,
+                dtype=np.float64,
+            )
+        )
+    if canonical is LayoutDiffusionBetaSchedule.pw_lin:
+        scale = 1000 / num_timesteps
+        first_part = np.linspace(
+            scale * 0.0001 + 0.01,
+            scale * 0.0001,
+            10,
+            dtype=np.float64,
+        )
+        second_part = np.linspace(
+            scale * 0.0001,
+            scale * 0.02,
+            num_timesteps - 10,
+            dtype=np.float64,
+        )
+        return torch.from_numpy(np.concatenate([first_part, second_part]))
+    raise ValueError(f"Unsupported LayoutDiffusion beta schedule: {schedule}")
 
 
 def get_beta_schedule(
