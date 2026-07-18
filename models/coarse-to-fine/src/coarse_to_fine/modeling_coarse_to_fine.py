@@ -202,7 +202,6 @@ class GroupDecoder(nn.Module):
             generate_square_subsequent_mask(
                 config.max_num_elements + 2, torch.device("cpu")
             ),
-            persistent=False,
         )
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=config.d_model,
@@ -308,7 +307,6 @@ class ElementDecoder(nn.Module):
             generate_square_subsequent_mask(
                 config.max_num_elements + 2, torch.device("cpu")
             ),
-            persistent=False,
         )
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=config.d_model,

@@ -58,12 +58,23 @@ Coarse-to-Fine has structured tensor heads for labels, group label histograms, a
 
 ## Parity Results
 
-Vendor parity fixtures are regenerated on demand and are not committed.
+Local fixtures compare the converted Transformers model against the original
+Microsoft Coarse-to-Fine implementation with a fixed latent tensor. Vendor
+reference tensors are regenerated on demand and are not committed.
 
-| Checkpoint | Status | Logits max abs | Logits max rel | Decoded hierarchy |
-| --- | --- | ---: | ---: | --- |
-| `ckpts/rico/checkpoint.pth.tar` | script-ready | pending local GPU run | pending local GPU run | fixed latent + greedy argmax |
-| `ckpts/publaynet/checkpoint.pth.tar` | script-ready | pending local GPU run | pending local GPU run | fixed latent + greedy argmax |
+| Dataset | Comparison target | Cases | Agreement criterion | Result |
+| --- | --- | ---: | --- | --- |
+| RICO25 | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
+| RICO25 | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `3.004e-05` |
+| PubLayNet | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
+| PubLayNet | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `7.75e-06` |
+
+Detailed max-abs values for the logits checks were:
+
+| Dataset | Group bbox | Group label histogram | Grouped bbox | Grouped label | Argmax |
+| --- | ---: | ---: | ---: | ---: | --- |
+| RICO25 | `3.004e-05` | `2.026e-06` | `2.098e-05` | `2.193e-05` | exact |
+| PubLayNet | `3.814e-06` | `5.960e-07` | `5.600e-06` | `7.750e-06` | exact |
 
 ## Reproducibility
 
@@ -84,28 +95,7 @@ uv run --package coarse-to-fine python models/coarse-to-fine/scripts/download_or
   --output-dir .cache/coarse-to-fine/original
 ```
 
-2. Generate local reference metadata and vendor tensor placeholders.
-
-```bash
-for dataset in rico25 publaynet; do
-  CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine python models/coarse-to-fine/scripts/export_reference.py \
-    --dataset "$dataset" \
-    --checkpoint ".cache/coarse-to-fine/original/ckpts/${dataset/rico25/rico}/checkpoint.pth.tar" \
-    --seed 0 \
-    --output-dir ".cache/coarse-to-fine/reference/${dataset}"
-done
-```
-
-3. Run vendor parity tests against cached references.
-
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine pytest \
-  models/coarse-to-fine/tests/vendor_parity \
-  -m vendor_parity \
-  -q
-```
-
-4. Convert both public checkpoints into Transformers format.
+2. Convert both public checkpoints into Transformers format.
 
 ```bash
 uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
@@ -119,6 +109,39 @@ uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_che
   --output-dir .cache/coarse-to-fine/converted/publaynet
 ```
 
+3. Generate vendor reference tensors.
+
+```bash
+CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+  --dataset rico25 \
+  --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
+  --seed 0 \
+  --batch-size 2 \
+  --output-dir .cache/coarse-to-fine/reference/rico25
+
+CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+  --dataset publaynet \
+  --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
+  --seed 0 \
+  --batch-size 2 \
+  --output-dir .cache/coarse-to-fine/reference/publaynet
+```
+
+4. Run vendor parity tests against cached references.
+
+```bash
+CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine pytest \
+  models/coarse-to-fine/tests/vendor_parity \
+  -m vendor_parity \
+  -q
+```
+
+Expected result with the fixtures above:
+
+```text
+4 passed
+```
+
 5. Smoke-test local `from_pretrained`.
 
 ```bash
@@ -130,8 +153,18 @@ for dataset in ("rico25", "publaynet"):
     model = CoarseToFineForLayoutGeneration.from_pretrained(path)
     processor = CoarseToFineProcessor.from_pretrained(path)
     out = model.generate_layout(batch_size=1, seed=0, processor=processor)
+    assert out.bbox.shape == (1, 20, 4)
+    assert out.labels.shape == (1, 20)
+    assert bool(out.mask.any())
     print(model.config.dataset, out.bbox.shape, out.labels.shape)
 PY
+```
+
+Expected output:
+
+```text
+rico25 torch.Size([1, 20, 4]) torch.Size([1, 20])
+publaynet torch.Size([1, 20, 4]) torch.Size([1, 20])
 ```
 
 ## Model Cards
