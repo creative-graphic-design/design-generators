@@ -25,6 +25,21 @@ Planned converted repositories are `creative-graphic-design/layoutdiffusion-rico
 
 RICO uses `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` before conversion to normalized lexicographic `ltrb` tokens. PubLayNet uses `creative-graphic-design/PubLayNet`; tests avoid full dataset downloads.
 
+## Parity Results
+
+Local fixtures compare the converted Diffusers pipeline against the original LayoutDiffusion implementation with seed 101.
+
+| Dataset | Comparison target | Cases | Agreement criterion | Result |
+| --- | --- | ---: | --- | --- |
+| RICO25 | Tokenizer ids | 121 tokens | exact id match | 121/121 |
+| RICO25 | Scheduler buffers | 1 schedule fixture | exact tensor match | pass |
+| RICO25 | Denoiser logits | 1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `1.0252e-05`, max rel `5.9171e-03` |
+| RICO25 | Full unconditional sample | 121 tokens | exact id match | 121/121 |
+| PubLayNet | Tokenizer ids | 121 tokens | exact id match | 121/121 |
+| PubLayNet | Scheduler buffers | 1 schedule fixture | exact tensor match | pass |
+| PubLayNet | Denoiser logits | 1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `5.7220e-06`, max rel `5.6200e-04` |
+| PubLayNet | Full unconditional sample | 121 tokens | exact id match | 121/121 |
+
 ## Reproducibility
 
 These commands reproduce the original-implementation agreement checks against the vendored LayoutDiffusion code, fixed seed 101, and converted local checkpoints.
