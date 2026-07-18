@@ -19,6 +19,7 @@ exclude-newer-span = "P7D"
 
 [manifest]
 members = [
+    "coarse-to-fine",
     "design-generators",
     "lace",
     "laygen",
@@ -658,6 +659,47 @@ wheels = [
 ]
 
 [[package]]
+name = "coarse-to-fine"
+version = "0.1.0"
+source = { editable = "models/coarse-to-fine" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "laygen" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+download = [
+    { name = "huggingface-hub" },
+]
+vendor = [
+    { name = "pycocotools" },
+    { name = "pytorch-fid" },
+    { name = "torchvision" },
+    { name = "wandb" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
+    { name = "laygen", editable = "lib/laygen" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pycocotools", marker = "extra == 'vendor'", specifier = ">=2.0" },
+    { name = "pytorch-fid", marker = "extra == 'vendor'", specifier = ">=0.3" },
+    { name = "safetensors", specifier = ">=0.4" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "torchvision", marker = "extra == 'vendor'" },
+    { name = "transformers", specifier = ">=5.0.0" },
+    { name = "wandb", marker = "extra == 'vendor'" },
+]
+provides-extras = ["download", "vendor"]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -1041,6 +1083,7 @@ name = "design-generators"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "coarse-to-fine" },
     { name = "lace" },
     { name = "laygen" },
     { name = "layout-corrector" },
@@ -1088,6 +1131,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "coarse-to-fine", editable = "models/coarse-to-fine" },
     { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusion'", specifier = ">=0.36.0" },
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
     { name = "lace", editable = "models/lace" },
