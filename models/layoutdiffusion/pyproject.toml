@@ -1,0 +1,45 @@
+[project]
+name = "layoutdiffusion"
+version = "0.1.0"
+description = "Diffusers pipeline for converted LayoutDiffusion checkpoints."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "huggingface-hub>=0.24",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "gdown>=6.1.0",
+    "huggingface-hub>=0.24",
+]
+vendor = [
+    "blobfile",
+    "mpi4py",
+    "pycocotools",
+    "pytorch-fid",
+    "scipy",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original LayoutDiffusion weights and vendor dependencies",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["layoutdiffusion"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true

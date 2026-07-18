@@ -10,6 +10,7 @@ from laygen.schedulers.continuous import (
     DDIMDiscretization,
     get_beta_schedule,
     get_ddim_timesteps,
+    get_layoutdiffusion_beta_schedule,
     make_beta_schedule,
     make_ddim_timesteps,
     normalize_beta_schedule,
@@ -131,6 +132,13 @@ def test_legacy_lace_beta_schedules_remain_vendor_exact() -> None:
             make_beta_schedule(schedule, num_timesteps=8),
             _vendor_beta_schedule(schedule, num_timesteps=8),
         )
+
+
+def test_layoutdiffusion_vendor_only_beta_schedule_matches_formula() -> None:
+    betas = get_layoutdiffusion_beta_schedule("trunc_lin", 4)
+    scale = 1000 / 4
+    expected = np.linspace(scale * 0.0001 + 0.01, scale * 0.02 + 0.01, 4)
+    assert torch.equal(betas, torch.tensor(expected, dtype=torch.float64))
 
 
 def test_ddim_timesteps_match_vendor_and_diffusers_uniform_adapter() -> None:
