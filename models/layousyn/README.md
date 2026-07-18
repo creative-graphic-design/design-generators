@@ -53,6 +53,20 @@ COCO-17, COCO-Caption-Grounded, GriT, and NSR-1K are not yet available in the
 `creative-graphic-design` Hugging Face org. Until those imports exist, parity
 and conversion scripts follow the original repository's dataset/download path.
 
+## Parity Results
+
+Local fixtures compare the converted Diffusers pipeline against the original
+Lay-Your-Scene implementation on the Grit checkpoint using real
+`google/t5-v1_1-base` caption embeddings and
+`sentence-transformers/sentence-t5-base` concept embeddings.
+
+| Check | Cases | Criterion | Result |
+| --- | ---: | --- | --- |
+| Alpha-scale beta respacing | 1 | `timestep_map` exact, helper betas exact, scheduler betas max abs <= 2e-8 | pass; helper exact, scheduler max abs <= 1.85e-8 |
+| Denoiser logits | 1 | max abs <= 2e-3, max rel <= 2e-3 | pass; max abs 1.2935e-3 |
+| First DDIM scheduler step | 1 | `pred_xstart` max abs <= 4e-5 and `prev_sample` max abs <= 2e-5 | pass; 3.0518e-5 / 4.7684e-7 |
+| Full 40-step sample public bbox | 1 | normalized public `xywh` max abs <= 2e-3 | pass; max abs 5.2923e-4 |
+
 ## Reproducibility
 
 Reproduce original-implementation agreement by generating CUDA fixed-seed vendor
