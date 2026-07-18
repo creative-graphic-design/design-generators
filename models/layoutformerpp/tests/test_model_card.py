@@ -26,7 +26,7 @@ def test_layoutformerpp_model_card_sections() -> None:
     assert metadata["datasets"] == ["creative-graphic-design/Rico"]
     assert metadata["language"] == ["en"]
     assert card.validate() is None
-    assert "LayoutFormerPPForConditionalGeneration.from_pretrained" in text
+    assert "LayoutFormerPPPipeline.from_pretrained" in text
     assert "LayoutFormer++" in text
     assert "## Model Details" in text
     assert "## Uses" in text

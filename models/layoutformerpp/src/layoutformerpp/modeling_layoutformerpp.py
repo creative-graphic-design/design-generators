@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import torch
 import torch.nn as nn
@@ -12,15 +12,7 @@ import torch.nn.functional as F
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
-from laygen.common.bbox import BoxFormat
-from laygen.common.conditions import ConditionType
-from laygen.modeling_outputs import LayoutGenerationOutput
-
 from .configuration_layoutformerpp import LayoutFormerPPConfig
-from .tasks import OutputType
-
-if TYPE_CHECKING:
-    from .processing_layoutformerpp import LayoutFormerPPProcessor
 
 
 def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
@@ -205,7 +197,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         return Seq2SeqLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)
 
     @torch.no_grad()
-    def generate_sequences(
+    def _generate_sequences(
         self,
         input_ids: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
@@ -219,6 +211,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         ]
         | None = None,
         task_ids: torch.Tensor | None = None,
+        generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """Run the vendor greedy/top-k autoregressive loop."""
         if attention_mask is None:
@@ -257,7 +250,11 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
                     logits[batch_idx].masked_fill_(mask, -math.inf)
             if do_sample:
                 probs = F.softmax(top_k_logits(logits / temperature, top_k), dim=-1)
-                curr = torch.multinomial(probs, num_samples=1).squeeze(-1)
+                curr = torch.multinomial(
+                    probs,
+                    num_samples=1,
+                    generator=generator,
+                ).squeeze(-1)
             else:
                 curr = torch.argmax(logits, dim=-1)
             eos = curr.eq(self.eos_token_id)
@@ -268,61 +265,3 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             if bool(torch.all(stop)):
                 break
         return torch.stack(outs, dim=1)
-
-    @torch.no_grad()
-    def generate_layout(
-        self,
-        input_ids: torch.Tensor | None = None,
-        attention_mask: torch.Tensor | None = None,
-        processor: LayoutFormerPPProcessor | None = None,
-        batch_size: int = 1,
-        seed: int | None = None,
-        generator: torch.Generator | None = None,
-        condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: list[list[int | str]] | None = None,
-        bbox: object = None,
-        relations: list[list[tuple[int, int, int, int, int]]] | None = None,
-        num_elements: int | list[int] | None = None,
-        box_format: BoxFormat | str = BoxFormat.xywh,
-        output_type: OutputType | str = OutputType.dataclass,
-        max_length: int | None = None,
-        do_sample: bool | None = None,
-        top_k: int = 10,
-        temperature: float = 0.7,
-        normalized: bool = True,
-        return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
-        """Generate and post-process layouts through a `LayoutFormerPPProcessor`."""
-        if processor is None:
-            raise ValueError("processor is required for generate_layout")
-        if input_ids is None:
-            encoded = processor(
-                condition_type=condition_type,
-                batch_size=batch_size,
-                return_tensors="pt",
-                labels=labels,
-                bbox=bbox,
-                relations=relations,
-            )
-            input_ids = encoded["input_ids"].to(self.device)
-            attention_mask = encoded["attention_mask"].to(self.device)
-        condition = processor.normalize_condition_type(condition_type)
-        if generator is None and seed is not None:
-            torch.manual_seed(seed)
-        default_do_sample = condition in {
-            ConditionType.unconditional,
-            ConditionType.completion,
-        }
-        _ = (generator, num_elements, normalized, return_intermediates)
-        sequences = self.generate_sequences(
-            input_ids,
-            attention_mask,
-            max_length=max_length,
-            do_sample=default_do_sample if do_sample is None else do_sample,
-            top_k=top_k,
-            temperature=temperature,
-        )
-        out = processor.post_process_layouts(
-            sequences.cpu(), box_format=box_format, output_type=output_type
-        )
-        return out

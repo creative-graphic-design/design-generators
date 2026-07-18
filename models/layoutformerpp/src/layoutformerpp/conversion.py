@@ -94,15 +94,9 @@ def layoutformerpp_model_card(
         )
     ]
     how_to_use = f"""
-from layoutformerpp import (
-    LayoutFormerPPForConditionalGeneration,
-    LayoutFormerPPPipeline,
-    LayoutFormerPPProcessor,
-)
+from layoutformerpp import LayoutFormerPPPipeline
 
-model = LayoutFormerPPForConditionalGeneration.from_pretrained("{model_id}")
-processor = LayoutFormerPPProcessor.from_pretrained("{model_id}")
-pipe = LayoutFormerPPPipeline(model=model, processor=processor)
+pipe = LayoutFormerPPPipeline.from_pretrained("{model_id}")
 
 out = pipe(condition_type="{condition}", labels=[["Text"]], max_length=8)
 print(out.bbox, out.labels, out.mask)

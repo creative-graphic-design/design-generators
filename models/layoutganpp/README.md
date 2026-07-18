@@ -29,6 +29,16 @@ Paper DOI: https://doi.org/10.1145/3474085.3475497
 | PubLayNet | `creative-graphic-design/layoutganpp-publaynet` | `creative-graphic-design/publaynet` | `(3, 9, 4)`, max_abs=0, max_rel=0 | `(1, 2, 4)` |
 | Magazine | `creative-graphic-design/layoutganpp-magazine` | `creative-graphic-design/magazine` | `(3, 33, 4)`, max_abs=0, max_rel=0 | `(1, 2, 4)` |
 
+## Parity Results
+
+On `CUDA_VISIBLE_DEVICES=3`, the LayoutGAN++ vendor-parity suite passed every released checkpoint case.
+
+| Dataset | Compared artifact | Cases | Match criterion | Result |
+| --- | --- | ---: | --- | --- |
+| Rico | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox, `max_abs=0`, `max_rel=0` | passed |
+| PubLayNet | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox, `max_abs=0`, `max_rel=0` | passed |
+| Magazine | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 33, 4)` bbox, `max_abs=0`, `max_rel=0` | passed |
+
 ## Install
 
 From this workspace, run commands through the package member:
@@ -80,21 +90,21 @@ uv run --package layoutganpp python models/layoutganpp/scripts/download_original
 Step 2 generates golden vendor fixtures with the const-layout code. The generated files are `.cache/layoutganpp/fixtures/<dataset>/reference_seed0.pt`. Set `CUDA_VISIBLE_DEVICES` to the GPU index you want the vendor model to use.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_rico.pth.tar \
   --output .cache/layoutganpp/fixtures/rico/reference_seed0.pt \
   --seed 0 \
   --batch-size 3
 
-CUDA_VISIBLE_DEVICES=1 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_publaynet.pth.tar \
   --output .cache/layoutganpp/fixtures/publaynet/reference_seed0.pt \
   --seed 0 \
   --batch-size 3
 
-CUDA_VISIBLE_DEVICES=1 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar \
   --output .cache/layoutganpp/fixtures/magazine/reference_seed0.pt \
@@ -105,7 +115,7 @@ CUDA_VISIBLE_DEVICES=1 uv run --package layoutganpp python models/layoutganpp/sc
 Step 3 runs the vendor parity tests against converted checkpoints. If step 4 has not been run yet, pytest will skip the cases because `.cache/layoutganpp/converted/layoutganpp-<dataset>` is missing.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
 ```
 
 Step 4 converts each original checkpoint into a Transformers-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.

@@ -313,7 +313,7 @@ def test_public_checkpoint_generation_matches_vendor(case: ParityCase) -> None:
             temperature=0.7,
         )["output"]
     torch.manual_seed(1234)
-    new_sequences = model.generate_sequences(
+    new_sequences = model._generate_sequences(
         encoded["input_ids"],
         encoded["attention_mask"],
         max_length=min(config.decode_max_length, 12),
@@ -365,7 +365,7 @@ def test_label_constrained_generation_matches_vendor(case: ParityCase) -> None:
                 case, vendor_src, vendor_tokenizer
             ),
         )["output"]
-    new_sequences = model.generate_sequences(
+    new_sequences = model._generate_sequences(
         encoded["input_ids"],
         encoded["attention_mask"],
         max_length=12,

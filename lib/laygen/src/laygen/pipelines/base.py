@@ -32,12 +32,14 @@ class PipelineComponentLoader(Protocol):
         pretrained_model_name_or_path: str | Path,
         *,
         local_files_only: bool = False,
+        subfolder: str | None = None,
     ) -> object:
         """Load a component.
 
         Args:
-            pretrained_model_name_or_path: Root or subfolder path to load.
+            pretrained_model_name_or_path: Root checkpoint path or Hub repo id.
             local_files_only: Whether to avoid network access.
+            subfolder: Optional component subfolder for Hub-backed loading.
 
         Returns:
             Loaded component object.
@@ -156,6 +158,27 @@ class PipelineComponentSpec:
             return root / self.subfolder
         return root
 
+    def component_subfolder(self, config: PretrainedConfig) -> str | None:
+        """Resolve the component subfolder for Hub-backed loading.
+
+        Args:
+            config: Root pipeline config.
+
+        Returns:
+            Component subfolder or `None` when the component lives at the root.
+
+        Raises:
+            TypeError: If the configured subfolder attribute is not a string.
+        """
+        if self.config_subfolder_attribute is not None:
+            value = getattr(config, self.config_subfolder_attribute)
+            if not isinstance(value, str):
+                raise TypeError(
+                    f"{self.config_subfolder_attribute} must be a string subfolder"
+                )
+            return value
+        return self.subfolder
+
 
 class LayoutGenerationPipeline(ABC):
     """Base class for Transformers-side layout-generation pipelines.
@@ -230,13 +253,15 @@ class LayoutGenerationPipeline(ABC):
             TypeError: If `config` is not compatible with `config_class`.
         """
         root = Path(pretrained_model_name_or_path)
+        source = pretrained_model_name_or_path
         pipeline_config = cls._load_pipeline_config(
-            root,
+            source,
             local_files_only=local_files_only,
             config=config,
         )
         loaded_components = cls._load_pipeline_components(
             root,
+            source,
             pipeline_config,
             local_files_only=local_files_only,
             components=components or {},
@@ -249,14 +274,14 @@ class LayoutGenerationPipeline(ABC):
     @classmethod
     def _load_pipeline_config(
         cls,
-        root: Path,
+        source: str | Path,
         *,
         local_files_only: bool,
         config: PretrainedConfig | None,
     ) -> PretrainedConfig:
         if config is None:
             return cls.config_class.from_pretrained(
-                root,
+                source,
                 local_files_only=local_files_only,
             )
         if isinstance(config, cls.config_class):
@@ -269,6 +294,7 @@ class LayoutGenerationPipeline(ABC):
     def _load_pipeline_components(
         cls,
         root: Path,
+        source: str | Path,
         config: PretrainedConfig,
         *,
         local_files_only: bool,
@@ -282,22 +308,29 @@ class LayoutGenerationPipeline(ABC):
             if spec.loader is None:
                 loaded[name] = None
                 continue
-            component_path = spec.component_path(root, config)
-            marker = (
-                component_path / spec.marker_file
-                if spec.marker_file is not None
-                else None
-            )
-            if marker is not None and not marker.exists():
-                if spec.required:
-                    raise FileNotFoundError(
-                        f"Required pipeline component '{name}' is missing: {marker}"
-                    )
-                loaded[name] = None
+            if root.is_dir():
+                component_path = spec.component_path(root, config)
+                marker = (
+                    component_path / spec.marker_file
+                    if spec.marker_file is not None
+                    else None
+                )
+                if marker is not None and not marker.exists():
+                    if spec.required:
+                        raise FileNotFoundError(
+                            f"Required pipeline component '{name}' is missing: {marker}"
+                        )
+                    loaded[name] = None
+                    continue
+                loaded[name] = spec.loader(
+                    component_path,
+                    local_files_only=local_files_only,
+                )
                 continue
             loaded[name] = spec.loader(
-                component_path,
+                source,
                 local_files_only=local_files_only,
+                subfolder=spec.component_subfolder(config),
             )
         return loaded
 

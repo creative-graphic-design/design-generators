@@ -70,12 +70,14 @@ def vendor_root(
 def _candidate_roots(
     requested: Path, repo_dir: Path, repo_root: Path, cwd: Path
 ) -> list[Path]:
-    candidates = [
-        requested,
-        cwd / requested,
-        repo_root / requested,
-        repo_root / repo_dir,
-    ]
+    candidates = [requested] if requested.is_absolute() else []
+    candidates.extend(
+        [
+            cwd / requested,
+            repo_root / requested,
+            repo_root / repo_dir,
+        ]
+    )
     if "=" in repo_root.name:
         sibling = repo_root.with_name(repo_root.name.split("=", maxsplit=1)[0])
         candidates.extend([sibling / requested, sibling / repo_dir])
