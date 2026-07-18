@@ -191,10 +191,14 @@ def test_layousyn_scaled_cosine_matches_vendor_formula() -> None:
 
 
 def test_layousyn_linear_alpha_scale_matches_vendor_formula() -> None:
-    betas = torch.linspace(0.0001 * 125, 0.02 * 125, 8, dtype=torch.float64)
-    alpha_cumprod = torch.cumprod(1 - betas, dim=0)
+    betas = np.linspace(0.0001 * 125, 0.02 * 125, 8, dtype=np.float64)
+    alpha_cumprod = np.cumprod(1 - betas)
     updated = (4.0 * alpha_cumprod) / (3.0 * alpha_cumprod + 1.0)
-    expected = torch.cat((1 - updated[:1], 1 - updated[1:] / updated[:-1]), dim=0)
+    expected = torch.from_numpy(
+        np.array(
+            [1 - updated[0]] + [1 - updated[i] / updated[i - 1] for i in range(1, 8)]
+        )
+    )
     assert torch.equal(
         get_layousyn_beta_schedule("linear", 8, alpha_scale=2.0), expected
     )

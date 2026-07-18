@@ -190,21 +190,22 @@ def get_layousyn_beta_schedule(
     """
     if schedule == "linear":
         scale = 1000 / num_timesteps
-        betas = torch.linspace(
+        betas_np = np.linspace(
             scale * 0.0001,
             scale * 0.02,
             num_timesteps,
-            dtype=torch.float64,
+            dtype=np.float64,
         )
         if alpha_scale == 1.0:
-            return betas
-        alpha_cumprod = torch.cumprod(1 - betas, dim=0)
+            return torch.from_numpy(betas_np)
+        alpha_cumprod = np.cumprod(1 - betas_np)
         alpha_scaled = (alpha_scale**2 * alpha_cumprod) / (
             (alpha_scale**2 - 1) * alpha_cumprod + 1.0
         )
-        first = 1 - alpha_scaled[:1]
-        rest = 1 - alpha_scaled[1:] / alpha_scaled[:-1]
-        return torch.cat((first, rest), dim=0)
+        betas = [1 - alpha_scaled[0]]
+        for i in range(1, num_timesteps):
+            betas.append(1 - alpha_scaled[i] / alpha_scaled[i - 1])
+        return torch.from_numpy(np.array(betas))
     if schedule == "squaredcos_cap_v2":
         betas = []
         for i in range(num_timesteps):
@@ -213,7 +214,7 @@ def get_layousyn_beta_schedule(
             alpha_1 = _layousyn_scaled_cosine_alpha_bar(t1, alpha_scale)
             alpha_2 = _layousyn_scaled_cosine_alpha_bar(t2, alpha_scale)
             betas.append(min(1 - alpha_2 / alpha_1, 0.999))
-        return torch.tensor(betas, dtype=torch.float64)
+        return torch.from_numpy(np.array(betas))
     raise ValueError(f"Unsupported LayouSyn beta schedule: {schedule}")
 
 

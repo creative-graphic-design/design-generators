@@ -32,6 +32,15 @@ def test_ddim_step_shape() -> None:
         model_output, torch.tensor([1]), sample, return_dict=False
     )
     assert isinstance(tuple_out, tuple)
+    clip_scheduler = LayouSynScheduler(num_train_timesteps=100)
+    clipped = clip_scheduler.step(
+        torch.ones_like(model_output) * -2,
+        torch.tensor([99]),
+        sample,
+        clip_denoised=True,
+    )
+    assert isinstance(clipped, LayouSynSchedulerOutput)
+    assert clipped.pred_original_sample.min() >= -1.0
 
 
 def test_ddpm_and_error_paths() -> None:

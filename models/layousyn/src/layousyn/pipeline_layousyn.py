@@ -217,6 +217,7 @@ class LayouSynPipeline(DiffusionPipeline):
                 sample,
                 generator=generator,
                 sampling_type=sampling_type,
+                clip_denoised=False,
             )
             sample = step.prev_sample
             if return_intermediates:

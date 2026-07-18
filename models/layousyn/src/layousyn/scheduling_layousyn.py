@@ -152,13 +152,16 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         *,
         generator: torch.Generator | None = None,
         eta: float = 0.0,
+        clip_denoised: bool = False,
         sampling_type: Literal["ddim", "ddpm"] | None = None,
         return_dict: bool = True,
     ) -> LayouSynSchedulerOutput | tuple[torch.Tensor]:
         """Take one reverse diffusion step."""
         mode = sampling_type or self.sampling_type
         eps, model_var_values = torch.split(model_output, sample.shape[1], dim=1)
-        pred_xstart = self._predict_xstart_from_eps(sample, timestep, eps).clamp(-1, 1)
+        pred_xstart = self._predict_xstart_from_eps(sample, timestep, eps)
+        if clip_denoised:
+            pred_xstart = pred_xstart.clamp(-1, 1)
         if mode == "ddim":
             prev_sample = self._ddim_step(
                 sample, timestep, pred_xstart, generator=generator, eta=eta

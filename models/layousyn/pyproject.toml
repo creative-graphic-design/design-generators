@@ -18,12 +18,15 @@ vendor = [
     "comet-ml",
     "gdown>=6.1.0",
     "clip @ git+https://github.com/openai/CLIP.git",
+    "ftfy",
     "pandas",
     "pillow",
     "pyarrow",
     "pycocotools",
     "pytorch-fid",
+    "sentencepiece",
     "tensorboard",
+    "timm",
 ]
 
 [tool.uv.sources]
