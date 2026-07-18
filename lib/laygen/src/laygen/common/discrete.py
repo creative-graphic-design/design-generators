@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
+from typing import TYPE_CHECKING
 from typing import Final, assert_never
 
-import torch
-import torch.nn.functional as F
+if TYPE_CHECKING:
+    import torch
 
 LOG_EPS: Final[float] = -70.0
 
@@ -60,6 +61,9 @@ def index_to_log_onehot(input_ids: torch.Tensor, vocab_size: int) -> torch.Tenso
         >>> index_to_log_onehot(torch.tensor([[0, 1]]), 3).shape
         torch.Size([1, 3, 2])
     """
+    import torch
+    import torch.nn.functional as F
+
     if input_ids.numel() and input_ids.max().item() >= vocab_size:
         raise ValueError(
             f"input id {input_ids.max().item()} exceeds vocab_size {vocab_size}"
@@ -76,6 +80,8 @@ def log_onehot_to_index(log_x: torch.Tensor) -> torch.Tensor:
 
 def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
+    import torch
+
     maximum = torch.maximum(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
@@ -95,6 +101,8 @@ def gumbel_noise_like(
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
+    import torch
+
     uniform = torch.rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
     return -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
 
@@ -110,6 +118,8 @@ def log_sample_categorical(
 
 def top_k_logits(logits: torch.Tensor, k: int, dim: int = -1) -> torch.Tensor:
     """Mask logits outside the top-k entries along ``dim``."""
+    import torch
+
     if k <= 0 or k >= logits.size(dim):
         return logits
     values = torch.topk(logits, k, dim=dim).values
@@ -118,6 +128,8 @@ def top_k_logits(logits: torch.Tensor, k: int, dim: int = -1) -> torch.Tensor:
 
 
 def _top_p_logits(logits: torch.Tensor, top_p: float) -> torch.Tensor:
+    import torch
+
     if top_p >= 1.0:
         return logits
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
@@ -162,6 +174,8 @@ def sample_categorical(
         ... )
         tensor([[1]])
     """
+    import torch
+
     mode = normalize_sampling_mode(sampling)
     match mode:
         case SamplingMode.deterministic:
@@ -198,6 +212,8 @@ def sample_categorical(
 
 def batch_topk_mask(scores: torch.Tensor, k: torch.Tensor) -> torch.Tensor:
     """Return a per-row boolean mask for the top ``k`` scores."""
+    import torch
+
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
     max_k = int(k.max().item()) if k.numel() else 0
