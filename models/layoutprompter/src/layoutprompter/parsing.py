@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import assert_never
 
-import torch
+import numpy as np
+from numpy.typing import NDArray
 from laygen.agents import BaseResponseParser
-from laygen.common.bbox import normalize_boxes
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from layoutprompter.data import (
@@ -56,11 +56,9 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
             labels, pixel_ltwh = self._extract_from_html(prediction)
         else:
             assert_never(self.output_format)
-        bbox = normalize_boxes(
-            pixel_ltwh, canvas_size=self.canvas_size, box_format="ltwh"
-        ).unsqueeze(0)
-        label_tensor = labels.long().unsqueeze(0)
-        mask = torch.ones_like(label_tensor, dtype=torch.bool)
+        bbox = _normalize_ltwh(pixel_ltwh, canvas_size=self.canvas_size)[None, ...]
+        label_tensor = labels.astype(np.int64, copy=False)[None, ...]
+        mask = np.ones_like(label_tensor, dtype=np.bool_)
         return LayoutGenerationOutput(
             bbox=bbox, labels=label_tensor, mask=mask, id2label=self.id2label
         )
@@ -77,7 +75,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def parse_vendor_compatible(
         self, prediction: str
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
         """Parse string output as vendor-compatible normalized top-left ``xywh``."""
         if self.output_format is PromptFormat.SEQ:
             labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
@@ -86,12 +84,12 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         else:
             assert_never(self.output_format)
         width, height = self.canvas_size
-        scale = pixel_ltwh.new_tensor((width, height, width, height))
+        scale = np.asarray((width, height, width, height), dtype=np.float32)
         return labels, pixel_ltwh / scale
 
     def _extract_from_structured(
         self, prediction: LayoutPrompterOutput
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
         labels: list[int] = []
         bboxes: list[list[int]] = []
         for element in prediction.elements:
@@ -104,11 +102,11 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
                     element.bbox.height,
                 ]
             )
-        return torch.tensor(labels, dtype=torch.long), torch.tensor(
-            bboxes, dtype=torch.float
-        )
+        return np.asarray(labels, dtype=np.int64), np.asarray(bboxes, dtype=np.float32)
 
-    def _extract_from_html(self, prediction: str) -> tuple[torch.Tensor, torch.Tensor]:
+    def _extract_from_html(
+        self, prediction: str
+    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
         labels = re.findall(r'<div class="(.*?)"', prediction)[1:]
         left = re.findall(r"left:\s*(\d+)px", prediction)[1:]
         top = re.findall(r"top:\s*(\d+)px", prediction)[1:]
@@ -116,10 +114,10 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         height = re.findall(r"height:\s*(\d+)px", prediction)[1:]
         if not (len(labels) == len(left) == len(top) == len(width) == len(height)):
             raise RuntimeError("HTML prediction has mismatched label and bbox counts")
-        label_tensor = torch.tensor(
-            [self.label2id[label.strip().lower()] for label in labels], dtype=torch.long
+        label_array = np.asarray(
+            [self.label2id[label.strip().lower()] for label in labels], dtype=np.int64
         )
-        bbox_tensor = torch.tensor(
+        bbox_array = np.asarray(
             [
                 [
                     int(left[index]),
@@ -129,11 +127,13 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
                 ]
                 for index in range(len(labels))
             ],
-            dtype=torch.float,
+            dtype=np.float32,
         )
-        return label_tensor, bbox_tensor
+        return label_array, bbox_array
 
-    def _extract_from_seq(self, prediction: str) -> tuple[torch.Tensor, torch.Tensor]:
+    def _extract_from_seq(
+        self, prediction: str
+    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
         labels = sorted(self.label2id, key=len, reverse=True)
         pattern = (
             r"("
@@ -143,21 +143,21 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         matches = re.findall(pattern, prediction.lower())
         if not matches:
             raise RuntimeError("No seq layout elements parsed")
-        label_tensor = torch.tensor(
-            [self.label2id[item[0]] for item in matches], dtype=torch.long
+        label_array = np.asarray(
+            [self.label2id[item[0]] for item in matches], dtype=np.int64
         )
-        bbox_tensor = torch.tensor(
+        bbox_array = np.asarray(
             [
                 [int(item[1]), int(item[2]), int(item[3]), int(item[4])]
                 for item in matches
             ],
-            dtype=torch.float,
+            dtype=np.float32,
         )
-        return label_tensor, bbox_tensor
+        return label_array, bbox_array
 
     def _extract_from_seq_vendor(
         self, prediction: str
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
         labels = sorted(self.label2id, key=len, reverse=True)
         pattern = (
             r"("
@@ -167,14 +167,34 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         matches = re.findall(pattern, prediction.lower())
         if not matches:
             raise RuntimeError("No vendor seq layout elements parsed")
-        label_tensor = torch.tensor(
-            [self.label2id[item[0]] for item in matches], dtype=torch.long
+        label_array = np.asarray(
+            [self.label2id[item[0]] for item in matches], dtype=np.int64
         )
-        bbox_tensor = torch.tensor(
+        bbox_array = np.asarray(
             [
                 [int(item[1]), int(item[2]), int(item[3]), int(item[4])]
                 for item in matches
             ],
-            dtype=torch.float,
+            dtype=np.float32,
         )
-        return label_tensor, bbox_tensor
+        return label_array, bbox_array
+
+
+def _normalize_ltwh(
+    pixel_ltwh: NDArray[np.float32], *, canvas_size: tuple[int, int]
+) -> NDArray[np.float32]:
+    if pixel_ltwh.size == 0:
+        return np.empty((0, 4), dtype=np.float32)
+    width, height = canvas_size
+    scale = np.asarray((width, height, width, height), dtype=np.float32)
+    left, top, box_width, box_height = (pixel_ltwh / scale).T
+    bbox = np.stack(
+        (
+            left + box_width / 2,
+            top + box_height / 2,
+            box_width,
+            box_height,
+        ),
+        axis=-1,
+    )
+    return np.clip(bbox, 0.0, 1.0).astype(np.float32, copy=False)
