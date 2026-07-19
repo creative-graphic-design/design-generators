@@ -58,6 +58,10 @@ LayoutPrompter is packaged for the `design-generators` workspace. Public outputs
 
 Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
+Pass any Pydantic AI model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
+
+`condition_type` accepts the public names and common vendor aliases: `label`, `label_size`, `relation`, `completion`, `refinement`, `text`, `cat_cond`, `gen_t`, `size_cond`, `gen_ts`, `gen_r`, `partial`, and `refine`. The package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -81,12 +85,63 @@ uv sync --package layoutprompter
 ```
 
 ```python
+import numpy as np
 from pydantic_ai.models.test import TestModel
-from layoutprompter import LayoutPrompter
 
-model = TestModel(custom_output_args={"elements": []})
-agent = LayoutPrompter.from_pretrained(".cache/layoutprompter/prompt-config", model=model)
-print(agent)
+from layoutprompter import LayoutPrompter, LayoutPrompterConfig
+
+model = TestModel(
+    custom_output_args={
+        "elements": [
+            {
+                "label": "text",
+                "bbox": {"left": 12, "top": 16, "width": 24, "height": 32},
+            }
+        ]
+    }
+)
+
+train_data = [
+    {
+        "labels": np.asarray([0, 2]),
+        "bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
+        "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
+    }
+]
+test_data = {
+    "labels": np.asarray([0, 2]),
+    "bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
+    "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
+}
+
+agent = LayoutPrompter(
+    LayoutPrompterConfig(dataset="webui", model=model, shuffle=False, num_prompt=1)
+)
+output = agent.run_sync(train_data, test_data)
+print(output.labels)
+print(output.bbox)  # normalized center xywh with shape (batch, elements, 4)
+```
+
+Provider-backed configuration uses the same `LayoutPrompterConfig.model` field.
+
+```python
+import os
+
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
+
+from layoutprompter import LayoutPrompterConfig
+
+provider = OpenAIProvider(
+    base_url=os.environ["OPENAI_BASE_URL"],
+    api_key=os.environ["OPENAI_API_KEY"],
+)
+config = LayoutPrompterConfig(
+    dataset="webui",
+    model=OpenAIChatModel("gpt-4o-mini", provider=provider),
+    shuffle=False,
+    num_prompt=1,
+)
 ```
 
 ## Training Details
@@ -99,6 +154,8 @@ print(agent)
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PosterLayout | not recorded | built-in label vocabulary |
 | WebUI | not recorded | deterministic local fixture |
+
+Built-in label vocabularies are available for `publaynet`, `rico`, `posterlayout`, and `webui`.
 
 ### Training Procedure
 
@@ -248,6 +305,14 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
 
+The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
+
+```bash
+uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
+```
+
+Without `OPENAI_API_KEY`, the demo exits with a skip message.
+
 ### Compute Infrastructure
 
 Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
@@ -259,6 +324,17 @@ CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 #### Software
 
 Use `uv run --package layoutprompter ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
+Regular package checks are:
+
+```bash
+uv run --package layoutprompter pytest models/layoutprompter/tests -m "not vendor_parity and not integration"
+uv run --package layoutprompter --with pytest-cov pytest models/layoutprompter/tests -m "not vendor_parity and not integration" --cov=layoutprompter --cov-report=term-missing
+uv run --package layoutprompter ruff check models/layoutprompter
+uv run --package layoutprompter ty check models/layoutprompter
+```
+
+The current package coverage under the coverage command above is 99%.
 
 ## License
 

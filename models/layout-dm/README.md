@@ -57,6 +57,8 @@ LayoutDM is packaged for the `design-generators` workspace. Public outputs use n
 
 - **Repository:** [LayoutDM repository](https://github.com/CyberAgentAILab/layout-dm)
 - **Paper:** [CVPR 2023 paper page](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html)
+- **Project page:** [LayoutDM project page](https://cyberagentailab.github.io/layout-dm/)
+- **Starter checkpoint bundle:** [layoutdm_starter.zip](https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip)
 
 ## Supported Checkpoints
 
@@ -70,6 +72,8 @@ LayoutDM is packaged for the `design-generators` workspace. Public outputs use n
 ### Direct Use
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+LayoutDM supports controllable discrete diffusion over layout tokens. The converted checkpoints follow the original release for RICO25 mobile UI layouts and PubLayNet document page layouts, both with at most 25 elements.
 
 ### Downstream Use
 

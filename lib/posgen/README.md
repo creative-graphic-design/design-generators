@@ -9,6 +9,8 @@
 
 [`posgen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/posgen) is the shared package reserved for poster-generation and content-aware placement helpers. It is intentionally small until real poster packages create repeated contracts.
 
+`posgen` exists so poster-generation and content-aware placement models can share small, stable contracts once real consumers appear.
+
 ## Install
 
 ```bash
@@ -20,15 +22,39 @@ uv sync --package posgen
 ```bash
 uv run --package posgen python - <<'PY'
 import torch
-from posgen.common import PositionContent, render_position_summary
+from posgen.common import (
+    PositionContent,
+    assert_position_content_schema,
+    labels_for_dataset,
+    normalize_label,
+    render_position_summary,
+)
 
 content = PositionContent(
     positions=torch.zeros(1, 2, 2),
     mask=torch.tensor([[True, False]]),
 )
+assert_position_content_schema(content)
+print(normalize_label("Anchor-Point"))
 print(render_position_summary(content))
+print(labels_for_dataset("crello"))
 PY
 ```
+
+Example output:
+
+```text
+anchor_point
+1 active positions
+('coloredBackground', 'imageElement', 'maskElement', 'svgElement', 'textElement')
+```
+
+## Scope
+
+- Keep generic position content containers, label normalization, schema tests, and lightweight summaries here.
+- Use `posgen` for poster/content-aware placement concerns.
+- Keep saliency, retrieval, ranking, and dataset-specific placement logic in model packages until there is proven reuse.
+- Do not add `posgen` to the root project dependencies until the first real consumer needs it.
 
 ## Dependency Direction
 

@@ -81,6 +81,8 @@ LayoutFormer++ is packaged for the `design-generators` workspace. Public outputs
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to vendor tasks as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -109,11 +111,11 @@ from layoutformerpp import LayoutFormerPPPipeline
 pipe = LayoutFormerPPPipeline.from_pretrained(
     "creative-graphic-design/layoutformerpp-rico-label",
 )
-out = pipe(batch_size=1, seed=0)
+out = pipe(condition_type="label", labels=[["Text", "Image"]], max_length=16)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox)  # normalized center xywh, shape (B, S, 4)
+print(out.labels)  # dataset-local ids, padding controlled by out.mask
+print(out.id2label)
 ```
 
 ## Training Details
@@ -124,6 +126,8 @@ print(out.mask)
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+
+RICO25 public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens. PubLayNet COCO-style document boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
 ### Training Procedure
 

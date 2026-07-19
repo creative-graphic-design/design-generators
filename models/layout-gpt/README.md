@@ -53,6 +53,8 @@ LayoutGPT is packaged for the `design-generators` workspace. Public outputs use 
 
 Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
+LayoutGPT builds the same in-context prompts as the original 2D script, calls any Pydantic AI compatible chat model, and parses CSS-style layout lines into typed Python objects and the shared layout output schema. The supported settings are `counting` and `spatial`; exemplar selection supports `fixed-random` and `k-similar`.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -78,10 +80,29 @@ uv sync --package layout-gpt
 ```python
 from pydantic_ai.models.test import TestModel
 from layout_gpt import LayoutGPTAgent
+from layout_gpt.exemplars import load_nsr_examples
+from layout_gpt.schema import LayoutGPTConfig
 
 model = TestModel(custom_output_args={"elements": []})
-agent = LayoutGPTAgent.from_pretrained(".cache/layout-gpt/prompt-config", model=model)
-print(agent)
+examples = load_nsr_examples(
+    "vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json",
+    setting="counting",
+)
+agent = LayoutGPTAgent(
+    model=model,
+    config=LayoutGPTConfig(
+        setting="counting",
+        icl_type="fixed-random",
+        k=1,
+        canvas_size=256,
+    ),
+    exemplars=examples,
+)
+output = agent.run_sync("there is one clock in the image")
+layout_output = output.to_layout_generation_output()
+print(layout_output.bbox)
+print(layout_output.labels)
+print(layout_output.id2label)
 ```
 
 ## Training Details
@@ -91,6 +112,8 @@ print(agent)
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
 | NSR-1K | vendor/layout-gpt dataset metadata | not mirrored |
+
+NSR-1K examples are loaded from the vendor dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
 
 ### Training Procedure
 
@@ -220,7 +243,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+The package preserves the upstream prompt construction, exemplar selection, and CSS-like output parser needed for inference while exposing the common layout schema. For `k-similar`, pass a query embedding function and candidate embeddings to `run_sync()` or `build_prompt()`; the package keeps CLIP optional.
 
 ### Compute Infrastructure
 
@@ -233,6 +256,26 @@ CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 #### Software
 
 Use `uv run --package layout-gpt ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
+The demo script accepts a configured Pydantic AI model:
+
+```bash
+uv run --package layout-gpt python models/layout-gpt/scripts/demo_layout_gpt.py \
+  --train-json vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json \
+  --prompt "there is one clock in the image" \
+  --setting counting \
+  --canvas-size 256 \
+  --model "${LAYOUT_GPT_MODEL:-openai:gpt-5-mini}"
+```
+
+Regular package checks are:
+
+```bash
+uv run --package layout-gpt pytest models/layout-gpt/tests
+uv run --package layout-gpt ruff check models/layout-gpt
+uv run --package layout-gpt ruff format --check models/layout-gpt
+uv run --package layout-gpt ty check models/layout-gpt
+```
 
 ## License
 

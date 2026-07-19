@@ -71,6 +71,8 @@ Coarse-to-Fine is packaged for the `design-generators` workspace. Public outputs
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+The released checkpoints support unconditional hierarchical generation only. Public v1/v2 condition names are accepted at the API boundary, but unsupported modes such as `label`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval` raise `NotImplementedError`.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -94,16 +96,21 @@ uv sync --package coarse-to-fine
 ```
 
 ```python
-from coarse_to_fine import CoarseToFinePipeline
-
-pipe = CoarseToFinePipeline.from_pretrained(
-    "creative-graphic-design/coarse-to-fine-rico25",
+from coarse_to_fine import (
+    CoarseToFineForLayoutGeneration,
+    CoarseToFinePipeline,
+    CoarseToFineProcessor,
 )
-out = pipe(batch_size=1, seed=0)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+model_id = "creative-graphic-design/coarse-to-fine-rico25"
+model = CoarseToFineForLayoutGeneration.from_pretrained(model_id)
+processor = CoarseToFineProcessor.from_pretrained(model_id)
+pipe = CoarseToFinePipeline(model=model, processor=processor)
+
+out = pipe(batch_size=2, seed=0, return_intermediates=True)
+print(out.bbox)  # normalized center xywh, shape (B, S, 4)
+print(out.labels)  # dataset-local ids, padding controlled by out.mask
+print(out.intermediates["hierarchy"]["group_bbox"])
 ```
 
 ## Training Details
@@ -114,6 +121,8 @@ print(out.mask)
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+
+RICO25 public labels are zero-based; vendor tensors use one-based labels with SOS/EOS ids. PubLayNet COCO-style document boxes are converted to normalized `ltwh`, discretized on the vendor 128-bin grid, and returned publicly as normalized center `xywh`.
 
 ### Training Procedure
 
@@ -159,6 +168,13 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 | RICO25 | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `3.004e-05` |
 | PubLayNet | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
 | PubLayNet | Vendor vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `7.75e-06` |
+
+Detailed max-abs values for the logits checks were:
+
+| Dataset | Group bbox | Group label histogram | Grouped bbox | Grouped label | Argmax |
+| --- | ---: | ---: | ---: | ---: | --- |
+| RICO25 | `3.004e-05` | `2.026e-06` | `2.098e-05` | `2.193e-05` | exact |
+| PubLayNet | `3.814e-06` | `5.960e-07` | `5.600e-06` | `7.750e-06` | exact |
 
 ## Reproducibility
 
@@ -268,7 +284,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+The package preserves the upstream autoregressive hierarchical architecture needed for conversion and inference while exposing the common layout schema. Coarse-to-Fine has structured tensor heads for labels, group label histograms, and four coordinate bins. There is no single unified token vocabulary for layout serialization, so this package uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
 
 ### Compute Infrastructure
 

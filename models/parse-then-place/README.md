@@ -72,6 +72,8 @@ Parse-Then-Place is packaged for the `design-generators` workspace. Public outpu
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+The pipeline owns the two-stage text-to-layout workflow: semantic parser -> placement constraint -> placement model -> common `LayoutGenerationOutput`. Full checkpoint inference requires converted `semantic_parser/` and `placement/` subfolders containing standard `AutoModelForSeq2SeqLM` weights.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -95,16 +97,18 @@ uv sync --package parse-then-place
 ```
 
 ```python
-from parse_then_place import ParseThenPlacePipeline
-
-pipe = ParseThenPlacePipeline.from_pretrained(
-    "creative-graphic-design/parse-then-place-rico-finetune",
+from parse_then_place import (
+    ParseThenPlaceConfig,
+    ParseThenPlacePipeline,
+    ParseThenPlaceProcessor,
 )
-out = pipe(batch_size=1, seed=0)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+config = ParseThenPlaceConfig(dataset_name="rico")
+processor = ParseThenPlaceProcessor.from_config("rico")
+pipe = ParseThenPlacePipeline(config=config, processor=processor)
+out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
+
+print(out.bbox.shape, out.labels.tolist())
 ```
 
 ## Training Details
@@ -115,6 +119,8 @@ print(out.mask)
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | Web | not recorded | vendor web pretraining split |
+
+Datasets are RICO text-to-layout and WebUI as distributed by the original repository. WebUI is not yet mirrored under the `creative-graphic-design` org, so conversion scripts accept the original asset tree as the interim source.
 
 ### Training Procedure
 
@@ -218,7 +224,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+The package preserves the upstream two-stage text-to-layout architecture needed for conversion and inference while exposing the common layout schema. It loads standard seq2seq stage models from `semantic_parser/` and `placement/` subfolders.
 
 ### Compute Infrastructure
 
@@ -231,6 +237,8 @@ CPU is sufficient for import and most smoke tests. CUDA is required for heavywei
 #### Software
 
 Use `uv run --package parse-then-place ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
+The original adapter/deepspeed training stack uses legacy pins (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that conflict with this workspace's modern Hugging Face stack. Keep those pins in a separate vendor-parity environment when flattening stage-1 adapter weights; the published runtime artifact should be standard Transformers weights.
 
 ## License
 

@@ -74,6 +74,63 @@ Layout-Corrector is a training-free corrector module for discrete diffusion layo
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+The primary use case is to combine a LayoutDM generator with a matching Layout-Corrector confidence model:
+
+```python
+from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
+from layout_dm import LayoutDMPipeline
+
+layout_dm = LayoutDMPipeline.from_pretrained(
+    "creative-graphic-design/layoutdm-rico25",
+)
+corrector = LayoutCorrectorModel.from_pretrained(
+    "creative-graphic-design/layout-corrector-rico25",
+    subfolder="corrector",
+)
+
+pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)
+out = pipe(
+    batch_size=1,
+    seed=0,
+    sampling="deterministic",
+    corrector_t_list=(10, 20, 30),
+)
+
+print(out.bbox)
+print(out.labels)
+print(out.mask)
+```
+
+Without the corrector, LayoutDM samples the next layout tokens directly from its denoiser predictions. With the corrector, low-confidence reconstructed tokens are re-masked at selected timesteps, which gives LayoutDM another chance to regenerate uncertain positions and can reduce layout sticking.
+
+```text
+LayoutDM denoiser logits
+        |
+        v
+reconstruct x0 tokens
+        |
+        v
+Layout-Corrector confidence score
+        |
+        v
+re-mask low-confidence tokens
+        |
+        v
+LayoutDM samples the next step
+```
+
+Conditional generation follows the nested LayoutDM processor path:
+
+```python
+out = pipe(
+    condition_type="label",
+    labels=labels,
+    bbox=bbox,
+    mask=mask,
+    seed=0,
+)
+```
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -128,6 +185,8 @@ path returns confidence estimates.
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 | Crello | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | canonical source until an org mirror exists |
+
+The converted checkpoints follow the original Layout-Corrector release and use the original starter-kit preprocessing for exact parity fixtures. For Crello, [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) is the canonical Hugging Face dataset source for processor/data-path documentation; starter-kit processed splits remain the parity baseline because they are the author-released preprocessing artifact.
 
 ### Training Procedure
 

@@ -69,6 +69,38 @@ LayouSyn is packaged for the `design-generators` workspace. Public outputs use n
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+The public pipeline accepts text/concept conditions with caption and concept embeddings. A tiny constructed pipeline can be smoke-tested without downloaded weights:
+
+```bash
+uv run --package layousyn python - <<'PY'
+import torch
+from layousyn import LayouSynDiTModel, LayouSynPipeline, LayouSynProcessor, LayouSynScheduler
+
+model = LayouSynDiTModel(
+    model_name="DiT-D1-H32-N1",
+    max_in_len=2,
+    max_y_len=3,
+    concept_in_channels=4,
+    y_in_channels=4,
+)
+pipe = LayouSynPipeline(
+    model=model,
+    scheduler=LayouSynScheduler(num_train_timesteps=100),
+    processor=LayouSynProcessor(max_in_len=2, max_y_len=3, concept_in_channels=4, y_in_channels=4),
+)
+out = pipe(
+    labels=[["person", "bench"]],
+    caption_embeds=torch.zeros(1, 3, 4),
+    caption_padding_mask=torch.tensor([[False, True, True]]),
+    concept_embeds=torch.zeros(1, 2, 4),
+    num_inference_steps=1,
+    guidance_scale=1.0,
+    seed=0,
+)
+print(out.bbox.shape)
+PY
+```
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -112,6 +144,8 @@ print(out.mask)
 | --- | --- | --- |
 | GRIT | not recorded | grounded captions |
 | COCO grounded | not recorded | grounded objects |
+
+COCO-17, COCO-Caption-Grounded, GriT, and NSR-1K are not yet available in the `creative-graphic-design` Hugging Face org. Until those imports exist, parity and conversion scripts follow the original repository's dataset/download path.
 
 ### Training Procedure
 
@@ -157,6 +191,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 | Denoiser logits | 1 | exact tensor match | pass; max abs 0 |
 | First DDIM scheduler step | 1 | exact `pred_xstart` and `prev_sample` tensor match | pass; max abs 0 / 0 |
 | Full 40-step sample public bbox | 1 | exact normalized public `xywh` tensor match | pass; max abs 0 |
+
+The parity path matches the original implementation with TF32 enabled, the vendor `nn.MultiheadAttention` `need_weights=True` code path, and the vendor CPU-to-device timestep-frequency embedding order. Those settings remove the previous denoiser-logit and full-sample drift.
 
 ## Reproducibility
 

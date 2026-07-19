@@ -73,6 +73,15 @@ LACE is packaged for the `design-generators` workspace. Public outputs use norma
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+LACE runs unconditional generation from converted PubLayNet and RICO checkpoints. Local original checkpoints can be converted with:
+
+```bash
+uv run --package lace python models/lace/scripts/convert_checkpoint.py \
+  --dataset publaynet \
+  --checkpoint .cache/lace/original/model/publaynet_best.pt \
+  --output .cache/lace/converted/lace-publaynet
+```
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -118,6 +127,8 @@ print(out.mask)
 | RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | vendor-derived RICO13 mapping |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
+The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.
+
 ### Training Procedure
 
 This package ports released behavior and does not retrain the method in this repository.
@@ -160,6 +171,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 | --- | --- | ---: | ---: | ---: | ---: |
 | PubLayNet | Denoiser logits | `(2, 25, 10)` | 0.0 | 0 | 0 |
 | Rico25 | Denoiser logits | `(2, 25, 30)` | 0.0 | 0 | 0 |
+
+Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied, because the public `model.tar.gz` archive contains only `publaynet_best.pt` and `rico25_best.pt`.
 
 ## Reproducibility
 
@@ -281,7 +294,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+The package preserves the upstream continuous diffusion architecture needed for conversion and inference while exposing the common layout schema. It converts original checkpoints into a `LacePipeline` that generates normalized center `xywh` boxes, category labels, and masks.
 
 ### Compute Infrastructure
 

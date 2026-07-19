@@ -57,6 +57,8 @@ LayoutFlow is packaged for the `design-generators` workspace. Public outputs use
 
 - **Repository:** [LayoutFlow repository](https://github.com/julianguerreiro/LayoutFlow)
 - **Paper:** [arXiv 2403.18187](https://arxiv.org/abs/2403.18187)
+- **Project page:** [LayoutFlow project page](https://julianguerreiro.github.io/layoutflow/)
+- **Original checkpoint host:** [JulianGuerreiro/LayoutFlow](https://huggingface.co/JulianGuerreiro/LayoutFlow)
 
 ## Supported Checkpoints
 
@@ -70,6 +72,8 @@ LayoutFlow is packaged for the `design-generators` workspace. Public outputs use
 ### Direct Use
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+The original method models layouts as continuous flow-matching trajectories over normalized boxes and analog-bit category labels, then solves the generation path with an increasing-time ODE from `t=0` to `t=1`.
 
 ### Downstream Use
 
@@ -115,6 +119,8 @@ print(out.mask)
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
+The released LayoutFlow checkpoints were trained on the RICO and PubLayNet splits distributed by the original authors; this repository aligns dataset metadata to the org datasets above.
+
 ### Training Procedure
 
 This package ports released behavior and does not retrain the method in this repository.
@@ -157,6 +163,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 | --- | ---: | ---: | ---: | ---: |
 | PubLayNet | 0.0 | 0.0 | 0.0 | 0.0 |
 | RICO25 | 0.0 | 0.0 | 0.0 | 0.0 |
+
+Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.NeuralODE(..., solver="euler")` path using the released checkpoints.
 
 ## Reproducibility
 

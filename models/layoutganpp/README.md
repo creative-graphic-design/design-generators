@@ -74,6 +74,34 @@ LayoutGAN++ is packaged for the `design-generators` workspace. Public outputs us
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+Conditional generation accepts label prompts for the converted generator:
+
+```python
+from layoutganpp import LayoutGANPPPipeline
+
+pipe = LayoutGANPPPipeline.from_pretrained(
+    "creative-graphic-design/layoutganpp-publaynet"
+)
+out = pipe(labels=[["text", "figure"]], seed=0)
+print(out.bbox, out.labels, out.mask)
+```
+
+Model/processor usage is also available for lower-level checks:
+
+```python
+from layoutganpp import LayoutGANPPModel, LayoutGANPPProcessor
+
+model = LayoutGANPPModel.from_pretrained(
+    "creative-graphic-design/layoutganpp-publaynet"
+).eval()
+processor = LayoutGANPPProcessor.from_pretrained(
+    "creative-graphic-design/layoutganpp-publaynet"
+)
+encoded = processor([["text", "figure"]])
+out = model.generate(**encoded, seed=0)
+print(processor.batch_decode(out.bbox, out.labels, out.mask))
+```
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -264,6 +292,8 @@ No new model training is performed by these conversion packages. Conversion and 
 ### Model Architecture and Objective
 
 The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+
+This package ports the released generator checkpoints only. It does not include the original LayoutGAN++ latent optimization loop, training pipeline, rendered image generation, or dataset preprocessing code.
 
 ### Compute Infrastructure
 
