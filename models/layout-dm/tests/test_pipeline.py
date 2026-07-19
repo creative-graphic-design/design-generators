@@ -58,7 +58,9 @@ def test_pipeline_contract_and_seed_reproducible():
     assert out1.sequences is not None
     assert out2.sequences is not None
     assert_layout_output_schema(out1, batch_size=1)
-    assert torch.equal(out1.sequences, out2.sequences)
+    assert torch.equal(
+        cast(torch.Tensor, out1.sequences), cast(torch.Tensor, out2.sequences)
+    )
 
 
 def test_pipeline_conditional_dict_and_intermediates():

@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 import numpy as np
+from jaxtyping import Bool, Float, Int
+
+from laygen.common.typing import NumpyLayoutBBoxes, NumpyLayoutLabels, NumpyLayoutMask
 
 if TYPE_CHECKING:
     import torch
 
     ArrayLike: TypeAlias = np.ndarray | torch.Tensor
+    LayoutBBoxes: TypeAlias = (
+        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
+    )
+    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
+    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 else:
     ArrayLike: TypeAlias = object
 
@@ -19,17 +28,17 @@ class LayoutOutputLike(Protocol):
     """Duck-typed layout output protocol used by shared test helpers."""
 
     @property
-    def bbox(self) -> ArrayLike:
+    def bbox(self) -> LayoutBBoxes:
         """Layout boxes shaped ``(batch, elements, 4)``."""
         ...
 
     @property
-    def labels(self) -> ArrayLike:
+    def labels(self) -> LayoutLabels:
         """Layout labels shaped ``(batch, elements)``."""
         ...
 
     @property
-    def mask(self) -> ArrayLike:
+    def mask(self) -> LayoutMask:
         """Valid-element mask shaped ``(batch, elements)``."""
         ...
 
@@ -110,3 +119,24 @@ def assert_generator_reproducible(
     assert torch.allclose(
         cast("torch.Tensor", out1.bbox), cast("torch.Tensor", out2.bbox)
     )
+
+
+def install_jaxtyping_runtime_hook(
+    modules: Sequence[str],
+) -> AbstractContextManager[object]:
+    """Install the test-only jaxtyping runtime checker for target modules.
+
+    Args:
+        modules: Importable module or package names to hook before import.
+
+    Returns:
+        Context manager returned by :func:`jaxtyping.install_import_hook`.
+
+    Examples:
+        >>> hook = install_jaxtyping_runtime_hook(["laygen.common.bbox"])
+        >>> hasattr(hook, "__enter__")
+        True
+    """
+    from jaxtyping import install_import_hook
+
+    return install_import_hook(modules, "beartype.beartype")
