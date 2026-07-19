@@ -14,12 +14,12 @@ datasets:
 
 # Model Card for LayoutGPT
 
-![paper](https://img.shields.io/static/v1?label=paper&message=LayoutGPT&color=blue&style=flat-square&logo=readme&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2305.15393&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=NSR-1K&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square&logo=huggingface&logoColor=white)
 
 This package provides [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
@@ -28,14 +28,13 @@ This package provides [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydant
 
 ### Model Description
 
-LayoutGPT is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `pydantic-ai`.
+LayoutGPT is a prompt-based layout agent that turns natural-language scene descriptions and in-context examples into structured layout elements. It has no learned checkpoint; the package stores prompt, parser, and exemplar configuration while Pydantic AI supplies the model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -130,7 +129,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -150,7 +149,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -166,75 +165,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
-These steps reproduce the deterministic parity checks. The generated JSON is
-written to `.cache/layout-gpt/vendor-golden.json`. The scripts look for
-`vendor/layout-gpt` next to this worktree; pass `--vendor-root` if your checkout
-is elsewhere.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-### 1. Prepare Prompt Configuration Cache
-
-LayoutGPT itself has no learned weights. This command prepares a cache
-directory for prompt configuration and generated vendor-reference JSON without
-downloading anything.
-
-```bash
-export LAYOUT_GPT_CACHE_DIR="${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}"
-mkdir -p "${LAYOUT_GPT_CACHE_DIR}"
-printf 'LayoutGPT has no learned weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
-```
-
-### 2. Regenerate Vendor Golden Data
-
-The generated JSON path is controlled by `LAYOUT_GPT_CACHE_DIR`.
-
-```bash
-uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_golden.py \
-  --output "${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}/vendor-golden.json"
-```
-
-### 3. Run Parity Tests
-
-```bash
-uv run --package layout-gpt pytest models/layout-gpt/tests/vendor_parity -m vendor_parity
-```
-
-### 4. Persist Prompt Configuration
-
-There is no learned-weight conversion step for LayoutGPT. `save_pretrained`
-stores the prompt and parser configuration that the agent reloads at runtime.
-
-```bash
-uv run --package layout-gpt python - <<'PY'
-print("LayoutGPT stores prompt configuration rather than learned weights.")
-PY
-```
-
-### 5. Run Loading Smoke
-
-This smoke verifies the installed package and output conversion path.
-
-```bash
-uv run --package layout-gpt python - <<'PY'
-from layout_gpt.schema import LayoutGPTOutput, LayoutItem2D
-
-output = LayoutGPTOutput(
-    prompt="there is one clock in the image",
-    canvas_size=64,
-    items=[LayoutItem2D(label="clock", left=0.25, top=0.25, width=0.5, height=0.5)],
-    raw_text="clock {height: 32px; width: 32px; top: 16px; left: 16px; }",
-    id2label={0: "clock"},
-)
-layout = output.to_layout_generation_output()
-assert layout.bbox.shape == (1, 1, 4)
-assert layout.id2label == {0: "clock"}
-print("LayoutGPT loading smoke passed.")
-PY
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

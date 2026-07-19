@@ -1,13 +1,13 @@
 # laygen
 
-![package](https://img.shields.io/static/v1?label=package&message=laygen&color=blue&style=flat-square&logo=readme&logoColor=white)
+![package](https://img.shields.io/static/v1?label=package&message=laygen&color=blue&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
-![core](https://img.shields.io/static/v1?label=core&message=torch--free&color=success&style=flat-square&logo=readme&logoColor=white)
-![extras](https://img.shields.io/static/v1?label=extras&message=agents+%7C+diffusion+%7C+torch&color=informational&style=flat-square&logo=readme&logoColor=white)
+![core](https://img.shields.io/static/v1?label=core&message=torch--free&color=success&style=flat-square)
+![extras](https://img.shields.io/static/v1?label=extras&message=agents+%7C+diffusion+%7C+torch&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`laygen` contains shared layout-generation schemas and utilities for the workspace. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and [Diffusers](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
+`laygen` contains shared layout-generation schemas and utilities used by this repository's model packages. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and [Diffusers](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
 
 Model-specific tokenizers and generation logic stay in each model package. Shared pipeline loading rules, output schemas, bbox helpers, schedulers, and model-card helpers live here.
 

@@ -30,12 +30,12 @@ model-index:
 # Model Card for LayoutFormer++
 
 ![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2208.08037&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style pipeline.
@@ -44,14 +44,13 @@ This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autor
 
 ### Model Description
 
-LayoutFormer++ is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
+LayoutFormer++ is a Transformers layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the vendor discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -118,7 +117,7 @@ print(out.labels)  # dataset-local ids, padding controlled by out.mask
 print(out.id2label)
 ```
 
-The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layoutformerpp/converted/...` path produced by the Reproducibility section.
+The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutformerpp/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -145,7 +144,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -165,7 +164,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -186,84 +185,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-Prerequisites:
-
-- Run commands from the repository root.
-- Use `uv sync --package layoutformerpp` once before the first run.
-- Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
-- Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
-
-1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
-
-```bash
-uv run --package layoutformerpp python models/layoutformerpp/scripts/download_original.py \
-  --output-dir .cache/layoutformerpp/original \
-  --allow-pattern "ckpts/**/final_checkpoint.pth.tar" \
-  --allow-pattern "ckpts/**/vocab.json"
-```
-
-2. Generate local vendor reference metadata for each public task fixture. Metadata is written under `.cache/layoutformerpp/reference/<dataset>_<task>/metadata.json`; generated tensors stay local.
-
-```bash
-for dataset in rico publaynet; do
-  for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
-      --dataset "$dataset" \
-      --task "$task" \
-      --seed 500 \
-      --output-dir ".cache/layoutformerpp/reference/${dataset}_${task}"
-  done
-done
-```
-
-3. Run the vendor parity tests against the cached checkpoints and vendor source.
-
-```bash
-LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
-  models/layoutformerpp/tests/vendor_parity \
-  -m vendor_parity \
-  -q
-```
-
-4. Convert all public checkpoints into Transformers `save_pretrained` format. When a task-specific `vocab.json` is not published, the converter builds the matching synthetic single-task vocabulary from the dataset labels and selected task.
-
-```bash
-for dataset in rico publaynet; do
-  for task in gen_t gen_ts gen_r refinement completion ugen; do
-    uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
-      --checkpoint ".cache/layoutformerpp/original/ckpts/${dataset}_${task}/final_checkpoint.pth.tar" \
-      --dataset "$dataset" \
-      --task "$task" \
-      --output-dir ".cache/layoutformerpp/converted/${dataset}_${task}"
-  done
-done
-```
-
-5. Smoke-test `from_pretrained` from every converted artifact.
-
-```bash
-uv run --package layoutformerpp python - <<'PY'
-from layoutformerpp import LayoutFormerPPPipeline
-
-for dataset in ("rico", "publaynet"):
-    for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
-        path = f".cache/layoutformerpp/converted/{dataset}_{task}"
-        pipe = LayoutFormerPPPipeline.from_pretrained(path, local_files_only=True)
-        print(
-            pipe.config.dataset,
-            pipe.config.task,
-            pipe.processor.tokenizer.vocab_size,
-        )
-PY
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

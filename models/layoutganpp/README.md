@@ -31,13 +31,13 @@ model-index:
 # Model Card for LayoutGAN++
 
 ![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=SIGGRAPH+Asia+2021&color=purple&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=SIGGRAPH+Asia+2021&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=AGPL--3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
@@ -46,14 +46,13 @@ This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [
 
 ### Model Description
 
-LayoutGAN++ is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
+LayoutGAN++ is a Transformers-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping vendor-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
 - **License:** agpl-3.0.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -137,7 +136,7 @@ print(out.labels)
 print(out.mask)
 ```
 
-The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layoutganpp/converted/...` path produced by the Reproducibility section.
+The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutganpp/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -163,7 +162,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -183,7 +182,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -195,95 +194,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-Prerequisites: run these commands from the repository root. Initialize the original implementation with `git submodule update --init vendor/const-layout` before generating vendor references. The command examples keep all local artifacts under `.cache/layoutganpp/` and never modify `vendor/const-layout`.
-
-Step 1 downloads the original released checkpoints. Generated files are `.cache/layoutganpp/original/layoutganpp_{rico,publaynet,magazine}.pth.tar`.
-
-```bash
-uv run --package layoutganpp python models/layoutganpp/scripts/download_original_weights.py \
-  --output-dir .cache/layoutganpp/original \
-  --dataset all
-```
-
-Step 2 generates golden vendor fixtures with the const-layout code. The generated files are `.cache/layoutganpp/fixtures/<dataset>/reference_seed0.pt`. Set `CUDA_VISIBLE_DEVICES` to the GPU index you want the vendor model to use.
-
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
-  --vendor-dir vendor/const-layout \
-  --checkpoint .cache/layoutganpp/original/layoutganpp_rico.pth.tar \
-  --output .cache/layoutganpp/fixtures/rico/reference_seed0.pt \
-  --seed 0 \
-  --batch-size 3
-
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
-  --vendor-dir vendor/const-layout \
-  --checkpoint .cache/layoutganpp/original/layoutganpp_publaynet.pth.tar \
-  --output .cache/layoutganpp/fixtures/publaynet/reference_seed0.pt \
-  --seed 0 \
-  --batch-size 3
-
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
-  --vendor-dir vendor/const-layout \
-  --checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar \
-  --output .cache/layoutganpp/fixtures/magazine/reference_seed0.pt \
-  --seed 0 \
-  --batch-size 3
-```
-
-Step 3 runs the vendor parity tests against converted checkpoints. If step 4 has not been run yet, pytest will skip the cases because `.cache/layoutganpp/converted/layoutganpp-<dataset>` is missing.
-
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
-```
-
-Step 4 converts each original checkpoint into a Transformers-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.
-
-```bash
-uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \
-  --input-checkpoint .cache/layoutganpp/original/layoutganpp_rico.pth.tar \
-  --output-dir .cache/layoutganpp/converted/layoutganpp-rico
-
-uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \
-  --input-checkpoint .cache/layoutganpp/original/layoutganpp_publaynet.pth.tar \
-  --output-dir .cache/layoutganpp/converted/layoutganpp-publaynet
-
-uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \
-  --input-checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar \
-  --output-dir .cache/layoutganpp/converted/layoutganpp-magazine
-```
-
-Step 5 runs a `from_pretrained` smoke check for each converted checkpoint. The expected bbox shapes are `(1, 2, 4)`.
-
-```bash
-uv run --package layoutganpp python - <<'PY'
-from layoutganpp import LayoutGANPPPipeline
-
-for dataset, labels in {
-    "rico": [["Toolbar", "Image"]],
-    "publaynet": [["text", "figure"]],
-    "magazine": [["text", "image"]],
-}.items():
-    pipe = LayoutGANPPPipeline.from_pretrained(
-        f".cache/layoutganpp/converted/layoutganpp-{dataset}"
-    )
-    out = pipe(labels=labels, seed=0)
-    print(dataset, tuple(out.bbox.shape))
-PY
-```
-
-After step 4, rerun step 3. The expected parity results are:
-
-```text
-rico: shape=(3, 9, 4), max_abs=0, max_rel=0
-publaynet: shape=(3, 9, 4), max_abs=0, max_rel=0
-magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

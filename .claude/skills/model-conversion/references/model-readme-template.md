@@ -64,7 +64,7 @@ model-index:
 - **Shared by [optional]:** creative-graphic-design
 - **Model type:** <architecture-and-task>
 - **Language(s) (NLP):** <not-applicable-or-language-list>
-- **License:** <license-id-or-review-needed>
+- **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
 
 ### Model Sources [optional]
@@ -187,53 +187,9 @@ print(out.mask)    # valid element mask
 
 ## Reproducibility
 
-This section reproduces the original-implementation agreement checks for <model-id>.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-<!-- Keep these commands copy-pasteable because coordinators run them mechanically during review. -->
-
-Download vendor assets:
-
-```bash
-uv run --package <member-name> python models/<slug>/scripts/download_original.py \
-  --output-dir .cache/<slug>/original
-```
-
-Generate vendor reference outputs:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package <member-name> --extra vendor python models/<slug>/scripts/generate_reference_outputs.py \
-  --output-dir models/<slug>/tests/vendor_parity/fixtures/<dataset-name> \
-  --seed <seed>
-```
-
-Convert checkpoints:
-
-```bash
-uv run --package <member-name> --extra convert python models/<slug>/scripts/convert_original_checkpoint.py \
-  --output-dir .cache/<slug>/converted/<hub-repo-id>
-```
-
-Run vendor parity tests:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package <member-name> pytest models/<slug>/tests/vendor_parity -m vendor_parity -rs
-```
-
-Run `from_pretrained` smoke tests:
-
-```bash
-uv run --package <member-name> python - <<'PY'
-from pathlib import Path
-from <package_name> import <PipelineOrModelClass>
-
-path = Path(".cache/<slug>/converted/<hub-repo-id>")
-pipe = <PipelineOrModelClass>.from_pretrained(path)
-out = pipe(batch_size=1, seed=0)
-assert out.bbox.shape[-1] == 4
-assert out.labels.shape == out.mask.shape
-print(out.bbox.shape, out.labels.shape)
-PY
-```
+<!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
 
 ## Model Examination [optional]
 

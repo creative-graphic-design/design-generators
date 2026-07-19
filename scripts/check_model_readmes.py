@@ -10,10 +10,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODEL_READMES = sorted((REPO_ROOT / "models").glob("*/README.md"))
+MODEL_REPRODUCING = sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md"))
 README_LINK_CONTRACTS = [
     REPO_ROOT / "README.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
     *MODEL_READMES,
+    *MODEL_REPRODUCING,
 ]
 
 REQUIRED_HEADINGS = [
@@ -45,6 +47,14 @@ BANNED_PATTERNS = [
     r"(?<![A-Za-z0-9_.-])/tmp/",
     r"creative-graphic-design/(rico|rico25|publaynet)\b",
     r"original upstream authors; see Model Sources",
+    r"is packaged for the",
+    r"for the workspace",
+    r"badge is",
+    r"tracked in issue",
+    r"verification is tracked",
+    r"not recorded in the current README",
+    r"documentation gap",
+    r"preserved from the original README",
 ]
 
 LINK_REQUIRED_DATASET_IDS = [
@@ -397,10 +407,9 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
         return
 
     required = [
-        "Hub checkpoints are not published yet",
-        "https://github.com/creative-graphic-design/design-generators/issues/78",
+        "converted checkpoints are not yet on the Hugging Face Hub",
         f"`.cache/{path.parent.name}/converted/...",
-        "Reproducibility section",
+        "REPRODUCING.md",
     ]
     missing = [snippet for snippet in required if snippet not in section]
     if missing:
@@ -480,18 +489,47 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
         )
 
 
-def _assert_reproducibility_commands(path: Path, text: str) -> None:
+def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
     section = _section(text, "## Reproducibility")
-    if "uv run --package " not in section:
+    expected = (
+        "https://github.com/creative-graphic-design/design-generators/blob/main/"
+        f"models/{path.parent.name}/REPRODUCING.md"
+    )
+    if expected not in section:
         raise AssertionError(
-            f"{path}: Reproducibility must contain uv package commands"
+            f"{path}: Reproducibility must link absolute REPRODUCING.md URL {expected}"
         )
+    if "uv run --package " in section or "```" in section:
+        raise AssertionError(
+            f"{path}: README Reproducibility must be a short link, not a walkthrough"
+        )
+
+
+def _assert_reproducing_commands(path: Path, text: str) -> None:
+    if "uv run --package " not in text:
+        raise AssertionError(f"{path}: REPRODUCING.md must contain uv package commands")
     bad_command_shapes = ["python scripts/", "cd models/", "../.cache", "/tmp/"]
     for bad in bad_command_shapes:
-        if bad in section:
+        if bad in text:
             raise AssertionError(
                 f"{path}: stale reproducibility command shape contains {bad!r}"
             )
+    required_terms: list[str | tuple[str, ...]] = [
+        "Workflow order:",
+        "download",
+        ("reference", "golden"),
+        "pytest",
+    ]
+    if path.parent.name in PROMPT_ONLY_SLUGS:
+        required_terms.extend([("prompt configuration", "save_pretrained"), "smoke"])
+    else:
+        required_terms.extend(["convert", "from_pretrained"])
+    lower = text.lower()
+    for term in required_terms:
+        alternatives = (term,) if isinstance(term, str) else term
+        position = max(lower.find(alternative.lower()) for alternative in alternatives)
+        if position == -1:
+            raise AssertionError(f"{path}: missing reproducibility step {term!r}")
 
 
 def _assert_banned_patterns(path: Path, text: str) -> None:
@@ -523,6 +561,10 @@ def _assert_linked_first_reference_policy(path: Path) -> None:
 def check() -> None:
     if len(MODEL_READMES) != 12:
         raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
+    if len(MODEL_REPRODUCING) != 12:
+        raise AssertionError(
+            f"expected 12 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
+        )
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
@@ -536,7 +578,12 @@ def check() -> None:
         _assert_parity_table(path, text)
         _assert_citation_bibtex(path, text)
         _assert_vendor_parity_badge(path, text)
-        _assert_reproducibility_commands(path, text)
+        _assert_readme_reproducibility_link(path, text)
+        _assert_banned_patterns(path, text)
+    for path in MODEL_REPRODUCING:
+        text = path.read_text(encoding="utf-8")
+        _assert_code_fences_tagged(path, text)
+        _assert_reproducing_commands(path, text)
         _assert_banned_patterns(path, text)
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)

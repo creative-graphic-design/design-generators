@@ -5,7 +5,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square&logo=readme&logoColor=white)
+![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into [Transformers](https://huggingface.co/docs/transformers/index)-, [Diffusers](https://huggingface.co/docs/diffusers/index)-, and [Pydantic AI](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -13,18 +13,18 @@
 
 | Package | Method | Runtime | Primary datasets | Status |
 | --- | --- | --- | --- | --- |
-| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | diffusers | GRIT, COCO grounded | README normalized; Hub publication tracked per model issue |
-| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | README normalized; Hub publication tracked per model issue |
-| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | README normalized; Hub publication tracked per model issue |
-| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | README normalized; Hub publication tracked per model issue |
-| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | README normalized; Hub publication tracked per model issue |
-| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | README normalized; Hub publication tracked per model issue |
+| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | local conversion documented |
+| [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | local conversion documented |
+| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | diffusers | GRIT, COCO grounded | local conversion documented |
+| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | local conversion documented |
+| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | local conversion documented |
+| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | local conversion documented |
+| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | local conversion documented |
+| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | local conversion documented |
+| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | local conversion documented |
+| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | local conversion documented |
+| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | local conversion documented |
+| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | local conversion documented |
 
 Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
 
@@ -62,7 +62,7 @@ The documentation site is published at [design-generators documentation](https:/
 
 ## Reproducibility Policy
 
-Model README `## Reproducibility` sections provide copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
 
 ## License
 

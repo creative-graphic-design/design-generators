@@ -7,14 +7,14 @@ ROOT: Final[Path] = Path(__file__).parents[3]
 
 
 def test_readme_includes_reproducible_vendor_parity_commands():
-    text = (ROOT / "models" / "layout-corrector" / "README.md").read_text(
-        encoding="utf-8"
-    )
+    model_dir = ROOT / "models" / "layout-corrector"
+    text = (model_dir / "README.md").read_text(encoding="utf-8")
+    reproducing = (model_dir / "REPRODUCING.md").read_text(encoding="utf-8")
 
     assert "## Reproducibility" in text
     assert (
-        "Layout-Corrector is a training-free corrector module for "
-        "[LayoutDM](../layout-dm/), a discrete diffusion layout generator" in text
+        "Layout-Corrector refines candidate layouts by running a training-free "
+        "correction stage on top of [LayoutDM](../layout-dm/)" in text
     )
     assert (
         "pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)"
@@ -23,19 +23,25 @@ def test_readme_includes_reproducible_vendor_parity_commands():
     assert "return_intermediates=True" in text
     assert "Layout-Corrector confidence score" in text
     assert (
-        "This section reproduces the parity verification against the original implementation."
-        in text
+        "https://github.com/creative-graphic-design/design-generators/blob/main/"
+        "models/layout-corrector/REPRODUCING.md" in text
     )
-    assert "models/layout-corrector/scripts/download_original.py" in text
+    assert (
+        "This guide reproduces the original-implementation agreement checks"
+        in reproducing
+    )
+    assert "models/layout-corrector/scripts/download_original.py" in reproducing
     assert (
         "git submodule update --init vendor/layout-corrector vendor/layout-dm" in text
+        or "git submodule update --init vendor/layout-corrector vendor/layout-dm"
+        in reproducing
     )
-    assert "models/layout-corrector/tests/vendor_parity" in text
+    assert "models/layout-corrector/tests/vendor_parity" in reproducing
     assert (
         "CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector --extra vendor pytest"
-        in text
+        in reproducing
     )
-    assert "uv run --package layout-corrector python - <<'PY'" in text
+    assert "uv run --package layout-corrector python - <<'PY'" in reproducing
 
 
 def test_scripts_have_module_docstrings():

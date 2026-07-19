@@ -3,7 +3,7 @@ language:
   - en
 license: "other"
 license_name: "review-needed"
-license_link: "not recorded"
+license_link: "unknown"
 library_name: "diffusers"
 pipeline_tag: "other"
 tags:
@@ -31,13 +31,13 @@ model-index:
 
 # Model Card for LayoutDiffusion
 
-![paper](https://img.shields.io/static/v1?label=paper&message=ICCV+2023&color=blue&style=flat-square&logo=readme&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.11589&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
@@ -46,14 +46,13 @@ This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV
 
 ### Model Description
 
-LayoutDiffusion is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
+LayoutDiffusion is a discrete Diffusers pipeline for RICO25 and PubLayNet layouts. It samples tokenized label and box sequences with unconditional, label-conditioned, and refinement modes, then converts vendor token coordinates into the shared layout schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
-- **License:** review-needed; verification is tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78).
-- **Finetuned from model:** not recorded in the current README.
+- **License:** unknown.
 
 ### Model Sources
 
@@ -108,7 +107,7 @@ print(out.labels)
 print(out.mask)
 ```
 
-The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layoutdiffusion/converted/...` path produced by the Reproducibility section.
+The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutdiffusion/converted/...` path produced by REPRODUCING.md.
 
 Use `condition_type` to select unconditional generation or supported
 conditioning paths. `unconditional`, `label`, and `refinement` are the supported
@@ -157,7 +156,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -177,7 +176,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -194,59 +193,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-These commands reproduce the original-implementation agreement checks against the vendored LayoutDiffusion code, fixed seed 101, and converted local checkpoints.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-```bash
-uv run --package layoutdiffusion --extra download \
-  python models/layoutdiffusion/scripts/download_original.py \
-  --output-dir .cache/layoutdiffusion/original
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion --extra vendor \
-  --with spacy --with pyyaml --with sacremoses \
-  python models/layoutdiffusion/scripts/generate_reference_outputs.py \
-  --dataset all \
-  --seed 101
-```
-
-```bash
-uv run --package layoutdiffusion \
-  python models/layoutdiffusion/scripts/convert_original_checkpoint.py \
-  --dataset rico25 \
-  --checkpoint-dir .cache/layoutdiffusion/original/results/checkpoint/discrete_gaussian_pow2.5_aux_lex_ltrb_200_fine_4e5 \
-  --checkpoint-name ema_0.9999_175000.pt \
-  --output-dir .cache/layoutdiffusion/converted/layoutdiffusion-rico25
-```
-
-```bash
-uv run --package layoutdiffusion \
-  python models/layoutdiffusion/scripts/convert_original_checkpoint.py \
-  --dataset publaynet \
-  --checkpoint-dir .cache/layoutdiffusion/original/results/checkpoint/gaussian_refine_pow2.5_aux_lex_ltrb_200_5e5_pub \
-  --checkpoint-name ema_0.9999_400000.pt \
-  --output-dir .cache/layoutdiffusion/converted/layoutdiffusion-publaynet
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion pytest \
-  models/layoutdiffusion/tests -m vendor_parity
-```
-
-```bash
-uv run --package layoutdiffusion python - <<'PY'
-from layoutdiffusion import LayoutDiffusionPipeline
-
-for name in ["layoutdiffusion-rico25", "layoutdiffusion-publaynet"]:
-    pipe = LayoutDiffusionPipeline.from_pretrained(f".cache/layoutdiffusion/converted/{name}")
-    out = pipe(batch_size=1, seed=101, num_inference_steps=1)
-    print(name, out.bbox.shape, out.labels.shape, out.mask.shape)
-PY
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

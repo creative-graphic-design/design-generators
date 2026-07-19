@@ -29,13 +29,13 @@ model-index:
 
 # Model Card for Parse-Then-Place
 
-![paper](https://img.shields.io/static/v1?label=paper&message=ICCV+2023&color=blue&style=flat-square&logo=readme&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2308.12700&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Web&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
@@ -44,14 +44,13 @@ This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICC
 
 ### Model Description
 
-Parse-Then-Place is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
+Parse-Then-Place generates layouts through a two-stage Transformers pipeline: a semantic parser first extracts layout intent from text, then a placement model predicts element positions. Converted checkpoints include parser and placement subfolders for RICO and Web variants. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -112,7 +111,7 @@ out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
 print(out.bbox.shape, out.labels.tolist())
 ```
 
-The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/parse-then-place/converted/...` path produced by the Reproducibility section.
+The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/parse-then-place/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -121,7 +120,7 @@ The Hub checkpoints are not published yet, as tracked in [issue #78](https://git
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| Web | not recorded | vendor web pretraining split |
+| Web | unknown | vendor web pretraining split |
 
 Datasets are RICO text-to-layout and WebUI as distributed by the original repository. WebUI is not yet mirrored under the `creative-graphic-design` org, so conversion scripts accept the original asset tree as the interim source.
 
@@ -139,7 +138,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -159,7 +158,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -170,54 +169,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-Reproduce original-implementation agreement by downloading vendor assets,
-generating fixed-seed references on one GPU, running marked parity tests, then
-converting and smoke-loading the pipeline checkpoint.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-```bash
-uv run --package parse-then-place python models/parse-then-place/scripts/download_original_assets.py \
-  --output-dir .cache/parse-then-place/assets
-
-CUDA_VISIBLE_DEVICES=4 uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
-  --original-root .cache/parse-then-place/assets \
-  --dataset-name rico \
-  --stage2-mode finetune \
-  --seed 42 \
-  --num-examples 1 \
-  --output-dir .cache/parse-then-place/reference/rico-finetune
-
-CUDA_VISIBLE_DEVICES=4 PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-then-place/assets \
-  PARSE_THEN_PLACE_REFERENCE_DIR=.cache/parse-then-place/reference/rico-finetune \
-  uv run --package parse-then-place pytest models/parse-then-place/tests/vendor_parity -m vendor_parity
-
-uv run --package parse-then-place python models/parse-then-place/scripts/convert_original_checkpoint.py \
-  --original-root .cache/parse-then-place/assets \
-  --dataset-name rico \
-  --stage2-mode finetune \
-  --parser-state-path .cache/parse-then-place/assets/ckpt/rico/stage1/pytorch_model.bin \
-  --output-dir .cache/parse-then-place/converted/rico-finetune
-
-uv run --package parse-then-place python - <<'PY'
-from pathlib import Path
-
-from parse_then_place import ParseThenPlacePipeline
-
-root = Path(".cache/parse-then-place/converted/rico-finetune")
-pipeline = ParseThenPlacePipeline.from_pretrained(
-    root,
-    local_files_only=True,
-)
-print(
-    pipeline.config.dataset_name,
-    pipeline.parser is not None,
-    pipeline.placement is not None,
-)
-PY
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

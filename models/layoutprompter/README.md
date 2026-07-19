@@ -16,14 +16,14 @@ datasets:
 
 # Model Card for LayoutPrompter
 
-![paper](https://img.shields.io/static/v1?label=paper&message=LayoutPrompter&color=blue&style=flat-square&logo=readme&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.06495&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square&logo=huggingface&logoColor=white)
 
 This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
@@ -32,14 +32,13 @@ This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [P
 
 ### Model Description
 
-LayoutPrompter is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `pydantic-ai`.
+LayoutPrompter is a prompt-based layout agent that selects in-context exemplars and asks a language model to complete structured layout coordinates. It has no learned checkpoint; `save_pretrained` stores prompt configuration and parser settings, while Pydantic AI supplies the runtime model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -152,8 +151,8 @@ config = LayoutPrompterConfig(
 | --- | --- | --- |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PosterLayout | not recorded | built-in label vocabulary |
-| WebUI | not recorded | deterministic local fixture |
+| PosterLayout | unknown | built-in label vocabulary |
+| WebUI | unknown | deterministic local fixture |
 
 Built-in label vocabularies are available for `publaynet`, `rico`, `posterlayout`, and `webui`.
 
@@ -171,7 +170,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -191,7 +190,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -204,96 +203,8 @@ The numeric agreement record is the `## Parity Results` table below. Rows marked
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
-Use these commands to regenerate deterministic reference data and run the
-vendor parity checks. The generated JSON is written under `.cache/layoutprompter/`.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-### 1. Weights
-
-LayoutPrompter has no weights to download.
-
-```bash
-printf 'LayoutPrompter has no learned weights.\n'
-```
-
-### 2. Generate Reference Golden
-
-Prerequisites:
-
-```bash
-git submodule update --init vendor/ms-layout-generation
-```
-
-```text
-The script resolves vendor/ms-layout-generation through laygen.common.vendor_root()
-and then imports LayoutPrompter/src from that checkout.
-
-Set LAYOUTPROMPTER_VENDOR_SRC to another LayoutPrompter/src directory if needed.
-```
-
-Command:
-
-```bash
-uv run --package layoutprompter python models/layoutprompter/scripts/generate_vendor_golden.py \
-  --output .cache/layoutprompter/vendor-golden.json
-```
-
-Generated file:
-
-```text
-.cache/layoutprompter/vendor-golden.json
-```
-
-### 3. Run Parity Checks
-
-```bash
-uv run --package layoutprompter pytest models/layoutprompter/tests/vendor_parity -m vendor_parity
-```
-
-The test checks prompt bytes, selected exemplar ids, and parser output tensors.
-
-See `Parity Results` for the measured agreement table.
-
-### 4. Persist Prompt Configuration
-
-There is no learned-weight conversion step for LayoutPrompter. `save_pretrained`
-stores prompt configuration for reload.
-
-```bash
-printf 'LayoutPrompter stores prompt configuration rather than learned weights.\n'
-```
-
-### 5. from_pretrained Smoke
-
-`save_pretrained` stores prompt configuration, not weights.
-
-```bash
-uv run --package layoutprompter python - <<'PY'
-from tempfile import TemporaryDirectory
-
-from pydantic_ai.models.test import TestModel
-
-from layoutprompter import LayoutPrompter, LayoutPrompterConfig
-
-model = TestModel(custom_output_args={"elements": []})
-agent = LayoutPrompter(LayoutPrompterConfig(model=model, dataset="webui"))
-
-with TemporaryDirectory() as tmpdir:
-    agent.save_pretrained(tmpdir)
-    loaded = LayoutPrompter.from_pretrained(tmpdir, model=model)
-    print(loaded.config.dataset)
-PY
-```
-
-Smoke output:
-
-```text
-webui
-```
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

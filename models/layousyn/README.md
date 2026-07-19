@@ -17,7 +17,7 @@ model-index:
           type: "other"
           name: "Layout generation"
         dataset:
-          type: "not recorded"
+          type: "unknown"
           name: "GRIT"
           config: "grounded captions"
           split: "vendor parity fixture"
@@ -29,31 +29,27 @@ model-index:
 
 # Model Card for LayouSyn
 
-![paper](https://img.shields.io/static/v1?label=paper&message=LayouSyn&color=blue&style=flat-square&logo=readme&logoColor=white)
-![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square&logo=readme&logoColor=white)
-![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2505.04718&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square&logo=creativecommons&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
-
-The venue badge is marked `review-needed`; verification is tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78).
 
 ## Model Details
 
 ### Model Description
 
-LayouSyn is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
+LayouSyn generates natural-scene object layouts from caption and concept embeddings with a diffusion-transformer denoiser. The package targets GRIT and COCO-grounded variants, taking text/concept conditions and returning object boxes aligned to the requested concept labels. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Dhruv Srivastava et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
 - **License:** cc-by-nc-4.0.
-- **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
 
@@ -141,7 +137,7 @@ print(out.labels)
 print(out.mask)
 ```
 
-The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layousyn/converted/...` path produced by the Reproducibility section.
+The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layousyn/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -149,8 +145,8 @@ The Hub checkpoints are not published yet, as tracked in [issue #78](https://git
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| GRIT | not recorded | grounded captions |
-| COCO grounded | not recorded | grounded objects |
+| GRIT | unknown | grounded captions |
+| COCO grounded | unknown | grounded objects |
 
 COCO-17, COCO-Caption-Grounded, GriT, and NSR-1K are not yet available in the `creative-graphic-design` Hugging Face org. Until those imports exist, parity and conversion scripts follow the original repository's dataset/download path.
 
@@ -168,7 +164,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Speeds, Sizes, Times
 
-Training time and carbon measurements are not recorded in the current README.
+Training-time and carbon measurements are unknown.
 
 ## Evaluation
 
@@ -188,7 +184,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Results
 
-The numeric agreement record is the `## Parity Results` table below. Rows marked as not recorded are documentation gaps rather than inferred measurements.
+The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Parity Results
 
@@ -203,69 +199,8 @@ The parity path matches the original implementation with TF32 enabled, the vendo
 
 ## Reproducibility
 
-Reproduce original-implementation agreement by generating CUDA fixed-seed vendor
-references with real T5 and SentenceTransformer embeddings, converting the same
-checkpoint, and running the marked parity tests against those external assets.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-```bash
-SNAPSHOT="$(uv run --package layousyn python models/layousyn/scripts/download_original.py)"
-CKPT="${SNAPSHOT}/grit/model.pt"
-CONFIG="${SNAPSHOT}/grit/config.json"
-
-CUDA_VISIBLE_DEVICES=5 uv run --package layousyn --extra vendor python models/layousyn/scripts/save_reference_outputs.py \
-  --vendor-root vendor/lay-your-scene \
-  --ckpt "${CKPT}" \
-  --ckpt-config "${CONFIG}" \
-  --output-dir .cache/layousyn/reference \
-  --seed 0 \
-  --caption "a person sitting on a bench" \
-  --concept person \
-  --concept bench \
-  --cfg-scale 2.0 \
-  --aspect-ratio 1.0 \
-  --num-sampling-steps 40
-
-uv run --package layousyn python models/layousyn/scripts/convert_checkpoint.py \
-  --checkpoint-path "${CKPT}" \
-  --config-path "${CONFIG}" \
-  --output-dir .cache/layousyn/converted \
-  --variant-name grit
-
-CUDA_VISIBLE_DEVICES=5 \
-LAYOUSYN_REFERENCE_DIR=.cache/layousyn/reference \
-LAYOUSYN_CONVERTED_DIR=.cache/layousyn/converted \
-uv run --package layousyn pytest models/layousyn/tests -m vendor_parity -q
-
-CUDA_VISIBLE_DEVICES=5 uv run --package layousyn python - <<'PY'
-import torch
-from layousyn import LayouSynPipeline
-
-inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cuda")
-pipe = LayouSynPipeline.from_pretrained(".cache/layousyn/converted").to("cuda")
-pipe.set_progress_bar_config(disable=True)
-out = pipe(
-    prompt="a person sitting on a bench",
-    labels=[["person", "bench"]],
-    caption_embeds=inputs["pipeline_caption_embeds"],
-    caption_padding_mask=inputs["pipeline_caption_padding_mask"],
-    concept_embeds=inputs["pipeline_concept_embeds"],
-    aspect_ratio=inputs["pipeline_aspect_ratio"],
-    num_inference_steps=1,
-    guidance_scale=2.0,
-    generator=torch.Generator(device="cuda").manual_seed(0),
-)
-print(out.bbox.shape, out.id2label)
-PY
-```
-
-The CUDA 5 Grit checkpoint parity run for this PR passes 4/4 marked checks:
-alpha-scale beta respacing, denoiser logits, first scheduler step, and full
-sample public layout output. The `from_pretrained` smoke prints
-`torch.Size([1, 60, 4]) {0: 'person', 1: 'bench'}`.
-
-## Model Examination
-
-Interpretability and failure-analysis artifacts are not recorded in the current README.
 
 ## Environmental Impact
 

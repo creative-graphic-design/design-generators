@@ -1,15 +1,15 @@
 # posgen
 
-![package](https://img.shields.io/static/v1?label=package&message=posgen&color=blue&style=flat-square&logo=readme&logoColor=white)
+![package](https://img.shields.io/static/v1?label=package&message=posgen&color=blue&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
-![runtime](https://img.shields.io/static/v1?label=runtime&message=torch&color=informational&style=flat-square&logo=readme&logoColor=white)
-![status](https://img.shields.io/static/v1?label=status&message=skeleton&color=lightgrey&style=flat-square&logo=readme&logoColor=white)
+![runtime](https://img.shields.io/static/v1?label=runtime&message=torch&color=informational&style=flat-square)
+![status](https://img.shields.io/static/v1?label=status&message=skeleton&color=lightgrey&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-[`posgen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/posgen) is the shared package reserved for poster-generation and content-aware placement helpers. It is intentionally small until real poster packages create repeated contracts.
+[`posgen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/posgen) provides shared utilities for poster-generation and content-aware placement packages. Its current public surface is intentionally small: `DatasetName` identifies supported poster/content datasets, `PositionContent` carries position tensors plus masks, and label helpers normalize dataset-specific class names.
 
-`posgen` exists so poster-generation and content-aware placement models can share small, stable contracts once real consumers appear.
+Use `posgen` for poster or content-aware placement concerns such as Crello-style element categories and position-content summaries. Use [`laygen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/laygen) for general layout-generation schemas, bbox conversion, scheduler adapters, and model-card helpers. The package is still a skeleton until more poster models need shared behavior, so model-specific saliency, retrieval, ranking, and rendering logic should stay in model packages.
 
 ## Install
 

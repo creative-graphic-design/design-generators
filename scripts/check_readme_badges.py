@@ -27,44 +27,49 @@ MODEL_ORDER = [
 VERIFIED_SIMPLE_ICON_SLUGS = {
     "apache",
     "arxiv",
+    "creativecommons",
     "doi",
-    "github",
     "githubactions",
     "huggingface",
     "opensourceinitiative",
     "pydantic",
     "python",
-    "readme",
     "readthedocs",
     "uv",
 }
 
 
-def _expected_logo(label: str, message: str | None) -> str:
+def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     if label == "CI":
-        return "githubactions"
+        return {"githubactions"}
     if label == "docs":
-        return "readthedocs"
+        return {"readthedocs"}
     if label == "license":
-        return "apache" if message == "Apache--2.0" else "opensourceinitiative"
+        if message == "Apache--2.0":
+            return {"apache"}
+        if message and message.startswith("CC--"):
+            return {"creativecommons"}
+        if message == "review-needed":
+            return {None}
+        return {"opensourceinitiative"}
     if label == "python":
-        return "python"
+        return {"python"}
     if label == "uv":
-        return "uv"
+        return {"uv"}
     if label in {"models", "package", "core", "extras", "runtime", "status"}:
-        return "readme"
+        return {None}
     if label == "arXiv":
-        return "arxiv"
+        return {"arxiv"}
     if label == "DOI":
-        return "doi"
+        return {"doi"}
     if label in {"paper", "OpenReview", "venue"}:
-        return "readme"
+        return {None}
     if label == "base":
-        return "pydantic" if message == "pydantic-ai" else "huggingface"
+        return {"pydantic"} if message == "pydantic-ai" else {"huggingface"}
     if label in {"dataset", "hub"}:
-        return "huggingface"
+        return {"huggingface"}
     if label == "vendor--parity":
-        return "github"
+        return {None}
     raise AssertionError(f"no badge logo rule for label={label!r} message={message!r}")
 
 
@@ -90,14 +95,17 @@ def _badge_labels(path: Path) -> list[str]:
         label = query["label"][0]
         message = query.get("message", [None])[0]
         logo = query.get("logo", [None])[0]
-        expected_logo = _expected_logo(label, message)
-        if logo != expected_logo:
+        allowed_logos = _allowed_logos(label, message)
+        if logo not in allowed_logos:
             raise AssertionError(
-                f"{path}: badge {label!r} logo {logo!r} != {expected_logo!r}: {url}"
+                f"{path}: badge {label!r} logo {logo!r} not in {allowed_logos!r}: {url}"
             )
-        if logo not in VERIFIED_SIMPLE_ICON_SLUGS:
+        if logo is None:
+            if "logoColor" in query:
+                raise AssertionError(f"{path}: logoColor requires logo: {url}")
+        elif logo not in VERIFIED_SIMPLE_ICON_SLUGS:
             raise AssertionError(f"{path}: unverified Simple Icons slug {logo!r}")
-        if query.get("logoColor") != ["white"]:
+        elif query.get("logoColor") != ["white"]:
             raise AssertionError(f"{path}: badge logoColor must be white: {url}")
         labels.append(label)
     return labels
@@ -123,6 +131,8 @@ def _assert_model_order(path: Path) -> None:
             if label in aliases
         ]
         if not positions:
+            if aliases == ("venue",):
+                continue
             raise AssertionError(f"{path}: missing badge for {aliases}")
         cursor = positions[-1] + 1 if aliases[0] == "dataset" else positions[0] + 1
 
