@@ -52,7 +52,7 @@ LayoutDiffusion is packaged for the `design-generators` workspace. Public output
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
-- **License:** review-needed.
+- **License:** review-needed; verification is tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78).
 - **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources

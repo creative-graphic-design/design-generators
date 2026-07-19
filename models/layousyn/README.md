@@ -40,6 +40,8 @@ model-index:
 
 This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
+The venue badge is marked `review-needed`; verification is tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78).
+
 ## Model Details
 
 ### Model Description
