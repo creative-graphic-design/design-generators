@@ -38,6 +38,8 @@ VERIFIED_SIMPLE_ICON_SLUGS = {
     "uv",
 }
 
+HF_DATASET_BADGE_MESSAGES = {"RICO25", "PubLayNet", "Crello", "Magazine"}
+
 
 def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     if label == "CI":
@@ -66,7 +68,11 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
         return {None}
     if label == "base":
         return {"pydantic"} if message == "pydantic-ai" else {"huggingface"}
-    if label in {"dataset", "hub"}:
+    if label == "dataset":
+        return {"huggingface"} if message in HF_DATASET_BADGE_MESSAGES else {None}
+    if label == "hub":
+        if message == "n/a":
+            return {None}
         return {"huggingface"}
     if label == "vendor--parity":
         return {None}
