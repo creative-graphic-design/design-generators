@@ -1,4 +1,3 @@
-import os
 import subprocess
 import sys
 import textwrap
@@ -7,38 +6,32 @@ import numpy as np
 import pytest
 import torch
 
-from laygen.common.testing import install_jaxtyping_runtime_hook
+from laygen.common.testing import assert_layout_output_schema
 from laygen.common.typing import (
-    LayoutBBoxes,
-    LayoutLabels,
-    LayoutMask,
     NumpyLayoutBBoxes,
     NumpyLayoutLabels,
     NumpyLayoutMask,
+    TorchLayoutBBoxes,
+    TorchLayoutLabels,
+    TorchLayoutMask,
 )
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 
-def test_shared_aliases_accept_numpy_and_torch_values():
+def test_torch_aliases_accept_torch_values():
     def accept_layout(
-        bbox: LayoutBBoxes,
-        labels: LayoutLabels,
-        mask: LayoutMask,
-    ) -> tuple[LayoutBBoxes, LayoutLabels, LayoutMask]:
+        bbox: TorchLayoutBBoxes,
+        labels: TorchLayoutLabels,
+        mask: TorchLayoutMask,
+    ) -> tuple[TorchLayoutBBoxes, TorchLayoutLabels, TorchLayoutMask]:
         return bbox, labels, mask
 
-    numpy_values = accept_layout(
-        np.zeros((1, 2, 4), dtype=np.float32),
-        np.zeros((1, 2), dtype=np.int64),
-        np.ones((1, 2), dtype=bool),
-    )
     torch_values = accept_layout(
         torch.zeros(1, 2, 4),
         torch.zeros(1, 2, dtype=torch.long),
         torch.ones(1, 2, dtype=torch.bool),
     )
 
-    assert numpy_values[0].shape == (1, 2, 4)
     assert torch_values[0].shape == (1, 2, 4)
 
 
@@ -55,6 +48,19 @@ def test_numpy_aliases_accept_numpy_values():
     )
 
     assert output.to_tuple()[0].shape == (1, 1, 4)
+
+
+def test_modeling_output_shape_validation_is_schema_assertion_responsibility():
+    output = LayoutGenerationOutput(
+        bbox=np.zeros((1, 2, 5), dtype=np.float32),
+        labels=np.zeros((1, 2), dtype=np.int64),
+        mask=np.ones((1, 2), dtype=bool),
+        id2label={0: "text"},
+    )
+
+    assert output["bbox"].shape == (1, 2, 5)
+    with pytest.raises(AssertionError):
+        assert_layout_output_schema(output)
 
 
 def test_typing_aliases_and_output_import_without_torch():
@@ -84,10 +90,10 @@ def test_typing_aliases_and_output_import_without_torch():
         importlib.util.find_spec = find_spec_without_torch
         builtins.__import__ = import_without_torch
 
-        from laygen.common.typing import LayoutBBoxes, NumpyLayoutBBoxes
+        from laygen.common.typing import NumpyLayoutBBoxes
         from laygen.modeling_outputs import LayoutGenerationOutput
 
-        bbox: LayoutBBoxes = np.zeros((1, 1, 4), dtype=np.float32)
+        bbox: NumpyLayoutBBoxes = np.zeros((1, 1, 4), dtype=np.float32)
         numpy_bbox: NumpyLayoutBBoxes = bbox
         output = LayoutGenerationOutput(
             bbox=numpy_bbox,
@@ -102,58 +108,3 @@ def test_typing_aliases_and_output_import_without_torch():
     )
 
     subprocess.run([sys.executable, "-c", code], check=True)
-
-
-def test_runtime_hook_rejects_wrong_shape_in_probe(tmp_path, monkeypatch):
-    module_path = tmp_path / "shape_probe.py"
-    module_path.write_text(
-        textwrap.dedent(
-            """
-            from laygen.common.typing import LayoutBBoxes
-
-            def accept_bbox(bbox: LayoutBBoxes) -> LayoutBBoxes:
-                return bbox
-            """
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.syspath_prepend(str(tmp_path))
-
-    with install_jaxtyping_runtime_hook(["shape_probe"]):
-        from shape_probe import accept_bbox
-
-    assert accept_bbox(np.zeros((1, 2, 4), dtype=np.float32)).shape == (1, 2, 4)
-    assert accept_bbox(torch.zeros(1, 2, 4)).shape == (1, 2, 4)
-    with pytest.raises(Exception, match="accept_bbox"):
-        accept_bbox(np.zeros((1, 2, 5), dtype=np.float32))
-
-
-def test_runtime_hook_rejects_wrong_shape_in_modeling_output():
-    code = textwrap.dedent(
-        """
-        import numpy as np
-
-        from laygen.common.testing import install_jaxtyping_runtime_hook
-
-        with install_jaxtyping_runtime_hook(["laygen.modeling_outputs"]):
-            from laygen.modeling_outputs import LayoutGenerationOutput
-
-        LayoutGenerationOutput(
-            bbox=np.zeros((1, 2, 5), dtype=np.float32),
-            labels=np.zeros((1, 2), dtype=np.int64),
-            mask=np.ones((1, 2), dtype=bool),
-            id2label={0: "text"},
-        )
-        """
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        check=False,
-        capture_output=True,
-        env={**os.environ, "USE_TORCH": "0"},
-        text=True,
-    )
-
-    assert result.returncode != 0
-    assert "LayoutGenerationOutput.__init__" in result.stderr

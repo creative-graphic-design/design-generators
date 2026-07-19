@@ -7,13 +7,19 @@ from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 import numpy as np
+from jaxtyping import Bool, Float, Int
 
-from laygen.common.typing import LayoutBBoxes, LayoutLabels, LayoutMask
+from laygen.common.typing import NumpyLayoutBBoxes, NumpyLayoutLabels, NumpyLayoutMask
 
 if TYPE_CHECKING:
     import torch
 
     ArrayLike: TypeAlias = np.ndarray | torch.Tensor
+    LayoutBBoxes: TypeAlias = (
+        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
+    )
+    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
+    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 else:
     ArrayLike: TypeAlias = object
 
@@ -127,7 +133,7 @@ def install_jaxtyping_runtime_hook(
         Context manager returned by :func:`jaxtyping.install_import_hook`.
 
     Examples:
-        >>> hook = install_jaxtyping_runtime_hook(["laygen.modeling_outputs"])
+        >>> hook = install_jaxtyping_runtime_hook(["laygen.common.bbox"])
         >>> hasattr(hook, "__enter__")
         True
     """

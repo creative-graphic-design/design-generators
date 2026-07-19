@@ -1,17 +1,33 @@
-"""Canonical Transformers-compatible output types for layout generation."""
+"""Canonical Transformers-compatible output types for layout generation.
+
+This module is intentionally excluded from jaxtyping runtime import hooks because
+Transformers ``ModelOutput`` dataclasses are backend-neutral containers. Static
+annotations document the accepted NumPy/torch field shapes, while runtime shape
+guarantees are provided by ``laygen.common.testing.assert_layout_output_schema``.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
+from jaxtyping import Bool, Float, Int
 from transformers.utils import ModelOutput
 
 from laygen.common.typing import (
-    LayoutBBoxes,
-    LayoutLabels,
-    LayoutMask,
+    NumpyLayoutBBoxes,
+    NumpyLayoutLabels,
+    NumpyLayoutMask,
 )
+
+if TYPE_CHECKING:
+    import torch
+
+    LayoutBBoxes: TypeAlias = (
+        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
+    )
+    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
+    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 
 
 @dataclass
@@ -42,8 +58,8 @@ class LayoutGenerationOutput(ModelOutput):
     """
 
     bbox: LayoutBBoxes
-    labels: LayoutLabels = cast(LayoutLabels, None)
-    mask: LayoutMask = cast(LayoutMask, None)
+    labels: LayoutLabels = cast("LayoutLabels", None)
+    mask: LayoutMask = cast("LayoutMask", None)
     id2label: dict[int, str] = cast(dict[int, str], None)
     sequences: object | None = None
     scores: object | None = None
