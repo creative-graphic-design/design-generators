@@ -221,7 +221,9 @@ def _without_frontmatter_and_code(text: str) -> str:
 def _markdown_link_spans(text: str) -> list[range]:
     return [
         range(match.start(), match.end())
-        for match in re.finditer(r"!?\[[^\]]*\]\([^)]*\)", text)
+        for match in re.finditer(
+            r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|!?\[[^\]]*\]\([^)]*\)", text
+        )
     ]
 
 
