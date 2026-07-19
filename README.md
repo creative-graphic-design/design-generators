@@ -19,11 +19,11 @@
 | [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | local conversion documented |
 | [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | local conversion documented |
 | [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | local conversion documented |
-| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | local conversion documented |
+| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | prompt configuration documented |
 | [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | local conversion documented |
 | [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | local conversion documented |
 | [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | local conversion documented |
-| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | local conversion documented |
+| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | prompt configuration documented |
 | [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | local conversion documented |
 
 Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
