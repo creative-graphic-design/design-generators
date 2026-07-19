@@ -16,7 +16,7 @@
 | [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
 | [`models/lace`](models/lace/README.md) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
 | [`models/layousyn`](models/layousyn/README.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
-| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `transformers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
+| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
 | [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
 | [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
 | [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |

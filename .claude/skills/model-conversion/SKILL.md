@@ -214,7 +214,7 @@ details. Keep the final README in model-card style. Include:
 - license status and citation
 - `Reproducibility` link to `models/<slug>/REPRODUCING.md`
 
-Every model README must include a top-level `## Parity Results` section. Put
+Every model README must include a `### Parity Results` section under `## Evaluation`. Put
 the vendor-parity summary in a numeric table that states what was compared, the
 number of cases, the match criterion, and the result. Prose inside
 `## Reproducibility` is not enough. Put the mechanical walkthrough in

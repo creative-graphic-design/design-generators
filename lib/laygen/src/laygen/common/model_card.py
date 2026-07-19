@@ -377,9 +377,9 @@ print(out.bbox, out.labels, out.mask)
 
 def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
-        return "creative-graphic-design/rico25"
+        return "creative-graphic-design/Rico"
     if dataset == "publaynet":
-        return "creative-graphic-design/publaynet"
+        return "creative-graphic-design/PubLayNet"
     raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 

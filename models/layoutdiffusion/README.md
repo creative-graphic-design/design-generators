@@ -38,7 +38,7 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
-[![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
@@ -179,7 +179,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-LayoutDiffusion uses a discrete diffusion model over layout token sequences for RICO25 and PubLayNet. The processor handles unconditional, category-conditioned, text-conditioned alias, and refinement modes before decoding generated label and coordinate tokens into normalized layout outputs.
+LayoutDiffusion uses a discrete diffusion model over layout token sequences for RICO25 and PubLayNet. The processor handles unconditional, label-conditioned, and refinement modes before decoding generated label and coordinate tokens into normalized layout outputs.
 
 ### Compute Infrastructure
 

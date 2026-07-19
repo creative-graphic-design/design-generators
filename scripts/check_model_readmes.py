@@ -23,6 +23,10 @@ README_LINK_CONTRACTS = [
     *MODEL_READMES,
     *MODEL_REPRODUCING,
 ]
+README_POLICY_DOCS = [
+    REPO_ROOT / "README.md",
+    *sorted((REPO_ROOT / "lib").glob("*/README.md")),
+]
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -388,6 +392,31 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
         )
 
 
+def _assert_runtime_contract(
+    path: Path, text: str, root_runtime_by_slug: dict[str, str]
+) -> None:
+    slug = path.parent.name
+    frontmatter_library = _frontmatter_scalar(_frontmatter(text), "library_name")
+    base_badges = _badge_messages(text, "base")
+    if len(base_badges) != 1:
+        raise AssertionError(
+            f"{path}: expected exactly one base badge, found {base_badges}"
+        )
+    base_library = base_badges[0]
+    root_library = root_runtime_by_slug.get(slug)
+    if root_library is None:
+        raise AssertionError(f"{path}: root Models table missing {slug}")
+    values = {
+        "frontmatter library_name": frontmatter_library,
+        "base badge": base_library,
+        "root Models Runtime": root_library,
+    }
+    if len(set(values.values())) != 1:
+        raise AssertionError(
+            f"{path}: runtime mismatch across README surfaces {values}"
+        )
+
+
 def _assert_model_summary_subject(path: Path, text: str) -> None:
     model_name = EXPECTED_MODEL_NAMES[path.parent.name]
     body = _without_frontmatter_and_code(text)
@@ -616,12 +645,13 @@ def _root_packages_table_lines(text: str) -> list[str]:
     return text[start:end].splitlines()
 
 
-def _assert_root_packages_weights_column(path: Path) -> None:
+def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
     expected_header = "| Model | Method | Runtime | Primary datasets | Weights |"
     if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
         raise AssertionError(f"{path}: Models table must use a Weights column")
+    runtime_by_slug: dict[str, str] = {}
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) != 5:
@@ -635,6 +665,7 @@ def _assert_root_packages_weights_column(path: Path) -> None:
             raise AssertionError(
                 f"{path}: Models table Runtime cell must use code-form library name"
             )
+        runtime_by_slug[slug] = runtime_cell.strip("`")
         if "documented" in weights_cell.lower():
             raise AssertionError(
                 f"{path}: Packages table Weights column must not use status wording"
@@ -650,6 +681,7 @@ def _assert_root_packages_weights_column(path: Path) -> None:
             raise AssertionError(
                 f"{path}: weight-backed package {slug} must link conversion steps"
             )
+    return runtime_by_slug
 
 
 def _assert_linked_first_reference_policy(path: Path) -> None:
@@ -710,10 +742,12 @@ def check() -> None:
         raise AssertionError(
             f"expected 12 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
         )
+    root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
         _assert_expected_frontmatter(path, text)
+        _assert_runtime_contract(path, text, root_runtime_by_slug)
         _assert_heading_order(path, text)
         _assert_model_summary_subject(path, text)
         _assert_expected_repository_links(path, text)
@@ -733,7 +767,10 @@ def check() -> None:
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
         _assert_library_name_style(path)
-    _assert_root_packages_weights_column(REPO_ROOT / "README.md")
+    for path in README_POLICY_DOCS:
+        text = path.read_text(encoding="utf-8")
+        _assert_code_fences_tagged(path, text)
+        _assert_banned_patterns(path, text)
 
 
 def main() -> int:

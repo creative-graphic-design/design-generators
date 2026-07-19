@@ -80,7 +80,7 @@ HUB_LINKS = {
     "layout-dm": "https://huggingface.co/creative-graphic-design/layoutdm-rico25",
     "layout-flow": "https://huggingface.co/creative-graphic-design/layout-flow-rico25",
     "layoutdiffusion": "https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25",
-    "layoutformerpp": "https://huggingface.co/creative-graphic-design/layoutformerpp-rico-label",
+    "layoutformerpp": "https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label",
     "layoutganpp": "https://huggingface.co/creative-graphic-design/layoutganpp-rico",
     "parse-then-place": "https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune",
 }
@@ -242,7 +242,7 @@ def _expected_link(badge: Badge) -> str | None:
             )
         return None
     if badge.label == "hub":
-        if badge.message == "n/a":
+        if badge.message in {"n/a", "not--published"}:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
@@ -253,6 +253,12 @@ def _expected_link(badge: Badge) -> str | None:
 def _assert_badge_links() -> None:
     for path in BADGE_DOCS:
         for badge in _iter_badges(path):
+            if badge.label == "hub" and badge.message in {"n/a", "not--published"}:
+                if badge.link is not None:
+                    raise AssertionError(
+                        f"{badge.path}:{badge.line}: hub badge {badge.message!r} must not link to an unpublished Hub repo"
+                    )
+                continue
             expected = _expected_link(badge)
             if expected is None:
                 continue
