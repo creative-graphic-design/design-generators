@@ -2,7 +2,7 @@
 
 This guide reproduces the original-implementation agreement checks for the LayoutPrompter package.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
+Workflow order: prepare prompt assets, generate references, run parity checks, save prompt configuration, then smoke-test local loading.
 
 Use these commands to regenerate deterministic reference data and run the
 vendor parity checks. The generated JSON is written under `.cache/layoutprompter/`.
@@ -12,6 +12,7 @@ vendor parity checks. The generated JSON is written under `.cache/layoutprompter
 LayoutPrompter has no weights to download.
 
 ```bash
+mkdir -p .cache/layoutprompter
 printf 'LayoutPrompter has no learned weights.\n'
 ```
 

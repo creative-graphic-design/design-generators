@@ -203,7 +203,7 @@ The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run parity checks, save prompt configuration, and smoke-test local loading.
 
 
 ## Environmental Impact
@@ -236,16 +236,7 @@ CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
 Use `uv run --package layoutprompter ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-Regular package checks are:
-
-```bash
-uv run --package layoutprompter pytest models/layoutprompter/tests -m "not vendor_parity and not integration"
-uv run --package layoutprompter --with pytest-cov pytest models/layoutprompter/tests -m "not vendor_parity and not integration" --cov=layoutprompter --cov-report=term-missing
-uv run --package layoutprompter ruff check models/layoutprompter
-uv run --package layoutprompter ty check models/layoutprompter
-```
-
-The current package coverage under the coverage command above is 99%.
+The demo script uses a tiny synthetic WebUI-style example.
 
 ## License
 

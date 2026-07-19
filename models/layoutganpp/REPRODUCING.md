@@ -2,7 +2,7 @@
 
 This guide reproduces the original-implementation agreement checks for the LayoutGAN++ package.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
+Workflow order: download assets, generate references, convert checkpoints, run parity checks, then smoke-test local loading.
 
 Prerequisites: run these commands from the repository root. Initialize the original implementation with `git submodule update --init vendor/const-layout` before generating vendor references. The command examples keep all local artifacts under `.cache/layoutganpp/` and never modify `vendor/const-layout`.
 
@@ -39,13 +39,7 @@ CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/sc
   --batch-size 3
 ```
 
-Step 3 runs the vendor parity tests against converted checkpoints. If step 4 has not been run yet, pytest will skip the cases because `.cache/layoutganpp/converted/layoutganpp-<dataset>` is missing.
-
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
-```
-
-Step 4 converts each original checkpoint into a Transformers-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.
+Step 3 converts each original checkpoint into a Transformers-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.
 
 ```bash
 uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \
@@ -59,6 +53,20 @@ uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_
 uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \
   --input-checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar \
   --output-dir .cache/layoutganpp/converted/layoutganpp-magazine
+```
+
+Step 4 runs the vendor parity tests against the generated references and converted checkpoints.
+
+```bash
+CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
+```
+
+Expected parity results:
+
+```text
+rico: shape=(3, 9, 4), max_abs=0, max_rel=0
+publaynet: shape=(3, 9, 4), max_abs=0, max_rel=0
+magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
 ```
 
 Step 5 runs a `from_pretrained` smoke check for each converted checkpoint. The expected bbox shapes are `(1, 2, 4)`.
@@ -78,12 +86,4 @@ for dataset, labels in {
     out = pipe(labels=labels, seed=0)
     print(dataset, tuple(out.bbox.shape))
 PY
-```
-
-After step 4, rerun step 3. The expected parity results are:
-
-```text
-rico: shape=(3, 9, 4), max_abs=0, max_rel=0
-publaynet: shape=(3, 9, 4), max_abs=0, max_rel=0
-magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
 ```

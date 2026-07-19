@@ -59,6 +59,10 @@ BANNED_PATTERNS = [
     r"preserves the upstream architecture",
     r"needed for conversion and inference",
     r"This package provides",
+    r"Regular package checks",
+    r"current package coverage",
+    r"coverage command",
+    r"for this PR",
 ]
 
 LINK_REQUIRED_DATASET_IDS = [
@@ -301,6 +305,18 @@ def _assert_pipeline_tag(path: Path, frontmatter: str) -> None:
         raise AssertionError(f"{path}: model-index task.type must be 'other'")
 
 
+def _assert_model_index_policy(path: Path, frontmatter: str) -> None:
+    has_model_index = "model-index:" in frontmatter
+    if path.parent.name in PROMPT_ONLY_SLUGS:
+        if has_model_index:
+            raise AssertionError(
+                f"{path}: prompt-only README must not include model-index"
+            )
+        return
+    if not has_model_index:
+        raise AssertionError(f"{path}: weight-backed README must include model-index")
+
+
 def _assert_heading_order(path: Path, text: str) -> None:
     cursor = -1
     for heading in REQUIRED_HEADINGS:
@@ -339,6 +355,7 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
     frontmatter = _frontmatter(text)
     _assert_frontmatter_list_unique(path, frontmatter)
     _assert_pipeline_tag(path, frontmatter)
+    _assert_model_index_policy(path, frontmatter)
     actual_license = _frontmatter_scalar(frontmatter, "license")
     expected_license = expected["license"]
     if actual_license != expected_license:
@@ -404,6 +421,10 @@ def _assert_prompt_only_readme(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: prompt-only README contains stale model-package phrase {phrase!r}"
             )
+    if "convert checkpoints" in text.lower():
+        raise AssertionError(
+            f"{path}: prompt-only README must not mention converting checkpoints"
+        )
 
 
 def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
@@ -514,6 +535,7 @@ def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
 def _assert_reproducing_commands(path: Path, text: str) -> None:
     if "uv run --package " not in text:
         raise AssertionError(f"{path}: REPRODUCING.md must contain uv package commands")
+    lower = text.lower()
     bad_command_shapes = ["python scripts/", "cd models/", "../.cache", "/tmp/"]
     for bad in bad_command_shapes:
         if bad in text:
@@ -528,14 +550,26 @@ def _assert_reproducing_commands(path: Path, text: str) -> None:
     ]
     if path.parent.name in PROMPT_ONLY_SLUGS:
         required_terms.extend([("prompt configuration", "save_pretrained"), "smoke"])
+        if "convert checkpoints" in lower:
+            raise AssertionError(
+                f"{path}: prompt-only REPRODUCING.md must not mention converting checkpoints"
+            )
     else:
         required_terms.extend(["convert", "from_pretrained"])
-    lower = text.lower()
     for term in required_terms:
         alternatives = (term,) if isinstance(term, str) else term
         position = max(lower.find(alternative.lower()) for alternative in alternatives)
         if position == -1:
             raise AssertionError(f"{path}: missing reproducibility step {term!r}")
+    if path.parent.name in {"coarse-to-fine", "layoutganpp"}:
+        expected = (
+            "Workflow order: download assets, generate references, convert checkpoints, "
+            "run parity checks, then smoke-test local loading."
+        )
+        if expected not in text:
+            raise AssertionError(
+                f"{path}: reproducibility workflow must state reference -> conversion -> parity order"
+            )
 
 
 def _assert_banned_patterns(path: Path, text: str) -> None:

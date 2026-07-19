@@ -2,7 +2,7 @@
 
 This guide reproduces the original-implementation agreement checks for the Coarse-to-Fine package.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
+Workflow order: download assets, generate references, convert checkpoints, run parity checks, then smoke-test local loading.
 
 Prerequisites:
 
@@ -19,21 +19,7 @@ uv run --package coarse-to-fine python models/coarse-to-fine/scripts/download_or
   --output-dir .cache/coarse-to-fine/original
 ```
 
-2. Convert both public checkpoints into Transformers format.
-
-```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
-  --dataset rico25 \
-  --output-dir .cache/coarse-to-fine/converted/rico25
-
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
-  --dataset publaynet \
-  --output-dir .cache/coarse-to-fine/converted/publaynet
-```
-
-3. Generate vendor reference tensors.
+2. Generate vendor reference tensors.
 
 ```bash
 CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
@@ -49,6 +35,20 @@ CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python mod
   --seed 0 \
   --batch-size 2 \
   --output-dir .cache/coarse-to-fine/reference/publaynet
+```
+
+3. Convert both public checkpoints into Transformers format.
+
+```bash
+uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
+  --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
+  --dataset rico25 \
+  --output-dir .cache/coarse-to-fine/converted/rico25
+
+uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
+  --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
+  --dataset publaynet \
+  --output-dir .cache/coarse-to-fine/converted/publaynet
 ```
 
 4. Run vendor parity tests against cached references.

@@ -2,7 +2,7 @@
 
 This guide reproduces the original-implementation agreement checks for the LayoutGPT package.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
+Workflow order: prepare prompt assets, generate references, run parity checks, save prompt configuration, then smoke-test local loading.
 
 These steps reproduce the deterministic parity checks. The generated JSON is
 written to `.cache/layout-gpt/vendor-golden.json`. The scripts look for
@@ -43,17 +43,28 @@ stores the prompt and parser configuration that the agent reloads at runtime.
 
 ```bash
 uv run --package layout-gpt python - <<'PY'
-print("LayoutGPT stores prompt configuration rather than learned weights.")
+from layout_gpt import LayoutGPTAgent
+from layout_gpt.schema import LayoutGPTConfig
+
+agent = LayoutGPTAgent(config=LayoutGPTConfig(setting="counting", icl_type="fixed-random", k=1))
+agent.save_pretrained(".cache/layout-gpt/prompt-config")
+print(".cache/layout-gpt/prompt-config/layout_gpt_config.json")
 PY
 ```
 
 ### 5. Run Loading Smoke
 
-This smoke verifies the installed package and output conversion path.
+This smoke verifies `save_pretrained` to `from_pretrained` reload and output conversion.
 
 ```bash
 uv run --package layout-gpt python - <<'PY'
+from layout_gpt import LayoutGPTAgent
 from layout_gpt.schema import LayoutGPTOutput, LayoutItem2D
+
+loaded = LayoutGPTAgent.from_pretrained(".cache/layout-gpt/prompt-config")
+assert loaded.config.setting == "counting"
+assert loaded.config.icl_type == "fixed-random"
+assert loaded.config.k == 1
 
 output = LayoutGPTOutput(
     prompt="there is one clock in the image",

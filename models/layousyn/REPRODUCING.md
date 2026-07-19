@@ -59,7 +59,7 @@ print(out.bbox.shape, out.id2label)
 PY
 ```
 
-The CUDA 5 Grit checkpoint parity run for this PR passes 4/4 marked checks:
+The CUDA 5 Grit checkpoint parity run passes 4/4 marked checks:
 alpha-scale beta respacing, denoiser logits, first scheduler step, and full
 sample public layout output. The `from_pretrained` smoke prints
 `torch.Size([1, 60, 4]) {0: 'person', 1: 'bench'}`.

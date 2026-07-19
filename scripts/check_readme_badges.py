@@ -56,6 +56,7 @@ DATASET_LINKS = {
     "RICO13": "https://huggingface.co/datasets/creative-graphic-design/Rico",
     "PubLayNet": "https://huggingface.co/datasets/creative-graphic-design/PubLayNet",
     "Crello": "https://huggingface.co/datasets/cyberagent/crello",
+    "Magazine": "https://huggingface.co/datasets/creative-graphic-design/magazine",
 }
 PAPER_LINKS = {
     ("paper", "AAAI"): "https://ojs.aaai.org/index.php/AAAI/article/view/19994",
@@ -232,8 +233,14 @@ def _badge_labels(path: Path) -> list[str]:
 def _expected_link(badge: Badge) -> str | None:
     if badge.label == "docs":
         return DOCS_URL
-    if badge.label == "dataset" and badge.message in DATASET_LINKS:
-        return DATASET_LINKS[badge.message]
+    if badge.label == "dataset":
+        if badge.message in DATASET_LINKS:
+            return DATASET_LINKS[badge.message]
+        if badge.logo == "huggingface":
+            raise AssertionError(
+                f"{badge.path}:{badge.line}: Hugging Face dataset badge {badge.message!r} must have an explicit DATASET_LINKS entry"
+            )
+        return None
     if badge.label == "hub":
         if badge.message == "n/a":
             return None

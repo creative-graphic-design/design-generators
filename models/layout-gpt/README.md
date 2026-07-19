@@ -165,7 +165,7 @@ The `## Parity Results` table reports the available numeric agreement evidence.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run parity checks, save prompt configuration, and smoke-test local loading.
 
 
 ## Environmental Impact
@@ -190,25 +190,7 @@ CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
 Use `uv run --package layout-gpt ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-The demo script accepts a configured Pydantic AI model:
-
-```bash
-uv run --package layout-gpt python models/layout-gpt/scripts/demo_layout_gpt.py \
-  --train-json vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json \
-  --prompt "there is one clock in the image" \
-  --setting counting \
-  --canvas-size 256 \
-  --model "${LAYOUT_GPT_MODEL:-openai:gpt-5-mini}"
-```
-
-Regular package checks are:
-
-```bash
-uv run --package layout-gpt pytest models/layout-gpt/tests
-uv run --package layout-gpt ruff check models/layout-gpt
-uv run --package layout-gpt ruff format --check models/layout-gpt
-uv run --package layout-gpt ty check models/layout-gpt
-```
+The demo script accepts a configured Pydantic AI model and a vendor NSR-1K JSON file.
 
 ## License
 
