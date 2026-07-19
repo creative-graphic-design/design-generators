@@ -38,7 +38,7 @@ print(normalize_condition_type("gen_t"))
 print(id2label_for_dataset("publaynet"))
 ```
 
-Use `laygen.modeling_outputs.LayoutGenerationOutput` for 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style code paths and schema-only utilities.
+Use `laygen.modeling_outputs.LayoutGenerationOutput` for [`transformers`](https://huggingface.co/docs/transformers/index)-style code paths and schema-only utilities.
 
 ```bash
 uv run --package laygen python

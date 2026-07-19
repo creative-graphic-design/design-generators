@@ -682,14 +682,14 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
-    for library in ("transformers", "diffusers"):
-        emoji_mentions = re.findall(
-            rf"🤗\s+(?:\[`{library}`\]\([^)]*\)|`{library}`)", text
+    emoji_mentions = re.findall(
+        r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`)",
+        text,
+    )
+    if len(emoji_mentions) > 1:
+        raise AssertionError(
+            f"{path}: 🤗 may appear only on the first Hugging Face library mention"
         )
-        if len(emoji_mentions) > 1:
-            raise AssertionError(
-                f"{path}: 🤗 may appear only on the first {library} mention"
-            )
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
     spans = _markdown_link_spans(text)

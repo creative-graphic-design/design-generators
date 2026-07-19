@@ -195,7 +195,7 @@ Use `uv run --package layoutdiffusion ...` from the repository root so workspace
 
 ## License
 
-Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout does not include a LayoutDiffusion-specific top-level license; only the vendored 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) license is present. Converted weights should not claim an OSS license until upstream license status is confirmed.
+Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout does not include a LayoutDiffusion-specific top-level license; only the vendored [`transformers`](https://huggingface.co/docs/transformers/index) license is present. Converted weights should not claim an OSS license until upstream license status is confirmed.
 
 ## Citation
 

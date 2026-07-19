@@ -59,7 +59,7 @@ model-index:
 
 <longer description of what the converted checkpoint does and what package loads it>
 
-<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is 🤗 `transformers` or 🤗 `diffusers` style. -->
+<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is 🤗 `transformers` or `diffusers` style. -->
 
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
