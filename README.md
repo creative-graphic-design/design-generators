@@ -11,20 +11,20 @@
 
 ## Packages
 
-| Package | Method | Runtime | Primary datasets | Status |
+| Package | Method | Runtime | Primary datasets | Weights |
 | --- | --- | --- | --- | --- |
-| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | local conversion documented |
-| [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | local conversion documented |
-| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | diffusers | GRIT, COCO grounded | local conversion documented |
-| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | local conversion documented |
-| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | local conversion documented |
-| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | local conversion documented |
-| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | prompt configuration documented |
-| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | local conversion documented |
-| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | local conversion documented |
-| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | local conversion documented |
-| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | prompt configuration documented |
-| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | local conversion documented |
+| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
+| [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
+| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | diffusers | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
+| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
+| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
+| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
+| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | none (prompt-based) |
+| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md)) |
+| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutformerpp/REPRODUCING.md)) |
+| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |
+| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
+| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
 
 Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
 

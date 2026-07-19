@@ -581,6 +581,45 @@ def _assert_banned_patterns(path: Path, text: str) -> None:
             )
 
 
+def _root_packages_table_lines(text: str) -> list[str]:
+    marker = "## Packages\n\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n\n", start)
+    return text[start:end].splitlines()
+
+
+def _assert_root_packages_weights_column(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    table_lines = _root_packages_table_lines(text)
+    expected_header = "| Package | Method | Runtime | Primary datasets | Weights |"
+    if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
+        raise AssertionError(f"{path}: Packages table must use a Weights column")
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) != 5:
+            raise AssertionError(f"{path}: malformed Packages table row: {line}")
+        package_cell, *_rest, weights_cell = cells
+        slug_match = re.search(r"`models/([^`]+)`", package_cell)
+        if slug_match is None:
+            raise AssertionError(f"{path}: package row missing models/<slug>: {line}")
+        slug = slug_match.group(1)
+        if "documented" in weights_cell.lower():
+            raise AssertionError(
+                f"{path}: Packages table Weights column must not use status wording"
+            )
+        if slug in PROMPT_ONLY_SLUGS:
+            if weights_cell != "none (prompt-based)":
+                raise AssertionError(
+                    f"{path}: prompt-only package {slug} must state no weights"
+                )
+            continue
+        expected_link = f"[REPRODUCING.md](models/{slug}/REPRODUCING.md)"
+        if weights_cell != f"convert locally ({expected_link})":
+            raise AssertionError(
+                f"{path}: weight-backed package {slug} must link conversion steps"
+            )
+
+
 def _assert_linked_first_reference_policy(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     spans = _markdown_link_spans(text)
@@ -627,6 +666,7 @@ def check() -> None:
         _assert_banned_patterns(path, text)
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
+    _assert_root_packages_weights_column(REPO_ROOT / "README.md")
 
 
 def main() -> int:
