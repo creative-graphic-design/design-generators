@@ -110,6 +110,23 @@ print(out.labels)
 print(out.mask)
 ```
 
+Conditional generation uses the same pipeline call with `condition_type`, `bbox`,
+`labels`, and `mask`. Canonical names such as `label`, `label_size`,
+`completion`, and `refinement` are accepted, and vendor aliases such as
+`gen_t`, `gen_ts`, `cat_cond`, `c`, `cwh`, `partial`, and `refine` are normalized
+at the pipeline boundary.
+
+```python
+out = pipe(
+    condition_type="gen_t",  # canonical alias: "label"
+    labels=[[1, 2, 3]],
+    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
+    mask=[[True, True, True]],
+    seed=0,
+)
+print(out.bbox)
+```
+
 ## Training Details
 
 ### Training Data

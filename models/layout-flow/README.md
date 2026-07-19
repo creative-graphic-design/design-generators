@@ -110,6 +110,22 @@ print(out.labels)
 print(out.mask)
 ```
 
+Conditioning aliases from the original implementation are accepted at the
+pipeline boundary. For example, `cat_cond`, `c`, and `gen_t` normalize to the
+canonical `label` condition, while `cwh` and `size_cond` normalize to
+`label_size`.
+
+```python
+out = pipe(
+    condition_type="cat_cond",  # canonical alias: "label"
+    labels=[[1, 2, 3]],
+    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
+    mask=[[True, True, True]],
+    seed=0,
+)
+print(out.bbox)
+```
+
 ## Training Details
 
 ### Training Data

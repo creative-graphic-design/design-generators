@@ -108,6 +108,30 @@ print(out.labels)
 print(out.mask)
 ```
 
+Use `condition_type` to select unconditional generation or supported
+conditioning paths. `unconditional`, `label`, and `refinement` are the supported
+canonical modes for this package; aliases such as `ugen`, `cat_cond`, `c`,
+`gen_t`, and `refine` are normalized before sampling. Unsupported canonical
+modes raise explicit errors instead of falling back silently.
+
+```python
+unconditional = pipe(batch_size=1, condition_type="ugen", seed=101)
+label_conditioned = pipe(
+    condition_type="cat_cond",  # canonical alias: "label"
+    labels=[[1, 2, 3]],
+    num_elements=[3],
+    seed=101,
+)
+refined = pipe(
+    condition_type="refine",  # canonical alias: "refinement"
+    labels=[[1, 2, 3]],
+    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
+    mask=[[True, True, True]],
+    seed=101,
+)
+print(unconditional.bbox, label_conditioned.mask, refined.bbox)
+```
+
 ## Training Details
 
 ### Training Data
