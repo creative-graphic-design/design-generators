@@ -1,15 +1,17 @@
 """Convert an original RALF checkpoint to a local Transformers-style directory.
 
 The converter reads the original `config.yaml` as plain YAML and does not use
-Hydra or OmegaConf. Vendor dependency loading is intentionally avoided here;
-unmatched keys are reported so parity work can refine the mapping.
+Hydra or OmegaConf in port code. It instantiates the vendor module tree only
+when strict checkpoint loading is requested through `use_vendor_modules=True`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+from typing import cast
 
 import torch
 
@@ -32,10 +34,7 @@ def parse_args() -> argparse.Namespace:
         help="Original PyTorch checkpoint path.",
     )
     parser.add_argument(
-        "--dataset",
-        choices=["cgl", "pku_posterlayout"],
-        required=True,
-        help="Dataset name for the converted config.",
+        "--dataset", choices=["cgl", "pku", "pku_posterlayout"], required=True
     )
     parser.add_argument(
         "--task", required=True, help="Canonical condition task for this checkpoint."
@@ -45,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         required=True,
         help="Directory to save the converted checkpoint.",
+    )
+    parser.add_argument(
+        "--vendor-cache-dir",
+        type=Path,
+        default=Path(".cache/ralf/cache"),
+        help="Unpacked authors' cache directory used by vendor-compatible modules.",
     )
     return parser.parse_args()
 
@@ -67,33 +72,26 @@ def main() -> None:
     """Convert checkpoint metadata and save a local model directory."""
     args = parse_args()
     original_config = _read_yaml(args.job_dir / "config.yaml")
-    config = RalfConfig(
-        dataset_name=args.dataset,
-        task=args.task,
-        original_hydra_config=original_config,
-    )
-    model = RalfForConditionalLayoutGeneration(config)
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
     state_dict = (
         checkpoint.get("state_dict", checkpoint)
         if isinstance(checkpoint, dict)
         else checkpoint
     )
+    label_count = int(state_dict["layout_encoer.emb_label.weight"].shape[0])
+    id2label = _vendor_id2label(args.dataset, label_count)
+    config = RalfConfig(
+        dataset_name=args.dataset,
+        task=args.task,
+        id2label=cast(dict[int | str, str], id2label),
+        original_hydra_config=original_config,
+        use_vendor_modules=True,
+        vendor_cache_dir=str(args.vendor_cache_dir),
+    )
+    model = RalfForConditionalLayoutGeneration(config)
     target_state = model.state_dict()
-    compatible_state = {
-        key: value
-        for key, value in state_dict.items()
-        if key in target_state and tuple(value.shape) == tuple(target_state[key].shape)
-    }
-    shape_mismatches = {
-        key: {
-            "source": list(value.shape),
-            "target": list(target_state[key].shape),
-        }
-        for key, value in state_dict.items()
-        if key in target_state and tuple(value.shape) != tuple(target_state[key].shape)
-    }
-    missing, unexpected = model.load_state_dict(compatible_state, strict=False)
+    model.load_state_dict(state_dict, strict=True)
     processor = RalfProcessor.from_config(config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(args.output_dir)
@@ -101,17 +99,27 @@ def main() -> None:
     report = {
         "checkpoint": str(args.checkpoint),
         "job_dir": str(args.job_dir),
-        "matched_keys": sorted(compatible_state),
-        "missing_keys": list(missing),
-        "skipped_shape_mismatch_keys": shape_mismatches,
+        "matched_keys": sorted(state_dict),
+        "missing_keys": [],
+        "skipped_shape_mismatch_keys": {},
         "source_key_count": len(state_dict),
         "target_key_count": len(target_state),
-        "unexpected_keys": list(unexpected),
-        "weight_parity_ready": len(compatible_state) == len(target_state),
+        "unexpected_keys": [],
+        "weight_parity_ready": True,
     }
     (args.output_dir / "conversion_report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True)
     )
+
+
+def _vendor_id2label(dataset: str, label_count: int) -> dict[int, str]:
+    if dataset == "cgl":
+        names = ["embellishment", "logo", "text", "underlay"]
+    else:
+        names = ["logo", "text", "underlay"]
+    if label_count != len(names):
+        names = [f"label_{idx}" for idx in range(label_count)]
+    return dict(enumerate(names))
 
 
 if __name__ == "__main__":

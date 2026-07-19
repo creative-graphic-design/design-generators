@@ -91,6 +91,8 @@ class RalfConfig(PretrainedConfig):
         sort_order: Sequence[str] = ("label", "lexicographic"),
         retrieval_metadata: Mapping[str, object] | None = None,
         original_hydra_config: Mapping[str, object] | None = None,
+        use_vendor_modules: bool = False,
+        vendor_cache_dir: str | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize configuration values."""
@@ -129,6 +131,8 @@ class RalfConfig(PretrainedConfig):
         self.sort_order = tuple(sort_order)
         self.retrieval_metadata = dict(retrieval_metadata or {})
         self.original_hydra_config = dict(original_hydra_config or {})
+        self.use_vendor_modules = bool(use_vendor_modules)
+        self.vendor_cache_dir = vendor_cache_dir
         pad_token_id = self.special_token_id("pad")
         bos_token_id = self.special_token_id("bos")
         eos_token_id = self.special_token_id("eos")

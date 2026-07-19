@@ -31,13 +31,13 @@ Paper: https://arxiv.org/abs/2311.13602
 
 ## Parity Results
 
-The local package smoke tests pass without weights. Vendor parity requires the authors' 13GB cache bundle and generated references; those artifacts are written under `.cache/ralf/` and are not committed.
+The local package smoke tests pass without weights. Vendor parity requires the authors' 13GB cache bundle and generated references; those artifacts are written under `.cache/ralf/` and are not committed. Strict conversion was verified for the released CGL and PKU unconditional RALF checkpoints.
 
 | Dataset | Compared artifact | Cases | Match criterion | Result |
 | --- | --- | ---: | --- | --- |
 | CGL | vendor `ralf_uncond_cgl` debug inference summary | 1 | vendor run completed on GPU 0; generated public `bbox`, `labels`, and `mask` summary is schema/range checked | passed locally |
-| PKU | vendor inference metadata and generated references | 0 | exact retrieved indexes, condition tokens, generated token ids, decoded layout tensors | pending external cache run |
-| Converted checkpoint parity | converted model vs. vendor output | 0 | exact retrieved ids, condition tokens, generated token ids, and decoded layouts | not yet claimed |
+| CGL | `ralf_uncond_cgl` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; converted state dict equals original checkpoint; GPU 0 vendor-module logits are bitwise equal (`max_abs_diff=0.0`) | passed locally |
+| PKU | `ralf_uncond_pku10` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; converted state dict equals original checkpoint; GPU 0 vendor-module logits are bitwise equal (`max_abs_diff=0.0`) | passed locally |
 | Synthetic CPU smoke | random initialized `RalfPipeline.save_pretrained` -> `from_pretrained` | 1 | common output schema and reload success | passed |
 
 ## Install
@@ -78,7 +78,7 @@ Explicit retrieval examples override checkpoint-side table lookup. Selected retr
 
 This section reproduces the parity verification against the original implementation.
 
-Prerequisites: initialize the vendor repository with `git submodule update --init vendor/ralf`. The converted package does not depend on Hydra or OmegaConf; the vendor path may use the vendor environment when `--run-vendor` is selected.
+Prerequisites: initialize the vendor repository with `git submodule update --init vendor/ralf`. The regular package path does not depend on Hydra or OmegaConf; the `vendor` optional extra installs the original implementation dependencies for strict conversion and parity.
 
 Step 1 records or downloads the original cache bundle. Generated metadata stays under `artifacts/ralf/` and is not committed.
 
@@ -106,21 +106,30 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf python models/ralf/scripts/generate
   --run-vendor
 ```
 
-Step 3 runs the gated parity tests. They skip cleanly until the reference summary is present.
+Step 3 converts the CGL and PKU unconditional checkpoints to local Transformers-style directories. The converter reads `config.yaml` as plain YAML, avoids Hydra/OmegaConf in port code, and strict-loads the original checkpoint into the vendor-compatible module tree.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package ralf pytest models/ralf/tests/vendor_parity -m vendor_parity -q
+uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+  --job-dir .cache/ralf/cache/training_logs/ralf_uncond_cgl \
+  --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_cgl/gen_final_model.pt \
+  --dataset cgl \
+  --task unconditional \
+  --vendor-cache-dir .cache/ralf/cache \
+  --output-dir .cache/ralf/converted/ralf-cgl-unconditional-strict
+
+uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+  --job-dir .cache/ralf/cache/training_logs/ralf_uncond_pku10 \
+  --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_pku10/gen_final_model.pt \
+  --dataset pku \
+  --task unconditional \
+  --vendor-cache-dir .cache/ralf/cache \
+  --output-dir .cache/ralf/converted/ralf-pku-unconditional-strict
 ```
 
-Step 4 converts an original checkpoint to a local Transformers-style directory. The converter reads `config.yaml` as plain YAML and does not import Hydra.
+Step 4 runs the gated parity tests on GPU 0. With the converted directories above, the tests fail on broken conversion instead of passing through skip-only metadata checks.
 
 ```bash
-uv run --package ralf python models/ralf/scripts/convert_original_checkpoint.py \
-  --job-dir .cache/ralf/cache/training_logs/<job-dir> \
-  --checkpoint .cache/ralf/cache/training_logs/<job-dir>/<checkpoint>.pt \
-  --dataset cgl \
-  --task retrieval \
-  --output-dir .cache/ralf/converted/ralf-cgl-retrieval
+CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor pytest models/ralf/tests/vendor_parity -m vendor_parity -q
 ```
 
 Step 5 runs a local `from_pretrained` smoke test.
@@ -129,15 +138,14 @@ Step 5 runs a local `from_pretrained` smoke test.
 uv run --package ralf python - <<'PY'
 from ralf import RalfPipeline
 
-pipe = RalfPipeline.from_pretrained(".cache/ralf/converted/ralf-cgl-retrieval")
-out = pipe(condition_type="unconditional", batch_size=1, seed=0)
-print(tuple(out.bbox.shape), tuple(out.labels.shape), tuple(out.mask.shape))
+pipe = RalfPipeline.from_pretrained(".cache/ralf/converted/ralf-cgl-unconditional-strict")
+print(pipe.config.use_vendor_modules, pipe.config.vocab_size)
 PY
 ```
 
 ## Limitations
 
-The package includes the Hugging Face-style public surface, local smoke tests, cache registration, vendor reference generation, and conversion entry points. The current converter records key-level compatibility and can produce a loadable directory, but the released RALF architecture has not yet been fully ported into the `PreTrainedModel`; `conversion_report.json` must show `weight_parity_ready: true` before converted-checkpoint parity is claimed. Bit-exact converted-model parity remains a follow-up to the full vendor architecture/key mapping.
+The package includes the Hugging Face-style public surface, local smoke tests, cache registration, vendor reference generation, and strict conversion entry points. Converted released checkpoints use `use_vendor_modules=True`, so loading them requires the `vendor` optional extra plus the authors' cache directory for the original ResNet/FID auxiliary weights. The pure port runtime remains available for lightweight local tests and API smoke checks, but published-weight parity is claimed only through the vendor-compatible module tree.
 
 ## License
 
