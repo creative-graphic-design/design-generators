@@ -16,7 +16,6 @@ from laygen.common.torch_typing import (
     TorchLayoutBBoxes,
     TorchLayoutLabels,
     TorchLayoutMask,
-    TorchPayload,
 )
 
 
@@ -51,8 +50,8 @@ class LayoutGenerationOutput(BaseOutput):
     labels: TorchLayoutLabels = cast(TorchLayoutLabels, None)
     mask: TorchLayoutMask = cast(TorchLayoutMask, None)
     id2label: dict[int, str] = cast(dict[int, str], None)
-    sequences: TorchPayload = None
-    scores: TorchPayload = None
+    sequences: object | None = None
+    scores: object | None = None
     trajectory: object | None = None
     intermediates: object | None = None
 

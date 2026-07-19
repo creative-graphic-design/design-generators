@@ -11,7 +11,6 @@ from laygen.common.typing import (
     LayoutBBoxes,
     LayoutLabels,
     LayoutMask,
-    LayoutPayload,
 )
 
 
@@ -46,8 +45,8 @@ class LayoutGenerationOutput(ModelOutput):
     labels: LayoutLabels = cast(LayoutLabels, None)
     mask: LayoutMask = cast(LayoutMask, None)
     id2label: dict[int, str] = cast(dict[int, str], None)
-    sequences: LayoutPayload = None
-    scores: LayoutPayload = None
+    sequences: object | None = None
+    scores: object | None = None
     trajectory: object | None = None
     intermediates: object | None = None
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Final, TypeAlias  # noqa: TID251 - model payload fields are intentionally deferred.
+from typing import Final, TypeAlias
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -35,7 +35,6 @@ TorchAttentionMask: TypeAlias = Bool[torch.Tensor, _ATTENTION_MASK_SHAPE]
 TorchPaddingMask: TypeAlias = Bool[torch.Tensor, _PADDING_MASK_SHAPE]
 TorchTimesteps: TypeAlias = Int[torch.Tensor, _TIMESTEPS_SHAPE]
 TorchTensor: TypeAlias = torch.Tensor
-TorchPayload: TypeAlias = Any
 TorchTokenIdSequence: TypeAlias = Int[torch.Tensor, _TOKEN_ID_SEQUENCE_SHAPE]
 TorchTokenIds: TypeAlias = Int[torch.Tensor, _TOKEN_IDS_SHAPE]
 TorchTokenLogits: TypeAlias = Float[torch.Tensor, _TOKEN_LOGITS_SHAPE]
@@ -60,7 +59,6 @@ __all__ = [
     "TorchLogOneHot",
     "TorchLogOneHotAny",
     "TorchPaddingMask",
-    "TorchPayload",
     "TorchTensor",
     "TorchTimesteps",
     "TorchTokenIdSequence",

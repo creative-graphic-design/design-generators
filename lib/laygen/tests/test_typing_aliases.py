@@ -68,13 +68,11 @@ def test_torch_typing_aliases_import_with_torch():
         TorchLayoutLabels,
         TorchLayoutMask,
         TorchLogOneHot,
-        TorchPayload,
         TorchTensor,
         TorchTokenIds,
         TorchTokenLogits,
     )
 
-    payload: TorchPayload = None
     tensor: TorchTensor = torch.zeros(1)
     bbox: TorchLayoutBBoxes = torch.zeros(1, 2, 4)
     labels: TorchLayoutLabels = torch.zeros(1, 2, dtype=torch.long)
@@ -83,7 +81,6 @@ def test_torch_typing_aliases_import_with_torch():
     token_logits: TorchTokenLogits = torch.zeros(1, 3, 5)
     log_onehot: TorchLogOneHot = torch.zeros(1, 5, 3)
 
-    assert payload is None
     assert tensor.shape == (1,)
     assert bbox.shape == (1, 2, 4)
     assert labels.shape == mask.shape == (1, 2)

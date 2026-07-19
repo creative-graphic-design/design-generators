@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Final, TypeAlias  # noqa: TID251 - model payload fields are intentionally deferred.
+from typing import Final, TypeAlias
 
 import numpy as np
 from jaxtyping import Bool, Float, Int
@@ -16,7 +16,6 @@ NumpyLayoutLabels: TypeAlias = Int[np.ndarray, _LAYOUT_ELEMENTS_SHAPE]
 NumpyLayoutMask: TypeAlias = Bool[np.ndarray, _LAYOUT_ELEMENTS_SHAPE]
 NumpyDDIMTimesteps: TypeAlias = Int[np.ndarray, _DDIM_TIMESTEPS_SHAPE]
 NumpyArray: TypeAlias = np.ndarray
-LayoutPayload: TypeAlias = Any
 
 try:
     import torch
@@ -41,7 +40,6 @@ __all__ = [
     "LayoutBBoxes",
     "LayoutLabels",
     "LayoutMask",
-    "LayoutPayload",
     "NumpyArray",
     "NumpyDDIMTimesteps",
     "NumpyLayoutBBoxes",
