@@ -9,7 +9,6 @@ from transformers import PretrainedConfig
 from posgen.common.labels import (
     DatasetName,
     PKUPosterLayoutLabel,
-    label2id_for_dataset,
     normalize_dataset_name,
 )
 
@@ -71,6 +70,7 @@ class DSGANConfig(PretrainedConfig):
         label2id: dict[str, int] | None = None,
         model_subfolder: str = "model",
         processor_subfolder: str = "processor",
+        condition_types: list[str] | tuple[str, ...] | None = None,
         architectures: list[str] | None = None,
         model_type: str | None = None,
         transformers_version: str | None = None,
@@ -113,6 +113,7 @@ class DSGANConfig(PretrainedConfig):
         self.vendor_num_classes = vendor_num_classes
         self.model_subfolder = model_subfolder
         self.processor_subfolder = processor_subfolder
+        self.condition_types = list(condition_types or ["content_image"])
 
     @property
     def public_num_labels(self) -> int:
@@ -131,5 +132,15 @@ def default_ds_gan_config() -> DSGANConfig:
 
 
 def pku_vendor_label2id() -> dict[str, int]:
-    """Return vendor PKU label ids including padding and INVALID."""
-    return label2id_for_dataset(DatasetName.pku_posterlayout)
+    """Return DS-GAN vendor labels including the no-object class.
+
+    Examples:
+        >>> pku_vendor_label2id()["no_object"]
+        0
+    """
+    return {"no_object": 0, "text": 1, "logo": 2, "underlay": 3}
+
+
+def pku_dataset_label2id() -> dict[str, int]:
+    """Return PKU dataset annotation labels including ``INVALID``."""
+    return {"text": 0, "logo": 1, "underlay": 2, "INVALID": 3}

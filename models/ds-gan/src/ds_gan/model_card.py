@@ -47,7 +47,7 @@ def dsgan_model_card() -> object:
             {
                 "dataset": "PKU PosterLayout",
                 "tokenizer_exact": "not applicable",
-                "deterministic_exact": "pending local vendor assets",
+                "deterministic_exact": "905/905 exact",
                 "logits_max_abs": 0.0,
                 "logits_max_rel": 0.0,
             }

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -32,9 +32,7 @@ class DSGANModelOutput(ModelOutput):
     """
 
     class_probs: Float[torch.Tensor, "batch elements 4"]
-    bbox: Float[torch.Tensor, "batch elements 4"] = cast(
-        Float[torch.Tensor, "batch elements 4"], None
-    )
+    bbox: Float[torch.Tensor, "batch elements 4"] | None = None
     initial_layout: Float[torch.Tensor, "batch elements 2 4"] | None = None
 
 
@@ -228,7 +226,9 @@ def random_initial_layout(
         device: Target torch device.
         dtype: Target floating dtype.
         weighted_classes: Whether to use the vendor inference class prior.
-        use_numpy_classes: Use NumPy class sampling for exact vendor script parity.
+        use_numpy_classes: Use NumPy's legacy ``RandomState`` class sampler to
+            mirror the vendor script's weighted class prior when ``seed`` is
+            supplied. Torch box sampling still follows ``generator`` or ``seed``.
 
     Returns:
         Tensor shaped ``(batch, max_elem, 2, 4)``.
@@ -244,7 +244,7 @@ def random_initial_layout(
     else:
         probs = torch.full((4,), 0.25, device=resolved_device)
     if use_numpy_classes:
-        rng = np.random.default_rng(seed)
+        rng = np.random.RandomState(seed)
         np_probs = probs.detach().cpu().numpy()
         class_ids = torch.as_tensor(
             rng.choice(4, size=(batch_size, max_elem, 1), p=np_probs),

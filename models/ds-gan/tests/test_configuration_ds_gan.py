@@ -1,5 +1,5 @@
 from ds_gan import DSGANConfig, default_ds_gan_config
-from ds_gan.configuration_ds_gan import pku_vendor_label2id
+from ds_gan.configuration_ds_gan import pku_dataset_label2id, pku_vendor_label2id
 
 
 def test_default_config_preserves_vendor_defaults():
@@ -15,6 +15,7 @@ def test_default_config_preserves_vendor_defaults():
     assert config.image_size == (350, 240)
     assert config.vendor_canvas_size == (513, 750)
     assert config.id2label == {0: "text", 1: "logo", 2: "underlay"}
+    assert config.condition_types == ["content_image"]
 
 
 def test_config_round_trip_from_dict():
@@ -44,7 +45,14 @@ def test_config_rejects_non_pku_dataset():
         raise AssertionError("expected unsupported dataset to raise")
 
 
-def test_pku_vendor_label_mapping_includes_invalid():
-    mapping = pku_vendor_label2id()
+def test_pku_vendor_label_mapping_has_no_object():
+    assert pku_vendor_label2id() == {
+        "no_object": 0,
+        "text": 1,
+        "logo": 2,
+        "underlay": 3,
+    }
 
-    assert mapping["INVALID"] == 3
+
+def test_pku_dataset_label_mapping_includes_invalid():
+    assert pku_dataset_label2id()["INVALID"] == 3

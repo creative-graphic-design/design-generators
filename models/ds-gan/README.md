@@ -154,7 +154,7 @@ This section reproduces the original-implementation agreement checks for `creati
 Download vendor assets:
 
 ```bash
-uv run --package ds-gan python models/ds-gan/scripts/download_original.py \
+uv run --package ds-gan --extra download python models/ds-gan/scripts/download_original.py \
   --output-dir .cache/ds-gan/original \
   --include-test-data
 ```

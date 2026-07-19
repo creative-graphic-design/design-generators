@@ -34,6 +34,10 @@ class OutputType(StrEnum):
 _SUPPORTED_CONDITION_TYPES: frozenset[ConditionType] = frozenset(
     {ConditionType.content_image}
 )
+_DSGAN_CONDITION_ALIASES: dict[str, ConditionType] = {
+    "content_aware": ConditionType.content_image,
+    "image_saliency": ConditionType.content_image,
+}
 
 
 def normalize_condition_type(
@@ -59,7 +63,10 @@ def normalize_condition_type(
     elif isinstance(condition_type, ConditionType):
         canonical = condition_type
     else:
-        canonical = normalize_shared_condition_type(condition_type)
+        key = condition_type.lower().replace("-", "_")
+        canonical = _DSGAN_CONDITION_ALIASES.get(key)
+        if canonical is None:
+            canonical = normalize_shared_condition_type(condition_type)
     if canonical not in _SUPPORTED_CONDITION_TYPES:
         raise ValueError(f"Unsupported DS-GAN condition_type: {condition_type}")
     return canonical

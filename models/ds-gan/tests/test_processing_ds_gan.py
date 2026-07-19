@@ -5,7 +5,7 @@ from typing import cast
 
 from laygen.modeling_outputs import LayoutGenerationOutput
 
-from ds_gan import DSGANProcessor
+from ds_gan import DSGANProcessor, annotations_from_pku_example
 
 
 def test_processor_merges_saliency_and_resizes():
@@ -148,3 +148,26 @@ def test_encode_layout_errors_and_normalized_ltrb():
         assert "supports at most" in str(exc)
     else:
         raise AssertionError("expected too many elements to raise")
+
+
+def test_annotations_from_pku_example_filters_invalid_and_normalizes():
+    image = Image.fromarray(np.zeros((400, 200, 3), dtype=np.uint8))
+    encoded = annotations_from_pku_example(
+        {
+            "image": image,
+            "annotations": {
+                "cls_elem": ["text", "INVALID", "logo"],
+                "box_elem": ["[0, 0, 100, 200]", "[1, 1, 2, 2]", [50, 100, 150, 300]],
+            },
+        },
+        max_elem=2,
+    )
+
+    labels = cast(torch.Tensor, encoded["labels"])
+    mask = cast(torch.Tensor, encoded["mask"])
+    bbox = cast(torch.Tensor, encoded["bbox"])
+
+    assert encoded["canvas_size"] == (200, 400)
+    assert labels.tolist() == [[1, 0]]
+    assert mask.tolist() == [[True, True]]
+    assert bbox.tolist() == [[[0.5, 0.5, 0.5, 0.5], [0.25, 0.25, 0.5, 0.5]]]

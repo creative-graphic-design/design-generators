@@ -13,6 +13,7 @@ WEIGHTS_FOLDER_URL: Final[str] = (
     "https://drive.google.com/drive/folders/1UYJ34BhqgYztfh5n5A4GU4nqgboPtoWS"
 )
 TEST_DATA_URLS: Final[dict[str, str]] = {
+    # Google Drive links listed on the PKU PosterLayout dataset page.
     "image_canvas": "https://drive.google.com/uc?id=1hcXueYYh2iY5XLtyTZFsXUZsI5JwFnaT",
     "saliencymaps_basnet": "https://drive.google.com/uc?id=1rSsIvoPfkj1s9W2wMq2jSIFnZuw4iEo7",
     "saliencymaps_pfpn": "https://drive.google.com/uc?id=1FDRU-2FFZHK2IZe83Py469MCAydVRKzU",

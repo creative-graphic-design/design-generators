@@ -26,6 +26,8 @@ def test_pipeline_subclasses_shared_base():
 
 def test_condition_aliases_and_rejections():
     assert str(normalize_condition_type("content")) == "content_image"
+    assert str(normalize_condition_type("image_saliency")) == "content_image"
+    assert str(normalize_condition_type("content_aware")) == "content_image"
 
     try:
         normalize_condition_type("unconditional")

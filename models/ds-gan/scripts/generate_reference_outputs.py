@@ -12,11 +12,55 @@ from typing import Final
 
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
 
 from laygen.common.vendor import vendor_root
 
 _VENDOR_MODEL: Final[Path] = Path("model.py")
+_BILINEAR: Final = Image.Resampling.BILINEAR
+
+
+class PosterLayoutTestCanvas(Dataset[torch.Tensor]):
+    """Vendor-equivalent test canvas loader without CWD side effects."""
+
+    def __init__(
+        self,
+        *,
+        image_canvas_dir: Path,
+        saliency_pfpn_dir: Path,
+        saliency_basnet_dir: Path,
+    ) -> None:
+        """Initialize sorted file paths for public PKU test assets."""
+        self.image_paths = sorted(image_canvas_dir.glob("*.png"), key=lambda p: p.name)
+        self.saliency_pfpn_dir = saliency_pfpn_dir
+        self.saliency_basnet_dir = saliency_basnet_dir
+
+    def __len__(self) -> int:
+        """Return the number of test canvases."""
+        return len(self.image_paths)
+
+    def __getitem__(self, index: int) -> torch.Tensor:
+        """Return a vendor-preprocessed RGB plus saliency tensor."""
+        image_path = self.image_paths[index]
+        image = Image.open(image_path).convert("RGB")
+        saliency_pfpn = Image.open(
+            self.saliency_pfpn_dir / image_path.name.replace(".png", "_pred.png")
+        ).convert("L")
+        saliency_basnet = Image.open(
+            self.saliency_basnet_dir / image_path.name
+        ).convert("L")
+        saliency = Image.fromarray(
+            np.maximum(np.asarray(saliency_pfpn), np.asarray(saliency_basnet))
+        )
+        return torch.cat(
+            (
+                _pil_to_tensor(image, mode="RGB"),
+                _pil_to_tensor(saliency, mode="L"),
+            ),
+            dim=0,
+        )
 
 
 def main() -> None:
@@ -47,26 +91,21 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=4)
     args = parser.parse_args()
 
-    if torch.cuda.is_available() and torch.cuda.current_device() != 0:
-        pass
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     vendor_dir = vendor_root(
         "posterlayout-cvpr2023", marker=_VENDOR_MODEL, path=args.vendor_dir
     )
     sys.path.insert(0, str(vendor_dir))
-    from dataloader import canvas
-    from infer import random_init
     from model import generator
 
     asset_root = args.checkpoint.resolve().parent
     _prepare_model_weight_dir(asset_root)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    dataset = canvas(
-        args.dataset_root / "image_canvas",
-        args.dataset_root / "saliencymaps_pfpn",
-        args.dataset_root / "saliencymaps_basnet",
-        train=False,
+    dataset = PosterLayoutTestCanvas(
+        image_canvas_dir=args.dataset_root / "image_canvas",
+        saliency_pfpn_dir=args.dataset_root / "saliencymaps_pfpn",
+        saliency_basnet_dir=args.dataset_root / "saliencymaps_basnet",
     )
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     config = {
@@ -85,7 +124,7 @@ def main() -> None:
         (key.removeprefix("module."), value) for key, value in checkpoint.items()
     )
     model.load_state_dict(state_dict, strict=True)
-    fixed_noise = random_init(args.batch_size, 32).to(device)
+    fixed_noise = _random_init(args.batch_size, 32).to(device)
     pixel_batches = []
     initial_layouts = []
     class_probs = []
@@ -123,6 +162,30 @@ def _prepare_model_weight_dir(asset_root: Path) -> None:
         target = model_weight / filename
         if source.exists() and not target.exists():
             target.symlink_to(Path("..") / filename)
+
+
+def _random_init(batch_size: int, max_elem: int) -> torch.Tensor:
+    probs = np.array([0.1, 0.8, 1.0, 1.0])
+    class_ids = torch.tensor(
+        np.random.choice(4, size=(batch_size, max_elem, 1), p=probs / probs.sum())
+    )
+    classes = torch.zeros((batch_size, max_elem, 4))
+    classes.scatter_(-1, class_ids, 1)
+    box_ltrb = torch.normal(0.5, 0.15, size=(batch_size, max_elem, 1, 4))
+    left, top, right, bottom = box_ltrb.unbind(-1)
+    boxes = torch.stack(
+        ((left + right) / 2, (top + bottom) / 2, right - left, bottom - top),
+        dim=-1,
+    )
+    return torch.concat([classes.unsqueeze(2), boxes], dim=2)
+
+
+def _pil_to_tensor(image: Image.Image, *, mode: str) -> torch.Tensor:
+    resized = image.resize((240, 350), _BILINEAR)
+    array = np.asarray(resized, dtype=np.float32) / 255.0
+    if mode == "L":
+        return torch.from_numpy(array).unsqueeze(0)
+    return torch.from_numpy(array).permute(2, 0, 1)
 
 
 @contextmanager

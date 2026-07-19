@@ -7,7 +7,11 @@ from .configuration_ds_gan import DSGANConfig, default_ds_gan_config
 from .conversion import convert_vendor_state_dict
 from .modeling_ds_gan import DSGANModel, DSGANModelOutput, random_initial_layout
 from .pipeline_ds_gan import DSGANPipeline, OutputType
-from .processing_ds_gan import DSGANProcessor, processor_for_dataset
+from .processing_ds_gan import (
+    DSGANProcessor,
+    annotations_from_pku_example,
+    processor_for_dataset,
+)
 
 __all__ = [
     "ConditionType",
@@ -20,6 +24,7 @@ __all__ = [
     "OutputType",
     "convert_vendor_state_dict",
     "default_ds_gan_config",
+    "annotations_from_pku_example",
     "processor_for_dataset",
     "random_initial_layout",
 ]
