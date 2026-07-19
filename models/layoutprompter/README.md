@@ -26,7 +26,7 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package implements [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
+This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
 
 ## Model Details
 
@@ -56,7 +56,7 @@ LayoutPrompter is packaged for the `design-generators` workspace. Public outputs
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
 ### Downstream Use
 
@@ -68,11 +68,11 @@ Do not treat generated layouts as production accessibility annotations, OCR outp
 
 ## Bias, Risks, and Limitations
 
-The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+The packaged behavior follows the upstream prompt fixtures, parser rules, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
 
@@ -122,7 +122,7 @@ Training time and carbon measurements are not recorded in the current README.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Vendor parity uses local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
 
 #### Factors
 
@@ -172,14 +172,12 @@ The script resolves vendor/ms-layout-generation through laygen.common.vendor_roo
 and then imports LayoutPrompter/src from that checkout.
 
 Set LAYOUTPROMPTER_VENDOR_SRC to another LayoutPrompter/src directory if needed.
-Set CUDA_VISIBLE_DEVICES for the same command shape used by model packages; this script does not use CUDA.
 ```
 
 Command:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
-  python models/layoutprompter/scripts/generate_vendor_golden.py \
+uv run --package layoutprompter python models/layoutprompter/scripts/generate_vendor_golden.py \
   --output .cache/layoutprompter/vendor-golden.json
 ```
 
@@ -192,20 +190,20 @@ Generated file:
 ### 3. Run Parity Checks
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
-  pytest models/layoutprompter/tests/vendor_parity -m vendor_parity
+uv run --package layoutprompter pytest models/layoutprompter/tests/vendor_parity -m vendor_parity
 ```
 
 The test checks prompt bytes, selected exemplar ids, and parser output tensors.
 
 See `Parity Results` for the measured agreement table.
 
-### 4. Checkpoint Conversion
+### 4. Persist Prompt Configuration
 
-There is no checkpoint conversion step for LayoutPrompter.
+There is no learned-weight conversion step for LayoutPrompter. `save_pretrained`
+stores prompt configuration for reload.
 
 ```bash
-printf 'No checkpoint conversion is required for LayoutPrompter.\n'
+printf 'LayoutPrompter stores prompt configuration rather than learned weights.\n'
 ```
 
 ### 5. from_pretrained Smoke
@@ -242,7 +240,7 @@ Interpretability and failure-analysis artifacts are not recorded in the current 
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by this prompt-only package. Parity costs depend on the selected prompt fixtures, provider configuration, and local hardware.
 
 ## Technical Specifications
 
@@ -252,11 +250,11 @@ The package preserves the upstream architecture needed for conversion and infere
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
 #### Software
 

@@ -21,7 +21,7 @@ tags:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package implements [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
+This package provides [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
 
 ## Model Details
 
@@ -38,7 +38,7 @@ LayoutGPT is packaged for the `design-generators` workspace. Public outputs use 
 
 ### Model Sources
 
-- **Repository:** [LayoutGPT repository](https://github.com/weixi-feng/LayoutGPT)
+- **Repository:** [LayoutGPT repository](https://github.com/UCSB-AI/LayoutGPT). The `vendor/layout-gpt` submodule tracks this repository.
 - **Paper:** [arXiv 2305.15393](https://arxiv.org/abs/2305.15393)
 
 ## Supported Checkpoints
@@ -51,7 +51,7 @@ LayoutGPT is packaged for the `design-generators` workspace. Public outputs use 
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
 ### Downstream Use
 
@@ -63,11 +63,11 @@ Do not treat generated layouts as production accessibility annotations, OCR outp
 
 ## Bias, Risks, and Limitations
 
-The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+The packaged behavior follows the upstream prompt fixtures, exemplar metadata, parser rules, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
 
@@ -114,7 +114,7 @@ Training time and carbon measurements are not recorded in the current README.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Vendor parity uses local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
 
 #### Factors
 
@@ -148,16 +148,16 @@ written to `.cache/layout-gpt/vendor-golden.json`. The scripts look for
 `vendor/layout-gpt` next to this worktree; pass `--vendor-root` if your checkout
 is elsewhere.
 
-### 1. Prepare Optional Weight Cache
+### 1. Prepare Prompt Configuration Cache
 
-LayoutGPT itself has no checkpoint weights. This command prepares a cache
-directory for optional provider or downstream assets without downloading
-anything.
+LayoutGPT itself has no learned weights. This command prepares a cache
+directory for prompt configuration and generated vendor-reference JSON without
+downloading anything.
 
 ```bash
 export LAYOUT_GPT_CACHE_DIR="${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}"
 mkdir -p "${LAYOUT_GPT_CACHE_DIR}"
-printf 'LayoutGPT has no package weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
+printf 'LayoutGPT has no learned weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
 ```
 
 ### 2. Regenerate Vendor Golden Data
@@ -165,7 +165,6 @@ printf 'LayoutGPT has no package weights to download. Cache: %s\n' "${LAYOUT_GPT
 The generated JSON path is controlled by `LAYOUT_GPT_CACHE_DIR`.
 
 ```bash
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_golden.py \
   --output "${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}/vendor-golden.json"
 ```
@@ -176,21 +175,20 @@ uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_gol
 uv run --package layout-gpt pytest models/layout-gpt/tests/vendor_parity -m vendor_parity
 ```
 
-### 4. Convert Checkpoints
+### 4. Persist Prompt Configuration
 
-There is no checkpoint conversion step for LayoutGPT. The package converts
-provider text responses into typed layout outputs at runtime.
+There is no learned-weight conversion step for LayoutGPT. `save_pretrained`
+stores the prompt and parser configuration that the agent reloads at runtime.
 
 ```bash
 uv run --package layout-gpt python - <<'PY'
-print("LayoutGPT has no checkpoint conversion step.")
+print("LayoutGPT stores prompt configuration rather than learned weights.")
 PY
 ```
 
 ### 5. Run Loading Smoke
 
-There is no `from_pretrained` checkpoint for LayoutGPT. This smoke verifies the
-installed package and output conversion path.
+This smoke verifies the installed package and output conversion path.
 
 ```bash
 uv run --package layout-gpt python - <<'PY'
@@ -216,7 +214,7 @@ Interpretability and failure-analysis artifacts are not recorded in the current 
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by this prompt-only package. Parity costs depend on the selected prompt fixtures, provider configuration, and local hardware.
 
 ## Technical Specifications
 
@@ -226,11 +224,11 @@ The package preserves the upstream architecture needed for conversion and infere
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
 #### Software
 

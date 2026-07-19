@@ -57,7 +57,7 @@ LayoutDiffusion is packaged for the `design-generators` workspace. Public output
 
 ### Model Sources
 
-- **Repository:** not recorded in the current README
+- **Repository:** [Microsoft LayoutGeneration LayoutDiffusion](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion) is the vendored source under `vendor/ms-layout-generation/LayoutDiffusion`; original checkpoint assets are downloaded from [Junyi42/layoutdiffusion](https://huggingface.co/Junyi42/layoutdiffusion).
 - **Paper:** [arXiv 2303.11589](https://arxiv.org/abs/2303.11589)
 
 ## Supported Checkpoints

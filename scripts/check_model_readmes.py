@@ -142,6 +142,25 @@ EXPECTED_MODEL_NAMES = {
     "parse-then-place": "Parse-Then-Place",
 }
 
+EXPECTED_REPOSITORY_LINKS = {
+    "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
+    "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
+    "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
+    "layoutganpp": "https://github.com/ktrk115/const_layout",
+}
+
+PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
+PROMPT_ONLY_STALE_PHRASES = [
+    "CUDA_VISIBLE_DEVICES",
+    "converted behavior follows the upstream checkpoints",
+    "converted checkpoint",
+    "converted checkpoints",
+    "converted checkpoint directories",
+    "Conversion and parity costs",
+    "CUDA is required",
+    "heavyweight vendor parity",
+]
+
 
 def _section(text: str, heading: str) -> str:
     match = re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE)
@@ -284,6 +303,27 @@ def _assert_model_summary_subject(path: Path, text: str) -> None:
         break
 
 
+def _assert_expected_repository_links(path: Path, text: str) -> None:
+    expected = EXPECTED_REPOSITORY_LINKS.get(path.parent.name)
+    if expected is None:
+        return
+    sources = _section(text, "### Model Sources")
+    if expected not in sources:
+        raise AssertionError(
+            f"{path}: Model Sources must link expected repository {expected}"
+        )
+
+
+def _assert_prompt_only_readme(path: Path, text: str) -> None:
+    if path.parent.name not in PROMPT_ONLY_SLUGS:
+        return
+    for phrase in PROMPT_ONLY_STALE_PHRASES:
+        if phrase in text:
+            raise AssertionError(
+                f"{path}: prompt-only README contains stale model-package phrase {phrase!r}"
+            )
+
+
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
     in_fence = False
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -367,6 +407,8 @@ def check() -> None:
         _assert_expected_frontmatter(path, text)
         _assert_heading_order(path, text)
         _assert_model_summary_subject(path, text)
+        _assert_expected_repository_links(path, text)
+        _assert_prompt_only_readme(path, text)
         _assert_code_fences_tagged(path, text)
         _assert_parity_table(path, text)
         _assert_reproducibility_commands(path, text)
