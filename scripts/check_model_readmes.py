@@ -626,11 +626,15 @@ def _assert_root_packages_weights_column(path: Path) -> None:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) != 5:
             raise AssertionError(f"{path}: malformed Packages table row: {line}")
-        package_cell, *_rest, weights_cell = cells
+        package_cell, _method_cell, runtime_cell, _datasets_cell, weights_cell = cells
         slug_match = re.search(r"`models/([^`]+)`", package_cell)
         if slug_match is None:
             raise AssertionError(f"{path}: package row missing models/<slug>: {line}")
         slug = slug_match.group(1)
+        if runtime_cell not in {"`transformers`", "`diffusers`", "`pydantic-ai`"}:
+            raise AssertionError(
+                f"{path}: Models table Runtime cell must use code-form library name"
+            )
         if "documented" in weights_cell.lower():
             raise AssertionError(
                 f"{path}: Packages table Weights column must not use status wording"
@@ -688,6 +692,15 @@ def _assert_library_name_style(path: Path) -> None:
             )
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+    spans = _markdown_link_spans(text)
+    for library in ("transformers", "diffusers", "pydantic-ai"):
+        for match in re.finditer(
+            rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w-])", text
+        ):
+            if not _in_any_span(match.start(), spans):
+                raise AssertionError(
+                    f"{path}: use code-form `{library}` for library names"
+                )
 
 
 def check() -> None:
