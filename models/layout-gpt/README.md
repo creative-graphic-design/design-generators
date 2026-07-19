@@ -14,7 +14,7 @@ datasets:
 
 # Model Card for LayoutGPT
 
-![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2305.15393&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2305.15393&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2305.15393)
 ![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)

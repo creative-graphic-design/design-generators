@@ -29,14 +29,14 @@ model-index:
 
 # Model Card for Coarse-to-Fine
 
-![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)
+[![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
 ![venue](https://img.shields.io/static/v1?label=venue&message=AAAI+2022&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+[![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25)
 
 This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
