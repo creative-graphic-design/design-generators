@@ -108,6 +108,8 @@ print(out.labels)
 print(out.mask)
 ```
 
+The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layoutdiffusion/converted/...` path produced by the Reproducibility section.
+
 Use `condition_type` to select unconditional generation or supported
 conditioning paths. `unconditional`, `label`, and `refinement` are the supported
 canonical modes for this package; aliases such as `ugen`, `cat_cond`, `c`,

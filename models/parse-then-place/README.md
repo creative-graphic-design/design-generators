@@ -112,6 +112,8 @@ out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
 print(out.bbox.shape, out.labels.tolist())
 ```
 
+The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/parse-then-place/converted/...` path produced by the Reproducibility section.
+
 ## Training Details
 
 ### Training Data

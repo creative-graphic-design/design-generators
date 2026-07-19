@@ -118,6 +118,8 @@ print(out.labels)  # dataset-local ids, padding controlled by out.mask
 print(out.id2label)
 ```
 
+The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layoutformerpp/converted/...` path produced by the Reproducibility section.
+
 ## Training Details
 
 ### Training Data

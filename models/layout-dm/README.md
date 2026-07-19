@@ -110,6 +110,8 @@ print(out.labels)
 print(out.mask)
 ```
 
+The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layout-dm/converted/...` path produced by the Reproducibility section.
+
 Conditional generation uses the same pipeline call with `condition_type`, `bbox`,
 `labels`, and `mask`. Canonical names such as `label`, `label_size`,
 `completion`, and `refinement` are accepted, and vendor aliases such as

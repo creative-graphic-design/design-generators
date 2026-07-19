@@ -390,6 +390,25 @@ def _assert_prompt_only_readme(path: Path, text: str) -> None:
             )
 
 
+def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
+    supported = _section(text, "## Supported Checkpoints")
+    section = _section(text, "## How to Get Started with the Model")
+    if "creative-graphic-design/" not in supported or "not-published" not in supported:
+        return
+
+    required = [
+        "Hub checkpoints are not published yet",
+        "https://github.com/creative-graphic-design/design-generators/issues/78",
+        f"`.cache/{path.parent.name}/converted/...",
+        "Reproducibility section",
+    ]
+    missing = [snippet for snippet in required if snippet not in section]
+    if missing:
+        raise AssertionError(
+            f"{path}: unpublished Hub Get Started snippet is missing local-conversion note parts {missing}"
+        )
+
+
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
     in_fence = False
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -512,6 +531,7 @@ def check() -> None:
         _assert_model_summary_subject(path, text)
         _assert_expected_repository_links(path, text)
         _assert_prompt_only_readme(path, text)
+        _assert_unpublished_hub_get_started_note(path, text)
         _assert_code_fences_tagged(path, text)
         _assert_parity_table(path, text)
         _assert_citation_bibtex(path, text)

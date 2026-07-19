@@ -110,6 +110,8 @@ print(out.labels)
 print(out.mask)
 ```
 
+The Hub checkpoints are not published yet, as tracked in [issue #78](https://github.com/creative-graphic-design/design-generators/issues/78); until then, convert locally and load the `.cache/layout-flow/converted/...` path produced by the Reproducibility section.
+
 Conditioning aliases from the original implementation are accepted at the
 pipeline boundary. For example, `cat_cond`, `c`, and `gen_t` normalize to the
 canonical `label` condition, while `cwh` and `size_cond` normalize to
