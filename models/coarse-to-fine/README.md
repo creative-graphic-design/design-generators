@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Coarse-to-Fine ports the AAAI 2022 hierarchy-first layout generator into a Transformers-style package that returns the shared layout schema.
+Coarse-to-Fine ports the AAAI 2022 hierarchy-first layout generator into a [Transformers](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
 ## Model Details
 
@@ -55,15 +55,15 @@ Coarse-to-Fine is packaged for the `design-generators` workspace. Public outputs
 
 ### Model Sources
 
-- **Repository:** https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine
-- **Paper:** https://ojs.aaai.org/index.php/AAAI/article/view/19994
+- **Repository:** [Microsoft LayoutGeneration Coarse-to-Fine](https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine)
+- **Paper:** [AAAI paper page](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/coarse-to-fine-rico25` | not-published |
-| PubLayNet | `creative-graphic-design/coarse-to-fine-publaynet` | not-published |
+| RICO25 | [`creative-graphic-design/coarse-to-fine-rico25`](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/coarse-to-fine-publaynet`](https://huggingface.co/creative-graphic-design/coarse-to-fine-publaynet) | not-published |
 
 ## Uses
 
@@ -112,8 +112,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

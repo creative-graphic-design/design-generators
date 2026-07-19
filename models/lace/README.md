@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LACE ports the ICLR 2024 layout diffusion editor into a Diffusers-style package for PubLayNet and RICO checkpoints.
+LACE ports the ICLR 2024 layout diffusion editor into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
 
 ## Model Details
 
@@ -57,16 +57,16 @@ LACE is packaged for the `design-generators` workspace. Public outputs use norma
 
 ### Model Sources
 
-- **Repository:** https://github.com/puar-playground/LACE
-- **Paper:** https://openreview.net/forum?id=kJ0qp9Xdsh
+- **Repository:** [LACE repository](https://github.com/puar-playground/LACE)
+- **Paper:** [OpenReview paper page](https://openreview.net/forum?id=kJ0qp9Xdsh)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| PubLayNet | `creative-graphic-design/lace-publaynet` | not-published |
-| RICO13 | `creative-graphic-design/lace-rico13` | planned; public vendor checkpoint not present in model.tar.gz |
-| RICO25 | `creative-graphic-design/lace-rico25` | not-published |
+| PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published |
+| RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public vendor checkpoint not present in model.tar.gz |
+| RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published |
 
 ## Uses
 
@@ -115,9 +115,9 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| RICO13 | `creative-graphic-design/Rico` | vendor-derived RICO13 mapping |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | vendor-derived RICO13 mapping |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

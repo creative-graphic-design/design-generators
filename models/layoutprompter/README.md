@@ -26,7 +26,7 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-LayoutPrompter is a Pydantic AI agent for prompt-based few-shot layout generation with normalized layout-array outputs.
+LayoutPrompter is a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
 
 ## Model Details
 
@@ -43,7 +43,7 @@ LayoutPrompter is packaged for the `design-generators` workspace. Public outputs
 
 ### Model Sources
 
-- **Repository:** vendor/ms-layout-generation/LayoutPrompter
+- **Repository:** [Microsoft LayoutGeneration LayoutPrompter](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutPrompter)
 
 ## Supported Checkpoints
 
@@ -94,8 +94,8 @@ print(agent)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PosterLayout | not recorded | built-in label vocabulary |
 | WebUI | not recorded | deterministic local fixture |
 

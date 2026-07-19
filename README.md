@@ -7,26 +7,26 @@
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square)
 ![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
 
-`design-generators` ports layout, poster, and graphic-design generation research repositories into Transformers-, Diffusers-, and Pydantic-AI-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
+`design-generators` ports layout, poster, and graphic-design generation research repositories into [Transformers](https://huggingface.co/docs/transformers/index)-, [Diffusers](https://huggingface.co/docs/diffusers/index)-, and [Pydantic AI](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Packages
 
 | Package | Method | Runtime | Primary datasets | Status |
 | --- | --- | --- | --- | --- |
-| `models/coarse-to-fine` | Coarse-to-Fine | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/lace` | LACE | diffusers | RICO25, RICO13, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/layousyn` | LayouSyn | diffusers | GRIT, COCO grounded | README normalized; Hub publication tracked per model issue |
-| `models/layout-corrector` | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | README normalized; Hub publication tracked per model issue |
-| `models/layout-dm` | LayoutDM | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/layout-flow` | LayoutFlow | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/layout-gpt` | LayoutGPT | pydantic-ai | NSR-1K | README normalized; Hub publication tracked per model issue |
-| `models/layoutdiffusion` | LayoutDiffusion | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/layoutformerpp` | LayoutFormer++ | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
-| `models/layoutganpp` | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | README normalized; Hub publication tracked per model issue |
-| `models/layoutprompter` | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | README normalized; Hub publication tracked per model issue |
-| `models/parse-then-place` | Parse-Then-Place | transformers | RICO25, Web | README normalized; Hub publication tracked per model issue |
+| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | diffusers | GRIT, COCO grounded | README normalized; Hub publication tracked per model issue |
+| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | transformers | RICO25, PubLayNet, Crello | README normalized; Hub publication tracked per model issue |
+| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | pydantic-ai | NSR-1K | README normalized; Hub publication tracked per model issue |
+| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | diffusers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | transformers | RICO25, PubLayNet | README normalized; Hub publication tracked per model issue |
+| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | transformers | RICO25, PubLayNet, Magazine | README normalized; Hub publication tracked per model issue |
+| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | pydantic-ai | PubLayNet, RICO25, PosterLayout | README normalized; Hub publication tracked per model issue |
+| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | transformers | RICO25, Web | README normalized; Hub publication tracked per model issue |
 
-Shared libraries live under `lib/*`: `laygen` contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; `posgen` reserves small poster/content-aware placement contracts for future consumers.
+Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
 
 ## Quick Start
 
@@ -54,11 +54,11 @@ uv run python scripts/check_readme_badges.py
 uv run --group docs mkdocs build --strict
 ```
 
-Use `uv run --package <member> ...` for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
 
 ## Documentation
 
-The documentation site is published at <https://creative-graphic-design.github.io/design-generators/>. API pages are generated from workspace members below `lib/*/src` and `models/*/src`. Public API docstrings are the source text for the API reference.
+The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/). API pages are generated from workspace members below `lib/*/src` and `models/*/src`. Public API docstrings are the source text for the API reference.
 
 ## Reproducibility Policy
 

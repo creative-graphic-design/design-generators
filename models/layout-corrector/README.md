@@ -57,16 +57,16 @@ Layout-Corrector is a training-free corrector module for discrete diffusion layo
 
 ### Model Sources
 
-- **Repository:** https://github.com/line/Layout-Corrector
-- **Paper:** https://arxiv.org/abs/2409.16689
+- **Repository:** [Layout-Corrector repository](https://github.com/line/Layout-Corrector)
+- **Paper:** [arXiv 2409.16689](https://arxiv.org/abs/2409.16689)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/layout-corrector-rico25` | not-published |
-| PubLayNet | `creative-graphic-design/layout-corrector-publaynet` | not-published |
-| Crello | `creative-graphic-design/layout-corrector-crello` | not-published |
+| RICO25 | [`creative-graphic-design/layout-corrector-rico25`](https://huggingface.co/creative-graphic-design/layout-corrector-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/layout-corrector-publaynet`](https://huggingface.co/creative-graphic-design/layout-corrector-publaynet) | not-published |
+| Crello | [`creative-graphic-design/layout-corrector-crello`](https://huggingface.co/creative-graphic-design/layout-corrector-crello) | not-published |
 
 ## Uses
 
@@ -125,9 +125,9 @@ path returns confidence estimates.
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
-| Crello | `cyberagent/crello` | canonical source until an org mirror exists |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Crello | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | canonical source until an org mirror exists |
 
 ### Training Procedure
 

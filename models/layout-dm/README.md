@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutDM ports the CVPR 2023 discrete diffusion model for controllable layout generation into a Diffusers-style package.
+LayoutDM ports the CVPR 2023 discrete diffusion model for controllable layout generation into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
@@ -55,15 +55,15 @@ LayoutDM is packaged for the `design-generators` workspace. Public outputs use n
 
 ### Model Sources
 
-- **Repository:** https://github.com/CyberAgentAILab/layout-dm
-- **Paper:** https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html
+- **Repository:** [LayoutDM repository](https://github.com/CyberAgentAILab/layout-dm)
+- **Paper:** [CVPR 2023 paper page](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/layoutdm-rico25` | not-published |
-| PubLayNet | `creative-graphic-design/layoutdm-publaynet` | not-published |
+| RICO25 | [`creative-graphic-design/layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layoutdm-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layoutdm-publaynet) | not-published |
 
 ## Uses
 
@@ -112,8 +112,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

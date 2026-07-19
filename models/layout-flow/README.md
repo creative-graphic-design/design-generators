@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutFlow ports the ECCV 2024 flow-matching model for layout generation into a Diffusers-style package.
+LayoutFlow ports the ECCV 2024 flow-matching model for layout generation into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
@@ -55,15 +55,15 @@ LayoutFlow is packaged for the `design-generators` workspace. Public outputs use
 
 ### Model Sources
 
-- **Repository:** https://github.com/julianguerreiro/LayoutFlow
-- **Paper:** https://arxiv.org/abs/2403.18187
+- **Repository:** [LayoutFlow repository](https://github.com/julianguerreiro/LayoutFlow)
+- **Paper:** [arXiv 2403.18187](https://arxiv.org/abs/2403.18187)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/layout-flow-rico25` | not-published |
-| PubLayNet | `creative-graphic-design/layout-flow-publaynet` | not-published |
+| RICO25 | [`creative-graphic-design/layout-flow-rico25`](https://huggingface.co/creative-graphic-design/layout-flow-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/layout-flow-publaynet`](https://huggingface.co/creative-graphic-design/layout-flow-publaynet) | not-published |
 
 ## Uses
 
@@ -112,8 +112,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

@@ -9,6 +9,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODEL_READMES = sorted((REPO_ROOT / "models").glob("*/README.md"))
+README_LINK_CONTRACTS = [
+    REPO_ROOT / "README.md",
+    *sorted((REPO_ROOT / "lib").glob("*/README.md")),
+    *MODEL_READMES,
+]
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -38,6 +43,13 @@ BANNED_PATTERNS = [
     r"sk-[A-Za-z0-9]{16,}",
     r"(?<![A-Za-z0-9_.-])/tmp/",
     r"creative-graphic-design/(rico|rico25|publaynet)\b",
+]
+
+LINK_REQUIRED_DATASET_IDS = [
+    "creative-graphic-design/Rico",
+    "creative-graphic-design/PubLayNet",
+    "creative-graphic-design/magazine",
+    "cyberagent/crello",
 ]
 
 EXPECTED_FRONTMATTER = {
@@ -131,6 +143,34 @@ def _frontmatter(text: str) -> str:
     if end == -1:
         return ""
     return text[:end]
+
+
+def _without_frontmatter_and_code(text: str) -> str:
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end != -1:
+            text = text[end + len("\n---\n") :]
+
+    lines: list[str] = []
+    in_code = False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if not in_code:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def _markdown_link_spans(text: str) -> list[range]:
+    return [
+        range(match.start(), match.end())
+        for match in re.finditer(r"!?\[[^\]]*\]\([^)]*\)", text)
+    ]
+
+
+def _in_any_span(position: int, spans: list[range]) -> bool:
+    return any(position in span for span in spans)
 
 
 def _frontmatter_scalar(frontmatter: str, key: str) -> str | None:
@@ -261,6 +301,23 @@ def _assert_banned_patterns(path: Path, text: str) -> None:
             )
 
 
+def _assert_linked_first_reference_policy(path: Path) -> None:
+    text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+    spans = _markdown_link_spans(text)
+    for dataset_id in LINK_REQUIRED_DATASET_IDS:
+        for match in re.finditer(re.escape(dataset_id), text):
+            if not _in_any_span(match.start(), spans):
+                raise AssertionError(f"{path}: dataset id must be linked: {dataset_id}")
+
+    for match in re.finditer(r"\barXiv\s+\d{4}\.\d{4,5}\b", text):
+        if not _in_any_span(match.start(), spans):
+            raise AssertionError(f"{path}: arXiv id must be linked: {match.group(0)}")
+
+    for match in re.finditer(r"https://arxiv\.org/abs/\d{4}\.\d{4,5}", text):
+        if not _in_any_span(match.start(), spans):
+            raise AssertionError(f"{path}: arXiv URL must be in a markdown link")
+
+
 def check() -> None:
     if len(MODEL_READMES) != 12:
         raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
@@ -273,6 +330,8 @@ def check() -> None:
         _assert_parity_table(path, text)
         _assert_reproducibility_commands(path, text)
         _assert_banned_patterns(path, text)
+    for path in README_LINK_CONTRACTS:
+        _assert_linked_first_reference_policy(path)
 
 
 def main() -> int:

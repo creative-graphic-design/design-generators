@@ -7,7 +7,7 @@
 ![status](https://img.shields.io/static/v1?label=status&message=skeleton&color=lightgrey&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square)](https://creative-graphic-design.github.io/design-generators/)
 
-`posgen` is the shared package reserved for poster-generation and content-aware placement helpers. It is intentionally small until real poster packages create repeated contracts.
+[`posgen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/posgen) is the shared package reserved for poster-generation and content-aware placement helpers. It is intentionally small until real poster packages create repeated contracts.
 
 ## Install
 
@@ -32,7 +32,7 @@ PY
 
 ## Dependency Direction
 
-`posgen` may depend on `laygen` when poster/content-aware placement packages need shared layout primitives. `laygen` must not depend on `posgen`.
+`posgen` may depend on [`laygen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/laygen) when poster/content-aware placement packages need shared layout primitives. `laygen` must not depend on `posgen`.
 
 ```text
 model package -> posgen -> laygen

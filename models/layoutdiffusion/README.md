@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutDiffusion ports the ICCV 2023 discrete layout diffusion model into a Diffusers-style package for RICO25 and PubLayNet.
+LayoutDiffusion ports the ICCV 2023 discrete layout diffusion model into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
 ## Model Details
 
@@ -63,8 +63,8 @@ LayoutDiffusion is packaged for the `design-generators` workspace. Public output
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/layoutdiffusion-rico25` | not-published |
-| PubLayNet | `creative-graphic-design/layoutdiffusion-publaynet` | not-published |
+| RICO25 | [`creative-graphic-design/layoutdiffusion-rico25`](https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/layoutdiffusion-publaynet`](https://huggingface.co/creative-graphic-design/layoutdiffusion-publaynet) | not-published |
 
 ## Uses
 
@@ -113,8 +113,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

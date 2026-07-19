@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutFormer++ ports the released autoregressive layout transformer checkpoints into a Transformers-style pipeline.
+LayoutFormer++ ports the released autoregressive layout transformer checkpoints into a [Transformers](https://huggingface.co/docs/transformers/index)-style pipeline.
 
 ## Model Details
 
@@ -55,25 +55,25 @@ LayoutFormer++ is packaged for the `design-generators` workspace. Public outputs
 
 ### Model Sources
 
-- **Repository:** https://github.com/microsoft/LayoutGeneration/tree/main/LayoutFormer%2B%2B
-- **Paper:** https://arxiv.org/abs/2208.08037
+- **Repository:** [Microsoft LayoutGeneration LayoutFormer++](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutFormer%2B%2B)
+- **Paper:** [arXiv 2208.08037](https://arxiv.org/abs/2208.08037)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 label | `creative-graphic-design/layoutformerpp-rico-label` | not-published |
-| RICO25 label-size | `creative-graphic-design/layoutformerpp-rico-label-size` | not-published |
-| RICO25 relation | `creative-graphic-design/layoutformerpp-rico-relation` | not-published |
-| RICO25 refinement | `creative-graphic-design/layoutformerpp-rico-refinement` | not-published |
-| RICO25 completion | `creative-graphic-design/layoutformerpp-rico-completion` | not-published |
-| RICO25 unconditional | `creative-graphic-design/layoutformerpp-rico-unconditional` | not-published |
-| PubLayNet label | `creative-graphic-design/layoutformerpp-publaynet-label` | not-published |
-| PubLayNet label-size | `creative-graphic-design/layoutformerpp-publaynet-label-size` | not-published |
-| PubLayNet relation | `creative-graphic-design/layoutformerpp-publaynet-relation` | not-published |
-| PubLayNet refinement | `creative-graphic-design/layoutformerpp-publaynet-refinement` | not-published |
-| PubLayNet completion | `creative-graphic-design/layoutformerpp-publaynet-completion` | not-published |
-| PubLayNet unconditional | `creative-graphic-design/layoutformerpp-publaynet-unconditional` | not-published |
+| RICO25 label | [`creative-graphic-design/layoutformerpp-rico-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-label) | not-published |
+| RICO25 label-size | [`creative-graphic-design/layoutformerpp-rico-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-label-size) | not-published |
+| RICO25 relation | [`creative-graphic-design/layoutformerpp-rico-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-relation) | not-published |
+| RICO25 refinement | [`creative-graphic-design/layoutformerpp-rico-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-refinement) | not-published |
+| RICO25 completion | [`creative-graphic-design/layoutformerpp-rico-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-completion) | not-published |
+| RICO25 unconditional | [`creative-graphic-design/layoutformerpp-rico-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-unconditional) | not-published |
+| PubLayNet label | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label) | not-published |
+| PubLayNet label-size | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size) | not-published |
+| PubLayNet relation | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation) | not-published |
+| PubLayNet refinement | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement) | not-published |
+| PubLayNet completion | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion) | not-published |
+| PubLayNet unconditional | [`creative-graphic-design/layoutformerpp-publaynet-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-unconditional) | not-published |
 
 ## Uses
 
@@ -122,8 +122,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 ### Training Procedure
 

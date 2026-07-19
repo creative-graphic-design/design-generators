@@ -35,7 +35,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayouSyn wraps the released grounded layout synthesis checkpoints in a Diffusers-style pipeline with normalized public layout outputs.
+LayouSyn wraps the released grounded layout synthesis checkpoints in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
 ## Model Details
 
@@ -58,9 +58,9 @@ LayouSyn is packaged for the `design-generators` workspace. Public outputs use n
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| GRIT | `creative-graphic-design/layousyn-grit` | not-published |
-| COCO grounded | `creative-graphic-design/layousyn-coco-grounded` | not-published |
-| GRIT fine-tuned on COCO grounded | `creative-graphic-design/layousyn-grit-ft-coco-grounded` | not-published |
+| GRIT | [`creative-graphic-design/layousyn-grit`](https://huggingface.co/creative-graphic-design/layousyn-grit) | not-published |
+| COCO grounded | [`creative-graphic-design/layousyn-coco-grounded`](https://huggingface.co/creative-graphic-design/layousyn-coco-grounded) | not-published |
+| GRIT fine-tuned on COCO grounded | [`creative-graphic-design/layousyn-grit-ft-coco-grounded`](https://huggingface.co/creative-graphic-design/layousyn-grit-ft-coco-grounded) | not-published |
 
 ## Uses
 

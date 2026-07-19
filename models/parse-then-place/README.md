@@ -37,7 +37,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Parse-Then-Place ports the ICCV 2023 two-stage parsed-scene and placement method into a Transformers-style package.
+Parse-Then-Place ports the ICCV 2023 two-stage parsed-scene and placement method into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -54,16 +54,16 @@ Parse-Then-Place is packaged for the `design-generators` workspace. Public outpu
 
 ### Model Sources
 
-- **Repository:** https://github.com/microsoft/LayoutGeneration
+- **Repository:** [Microsoft LayoutGeneration repository](https://github.com/microsoft/LayoutGeneration)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO finetune | `creative-graphic-design/parse-then-place-rico-finetune` | not-published |
-| RICO pretrain | `creative-graphic-design/parse-then-place-rico-pretrain` | not-published |
-| Web finetune | `creative-graphic-design/parse-then-place-web-finetune` | not-published |
-| Web pretrain | `creative-graphic-design/parse-then-place-web-pretrain` | not-published |
+| RICO finetune | [`creative-graphic-design/parse-then-place-rico-finetune`](https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune) | not-published |
+| RICO pretrain | [`creative-graphic-design/parse-then-place-rico-pretrain`](https://huggingface.co/creative-graphic-design/parse-then-place-rico-pretrain) | not-published |
+| Web finetune | [`creative-graphic-design/parse-then-place-web-finetune`](https://huggingface.co/creative-graphic-design/parse-then-place-web-finetune) | not-published |
+| Web pretrain | [`creative-graphic-design/parse-then-place-web-pretrain`](https://huggingface.co/creative-graphic-design/parse-then-place-web-pretrain) | not-published |
 
 ## Uses
 
@@ -112,7 +112,7 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | Web | not recorded | vendor web pretraining split |
 
 ### Training Procedure

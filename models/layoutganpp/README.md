@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutGAN++ ports the Const-layout generator checkpoints into a Transformers-style package under the literature method name.
+LayoutGAN++ ports the Const-layout generator checkpoints into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
 
 ## Model Details
 
@@ -57,16 +57,16 @@ LayoutGAN++ is packaged for the `design-generators` workspace. Public outputs us
 
 ### Model Sources
 
-- **Repository:** https://github.com/ktrk115/const_layout
-- **Paper:** https://doi.org/10.1145/3474085.3475497
+- **Repository:** [Const-layout repository](https://github.com/ktrk115/const_layout)
+- **Paper:** [DOI 10.1145/3474085.3475497](https://doi.org/10.1145/3474085.3475497)
 
 ## Supported Checkpoints
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/layoutganpp-rico` | not-published |
-| PubLayNet | `creative-graphic-design/layoutganpp-publaynet` | not-published |
-| Magazine | `creative-graphic-design/layoutganpp-magazine` | not-published |
+| RICO25 | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico) | not-published |
+| PubLayNet | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
+| Magazine | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine) | not-published |
 
 ## Uses
 
@@ -115,8 +115,8 @@ print(out.mask)
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 | Magazine | not mirrored | polygon-based train-only source |
 
 ### Training Procedure
