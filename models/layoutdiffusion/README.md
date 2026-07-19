@@ -101,7 +101,7 @@ from layoutdiffusion import LayoutDiffusionPipeline
 pipe = LayoutDiffusionPipeline.from_pretrained(
     "creative-graphic-design/layoutdiffusion-rico25",
 )
-out = pipe(batch_size=1, seed=0)
+out = pipe(batch_size=1, generator=None, condition_type="unconditional", seed=0)
 
 print(out.bbox)
 print(out.labels)
