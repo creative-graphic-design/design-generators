@@ -13,7 +13,7 @@ from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
-from torch import Tensor, nn
+from torch import nn
 
 from laygen.nn import clone_module_list, get_activation
 
@@ -29,8 +29,8 @@ def _gelu2(x: torch.Tensor) -> torch.Tensor:
 
 
 def _get_activation_fn(
-    activation: str | Callable[[Tensor], Tensor],
-) -> Callable[[Tensor], Tensor]:
+    activation: str | Callable[[torch.Tensor], torch.Tensor],
+) -> Callable[[torch.Tensor], torch.Tensor]:
     if not isinstance(activation, str):
         return activation
     return get_activation(activation)
@@ -52,10 +52,10 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(1, max_len, d_model)
         pe[0, :, 0::2] = torch.sin(position * div_term)
         pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.pe: Tensor
+        self.pe: torch.Tensor
         self.register_buffer("pe", pe)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return positional encodings matching the sequence length of ``x``."""
         return self.dropout(self.pe[:, : x.shape[1]])
 
@@ -76,7 +76,7 @@ class AdaLayerNorm(nn.Module):
         self.linear = nn.Linear(n_embd, n_embd * 2)
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
-    def forward(self, x: Tensor, timestep: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
         """Normalize ``x`` with scale and shift predicted from ``timestep``."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
@@ -92,7 +92,7 @@ class LayoutFlowBlock(nn.Module):
         nhead: int = 16,
         dim_feedforward: int = 2048,
         dropout: float = 0.0,
-        activation: str | Callable[[Tensor], Tensor] = F.relu,
+        activation: str | Callable[[torch.Tensor], torch.Tensor] = F.relu,
         batch_first: bool = False,
         norm_first: bool = False,
     ) -> None:
@@ -115,11 +115,11 @@ class LayoutFlowBlock(nn.Module):
 
     def forward(
         self,
-        src: Tensor,
-        src_mask: Tensor | None = None,
-        src_key_padding_mask: Tensor | None = None,
-        timestep: Tensor | None = None,
-    ) -> Tensor:
+        src: torch.Tensor,
+        src_mask: torch.Tensor | None = None,
+        src_key_padding_mask: torch.Tensor | None = None,
+        timestep: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Apply self-attention and feed-forward layers."""
         if timestep is None:
             raise ValueError("timestep is required")
@@ -129,10 +129,10 @@ class LayoutFlowBlock(nn.Module):
 
     def _sa_block(
         self,
-        x: Tensor,
-        attn_mask: Tensor | None,
-        key_padding_mask: Tensor | None,
-    ) -> Tensor:
+        x: torch.Tensor,
+        attn_mask: torch.Tensor | None,
+        key_padding_mask: torch.Tensor | None,
+    ) -> torch.Tensor:
         x = self.self_attn(
             x,
             x,
@@ -143,7 +143,7 @@ class LayoutFlowBlock(nn.Module):
         )[0]
         return self.dropout1(x)
 
-    def _ff_block(self, x: Tensor) -> Tensor:
+    def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
         return self.dropout2(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -163,11 +163,11 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
     def forward(
         self,
-        src: Tensor,
-        mask: Tensor | None = None,
-        src_key_padding_mask: Tensor | None = None,
-        timestep: Tensor | None = None,
-    ) -> Tensor:
+        src: torch.Tensor,
+        mask: torch.Tensor | None = None,
+        src_key_padding_mask: torch.Tensor | None = None,
+        timestep: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Run the stacked encoder blocks."""
         output = src
         for layer in self.layers:
@@ -257,8 +257,12 @@ class LayoutDMBackbone(nn.Module):
             )
 
     def forward(
-        self, geom: Tensor, attr: Tensor, cond_flags: Tensor, t: Tensor
-    ) -> Tensor:
+        self,
+        geom: torch.Tensor,
+        attr: torch.Tensor,
+        cond_flags: torch.Tensor,
+        t: torch.Tensor,
+    ) -> torch.Tensor:
         """Predict vector-field values for geometry and attribute inputs."""
         ps = None
         if self.attr_encoding is AttrEncoding.discrete:
@@ -309,7 +313,7 @@ class LayoutDMBackbone(nn.Module):
 class LayoutFlowModelOutput(BaseOutput):
     """Output of ``LayoutFlowTransformerModel``."""
 
-    sample: Tensor
+    sample: torch.Tensor
 
 
 class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
@@ -371,11 +375,11 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: Tensor,
-        timestep: Tensor,
-        cond_mask: Tensor,
+        sample: torch.Tensor,
+        timestep: torch.Tensor,
+        cond_mask: torch.Tensor,
         return_dict: bool = True,
-    ) -> LayoutFlowModelOutput | tuple[Tensor]:
+    ) -> LayoutFlowModelOutput | tuple[torch.Tensor]:
         """Predict the vector field for a model state.
 
         Args:

@@ -9,13 +9,11 @@ from jaxtyping import Float, Int
 
 if TYPE_CHECKING:
     import torch
-    from torch import Tensor
 else:
     try:
         import torch
-        from torch import Tensor
     except ImportError:
-        Tensor = object
+        pass
 
 LOG_EPS: Final[float] = -70.0
 
@@ -52,8 +50,8 @@ def normalize_sampling_mode(sampling: SamplingMode | str) -> SamplingMode:
 
 
 def index_to_log_onehot(
-    input_ids: Int[Tensor, "batch ..."], vocab_size: int
-) -> Float[Tensor, "batch vocab ..."]:
+    input_ids: Int[torch.Tensor, "batch ..."], vocab_size: int
+) -> Float[torch.Tensor, "batch vocab ..."]:
     """Convert categorical ids to log one-hot tensors.
 
     Args:
@@ -84,13 +82,13 @@ def index_to_log_onehot(
 
 
 def log_onehot_to_index(
-    log_x: Float[Tensor, "batch vocab ..."],
-) -> Int[Tensor, "batch ..."]:
+    log_x: Float[torch.Tensor, "batch vocab ..."],
+) -> Int[torch.Tensor, "batch ..."]:
     """Convert log one-hot tensors back to categorical ids."""
     return log_x.argmax(dim=1)
 
 
-def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
+def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
     import torch
 
@@ -99,10 +97,10 @@ def log_add_exp(a: Tensor, b: Tensor) -> Tensor:
 
 
 def extract(
-    values: Float[Tensor, "timesteps"],
-    timesteps: Int[Tensor, "batch"],
+    values: Float[torch.Tensor, "timesteps"],
+    timesteps: Int[torch.Tensor, "batch"],
     broadcast_shape: torch.Size,
-) -> Tensor:
+) -> torch.Tensor:
     """Gather timestep values and reshape them for broadcast operations."""
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
@@ -110,10 +108,10 @@ def extract(
 
 
 def gumbel_noise_like(
-    x: Tensor,
+    x: torch.Tensor,
     *,
     generator: torch.Generator | None = None,
-) -> Tensor:
+) -> torch.Tensor:
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
     import torch
 
@@ -122,15 +120,17 @@ def gumbel_noise_like(
 
 
 def log_sample_categorical(
-    logits: Float[Tensor, "batch vocab ..."],
+    logits: Float[torch.Tensor, "batch vocab ..."],
     *,
     generator: torch.Generator | None = None,
-) -> Int[Tensor, "batch ..."]:
+) -> Int[torch.Tensor, "batch ..."]:
     """Sample categorical ids from log probabilities with Gumbel-max."""
     return (logits + gumbel_noise_like(logits, generator=generator)).argmax(dim=1)
 
 
-def top_k_logits(logits: Float[Tensor, "... vocab"], k: int, dim: int = -1) -> Tensor:
+def top_k_logits(
+    logits: Float[torch.Tensor, "... vocab"], k: int, dim: int = -1
+) -> torch.Tensor:
     """Mask logits outside the top-k entries along ``dim``."""
     import torch
 
@@ -141,7 +141,9 @@ def top_k_logits(logits: Float[Tensor, "... vocab"], k: int, dim: int = -1) -> T
     return logits.masked_fill(logits < threshold, LOG_EPS)
 
 
-def _top_p_logits(logits: Float[Tensor, "... vocab"], top_p: float) -> Tensor:
+def _top_p_logits(
+    logits: Float[torch.Tensor, "... vocab"], top_p: float
+) -> torch.Tensor:
     import torch
 
     if top_p >= 1.0:
@@ -159,18 +161,18 @@ def _top_p_logits(logits: Float[Tensor, "... vocab"], top_p: float) -> Tensor:
 
 
 def sample_categorical(
-    logits: Float[Tensor, "... vocab"],
+    logits: Float[torch.Tensor, "... vocab"],
     *,
     sampling: SamplingMode | str = SamplingMode.random,
     temperature: float = 1.0,
     top_k: int | None = None,
     top_p: float | None = None,
     generator: torch.Generator | None = None,
-) -> Int[Tensor, "batch ..."]:
+) -> Int[torch.Tensor, "batch ..."]:
     """Sample categorical ids from logits using LayoutDM sampling modes.
 
     Args:
-        logits: Tensor whose last dimension is the categorical vocabulary.
+        logits: torch.Tensor whose last dimension is the categorical vocabulary.
         sampling: Sampling mode name.
         temperature: Positive temperature used before random sampling.
         top_k: Number of logits retained for top-k modes.
@@ -178,7 +180,7 @@ def sample_categorical(
         generator: Optional torch generator for deterministic sampling.
 
     Returns:
-        Tensor of sampled ids with shape ``logits.shape[:-1]``.
+        torch.Tensor of sampled ids with shape ``logits.shape[:-1]``.
 
     Examples:
         >>> import torch
@@ -225,8 +227,8 @@ def sample_categorical(
 
 
 def batch_topk_mask(
-    scores: Float[Tensor, "batch candidates"], k: Int[Tensor, "batch"]
-) -> Tensor:
+    scores: Float[torch.Tensor, "batch candidates"], k: Int[torch.Tensor, "batch"]
+) -> torch.Tensor:
     """Return a per-row boolean mask for the top ``k`` scores."""
     import torch
 
