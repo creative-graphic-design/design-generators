@@ -3,19 +3,18 @@ language:
   - en
 license: "mit"
 library_name: "diffusers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "lace"
   - "layout-generation"
 datasets:
-  - "creative-graphic-design/Rico"
   - "creative-graphic-design/Rico"
   - "creative-graphic-design/PubLayNet"
 model-index:
   - name: "LACE"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -37,7 +36,7 @@ model-index:
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
@@ -298,8 +297,23 @@ Use `uv run --package lace ...` from the repository root so workspace dependency
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
+Repository wrapper code is Apache-2.0. The original LACE implementation is released under the MIT License. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms.
+
+Vendor links:
+
+- Original implementation: https://github.com/puar-playground/LACE
+- Checkpoints and datasets: https://huggingface.co/datasets/puar-playground/LACE
+- Paper: https://openreview.net/forum?id=kJ0qp9Xdsh
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{
+    chen2024towards,
+    title={Towards Aligned Layout Generation via Diffusion Model with Aesthetic Constraints},
+    author={Jian Chen and Ruiyi Zhang and Yufan Zhou and Changyou Chen},
+    booktitle={The Twelfth International Conference on Learning Representations},
+    year={2024},
+    url={https://openreview.net/forum?id=kJ0qp9Xdsh}
+}
+```

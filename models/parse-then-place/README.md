@@ -3,7 +3,7 @@ language:
   - en
 license: "mit"
 library_name: "transformers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "parse-then-place"
   - "layout-generation"
@@ -13,7 +13,7 @@ model-index:
   - name: "Parse-Then-Place"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -34,7 +34,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Web&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
@@ -234,8 +234,15 @@ Use `uv run --package parse-then-place ...` from the repository root so workspac
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
+Repository wrapper code is Apache-2.0. The original implementation is MIT licensed and published at `microsoft/LayoutGeneration` under `Parse-Then-Place`.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@InProceedings{lin2023parse,
+  title={A Parse-Then-Place Approach for Generating Graphic Layouts from Textual Descriptions},
+  author={Lin, Jiawei and Guo, Jiaqi and Sun, Shizhao and Xu, Weijiang and Liu, Ting and Lou, Jian-Guang and Zhang, Dongmei},
+  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
+  year={2023}
+}
+```

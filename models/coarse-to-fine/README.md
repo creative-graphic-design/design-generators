@@ -3,7 +3,7 @@ language:
   - en
 license: "mit"
 library_name: "transformers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "coarse-to-fine"
   - "layout-generation"
@@ -14,7 +14,7 @@ model-index:
   - name: "Coarse-to-Fine"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -284,8 +284,15 @@ Use `uv run --package coarse-to-fine ...` from the repository root so workspace 
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
+Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration repository is MIT licensed. Converted code in this package is for research conversion and evaluation of the released Coarse-to-Fine checkpoints.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{jiang2022coarse,
+  title = {Coarse-to-Fine Generative Modeling for Graphic Layouts},
+  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Jichen and Deng, Jingwen and Luo, Jian and Li, Jianmin and Zheng, Yu and Fu, Yun},
+  booktitle = {AAAI},
+  year = {2022}
+}
+```

@@ -5,7 +5,7 @@ license: "other"
 license_name: "review-needed"
 license_link: "not recorded"
 library_name: "diffusers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layoutdiffusion"
   - "layout-generation"
@@ -16,7 +16,7 @@ model-index:
   - name: "LayoutDiffusion"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -246,8 +246,14 @@ Use `uv run --package layoutdiffusion ...` from the repository root so workspace
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: review-needed.
+Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout does not include a LayoutDiffusion-specific top-level license; only the vendored Transformers license is present. Converted weights should not claim an OSS license until upstream license status is confirmed.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{zhang2023layoutdiffusion,
+  title = {LayoutDiffusion: Improving Graphic Layout Generation by Discrete Diffusion Probabilistic Models},
+  booktitle = {ICCV},
+  year = {2023}
+}
+```

@@ -3,7 +3,7 @@ language:
   - en
 license: "mit"
 library_name: "diffusers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layout-flow"
   - "layout-generation"
@@ -14,7 +14,7 @@ model-index:
   - name: "LayoutFlow"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -35,7 +35,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
@@ -244,8 +244,17 @@ Use `uv run --package layout-flow ...` from the repository root so workspace dep
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
+Repository wrapper code is Apache-2.0. The original implementation is MIT licensed.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{guerreiro2024layoutflow,
+  title={LayoutFlow: Flow Matching For Layout Generation},
+  author={Guerreiro, Julian Jorge Andrade and Inoue, Naoto and Masui, Kento and Otani, Mayu and Nakayama, Hideki},
+  booktitle={European Conference on Computer Vision},
+  pages={56--72},
+  year={2024},
+  organization={Springer}
+}
+```

@@ -3,7 +3,7 @@ language:
   - en
 license: "mit"
 library_name: "transformers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layout-corrector"
   - "layout-generation"
@@ -15,7 +15,7 @@ model-index:
   - name: "Layout-Corrector"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -37,7 +37,7 @@ model-index:
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Crello&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [Layout-Corrector](https://arxiv.org/abs/2409.16689), a transformer corrector for refining existing layouts, with LayoutDM starter checkpoint support.
@@ -298,8 +298,15 @@ Use `uv run --package layout-corrector ...` from the repository root so workspac
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: MIT.
+Repository wrapper code is Apache-2.0. The original Layout-Corrector implementation is released under the MIT license. The nested LayoutDM implementation is Apache-2.0.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@article{iwai2024layoutcorrector,
+  title = {Layout-Corrector: Alleviating Layout Sticking Phenomenon in Discrete Diffusion Model},
+  author = {Iwai, Shoma and Osanai, Atsuki and Kitada, Shunsuke and Omachi, Shinichiro},
+  journal = {arXiv preprint arXiv:2409.16689},
+  year = {2024}
+}
+```

@@ -3,7 +3,7 @@ language:
   - en
 license: "agpl-3.0"
 library_name: "transformers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layoutganpp"
   - "layout-generation"
@@ -15,7 +15,7 @@ model-index:
   - name: "LayoutGAN++"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -37,7 +37,7 @@ model-index:
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
@@ -279,8 +279,18 @@ Use `uv run --package layoutganpp ...` from the repository root so workspace dep
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: agpl-3.0.
+Repository wrapper code is Apache-2.0. The original implementation is released under GNU AGPLv3. Converted checkpoints and package metadata keep `agpl-3.0` model-card metadata.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{Kikuchi2021,
+    title = {Constrained Graphic Layout Generation via Latent Optimization},
+    author = {Kotaro Kikuchi and Edgar Simo-Serra and Mayu Otani and Kota Yamaguchi},
+    booktitle = {ACM International Conference on Multimedia},
+    series = {MM '21},
+    year = {2021},
+    pages = {88--96},
+    doi = {10.1145/3474085.3475497}
+}
+```

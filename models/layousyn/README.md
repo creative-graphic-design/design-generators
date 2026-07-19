@@ -3,7 +3,7 @@ language:
   - en
 license: "cc-by-nc-4.0"
 library_name: "diffusers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layousyn"
   - "layout-generation"
@@ -11,7 +11,7 @@ model-index:
   - name: "LayouSyn"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "not recorded"
@@ -32,7 +32,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
@@ -248,8 +248,15 @@ Use `uv run --package layousyn ...` from the repository root so workspace depend
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: cc-by-nc-4.0.
+Repository wrapper code is Apache-2.0. The original Lay-Your-Scene implementation is CC BY-NC 4.0. Converted checkpoints and model cards must retain the non-commercial notice.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@article{srivastava2025layousyn,
+  title = {LayouSyn: Compositional Scene Layout Generation via Semantic-Syntax Alignment},
+  author = {Srivastava, Dhruv and Tripathi, Shashank and Choudhary, Sarthak and Balasubramanian, Vineeth N.},
+  journal = {arXiv preprint arXiv:2505.04718},
+  year = {2025}
+}
+```

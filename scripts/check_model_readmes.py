@@ -228,6 +228,34 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
     ]
 
 
+def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
+    for key in ("language", "tags", "datasets"):
+        values = _frontmatter_list(frontmatter, key)
+        duplicates = sorted({value for value in values if values.count(value) > 1})
+        if duplicates:
+            raise AssertionError(
+                f"{path}: frontmatter {key} has duplicates {duplicates}"
+            )
+
+
+def _assert_pipeline_tag(path: Path, frontmatter: str) -> None:
+    pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
+    if pipeline_tag != "other":
+        raise AssertionError(
+            f"{path}: pipeline_tag must be 'other' for layout generation, got {pipeline_tag!r}"
+        )
+    bad_task = re.search(
+        r'^\s+type:\s*["\']?text-to-image["\']?\s*$', frontmatter, re.MULTILINE
+    )
+    if bad_task:
+        raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
+    task_types = re.findall(
+        r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
+    )
+    if "other" not in task_types and "model-index:" in frontmatter:
+        raise AssertionError(f"{path}: model-index task.type must be 'other'")
+
+
 def _assert_heading_order(path: Path, text: str) -> None:
     cursor = -1
     for heading in REQUIRED_HEADINGS:
@@ -264,6 +292,8 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
     if expected is None:
         raise AssertionError(f"{path}: no expected frontmatter contract for {slug}")
     frontmatter = _frontmatter(text)
+    _assert_frontmatter_list_unique(path, frontmatter)
+    _assert_pipeline_tag(path, frontmatter)
     actual_license = _frontmatter_scalar(frontmatter, "license")
     expected_license = expected["license"]
     if actual_license != expected_license:
@@ -358,6 +388,43 @@ def _assert_parity_table(path: Path, text: str) -> None:
         )
 
 
+def _assert_citation_bibtex(path: Path, text: str) -> None:
+    section = _section(text, "## Citation")
+    # Coordinator approval is required before adding exceptions to this bibtex
+    # requirement; README normalization must preserve citation metadata.
+    if "```bibtex" not in section:
+        raise AssertionError(f"{path}: Citation must contain a bibtex code fence")
+
+
+def _nonzero_number(text: str) -> bool:
+    try:
+        return float(text) != 0
+    except ValueError:
+        return False
+
+
+def _parity_requires_tolerance(section: str) -> bool:
+    for match in re.finditer(r"\b[ra]tol\s*=?\s*`?([0-9.eE+-]+)`?", section):
+        if _nonzero_number(match.group(1)):
+            return True
+    return False
+
+
+def _assert_vendor_parity_badge(path: Path, text: str) -> None:
+    section = _section(text, "## Parity Results")
+    badge = re.search(r"!\[vendor--parity\]\([^)]*[?&]message=([^&)]*)", text)
+    if badge is None:
+        raise AssertionError(f"{path}: missing vendor-parity badge")
+    expected = (
+        "tolerance--verified" if _parity_requires_tolerance(section) else "bit--exact"
+    )
+    actual = badge.group(1)
+    if actual != expected:
+        raise AssertionError(
+            f"{path}: vendor-parity badge {actual!r} does not match Parity Results; expected {expected!r}"
+        )
+
+
 def _assert_reproducibility_commands(path: Path, text: str) -> None:
     section = _section(text, "## Reproducibility")
     if "uv run --package " not in section:
@@ -411,6 +478,8 @@ def check() -> None:
         _assert_prompt_only_readme(path, text)
         _assert_code_fences_tagged(path, text)
         _assert_parity_table(path, text)
+        _assert_citation_bibtex(path, text)
+        _assert_vendor_parity_badge(path, text)
         _assert_reproducibility_commands(path, text)
         _assert_banned_patterns(path, text)
     for path in README_LINK_CONTRACTS:

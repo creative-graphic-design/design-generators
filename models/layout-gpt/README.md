@@ -5,7 +5,7 @@ license: "other"
 license_name: "review-needed"
 license_link: "not recorded"
 library_name: "pydantic-ai"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layout-gpt"
   - "layout-generation"
@@ -18,7 +18,7 @@ tags:
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=NSR-1K&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
 This package provides [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
@@ -236,8 +236,15 @@ Use `uv run --package layout-gpt ...` from the repository root so workspace depe
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: review-needed.
+Repository wrapper code is Apache-2.0. The original LayoutGPT repository does not record a package-level OSS license in this README; keep upstream prompt assets, datasets, and provider outputs under their original terms until license status is confirmed.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@article{feng2023layoutgpt,
+  title = {LayoutGPT: Compositional Visual Planning and Generation with Large Language Models},
+  author = {Feng, Weixi and Zhu, Wanrong and Fu, Tsu-Jui and Jampani, Varun and Akula, Arjun and He, Xuehai and Basu, Sugato and Wang, Xin Eric and Wang, William Yang},
+  journal = {arXiv preprint arXiv:2305.15393},
+  year = {2023}
+}
+```

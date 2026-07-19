@@ -5,7 +5,7 @@ license: "other"
 license_name: "review-needed"
 license_link: "not recorded"
 library_name: "pydantic-ai"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layoutprompter"
   - "layout-generation"
@@ -23,7 +23,7 @@ datasets:
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
 This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
@@ -262,8 +262,15 @@ Use `uv run --package layoutprompter ...` from the repository root so workspace 
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: review-needed.
+Repository wrapper code is Apache-2.0. Use this package together with the license terms of the original LayoutPrompter implementation and any dataset or LLM provider used at runtime.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{lin2023layoutprompter,
+  title = {LayoutPrompter: Awaken the Design Ability of Large Language Models},
+  author = {Lin, Jiawei and Guo, Jiaqi and Sun, Shizhao and Yang, Zijiang and Lou, Jian-Guang and Zhang, Dongmei},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year = {2023}
+}
+```

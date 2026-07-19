@@ -3,7 +3,7 @@ language:
   - en
 license: "apache-2.0"
 library_name: "diffusers"
-pipeline_tag: "text-to-image"
+pipeline_tag: "other"
 tags:
   - "layout-dm"
   - "layout-generation"
@@ -14,7 +14,7 @@ model-index:
   - name: "LayoutDM"
     results:
       - task:
-          type: "text-to-image"
+          type: "other"
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
@@ -35,7 +35,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
 This package ports [LayoutDM](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html), the CVPR 2023 discrete diffusion model for controllable layout generation, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
@@ -287,8 +287,16 @@ Use `uv run --package layout-dm ...` from the repository root so workspace depen
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: Apache-2.0.
+Repository wrapper code is Apache-2.0. The original implementation is released under the Apache-2.0 license.
 
 ## Citation
 
-Cite the original method when publishing results. Citation metadata is preserved from the original README when available; otherwise it is not recorded in this README.
+```bibtex
+@inproceedings{inoue2023layout,
+  title = {{LayoutDM: Discrete Diffusion Model for Controllable Layout Generation}},
+  author = {Naoto Inoue and Kotaro Kikuchi and Edgar Simo-Serra and Mayu Otani and Kota Yamaguchi},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year = {2023},
+  pages = {10167-10176}
+}
+```
