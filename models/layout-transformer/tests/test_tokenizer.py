@@ -21,6 +21,17 @@ def test_tokenizer_loads_id_to_token_vocab(tmp_path):
     ]
 
 
+def test_tokenizer_loads_token_to_id_vocab_and_text_helpers(tmp_path):
+    vocab = tmp_path / "vocab.json"
+    vocab.write_text(json.dumps({"person": 4, "table": 5}))
+
+    tokenizer = LayoutTransformerRelationTokenizer(vocab_file=str(vocab))
+
+    assert tokenizer.convert_tokens_to_ids("table") == 5
+    assert tokenizer.tokenize(" person table ") == ["person", "table"]
+    assert tokenizer.convert_tokens_to_string(["person", "table"]) == "person table"
+
+
 def test_tokenizer_save_and_load_metadata(tmp_path):
     tokenizer = LayoutTransformerRelationTokenizer(
         tokens=["person", "left of"],

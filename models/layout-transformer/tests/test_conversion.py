@@ -52,8 +52,10 @@ def test_convert_original_checkpoint_writes_metadata(tmp_path):
     )
 
     metadata = json.loads((output / "conversion_metadata.json").read_text())
+    config = json.loads((output / "config.json").read_text())
     assert metadata["dataset_name"] == "coco"
     assert metadata["strict_vendor_key_mapping"] is False
+    assert config["use_vendor_modules"] is False
 
 
 def test_convert_original_checkpoint_rejects_hub_upload(tmp_path):

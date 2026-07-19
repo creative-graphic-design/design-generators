@@ -57,7 +57,7 @@ def convert_original_checkpoint(
         dataset_name=dataset_name,
         vocab_size=token_count,
         refine=True,
-        use_vendor_modules=True,
+        use_vendor_modules=strict,
     )
     model = LayoutTransformerForLayoutGeneration(config)
     state_dict = load_original_state_dict(checkpoint_path)

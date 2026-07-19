@@ -23,3 +23,19 @@ def test_config_round_trip(tmp_path):
     id2label = cast(dict[int, str], loaded.id2label)
     assert id2label[1] == "person"
     assert loaded.relation_id2label[1] == "left of"
+
+
+def test_config_rejects_unsupported_head_and_box_loss():
+    try:
+        LayoutTransformerConfig(decoder_head_type="unsupported")
+    except ValueError as exc:
+        assert "Unsupported decoder head type" in str(exc)
+    else:
+        raise AssertionError("expected unsupported head type error")
+
+    try:
+        LayoutTransformerConfig(decoder_box_loss="unsupported")
+    except ValueError as exc:
+        assert "Unsupported box loss" in str(exc)
+    else:
+        raise AssertionError("expected unsupported box loss error")
