@@ -29,14 +29,14 @@ model-index:
 
 # Model Card for Parse-Then-Place
 
-![paper](https://img.shields.io/static/v1?label=paper&message=ICCV%202023&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=ICCV%202023&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
-![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=Web&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
+![paper](https://img.shields.io/static/v1?label=paper&message=ICCV+2023&color=blue&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=Web&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
 
@@ -46,7 +46,7 @@ This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICC
 
 Parse-Then-Place is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
 
-- **Developed by:** original upstream authors; see Model Sources.
+- **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.

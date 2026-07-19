@@ -30,15 +30,15 @@ model-index:
 
 # Model Card for LayoutGAN++
 
-![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=SIGGRAPH%20Asia%202021&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=AGPL--3.0&color=orange&style=flat-square)
-![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
+![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=SIGGRAPH+Asia+2021&color=purple&style=flat-square&logo=readme&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=AGPL--3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
 
@@ -48,7 +48,7 @@ This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [
 
 LayoutGAN++ is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `transformers`.
 
-- **Developed by:** original upstream authors; see Model Sources.
+- **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.

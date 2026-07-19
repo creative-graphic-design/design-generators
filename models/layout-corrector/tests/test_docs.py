@@ -13,13 +13,14 @@ def test_readme_includes_reproducible_vendor_parity_commands():
 
     assert "## Reproducibility" in text
     assert (
-        "Layout-Corrector is a training-free corrector module for discrete diffusion "
-        "layout generators such as LayoutDM." in text
+        "Layout-Corrector is a training-free corrector module for "
+        "[LayoutDM](../layout-dm/), a discrete diffusion layout generator" in text
     )
     assert (
         "pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)"
         in text
     )
+    assert "return_intermediates=True" in text
     assert "Layout-Corrector confidence score" in text
     assert (
         "This section reproduces the parity verification against the original implementation."

@@ -16,15 +16,15 @@ datasets:
 
 # Model Card for LayoutPrompter
 
-![paper](https://img.shields.io/static/v1?label=paper&message=LayoutPrompter&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS%202023&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
-![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
+![paper](https://img.shields.io/static/v1?label=paper&message=LayoutPrompter&color=blue&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square&logo=huggingface&logoColor=white)
 
 This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
 
@@ -34,7 +34,7 @@ This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [P
 
 LayoutPrompter is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `pydantic-ai`.
 
-- **Developed by:** original upstream authors; see Model Sources.
+- **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.

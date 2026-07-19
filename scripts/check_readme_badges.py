@@ -24,23 +24,82 @@ MODEL_ORDER = [
     ("hub",),
 ]
 
+VERIFIED_SIMPLE_ICON_SLUGS = {
+    "apache",
+    "arxiv",
+    "doi",
+    "github",
+    "githubactions",
+    "huggingface",
+    "opensourceinitiative",
+    "pydantic",
+    "python",
+    "readme",
+    "readthedocs",
+    "uv",
+}
+
+
+def _expected_logo(label: str, message: str | None) -> str:
+    if label == "CI":
+        return "githubactions"
+    if label == "docs":
+        return "readthedocs"
+    if label == "license":
+        return "apache" if message == "Apache--2.0" else "opensourceinitiative"
+    if label == "python":
+        return "python"
+    if label == "uv":
+        return "uv"
+    if label in {"models", "package", "core", "extras", "runtime", "status"}:
+        return "readme"
+    if label == "arXiv":
+        return "arxiv"
+    if label == "DOI":
+        return "doi"
+    if label in {"paper", "OpenReview", "venue"}:
+        return "readme"
+    if label == "base":
+        return "pydantic" if message == "pydantic-ai" else "huggingface"
+    if label in {"dataset", "hub"}:
+        return "huggingface"
+    if label == "vendor--parity":
+        return "github"
+    raise AssertionError(f"no badge logo rule for label={label!r} message={message!r}")
+
 
 def _badge_labels(path: Path) -> list[str]:
     labels: list[str] = []
     for match in BADGE_RE.finditer(path.read_text(encoding="utf-8")):
         url = match.group(1) or match.group(2)
-        if "actions/workflows/" in url and url.endswith("/badge.svg"):
-            labels.append("CI")
-            continue
         parsed = urlparse(url)
-        if parsed.netloc != "img.shields.io" or parsed.path != "/static/v1":
+        if parsed.netloc != "img.shields.io":
             raise AssertionError(f"{path}: non-static shields badge URL: {url}")
         query = parse_qs(parsed.query)
         if query.get("style") != ["flat-square"]:
             raise AssertionError(f"{path}: badge must use style=flat-square: {url}")
-        if "label" not in query or "message" not in query or "color" not in query:
-            raise AssertionError(f"{path}: badge missing label/message/color: {url}")
-        labels.append(query["label"][0])
+        if parsed.path == "/static/v1":
+            if "label" not in query or "message" not in query or "color" not in query:
+                raise AssertionError(
+                    f"{path}: badge missing label/message/color: {url}"
+                )
+        elif not parsed.path.startswith("/github/actions/workflow/status/"):
+            raise AssertionError(f"{path}: unsupported shields badge path: {url}")
+        if "label" not in query:
+            raise AssertionError(f"{path}: badge missing label: {url}")
+        label = query["label"][0]
+        message = query.get("message", [None])[0]
+        logo = query.get("logo", [None])[0]
+        expected_logo = _expected_logo(label, message)
+        if logo != expected_logo:
+            raise AssertionError(
+                f"{path}: badge {label!r} logo {logo!r} != {expected_logo!r}: {url}"
+            )
+        if logo not in VERIFIED_SIMPLE_ICON_SLUGS:
+            raise AssertionError(f"{path}: unverified Simple Icons slug {logo!r}")
+        if query.get("logoColor") != ["white"]:
+            raise AssertionError(f"{path}: badge logoColor must be white: {url}")
+        labels.append(label)
     return labels
 
 

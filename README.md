@@ -1,11 +1,11 @@
 # design-generators
 
-[![CI](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml/badge.svg)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
-[![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square)](https://creative-graphic-design.github.io/design-generators/)
-![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square)
-![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square)
-![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square)
-![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
+[![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
+![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
+![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
+![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square&logo=readme&logoColor=white)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into [Transformers](https://huggingface.co/docs/transformers/index)-, [Diffusers](https://huggingface.co/docs/diffusers/index)-, and [Pydantic AI](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 

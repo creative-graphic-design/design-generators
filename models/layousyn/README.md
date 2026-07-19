@@ -29,14 +29,14 @@ model-index:
 
 # Model Card for LayouSyn
 
-![paper](https://img.shields.io/static/v1?label=paper&message=LayouSyn&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square)
-![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
+![paper](https://img.shields.io/static/v1?label=paper&message=LayouSyn&color=blue&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square&logo=readme&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square&logo=github&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
@@ -46,7 +46,7 @@ This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-S
 
 LayouSyn is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
 
-- **Developed by:** original upstream authors; see Model Sources.
+- **Developed by:** Dhruv Srivastava et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.

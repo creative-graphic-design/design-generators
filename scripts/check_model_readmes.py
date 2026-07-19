@@ -44,6 +44,7 @@ BANNED_PATTERNS = [
     r"sk-[A-Za-z0-9]{16,}",
     r"(?<![A-Za-z0-9_.-])/tmp/",
     r"creative-graphic-design/(rico|rico25|publaynet)\b",
+    r"original upstream authors; see Model Sources",
 ]
 
 LINK_REQUIRED_DATASET_IDS = [

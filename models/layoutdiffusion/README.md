@@ -31,14 +31,14 @@ model-index:
 
 # Model Card for LayoutDiffusion
 
-![paper](https://img.shields.io/static/v1?label=paper&message=ICCV%202023&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=ICCV%202023&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
-![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
+![paper](https://img.shields.io/static/v1?label=paper&message=ICCV+2023&color=blue&style=flat-square&logo=readme&logoColor=white)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICCV+2023&color=purple&style=flat-square&logo=readme&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square&logo=github&logoColor=white)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
@@ -48,7 +48,7 @@ This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV
 
 LayoutDiffusion is packaged for the `design-generators` workspace. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`. The runtime integration is `diffusers`.
 
-- **Developed by:** original upstream authors; see Model Sources.
+- **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
@@ -277,6 +277,7 @@ Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout doe
 ```bibtex
 @inproceedings{zhang2023layoutdiffusion,
   title = {LayoutDiffusion: Improving Graphic Layout Generation by Discrete Diffusion Probabilistic Models},
+  author = {Junyi Zhang and Jiaqi Guo and Shizhao Sun and Jian-Guang Lou and Dongmei Zhang},
   booktitle = {ICCV},
   year = {2023}
 }
