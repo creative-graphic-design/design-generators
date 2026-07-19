@@ -1,15 +1,33 @@
-"""Canonical Transformers-compatible output types for layout generation."""
+"""Canonical Transformers-compatible output types for layout generation.
+
+This module is intentionally excluded from jaxtyping runtime import hooks because
+Transformers ``ModelOutput`` dataclasses are backend-neutral containers. Static
+annotations document the accepted NumPy/torch field shapes, while runtime shape
+guarantees are provided by ``laygen.common.testing.assert_layout_output_schema``.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
-import numpy as np
+from jaxtyping import Bool, Float, Int
 from transformers.utils import ModelOutput
+
+from laygen.common.typing import (
+    NumpyLayoutBBoxes,
+    NumpyLayoutLabels,
+    NumpyLayoutMask,
+)
 
 if TYPE_CHECKING:
     import torch
+
+    LayoutBBoxes: TypeAlias = (
+        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
+    )
+    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
+    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 
 
 @dataclass
@@ -17,9 +35,10 @@ class LayoutGenerationOutput(ModelOutput):
     """Canonical layout-generation output for Transformers-style APIs.
 
     Attributes:
-        bbox: Normalized center ``xywh`` boxes with shape ``(batch, seq, 4)``.
-        labels: Dataset-local integer labels with shape ``(batch, seq)``.
-        mask: Boolean valid-element mask with shape ``(batch, seq)``.
+        bbox: Normalized center ``xywh`` boxes with shape
+            ``(batch, elements, 4)``.
+        labels: Dataset-local integer labels with shape ``(batch, elements)``.
+        mask: Boolean valid-element mask with shape ``(batch, elements)``.
         id2label: Mapping from integer label ids to display names.
         sequences: Optional raw token sequences.
         scores: Optional per-token or per-element scores.
@@ -38,12 +57,12 @@ class LayoutGenerationOutput(ModelOutput):
         (1, 1, 4)
     """
 
-    bbox: torch.Tensor | np.ndarray
-    labels: torch.Tensor | np.ndarray = cast("torch.Tensor | np.ndarray", None)
-    mask: torch.Tensor | np.ndarray = cast("torch.Tensor | np.ndarray", None)
+    bbox: LayoutBBoxes
+    labels: LayoutLabels = cast("LayoutLabels", None)
+    mask: LayoutMask = cast("LayoutMask", None)
     id2label: dict[int, str] = cast(dict[int, str], None)
-    sequences: torch.Tensor | np.ndarray | None = None
-    scores: torch.Tensor | np.ndarray | None = None
+    sequences: object | None = None
+    scores: object | None = None
     trajectory: object | None = None
     intermediates: object | None = None
 
