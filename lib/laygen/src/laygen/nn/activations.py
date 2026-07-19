@@ -11,8 +11,7 @@ from typing import Callable, assert_never, cast
 
 import torch.nn.functional as F
 from transformers.activations import ACT2FN
-
-from laygen.common.torch_typing import TorchTensor
+from torch import Tensor
 
 
 class ActivationName(StrEnum):
@@ -28,7 +27,7 @@ class ActivationName(StrEnum):
     gelu2 = auto()
 
 
-ActivationFn = Callable[[TorchTensor], TorchTensor]
+ActivationFn = Callable[[Tensor], Tensor]
 
 
 def normalize_activation(

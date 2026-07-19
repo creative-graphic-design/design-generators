@@ -9,14 +9,9 @@ from __future__ import annotations
 
 from typing import assert_never
 
+from jaxtyping import Bool, Float, Int
 from torch import nn
-
-from laygen.common.torch_typing import (
-    TorchAttentionMask,
-    TorchHiddenStates,
-    TorchPaddingMask,
-    TorchTimesteps,
-)
+from torch import Tensor
 
 from .activations import ActivationFn, ActivationName, get_activation
 from .embeddings import TimestepEmbeddingType, normalize_timestep_embedding
@@ -94,11 +89,11 @@ class TimestepTransformerEncoderLayer(nn.Module):
 
     def forward(
         self,
-        src: TorchHiddenStates,
-        src_mask: TorchAttentionMask | None = None,
-        src_key_padding_mask: TorchPaddingMask | None = None,
-        timestep: TorchTimesteps | None = None,
-    ) -> TorchHiddenStates:
+        src: Float[Tensor, "batch tokens channels"],
+        src_mask: Bool[Tensor, "..."] | None = None,
+        src_key_padding_mask: Bool[Tensor, "batch tokens"] | None = None,
+        timestep: Int[Tensor, "batch"] | None = None,
+    ) -> Float[Tensor, "batch tokens channels"]:
         """Apply self-attention and feed-forward layers.
 
         Args:
@@ -122,10 +117,10 @@ class TimestepTransformerEncoderLayer(nn.Module):
 
     def _sa_block(
         self,
-        x: TorchHiddenStates,
-        attn_mask: TorchAttentionMask | None,
-        key_padding_mask: TorchPaddingMask | None,
-    ) -> TorchHiddenStates:
+        x: Float[Tensor, "batch tokens channels"],
+        attn_mask: Bool[Tensor, "..."] | None,
+        key_padding_mask: Bool[Tensor, "batch tokens"] | None,
+    ) -> Float[Tensor, "batch tokens channels"]:
         x = self.self_attn(
             x,
             x,
@@ -136,7 +131,9 @@ class TimestepTransformerEncoderLayer(nn.Module):
         )[0]
         return self.dropout1(x)
 
-    def _ff_block(self, x: TorchHiddenStates) -> TorchHiddenStates:
+    def _ff_block(
+        self, x: Float[Tensor, "batch tokens channels"]
+    ) -> Float[Tensor, "batch tokens channels"]:
         return self.dropout2(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -169,11 +166,11 @@ class TimestepTransformerEncoder(nn.Module):
 
     def forward(
         self,
-        src: TorchHiddenStates,
-        mask: TorchAttentionMask | None = None,
-        src_key_padding_mask: TorchPaddingMask | None = None,
-        timestep: TorchTimesteps | None = None,
-    ) -> TorchHiddenStates:
+        src: Float[Tensor, "batch tokens channels"],
+        mask: Bool[Tensor, "..."] | None = None,
+        src_key_padding_mask: Bool[Tensor, "batch tokens"] | None = None,
+        timestep: Int[Tensor, "batch"] | None = None,
+    ) -> Float[Tensor, "batch tokens channels"]:
         """Run hidden states through all encoder layers."""
         output = src
         for layer in self.layers:

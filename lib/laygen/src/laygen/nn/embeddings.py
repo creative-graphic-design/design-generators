@@ -12,13 +12,9 @@ from enum import StrEnum, auto
 
 import torch
 from einops import repeat
+from jaxtyping import Float, Int
 from torch import nn
-
-from laygen.common.torch_typing import (
-    TorchEmbeddings,
-    TorchHiddenStates,
-    TorchTimesteps,
-)
+from torch import Tensor
 
 
 class TimestepEmbeddingType(StrEnum):
@@ -85,7 +81,7 @@ class SinusoidalPosEmb(nn.Module):
         self.num_steps = float(num_steps)
         self.rescale_steps = float(rescale_steps)
 
-    def forward(self, x: TorchTimesteps) -> TorchEmbeddings:
+    def forward(self, x: Int[Tensor, "batch"]) -> Float[Tensor, "batch channels"]:
         """Embed integer positions or timesteps.
 
         Args:
@@ -125,7 +121,9 @@ class ElementPositionalEmbedding(nn.Module):
         self.elem_emb = nn.Parameter(torch.rand(self.n_elem, dim_model))
         self.attr_emb = nn.Parameter(torch.rand(self.n_attr_per_elem, dim_model))
 
-    def forward(self, h: TorchHiddenStates) -> TorchHiddenStates:
+    def forward(
+        self, h: Float[Tensor, "batch tokens channels"]
+    ) -> Float[Tensor, "batch tokens channels"]:
         """Return positional embeddings matching hidden-state length.
 
         Args:

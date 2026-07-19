@@ -86,6 +86,10 @@ extend-exclude = ["vendor"]
 
 [tool.ruff.lint]
 extend-select = ["ANN", "D", "TID251"]
+# jaxtyping shape strings are intentionally not Python names or expressions inside
+# quoted annotations. Ruff/Pyflakes F722 and F821 are structurally incompatible
+# with this syntax; globally ignoring them is the ecosystem-standard workaround.
+ignore = ["F722", "F821"]
 
 [tool.ruff.lint.per-file-ignores]
 "lib/*/tests/*.py" = ["ANN", "D"]

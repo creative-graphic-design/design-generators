@@ -9,11 +9,9 @@ import torch
 
 from laygen.common.testing import install_jaxtyping_runtime_hook
 from laygen.common.typing import (
-    LayoutArray,
     LayoutBBoxes,
     LayoutLabels,
     LayoutMask,
-    NumpyArray,
     NumpyLayoutBBoxes,
     NumpyLayoutLabels,
     NumpyLayoutMask,
@@ -45,11 +43,9 @@ def test_shared_aliases_accept_numpy_and_torch_values():
 
 
 def test_numpy_aliases_accept_numpy_values():
-    array: NumpyArray = np.zeros((1,), dtype=np.float32)
     bbox: NumpyLayoutBBoxes = np.zeros((1, 1, 4), dtype=np.float32)
     labels: NumpyLayoutLabels = np.zeros((1, 1), dtype=np.int64)
     mask: NumpyLayoutMask = np.ones((1, 1), dtype=bool)
-    layout_array: LayoutArray = array
 
     output = LayoutGenerationOutput(
         bbox=bbox,
@@ -58,35 +54,7 @@ def test_numpy_aliases_accept_numpy_values():
         id2label={0: "text"},
     )
 
-    assert layout_array.shape == (1,)
     assert output.to_tuple()[0].shape == (1, 1, 4)
-
-
-def test_torch_typing_aliases_import_with_torch():
-    from laygen.common.torch_typing import (
-        TorchLayoutBBoxes,
-        TorchLayoutLabels,
-        TorchLayoutMask,
-        TorchLogOneHot,
-        TorchTensor,
-        TorchTokenIds,
-        TorchTokenLogits,
-    )
-
-    tensor: TorchTensor = torch.zeros(1)
-    bbox: TorchLayoutBBoxes = torch.zeros(1, 2, 4)
-    labels: TorchLayoutLabels = torch.zeros(1, 2, dtype=torch.long)
-    mask: TorchLayoutMask = torch.ones(1, 2, dtype=torch.bool)
-    token_ids: TorchTokenIds = torch.zeros(1, 3, dtype=torch.long)
-    token_logits: TorchTokenLogits = torch.zeros(1, 3, 5)
-    log_onehot: TorchLogOneHot = torch.zeros(1, 5, 3)
-
-    assert tensor.shape == (1,)
-    assert bbox.shape == (1, 2, 4)
-    assert labels.shape == mask.shape == (1, 2)
-    assert token_ids.shape == (1, 3)
-    assert token_logits.shape == (1, 3, 5)
-    assert log_onehot.shape == (1, 5, 3)
 
 
 def test_typing_aliases_and_output_import_without_torch():

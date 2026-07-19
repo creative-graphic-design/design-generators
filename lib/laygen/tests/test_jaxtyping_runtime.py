@@ -15,18 +15,77 @@ def _assert_probe_rejected(code: str, expected: str) -> None:
     assert expected in result.stderr
 
 
-def test_bbox_hook_liveness_rejects_bad_box_shape() -> None:
+def _assert_probe_passes(code: str) -> None:
+    subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(code)],
+        check=True,
+    )
+
+
+def test_bbox_hook_liveness_rejects_shape_mismatch() -> None:
     _assert_probe_rejected(
         """
         import torch
         from jaxtyping import install_import_hook
 
         with install_import_hook(["laygen.common.bbox"], "beartype.beartype"):
-            from laygen.common.bbox import xywh_to_ltrb
+            from laygen.common.bbox import clamp_boxes
 
-        xywh_to_ltrb(torch.zeros(1, 2, 5))
+        clamp_boxes(torch.zeros(1, 2, 5))
         """,
-        "xywh_to_ltrb",
+        "clamp_boxes",
+    )
+
+
+def test_bbox_hook_liveness_rejects_rank_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["laygen.common.bbox"], "beartype.beartype"):
+            from laygen.common.bbox import normalize_boxes
+
+        normalize_boxes(
+            torch.zeros(2, 4),
+            canvas_size=(100, 100),
+            box_format="xywh",
+        )
+        """,
+        "normalize_boxes",
+    )
+
+
+def test_bbox_hook_liveness_rejects_dtype_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["laygen.common.bbox"], "beartype.beartype"):
+            from laygen.common.bbox import clamp_boxes
+
+        clamp_boxes(torch.zeros(1, 2, 4, dtype=torch.long))
+        """,
+        "clamp_boxes",
+    )
+
+
+def test_bbox_without_hook_accepts_shape_rank_and_dtype_mismatches() -> None:
+    _assert_probe_passes(
+        """
+        import torch
+
+        from laygen.common.bbox import clamp_boxes, normalize_boxes
+
+        assert clamp_boxes(torch.zeros(1, 2, 5)).shape == (1, 2, 5)
+        assert clamp_boxes(torch.zeros(1, 2, 4, dtype=torch.long)).shape == (1, 2, 4)
+        assert normalize_boxes(
+            torch.zeros(2, 4),
+            canvas_size=(100, 100),
+            box_format="xywh",
+        ).shape == (2, 4)
+        """
     )
 
 

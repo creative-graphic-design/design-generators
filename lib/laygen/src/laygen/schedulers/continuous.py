@@ -16,9 +16,8 @@ import numpy as np
 import torch
 from diffusers.schedulers.scheduling_ddim import DDIMScheduler
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-
-from laygen.common.torch_typing import TorchBetaSchedule
-from laygen.common.typing import NumpyDDIMTimesteps
+from jaxtyping import Float, Int
+from torch import Tensor
 
 
 class BetaSchedule(StrEnum):
@@ -146,7 +145,7 @@ def _betas_for_alpha_bar(
     *,
     include_initial: bool = False,
     max_beta: float = 0.999,
-) -> TorchBetaSchedule:
+) -> Float[Tensor, "timesteps"]:
     betas = []
     if include_initial:
         betas.append(min(1 - alpha_bar(0), max_beta))
@@ -163,7 +162,7 @@ def _betas_for_alpha_bar(
 def get_layoutdiffusion_beta_schedule(
     schedule: LayoutDiffusionBetaSchedule | str,
     num_timesteps: int,
-) -> TorchBetaSchedule:
+) -> Float[Tensor, "timesteps"]:
     """Create LayoutDiffusion vendor-only beta schedules.
 
     Origin:
@@ -239,7 +238,7 @@ def get_beta_schedule(
     num_timesteps: int = 1000,
     start: float = 0.0001,
     end: float = 0.02,
-) -> TorchBetaSchedule:
+) -> Float[Tensor, "timesteps"]:
     """Create a beta schedule, delegating common schedules to Diffusers.
 
     Origin:
@@ -290,7 +289,7 @@ def get_layousyn_beta_schedule(
     num_timesteps: int = 100,
     *,
     alpha_scale: float = 1.0,
-) -> TorchBetaSchedule:
+) -> Float[Tensor, "timesteps"]:
     """Create LayouSyn/OpenAI-style beta schedules.
 
     Origin:
@@ -351,7 +350,7 @@ def get_ddim_timesteps(
     num_ddpm_timesteps: int,
     *,
     steps_offset: int = 1,
-) -> NumpyDDIMTimesteps:
+) -> Int[np.ndarray, "ddim_timesteps"]:
     """Create ascending vendor-order DDIM timesteps.
 
     Origin:
