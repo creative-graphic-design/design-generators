@@ -1,7 +1,7 @@
 ---
 language:
   - en
-license: "Apache-2.0"
+license: "apache-2.0"
 library_name: "diffusers"
 pipeline_tag: "text-to-image"
 tags:

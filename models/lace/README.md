@@ -1,7 +1,7 @@
 ---
 language:
   - en
-license: "MIT"
+license: "mit"
 library_name: "diffusers"
 pipeline_tag: "text-to-image"
 tags:

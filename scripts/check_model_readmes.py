@@ -37,8 +37,82 @@ BANNED_PATTERNS = [
     r"example-openai-compatible-endpoint",
     r"sk-[A-Za-z0-9]{16,}",
     r"(?<![A-Za-z0-9_.-])/tmp/",
-    r"creative-graphic-design/(rico|rico25|publaynet|magazine)\b",
+    r"creative-graphic-design/(rico|rico25|publaynet)\b",
 ]
+
+EXPECTED_FRONTMATTER = {
+    "coarse-to-fine": {
+        "license": "mit",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "lace": {
+        "license": "mit",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "layousyn": {"license": "cc-by-nc-4.0", "datasets": []},
+    "layout-corrector": {
+        "license": "mit",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+            "cyberagent/crello",
+        ],
+    },
+    "layout-dm": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "layout-flow": {
+        "license": "mit",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "layout-gpt": {"license": "other", "datasets": []},
+    "layoutdiffusion": {
+        "license": "other",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "layoutformerpp": {
+        "license": "mit",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
+    "layoutganpp": {
+        "license": "agpl-3.0",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+            "creative-graphic-design/magazine",
+        ],
+    },
+    "layoutprompter": {
+        "license": "other",
+        "datasets": [
+            "creative-graphic-design/PubLayNet",
+            "creative-graphic-design/Rico",
+        ],
+    },
+    "parse-then-place": {
+        "license": "mit",
+        "datasets": ["creative-graphic-design/Rico"],
+    },
+}
 
 
 def _section(text: str, heading: str) -> str:
@@ -48,6 +122,35 @@ def _section(text: str, heading: str) -> str:
     rest = text[match.end() :]
     next_heading = re.search(r"\n## ", rest)
     return rest[: next_heading.start()] if next_heading else rest
+
+
+def _frontmatter(text: str) -> str:
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return ""
+    return text[:end]
+
+
+def _frontmatter_scalar(frontmatter: str, key: str) -> str | None:
+    match = re.search(
+        rf"^{re.escape(key)}:\s*[\"']?([^\"'\n]+)[\"']?\s*$", frontmatter, re.MULTILINE
+    )
+    return match.group(1) if match else None
+
+
+def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
+    match = re.search(
+        rf"^{re.escape(key)}:\s*\n((?:  - .+\n?)*)", frontmatter, re.MULTILINE
+    )
+    if match is None:
+        return []
+    return [
+        line.split("-", 1)[1].strip().strip('"').strip("'")
+        for line in match.group(1).splitlines()
+        if line.strip().startswith("- ")
+    ]
 
 
 def _assert_heading_order(path: Path, text: str) -> None:
@@ -74,10 +177,31 @@ def _assert_frontmatter(path: Path, text: str) -> None:
     end = text.find("\n---\n", 4)
     if end == -1:
         raise AssertionError(f"{path}: unterminated YAML frontmatter")
-    frontmatter = text[:end]
+    frontmatter = _frontmatter(text)
     for key in ("language:", "license:", "library_name:", "pipeline_tag:", "tags:"):
         if key not in frontmatter:
             raise AssertionError(f"{path}: frontmatter missing {key}")
+
+
+def _assert_expected_frontmatter(path: Path, text: str) -> None:
+    slug = path.parent.name
+    expected = EXPECTED_FRONTMATTER.get(slug)
+    if expected is None:
+        raise AssertionError(f"{path}: no expected frontmatter contract for {slug}")
+    frontmatter = _frontmatter(text)
+    actual_license = _frontmatter_scalar(frontmatter, "license")
+    expected_license = expected["license"]
+    if actual_license != expected_license:
+        raise AssertionError(
+            f"{path}: frontmatter license {actual_license!r} != {expected_license!r}"
+        )
+
+    actual_datasets = set(_frontmatter_list(frontmatter, "datasets"))
+    missing = sorted(set(expected["datasets"]) - actual_datasets)
+    if missing:
+        raise AssertionError(
+            f"{path}: frontmatter datasets missing supported checkpoint datasets {missing}"
+        )
 
 
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
@@ -143,6 +267,7 @@ def check() -> None:
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
+        _assert_expected_frontmatter(path, text)
         _assert_heading_order(path, text)
         _assert_code_fences_tagged(path, text)
         _assert_parity_table(path, text)

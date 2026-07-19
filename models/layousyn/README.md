@@ -1,9 +1,7 @@
 ---
 language:
   - en
-license: "other"
-license_name: "review-needed"
-license_link: "not recorded"
+license: "cc-by-nc-4.0"
 library_name: "diffusers"
 pipeline_tag: "text-to-image"
 tags:
@@ -30,7 +28,7 @@ model-index:
 
 ![paper](https://img.shields.io/static/v1?label=paper&message=LayouSyn&color=blue&style=flat-square)
 ![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square)
@@ -49,7 +47,7 @@ LayouSyn is packaged for the `design-generators` workspace. Public outputs use n
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
-- **License:** review-needed.
+- **License:** cc-by-nc-4.0.
 - **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
@@ -249,7 +247,7 @@ Use `uv run --package layousyn ...` from the repository root so workspace depend
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: review-needed.
+Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: cc-by-nc-4.0.
 
 ## Citation
 

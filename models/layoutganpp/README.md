@@ -1,9 +1,7 @@
 ---
 language:
   - en
-license: "other"
-license_name: "review-needed"
-license_link: "not recorded"
+license: "agpl-3.0"
 library_name: "transformers"
 pipeline_tag: "text-to-image"
 tags:
@@ -12,6 +10,7 @@ tags:
 datasets:
   - "creative-graphic-design/Rico"
   - "creative-graphic-design/PubLayNet"
+  - "creative-graphic-design/magazine"
 model-index:
   - name: "LayoutGAN++"
     results:
@@ -33,7 +32,7 @@ model-index:
 
 ![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square)
 ![venue](https://img.shields.io/static/v1?label=venue&message=SIGGRAPH%20Asia%202021&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=AGPL--3.0&color=orange&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
@@ -53,7 +52,7 @@ LayoutGAN++ is packaged for the `design-generators` workspace. Public outputs us
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** not applicable.
-- **License:** review-needed.
+- **License:** agpl-3.0.
 - **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
@@ -280,7 +279,7 @@ Use `uv run --package layoutganpp ...` from the repository root so workspace dep
 
 ## License
 
-Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: review-needed.
+Repository wrapper code is Apache-2.0. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms. Recorded upstream license status: agpl-3.0.
 
 ## Citation
 
