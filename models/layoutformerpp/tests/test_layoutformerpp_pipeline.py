@@ -41,7 +41,7 @@ def test_save_load_smoke(tmp_path: Path) -> None:
     out = pipe(condition_type="label", labels=[["Text"]], max_length=2)
     assert isinstance(out, LayoutGenerationOutput)
     assert out.sequences is not None
-    assert out.sequences.shape[0] == 1
+    assert cast(torch.Tensor, out.sequences).shape[0] == 1
 
 
 def test_pipeline_passes_public_condition_arguments_to_processor(

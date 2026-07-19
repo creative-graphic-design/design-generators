@@ -12,6 +12,7 @@ from enum import StrEnum, auto
 
 import torch
 from einops import repeat
+from jaxtyping import Float, Int
 from torch import nn
 
 
@@ -79,7 +80,9 @@ class SinusoidalPosEmb(nn.Module):
         self.num_steps = float(num_steps)
         self.rescale_steps = float(rescale_steps)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Int[torch.Tensor, "batch"]
+    ) -> Float[torch.Tensor, "batch channels"]:
         """Embed integer positions or timesteps.
 
         Args:
@@ -119,7 +122,9 @@ class ElementPositionalEmbedding(nn.Module):
         self.elem_emb = nn.Parameter(torch.rand(self.n_elem, dim_model))
         self.attr_emb = nn.Parameter(torch.rand(self.n_attr_per_elem, dim_model))
 
-    def forward(self, h: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, h: Float[torch.Tensor, "batch tokens channels"]
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Return positional embeddings matching hidden-state length.
 
         Args:

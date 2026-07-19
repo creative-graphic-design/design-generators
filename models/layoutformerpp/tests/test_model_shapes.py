@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 import pytest
 
@@ -111,6 +113,6 @@ def test_model_task_embeddings_constraints_and_errors() -> None:
     )
     assert isinstance(sampled, LayoutGenerationOutput)
     assert sampled.sequences is not None
-    assert sampled.sequences.shape == (1, 1)
+    assert cast(torch.Tensor, sampled.sequences).shape == (1, 1)
 
     assert not hasattr(model, "generate_layout")

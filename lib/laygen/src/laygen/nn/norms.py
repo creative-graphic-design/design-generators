@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import torch
 from einops.layers.torch import Rearrange
+from jaxtyping import Float, Int
 from torch import nn
 
 from .embeddings import SinusoidalPosEmb, TimestepEmbeddingType
@@ -61,7 +62,11 @@ class AdaLayerNorm(_AdaNorm):
         super().__init__(n_embd, max_timestep, emb_type)
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch tokens channels"],
+        timestep: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Apply timestep-conditioned layer normalization."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
@@ -91,7 +96,11 @@ class AdaInsNorm(_AdaNorm):
         super().__init__(n_embd, max_timestep, emb_type)
         self.instancenorm = nn.InstanceNorm1d(n_embd)
 
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch tokens channels"],
+        timestep: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Apply timestep-conditioned instance normalization."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)

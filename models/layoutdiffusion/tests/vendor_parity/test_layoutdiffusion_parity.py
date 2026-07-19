@@ -116,7 +116,9 @@ def test_full_sample_matches_vendor(dataset: str) -> None:
         pipe(batch_size=1, return_intermediates=True, num_elements=num_elements),
     )
     assert output.sequences is not None
-    torch.testing.assert_close(output.sequences.cpu(), full_sample, rtol=0, atol=0)
+    torch.testing.assert_close(
+        cast(torch.Tensor, output.sequences).cpu(), full_sample, rtol=0, atol=0
+    )
 
 
 def _num_elements_from_sequence(sequence: torch.Tensor) -> int | None:
