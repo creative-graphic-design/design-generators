@@ -40,13 +40,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/lace-publaynet)
 
-This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
+This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
 
 ## Model Details
 
 ### Model Description
 
-LACE is a Diffusers-style layout generator that samples layouts under learned aesthetic constraints for document and UI domains. Converted checkpoints run unconditional generation for PubLayNet, RICO25, and the RICO13 label space when the corresponding original weights are available. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LACE is a 🤗 `diffusers`-style layout generator that samples layouts under learned aesthetic constraints for document and UI domains. Converted checkpoints run unconditional generation for PubLayNet, RICO25, and the RICO13 label space when the corresponding original weights are available. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jian Chen et al.
 - **Shared by:** creative-graphic-design.

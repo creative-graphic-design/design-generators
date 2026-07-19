@@ -38,13 +38,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/layoutformerpp-rico-label)
 
-This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style pipeline.
+This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style pipeline.
 
 ## Model Details
 
 ### Model Description
 
-LayoutFormer++ is a Transformers layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the vendor discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFormer++ is a 🤗 `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the vendor discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.

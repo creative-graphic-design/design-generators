@@ -40,13 +40,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25)
 
-This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
+This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
 ## Model Details
 
 ### Model Description
 
-LayoutDiffusion is a discrete Diffusers pipeline for RICO25 and PubLayNet layouts. It samples tokenized label and box sequences with unconditional, label-conditioned, and refinement modes, then converts vendor token coordinates into the shared layout schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutDiffusion is a discrete 🤗 `diffusers` pipeline for RICO25 and PubLayNet layouts. It samples tokenized label and box sequences with unconditional, label-conditioned, and refinement modes, then converts vendor token coordinates into the shared layout schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
@@ -195,7 +195,7 @@ Use `uv run --package layoutdiffusion ...` from the repository root so workspace
 
 ## License
 
-Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout does not include a LayoutDiffusion-specific top-level license; only the vendored Transformers license is present. Converted weights should not claim an OSS license until upstream license status is confirmed.
+Repository wrapper code is Apache-2.0. The original LayoutDiffusion checkout does not include a LayoutDiffusion-specific top-level license; only the vendored 🤗 `transformers` license is present. Converted weights should not claim an OSS license until upstream license status is confirmed.
 
 ## Citation
 

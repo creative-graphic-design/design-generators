@@ -38,13 +38,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune)
 
-This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
 ### Model Description
 
-Parse-Then-Place generates layouts through a two-stage Transformers pipeline: a semantic parser first extracts layout intent from text, then a placement model predicts element positions. Converted checkpoints include parser and placement subfolders for RICO and Web variants. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`.
+Parse-Then-Place generates layouts through a two-stage 🤗 `transformers` pipeline: a semantic parser first extracts layout intent from text, then a placement model predicts element positions. Converted checkpoints include parser and placement subfolders for RICO and Web variants. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local or request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
@@ -189,7 +189,7 @@ CPU is sufficient for import and most smoke tests. CUDA is required for heavywei
 
 Use `uv run --package parse-then-place ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-The original adapter/deepspeed training stack uses legacy pins (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that conflict with this workspace's modern Hugging Face stack. Keep those pins in a separate vendor-parity environment when flattening stage-1 adapter weights; the published runtime artifact should be standard Transformers weights.
+The original adapter/deepspeed training stack uses legacy pins (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that conflict with this workspace's modern Hugging Face stack. Keep those pins in a separate vendor-parity environment when flattening stage-1 adapter weights; the published runtime artifact should be standard 🤗 `transformers` weights.
 
 ## License
 

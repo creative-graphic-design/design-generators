@@ -7,7 +7,7 @@
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
 ![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
 
-`design-generators` ports layout, poster, and graphic-design generation research repositories into [Transformers](https://huggingface.co/docs/transformers/index)-, [Diffusers](https://huggingface.co/docs/diffusers/index)-, and [Pydantic AI](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
+`design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Models
 

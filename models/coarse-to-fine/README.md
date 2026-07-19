@@ -38,13 +38,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25)
 
-This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
+This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
 ## Model Details
 
 ### Model Description
 
-Coarse-to-Fine generates page or UI layouts through a hierarchy-aware Transformers model: it predicts coarse group structure before refining element boxes and labels for RICO25 or PubLayNet. It supports unconditional local inference from converted checkpoints and exposes hierarchy traces through `intermediates` when requested. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+Coarse-to-Fine generates page or UI layouts through a hierarchy-aware 🤗 `transformers` model: it predicts coarse group structure before refining element boxes and labels for RICO25 or PubLayNet. It supports unconditional local inference from converted checkpoints and exposes hierarchy traces through `intermediates` when requested. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.

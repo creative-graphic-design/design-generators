@@ -26,13 +26,13 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
+This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
 
 ## Model Details
 
 ### Model Description
 
-LayoutPrompter is a prompt-based layout agent that selects in-context exemplars and asks a language model to complete structured layout coordinates. It has no learned checkpoint; `save_pretrained` stores prompt configuration and parser settings, while Pydantic AI supplies the runtime model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutPrompter is a prompt-based layout agent that selects in-context exemplars and asks a language model to complete structured layout coordinates. It has no learned checkpoint; `save_pretrained` stores prompt configuration and parser settings, while `pydantic-ai` supplies the runtime model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
@@ -57,7 +57,7 @@ LayoutPrompter is a prompt-based layout agent that selects in-context exemplars 
 
 Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
-Pass any Pydantic AI model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
+Pass any `pydantic-ai` model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
 
 `condition_type` accepts the public names and common vendor aliases: `label`, `label_size`, `relation`, `completion`, `refinement`, `text`, `cat_cond`, `gen_t`, `size_cond`, `gen_ts`, `gen_r`, `partial`, and `refine`. The package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
 
@@ -79,7 +79,7 @@ Re-run the vendor parity suite before publishing prompt configurations or compar
 
 ## How to Get Started with the Model
 
-Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses Pydantic AI's `TestModel` so it runs without provider credentials.
+Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses `pydantic-ai`'s `TestModel` so it runs without provider credentials.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -172,7 +172,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 ### Model Architecture and Objective
 
-LayoutPrompter serializes few-shot exemplars, calls a configured Pydantic AI model, and parses either `seq` or `html` layout text into normalized boxes and request-local labels. `save_pretrained` stores prompt configuration and parser settings rather than learned weights.
+LayoutPrompter serializes few-shot exemplars, calls a configured `pydantic-ai` model, and parses either `seq` or `html` layout text into normalized boxes and request-local labels. `save_pretrained` stores prompt configuration and parser settings rather than learned weights.
 
 The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
 

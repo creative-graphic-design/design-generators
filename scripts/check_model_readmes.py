@@ -13,6 +13,12 @@ MODEL_READMES = sorted((REPO_ROOT / "models").glob("*/README.md"))
 MODEL_REPRODUCING = sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md"))
 README_LINK_CONTRACTS = [
     REPO_ROOT / "README.md",
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "model-conversion"
+    / "references"
+    / "model-readme-template.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
     *MODEL_READMES,
     *MODEL_REPRODUCING,
@@ -659,6 +665,21 @@ def _assert_linked_first_reference_policy(path: Path) -> None:
             raise AssertionError(f"{path}: arXiv URL must be in a markdown link")
 
 
+def _assert_library_name_style(path: Path) -> None:
+    text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+    banned_names = {
+        "Transformers": "🤗 `transformers`",
+        "Diffusers": "🤗 `diffusers`",
+        "Pydantic AI": "`pydantic-ai`",
+    }
+    for name, replacement in banned_names.items():
+        match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
+        if match:
+            raise AssertionError(
+                f"{path}: use {replacement} instead of prose library name {name!r}"
+            )
+
+
 def check() -> None:
     if len(MODEL_READMES) != 12:
         raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
@@ -688,6 +709,7 @@ def check() -> None:
         _assert_banned_patterns(path, text)
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
+        _assert_library_name_style(path)
     _assert_root_packages_weights_column(REPO_ROOT / "README.md")
 
 

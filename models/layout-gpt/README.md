@@ -22,13 +22,13 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
+This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
 
 ## Model Details
 
 ### Model Description
 
-LayoutGPT is a prompt-based layout agent that turns natural-language scene descriptions and in-context examples into structured layout elements. It has no learned checkpoint; the package stores prompt, parser, and exemplar configuration while Pydantic AI supplies the model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutGPT is a prompt-based layout agent that turns natural-language scene descriptions and in-context examples into structured layout elements. It has no learned checkpoint; the package stores prompt, parser, and exemplar configuration while `pydantic-ai` supplies the model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
@@ -53,7 +53,7 @@ LayoutGPT is a prompt-based layout agent that turns natural-language scene descr
 
 Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
 
-LayoutGPT builds the same in-context prompts as the original 2D script, calls any Pydantic AI compatible chat model, and parses CSS-style layout lines into typed Python objects and the shared layout output schema. The supported settings are `counting` and `spatial`; exemplar selection supports `fixed-random` and `k-similar`.
+LayoutGPT builds the same in-context prompts as the original 2D script, calls any `pydantic-ai` compatible chat model, and parses CSS-style layout lines into typed Python objects and the shared layout output schema. The supported settings are `counting` and `spatial`; exemplar selection supports `fixed-random` and `k-similar`.
 
 ### Downstream Use
 
@@ -170,7 +170,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 ### Model Architecture and Objective
 
-LayoutGPT builds a structured prompt from task examples, calls a configured Pydantic AI model, and parses CSS-like layout text into boxes and labels. For `k-similar`, pass a query embedding function and candidate embeddings to `run_sync()` or `build_prompt()`; CLIP remains optional.
+LayoutGPT builds a structured prompt from task examples, calls a configured `pydantic-ai` model, and parses CSS-like layout text into boxes and labels. For `k-similar`, pass a query embedding function and candidate embeddings to `run_sync()` or `build_prompt()`; CLIP remains optional.
 
 ### Compute Infrastructure
 
@@ -184,7 +184,7 @@ CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
 Use `uv run --package layout-gpt ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-The demo script accepts a configured Pydantic AI model and a vendor NSR-1K JSON file.
+The demo script accepts a configured `pydantic-ai` model and a vendor NSR-1K JSON file.
 
 ## License
 

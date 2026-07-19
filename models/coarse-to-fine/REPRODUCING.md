@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python mod
   --output-dir .cache/coarse-to-fine/reference/publaynet
 ```
 
-3. Convert both public checkpoints into Transformers format.
+3. Convert both public checkpoints into 🤗 `transformers` format.
 
 ```bash
 uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \

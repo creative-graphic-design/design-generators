@@ -38,13 +38,13 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 [![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/creative-graphic-design/layout-flow-rico25)
 
-This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
+This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
 ### Model Description
 
-LayoutFlow is a continuous-flow Diffusers pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFlow is a continuous-flow 🤗 `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.

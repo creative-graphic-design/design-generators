@@ -7,7 +7,7 @@
 ![extras](https://img.shields.io/static/v1?label=extras&message=agents+%7C+diffusion+%7C+torch&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`laygen` contains shared layout-generation schemas and utilities used by this repository's model packages. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and [Diffusers](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
+`laygen` contains shared layout-generation schemas and utilities used by this repository's model packages. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
 
 Model-specific tokenizers and generation logic stay in each model package. Shared pipeline loading rules, output schemas, bbox helpers, schedulers, and model-card helpers live here.
 
@@ -24,7 +24,7 @@ uv sync --package laygen --extra agents
 
 ## Core APIs
 
-Use schema and normalization helpers without importing [PyTorch](https://pytorch.org/docs/stable/index.html) or Diffusers.
+Use schema and normalization helpers without importing [PyTorch](https://pytorch.org/docs/stable/index.html) or 🤗 `diffusers`.
 
 ```bash
 uv run --package laygen python
@@ -38,7 +38,7 @@ print(normalize_condition_type("gen_t"))
 print(id2label_for_dataset("publaynet"))
 ```
 
-Use `laygen.modeling_outputs.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities.
+Use `laygen.modeling_outputs.LayoutGenerationOutput` for 🤗 `transformers`-style code paths and schema-only utilities.
 
 ```bash
 uv run --package laygen python
@@ -57,7 +57,7 @@ out = LayoutGenerationOutput(
 print(out["bbox"].shape)
 ```
 
-Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
+Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside 🤗 `diffusers` pipeline packages.
 
 ```bash
 uv run --package laygen python
@@ -76,7 +76,7 @@ out = LayoutGenerationOutput(
 print(out.to_tuple()[0].shape)
 ```
 
-Subclass `laygen.pipelines.LayoutGenerationPipeline` for Transformers-side pipeline packages that load a root config plus model or processor subfolders.
+Subclass `laygen.pipelines.LayoutGenerationPipeline` for 🤗 `transformers`-side pipeline packages that load a root config plus model or processor subfolders.
 
 ```python
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
@@ -92,7 +92,7 @@ class MyPipeline(LayoutGenerationPipeline):
     }
 ```
 
-Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use Diffusers under the hood while preserving vendor aliases such as `quad`.
+Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use 🤗 `diffusers` under the hood while preserving vendor aliases such as `quad`.
 
 ```python
 from laygen.schedulers.continuous import get_beta_schedule, get_ddim_timesteps
@@ -162,20 +162,20 @@ Example output:
 ['creative-graphic-design/rico25']
 ```
 
-Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutput` objects, and install the `diffusion` extra when using Diffusers pipeline output helpers or continuous scheduler adapters.
+Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutput` objects, and install the `diffusion` extra when using 🤗 `diffusers` pipeline output helpers or continuous scheduler adapters.
 
 ## Design Rules
 
 - Shared public outputs expose `bbox`, `labels`, `mask`, and `id2label`; optional trace data belongs in `intermediates`.
-- [Transformers](https://huggingface.co/docs/transformers/index)-side pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`.
+- 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-side pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`.
 - Public boxes are normalized center `xywh` in `[0, 1]`, and `mask=True` means a valid element.
 - Move code into `laygen` only after at least two model packages need it, or when a shared public contract is required before the second consumer lands.
 - Keep `laygen.modeling_outputs.LayoutGenerationOutput` and `laygen.pipelines.pipeline_output.LayoutGenerationOutput` field names, order, and defaults aligned when adding or renaming output fields.
 - Do not add arbitrary `extras` dictionaries to output objects. Put debug, trajectory, or model-specific data in the `intermediates` field.
 - Shared schema tests should use duck typing through `laygen.common.testing` so they work for both output variants.
-- `laygen.pipelines.LayoutGenerationPipeline` owns the shared Transformers-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
+- `laygen.pipelines.LayoutGenerationPipeline` owns the shared 🤗 `transformers`-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
 - `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
-- Diffusers-backed helpers stay behind the `diffusion` extra unless they specifically target Diffusers pipeline outputs.
+- 🤗 `diffusers`-backed helpers stay behind the `diffusion` extra unless they specifically target 🤗 `diffusers` pipeline outputs.
 
 ## References
 
