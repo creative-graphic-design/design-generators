@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/sc
   --batch-size 3
 ```
 
-Step 3 converts each original checkpoint into a 🤗 `transformers`-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.
+Step 3 converts each original checkpoint into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style directory. Each output directory contains model weights, config, processor files, and a generated `README.md` model card.
 
 ```bash
 uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_checkpoint.py \

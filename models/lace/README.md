@@ -46,7 +46,7 @@ This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2
 
 ### Model Description
 
-LACE is a 🤗 `diffusers`-style layout generator that samples layouts under learned aesthetic constraints for document and UI domains. Converted checkpoints run unconditional generation for PubLayNet, RICO25, and the RICO13 label space when the corresponding original weights are available. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LACE is a `diffusers`-style layout generator that samples layouts under learned aesthetic constraints for document and UI domains. Converted checkpoints run unconditional generation for PubLayNet, RICO25, and the RICO13 label space when the corresponding original weights are available. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Jian Chen et al.
 - **Shared by:** creative-graphic-design.

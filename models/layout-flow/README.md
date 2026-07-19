@@ -44,7 +44,7 @@ This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024
 
 ### Model Description
 
-LayoutFlow is a continuous-flow 🤗 `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.
