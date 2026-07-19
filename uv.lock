@@ -21,6 +21,7 @@ exclude-newer-span = "P7D"
 members = [
     "coarse-to-fine",
     "design-generators",
+    "ds-gan",
     "lace",
     "laygen",
     "layousyn",
@@ -1149,6 +1150,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "coarse-to-fine" },
+    { name = "ds-gan" },
     { name = "lace" },
     { name = "laygen" },
     { name = "layousyn" },
@@ -1201,6 +1203,7 @@ docs = [
 requires-dist = [
     { name = "coarse-to-fine", editable = "models/coarse-to-fine" },
     { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusion'", specifier = ">=0.36.0" },
+    { name = "ds-gan", editable = "models/ds-gan" },
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
     { name = "lace", editable = "models/lace" },
     { name = "laygen", editable = "lib/laygen" },
@@ -1301,6 +1304,49 @@ sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", hash = "sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b", size = 22484, upload-time = "2026-04-14T04:09:18.638Z" },
 ]
+
+[[package]]
+name = "ds-gan"
+version = "0.1.0"
+source = { editable = "models/ds-gan" }
+dependencies = [
+    { name = "laygen" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pillow" },
+    { name = "posgen" },
+    { name = "timm" },
+    { name = "torch" },
+    { name = "transformers", extra = ["torch", "vision"] },
+]
+
+[package.optional-dependencies]
+download = [
+    { name = "gdown" },
+]
+hub = [
+    { name = "huggingface-hub" },
+]
+vendor = [
+    { name = "pandas" },
+    { name = "torchvision" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
+    { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=1.0.0" },
+    { name = "laygen", editable = "lib/laygen" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pandas", marker = "extra == 'vendor'", specifier = ">=1.4" },
+    { name = "pillow", specifier = ">=10.0.0" },
+    { name = "posgen", editable = "lib/posgen" },
+    { name = "timm", specifier = ">=0.9" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "torchvision", marker = "extra == 'vendor'", specifier = ">=0.16" },
+    { name = "transformers", extras = ["torch", "vision"], specifier = ">=5.0.0" },
+]
+provides-extras = ["download", "hub", "vendor"]
 
 [[package]]
 name = "dulwich"
