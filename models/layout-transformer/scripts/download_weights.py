@@ -35,10 +35,12 @@ def main() -> None:
 
     gdown.download_folder(args.folder_url, output=str(args.output_dir), quiet=False)
     print(
-        "Expected COCO checkpoint: saved/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth"
+        "Expected COCO checkpoint: "
+        f"{args.output_dir}/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth"
     )
     print(
-        "Expected VG-MSDN checkpoint: saved/vg_msdn_F_seq2seq_v24/checkpoint_50_0.16316922369277578.pth"
+        "Expected VG-MSDN checkpoint: "
+        f"{args.output_dir}/vg_msdn_F_seq2seq_v24/checkpoint_50_0.16316922369277578.pth"
     )
 
 

@@ -192,10 +192,15 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
             for key, value in encoded.items()
             if isinstance(value, torch.Tensor)
         }
-        output = self.model._generate_boxes(
-            **model_inputs,
-            generator=prepared_generator,
-        )
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            output = self.model._generate_boxes(
+                **model_inputs,
+                generator=prepared_generator,
+            )
+        finally:
+            self.model.train(was_training)
         return self.processor.post_process_layout_generation(
             output,
             input_token=model_inputs["input_token"],

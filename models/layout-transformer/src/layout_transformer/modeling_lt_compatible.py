@@ -701,11 +701,17 @@ class GMMHead(nn.Module):
     ) -> torch.Tensor:
         if greedy:
             return torch.cat((u_x, u_y), dim=-1).to(device)
-        mean = torch.cat((u_x, u_y), dim=1)
+        sample_device = u_x.device
+        if generator is not None:
+            sample_device = generator.device
+        mean = torch.cat((u_x, u_y), dim=1).to(sample_device)
         scale = math.sqrt(1.0 if temperature is None else temperature)
         sigma_x *= scale
         sigma_y *= scale
-        cov = torch.zeros((u_x.size(0), 2, 2))
+        sigma_x = sigma_x.to(sample_device)
+        sigma_y = sigma_y.to(sample_device)
+        rho_xy = rho_xy.to(sample_device)
+        cov = torch.zeros((u_x.size(0), 2, 2), device=sample_device)
         cov[:, 0, 0] = sigma_x.flatten() * sigma_x.flatten()
         cov[:, 0, 1] = rho_xy.flatten() * sigma_x.flatten() * sigma_y.flatten()
         cov[:, 1, 0] = rho_xy.flatten() * sigma_x.flatten() * sigma_y.flatten()
@@ -715,9 +721,10 @@ class GMMHead(nn.Module):
             cov[idx] *= 0.0
             cov[idx, 0, 0] += 1.0
             cov[idx, 1, 1] += 1.0
-        dist = torch.distributions.MultivariateNormal(loc=mean, covariance_matrix=cov)
-        _ = generator
-        sample = dist.sample()
+        noise = torch.randn(mean.shape, generator=generator, device=sample_device)
+        sample = mean + torch.bmm(
+            torch.linalg.cholesky(cov), noise.unsqueeze(-1)
+        ).squeeze(-1)
         return sample.to(device)
 
     @staticmethod

@@ -8,6 +8,7 @@ from layout_transformer import (
     LayoutRelation,
     LayoutTransformerModelOutput,
     LayoutTransformerProcessor,
+    LayoutTransformerRelationTokenizer,
 )
 
 
@@ -154,6 +155,58 @@ def test_processor_postprocess_requires_boxes():
         assert "coarse_box or refine_box" in str(exc)
     else:
         raise AssertionError("expected missing boxes error")
+
+
+def test_processor_object_reduce_deduplicates_repeated_relations():
+    tokenizer = LayoutTransformerRelationTokenizer(tokens=["person", "table"])
+    model_outputs = LayoutTransformerModelOutput(
+        refine_box=torch.tensor(
+            [
+                [
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.1, 0.2, 0.3, 0.4],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.5, 0.6, 0.7, 0.8],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.9, 1.0, 1.1, 1.2],
+                ]
+            ]
+        )
+    )
+    input_obj_id = torch.tensor([[0, 1, 0, 1, 0, 2]])
+    token_type = torch.tensor([[0, 1, 2, 3, 0, 1]])
+    input_token = torch.tensor([[0, 11, 0, 12, 0, 21]])
+
+    outputs = {}
+    for reduce in ("first", "last", "mean"):
+        processor = LayoutTransformerProcessor(
+            tokenizer=tokenizer,
+            id2label={0: "__image__", 11: "person", 21: "table"},
+            object_reduce=reduce,
+        )
+        outputs[reduce] = cast(
+            LayoutGenerationOutput,
+            processor.post_process_layout_generation(
+                model_outputs,
+                input_token=input_token,
+                input_obj_id=input_obj_id,
+                token_type=token_type,
+            ),
+        )
+
+    assert torch.allclose(
+        outputs["first"].bbox[0, 0], torch.tensor([0.1, 0.2, 0.3, 0.4])
+    )
+    assert outputs["first"].labels[0, 0].item() == 11
+    assert torch.allclose(
+        outputs["last"].bbox[0, 0], torch.tensor([0.5, 0.6, 0.7, 0.8])
+    )
+    assert outputs["last"].labels[0, 0].item() == 12
+    assert torch.allclose(
+        outputs["mean"].bbox[0, 0], torch.tensor([0.3, 0.4, 0.5, 0.6])
+    )
+    assert outputs["mean"].labels[0, 0].item() == 11
+    assert outputs["mean"].mask.tolist() == [[True, True]]
 
 
 def test_processor_rejects_missing_graph():

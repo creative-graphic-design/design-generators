@@ -133,7 +133,6 @@ class LayoutTransformerConfig(PretrainedConfig):
     ) -> None:
         """Initialize LT-Net architecture and metadata fields."""
         _ = (model_type, transformers_version)
-        kwargs.pop("use_vendor_modules", None)
         self.dataset_name = dataset_name
         self.vocab_size = vocab_size
         self.obj_classes_size = obj_classes_size

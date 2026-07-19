@@ -416,6 +416,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
             save_directory, push_to_hub=push_to_hub, **kwargs
         )
         metadata = {
+            "processor_class": self.__class__.__name__,
             "dataset_name": self.dataset_name,
             "max_sequence_length": self.max_sequence_length,
             "id2label": self.id2label,
