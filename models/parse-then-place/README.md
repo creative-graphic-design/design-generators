@@ -37,7 +37,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Parse-Then-Place ports the ICCV 2023 two-stage parsed-scene and placement method into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -55,6 +55,7 @@ Parse-Then-Place is packaged for the `design-generators` workspace. Public outpu
 ### Model Sources
 
 - **Repository:** [Microsoft LayoutGeneration repository](https://github.com/microsoft/LayoutGeneration)
+- **Paper:** [arXiv 2308.12700](https://arxiv.org/abs/2308.12700)
 
 ## Supported Checkpoints
 

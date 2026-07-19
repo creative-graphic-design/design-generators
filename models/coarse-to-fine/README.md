@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Coarse-to-Fine ports the AAAI 2022 hierarchy-first layout generator into a [Transformers](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
+This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
 ## Model Details
 

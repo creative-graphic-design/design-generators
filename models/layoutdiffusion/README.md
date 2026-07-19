@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutDiffusion ports the ICCV 2023 discrete layout diffusion model into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
+This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
 ## Model Details
 
@@ -58,6 +58,7 @@ LayoutDiffusion is packaged for the `design-generators` workspace. Public output
 ### Model Sources
 
 - **Repository:** not recorded in the current README
+- **Paper:** [arXiv 2303.11589](https://arxiv.org/abs/2303.11589)
 
 ## Supported Checkpoints
 

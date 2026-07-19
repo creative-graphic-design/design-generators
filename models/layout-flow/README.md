@@ -38,7 +38,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutFlow ports the ECCV 2024 flow-matching model for layout generation into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
+This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a [Diffusers](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 

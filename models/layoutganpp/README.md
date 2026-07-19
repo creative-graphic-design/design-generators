@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayoutGAN++ ports the Const-layout generator checkpoints into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
+This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the Const-layout generator method, into a [Transformers](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
 
 ## Model Details
 

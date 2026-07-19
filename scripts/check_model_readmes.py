@@ -127,6 +127,22 @@ EXPECTED_FRONTMATTER = {
 }
 
 
+EXPECTED_MODEL_NAMES = {
+    "coarse-to-fine": "Coarse-to-Fine",
+    "lace": "LACE",
+    "layousyn": "LayouSyn",
+    "layout-corrector": "Layout-Corrector",
+    "layout-dm": "LayoutDM",
+    "layout-flow": "LayoutFlow",
+    "layout-gpt": "LayoutGPT",
+    "layoutdiffusion": "LayoutDiffusion",
+    "layoutformerpp": "LayoutFormer++",
+    "layoutganpp": "LayoutGAN++",
+    "layoutprompter": "LayoutPrompter",
+    "parse-then-place": "Parse-Then-Place",
+}
+
+
 def _section(text: str, heading: str) -> str:
     match = re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE)
     if match is None:
@@ -244,6 +260,30 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
         )
 
 
+def _assert_model_summary_subject(path: Path, text: str) -> None:
+    model_name = EXPECTED_MODEL_NAMES[path.parent.name]
+    body = _without_frontmatter_and_code(text)
+    h1 = re.search(r"^# Model Card for .+$", body, re.MULTILINE)
+    if h1 is None:
+        raise AssertionError(f"{path}: missing model-card H1")
+
+    for line in body[h1.end() :].splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("![") or stripped.startswith("[!["):
+            continue
+        if not stripped.startswith("This package "):
+            raise AssertionError(
+                f"{path}: first prose line must use package subject, got {stripped!r}"
+            )
+        if re.search(
+            rf"^{re.escape(model_name)}\s+(ports|wraps|implements)\b", stripped
+        ):
+            raise AssertionError(
+                f"{path}: method name must not be the subject of {model_name} summary"
+            )
+        break
+
+
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
     in_fence = False
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -326,6 +366,7 @@ def check() -> None:
         _assert_frontmatter(path, text)
         _assert_expected_frontmatter(path, text)
         _assert_heading_order(path, text)
+        _assert_model_summary_subject(path, text)
         _assert_code_fences_tagged(path, text)
         _assert_parity_table(path, text)
         _assert_reproducibility_commands(path, text)

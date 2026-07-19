@@ -26,7 +26,7 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-LayoutPrompter is a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
+This package implements [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
 
 ## Model Details
 
@@ -44,6 +44,7 @@ LayoutPrompter is packaged for the `design-generators` workspace. Public outputs
 ### Model Sources
 
 - **Repository:** [Microsoft LayoutGeneration LayoutPrompter](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutPrompter)
+- **Paper:** [arXiv 2311.06495](https://arxiv.org/abs/2311.06495)
 
 ## Supported Checkpoints
 

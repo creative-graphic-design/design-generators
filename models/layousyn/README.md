@@ -35,7 +35,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-LayouSyn wraps the released grounded layout synthesis checkpoints in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
+This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the Lay-Your-Scene natural-scene layout method, in a [Diffusers](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
 ## Model Details
 
@@ -52,7 +52,8 @@ LayouSyn is packaged for the `design-generators` workspace. Public outputs use n
 
 ### Model Sources
 
-- **Repository:** not recorded in the current README
+- **Repository:** [Lay-Your-Scene repository](https://github.com/mlpc-ucsd/Lay-Your-Scene)
+- **Paper:** [arXiv 2505.04718](https://arxiv.org/abs/2505.04718)
 
 ## Supported Checkpoints
 

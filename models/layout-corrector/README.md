@@ -40,7 +40,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square)
 
-Layout-Corrector ports the released transformer corrector that refines existing layouts with LayoutDM starter checkpoints.
+This package ports [Layout-Corrector](https://arxiv.org/abs/2409.16689), a transformer corrector for refining existing layouts, with LayoutDM starter checkpoint support.
 
 ## Model Details
 

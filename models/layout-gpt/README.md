@@ -21,7 +21,7 @@ tags:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=prompt--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-LayoutGPT is a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
+This package implements [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
 
 ## Model Details
 
@@ -39,6 +39,7 @@ LayoutGPT is packaged for the `design-generators` workspace. Public outputs use 
 ### Model Sources
 
 - **Repository:** [LayoutGPT repository](https://github.com/weixi-feng/LayoutGPT)
+- **Paper:** [arXiv 2305.15393](https://arxiv.org/abs/2305.15393)
 
 ## Supported Checkpoints
 
