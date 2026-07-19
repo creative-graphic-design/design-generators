@@ -29,7 +29,7 @@ def test_load_strict_mapped_state_dict_detects_mismatch():
         raise AssertionError("expected strict mismatch")
 
 
-def test_convert_original_checkpoint_writes_metadata(tmp_path):
+def test_convert_original_checkpoint_rejects_non_strict_conversion(tmp_path):
     checkpoint = tmp_path / "checkpoint.pth"
     vocab = tmp_path / "object_pred_id2name.json"
     cfg = tmp_path / "config.yaml"
@@ -42,20 +42,19 @@ def test_convert_original_checkpoint_writes_metadata(tmp_path):
     )
     cfg.write_text("MODEL: {}\n")
 
-    convert_original_checkpoint(
-        checkpoint_path=checkpoint,
-        cfg_path=cfg,
-        vocab_path=vocab,
-        output_dir=output,
-        dataset_name="coco",
-        strict=False,
-    )
-
-    metadata = json.loads((output / "conversion_metadata.json").read_text())
-    config = json.loads((output / "config.json").read_text())
-    assert metadata["dataset_name"] == "coco"
-    assert metadata["strict_vendor_key_mapping"] is False
-    assert config["use_vendor_modules"] is False
+    try:
+        convert_original_checkpoint(
+            checkpoint_path=checkpoint,
+            cfg_path=cfg,
+            vocab_path=vocab,
+            output_dir=output,
+            dataset_name="coco",
+            strict=False,
+        )
+    except ValueError as exc:
+        assert "strict=True" in str(exc)
+    else:
+        raise AssertionError("expected non-strict conversion rejection")
 
 
 def test_convert_original_checkpoint_rejects_hub_upload(tmp_path):

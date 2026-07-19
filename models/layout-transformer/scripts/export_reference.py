@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import pickle
 import random
 import sys
 from pathlib import Path
@@ -93,6 +95,20 @@ def main() -> None:
     cfg = _prepare_cfg(args)
     dataloader, _ = cast(tuple[_DataLoaderLike, object], build_loader(cfg, True))
     dataset = dataloader.dataset
+    vocab = getattr(dataset, "vocab", {})
+    object_pred_vocab = vocab.get("object_pred_idx_to_name", {})
+    if object_pred_vocab:
+        vocab_json = args.data_dir / "object_pred_id2name.json"
+        vocab_pkl = args.data_dir / "object_pred_idx_to_name.pkl"
+        with vocab_json.open("w") as f:
+            json.dump(
+                {str(key): value for key, value in sorted(object_pred_vocab.items())},
+                f,
+                indent=2,
+                sort_keys=True,
+            )
+        with vocab_pkl.open("wb") as f:
+            pickle.dump(dict(object_pred_vocab), f)
     model = build_model(cfg)
     checkpoint = torch.load(args.checkpoint_path, map_location="cpu")
     model.load_state_dict(checkpoint["state_dict"])
@@ -122,6 +138,7 @@ def main() -> None:
             )
         payload = {
             "sample_index": sample_idx,
+            "seed": args.seed + sample_idx,
             "input_token": input_token.cpu(),
             "input_obj_id": input_obj_id.cpu(),
             "segment_label": segment_label.cpu(),
@@ -147,7 +164,7 @@ def main() -> None:
         "dataset_name": args.dataset_name,
         "sample_indices": args.sample_indices,
         "seed": args.seed,
-        "cuda_visible_devices": "2",
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "torch_version": torch.__version__,
         "written": written,
     }

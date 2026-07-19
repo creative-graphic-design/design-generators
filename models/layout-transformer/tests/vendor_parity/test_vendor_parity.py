@@ -7,14 +7,15 @@ from layout_transformer import LayoutTransformerForLayoutGeneration
 
 
 @pytest.mark.vendor_parity
-def test_vg_msdn_vendor_reference_matches_converted_checkpoint():
-    reference_dir = Path("artifacts/layout-transformer/reference")
-    sample_path = reference_dir / "vg_msdn" / "vg_msdn_sample_0.pt"
-    converted_dir = Path("artifacts/layout-transformer/converted/vg_msdn")
+@pytest.mark.parametrize("dataset_name", ["coco", "vg_msdn"])
+def test_vendor_reference_matches_local_converted_checkpoint(dataset_name):
+    reference_dir = Path(".cache/layout-transformer/reference")
+    sample_path = reference_dir / dataset_name / f"{dataset_name}_sample_0.pt"
+    converted_dir = Path(".cache/layout-transformer/converted") / dataset_name
     if not sample_path.exists() or not (converted_dir / "config.json").exists():
         pytest.skip("Generate vendor references with scripts/export_reference.py first")
     if not torch.cuda.is_available():
-        pytest.skip("LT-Net vendor GMM inference path requires CUDA")
+        pytest.skip("LT-Net GMM inference parity requires CUDA")
 
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
@@ -24,8 +25,9 @@ def test_vg_msdn_vendor_reference_matches_converted_checkpoint():
         local_files_only=True,
     ).to("cuda")
     model.eval()
-    torch.manual_seed(int(reference["sample_index"]))
-    torch.cuda.manual_seed_all(int(reference["sample_index"]))
+    seed = int(reference["seed"])
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     inputs = {
         key: reference[key].to("cuda")
         for key in [

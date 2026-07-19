@@ -176,7 +176,9 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         """
         _ = (labels, bbox, mask, num_elements, num_inference_steps)
         model_device = next(self.model.parameters()).device
-        self.prepare_generator(generator=generator, seed=seed, device=model_device)
+        prepared_generator = self.prepare_generator(
+            generator=generator, seed=seed, device=model_device
+        )
         encoded = self.processor(
             scene_graph=scene_graph,
             objects=objects,
@@ -190,9 +192,13 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
             for key, value in encoded.items()
             if isinstance(value, torch.Tensor)
         }
-        output = self.model._generate_boxes(**model_inputs)
+        output = self.model._generate_boxes(
+            **model_inputs,
+            generator=prepared_generator,
+        )
         return self.processor.post_process_layout_generation(
             output,
+            input_token=model_inputs["input_token"],
             input_obj_id=model_inputs["input_obj_id"],
             token_type=model_inputs["token_type"],
             box_format=box_format,

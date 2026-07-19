@@ -58,6 +58,8 @@ class LayoutTransformerProcessor(ProcessorMixin):
         self.relation_label2id = {
             value.lower(): key for key, value in self.relation_id2label.items()
         }
+        if object_reduce not in {"first", "last", "mean"}:
+            raise ValueError("object_reduce must be 'first', 'last', or 'mean'")
         self.object_reduce = object_reduce
         super().__init__(tokenizer=tokenizer)
 
@@ -274,15 +276,17 @@ class LayoutTransformerProcessor(ProcessorMixin):
         """Build LT-Net model tensors from public scene-graph inputs."""
         self.normalize_condition_type(condition_type)
         original_max_length = self.max_sequence_length
-        if max_sequence_length is not None:
-            self.max_sequence_length = max_sequence_length
-        graph = self._normalize_scene_graph(
-            scene_graph,
-            objects=objects,
-            relations=relations,
-        )
-        rows = [self._serialize_graph(graph) for _ in range(batch_size)]
-        self.max_sequence_length = original_max_length
+        try:
+            if max_sequence_length is not None:
+                self.max_sequence_length = max_sequence_length
+            graph = self._normalize_scene_graph(
+                scene_graph,
+                objects=objects,
+                relations=relations,
+            )
+            rows = [self._serialize_graph(graph) for _ in range(batch_size)]
+        finally:
+            self.max_sequence_length = original_max_length
         data = {
             "input_token": torch.tensor([row[0] for row in rows], dtype=torch.long),
             "input_obj_id": torch.tensor([row[1] for row in rows], dtype=torch.long),
@@ -305,6 +309,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
         self,
         model_outputs: LayoutTransformerModelOutput,
         *,
+        input_token: torch.Tensor | None = None,
         input_obj_id: torch.Tensor,
         token_type: torch.Tensor,
         box_format: BoxFormat | str = BoxFormat.xywh,
@@ -325,20 +330,47 @@ class LayoutTransformerProcessor(ProcessorMixin):
         batch_boxes: list[torch.Tensor] = []
         batch_labels: list[torch.Tensor] = []
         batch_masks: list[torch.Tensor] = []
-        for row_box, row_obj_id, row_type in zip(
-            raw_box, input_obj_id, token_type, strict=True
+        token_rows = (
+            [None] * raw_box.size(0)
+            if input_token is None
+            else list(input_token.unbind(dim=0))
+        )
+        for row_box, row_obj_id, row_type, row_token in zip(
+            raw_box, input_obj_id, token_type, token_rows, strict=True
         ):
             object_positions = row_type.eq(1) | row_type.eq(3)
             object_ids = row_obj_id[object_positions]
             boxes = row_box[object_positions].clamp(0.0, 1.0)
-            labels = torch.clamp(object_ids - 1, min=0).long()
-            mask = object_ids.gt(0)
-            batch_boxes.append(boxes[mask])
-            batch_labels.append(labels[mask])
+            labels = (
+                torch.clamp(object_ids - 1, min=0).long()
+                if row_token is None
+                else row_token[object_positions].long()
+            )
+            valid = object_ids.gt(0)
+            boxes = boxes[valid]
+            labels = labels[valid]
+            object_ids = object_ids[valid]
+            reduced_boxes: list[torch.Tensor] = []
+            reduced_labels: list[torch.Tensor] = []
+            for object_id in object_ids.unique(sorted=True):
+                positions = object_ids.eq(object_id).nonzero().flatten()
+                if self.object_reduce == "mean":
+                    reduced_boxes.append(boxes[positions].mean(dim=0))
+                    reduced_labels.append(labels[positions[0]])
+                else:
+                    selected = (
+                        positions[0] if self.object_reduce == "first" else positions[-1]
+                    )
+                    reduced_boxes.append(boxes[selected])
+                    reduced_labels.append(labels[selected])
+            if reduced_boxes:
+                batch_boxes.append(torch.stack(reduced_boxes))
+                batch_labels.append(torch.stack(reduced_labels).long())
+            else:
+                batch_boxes.append(boxes)
+                batch_labels.append(labels)
             batch_masks.append(
-                torch.ones(
-                    int(mask.sum().item()), dtype=torch.bool, device=row_box.device
-                )
+                torch.ones(len(reduced_boxes), dtype=torch.bool, device=row_box.device)
             )
         max_items = max((item.size(0) for item in batch_boxes), default=0)
         padded_boxes = raw_box.new_zeros((raw_box.size(0), max_items, 4))

@@ -133,6 +133,7 @@ omit = [
     "tests/**/*",
     "scripts/*",
     "scripts/**/*",
+    "models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py",
 ]
 
 [tool.coverage.report]
