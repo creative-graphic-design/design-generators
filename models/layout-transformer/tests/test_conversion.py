@@ -48,6 +48,7 @@ def test_convert_original_checkpoint_writes_metadata(tmp_path):
         vocab_path=vocab,
         output_dir=output,
         dataset_name="coco",
+        strict=False,
     )
 
     metadata = json.loads((output / "conversion_metadata.json").read_text())

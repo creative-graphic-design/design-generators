@@ -70,11 +70,12 @@ uv run --package layout-transformer python models/layout-transformer/scripts/dow
 ```bash
 CUDA_VISIBLE_DEVICES=2 uv run --package layout-transformer python models/layout-transformer/scripts/export_reference.py \
   --vendor-root vendor/layout-transformer \
-  --cfg-path vendor/layout-transformer/configs/coco/coco_seq2seq_v9_ablation_4.yaml \
-  --checkpoint-path artifacts/layout-transformer/vendor/saved/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth \
-  --dataset-name coco \
+  --cfg-path vendor/layout-transformer/configs/vg_msdn/vg_msdn_seq2seq_v24.yaml \
+  --checkpoint-path artifacts/layout-transformer/vendor/vg_msdn_F_seq2seq_v24/checkpoint_50_0.16316922369277578.pth \
+  --data-dir artifacts/layout-transformer/data/vg_msdn/visual_genome \
+  --dataset-name vg_msdn \
   --sample-indices 0 1 2 \
-  --output-dir artifacts/layout-transformer/reference/coco \
+  --output-dir artifacts/layout-transformer/reference/vg_msdn \
   --seed 0
 ```
 
@@ -84,7 +85,7 @@ CUDA_VISIBLE_DEVICES=2 uv run --package layout-transformer pytest models/layout-
 
 ```bash
 uv run --package layout-transformer python models/layout-transformer/scripts/convert_original_checkpoint.py \
-  --checkpoint-path artifacts/layout-transformer/vendor/saved/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth \
+  --checkpoint-path artifacts/layout-transformer/vendor/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth \
   --cfg-path vendor/layout-transformer/configs/coco/coco_seq2seq_v9_ablation_4.yaml \
   --vocab-path artifacts/layout-transformer/vendor/object_pred_id2name.json \
   --dataset-name coco \

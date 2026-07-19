@@ -12,5 +12,6 @@ wheels/
 
 # Local caches and generated parity fixtures
 .cache/
+artifacts/
 models/*/tests/vendor_parity/fixtures/
 .pytest_cache/

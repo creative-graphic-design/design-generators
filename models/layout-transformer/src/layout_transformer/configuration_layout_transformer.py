@@ -120,6 +120,7 @@ class LayoutTransformerConfig(PretrainedConfig):
         refine_head_type: DecoderHeadType | str = DecoderHeadType.linear,
         refine_box_loss: BoxLossType | str = BoxLossType.reg,
         refine_x_softmax: bool = True,
+        use_vendor_modules: bool = False,
         max_sequence_length: int = 128,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
         relation_id2label: Mapping[int, str] | Mapping[str, str] | None = None,
@@ -154,6 +155,7 @@ class LayoutTransformerConfig(PretrainedConfig):
         self.refine_head_type = str(_normalize_head_type(refine_head_type))
         self.refine_box_loss = str(_normalize_box_loss(refine_box_loss))
         self.refine_x_softmax = refine_x_softmax
+        self.use_vendor_modules = use_vendor_modules
         self.max_sequence_length = max_sequence_length
         self.mask_token_id = mask_token_id
         _ = kwargs

@@ -21,6 +21,7 @@ def convert_original_checkpoint(
     dataset_name: Literal["coco", "vg_msdn"],
     push_to_hub: bool = False,
     hub_model_id: str | None = None,
+    strict: bool = True,
 ) -> None:
     """Convert an original LT-Net checkpoint into local HF-style files.
 
@@ -34,6 +35,7 @@ def convert_original_checkpoint(
         dataset_name: Dataset identifier for the converted checkpoint.
         push_to_hub: Reserved publish flag; implementation PRs keep it false.
         hub_model_id: Optional Hub repo id used only when publishing is enabled.
+        strict: Whether checkpoint keys must exactly match the converted model.
 
     Raises:
         NotImplementedError: If Hub upload is requested from this helper.
@@ -54,18 +56,20 @@ def convert_original_checkpoint(
     config = LayoutTransformerConfig(
         dataset_name=dataset_name,
         vocab_size=token_count,
+        refine=True,
+        use_vendor_modules=True,
     )
     model = LayoutTransformerForLayoutGeneration(config)
     state_dict = load_original_state_dict(checkpoint_path)
-    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    incompatible = model.load_state_dict(state_dict, strict=strict)
     metadata = {
         "checkpoint_path": str(checkpoint_path),
         "cfg_path": str(cfg_path),
         "vocab_path": str(vocab_path),
         "dataset_name": dataset_name,
-        "missing_keys": list(missing),
-        "unexpected_keys": list(unexpected),
-        "strict_vendor_key_mapping": False,
+        "missing_keys": list(incompatible.missing_keys),
+        "unexpected_keys": list(incompatible.unexpected_keys),
+        "strict_vendor_key_mapping": strict,
     }
     model.save_pretrained(out)
     processor = LayoutTransformerProcessor.from_config(

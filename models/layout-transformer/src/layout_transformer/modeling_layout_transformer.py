@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import sys
 from typing import TYPE_CHECKING, TypeAlias, cast
 
 import torch
@@ -205,9 +207,76 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
     def __init__(self, config: LayoutTransformerConfig) -> None:
         """Initialize relation encoder and bbox head."""
         super().__init__(config)
-        self.encoder = LayoutTransformerEncoder(config)
-        self.bbox_head = LayoutTransformerBBoxHead(config)
+        self._uses_vendor_modules = False
+        if config.use_vendor_modules:
+            self._init_vendor_modules(config)
+        else:
+            self.encoder = LayoutTransformerEncoder(config)
+            self.bbox_head = LayoutTransformerBBoxHead(config)
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
+
+    def _init_vendor_modules(self, config: LayoutTransformerConfig) -> None:
+        """Attach vendor modules under matching state-dict key prefixes."""
+        vendor_root = self._find_vendor_root()
+        if vendor_root is None:
+            raise FileNotFoundError(
+                "vendor/layout-transformer is required for use_vendor_modules=True"
+            )
+        sys.path.insert(0, str(vendor_root))
+        from model import Rel2Bbox
+
+        cfg = {
+            "MODEL": {
+                "PRETRAIN": False,
+                "ENCODER": {
+                    "VOCAB_SIZE": config.vocab_size,
+                    "OBJ_CLASSES_SIZE": config.obj_classes_size,
+                    "HIDDEN_SIZE": config.hidden_size,
+                    "NUM_LAYERS": config.num_hidden_layers,
+                    "ATTN_HEADS": config.num_attention_heads,
+                    "DROPOUT": config.dropout,
+                    "ENABLE_NOISE": config.enable_noise,
+                    "NOISE_SIZE": config.noise_size,
+                },
+                "DECODER": {
+                    "HEAD_TYPE": config.decoder_head_type.upper(),
+                    "BOX_LOSS": config.decoder_box_loss.upper(),
+                    "SCHEDULE_SAMPLE": config.decoder_schedule_sample,
+                    "TWO_PATH": config.decoder_two_path,
+                    "GLOBAL_FEATURE": config.decoder_global_feature,
+                    "GREEDY": config.decoder_greedy,
+                    "XY_TEMP": config.xy_temperature,
+                    "WH_TEMP": config.wh_temperature,
+                },
+                "REFINE": {
+                    "REFINE": config.refine,
+                    "HEAD_TYPE": config.refine_head_type.title(),
+                    "BOX_LOSS": config.refine_box_loss.title(),
+                    "X_Softmax": config.refine_x_softmax,
+                },
+            }
+        }
+        vendor_model = Rel2Bbox(
+            vocab_size=config.vocab_size,
+            obj_classes_size=config.obj_classes_size,
+            noise_size=config.noise_size,
+            hidden_size=config.hidden_size,
+            num_layers=config.num_hidden_layers,
+            attn_heads=config.num_attention_heads,
+            dropout=config.dropout,
+            cfg=cfg,
+        )
+        self.encoder = vendor_model.encoder
+        self.bbox_head = vendor_model.bbox_head
+        self._uses_vendor_modules = True
+
+    @staticmethod
+    def _find_vendor_root() -> Path | None:
+        for parent in Path(__file__).resolve().parents:
+            candidate = parent / "vendor" / "layout-transformer"
+            if (candidate / "model").is_dir():
+                return candidate
+        return None
 
     def forward(
         self,
@@ -244,20 +313,72 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
         Raises:
             ValueError: If required tensor shapes are invalid.
         """
-        _ = (global_mask, bbox_mask, inference)
+        _ = bbox_mask
         if input_token.shape != input_obj_id.shape:
             raise ValueError("input_token and input_obj_id must have the same shape")
-        hidden_states, vocab_logits, obj_id_logits, token_type_logits, _ = self.encoder(
+        encoder_outputs = self.encoder(
             input_token,
             input_obj_id,
             segment_label,
             token_type,
             src_mask,
         )
-        coarse_box, coarse_gmm, refine_box, refine_gmm = self.bbox_head(
-            hidden_states,
-            trg_input_box=bbox,
-        )
+        if self._uses_vendor_modules:
+            (
+                hidden_states,
+                vocab_logits,
+                obj_id_logits,
+                token_type_logits,
+                src,
+                class_embeds,
+            ) = encoder_outputs
+        else:
+            (
+                hidden_states,
+                vocab_logits,
+                obj_id_logits,
+                token_type_logits,
+                class_embeds,
+            ) = encoder_outputs
+            src = hidden_states
+        if self._uses_vendor_modules:
+            effective_src_mask = (
+                src_mask
+                if src_mask is not None
+                else input_token.ne(self.config.pad_token_id).unsqueeze(1)
+            )
+            effective_global_mask = (
+                global_mask if global_mask is not None else input_token.ge(2)
+            )
+            if inference:
+                coarse_box, coarse_gmm, refine_box, refine_gmm = (
+                    self.bbox_head.inference(
+                        hidden_states,
+                        effective_src_mask,
+                        src,
+                        class_embeds,
+                        effective_global_mask,
+                    )
+                )
+            else:
+                if bbox is None:
+                    raise ValueError("bbox is required for vendor training forward")
+                trg_mask = effective_src_mask.new_ones([1, 1, 1])
+                coarse_box, coarse_gmm, refine_box, refine_gmm = self.bbox_head(
+                    0,
+                    hidden_states,
+                    effective_src_mask,
+                    src,
+                    class_embeds,
+                    bbox,
+                    trg_mask,
+                    effective_global_mask,
+                )
+        else:
+            coarse_box, coarse_gmm, refine_box, refine_gmm = self.bbox_head(
+                hidden_states,
+                trg_input_box=bbox,
+            )
         output = LayoutTransformerModelOutput(
             vocab_logits=vocab_logits,
             obj_id_logits=obj_id_logits,
