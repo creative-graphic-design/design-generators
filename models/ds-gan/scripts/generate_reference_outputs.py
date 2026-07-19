@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import OrderedDict
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Final
 
@@ -57,6 +59,8 @@ def main() -> None:
     from infer import random_init
     from model import generator
 
+    asset_root = args.checkpoint.resolve().parent
+    _prepare_model_weight_dir(asset_root)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = canvas(
         args.dataset_root / "image_canvas",
@@ -74,7 +78,8 @@ def main() -> None:
         "output_size": 8,
         "max_elem": 32,
     }
-    model = generator(config).eval().to(device)
+    with _pushd(asset_root):
+        model = generator(config).eval().to(device)
     checkpoint = torch.load(args.checkpoint, map_location=device)
     state_dict = OrderedDict(
         (key.removeprefix("module."), value) for key, value in checkpoint.items()
@@ -108,6 +113,26 @@ def main() -> None:
         args.output,
     )
     print(args.output)
+
+
+def _prepare_model_weight_dir(asset_root: Path) -> None:
+    model_weight = asset_root / "model_weight"
+    model_weight.mkdir(parents=True, exist_ok=True)
+    for filename in ("resnet18-5c106cde.pth", "resnet50_a1_0-14fe96d1.pth"):
+        source = asset_root / filename
+        target = model_weight / filename
+        if source.exists() and not target.exists():
+            target.symlink_to(Path("..") / filename)
+
+
+@contextmanager
+def _pushd(path: Path):
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 if __name__ == "__main__":

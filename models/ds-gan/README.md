@@ -25,7 +25,7 @@ model-index:
           split: test
         metrics:
           - type: vendor-parity
-            value: pending-local-assets
+            value: exact
             name: DS-GAN vendor forward exact match
 ---
 
@@ -137,14 +137,15 @@ Forward parity compares class probabilities and normalized center boxes by exact
 
 ### Results
 
-The implementation includes the parity harness. Real parity requires local vendor weights and PKU data, which are not committed.
+The converted model matches the vendor DS-GAN generator exactly when the released checkpoint and public PKU PosterLayout test images are regenerated with `CUDA_VISIBLE_DEVICES=1`.
 
 ## Parity Results
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
 | `save_pretrained` -> `from_pretrained` smoke | 1 | output schema has `bbox`, `labels`, `mask`, `id2label` | passing in unit tests |
-| Vendor DS-GAN forward | 0 committed | exact class probabilities and boxes from regenerated fixture | pending local vendor assets |
+| Vendor DS-GAN class probabilities | 905 PKU test canvases x 32 slots | `rtol=0`, `atol=0` against regenerated vendor fixture | max abs diff `0.0`, exact |
+| Vendor DS-GAN boxes | 905 PKU test canvases x 32 slots | `rtol=0`, `atol=0` against regenerated vendor fixture | max abs diff `0.0`, exact |
 
 ## Reproducibility
 
@@ -154,7 +155,8 @@ Download vendor assets:
 
 ```bash
 uv run --package ds-gan python models/ds-gan/scripts/download_original.py \
-  --output-dir .cache/ds-gan/original
+  --output-dir .cache/ds-gan/original \
+  --include-test-data
 ```
 
 Generate vendor reference outputs:
