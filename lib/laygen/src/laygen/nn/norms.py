@@ -11,6 +11,8 @@ import torch
 from einops.layers.torch import Rearrange
 from torch import nn
 
+from laygen.common.torch_typing import TorchHiddenStates, TorchTimesteps
+
 from .embeddings import SinusoidalPosEmb, TimestepEmbeddingType
 
 
@@ -61,7 +63,9 @@ class AdaLayerNorm(_AdaNorm):
         super().__init__(n_embd, max_timestep, emb_type)
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: TorchHiddenStates, timestep: TorchTimesteps
+    ) -> TorchHiddenStates:
         """Apply timestep-conditioned layer normalization."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
@@ -91,7 +95,9 @@ class AdaInsNorm(_AdaNorm):
         super().__init__(n_embd, max_timestep, emb_type)
         self.instancenorm = nn.InstanceNorm1d(n_embd)
 
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: TorchHiddenStates, timestep: TorchTimesteps
+    ) -> TorchHiddenStates:
         """Apply timestep-conditioned instance normalization."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)

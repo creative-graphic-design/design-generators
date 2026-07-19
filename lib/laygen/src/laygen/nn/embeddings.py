@@ -14,6 +14,12 @@ import torch
 from einops import repeat
 from torch import nn
 
+from laygen.common.torch_typing import (
+    TorchEmbeddings,
+    TorchHiddenStates,
+    TorchTimesteps,
+)
+
 
 class TimestepEmbeddingType(StrEnum):
     """Supported timestep-conditioned normalization variants.
@@ -79,7 +85,7 @@ class SinusoidalPosEmb(nn.Module):
         self.num_steps = float(num_steps)
         self.rescale_steps = float(rescale_steps)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: TorchTimesteps) -> TorchEmbeddings:
         """Embed integer positions or timesteps.
 
         Args:
@@ -119,7 +125,7 @@ class ElementPositionalEmbedding(nn.Module):
         self.elem_emb = nn.Parameter(torch.rand(self.n_elem, dim_model))
         self.attr_emb = nn.Parameter(torch.rand(self.n_attr_per_elem, dim_model))
 
-    def forward(self, h: torch.Tensor) -> torch.Tensor:
+    def forward(self, h: TorchHiddenStates) -> TorchHiddenStates:
         """Return positional embeddings matching hidden-state length.
 
         Args:

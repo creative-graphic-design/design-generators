@@ -9,8 +9,14 @@ from __future__ import annotations
 
 from typing import assert_never
 
-import torch
 from torch import nn
+
+from laygen.common.torch_typing import (
+    TorchAttentionMask,
+    TorchHiddenStates,
+    TorchPaddingMask,
+    TorchTimesteps,
+)
 
 from .activations import ActivationFn, ActivationName, get_activation
 from .embeddings import TimestepEmbeddingType, normalize_timestep_embedding
@@ -88,11 +94,11 @@ class TimestepTransformerEncoderLayer(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        timestep: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        src: TorchHiddenStates,
+        src_mask: TorchAttentionMask | None = None,
+        src_key_padding_mask: TorchPaddingMask | None = None,
+        timestep: TorchTimesteps | None = None,
+    ) -> TorchHiddenStates:
         """Apply self-attention and feed-forward layers.
 
         Args:
@@ -116,10 +122,10 @@ class TimestepTransformerEncoderLayer(nn.Module):
 
     def _sa_block(
         self,
-        x: torch.Tensor,
-        attn_mask: torch.Tensor | None,
-        key_padding_mask: torch.Tensor | None,
-    ) -> torch.Tensor:
+        x: TorchHiddenStates,
+        attn_mask: TorchAttentionMask | None,
+        key_padding_mask: TorchPaddingMask | None,
+    ) -> TorchHiddenStates:
         x = self.self_attn(
             x,
             x,
@@ -130,7 +136,7 @@ class TimestepTransformerEncoderLayer(nn.Module):
         )[0]
         return self.dropout1(x)
 
-    def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
+    def _ff_block(self, x: TorchHiddenStates) -> TorchHiddenStates:
         return self.dropout2(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -163,11 +169,11 @@ class TimestepTransformerEncoder(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        timestep: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        src: TorchHiddenStates,
+        mask: TorchAttentionMask | None = None,
+        src_key_padding_mask: TorchPaddingMask | None = None,
+        timestep: TorchTimesteps | None = None,
+    ) -> TorchHiddenStates:
         """Run hidden states through all encoder layers."""
         output = src
         for layer in self.layers:

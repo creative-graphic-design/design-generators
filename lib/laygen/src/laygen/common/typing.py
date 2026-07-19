@@ -9,10 +9,12 @@ from jaxtyping import Bool, Float, Int
 
 _LAYOUT_BBOX_SHAPE: Final = "batch elements 4"
 _LAYOUT_ELEMENTS_SHAPE: Final = "batch elements"
+_DDIM_TIMESTEPS_SHAPE: Final = "ddim_timesteps"
 
 NumpyLayoutBBoxes: TypeAlias = Float[np.ndarray, _LAYOUT_BBOX_SHAPE]
 NumpyLayoutLabels: TypeAlias = Int[np.ndarray, _LAYOUT_ELEMENTS_SHAPE]
 NumpyLayoutMask: TypeAlias = Bool[np.ndarray, _LAYOUT_ELEMENTS_SHAPE]
+NumpyDDIMTimesteps: TypeAlias = Int[np.ndarray, _DDIM_TIMESTEPS_SHAPE]
 NumpyArray: TypeAlias = np.ndarray
 LayoutPayload: TypeAlias = Any
 
@@ -41,6 +43,7 @@ __all__ = [
     "LayoutMask",
     "LayoutPayload",
     "NumpyArray",
+    "NumpyDDIMTimesteps",
     "NumpyLayoutBBoxes",
     "NumpyLayoutLabels",
     "NumpyLayoutMask",
