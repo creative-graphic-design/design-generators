@@ -180,7 +180,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream two-stage text-to-layout architecture needed for conversion and inference while exposing the common layout schema. It loads standard seq2seq stage models from `semantic_parser/` and `placement/` subfolders.
+Parse-Then-Place runs two seq2seq stages: `semantic_parser/` turns text into layout intent, then `placement/` predicts element positions. Converted directories keep those subfolders separate so parser and placement weights can be loaded and smoke-tested independently.
 
 ### Compute Infrastructure
 

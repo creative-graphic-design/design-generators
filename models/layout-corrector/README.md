@@ -252,7 +252,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+Layout-Corrector combines a base LayoutDM denoising pipeline with a confidence model that scores reconstructed layout tokens. Low-confidence positions can be masked and regenerated during selected timesteps, producing corrected boxes, labels, masks, score tensors, and optional correction traces.
 
 ### Compute Infrastructure
 

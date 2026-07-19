@@ -210,7 +210,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayouSyn uses a diffusion transformer over object-layout tokens conditioned on caption and concept embeddings. The scheduler iteratively denoises concept-aligned boxes, and the processor maps generated object positions back to normalized center `xywh` boxes with request-local labels.
 
 ### Compute Infrastructure
 

@@ -22,7 +22,7 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package provides [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent that reproduces the prompt, exemplar-selection, and parser behavior of the original text-to-layout method.
+This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
 
 ## Model Details
 
@@ -176,7 +176,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 ### Model Architecture and Objective
 
-The package preserves the upstream prompt construction, exemplar selection, and CSS-like output parser needed for inference while exposing the common layout schema. For `k-similar`, pass a query embedding function and candidate embeddings to `run_sync()` or `build_prompt()`; the package keeps CLIP optional.
+LayoutGPT builds a structured prompt from task examples, calls a configured Pydantic AI model, and parses CSS-like layout text into boxes and labels. For `k-similar`, pass a query embedding function and candidate embeddings to `run_sync()` or `build_prompt()`; CLIP remains optional.
 
 ### Compute Infrastructure
 

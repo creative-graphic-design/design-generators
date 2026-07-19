@@ -205,9 +205,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
-
-This package ports the released generator checkpoints only. It does not include the original LayoutGAN++ latent optimization loop, training pipeline, rendered image generation, or dataset preprocessing code.
+LayoutGAN++ loads the released Const-layout generator checkpoints and predicts element boxes from label prompts. The runtime surface covers generator inference and processor decoding only; the original latent optimization loop, training pipeline, rendered image generation, and dataset preprocessing code are outside this wrapper.
 
 ### Compute Infrastructure
 

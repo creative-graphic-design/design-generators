@@ -189,7 +189,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream continuous diffusion architecture needed for conversion and inference while exposing the common layout schema. It converts original checkpoints into a `LacePipeline` that generates normalized center `xywh` boxes, category labels, and masks.
+LACE uses a continuous diffusion denoiser over layout element features. The converted `LacePipeline` loads checkpoint-specific category vocabularies and generates normalized center `xywh` boxes, category labels, and masks for PubLayNet, RICO25, or RICO13 variants.
 
 ### Compute Infrastructure
 

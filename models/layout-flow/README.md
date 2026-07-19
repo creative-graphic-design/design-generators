@@ -196,7 +196,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts vendor coordinate conventions to normalized center `xywh` outputs.
 
 ### Compute Infrastructure
 

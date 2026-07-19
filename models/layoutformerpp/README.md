@@ -196,7 +196,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayoutFormer++ uses an encoder-decoder Transformer with task-specific token vocabularies for label, label-size, relation, refinement, completion, and unconditional generation. Optional task prompt embeddings mirror the released checkpoints, while the processor decodes discrete tokens into normalized boxes and dataset labels.
 
 ### Compute Infrastructure
 

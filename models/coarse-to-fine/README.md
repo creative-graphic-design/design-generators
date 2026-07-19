@@ -190,7 +190,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream autoregressive hierarchical architecture needed for conversion and inference while exposing the common layout schema. Coarse-to-Fine has structured tensor heads for labels, group label histograms, and four coordinate bins. There is no single unified token vocabulary for layout serialization, so this package uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
+Coarse-to-Fine uses an autoregressive Transformer decoder with separate heads for element labels, group label histograms, and four coordinate bins. Generated hierarchy data is returned through `intermediates` when requested. There is no single unified token vocabulary for layout serialization, so Coarse-to-Fine uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
 
 ### Compute Infrastructure
 

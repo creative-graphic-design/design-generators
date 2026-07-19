@@ -204,7 +204,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayoutDiffusion uses a discrete diffusion model over layout token sequences for RICO25 and PubLayNet. The processor handles unconditional, category-conditioned, text-conditioned alias, and refinement modes before decoding generated label and coordinate tokens into normalized layout outputs.
 
 ### Compute Infrastructure
 

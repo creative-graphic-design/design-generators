@@ -55,6 +55,10 @@ BANNED_PATTERNS = [
     r"not recorded in the current README",
     r"documentation gap",
     r"preserved from the original README",
+    r"The package preserves the upstream",
+    r"preserves the upstream architecture",
+    r"needed for conversion and inference",
+    r"This package provides",
 ]
 
 LINK_REQUIRED_DATASET_IDS = [

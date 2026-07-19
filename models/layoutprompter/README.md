@@ -26,7 +26,7 @@ datasets:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package provides [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for prompt-based few-shot layout generation with normalized layout-array outputs.
+This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [Pydantic AI](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
 
 ## Model Details
 
@@ -214,7 +214,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayoutPrompter serializes few-shot exemplars, calls a configured Pydantic AI model, and parses either `seq` or `html` layout text into normalized boxes and request-local labels. `save_pretrained` stores prompt configuration and parser settings rather than learned weights.
 
 The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
 

@@ -193,7 +193,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-The package preserves the upstream architecture needed for conversion and inference while exposing the common layout schema.
+LayoutDM represents each layout as discrete category, position, and size tokens and denoises those tokens through a discrete diffusion process. The processor normalizes vendor aliases such as `gen_t`, `gen_ts`, `partial`, and `refine` into public condition modes before decoding generated tokens into normalized boxes and labels.
 
 ### Compute Infrastructure
 
