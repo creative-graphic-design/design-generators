@@ -9,6 +9,7 @@ tags:
   - "layout-generation"
 datasets:
   - "creative-graphic-design/Rico"
+  - "RICO13"
   - "creative-graphic-design/PubLayNet"
 model-index:
   - name: "LACE"

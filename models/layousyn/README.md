@@ -7,6 +7,9 @@ pipeline_tag: "other"
 tags:
   - "layousyn"
   - "layout-generation"
+datasets:
+  - "GRIT"
+  - "COCO-grounded"
 model-index:
   - name: "LayouSyn"
     results:

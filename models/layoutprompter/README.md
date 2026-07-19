@@ -1,24 +1,24 @@
 ---
 language:
   - en
-license: "other"
-license_name: "review-needed"
-license_link: "not recorded"
+license: "mit"
 library_name: "pydantic-ai"
 pipeline_tag: "other"
 tags:
   - "layoutprompter"
   - "layout-generation"
+  - "neurips-2023"
 datasets:
   - "creative-graphic-design/PubLayNet"
   - "creative-graphic-design/Rico"
+  - "PosterLayout"
 ---
 
 # Model Card for LayoutPrompter
 
 ![paper](https://img.shields.io/static/v1?label=paper&message=LayoutPrompter&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS%202023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square)
@@ -38,7 +38,7 @@ LayoutPrompter is packaged for the `design-generators` workspace. Public outputs
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
-- **License:** review-needed.
+- **License:** MIT.
 - **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
@@ -338,7 +338,7 @@ The current package coverage under the coverage command above is 99%.
 
 ## License
 
-Repository wrapper code is Apache-2.0. Use this package together with the license terms of the original LayoutPrompter implementation and any dataset or LLM provider used at runtime.
+Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration repository is MIT licensed; use any dataset or LLM provider outputs under their own terms.
 
 ## Citation
 

@@ -1,21 +1,22 @@
 ---
 language:
   - en
-license: "other"
-license_name: "review-needed"
-license_link: "not recorded"
+license: "mit"
 library_name: "pydantic-ai"
 pipeline_tag: "other"
 tags:
   - "layout-gpt"
   - "layout-generation"
+  - "neurips-2023"
+datasets:
+  - "NSR-1K"
 ---
 
 # Model Card for LayoutGPT
 
 ![paper](https://img.shields.io/static/v1?label=paper&message=LayoutGPT&color=blue&style=flat-square)
-![venue](https://img.shields.io/static/v1?label=venue&message=review-needed&color=yellow&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS%202023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=NSR-1K&color=informational&style=flat-square)
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
@@ -33,7 +34,7 @@ LayoutGPT is packaged for the `design-generators` workspace. Public outputs use 
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout generation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
-- **License:** review-needed.
+- **License:** MIT.
 - **Finetuned from model:** not recorded in the current README.
 
 ### Model Sources
@@ -279,7 +280,7 @@ uv run --package layout-gpt ty check models/layout-gpt
 
 ## License
 
-Repository wrapper code is Apache-2.0. The original LayoutGPT repository does not record a package-level OSS license in this README; keep upstream prompt assets, datasets, and provider outputs under their original terms until license status is confirmed.
+Repository wrapper code is Apache-2.0. The original LayoutGPT repository is MIT licensed; keep upstream prompt assets, datasets, and provider outputs under their own terms.
 
 ## Citation
 

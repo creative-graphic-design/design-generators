@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -64,10 +65,14 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": [
             "creative-graphic-design/Rico",
+            "RICO13",
             "creative-graphic-design/PubLayNet",
         ],
     },
-    "layousyn": {"license": "cc-by-nc-4.0", "datasets": []},
+    "layousyn": {
+        "license": "cc-by-nc-4.0",
+        "datasets": ["GRIT", "COCO-grounded"],
+    },
     "layout-corrector": {
         "license": "mit",
         "datasets": [
@@ -90,7 +95,7 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
-    "layout-gpt": {"license": "other", "datasets": []},
+    "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
     "layoutdiffusion": {
         "license": "other",
         "datasets": [
@@ -114,15 +119,16 @@ EXPECTED_FRONTMATTER = {
         ],
     },
     "layoutprompter": {
-        "license": "other",
+        "license": "mit",
         "datasets": [
             "creative-graphic-design/PubLayNet",
             "creative-graphic-design/Rico",
+            "PosterLayout",
         ],
     },
     "parse-then-place": {
         "license": "mit",
-        "datasets": ["creative-graphic-design/Rico"],
+        "datasets": ["creative-graphic-design/Rico", "Web"],
     },
 }
 
@@ -228,6 +234,28 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
     ]
 
 
+def _dataset_display_name(value: str) -> str:
+    normalized = value.removeprefix("https://huggingface.co/datasets/")
+    return {
+        "creative-graphic-design/Rico": "RICO25",
+        "creative-graphic-design/PubLayNet": "PubLayNet",
+        "creative-graphic-design/magazine": "Magazine",
+        "cyberagent/crello": "Crello",
+    }.get(normalized, normalized)
+
+
+def _badge_messages(text: str, label: str) -> list[str]:
+    messages: list[str] = []
+    for match in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", text):
+        parsed = urlparse(match.group(1))
+        if parsed.netloc != "img.shields.io" or parsed.path != "/static/v1":
+            continue
+        query = parse_qs(parsed.query)
+        if query.get("label") == [label] and "message" in query:
+            messages.append(unquote(query["message"][0]).replace("--", "-"))
+    return messages
+
+
 def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
     for key in ("language", "tags", "datasets"):
         values = _frontmatter_list(frontmatter, key)
@@ -306,6 +334,13 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
     if missing:
         raise AssertionError(
             f"{path}: frontmatter datasets missing supported checkpoint datasets {missing}"
+        )
+
+    expected_badges = {_dataset_display_name(dataset) for dataset in actual_datasets}
+    actual_badges = set(_badge_messages(text, "dataset"))
+    if actual_badges != expected_badges:
+        raise AssertionError(
+            f"{path}: dataset badges {sorted(actual_badges)} != frontmatter datasets {sorted(expected_badges)}"
         )
 
 

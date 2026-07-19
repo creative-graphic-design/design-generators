@@ -9,6 +9,7 @@ tags:
   - "layout-generation"
 datasets:
   - "creative-graphic-design/Rico"
+  - "Web"
 model-index:
   - name: "Parse-Then-Place"
     results:
