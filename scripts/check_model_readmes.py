@@ -718,6 +718,10 @@ def _assert_library_name_style(path: Path) -> None:
         r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`)",
         text,
     )
+    if text.count("🤗") != len(emoji_mentions):
+        raise AssertionError(
+            f"{path}: 🤗 must annotate a transformers/diffusers library mention"
+        )
     if len(emoji_mentions) > 1:
         raise AssertionError(
             f"{path}: 🤗 may appear only on the first Hugging Face library mention"
