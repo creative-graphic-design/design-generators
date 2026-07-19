@@ -5669,6 +5669,7 @@ dependencies = [
     { name = "pillow" },
     { name = "posgen" },
     { name = "safetensors" },
+    { name = "timm" },
     { name = "torch" },
     { name = "torchvision" },
     { name = "transformers", extra = ["torch", "vision"] },
@@ -5690,7 +5691,6 @@ vendor = [
     { name = "rich" },
     { name = "scikit-learn" },
     { name = "seaborn" },
-    { name = "timm" },
     { name = "torch-fidelity" },
 ]
 
@@ -5715,7 +5715,7 @@ requires-dist = [
     { name = "safetensors", specifier = ">=0.4" },
     { name = "scikit-learn", marker = "extra == 'vendor'", specifier = ">=1.3" },
     { name = "seaborn", marker = "extra == 'vendor'", specifier = ">=0.13" },
-    { name = "timm", marker = "extra == 'vendor'", specifier = ">=0.9" },
+    { name = "timm", specifier = ">=0.9" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torch-fidelity", marker = "extra == 'vendor'", specifier = ">=0.3" },
     { name = "torchvision", specifier = ">=0.16" },

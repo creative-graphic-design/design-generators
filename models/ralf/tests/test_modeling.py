@@ -1,5 +1,7 @@
-import torch
+from typing import cast
+
 import pytest
+import torch
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
 
@@ -88,3 +90,39 @@ def test_vendor_task_aliases() -> None:
         RalfForConditionalLayoutGeneration._canonical_to_vendor_task("relation")
         == "relation"
     )
+
+
+def test_model_rejects_non_unconditional_checkpoint_task() -> None:
+    config = tiny_config()
+    config.task = "label"
+
+    with pytest.raises(NotImplementedError, match="uncond"):
+        RalfForConditionalLayoutGeneration(config)
+
+
+def test_prepare_inputs_expands_explicit_retrieved_rgb_and_global_task() -> None:
+    from ralf import RalfRetrievedBatch
+
+    config = tiny_config()
+    config.global_task_embedding = True
+    config.use_flag_embedding = False
+    model = RalfForConditionalLayoutGeneration(config)
+    retrieved = RalfRetrievedBatch(
+        image=torch.zeros(1, config.top_k, 3, 1, 1),
+        saliency=torch.zeros(1, config.top_k, 1, 1, 1),
+        bbox=torch.zeros(1, config.top_k, config.max_seq_length, 4),
+        labels=torch.zeros(1, config.top_k, config.max_seq_length, dtype=torch.long),
+        mask=torch.ones(1, config.top_k, config.max_seq_length, dtype=torch.bool),
+    )
+
+    prepared = model._prepare_unconditional_inputs(
+        pixel_values=torch.zeros(1, 3, 8, 8),
+        saliency=None,
+        retrieved=retrieved,
+        batch_size=1,
+    )
+    encoded = model._encode_into_memory(prepared)
+
+    retrieved_dict = cast(dict[str, torch.Tensor], prepared["retrieved"])
+    assert retrieved_dict["image"].shape[2] == 4
+    assert encoded["memory"].shape[0] == 1

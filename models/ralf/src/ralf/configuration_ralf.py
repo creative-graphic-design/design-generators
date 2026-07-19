@@ -53,7 +53,7 @@ class RalfConfig(PretrainedConfig):
         image_size: Optional `(height, width)` resize target.
         sort_order: Processor sort order metadata.
         retrieval_metadata: Retrieval-cache metadata for conversion/parity.
-        original_hydra_config: Original Hydra config serialized as plain data.
+        original_config: Original config serialized as plain data.
         kwargs: Extra `PretrainedConfig` keyword arguments.
     """
 
@@ -77,6 +77,7 @@ class RalfConfig(PretrainedConfig):
         num_attention_heads: int = 8,
         dropout: float = 0.1,
         retrieval_backbone: str = "dreamsim",
+        saliency_k: int | str = "None",
         top_k: int = 16,
         use_reference_image: bool = False,
         layout_backbone: str = "feature_extractor",
@@ -90,9 +91,8 @@ class RalfConfig(PretrainedConfig):
         image_size: tuple[int, int] | list[int] | None = None,
         sort_order: Sequence[str] = ("label", "lexicographic"),
         retrieval_metadata: Mapping[str, object] | None = None,
+        original_config: Mapping[str, object] | None = None,
         original_hydra_config: Mapping[str, object] | None = None,
-        use_vendor_modules: bool = False,
-        vendor_cache_dir: str | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize configuration values."""
@@ -117,6 +117,7 @@ class RalfConfig(PretrainedConfig):
         self.num_attention_heads = int(num_attention_heads)
         self.dropout = float(dropout)
         self.retrieval_backbone = retrieval_backbone
+        self.saliency_k = saliency_k
         self.top_k = int(top_k)
         self.use_reference_image = bool(use_reference_image)
         self.layout_backbone = layout_backbone
@@ -130,9 +131,8 @@ class RalfConfig(PretrainedConfig):
         self.image_size = tuple(image_size) if image_size is not None else None
         self.sort_order = tuple(sort_order)
         self.retrieval_metadata = dict(retrieval_metadata or {})
-        self.original_hydra_config = dict(original_hydra_config or {})
-        self.use_vendor_modules = bool(use_vendor_modules)
-        self.vendor_cache_dir = vendor_cache_dir
+        self.original_config = dict(original_config or original_hydra_config or {})
+        self.original_hydra_config = self.original_config
         pad_token_id = self.special_token_id("pad")
         bos_token_id = self.special_token_id("bos")
         eos_token_id = self.special_token_id("eos")

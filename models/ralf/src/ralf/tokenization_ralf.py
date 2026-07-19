@@ -172,10 +172,21 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
 
     def _quantize(self, values: Float[torch.Tensor, "..."]) -> Int[torch.Tensor, "..."]:
         values = values.clamp(0.0, 1.0)
-        return torch.floor(values * (self.config.num_bin - 1)).long()
+        boundaries = (
+            torch.arange(
+                1,
+                self.config.num_bin + 1,
+                device=values.device,
+                dtype=values.dtype,
+            )
+            / self.config.num_bin
+        )
+        return torch.bucketize(values, boundaries).long()
 
     def _dequantize(self, ids: Int[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
-        return ids.float().clamp(0, self.config.num_bin - 1) / (self.config.num_bin - 1)
+        ids = ids.clamp(0, self.config.num_bin - 1)
+        starts = ids.float() / self.config.num_bin
+        return starts + (0.5 / self.config.num_bin)
 
     def encode_layout(
         self,

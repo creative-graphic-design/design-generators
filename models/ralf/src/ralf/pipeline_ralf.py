@@ -173,18 +173,10 @@ class RalfPipeline(LayoutGenerationPipeline):
         """
         _ = (num_elements, relations, num_inference_steps)
         condition = normalize_condition_type(condition_type)
-        if condition not in {
-            ConditionType.unconditional,
-            ConditionType.label,
-            ConditionType.label_size,
-            ConditionType.completion,
-            ConditionType.refinement,
-            ConditionType.relation,
-            ConditionType.retrieval,
-            ConditionType.content_image,
-        }:
+        if condition is not ConditionType.unconditional:
             raise NotImplementedError(
-                f"RALF does not support condition_type={condition}"
+                "This RALF port currently supports condition_type='unconditional' "
+                f"only; got {condition}"
             )
         encoded = self.processor(
             images=images,
@@ -226,6 +218,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             top_k=top_k,
             generator=generation_generator,
             token_mask=self.processor.layout_tokenizer.token_mask(model_device),
+            retrieved=encoded.get("retrieval"),
         )
         return self.processor.post_process_layouts(
             sequences.cpu(),

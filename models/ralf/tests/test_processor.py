@@ -34,9 +34,9 @@ def test_processor_explicit_retrieval_container_wins() -> None:
         "ids": [[3, 4]],
     }
 
-    encoded = processor(condition_type="retrieval", retrieval=retrieval)
+    encoded = processor(condition_type="unconditional", retrieval=retrieval)
 
-    assert encoded["condition_type"] is ConditionType.retrieval
+    assert encoded["condition_type"] is ConditionType.unconditional
     assert encoded["retrieval"].indexes.tolist() == [[3, 4]]
 
 

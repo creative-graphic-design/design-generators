@@ -26,18 +26,19 @@ Paper: https://arxiv.org/abs/2311.13602
 
 | Dataset | Hub checkpoint | Dataset id | Condition types | Status |
 | --- | --- | --- | --- | --- |
-| CGL | `creative-graphic-design/ralf-cgl-<task>` | `creative-graphic-design/CGL-Dataset`, `name="ralf-style"` | `unconditional`, `label`, `label_size`, `completion`, `refinement`, `relation`, `retrieval`, `content_image` | conversion path added; vendor cache required for weights |
-| PKU | `creative-graphic-design/ralf-pku-<task>` | `creative-graphic-design/PKU-PosterLayout`, `name="ralf-style"` | `unconditional`, `label`, `label_size`, `completion`, `refinement`, `relation`, `retrieval`, `content_image` | conversion path added; vendor cache required for weights |
+| CGL | `creative-graphic-design/ralf-cgl-unconditional` | `creative-graphic-design/CGL-Dataset`, `name="ralf-style"` | `unconditional` | local port conversion and standalone runtime verified |
+| PKU | `creative-graphic-design/ralf-pku-unconditional` | `creative-graphic-design/PKU-PosterLayout`, `name="ralf-style"` | `unconditional` | local port conversion and standalone runtime verified |
 
 ## Parity Results
 
-The local package smoke tests pass without weights. Vendor parity requires the authors' 13GB cache bundle and generated references; those artifacts are written under `.cache/ralf/` and are not committed. Strict conversion was verified for the released CGL and PKU unconditional RALF checkpoints.
+The local package smoke tests pass without weights. Vendor parity requires the authors' cache bundle and generated references; those artifacts are written under `.cache/ralf/` and are not committed. Strict conversion and local-vs-vendor logits parity were verified for the released CGL and PKU unconditional RALF checkpoints.
 
 | Dataset | Compared artifact | Cases | Match criterion | Result |
 | --- | --- | ---: | --- | --- |
-| CGL | vendor `ralf_uncond_cgl` debug inference summary | 1 | vendor run completed on GPU 0; generated public `bbox`, `labels`, and `mask` summary is schema/range checked | passed locally |
-| CGL | `ralf_uncond_cgl` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; converted state dict equals original checkpoint; GPU 0 vendor-module logits are bitwise equal (`max_abs_diff=0.0`) | passed locally |
-| PKU | `ralf_uncond_pku10` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; converted state dict equals original checkpoint; GPU 0 vendor-module logits are bitwise equal (`max_abs_diff=0.0`) | passed locally |
+| CGL | `ralf_uncond_cgl` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; missing/unexpected keys empty; converted state dict equals original checkpoint | passed locally |
+| CGL | `ralf_uncond_cgl` local-vs-vendor logits | 1 synthetic GPU 0 batch | local port logits are bitwise equal to original vendor logits (`max_abs_diff=0.0`) | passed locally |
+| PKU | `ralf_uncond_pku10` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; missing/unexpected keys empty; converted state dict equals original checkpoint | passed locally |
+| PKU | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic GPU 0 batch | local port logits are bitwise equal to original vendor logits (`max_abs_diff=0.0`) | passed locally |
 | Synthetic CPU smoke | random initialized `RalfPipeline.save_pretrained` -> `from_pretrained` | 1 | common output schema and reload success | passed |
 
 ## Install
@@ -53,11 +54,11 @@ uv run --package ralf python -c "import ralf; print(ralf.RalfPipeline.__name__)"
 ```python
 from ralf import RalfPipeline
 
-pipe = RalfPipeline.from_pretrained("creative-graphic-design/ralf-cgl-retrieval")
+pipe = RalfPipeline.from_pretrained("creative-graphic-design/ralf-cgl-unconditional")
 out = pipe(
     images=poster_image,
     saliency=saliency_map,
-    condition_type="retrieval",
+    condition_type="unconditional",
     retrieval={
         "items": {
             "bbox": retrieved_bbox,
@@ -72,18 +73,18 @@ out = pipe(
 print(out.bbox, out.labels, out.mask, out.intermediates)
 ```
 
-Explicit retrieval examples override checkpoint-side table lookup. Selected retrieval ids are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
+Explicit retrieval examples feed the retrieval-augmented memory used by unconditional generation. Selected retrieval ids are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
 
 ## Reproducibility
 
 This section reproduces the parity verification against the original implementation.
 
-Prerequisites: initialize the vendor repository with `git submodule update --init vendor/ralf`. The regular package path does not depend on Hydra or OmegaConf; the `vendor` optional extra installs the original implementation dependencies for strict conversion and parity.
+Prerequisites: initialize the vendor repository with `git submodule update --init vendor/ralf`. The regular package path and converter do not import Hydra or OmegaConf; the `vendor` optional extra installs the original implementation dependencies for reference generation and parity.
 
 Step 1 records or downloads the original cache bundle. Generated metadata stays under `artifacts/ralf/` and is not committed.
 
 ```bash
-uv run --package ralf python models/ralf/scripts/download_original_assets.py \
+uv run --package ralf --extra download python models/ralf/scripts/download_original_assets.py \
   --cache-dir .cache/ralf/cache \
   --zip-path .cache/ralf/cache.zip \
   --manifest .cache/ralf/cache_manifest.json \
@@ -106,7 +107,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf python models/ralf/scripts/generate
   --run-vendor
 ```
 
-Step 3 converts the CGL and PKU unconditional checkpoints to local Transformers-style directories. The converter reads `config.yaml` as plain YAML, avoids Hydra/OmegaConf in port code, and strict-loads the original checkpoint into the vendor-compatible module tree.
+Step 3 converts the CGL and PKU unconditional checkpoints to local Transformers-style directories. The converter reads `config.yaml` and `vocabulary.json` as plain files, avoids Hydra/OmegaConf in port code, and strict-loads the original checkpoint into the local port module tree.
 
 ```bash
 uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
@@ -114,7 +115,7 @@ uv run --package ralf --extra vendor python models/ralf/scripts/convert_original
   --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_cgl/gen_final_model.pt \
   --dataset cgl \
   --task unconditional \
-  --vendor-cache-dir .cache/ralf/cache \
+  --vocabulary-json .cache/ralf/cache/dataset/cgl/vocabulary.json \
   --output-dir .cache/ralf/converted/ralf-cgl-unconditional-strict
 
 uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
@@ -122,7 +123,6 @@ uv run --package ralf --extra vendor python models/ralf/scripts/convert_original
   --checkpoint .cache/ralf/cache/training_logs/ralf_uncond_pku10/gen_final_model.pt \
   --dataset pku \
   --task unconditional \
-  --vendor-cache-dir .cache/ralf/cache \
   --output-dir .cache/ralf/converted/ralf-pku-unconditional-strict
 ```
 
@@ -139,13 +139,14 @@ uv run --package ralf python - <<'PY'
 from ralf import RalfPipeline
 
 pipe = RalfPipeline.from_pretrained(".cache/ralf/converted/ralf-cgl-unconditional-strict")
-print(pipe.config.use_vendor_modules, pipe.config.vocab_size)
+out = pipe(condition_type="unconditional", seed=0, top_k=5)
+print(pipe.config.vocab_size, out.bbox.shape, out.labels.shape, out.mask.shape)
 PY
 ```
 
 ## Limitations
 
-The package includes the Hugging Face-style public surface, local smoke tests, cache registration, vendor reference generation, and strict conversion entry points. Converted released checkpoints use `use_vendor_modules=True`, so loading them requires the `vendor` optional extra plus the authors' cache directory for the original ResNet/FID auxiliary weights. The pure port runtime remains available for lightweight local tests and API smoke checks, but published-weight parity is claimed only through the vendor-compatible module tree.
+This PR scope is complete for the CGL and PKU unconditional checkpoints only. Other RALF tasks (`label`, `label_size`, `completion`, `refinement`, `relation`, retrieval-table selection, and content-image variants) are follow-up work and currently raise explicit unsupported-condition errors through the public pipeline.
 
 ## License
 

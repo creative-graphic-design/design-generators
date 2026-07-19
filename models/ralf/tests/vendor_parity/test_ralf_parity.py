@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 import os
+import sys
+from typing import cast
 
 import pytest
 import torch
@@ -18,6 +20,10 @@ def _cache_dir() -> Path:
 
 def _converted_dir() -> Path:
     return Path(os.environ.get("RALF_CONVERTED_DIR", ".cache/ralf/converted"))
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
 
 
 @pytest.mark.vendor_parity
@@ -147,6 +153,84 @@ def _synthetic_vendor_inputs(
     }
 
 
+def _build_vendor_reference_model(
+    converted_model: RalfForConditionalLayoutGeneration,
+):
+    vendor_root = _repo_root() / "vendor" / "ralf"
+    if not vendor_root.exists():
+        pytest.skip("vendor/ralf is required for local-vs-vendor parity")
+    sys.path.insert(0, str(vendor_root))
+
+    from datasets import ClassLabel, Dataset, Features, Sequence
+    import image2layout.train.fid.model as fid_model
+    import image2layout.train.helpers.layout_tokenizer as vendor_tokenizer
+    import image2layout.train.models.common.image as vendor_image
+    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    from image2layout.train.models.retrieval_augmented_autoreg import (
+        ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg,
+    )
+
+    precomputed_dir = _cache_dir() / "PRECOMPUTED_WEIGHT_DIR"
+    if not precomputed_dir.exists():
+        pytest.skip("RALF PRECOMPUTED_WEIGHT_DIR cache is required")
+    fid_model.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
+    vendor_image.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
+    vendor_tokenizer.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
+
+    config = converted_model.config
+    id2label = cast(dict[int | str, str], config.id2label)
+    label_names = [
+        label for _idx, label in sorted(id2label.items(), key=lambda item: int(item[0]))
+    ]
+    features = Features({"label": Sequence(ClassLabel(names=label_names))})
+    tokenizer = LayoutSequenceTokenizer(
+        label_feature=features["label"].feature,
+        max_seq_length=config.max_seq_length,
+        num_bin=config.num_bin,
+        var_order=list(config.var_order),
+        pad_until_max=False,
+        special_tokens=list(config.special_tokens),
+        is_loc_vocab_shared=config.is_loc_vocab_shared,
+        geo_quantization=config.geo_quantization,
+    )
+    dataset_name = "pku" if config.dataset_name.startswith("pku") else "cgl"
+    return ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg(
+        features=features,
+        tokenizer=tokenizer,
+        dataset_name=dataset_name,
+        max_seq_length=config.max_seq_length,
+        db_dataset=Dataset.from_dict({"id": []}),
+        d_model=config.d_model,
+        decoder_d_model=config.decoder_d_model,
+        top_k=config.top_k,
+        layout_backbone=config.layout_backbone,
+        use_reference_image=config.use_reference_image,
+        freeze_layout_encoder=config.freeze_layout_encoder,
+        retrieval_backbone=config.retrieval_backbone,
+        random_retrieval=False,
+        saliency_k="None",
+        auxilary_task="uncond",
+        use_flag_embedding=config.use_flag_embedding,
+        use_multitask=config.use_multitask,
+        RELATION_SIZE=config.relation_size,
+        global_task_embedding=config.global_task_embedding,
+    )
+
+
+def _local_logits(
+    model: RalfForConditionalLayoutGeneration, inputs: dict[str, object]
+) -> torch.Tensor:
+    encoded = model._encode_into_memory(
+        cast(dict[str, torch.Tensor | dict[str, torch.Tensor]], inputs)
+    )
+    return model.decoder(
+        tgt=cast(torch.Tensor, inputs["seq"]),
+        tgt_key_padding_mask=cast(torch.Tensor, inputs["tgt_key_padding_mask"]),
+        is_causal=True,
+        **encoded,
+    )
+
+
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize(
     ("name", "job_name", "converted_name"),
@@ -155,7 +239,7 @@ def _synthetic_vendor_inputs(
         ("pku", "ralf_uncond_pku10", "ralf-pku-unconditional-strict"),
     ],
 )
-def test_converted_checkpoint_matches_vendor_weights_and_logits(
+def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
     name: str, job_name: str, converted_name: str
 ) -> None:
     checkpoint = _cache_dir() / "training_logs" / job_name / "gen_final_model.pt"
@@ -184,19 +268,15 @@ def test_converted_checkpoint_matches_vendor_weights_and_logits(
         assert torch.equal(converted_state[key].cpu(), value), f"{name}:{key}"
 
     if not torch.cuda.is_available():
-        pytest.skip("GPU 0 is required for RALF vendor logits parity")
+        pytest.skip("GPU 0 is required for RALF local-vs-vendor logits parity")
     device = torch.device("cuda:0")
-    reference_model = RalfForConditionalLayoutGeneration(converted_model.config).eval()
+    reference_model = _build_vendor_reference_model(converted_model).eval()
     reference_model.load_state_dict(state_dict, strict=True)
     reference_model.to(device)
     converted_model.to(device)
     inputs = _synthetic_vendor_inputs(converted_model)
     inputs = _to_device(inputs, device)
     with torch.no_grad():
-        reference_logits = reference_model(vendor_inputs=_clone_inputs(inputs))[
-            "logits"
-        ]
-        converted_logits = converted_model(vendor_inputs=_clone_inputs(inputs))[
-            "logits"
-        ]
+        reference_logits = reference_model(_clone_inputs(inputs))["logits"]
+        converted_logits = _local_logits(converted_model, _clone_inputs(inputs))
     assert torch.equal(reference_logits, converted_logits)

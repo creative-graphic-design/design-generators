@@ -331,9 +331,15 @@ class RalfProcessor(ProcessorMixin):
         if explicit_layouts is not None:
             output["retrieval"] = self._build_retrieval_batch(
                 explicit_layouts,
-                retrieved_images or retrieval_payload.get("images"),
-                retrieved_saliency or retrieval_payload.get("saliency"),
-                retrieved_indexes or retrieval_payload.get("ids"),
+                retrieved_images
+                if retrieved_images is not None
+                else retrieval_payload.get("images"),
+                retrieved_saliency
+                if retrieved_saliency is not None
+                else retrieval_payload.get("saliency"),
+                retrieved_indexes
+                if retrieved_indexes is not None
+                else retrieval_payload.get("ids"),
             )
         return output
 
