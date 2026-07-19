@@ -5,7 +5,7 @@ from typing import cast
 
 from laygen.modeling_outputs import LayoutGenerationOutput
 
-from ds_gan import DSGANProcessor, annotations_from_pku_example
+from ds_gan import DSGANProcessor, annotations_from_pku_example, processor_for_dataset
 
 
 def test_processor_merges_saliency_and_resizes():
@@ -34,6 +34,37 @@ def test_processor_handles_tensor_batches_and_direct_saliency():
     assert encoded["pixel_values"].shape == (2, 4, 8, 6)
 
 
+def test_processor_handles_path_inputs_and_missing_saliency(tmp_path):
+    processor = DSGANProcessor(image_size=(8, 6))
+    image_path = tmp_path / "canvas.png"
+    Image.fromarray(np.full((4, 4, 3), 255, dtype=np.uint8)).save(image_path)
+
+    encoded = processor(str(image_path))
+
+    assert encoded["pixel_values"].shape == (1, 4, 8, 6)
+    assert encoded["pixel_values"][0, 3].tolist() == [[0.0] * 6] * 8
+
+
+def test_processor_handles_single_saliency_sources_and_tensor_merge():
+    processor = DSGANProcessor(image_size=(8, 6))
+    image = Image.fromarray(np.full((4, 4, 3), 255, dtype=np.uint8))
+    saliency_pfpn = Image.fromarray(np.full((4, 4), 64, dtype=np.uint8))
+    saliency_tensor = torch.full((1, 4, 4), 0.5)
+    smaller_tensor = torch.zeros(1, 2, 2)
+
+    encoded_pfpn = processor(image, saliency_pfpnet=saliency_pfpn)
+    encoded_basnet = processor(image, saliency_basnet=saliency_pfpn)
+    encoded_merged = processor(
+        image,
+        saliency_pfpnet=saliency_tensor,
+        saliency_basnet=smaller_tensor,
+    )
+
+    assert encoded_pfpn["pixel_values"].shape == (1, 4, 8, 6)
+    assert encoded_basnet["pixel_values"].shape == (1, 4, 8, 6)
+    assert float(encoded_merged["pixel_values"][0, 3].max()) > 0.49
+
+
 def test_processor_rejects_bad_return_tensor_and_saliency_batch():
     processor = DSGANProcessor(image_size=(8, 6))
     image = torch.zeros(3, 4, 4)
@@ -51,6 +82,29 @@ def test_processor_rejects_bad_return_tensor_and_saliency_batch():
         assert "batch size must match" in str(exc)
     else:
         raise AssertionError("expected saliency batch mismatch to raise")
+
+    try:
+        processor([image, image], saliency_pfpnet=[torch.zeros(4, 4)])
+    except ValueError as exc:
+        assert "batch size must match" in str(exc)
+    else:
+        raise AssertionError("expected saliency pair batch mismatch to raise")
+
+    try:
+        processor(torch.zeros(4, 4))
+    except ValueError as exc:
+        assert "RGB image must have three channels" in str(exc)
+    else:
+        raise AssertionError("expected grayscale image to raise")
+
+
+def test_processor_rejects_non_pku_dataset():
+    try:
+        processor_for_dataset("crello")
+    except ValueError as exc:
+        assert "Unsupported DS-GAN dataset_name" in str(exc)
+    else:
+        raise AssertionError("expected unsupported dataset to raise")
 
 
 def test_decode_maps_vendor_no_object_to_mask():
@@ -171,3 +225,47 @@ def test_annotations_from_pku_example_filters_invalid_and_normalizes():
     assert labels.tolist() == [[1, 0]]
     assert mask.tolist() == [[True, True]]
     assert bbox.tolist() == [[[0.5, 0.5, 0.5, 0.5], [0.25, 0.25, 0.5, 0.5]]]
+
+
+def test_annotations_from_pku_example_handles_empty_and_width_height():
+    encoded = annotations_from_pku_example(
+        {
+            "width": "200",
+            "height": 400,
+            "cls_elem": ["INVALID"],
+            "box_elem": ["[1, 1, 2, 2]"],
+        }
+    )
+
+    labels = cast(torch.Tensor, encoded["labels"])
+    mask = cast(torch.Tensor, encoded["mask"])
+    bbox = cast(torch.Tensor, encoded["bbox"])
+
+    assert encoded["canvas_size"] == (200, 400)
+    assert labels.shape == (1, 0)
+    assert mask.shape == (1, 0)
+    assert bbox.shape == (1, 0, 4)
+
+
+def test_annotations_from_pku_example_normalizes_reversed_boxes_and_tensor_canvas():
+    encoded = annotations_from_pku_example(
+        {
+            "image": torch.zeros(3, 400, 200),
+            "cls_elem": ["underlay"],
+            "box_elem": [[150, 300, 50, 100]],
+        }
+    )
+
+    bbox = cast(torch.Tensor, encoded["bbox"])
+
+    assert encoded["canvas_size"] == (200, 400)
+    assert bbox.tolist() == [[[0.5, 0.5, 0.5, 0.5]]]
+
+
+def test_annotations_from_pku_example_requires_canvas_size():
+    try:
+        annotations_from_pku_example({"cls_elem": [], "box_elem": []})
+    except ValueError as exc:
+        assert "must include image/canvas or width and height" in str(exc)
+    else:
+        raise AssertionError("expected missing canvas size to raise")
