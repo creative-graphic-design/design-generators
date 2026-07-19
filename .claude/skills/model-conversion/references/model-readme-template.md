@@ -26,6 +26,8 @@ metrics:
   - "<metric-id>"
 base_model: "<base-model-hub-id>"
 # Use a Hub model id when the checkpoint derives from one; otherwise remove this key.
+# Required only for weight-backed packages. Prompt-only packages without learned
+# checkpoints must not include `model-index`.
 model-index:
   - name: "<model-id>"
     results:
