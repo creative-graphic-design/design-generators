@@ -119,24 +119,27 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md). Those steps create `.cache/layoutganpp/converted/layoutganpp-rico`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layoutganpp
+uv run --package layoutganpp python
 ```
 
 ```python
 from layoutganpp import LayoutGANPPPipeline
 
-pipe = LayoutGANPPPipeline.from_pretrained(
-    "creative-graphic-design/layoutganpp-rico",
-)
-out = pipe(batch_size=1, seed=0)
+path = ".cache/layoutganpp/converted/layoutganpp-rico"
+# After Hub publication: from_pretrained("creative-graphic-design/layoutganpp-rico")
+pipe = LayoutGANPPPipeline.from_pretrained(path)
+out = pipe(labels=[["Toolbar", "Image"]], seed=0)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutganpp/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -180,11 +183,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Compared artifact | Cases | Match criterion | Result |
 | --- | --- | ---: | --- | --- |

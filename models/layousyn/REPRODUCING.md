@@ -37,26 +37,10 @@ LAYOUSYN_REFERENCE_DIR=.cache/layousyn/reference \
 LAYOUSYN_CONVERTED_DIR=.cache/layousyn/converted \
 uv run --package layousyn pytest models/layousyn/tests -m vendor_parity -q
 
-CUDA_VISIBLE_DEVICES=5 uv run --package layousyn python - <<'PY'
-import torch
-from layousyn import LayouSynPipeline
-
-inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cuda")
-pipe = LayouSynPipeline.from_pretrained(".cache/layousyn/converted").to("cuda")
-pipe.set_progress_bar_config(disable=True)
-out = pipe(
-    prompt="a person sitting on a bench",
-    labels=[["person", "bench"]],
-    caption_embeds=inputs["pipeline_caption_embeds"],
-    caption_padding_mask=inputs["pipeline_caption_padding_mask"],
-    concept_embeds=inputs["pipeline_concept_embeds"],
-    aspect_ratio=inputs["pipeline_aspect_ratio"],
-    num_inference_steps=1,
-    guidance_scale=2.0,
-    generator=torch.Generator(device="cuda").manual_seed(0),
-)
-print(out.bbox.shape, out.id2label)
-PY
+CUDA_VISIBLE_DEVICES=5 uv run --package layousyn python models/layousyn/scripts/smoke_from_pretrained.py \
+  --path .cache/layousyn/converted \
+  --inputs .cache/layousyn/reference/inputs.pt \
+  --device cuda
 ```
 
 The CUDA 5 Grit checkpoint parity run passes 4/4 marked checks:

@@ -73,7 +73,10 @@ Use this package for research inference, conversion checks, and vendor-parity va
 The public pipeline accepts text/concept conditions with caption and concept embeddings. A tiny constructed pipeline can be smoke-tested without downloaded weights:
 
 ```bash
-uv run --package layousyn python - <<'PY'
+uv run --package layousyn python
+```
+
+```python
 import torch
 from layousyn import LayouSynDiTModel, LayouSynPipeline, LayouSynProcessor, LayouSynScheduler
 
@@ -99,7 +102,6 @@ out = pipe(
     seed=0,
 )
 print(out.bbox.shape)
-PY
 ```
 
 ### Downstream Use
@@ -120,24 +122,27 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md). Those steps create `.cache/layousyn/converted`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layousyn
+uv run --package layousyn python
 ```
 
 ```python
 from layousyn import LayouSynPipeline
 
-pipe = LayouSynPipeline.from_pretrained(
-    "creative-graphic-design/layousyn-grit",
-)
-out = pipe(batch_size=1, seed=0)
+path = ".cache/layousyn/converted"
+# After Hub publication: from_pretrained("creative-graphic-design/layousyn-grit")
+pipe = LayouSynPipeline.from_pretrained(path)
+out = pipe(batch_size=1, seed=0, num_inference_steps=1)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layousyn/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -182,11 +187,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |

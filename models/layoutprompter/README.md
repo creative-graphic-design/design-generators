@@ -79,8 +79,13 @@ Re-run the vendor parity suite before publishing prompt configurations or compar
 
 ## How to Get Started with the Model
 
+Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses Pydantic AI's `TestModel` so it runs without provider credentials.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layoutprompter
+uv run --package layoutprompter python
 ```
 
 ```python
@@ -89,58 +94,15 @@ from pydantic_ai.models.test import TestModel
 
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 
-model = TestModel(
-    custom_output_args={
-        "elements": [
-            {
-                "label": "text",
-                "bbox": {"left": 12, "top": 16, "width": 24, "height": 32},
-            }
-        ]
-    }
-)
+model = TestModel(custom_output_args={"elements": [{"label": "text", "bbox": {"left": 12, "top": 16, "width": 24, "height": 32}}]})
+agent = LayoutPrompter(LayoutPrompterConfig(dataset="webui", model=model, shuffle=False, num_prompt=1))
+agent.save_pretrained(".cache/layoutprompter/prompt-config")
 
-train_data = [
-    {
-        "labels": np.asarray([0, 2]),
-        "bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
-        "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
-    }
-]
-test_data = {
-    "labels": np.asarray([0, 2]),
-    "bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
-    "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
-}
-
-agent = LayoutPrompter(
-    LayoutPrompterConfig(dataset="webui", model=model, shuffle=False, num_prompt=1)
-)
+train_data = [{"labels": np.asarray([0]), "bboxes": np.asarray([[8, 10, 20, 15]]), "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15]])}]
+test_data = {"labels": np.asarray([0]), "bboxes": np.asarray([[0, 0, 1, 1]]), "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1]])}
 output = agent.run_sync(train_data, test_data)
 print(output.labels)
-print(output.bbox)  # normalized center xywh with shape (batch, elements, 4)
-```
-
-Provider-backed configuration uses the same `LayoutPrompterConfig.model` field.
-
-```python
-import os
-
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
-
-from layoutprompter import LayoutPrompterConfig
-
-provider = OpenAIProvider(
-    base_url=os.environ["OPENAI_BASE_URL"],
-    api_key=os.environ["OPENAI_API_KEY"],
-)
-config = LayoutPrompterConfig(
-    dataset="webui",
-    model=OpenAIChatModel("gpt-4o-mini", provider=provider),
-    shuffle=False,
-    num_prompt=1,
-)
+print(output.bbox)
 ```
 
 ## Training Details
@@ -188,11 +150,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |

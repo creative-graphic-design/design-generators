@@ -35,7 +35,7 @@ REQUIRED_HEADINGS = [
     "### Training Data",
     "### Training Procedure",
     "## Evaluation",
-    "## Parity Results",
+    "### Parity Results",
     "## Reproducibility",
 ]
 
@@ -63,6 +63,10 @@ BANNED_PATTERNS = [
     r"current package coverage",
     r"coverage command",
     r"for this PR",
+    r"table reports",
+    r"table below",
+    r"section above",
+    r"this README describes",
 ]
 
 LINK_REQUIRED_DATASET_IDS = [
@@ -430,22 +434,40 @@ def _assert_prompt_only_readme(path: Path, text: str) -> None:
 def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
     supported = _section(text, "## Supported Checkpoints")
     section = _section(text, "## How to Get Started with the Model")
+    if "<<'PY'" in section or '<<"PY"' in section:
+        raise AssertionError(f"{path}: Get Started must not use heredoc examples")
+    if path.parent.name in PROMPT_ONLY_SLUGS:
+        required = [
+            "git clone https://github.com/creative-graphic-design/design-generators.git",
+            f"uv sync --package {path.parent.name}",
+            "no learned checkpoints",
+        ]
+        missing = [snippet for snippet in required if snippet not in section]
+        if missing:
+            raise AssertionError(
+                f"{path}: prompt-only Get Started is missing runnable setup parts {missing}"
+            )
+        return
     if "creative-graphic-design/" not in supported or "not-published" not in supported:
         return
 
     required = [
-        "converted checkpoints are not yet on the Hugging Face Hub",
-        f"`.cache/{path.parent.name}/converted/...",
-        "REPRODUCING.md",
+        "git clone https://github.com/creative-graphic-design/design-generators.git",
+        f"uv sync --package {path.parent.name}",
+        f"`.cache/{path.parent.name}/converted",
+        "REPRODUCING.md](",
+        "# After Hub publication: from_pretrained(",
     ]
     missing = [snippet for snippet in required if snippet not in section]
     if missing:
         raise AssertionError(
-            f"{path}: unpublished Hub Get Started snippet is missing local-conversion note parts {missing}"
+            f"{path}: unpublished Hub Get Started snippet is missing runnable local-loading parts {missing}"
         )
 
 
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
+    if re.search(r"<<['\"]?(PY|EOF)['\"]?", text):
+        raise AssertionError(f"{path}: heredoc examples are not allowed")
     in_fence = False
     for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.startswith("```"):
@@ -462,7 +484,7 @@ def _assert_code_fences_tagged(path: Path, text: str) -> None:
 
 
 def _assert_parity_table(path: Path, text: str) -> None:
-    section = _section(text, "## Parity Results")
+    section = _section(text, "### Parity Results")
     if "| ---" not in section:
         raise AssertionError(f"{path}: Parity Results must contain a markdown table")
     rows = [
@@ -502,7 +524,7 @@ def _parity_requires_tolerance(section: str) -> bool:
 
 
 def _assert_vendor_parity_badge(path: Path, text: str) -> None:
-    section = _section(text, "## Parity Results")
+    section = _section(text, "### Parity Results")
     badge = re.search(r"!\[vendor--parity\]\([^)]*[?&]message=([^&)]*)", text)
     if badge is None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
@@ -582,7 +604,7 @@ def _assert_banned_patterns(path: Path, text: str) -> None:
 
 
 def _root_packages_table_lines(text: str) -> list[str]:
-    marker = "## Packages\n\n"
+    marker = "## Models\n\n"
     start = text.index(marker) + len(marker)
     end = text.index("\n\n", start)
     return text[start:end].splitlines()
@@ -591,9 +613,9 @@ def _root_packages_table_lines(text: str) -> list[str]:
 def _assert_root_packages_weights_column(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
-    expected_header = "| Package | Method | Runtime | Primary datasets | Weights |"
+    expected_header = "| Model | Method | Runtime | Primary datasets | Weights |"
     if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
-        raise AssertionError(f"{path}: Packages table must use a Weights column")
+        raise AssertionError(f"{path}: Models table must use a Weights column")
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) != 5:

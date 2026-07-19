@@ -44,12 +44,7 @@ CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion pytest \
 ```
 
 ```bash
-uv run --package layoutdiffusion python - <<'PY'
-from layoutdiffusion import LayoutDiffusionPipeline
-
-for name in ["layoutdiffusion-rico25", "layoutdiffusion-publaynet"]:
-    pipe = LayoutDiffusionPipeline.from_pretrained(f".cache/layoutdiffusion/converted/{name}")
-    out = pipe(batch_size=1, seed=101, num_inference_steps=1)
-    print(name, out.bbox.shape, out.labels.shape, out.mask.shape)
-PY
+uv run --package layoutdiffusion python models/layoutdiffusion/scripts/smoke_from_pretrained.py \
+  --path .cache/layoutdiffusion/converted/layoutdiffusion-rico25 \
+  --path .cache/layoutdiffusion/converted/layoutdiffusion-publaynet
 ```

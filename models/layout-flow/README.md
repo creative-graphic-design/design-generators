@@ -92,39 +92,26 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md). Those steps create `.cache/layout-flow/converted/rico25`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layout-flow
+uv run --package layout-flow python
 ```
 
 ```python
 from layout_flow import LayoutFlowPipeline
 
-pipe = LayoutFlowPipeline.from_pretrained(
-    "creative-graphic-design/layout-flow-rico25",
-)
+path = ".cache/layout-flow/converted/rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/layout-flow-rico25")
+pipe = LayoutFlowPipeline.from_pretrained(path)
 out = pipe(batch_size=1, seed=0)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
-```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layout-flow/converted/...` path produced by REPRODUCING.md.
-
-Conditioning aliases from the original implementation are accepted at the
-pipeline boundary. For example, `cat_cond`, `c`, and `gen_t` normalize to the
-canonical `label` condition, while `cwh` and `size_cond` normalize to
-`label_size`.
-
-```python
-out = pipe(
-    condition_type="cat_cond",  # canonical alias: "label"
-    labels=[[1, 2, 3]],
-    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
-    mask=[[True, True, True]],
-    seed=0,
-)
-print(out.bbox)
 ```
 
 ## Training Details
@@ -170,11 +157,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Vector field max abs | Vector field max rel | Euler trajectory max abs | Euler trajectory max rel |
 | --- | ---: | ---: | ---: | ---: |

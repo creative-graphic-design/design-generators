@@ -73,35 +73,33 @@ Re-run the vendor parity suite before publishing prompt configurations or compar
 
 ## How to Get Started with the Model
 
+Clone this repository and install the prompt-only workspace member. LayoutGPT has no learned checkpoints; the example uses saved prompt configuration and a parsed output object, so it runs without provider credentials.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layout-gpt
+uv run --package layout-gpt python
 ```
 
 ```python
-from pydantic_ai.models.test import TestModel
 from layout_gpt import LayoutGPTAgent
-from layout_gpt.exemplars import load_nsr_examples
-from layout_gpt.schema import LayoutGPTConfig
+from layout_gpt.schema import LayoutGPTConfig, LayoutGPTOutput, LayoutItem2D
 
-model = TestModel(custom_output_args={"elements": []})
-examples = load_nsr_examples(
-    "vendor/layout-gpt/dataset/NSR-1K/counting/counting.train.json",
-    setting="counting",
+agent = LayoutGPTAgent(config=LayoutGPTConfig(setting="counting", icl_type="fixed-random", k=0))
+agent.save_pretrained(".cache/layout-gpt/prompt-config")
+loaded = LayoutGPTAgent.from_pretrained(".cache/layout-gpt/prompt-config")
+
+output = LayoutGPTOutput(
+    prompt="there is one clock in the image",
+    canvas_size=64,
+    items=[LayoutItem2D(label="clock", left=0.25, top=0.25, width=0.5, height=0.5)],
+    raw_text="clock {height: 32px; width: 32px; top: 16px; left: 16px; }",
+    id2label={0: "clock"},
 )
-agent = LayoutGPTAgent(
-    model=model,
-    config=LayoutGPTConfig(
-        setting="counting",
-        icl_type="fixed-random",
-        k=1,
-        canvas_size=256,
-    ),
-    exemplars=examples,
-)
-output = agent.run_sync("there is one clock in the image")
 layout_output = output.to_layout_generation_output()
+print(loaded.config.setting)
 print(layout_output.bbox)
-print(layout_output.labels)
 print(layout_output.id2label)
 ```
 
@@ -147,11 +145,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |

@@ -9,9 +9,9 @@
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into [Transformers](https://huggingface.co/docs/transformers/index)-, [Diffusers](https://huggingface.co/docs/diffusers/index)-, and [Pydantic AI](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
-## Packages
+## Models
 
-| Package | Method | Runtime | Primary datasets | Weights |
+| Model | Method | Runtime | Primary datasets | Weights |
 | --- | --- | --- | --- | --- |
 | [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | transformers | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
 | [`models/lace`](models/lace/README.md) | LACE | diffusers | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
@@ -34,11 +34,13 @@ Install one workspace member and run a smoke import from the repository root.
 
 ```bash
 uv sync --package layout-dm
-uv run --package layout-dm python - <<'PY'
+uv run --package layout-dm python
+```
+
+```python
 from layout_dm import LayoutDMPipeline
 
 print(LayoutDMPipeline.__name__)
-PY
 ```
 
 Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.

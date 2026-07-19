@@ -112,18 +112,22 @@ model-index:
 
 ## How to Get Started with the Model
 
-<!-- Use the public from_pretrained surface exposed by this model package. -->
+<!-- Use a local converted checkpoint path that works before Hub publication. -->
 
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package <member-name>
+uv run --package <member-name> python
 ```
 
 ```python
 from <package_name> import <PipelineOrModelClass>
 
 pipe = <PipelineOrModelClass>.from_pretrained(
-    "creative-graphic-design/<hub-repo-id>",
+    ".cache/<slug>/converted/<local-checkpoint-dir>",
 )
+# After Hub publication: from_pretrained("creative-graphic-design/<hub-repo-id>")
 out = pipe(batch_size=1, seed=0)
 
 print(out.bbox)    # normalized center xywh boxes
@@ -159,7 +163,7 @@ print(out.mask)    # valid element mask
 
 ## Evaluation
 
-<!-- Official evaluation section. Project-specific vendor parity lives immediately below as a top-level section because issue #60 requires `## Parity Results`. -->
+<!-- Keep package-specific evaluation facts here. -->
 
 ### Testing Data, Factors & Metrics
 
@@ -175,11 +179,7 @@ print(out.mask)    # valid element mask
 
 <exact-match-tolerance-and-smoke-test-metrics>
 
-### Results
-
-<short evaluation summary that points to the numeric parity table below>
-
-## Parity Results
+### Parity Results
 
 <!-- Fill with numeric results from the real vendor-parity suite; do not replace this with prose. -->
 

@@ -100,24 +100,27 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md). Those steps create `.cache/layoutformerpp/converted/rico_gen_t`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layoutformerpp
+uv run --package layoutformerpp python
 ```
 
 ```python
 from layoutformerpp import LayoutFormerPPPipeline
 
-pipe = LayoutFormerPPPipeline.from_pretrained(
-    "creative-graphic-design/layoutformerpp-rico-label",
-)
+path = ".cache/layoutformerpp/converted/rico_gen_t"
+# After Hub publication: from_pretrained("creative-graphic-design/layoutformerpp-rico-label")
+pipe = LayoutFormerPPPipeline.from_pretrained(path)
 out = pipe(condition_type="label", labels=[["Text", "Image"]], max_length=16)
 
-print(out.bbox)  # normalized center xywh, shape (B, S, 4)
-print(out.labels)  # dataset-local ids, padding controlled by out.mask
+print(out.bbox)
+print(out.labels)
 print(out.id2label)
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutformerpp/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -162,11 +165,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
 | --- | --- | --- | ---: | ---: | ---: | --- |

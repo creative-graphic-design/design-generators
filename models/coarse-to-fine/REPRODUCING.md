@@ -69,24 +69,9 @@ Expected result with the fixtures above:
 5. Smoke-test local `from_pretrained`.
 
 ```bash
-uv run --package coarse-to-fine python - <<'PY'
-from coarse_to_fine import (
-    CoarseToFineForLayoutGeneration,
-    CoarseToFinePipeline,
-    CoarseToFineProcessor,
-)
-
-for dataset in ("rico25", "publaynet"):
-    path = f".cache/coarse-to-fine/converted/{dataset}"
-    model = CoarseToFineForLayoutGeneration.from_pretrained(path)
-    processor = CoarseToFineProcessor.from_pretrained(path)
-    pipe = CoarseToFinePipeline(model=model, processor=processor)
-    out = pipe(batch_size=1, seed=0)
-    assert out.bbox.shape == (1, 20, 4)
-    assert out.labels.shape == (1, 20)
-    assert bool(out.mask.any())
-    print(model.config.dataset, out.bbox.shape, out.labels.shape)
-PY
+uv run --package coarse-to-fine python models/coarse-to-fine/scripts/smoke_from_pretrained.py \
+  --path .cache/coarse-to-fine/converted/rico25 \
+  --path .cache/coarse-to-fine/converted/publaynet
 ```
 
 Expected output:

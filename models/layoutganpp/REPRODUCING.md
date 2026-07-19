@@ -72,18 +72,8 @@ magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
 Step 5 runs a `from_pretrained` smoke check for each converted checkpoint. The expected bbox shapes are `(1, 2, 4)`.
 
 ```bash
-uv run --package layoutganpp python - <<'PY'
-from layoutganpp import LayoutGANPPPipeline
-
-for dataset, labels in {
-    "rico": [["Toolbar", "Image"]],
-    "publaynet": [["text", "figure"]],
-    "magazine": [["text", "image"]],
-}.items():
-    pipe = LayoutGANPPPipeline.from_pretrained(
-        f".cache/layoutganpp/converted/layoutganpp-{dataset}"
-    )
-    out = pipe(labels=labels, seed=0)
-    print(dataset, tuple(out.bbox.shape))
-PY
+uv run --package layoutganpp python models/layoutganpp/scripts/smoke_from_pretrained.py \
+  --path .cache/layoutganpp/converted/layoutganpp-rico \
+  --path .cache/layoutganpp/converted/layoutganpp-publaynet \
+  --path .cache/layoutganpp/converted/layoutganpp-magazine
 ```

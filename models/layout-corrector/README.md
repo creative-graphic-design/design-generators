@@ -158,24 +158,27 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md). Those steps create `.cache/layout-corrector/converted/layout-corrector-rico25-smoke`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layout-corrector
+uv run --package layout-corrector python
 ```
 
 ```python
 from layout_corrector import LayoutCorrectorPipeline
 
-pipe = LayoutCorrectorPipeline.from_pretrained(
-    "creative-graphic-design/layout-corrector-rico25",
-)
-out = pipe(batch_size=1, seed=0)
+path = ".cache/layout-corrector/converted/layout-corrector-rico25-smoke"
+# After Hub publication: from_pretrained("creative-graphic-design/layout-corrector-rico25")
+pipe = LayoutCorrectorPipeline.from_pretrained(path)
+out = pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layout-corrector/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -221,11 +224,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Seed | Token exact | Logits max abs | Logits max rel |
 | --- | ---: | ---: | ---: | ---: |

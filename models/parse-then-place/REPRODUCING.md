@@ -31,20 +31,6 @@ uv run --package parse-then-place python models/parse-then-place/scripts/convert
   --parser-state-path .cache/parse-then-place/assets/ckpt/rico/stage1/pytorch_model.bin \
   --output-dir .cache/parse-then-place/converted/rico-finetune
 
-uv run --package parse-then-place python - <<'PY'
-from pathlib import Path
-
-from parse_then_place import ParseThenPlacePipeline
-
-root = Path(".cache/parse-then-place/converted/rico-finetune")
-pipeline = ParseThenPlacePipeline.from_pretrained(
-    root,
-    local_files_only=True,
-)
-print(
-    pipeline.config.dataset_name,
-    pipeline.parser is not None,
-    pipeline.placement is not None,
-)
-PY
+uv run --package parse-then-place python models/parse-then-place/scripts/smoke_from_pretrained.py \
+  --path .cache/parse-then-place/converted/rico-finetune
 ```

@@ -68,21 +68,8 @@ printf 'LayoutPrompter stores prompt configuration rather than learned weights.\
 `save_pretrained` stores prompt configuration, not weights.
 
 ```bash
-uv run --package layoutprompter python - <<'PY'
-from tempfile import TemporaryDirectory
-
-from pydantic_ai.models.test import TestModel
-
-from layoutprompter import LayoutPrompter, LayoutPrompterConfig
-
-model = TestModel(custom_output_args={"elements": []})
-agent = LayoutPrompter(LayoutPrompterConfig(model=model, dataset="webui"))
-
-with TemporaryDirectory() as tmpdir:
-    agent.save_pretrained(tmpdir)
-    loaded = LayoutPrompter.from_pretrained(tmpdir, model=model)
-    print(loaded.config.dataset)
-PY
+uv run --package layoutprompter python models/layoutprompter/scripts/smoke_from_pretrained.py \
+  --path .cache/layoutprompter/prompt-config
 ```
 
 Smoke output:

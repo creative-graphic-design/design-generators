@@ -90,47 +90,26 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md). Those steps create `.cache/layoutdiffusion/converted/layoutdiffusion-rico25`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layoutdiffusion
+uv run --package layoutdiffusion python
 ```
 
 ```python
 from layoutdiffusion import LayoutDiffusionPipeline
 
-pipe = LayoutDiffusionPipeline.from_pretrained(
-    "creative-graphic-design/layoutdiffusion-rico25",
-)
+path = ".cache/layoutdiffusion/converted/layoutdiffusion-rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/layoutdiffusion-rico25")
+pipe = LayoutDiffusionPipeline.from_pretrained(path)
 out = pipe(batch_size=1, generator=None, condition_type="unconditional", seed=0)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
-```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layoutdiffusion/converted/...` path produced by REPRODUCING.md.
-
-Use `condition_type` to select unconditional generation or supported
-conditioning paths. `unconditional`, `label`, and `refinement` are the supported
-canonical modes for this package; aliases such as `ugen`, `cat_cond`, `c`,
-`gen_t`, and `refine` are normalized before sampling. Unsupported canonical
-modes raise explicit errors instead of falling back silently.
-
-```python
-unconditional = pipe(batch_size=1, condition_type="ugen", seed=101)
-label_conditioned = pipe(
-    condition_type="cat_cond",  # canonical alias: "label"
-    labels=[[1, 2, 3]],
-    num_elements=[3],
-    seed=101,
-)
-refined = pipe(
-    condition_type="refine",  # canonical alias: "refinement"
-    labels=[[1, 2, 3]],
-    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
-    mask=[[True, True, True]],
-    seed=101,
-)
-print(unconditional.bbox, label_conditioned.mask, refined.bbox)
 ```
 
 ## Training Details
@@ -174,11 +153,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Comparison target | Cases | Agreement criterion | Result |
 | --- | --- | ---: | --- | --- |

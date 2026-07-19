@@ -20,7 +20,10 @@ uv sync --package posgen
 ## Current API
 
 ```bash
-uv run --package posgen python - <<'PY'
+uv run --package posgen python
+```
+
+```python
 import torch
 from posgen.common import (
     PositionContent,
@@ -38,7 +41,6 @@ assert_position_content_schema(content)
 print(normalize_label("Anchor-Point"))
 print(render_position_summary(content))
 print(labels_for_dataset("crello"))
-PY
 ```
 
 Example output:

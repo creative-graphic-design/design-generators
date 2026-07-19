@@ -90,8 +90,13 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md). Those steps create `.cache/coarse-to-fine/converted/rico25`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package coarse-to-fine
+uv run --package coarse-to-fine python
 ```
 
 ```python
@@ -101,18 +106,17 @@ from coarse_to_fine import (
     CoarseToFineProcessor,
 )
 
-model_id = "creative-graphic-design/coarse-to-fine-rico25"
-model = CoarseToFineForLayoutGeneration.from_pretrained(model_id)
-processor = CoarseToFineProcessor.from_pretrained(model_id)
+path = ".cache/coarse-to-fine/converted/rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/coarse-to-fine-rico25")
+model = CoarseToFineForLayoutGeneration.from_pretrained(path)
+processor = CoarseToFineProcessor.from_pretrained(path)
 pipe = CoarseToFinePipeline(model=model, processor=processor)
 
 out = pipe(batch_size=2, seed=0, return_intermediates=True)
-print(out.bbox)  # normalized center xywh, shape (B, S, 4)
-print(out.labels)  # dataset-local ids, padding controlled by out.mask
+print(out.bbox)
+print(out.labels)
 print(out.intermediates["hierarchy"]["group_bbox"])
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/coarse-to-fine/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -157,11 +161,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Comparison target | Cases | Agreement criterion | Result |
 | --- | --- | ---: | --- | --- |

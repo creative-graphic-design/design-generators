@@ -40,14 +40,9 @@ uv run --package layout-flow --extra vendor python models/layout-flow/scripts/co
 5. Smoke-test local `from_pretrained` loading.
 
 ```bash
-uv run --package layout-flow python - <<'PY'
-from layout_flow import LayoutFlowPipeline
-
-for dataset in ["publaynet", "rico25"]:
-    pipe = LayoutFlowPipeline.from_pretrained(f".cache/layout-flow/converted/{dataset}")
-    out = pipe(batch_size=1, num_elements=4, seed=0, num_inference_steps=2)
-    print(dataset, out.bbox.shape, out.labels.shape, type(out).__name__)
-PY
+uv run --package layout-flow python models/layout-flow/scripts/smoke_from_pretrained.py \
+  --path .cache/layout-flow/converted/publaynet \
+  --path .cache/layout-flow/converted/rico25
 ```
 
 Each script supports `--help` with defaults documented:

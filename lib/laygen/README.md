@@ -27,19 +27,24 @@ uv sync --package laygen --extra agents
 Use schema and normalization helpers without importing [PyTorch](https://pytorch.org/docs/stable/index.html) or Diffusers.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 from laygen.common import normalize_condition_type
 from laygen.common.labels import id2label_for_dataset
 
 print(normalize_condition_type("gen_t"))
 print(id2label_for_dataset("publaynet"))
-PY
 ```
 
 Use `laygen.modeling_outputs.LayoutGenerationOutput` for Transformers-style code paths and schema-only utilities.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 import torch
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -50,13 +55,15 @@ out = LayoutGenerationOutput(
     id2label={0: "text"},
 )
 print(out["bbox"].shape)
-PY
 ```
 
 Use `laygen.pipelines.pipeline_output.LayoutGenerationOutput` inside Diffusers pipeline packages.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 import torch
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -67,7 +74,6 @@ out = LayoutGenerationOutput(
     id2label={0: "text"},
 )
 print(out.to_tuple()[0].shape)
-PY
 ```
 
 Subclass `laygen.pipelines.LayoutGenerationPipeline` for Transformers-side pipeline packages that load a root config plus model or processor subfolders.
@@ -99,47 +105,55 @@ print(betas.shape, timesteps.tolist())
 Convert boxes through normalized center `xywh` when crossing package boundaries.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 import torch
 from laygen.common.bbox import denormalize_boxes, normalize_boxes
 
 pixels = torch.tensor([[[10.0, 20.0, 40.0, 60.0]]])
 boxes = normalize_boxes(pixels, canvas_size=(100, 100), box_format="ltrb")
 print(denormalize_boxes(boxes, canvas_size=(100, 100), box_format="ltrb"))
-PY
 ```
 
 Read dataset labels from the shared label registry.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 from laygen.common.labels import id2label_for_dataset, label2id_for_dataset
 
 print(id2label_for_dataset("publaynet"))
 print(label2id_for_dataset("rico25")["Text"])
-PY
 ```
 
 Normalize public and vendor condition names through the shared condition enum.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 from laygen.common import normalize_condition_type
 
 print(normalize_condition_type("gen_t"))
 print(normalize_condition_type("gen_r"))
-PY
 ```
 
 Generate a LayoutDM model card when writing converted checkpoint directories.
 
 ```bash
-uv run --package laygen python - <<'PY'
+uv run --package laygen python
+```
+
+```python
 from laygen.common.model_card import layoutdm_model_card
 
 card = layoutdm_model_card(dataset="rico25")
 print(card.data.to_dict()["datasets"])
-PY
 ```
 
 Example output:

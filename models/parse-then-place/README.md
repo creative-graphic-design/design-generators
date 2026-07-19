@@ -92,26 +92,25 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md). Those steps create `.cache/parse-then-place/converted/rico-finetune`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package parse-then-place
+uv run --package parse-then-place python
 ```
 
 ```python
-from parse_then_place import (
-    ParseThenPlaceConfig,
-    ParseThenPlacePipeline,
-    ParseThenPlaceProcessor,
-)
+from parse_then_place import ParseThenPlacePipeline
 
-config = ParseThenPlaceConfig(dataset_name="rico")
-processor = ParseThenPlaceProcessor.from_config("rico")
-pipe = ParseThenPlacePipeline(config=config, processor=processor)
+path = ".cache/parse-then-place/converted/rico-finetune"
+# After Hub publication: from_pretrained("creative-graphic-design/parse-then-place-rico-finetune")
+pipe = ParseThenPlacePipeline.from_pretrained(path, local_files_only=True)
 out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
 
 print(out.bbox.shape, out.labels.tolist())
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/parse-then-place/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -156,11 +155,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | ---: |

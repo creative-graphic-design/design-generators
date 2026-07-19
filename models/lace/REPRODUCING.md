@@ -93,16 +93,10 @@ Each output directory contains Diffusers pipeline files and `README.md`:
 5. Load the converted checkpoints with `from_pretrained` and run a short smoke:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python - <<'PY'
-from lace import LacePipeline
-
-for name in ["lace-publaynet", "lace-rico25"]:
-    pipe = LacePipeline.from_pretrained(f".cache/lace/converted/{name}")
-    pipe = pipe.to("cuda")
-    out = pipe(batch_size=1, seed=0, num_inference_steps=2)
-    in_range = bool((out.bbox >= 0).all() and (out.bbox <= 1).all())
-    print(name, tuple(out.bbox.shape), tuple(out.labels.shape), in_range)
-PY
+CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/smoke_from_pretrained.py \
+  --path .cache/lace/converted/lace-publaynet \
+  --path .cache/lace/converted/lace-rico25 \
+  --device cuda
 ```
 
 Expected output shapes are `(1, 25, 4)` for `bbox` and `(1, 25)` for `labels`;

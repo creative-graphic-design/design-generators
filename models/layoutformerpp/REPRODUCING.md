@@ -62,17 +62,17 @@ done
 5. Smoke-test `from_pretrained` from every converted artifact.
 
 ```bash
-uv run --package layoutformerpp python - <<'PY'
-from layoutformerpp import LayoutFormerPPPipeline
-
-for dataset in ("rico", "publaynet"):
-    for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
-        path = f".cache/layoutformerpp/converted/{dataset}_{task}"
-        pipe = LayoutFormerPPPipeline.from_pretrained(path, local_files_only=True)
-        print(
-            pipe.config.dataset,
-            pipe.config.task,
-            pipe.processor.tokenizer.vocab_size,
-        )
-PY
+uv run --package layoutformerpp python models/layoutformerpp/scripts/smoke_from_pretrained.py \
+  --path .cache/layoutformerpp/converted/rico_gen_t \
+  --path .cache/layoutformerpp/converted/rico_gen_ts \
+  --path .cache/layoutformerpp/converted/rico_gen_r \
+  --path .cache/layoutformerpp/converted/rico_refinement \
+  --path .cache/layoutformerpp/converted/rico_completion \
+  --path .cache/layoutformerpp/converted/rico_ugen \
+  --path .cache/layoutformerpp/converted/publaynet_gen_t \
+  --path .cache/layoutformerpp/converted/publaynet_gen_ts \
+  --path .cache/layoutformerpp/converted/publaynet_gen_r \
+  --path .cache/layoutformerpp/converted/publaynet_refinement \
+  --path .cache/layoutformerpp/converted/publaynet_completion \
+  --path .cache/layoutformerpp/converted/publaynet_ugen
 ```

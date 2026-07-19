@@ -100,24 +100,27 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md). Those steps create `.cache/lace/converted/lace-publaynet`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package lace
+uv run --package lace python
 ```
 
 ```python
 from lace import LacePipeline
 
-pipe = LacePipeline.from_pretrained(
-    "creative-graphic-design/lace-publaynet",
-)
+path = ".cache/lace/converted/lace-publaynet"
+# After Hub publication: from_pretrained("creative-graphic-design/lace-publaynet")
+pipe = LacePipeline.from_pretrained(path)
 out = pipe(batch_size=1, seed=0)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
 ```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/lace/converted/...` path produced by REPRODUCING.md.
 
 ## Training Details
 
@@ -163,11 +166,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Test | Shape | Max abs | rtol | atol |
 | --- | --- | ---: | ---: | ---: | ---: |

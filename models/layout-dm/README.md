@@ -92,40 +92,26 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md). Those steps create `.cache/layout-dm/converted/layoutdm-rico25`.
+
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layout-dm
+uv run --package layout-dm python
 ```
 
 ```python
 from layout_dm import LayoutDMPipeline
 
-pipe = LayoutDMPipeline.from_pretrained(
-    "creative-graphic-design/layoutdm-rico25",
-)
-out = pipe(batch_size=1, seed=0)
+path = ".cache/layout-dm/converted/layoutdm-rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/layoutdm-rico25")
+pipe = LayoutDMPipeline.from_pretrained(path)
+out = pipe(batch_size=1, generator=None, condition_type="unconditional", seed=0)
 
 print(out.bbox)
 print(out.labels)
 print(out.mask)
-```
-
-The converted checkpoints are not yet on the Hugging Face Hub; until then, convert locally and load the `.cache/layout-dm/converted/...` path produced by REPRODUCING.md.
-
-Conditional generation uses the same pipeline call with `condition_type`, `bbox`,
-`labels`, and `mask`. Canonical names such as `label`, `label_size`,
-`completion`, and `refinement` are accepted, and vendor aliases such as
-`gen_t`, `gen_ts`, `cat_cond`, `c`, `cwh`, `partial`, and `refine` are normalized
-at the pipeline boundary.
-
-```python
-out = pipe(
-    condition_type="gen_t",  # canonical alias: "label"
-    labels=[[1, 2, 3]],
-    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
-    mask=[[True, True, True]],
-    seed=0,
-)
-print(out.bbox)
 ```
 
 ## Training Details
@@ -169,11 +155,7 @@ Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt 
 
 Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
 
-### Results
-
-The `## Parity Results` table reports the available numeric agreement evidence.
-
-## Parity Results
+### Parity Results
 
 | Dataset | Tokenizer exact | Deterministic exact | Logits max abs | Logits max rel |
 | --- | ---: | ---: | ---: | ---: |

@@ -41,7 +41,10 @@ def test_readme_includes_reproducible_vendor_parity_commands():
         "CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector --extra vendor pytest"
         in reproducing
     )
-    assert "uv run --package layout-corrector python - <<'PY'" in reproducing
+    assert (
+        "uv run --package layout-corrector python "
+        "models/layout-corrector/scripts/smoke_from_pretrained.py" in reproducing
+    )
 
 
 def test_scripts_have_module_docstrings():

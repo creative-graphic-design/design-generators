@@ -86,17 +86,7 @@ uv run --package layout-dm --extra convert python models/layout-dm/scripts/conve
 Smoke test both converted checkpoints:
 
 ```bash
-uv run --package layout-dm python - <<'PY'
-from pathlib import Path
-from layout_dm import LayoutDMPipeline
-
-for dataset in ("rico25", "publaynet"):
-    path = Path(".cache/layout-dm/converted") / f"layoutdm-{dataset}"
-    pipe = LayoutDMPipeline.from_pretrained(path)
-    out = pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
-    assert out.bbox.shape[-1] == 4
-    assert out.labels.shape == out.mask.shape
-    assert (path / "README.md").exists()
-    print(dataset, out.bbox.shape, out.labels.shape)
-PY
+uv run --package layout-dm python models/layout-dm/scripts/smoke_from_pretrained.py \
+  --path .cache/layout-dm/converted/layoutdm-rico25 \
+  --path .cache/layout-dm/converted/layoutdm-publaynet
 ```

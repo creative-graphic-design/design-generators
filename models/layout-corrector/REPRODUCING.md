@@ -80,13 +80,6 @@ uv run --package layout-corrector --extra convert python models/layout-corrector
   --layout-dm-dir .cache/layout-corrector/converted/layoutdm/rico25/0 \
   --output-dir .cache/layout-corrector/converted/layout-corrector-rico25-smoke
 
-uv run --package layout-corrector python - <<'PY'
-from layout_corrector import LayoutCorrectorPipeline
-
-pipe = LayoutCorrectorPipeline.from_pretrained(
-    ".cache/layout-corrector/converted/layout-corrector-rico25-smoke"
-)
-out = pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
-print(out.sequences.shape)
-PY
+uv run --package layout-corrector python models/layout-corrector/scripts/smoke_from_pretrained.py \
+  --path .cache/layout-corrector/converted/layout-corrector-rico25-smoke
 ```
