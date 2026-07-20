@@ -9,7 +9,7 @@
 repositories into Transformers/Diffusers-style packages that can load converted
 weights with `from_pretrained` and run inference immediately. Keep repository
 rules here stable and concise; procedural implementation guidance lives in
-repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
+repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 
 ## Sources Of Truth
 
@@ -37,6 +37,14 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
   on that member's extras, dependency source mapping, or package metadata.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
+
+## Repo-Local Skills
+
+- Skill source of truth is `.agents/skills/<name>/SKILL.md`.
+- `.claude/skills` is a relative symlink to `.agents/skills` for Claude
+  compatibility.
+- Codex should read the relevant `.agents/skills/<name>/SKILL.md` directly
+  when a repo-local skill applies.
 
 ## Naming
 
