@@ -2,19 +2,13 @@
 
 This project exposes research implementations through package interfaces that behave like regular Transformers or Diffusers components. Public code should be importable, documented, and runnable without reading the original vendor repository.
 
-## Workspace Packages
+For setup and first inference, start with [Getting Started](getting-started.md).
 
-Workspace members live under `lib/*` and `models/*`. Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+## User Interface
 
-Run member-specific commands with the package selected:
+These conventions apply to generated outputs and public pipeline arguments.
 
-```bash
-uv run --package <name> pytest
-```
-
-Original implementations stay under `vendor/` and are treated as read-only references. Dependencies needed only for vendor parity belong behind a model package's `vendor` optional extra.
-
-## Public Outputs
+### Public Outputs
 
 Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`, and `id2label`. Optional fields include `sequences`, `scores`, `trajectory`, and `intermediates`.
 
@@ -24,28 +18,68 @@ Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerati
 
 Public `bbox` values are normalized center `xywh` coordinates in `[0, 1]`, even when vendor code uses `ltwh`, `ltrb`, bins, analog bits, or text tokens internally. Public `mask=True` means a valid element, and padding is represented by `mask` rather than a reserved public label id.
 
+```python
+import torch
+from laygen.modeling_outputs import LayoutGenerationOutput
+
+out = LayoutGenerationOutput(
+    bbox=torch.tensor([[[0.50, 0.50, 0.25, 0.20]]]),
+    labels=torch.tensor([[0]]),
+    mask=torch.tensor([[True]]),
+    id2label={0: "Text"},
+)
+
+print(out.bbox.shape)
+print(out.id2label[int(out.labels[0, 0])])
+```
+
+```text
+torch.Size([1, 1, 4])
+Text
+```
+
+### Conditioning
+
 Canonical `condition_type` names are:
 
-- `unconditional`
-- `label`
-- `label_size`
-- `completion`
-- `refinement`
-- `text`
-- `content_image`
-- `relation`
-- `hierarchical`
-- `retrieval`
+- `unconditional`: generate a layout without user-provided element constraints.
+- `label`: condition on element categories.
+- `label_size`: condition on element categories and sizes.
+- `completion`: fill missing elements around a partially observed layout.
+- `refinement`: improve or denoise an existing layout.
+- `text`: condition on a natural-language prompt.
+- `content_image`: condition on an image or saliency/content representation.
+- `relation`: condition on pairwise or graph-style element relations.
+- `hierarchical`: condition on a tree or grouped layout structure.
+- `retrieval`: condition on retrieved exemplar layouts or records.
 
 Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 
-## Data And Parity
+### Dataset References
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.
 
-Vendor parity fixtures are regenerated from the original implementation with fixed seeds. Large tensors, images, model weights, and downloaded datasets are not committed; only metadata needed to regenerate them is committed.
+## Contributor Conventions
 
-## Documentation
+These conventions apply when adding or maintaining workspace packages.
+
+### Workspace Packages
+
+Workspace members live under `lib/*` and `models/*`. Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+
+Run member-specific commands with the package selected:
+
+```bash
+uv run --package <name> pytest
+```
+
+Original implementations stay under `vendor/` and are treated as read-only references. Here, vendor means the upstream research repository used to verify conversion behavior. Dependencies needed only for vendor parity belong behind a model package's `vendor` optional extra.
+
+### Data And Parity
+
+Vendor parity fixtures are reference outputs regenerated from the original implementation with fixed seeds. Large tensors, images, model weights, and downloaded datasets are not committed; only metadata needed to regenerate them is committed.
+
+### Documentation
 
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 

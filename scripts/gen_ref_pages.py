@@ -18,6 +18,7 @@ GROUP_TITLES = {
     "models": "Models",
 }
 PUBLIC_MODEL_MODULE_PREFIXES = (
+    "conversion",
     "configuration",
     "modeling",
     "model_card",
@@ -129,10 +130,23 @@ def page_path_for(
 def imported_public_modules(init_file: Path) -> set[str]:
     """Return sibling module stems imported by a package ``__init__`` file."""
     imported_modules: set[str] = set()
+    package_name = init_file.parent.name
     module = ast.parse(init_file.read_text(encoding="utf-8"), filename=str(init_file))
     for node in ast.walk(module):
-        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
-            imported_modules.add(node.module.split(".", maxsplit=1)[0])
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 1 and node.module:
+                imported_modules.add(node.module.split(".", maxsplit=1)[0])
+            elif node.level == 0 and node.module:
+                parts = node.module.split(".")
+                if len(parts) > 1 and parts[0] == package_name:
+                    imported_modules.add(parts[1])
+                elif node.module == package_name:
+                    imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if len(parts) > 1 and parts[0] == package_name:
+                    imported_modules.add(parts[1])
     return imported_modules
 
 
@@ -319,4 +333,5 @@ def main() -> None:
     write_literate_nav(packages)
 
 
-main()
+if __name__ in {"__main__", "<run_path>"}:
+    main()
