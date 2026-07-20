@@ -1,31 +1,72 @@
 # design-generators
 
-`design-generators` packages layout, poster, and graphic-design generation methods behind familiar Transformers, Diffusers, and Pydantic AI interfaces. Use it to load locally converted checkpoints or prompt configurations, generate labeled bounding boxes, and compare methods through one public output schema.
+[![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
+![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
+![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
+![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
 
-## Start Here
+`design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
-- [Getting Started](getting-started.md) shows workspace install, local checkpoint conversion, and first inference.
-- [Models](models.md) lists the packaged methods, runtime style, datasets, and planned Hub ids.
-- [Conventions](conventions.md) documents output fields, box coordinates, masks, labels, and supported `condition_type` names.
-- [API Reference](api/index.md) is generated from workspace packages under `lib/*` and `models/*`.
+## Models
 
-## Quickstart
+| Model | Method | Runtime | Primary datasets | Weights |
+| --- | --- | --- | --- | --- |
+| [`models/coarse-to-fine`](api/models/coarse-to-fine/index.md) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md)) |
+| [`models/lace`](api/models/lace/index.md) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md)) |
+| [`models/layousyn`](api/models/layousyn/index.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md)) |
+| [`models/layout-corrector`](api/models/layout-corrector/index.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md)) |
+| [`models/layout-dm`](api/models/layout-dm/index.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md)) |
+| [`models/layout-flow`](api/models/layout-flow/index.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md)) |
+| [`models/layout-gpt`](api/models/layout-gpt/index.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
+| [`models/layoutdiffusion`](api/models/layoutdiffusion/index.md) | LayoutDiffusion | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md)) |
+| [`models/layoutformerpp`](api/models/layoutformerpp/index.md) | LayoutFormer++ | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md)) |
+| [`models/layoutganpp`](api/models/layoutganpp/index.md) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md)) |
+| [`models/layoutprompter`](api/models/layoutprompter/index.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
+| [`models/parse-then-place`](api/models/parse-then-place/index.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md)) |
 
-Install the LayoutDM workspace member and check the public API imports. Hub ids are planned until checkpoint publication is complete, so [Getting Started](getting-started.md) shows the local conversion commands before the `from_pretrained` inference snippet.
+Shared libraries live under `lib/*`: [`laygen`](api/libraries/laygen/index.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](api/libraries/posgen/index.md) reserves small poster/content-aware placement contracts for future consumers.
+
+## Quick Start
+
+Install one workspace member and run a smoke import from the repository root.
 
 ```bash
-git clone https://github.com/creative-graphic-design/design-generators.git
-cd design-generators
 uv sync --package layout-dm
-uv run --package layout-dm python - <<'PY'
+uv run --package layout-dm python
+```
+
+```python
 from layout_dm import LayoutDMPipeline
 
 print(LayoutDMPipeline.__name__)
-PY
 ```
 
-```text
-LayoutDMPipeline
+Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+
+## Workspace Commands
+
+```bash
+uv sync --all-packages
+uv run --package laygen pytest lib/laygen/tests
+uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
+uv run python scripts/check_model_readmes.py
+uv run python scripts/check_readme_badges.py
+uv run --group docs python scripts/gen_ref_pages.py
+uv run --group docs zensical build --strict -f mkdocs.generated.yml
 ```
 
-Run [Getting Started](getting-started.md) or the LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) to create `.cache/layout-dm/converted/layoutdm-rico25` before loading converted weights.
+Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+
+## Documentation
+
+The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/). API pages are generated from workspace members below `lib/*/src` and `models/*/src`. Public API docstrings are the source text for the API reference.
+
+## Reproducibility Policy
+
+Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+
+## License
+
+Repository code is licensed under Apache-2.0; see [LICENSE](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE). Converted weights, datasets, and vendored upstream code carry their original licenses.

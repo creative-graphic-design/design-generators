@@ -12,6 +12,9 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
 GENERATED_MKDOCS_CONFIG = ROOT / "mkdocs.generated.yml"
+GITHUB_BLOB_BASE_URL = (
+    "https://github.com/creative-graphic-design/design-generators/blob/main"
+)
 MEMBER_PARENTS = ("lib", "models")
 GROUP_TITLES = {
     "lib": "Libraries",
@@ -67,6 +70,47 @@ def write_generated_file(path: Path, content: str) -> None:
     """Write generated content outside the tracked documentation tree."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def site_page_for_repo_link(link: str) -> str:
+    """Return the documentation-site target for a repository-relative link."""
+    target = link.removeprefix("./")
+    if target.startswith(("http://", "https://", "#", "mailto:")):
+        return link
+    if target.startswith("models/") and target.endswith("/README.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            project_name = read_project_name(
+                ROOT / "models" / parts[1] / "pyproject.toml"
+            )
+            return f"api/models/{package_slug(project_name)}/index.md"
+    if target.startswith("lib/") and target.endswith("/README.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            project_name = read_project_name(ROOT / "lib" / parts[1] / "pyproject.toml")
+            return f"api/libraries/{package_slug(project_name)}/index.md"
+    return f"{GITHUB_BLOB_BASE_URL}/{target}"
+
+
+def rewrite_repo_relative_links(markdown: str) -> str:
+    """Rewrite README repository links for the generated documentation site."""
+
+    def replace(match: re.Match[str]) -> str:
+        label = match.group("label")
+        link = match.group("link")
+        return f"[{label}]({site_page_for_repo_link(link)})"
+
+    return re.sub(
+        r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
+        replace,
+        markdown,
+    )
+
+
+def write_overview_page() -> None:
+    """Generate the documentation Overview page from the repository README."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").rstrip()
+    write_text_file(Path("index.md"), f"{rewrite_repo_relative_links(readme)}\n")
 
 
 def iter_member_dirs() -> list[Path]:
@@ -381,6 +425,8 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
     lines = [
         "nav:",
         "  - Overview: index.md",
+        "  - Getting Started: getting-started.md",
+        "  - Models: models.md",
         "  - Conventions: conventions.md",
         "  - API Reference:",
         "      - Overview: api/index.md",
@@ -450,6 +496,7 @@ def main() -> None:
     """Generate all API reference files."""
     clean_generated_api_dir()
     packages = discover_api_packages()
+    write_overview_page()
     write_api_index(packages)
     write_group_indexes(packages)
     write_package_indexes(packages)
