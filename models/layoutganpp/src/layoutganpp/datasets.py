@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum, auto
 from typing import Final, TypedDict
 
-from laygen.common.labels import DatasetName
+from laygen.common.labels import DatasetName, MagazineLabel, PubLayNetLabel
 
 
 class RicoLabel(StrEnum):
@@ -24,26 +24,6 @@ class RicoLabel(StrEnum):
     background_image = "Background Image"
     drawer = "Drawer"
     modal = "Modal"
-
-
-class PubLayNetLabel(StrEnum):
-    """PubLayNet label names in LayoutGAN++ checkpoint order."""
-
-    text = "text"
-    title = "title"
-    list = "list"
-    table = "table"
-    figure = "figure"
-
-
-class MagazineLabel(StrEnum):
-    """Magazine label names in LayoutGAN++ checkpoint order."""
-
-    text = "text"
-    image = "image"
-    headline = "headline"
-    text_over_image = "text-over-image"
-    headline_over_image = "headline-over-image"
 
 
 class DatasetAlias(StrEnum):

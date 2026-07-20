@@ -13,7 +13,11 @@ from transformers.tokenization_utils_base import BatchEncoding
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
-from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+from laygen.pipelines import (
+    LayoutGenerationPipeline,
+    PipelineComponentSpec,
+    model_processor_component_specs,
+)
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 from .modeling_layoutganpp import LayoutGANPPModel, OutputType
@@ -74,19 +78,12 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
     """
 
     config_class: ClassVar[type[PretrainedConfig]] = LayoutGANPPConfig
-    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
-        "model": PipelineComponentSpec(
-            attribute_name="model",
-            loader=_load_model_component,
-            marker_file="config.json",
-        ),
-        "processor": PipelineComponentSpec(
-            attribute_name="processor",
-            loader=_load_processor_component,
-            marker_file="processor_config.json",
-            save_with_is_main_process=False,
-        ),
-    }
+    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = (
+        model_processor_component_specs(
+            model_loader=_load_model_component,
+            processor_loader=_load_processor_component,
+        )
+    )
 
     config: LayoutGANPPConfig
     model: LayoutGANPPModel
