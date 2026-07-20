@@ -1,3 +1,10 @@
+---
+icon: lucide/layout-template
+tags:
+  - Overview
+  - Documentation
+---
+
 # design-generators
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into Transformers- and Diffusers-style packages. The target interface is `from_pretrained`-ready inference with shared output schemas, consistent conditioning names, and reproducible conversion paths.
