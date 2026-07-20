@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 
+from laygen.common.enums import normalize_enum_value
+
 
 class OutputType(StrEnum):
     """Supported output containers."""
@@ -28,9 +30,8 @@ def normalize_output_type(output_type: OutputType | str) -> OutputType:
         >>> str(normalize_output_type("dict"))
         'dict'
     """
-    if isinstance(output_type, OutputType):
-        return output_type
-    try:
-        return OutputType(output_type)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported output_type: {output_type}") from exc
+    return normalize_enum_value(
+        output_type,
+        OutputType,
+        option_name="output_type",
+    )

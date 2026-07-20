@@ -10,7 +10,11 @@ import torch
 from transformers import PretrainedConfig
 
 from laygen.modeling_outputs import LayoutGenerationOutput
-from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+from laygen.pipelines import (
+    LayoutGenerationPipeline,
+    PipelineComponentSpec,
+    model_processor_component_specs,
+)
 
 
 LOADER_CALLS: list[tuple[str | Path, str | None, bool]] = []
@@ -264,6 +268,23 @@ def test_pipeline_base_device_dtype_and_generator_seed_precedence() -> None:
     mocked_seed.assert_called_once_with(123)
     assert seeded is not None
     assert seeded.initial_seed() == 123
+
+
+def test_model_processor_component_specs_builds_standard_rules() -> None:
+    specs = model_processor_component_specs(
+        model_loader=load_toy_model,
+        processor_loader=load_toy_processor,
+    )
+
+    assert tuple(specs) == ("model", "processor")
+    assert specs["model"].attribute_name == "model"
+    assert specs["model"].loader is load_toy_model
+    assert specs["model"].marker_file == "config.json"
+    assert specs["model"].save_with_is_main_process is True
+    assert specs["processor"].attribute_name == "processor"
+    assert specs["processor"].loader is load_toy_processor
+    assert specs["processor"].marker_file == "processor_config.json"
+    assert specs["processor"].save_with_is_main_process is False
 
 
 def test_pipeline_base_is_abstract() -> None:

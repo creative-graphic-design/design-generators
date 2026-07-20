@@ -12,7 +12,11 @@ from transformers import PretrainedConfig
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
-from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+from laygen.pipelines import (
+    LayoutGenerationPipeline,
+    PipelineComponentSpec,
+    model_processor_component_specs,
+)
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
@@ -76,19 +80,12 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
     """
 
     config_class: ClassVar[type[PretrainedConfig]] = LayoutFormerPPConfig
-    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
-        "model": PipelineComponentSpec(
-            attribute_name="model",
-            loader=_load_model_component,
-            marker_file="config.json",
-        ),
-        "processor": PipelineComponentSpec(
-            attribute_name="processor",
-            loader=_load_processor_component,
-            marker_file="processor_config.json",
-            save_with_is_main_process=False,
-        ),
-    }
+    component_specs: ClassVar[dict[str, PipelineComponentSpec]] = (
+        model_processor_component_specs(
+            model_loader=_load_model_component,
+            processor_loader=_load_processor_component,
+        )
+    )
 
     config: LayoutFormerPPConfig
     model: LayoutFormerPPForConditionalGeneration

@@ -94,6 +94,34 @@ RICO25_LABELS: Final[tuple[Rico25Label, ...]] = tuple(Rico25Label)
 RICO13_LABELS: Final[tuple[Rico13Label, ...]] = tuple(Rico13Label)
 PUBLAYNET_LABELS: Final[tuple[PubLayNetLabel, ...]] = tuple(PubLayNetLabel)
 MAGAZINE_LABELS: Final[tuple[MagazineLabel, ...]] = tuple(MagazineLabel)
+RICO25_INTERACTION_LABEL_NAMES: Final[tuple[str, ...]] = (
+    "drawer",
+    "radio button",
+    "checkbox",
+    "multi-tab",
+    "pager indicator",
+    "modal",
+    "on/off switch",
+    "slider",
+    "map view",
+    "button bar",
+    "video",
+    "bottom navigation",
+    "number stepper",
+    "date picker",
+)
+WEBUI_BASE_LABEL_NAMES: Final[tuple[str, ...]] = (
+    "text",
+    "link",
+    "button",
+    "title",
+    "description",
+    "image",
+    "background",
+    "logo",
+    "icon",
+    "input",
+)
 
 _ALIASES: Final[dict[str, DatasetName]] = {
     "rico": DatasetName.rico25,
