@@ -1,43 +1,79 @@
-# LACE
+---
+language:
+  - en
+license: "mit"
+library_name: "diffusers"
+pipeline_tag: "other"
+tags:
+  - "lace"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "RICO13"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "LACE"
+    results:
+      - task:
+          type: "other"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Diffusers-style LACE package for the released PubLayNet and Rico25 layout
-generation checkpoints. LACE is the continuous diffusion model from "Towards
-Aligned Layout Generation via Diffusion Model with Aesthetic Constraints"
-(https://arxiv.org/abs/2402.04754).
+# Model Card for LACE
 
-This package converts the original implementation checkpoints into a
-`LacePipeline` that generates normalized center `xywh` boxes, category labels,
-and masks. Shared layout labels, bbox helpers, and output dataclasses come from
-`laygen.common`.
+[![OpenReview](https://img.shields.io/static/v1?label=OpenReview&message=kJ0qp9Xdsh&color=blue&style=flat-square)](https://openreview.net/forum?id=kJ0qp9Xdsh)
+![venue](https://img.shields.io/static/v1?label=venue&message=ICLR+2024&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-## Installation
+This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
 
-Use the repository workspace environment:
+## Model Details
 
-```bash
-uv sync
-```
+### Model Description
 
-Run package commands with the workspace package form:
+LACE is a `diffusers`-style layout generator that samples layouts under learned aesthetic constraints for document and UI domains. Converted checkpoints run unconditional generation for PubLayNet, RICO25, and the RICO13 label space when the corresponding original weights are available. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
-```bash
-uv run --package lace python -c "from lace import LacePipeline"
-```
+- **Developed by:** Jian Chen et al.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
 
-## Usage
+### Model Sources
 
-Load a converted checkpoint from the Hub and run unconditional generation:
+- **Repository:** [LACE repository](https://github.com/puar-playground/LACE)
+- **Paper:** [OpenReview paper page](https://openreview.net/forum?id=kJ0qp9Xdsh)
 
-```python
-from lace import LacePipeline
+## Supported Checkpoints
 
-pipe = LacePipeline.from_pretrained("creative-graphic-design/lace-publaynet")
-out = pipe(batch_size=1, seed=0, num_inference_steps=100)
-print(out.bbox, out.labels, out.mask)
-```
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published |
+| RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public vendor checkpoint not present in model.tar.gz |
+| RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published |
 
-Convert a local original checkpoint. The output directory includes `README.md`
-alongside the pipeline files:
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+LACE runs unconditional generation from converted PubLayNet and RICO checkpoints. Local original checkpoints can be converted with:
 
 ```bash
 uv run --package lace python models/lace/scripts/convert_checkpoint.py \
@@ -46,151 +82,129 @@ uv run --package lace python models/lace/scripts/convert_checkpoint.py \
   --output .cache/lace/converted/lace-publaynet
 ```
 
-## Checkpoints
+### Downstream Use
 
-| Dataset | Hub id | Original checkpoint | Status |
-| --- | --- | --- | --- |
-| PubLayNet | `creative-graphic-design/lace-publaynet` | `publaynet_best.pt` | Converted and parity checked |
-| Rico13 | `creative-graphic-design/lace-rico13` | `rico13_best.pt` | Supported by code; public vendor checkpoint was not present in `model.tar.gz` |
-| Rico25 | `creative-graphic-design/lace-rico25` | `rico25_best.pt` | Converted and parity checked |
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
 
-## Training Data
+### Out-of-Scope Use
 
-The original LACE project trains on PubLayNet and Rico annotations prepared as
-max-25 layout sequences.
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
 
-| Dataset | Dataset id |
-| --- | --- |
-| PubLayNet | `creative-graphic-design/publaynet` |
-| Rico13 | `creative-graphic-design/rico13` |
-| Rico25 | `creative-graphic-design/rico25` |
+## Bias, Risks, and Limitations
 
-## Parity Results
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
 
-Local parity tests use `vendor/lace/util/backbone.py` and the original
-checkpoints from `puar-playground/LACE`.
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md). Those steps create `.cache/lace/converted/lace-publaynet`.
+
+```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv sync --package lace
+uv run --package lace python
+```
+
+```python
+from lace import LacePipeline
+
+path = ".cache/lace/converted/lace-publaynet"
+# After Hub publication: from_pretrained("creative-graphic-design/lace-publaynet")
+pipe = LacePipeline.from_pretrained(path)
+out = pipe(batch_size=1, seed=0)
+
+print(out.bbox)
+print(out.labels)
+print(out.mask)
+```
+
+## Training Details
+
+### Training Data
+
+| Dataset | Dataset ID | Notes |
+| --- | --- | --- |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | vendor-derived RICO13 mapping |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+
+The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.
+
+### Training Procedure
+
+This package ports released behavior and does not retrain the method in this repository.
+
+#### Preprocessing
+
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training-time and carbon measurements are unknown.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Parity Results
 
 | Dataset | Test | Shape | Max abs | rtol | atol |
 | --- | --- | ---: | ---: | ---: | ---: |
 | PubLayNet | Denoiser logits | `(2, 25, 10)` | 0.0 | 0 | 0 |
 | Rico25 | Denoiser logits | `(2, 25, 30)` | 0.0 | 0 | 0 |
 
-Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity
-is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied,
-because the public `model.tar.gz` archive contains only `publaynet_best.pt` and
-`rico25_best.pt`.
+Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied, because the public `model.tar.gz` archive contains only `publaynet_best.pt` and `rico25_best.pt`.
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-Run the following commands from the repository root. They keep downloaded
-weights under `.cache/lace/original`, local reference metadata under
-`.cache/lace/reference`, and converted pipelines under `.cache/lace/converted`.
-The commands use `CUDA_VISIBLE_DEVICES=2`; change that value if your CUDA device
-assignment differs.
 
-Prerequisite for a fresh clone:
+## Environmental Impact
 
-```bash
-git submodule update --init vendor/lace
-```
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
 
-1. Download and extract the original checkpoint archive:
+## Technical Specifications
 
-```bash
-uv run --package lace python models/lace/scripts/download_vendor_assets.py \
-  --output-dir .cache/lace/original \
-  --filename model.tar.gz \
-  --extract
-```
+### Model Architecture and Objective
 
-Expected files after extraction:
+LACE uses a continuous diffusion denoiser over layout element features. The converted `LacePipeline` loads checkpoint-specific category vocabularies and generates normalized center `xywh` boxes, category labels, and masks for PubLayNet, RICO25, or RICO13 variants.
 
-```text
-.cache/lace/original/model/publaynet_best.pt
-.cache/lace/original/model/rico25_best.pt
-```
+### Compute Infrastructure
 
-2. Record local reference metadata for the available vendor checkpoints:
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
 
-```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/generate_reference.py \
-  --dataset publaynet \
-  --checkpoint .cache/lace/original/model/publaynet_best.pt \
-  --output-dir .cache/lace/reference/publaynet \
-  --seed 123
+#### Hardware
 
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/generate_reference.py \
-  --dataset rico25 \
-  --checkpoint .cache/lace/original/model/rico25_best.pt \
-  --output-dir .cache/lace/reference/rico25 \
-  --seed 123
-```
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
 
-Generated metadata:
+#### Software
 
-```text
-.cache/lace/reference/publaynet/metadata.json
-.cache/lace/reference/rico25/metadata.json
-```
-
-3. Run the parity tests:
-
-```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace pytest \
-  models/lace/tests/vendor_parity/test_lace_parity.py \
-  -m vendor_parity -vv -rs
-```
-
-Expected result with the public archive is `4 passed, 1 skipped`. The skipped
-case is `test_checkpoint_conversion_smoke[rico13-rico13_best.pt]`, because the
-public archive does not contain `.cache/lace/original/model/rico13_best.pt`.
-
-4. Convert the available checkpoints:
-
-```bash
-rm -rf .cache/lace/converted/lace-publaynet .cache/lace/converted/lace-rico25
-
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
-  --dataset publaynet \
-  --checkpoint .cache/lace/original/model/publaynet_best.pt \
-  --output .cache/lace/converted/lace-publaynet
-
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
-  --dataset rico25 \
-  --checkpoint .cache/lace/original/model/rico25_best.pt \
-  --output .cache/lace/converted/lace-rico25
-```
-
-Each output directory contains Diffusers pipeline files and `README.md`:
-
-```text
-.cache/lace/converted/lace-publaynet/README.md
-.cache/lace/converted/lace-rico25/README.md
-```
-
-5. Load the converted checkpoints with `from_pretrained` and run a short smoke:
-
-```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python - <<'PY'
-from lace import LacePipeline
-
-for name in ["lace-publaynet", "lace-rico25"]:
-    pipe = LacePipeline.from_pretrained(f".cache/lace/converted/{name}")
-    pipe = pipe.to("cuda")
-    out = pipe(batch_size=1, seed=0, num_inference_steps=2)
-    in_range = bool((out.bbox >= 0).all() and (out.bbox <= 1).all())
-    print(name, tuple(out.bbox.shape), tuple(out.labels.shape), in_range)
-PY
-```
-
-Expected output shapes are `(1, 25, 4)` for `bbox` and `(1, 25)` for `labels`;
-the final boolean should be `True`.
+Use `uv run --package lace ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
 ## License
 
-The original LACE implementation is released under the MIT License.
+Repository wrapper code is Apache-2.0. The original LACE implementation is released under the MIT License. Upstream code, checkpoints, datasets, and prompt provider outputs keep their original licenses and terms.
 
 Vendor links:
 

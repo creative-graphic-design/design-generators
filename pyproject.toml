@@ -117,7 +117,7 @@ unresolved-import = "ignore"
 exclude = ["vendor"]
 
 [tool.pytest.ini_options]
-testpaths = ["lib", "models"]
+testpaths = ["tests", "lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",

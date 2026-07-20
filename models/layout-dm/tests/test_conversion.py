@@ -66,12 +66,12 @@ def test_write_layoutdm_model_card(tmp_path):
     metadata = yaml.safe_load(front_matter)
 
     assert path.name == "README.md"
-    assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    assert metadata["datasets"] == ["creative-graphic-design/Rico"]
     assert "tag:yaml.org" not in text
     assert "license: apache-2.0" in text
     assert "library_name: diffusers" in text
     assert "pipeline_tag: text-to-image" in text
-    assert "creative-graphic-design/rico25" in text
+    assert "creative-graphic-design/Rico" in text
     assert "LayoutDMPipeline.from_pretrained" in text
     assert "## Uses" in text
     assert "## Evaluation" in text
@@ -99,5 +99,5 @@ def test_model_card_yaml_front_matter_accepts_enum_metadata():
     metadata = yaml.safe_load(text.split("---", maxsplit=2)[1])
 
     assert metadata["tags"][-1] == "publaynet"
-    assert metadata["datasets"] == ["creative-graphic-design/publaynet"]
+    assert metadata["datasets"] == ["creative-graphic-design/PubLayNet"]
     assert "tag:yaml.org" not in text

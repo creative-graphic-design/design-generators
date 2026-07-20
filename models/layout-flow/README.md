@@ -1,140 +1,201 @@
-# LayoutFlow
+---
+language:
+  - en
+license: "mit"
+library_name: "diffusers"
+pipeline_tag: "other"
+tags:
+  - "layout-flow"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "LayoutFlow"
+    results:
+      - task:
+          type: "other"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Diffusers-style conversion package for **LayoutFlow: Flow Matching for Layout Generation** (ECCV 2024). The original method models layouts as continuous flow-matching trajectories over normalized boxes and analog-bit category labels, then solves the generation path with an increasing-time ODE from `t=0` to `t=1`.
+# Model Card for LayoutFlow
 
-- Paper: https://arxiv.org/abs/2403.18187
-- Project page: https://julianguerreiro.github.io/layoutflow/
-- Original implementation: https://github.com/julianguerreiro/LayoutFlow
-- Original checkpoint host: https://huggingface.co/JulianGuerreiro/LayoutFlow
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2403.18187&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2403.18187)
+![venue](https://img.shields.io/static/v1?label=venue&message=ECCV+2024&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-## Installation
+This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
-From the repository root, use the uv workspace package:
+## Model Details
+
+### Model Description
+
+LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+
+- **Developed by:** Julian Jorge Andrade Guerreiro et al.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
+
+### Model Sources
+
+- **Repository:** [LayoutFlow repository](https://github.com/julianguerreiro/LayoutFlow)
+- **Paper:** [arXiv 2403.18187](https://arxiv.org/abs/2403.18187)
+- **Project page:** [LayoutFlow project page](https://julianguerreiro.github.io/layoutflow/)
+- **Original checkpoint host:** [JulianGuerreiro/LayoutFlow](https://huggingface.co/JulianGuerreiro/LayoutFlow)
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| RICO25 | [`creative-graphic-design/layout-flow-rico25`](https://huggingface.co/creative-graphic-design/layout-flow-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/layout-flow-publaynet`](https://huggingface.co/creative-graphic-design/layout-flow-publaynet) | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+The original method models layouts as continuous flow-matching trajectories over normalized boxes and analog-bit category labels, then solves the generation path with an increasing-time ODE from `t=0` to `t=1`.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md). Those steps create `.cache/layout-flow/converted/rico25`.
 
 ```bash
-uv run --package layout-flow pytest
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv sync --package layout-flow
+uv run --package layout-flow python
 ```
-
-For conversion or parity checks against the original Lightning checkpoints, include the vendor extra:
-
-```bash
-uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
-```
-
-## Usage
 
 ```python
 from layout_flow import LayoutFlowPipeline
 
-pipe = LayoutFlowPipeline.from_pretrained(
-    "creative-graphic-design/layout-flow-publaynet"
-)
-out = pipe(batch_size=1, num_elements=8, seed=0, num_inference_steps=100)
+path = ".cache/layout-flow/converted/rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/layout-flow-rico25")
+pipe = LayoutFlowPipeline.from_pretrained(path)
+out = pipe(batch_size=1, seed=0)
 
-print(out.bbox)    # normalized center xywh, shape (B, S, 4)
-print(out.labels)  # dataset-local label ids, shape (B, S)
-print(out.mask)    # True for valid elements, shape (B, S)
-print(out.id2label)
+print(out.bbox)
+print(out.labels)
+print(out.mask)
 ```
 
-Conditioning aliases from the original implementation are accepted at the pipeline boundary:
+## Training Details
 
-```python
-out = pipe(
-    condition_type="cat_cond",  # canonical alias: "label"
-    labels=[[1, 2, 3]],
-    bbox=[[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]],
-    mask=[[True, True, True]],
-    seed=0,
-)
-```
+### Training Data
 
-## Checkpoints
-
-| Hub id | Source checkpoint | Dataset |
+| Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| `creative-graphic-design/layout-flow-rico25` | `checkpoint_RICO_LayoutFlow.ckpt` | `creative-graphic-design/Rico` |
-| `creative-graphic-design/layout-flow-publaynet` | `checkpoint_PubLayNet_LayoutFlow.ckpt` | `creative-graphic-design/PubLayNet` |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
-## Data
+The released LayoutFlow checkpoints were trained on the RICO and PubLayNet splits distributed by the original authors; this repository aligns dataset metadata to the org datasets above.
 
-The released LayoutFlow checkpoints were trained on the RICO and PubLayNet splits distributed by the original authors. In this repository, dataset metadata is aligned to the org datasets:
+### Training Procedure
 
-- `creative-graphic-design/Rico`
-- `creative-graphic-design/PubLayNet`
+This package ports released behavior and does not retrain the method in this repository.
 
-Public outputs use normalized center `xywh` boxes in `[0, 1]`; padding is represented by `mask`, not by a public label id.
+#### Preprocessing
 
-## Parity Results
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
 
-Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.NeuralODE(..., solver="euler")` path using the released checkpoints.
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training-time and carbon measurements are unknown.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Parity Results
 
 | Dataset | Vector field max abs | Vector field max rel | Euler trajectory max abs | Euler trajectory max rel |
 | --- | ---: | ---: | ---: | ---: |
 | PubLayNet | 0.0 | 0.0 | 0.0 | 0.0 |
 | RICO25 | 0.0 | 0.0 | 0.0 | 0.0 |
 
+Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.NeuralODE(..., solver="euler")` path using the released checkpoints.
+
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-### Prerequisites
 
-```bash
-git submodule update --init vendor/layout-flow
-```
+## Environmental Impact
 
-Run the commands below from the repository root. The original source under `vendor/layout-flow` is read-only; downloads and generated artifacts are written under `.cache/layout-flow`.
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
 
-1. Download the original checkpoints. This creates `.cache/layout-flow/original/checkpoints/checkpoint_PubLayNet_LayoutFlow.ckpt` and `.cache/layout-flow/original/checkpoints/checkpoint_RICO_LayoutFlow.ckpt`.
+## Technical Specifications
 
-```bash
-uv run --package layout-flow python models/layout-flow/scripts/download_original.py
-```
+### Model Architecture and Objective
 
-2. Generate vendor golden/reference tensors. `CUDA_VISIBLE_DEVICES=3` selects the requested GPU; the script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
+LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts vendor coordinate conventions to normalized center `xywh` outputs.
 
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
-```
+### Compute Infrastructure
 
-3. Run the parity pytest suite against both released checkpoints.
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
 
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
-```
+#### Hardware
 
-4. Convert both checkpoints to local Diffusers pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
 
-```bash
-uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset publaynet
-uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset rico25
-```
+#### Software
 
-5. Smoke-test local `from_pretrained` loading.
-
-```bash
-uv run --package layout-flow python - <<'PY'
-from layout_flow import LayoutFlowPipeline
-
-for dataset in ["publaynet", "rico25"]:
-    pipe = LayoutFlowPipeline.from_pretrained(f".cache/layout-flow/converted/{dataset}")
-    out = pipe(batch_size=1, num_elements=4, seed=0, num_inference_steps=2)
-    print(dataset, out.bbox.shape, out.labels.shape, type(out).__name__)
-PY
-```
-
-Each script supports `--help` with defaults documented:
-
-```bash
-uv run --package layout-flow python models/layout-flow/scripts/download_original.py --help
-uv run --package layout-flow python models/layout-flow/scripts/generate_reference_outputs.py --help
-uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py --help
-```
+Use `uv run --package layout-flow ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
 ## License
 
-The original implementation is MIT licensed.
+Repository wrapper code is Apache-2.0. The original implementation is MIT licensed.
 
 ## Citation
 
