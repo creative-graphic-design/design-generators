@@ -108,21 +108,32 @@ def _write_minimal_fake_model(
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
 
-def test_shields_static_badge_segments_are_escaped() -> None:
+def test_shields_static_badge_messages_use_query_encoding() -> None:
     gen_ref_pages = _load_gen_ref_pages()
 
-    assert (
-        gen_ref_pages.escape_shields_static_badge_segment("label_size") == "label__size"
+    assert "message=label_size" in gen_ref_pages.render_model_overview_badge(
+        "label_size", axis="conditions"
+    )
+    assert "message=content_image" in gen_ref_pages.render_model_overview_badge(
+        "content_image", axis="conditions"
     )
     assert (
-        gen_ref_pages.escape_shields_static_badge_segment("content_image")
-        == "content__image"
-    )
-    assert (
-        gen_ref_pages.escape_shields_static_badge_segment(
-            "content-aware-layout-generation"
+        "message=content-agnostic-layout-generation"
+        in gen_ref_pages.render_model_overview_badge(
+            "content-agnostic-layout-generation", axis="task"
         )
-        == "content--aware--layout--generation"
+    )
+    assert gen_ref_pages.render_model_overview_badge(
+        "transformers", axis="framework"
+    ) == (
+        "![framework: transformers]"
+        "(https://img.shields.io/static/v1?label=framework&message=transformers"
+        "&color=blue&style=flat-square&logo=huggingface&logoColor=white)"
+    )
+    assert gen_ref_pages.render_model_overview_badge("rico25", axis="datasets") == (
+        "![dataset: rico25]"
+        "(https://img.shields.io/static/v1?label=dataset&message=rico25"
+        "&color=orange&style=flat-square&logo=huggingface&logoColor=white)"
     )
 
 
@@ -256,13 +267,13 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
     assert (
         "| [FakeProject](api/models/fake-project/index.md) | "
-        "![transformers](https://img.shields.io/badge/transformers-blue.svg?style=flat-square) | "
-        "![content-agnostic-layout-generation](https://img.shields.io/badge/content--agnostic--layout--generation-purple.svg?style=flat-square) "
-        "![content-aware-layout-generation](https://img.shields.io/badge/content--aware--layout--generation-purple.svg?style=flat-square) | "
-        "![unconditional](https://img.shields.io/badge/unconditional-green.svg?style=flat-square) "
-        "![label_size](https://img.shields.io/badge/label__size-green.svg?style=flat-square) | "
-        "![rico25](https://img.shields.io/badge/rico25-orange.svg?style=flat-square) "
-        "![publaynet](https://img.shields.io/badge/publaynet-orange.svg?style=flat-square) |"
+        "![framework: transformers](https://img.shields.io/static/v1?label=framework&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white) | "
+        "![task: content-agnostic-layout-generation](https://img.shields.io/static/v1?label=task&message=content-agnostic-layout-generation&color=purple&style=flat-square) "
+        "![task: content-aware-layout-generation](https://img.shields.io/static/v1?label=task&message=content-aware-layout-generation&color=purple&style=flat-square) | "
+        "![condition: unconditional](https://img.shields.io/static/v1?label=condition&message=unconditional&color=green&style=flat-square) "
+        "![condition: label_size](https://img.shields.io/static/v1?label=condition&message=label_size&color=green&style=flat-square) | "
+        "![dataset: rico25](https://img.shields.io/static/v1?label=dataset&message=rico25&color=orange&style=flat-square&logo=huggingface&logoColor=white) "
+        "![dataset: publaynet](https://img.shields.io/static/v1?label=dataset&message=publaynet&color=orange&style=flat-square&logo=huggingface&logoColor=white) |"
     ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
     assert "  - Models: models.md" in generated_config
