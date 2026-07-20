@@ -94,6 +94,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "ds-gan": {
+        "license": "other",
+        "datasets": ["PosterLayout"],
+    },
     "lace": {
         "license": "mit",
         "datasets": [
@@ -168,6 +172,7 @@ EXPECTED_FRONTMATTER = {
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
+    "ds-gan": "DS-GAN",
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
@@ -186,6 +191,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
@@ -740,11 +746,11 @@ def _assert_library_name_style(path: Path) -> None:
 
 
 def check() -> None:
-    if len(MODEL_READMES) != 12:
-        raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
-    if len(MODEL_REPRODUCING) != 12:
+    if len(MODEL_READMES) != 13:
+        raise AssertionError(f"expected 13 model READMEs, found {len(MODEL_READMES)}")
+    if len(MODEL_REPRODUCING) != 13:
         raise AssertionError(
-            f"expected 12 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
+            f"expected 13 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
         )
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     for path in MODEL_READMES:
