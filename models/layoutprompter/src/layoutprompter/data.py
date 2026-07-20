@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Final, TypeAlias
 
-from laygen.common import DatasetName, normalize_dataset_name
+from laygen.common import (
+    RICO25_INTERACTION_LABEL_NAMES,
+    WEBUI_BASE_LABEL_NAMES,
+    DatasetName,
+    normalize_dataset_name,
+)
 
 from layoutprompter.enums import LayoutPrompterDataset
 
@@ -26,34 +31,10 @@ DATASET_LABELS: Final[dict[SupportedDataset, tuple[str, ...]]] = {
         "card",
         "advertisement",
         "background image",
-        "drawer",
-        "radio button",
-        "checkbox",
-        "multi-tab",
-        "pager indicator",
-        "modal",
-        "on/off switch",
-        "slider",
-        "map view",
-        "button bar",
-        "video",
-        "bottom navigation",
-        "number stepper",
-        "date picker",
+        *RICO25_INTERACTION_LABEL_NAMES,
     ),
     LayoutPrompterDataset.posterlayout: ("text", "logo", "underlay"),
-    LayoutPrompterDataset.webui: (
-        "text",
-        "link",
-        "button",
-        "title",
-        "description",
-        "image",
-        "background",
-        "logo",
-        "icon",
-        "input",
-    ),
+    LayoutPrompterDataset.webui: (*WEBUI_BASE_LABEL_NAMES,),
 }
 
 CANVAS_SIZE: Final[dict[SupportedDataset, tuple[int, int]]] = {
