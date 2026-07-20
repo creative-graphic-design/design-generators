@@ -18,9 +18,9 @@ _MODEL_IDS: Final[dict[DatasetName, str]] = {
 }
 
 _DATASET_IDS: Final[dict[DatasetName, str]] = {
-    DatasetName.publaynet: "creative-graphic-design/publaynet",
-    DatasetName.rico13: "creative-graphic-design/rico13",
-    DatasetName.rico25: "creative-graphic-design/rico25",
+    DatasetName.publaynet: "creative-graphic-design/PubLayNet",
+    DatasetName.rico13: "creative-graphic-design/Rico",
+    DatasetName.rico25: "creative-graphic-design/Rico",
 }
 
 _PARITY_METRICS: Final[dict[DatasetName, ParityMetric]] = {

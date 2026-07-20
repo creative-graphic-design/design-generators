@@ -38,7 +38,7 @@ def test_readme_includes_reproducible_vendor_parity_commands():
     )
     assert "models/layout-corrector/tests/vendor_parity" in reproducing
     assert (
-        "CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector --extra vendor pytest"
+        "CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-corrector --extra vendor pytest"
         in reproducing
     )
     assert (
