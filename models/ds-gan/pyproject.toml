@@ -1,0 +1,35 @@
+[project]
+name = "ds-gan"
+version = "0.1.0"
+description = "Transformers-style DS-GAN conversion package for PosterLayout."
+requires-python = ">=3.11"
+dependencies = [
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10.0.0",
+    "posgen",
+    "timm>=0.9",
+    "torch>=2.1",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "gdown>=6.1.0",
+]
+hub = [
+    "huggingface-hub>=1.0.0",
+]
+vendor = [
+    "pandas>=1.4",
+    "torchvision>=0.16",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original PosterLayout DS-GAN weights and vendor dependencies",
+]

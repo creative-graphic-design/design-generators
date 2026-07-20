@@ -11,10 +11,7 @@ from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
     BoxFormat,
-    ltrb_to_xywh,
-    ltwh_to_xywh,
-    normalize_boxes,
-    normalize_box_format,
+    prepare_layout_tensors,
 )
 from laygen.common.labels import DatasetName
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -138,33 +135,14 @@ class LaceProcessor(ProcessorMixin):
             >>> tuple(out["layout"].shape)
             (1, 25, 10)
         """
-        bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
-        labels_t = torch.as_tensor(labels, dtype=torch.long)
-        if labels_t.ndim == 1:
-            labels_t = labels_t.unsqueeze(0)
-            bbox_t = bbox_t.unsqueeze(0)
-        if mask is None:
-            mask_t = torch.ones(labels_t.shape, dtype=torch.bool)
-        else:
-            mask_t = torch.as_tensor(mask, dtype=torch.bool)
-            if mask_t.ndim == 1:
-                mask_t = mask_t.unsqueeze(0)
-        if not normalized:
-            if canvas_size is None:
-                raise ValueError("canvas_size is required when normalized=False")
-            bbox_t = normalize_boxes(
-                bbox_t, canvas_size=canvas_size, box_format=box_format
-            )
-        else:
-            fmt = normalize_box_format(box_format)
-            if fmt is BoxFormat.xywh:
-                pass
-            elif fmt is BoxFormat.ltwh:
-                bbox_t = ltwh_to_xywh(bbox_t)
-            elif fmt is BoxFormat.ltrb:
-                bbox_t = ltrb_to_xywh(bbox_t)
-            else:
-                raise ValueError(f"Unsupported box_format: {box_format}")
+        bbox_t, labels_t, mask_t = prepare_layout_tensors(
+            bbox=bbox,
+            labels=labels,
+            mask=mask,
+            box_format=box_format,
+            normalized=normalized,
+            canvas_size=canvas_size,
+        )
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t)
         return {
             LACE_LAYOUT_KEY: self.encode(bbox_t, labels_t, mask_t),

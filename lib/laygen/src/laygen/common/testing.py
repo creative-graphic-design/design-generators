@@ -1,9 +1,11 @@
-"""Schema assertions shared by layout-generation package tests."""
+"""Schema assertions and fixtures shared by layout-generation package tests."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
+from os import PathLike
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 import numpy as np
@@ -119,6 +121,97 @@ def assert_generator_reproducible(
     assert torch.allclose(
         cast("torch.Tensor", out1.bbox), cast("torch.Tensor", out2.bbox)
     )
+
+
+def load_torch_checkpoint_state_dict(
+    checkpoint: str | PathLike[str],
+    *,
+    state_dict_key: str | None = None,
+    map_location: str | dict[str, str] | "torch.device" | None = None,
+    weights_only: bool | None = None,
+) -> dict[str, "torch.Tensor"]:
+    """Load a PyTorch checkpoint and return its model state dictionary.
+
+    Args:
+        checkpoint: Checkpoint path passed to :func:`torch.load`.
+        state_dict_key: Optional key used by Lightning-style checkpoints.
+        map_location: Device mapping passed to :func:`torch.load`.
+        weights_only: Optional ``torch.load`` safety flag. ``None`` preserves
+            PyTorch's default for compatibility with older vendor checkpoints.
+
+    Returns:
+        Mapping of checkpoint parameter names to tensors.
+    """
+    import torch
+
+    if weights_only is None:
+        checkpoint_data = torch.load(checkpoint, map_location=map_location)
+    else:
+        checkpoint_data = torch.load(
+            checkpoint,
+            map_location=map_location,
+            weights_only=weights_only,
+        )
+    if state_dict_key is not None:
+        checkpoint_data = checkpoint_data[state_dict_key]
+    return cast("dict[str, torch.Tensor]", checkpoint_data)
+
+
+def strip_torch_state_dict_prefix(
+    state_dict: Mapping[str, "torch.Tensor"],
+    *,
+    strip_prefix: str,
+    include_prefix: str | None = None,
+) -> "OrderedDict[str, torch.Tensor]":
+    """Return a state dict with a vendor wrapper prefix removed.
+
+    Args:
+        state_dict: Source state dictionary.
+        strip_prefix: Prefix to remove from each emitted key.
+        include_prefix: Optional prefix filter. When set, only matching keys are
+            emitted.
+
+    Returns:
+        Ordered state dictionary with normalized keys.
+    """
+    return OrderedDict(
+        (key.removeprefix(strip_prefix), value)
+        for key, value in state_dict.items()
+        if include_prefix is None or key.startswith(include_prefix)
+    )
+
+
+def vendor_backbone_kwargs(
+    config: object,
+    fields: Sequence[str],
+    *,
+    aliases: Mapping[str, str] | None = None,
+    overrides: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Build vendor backbone constructor kwargs from a config object.
+
+    Args:
+        config: Object or mapping that stores canonical package configuration.
+        fields: Vendor constructor argument names to read in order.
+        aliases: Optional mapping from vendor argument name to config field name.
+        overrides: Optional explicit values that take precedence over ``config``.
+
+    Returns:
+        Ordered keyword arguments suitable for a vendor backbone constructor.
+    """
+    aliases = aliases or {}
+    overrides = overrides or {}
+    kwargs: dict[str, object] = {}
+    for field in fields:
+        if field in overrides:
+            kwargs[field] = overrides[field]
+            continue
+        source_field = aliases.get(field, field)
+        if isinstance(config, Mapping):
+            kwargs[field] = cast("Mapping[str, object]", config)[source_field]
+        else:
+            kwargs[field] = getattr(config, source_field)
+    return kwargs
 
 
 def install_jaxtyping_runtime_hook(

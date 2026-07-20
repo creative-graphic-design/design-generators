@@ -13,6 +13,7 @@ classifiers = [
 ]
 dependencies = [
     "coarse-to-fine",
+    "ds-gan",
     "layout-corrector",
     "layoutdiffusion",
     "layout-flow",
@@ -65,6 +66,7 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 coarse-to-fine = { workspace = true }
+ds-gan = { workspace = true }
 layout-corrector = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }

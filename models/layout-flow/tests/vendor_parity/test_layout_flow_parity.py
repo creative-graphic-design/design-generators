@@ -6,6 +6,11 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.testing import (
+    load_torch_checkpoint_state_dict,
+    strip_torch_state_dict_prefix,
+    vendor_backbone_kwargs,
+)
 from laygen.common.vendor import vendor_root
 from layout_flow import LayoutFlowConfig, LayoutFlowTransformerModel
 from layout_flow.conversion import convert_lightning_state_dict
@@ -43,27 +48,37 @@ def test_converted_vector_field_matches_vendor(
         pytest.skip(f"missing checkpoint: {checkpoint}")
     LayoutDMBackbone = _load_vendor_backbone()
     config = LayoutFlowConfig(dataset_name=dataset)
-    raw = torch.load(checkpoint, map_location="cpu", weights_only=False)
-    state_dict = raw["state_dict"]
+    state_dict = load_torch_checkpoint_state_dict(
+        checkpoint,
+        state_dict_key="state_dict",
+        map_location="cpu",
+        weights_only=False,
+    )
     vendor = LayoutDMBackbone(
-        latent_dim=config.latent_dim,
-        tr_enc_only=config.tr_enc_only,
-        d_model=config.d_model,
-        nhead=config.nhead,
-        dim_feedforward=config.dim_feedforward,
-        num_layers=config.num_layers,
-        dropout=config.dropout,
-        use_pos_enc=config.use_pos_enc,
-        num_cat=config.num_labels,
-        attr_encoding=config.attr_encoding,
-        seq_type=config.seq_type,
+        **vendor_backbone_kwargs(
+            config,
+            (
+                "latent_dim",
+                "tr_enc_only",
+                "d_model",
+                "nhead",
+                "dim_feedforward",
+                "num_layers",
+                "dropout",
+                "use_pos_enc",
+                "num_cat",
+                "attr_encoding",
+                "seq_type",
+            ),
+            aliases={"num_cat": "num_labels"},
+        )
     )
     vendor.load_state_dict(
-        {
-            key.removeprefix("model."): value
-            for key, value in state_dict.items()
-            if key.startswith("model.")
-        }
+        strip_torch_state_dict_prefix(
+            state_dict,
+            strip_prefix="model.",
+            include_prefix="model.",
+        )
     )
     converted = LayoutFlowTransformerModel(
         num_labels=config.num_labels,

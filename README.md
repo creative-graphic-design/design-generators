@@ -5,7 +5,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=13&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=14&color=purple&style=flat-square)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -14,6 +14,7 @@
 | Model | Method | Runtime | Primary datasets | Weights |
 | --- | --- | --- | --- | --- |
 | [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
+| [`models/ds-gan`](models/ds-gan/README.md) | DS-GAN | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](models/ds-gan/REPRODUCING.md)) |
 | [`models/lace`](models/lace/README.md) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
 | [`models/layousyn`](models/layousyn/README.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
 | [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
