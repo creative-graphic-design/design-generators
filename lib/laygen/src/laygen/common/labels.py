@@ -15,6 +15,8 @@ class DatasetName(StrEnum):
     magazine = auto()
     nsr_1k = "nsr-1k"
     grit = auto()
+    coco = auto()
+    vg_msdn = "vg-msdn"
     coco_grounded = "coco-grounded"
     web = auto()
     webui = auto()
@@ -139,6 +141,8 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "nsr_1k": DatasetName.nsr_1k,
     "nsr1k": DatasetName.nsr_1k,
     "grit": DatasetName.grit,
+    "coco": DatasetName.coco,
+    "vg_msdn": DatasetName.vg_msdn,
     "coco_grounded": DatasetName.coco_grounded,
     "web": DatasetName.web,
     "webui": DatasetName.webui,
