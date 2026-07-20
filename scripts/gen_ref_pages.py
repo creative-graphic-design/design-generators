@@ -10,6 +10,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
+GENERATED_MKDOCS_CONFIG = ROOT / "mkdocs.generated.yml"
 MEMBER_PARENTS = ("lib", "models")
 GROUP_TITLES = {
     "lib": "Libraries",
@@ -57,6 +58,12 @@ def write_text_file(path: Path, content: str) -> None:
     target = ROOT / "docs" / path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
+
+
+def write_generated_file(path: Path, content: str) -> None:
+    """Write generated content outside the tracked documentation tree."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def iter_member_dirs() -> list[Path]:
@@ -278,6 +285,26 @@ def write_api_index(packages: list[ApiPackage]) -> None:
     write_text_file(Path("api/index.md"), "\n".join(lines))
 
 
+def write_group_indexes(packages: list[ApiPackage]) -> None:
+    """Write API group landing pages for explicit site navigation."""
+    for group in GROUP_TITLES.values():
+        group_packages = [package for package in packages if package.group == group]
+        if not group_packages:
+            continue
+        lines = [
+            f"# {group}",
+            "",
+            f"{group} generated from workspace members.",
+            "",
+        ]
+        for package in group_packages:
+            lines.append(
+                f"- [{package.project_name}]({package.index_path.relative_to(Path('api', group.lower()))})"
+            )
+        lines.append("")
+        write_text_file(Path("api", group.lower(), "index.md"), "\n".join(lines))
+
+
 def write_package_indexes(packages: list[ApiPackage]) -> None:
     """Write package landing pages with README content and module links."""
     for package in packages:
@@ -302,6 +329,48 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             lines.append(f"- [`{page.module}`]({relative_page_path})")
         lines.append("")
         write_text_file(package.index_path, "\n".join(lines))
+
+
+def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
+    """Render explicit MkDocs nav lines with model-level API entries."""
+    lines = [
+        "nav:",
+        "  - Overview: index.md",
+        "  - Conventions: conventions.md",
+        "  - API Reference:",
+        "      - Overview: api/index.md",
+    ]
+    for group in GROUP_TITLES.values():
+        group_packages = [package for package in packages if package.group == group]
+        if not group_packages:
+            continue
+        lines.extend(
+            [
+                f"      - {group}:",
+                f"          - Overview: api/{group.lower()}/index.md",
+            ]
+        )
+        for package in group_packages:
+            lines.append(f"          - {package.project_name}: {package.index_path}")
+    return lines
+
+
+def write_generated_mkdocs_config(packages: list[ApiPackage]) -> None:
+    """Write a generated config whose sidebar lists API pages by package."""
+    source = (ROOT / "mkdocs.yml").read_text(encoding="utf-8").splitlines()
+    nav_start = next(index for index, line in enumerate(source) if line == "nav:")
+    nav_end = nav_start + 1
+    while nav_end < len(source):
+        line = source[nav_end]
+        if line and not line.startswith((" ", "-")):
+            break
+        nav_end += 1
+    generated = [
+        *source[:nav_start],
+        *render_generated_nav(packages),
+        *source[nav_end:],
+    ]
+    write_generated_file(GENERATED_MKDOCS_CONFIG, "\n".join(generated) + "\n")
 
 
 def write_reproducing_pages(packages: list[ApiPackage]) -> None:
@@ -337,9 +406,11 @@ def main() -> None:
     clean_generated_api_dir()
     packages = discover_api_packages()
     write_api_index(packages)
+    write_group_indexes(packages)
     write_package_indexes(packages)
     write_reproducing_pages(packages)
     write_api_pages(packages)
+    write_generated_mkdocs_config(packages)
 
 
 if __name__ == "__main__":

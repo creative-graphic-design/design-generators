@@ -42,6 +42,20 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "# Reproducing Fake Project\n\nRun parity checks.\n",
         encoding="utf-8",
     )
+    (tmp_path / "mkdocs.yml").write_text(
+        "\n".join(
+            [
+                "site_name: fake",
+                "nav:",
+                "  - Overview: index.md",
+                "  - API Reference: api/",
+                "markdown_extensions:",
+                "  - toc",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (package_dir / "__init__.py").write_text(
         "from .public import PublicThing\n",
         encoding="utf-8",
@@ -53,10 +67,16 @@ def test_gen_ref_pages_writes_standalone_api_tree(
 
     monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
     monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
+    monkeypatch.setattr(
+        gen_ref_pages,
+        "GENERATED_MKDOCS_CONFIG",
+        tmp_path / "mkdocs.generated.yml",
+    )
 
     gen_ref_pages.main()
 
     assert (tmp_path / "docs/api/index.md").is_file()
+    assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
     package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
         encoding="utf-8"
@@ -76,6 +96,15 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         encoding="utf-8"
     ) == "# `fake_pkg.public`\n\n::: fake_pkg.public\n"
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
+    generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
+    assert (
+        "      - Models:\n          - Overview: api/models/index.md" in generated_config
+    )
+    assert (
+        "          - fake-project: api/models/fake-project/index.md" in generated_config
+    )
+    assert "api/models/fake-project/reproducing.md" not in generated_config
+    assert "api/models/fake-project/public.md" not in generated_config
 
 
 def test_gen_ref_pages_requires_reproducing_for_model_packages(
@@ -90,10 +119,19 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
         "[project]\nname = 'fake-project'\n",
         encoding="utf-8",
     )
+    (tmp_path / "mkdocs.yml").write_text(
+        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        encoding="utf-8",
+    )
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
     monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
     monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
+    monkeypatch.setattr(
+        gen_ref_pages,
+        "GENERATED_MKDOCS_CONFIG",
+        tmp_path / "mkdocs.generated.yml",
+    )
 
     with pytest.raises(
         FileNotFoundError,
