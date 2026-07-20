@@ -53,6 +53,9 @@ from laygen.common.testing import (
     assert_generator_reproducible,
     assert_layout_output_schema,
     assert_normalized_xywh,
+    load_torch_checkpoint_state_dict,
+    strip_torch_state_dict_prefix,
+    vendor_backbone_kwargs,
 )
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
@@ -150,6 +153,52 @@ def test_prepare_layout_tensors_normalizes_pixels_and_validates_canvas():
             labels=[[0]],
             normalized=False,
         )
+
+
+def test_testing_helpers_load_and_strip_vendor_state_dict(tmp_path: Path):
+    checkpoint = tmp_path / "checkpoint.pt"
+    expected = torch.tensor([1.0])
+    torch.save(
+        {
+            "state_dict": {
+                "model.layer.weight": expected,
+                "other.layer.weight": torch.tensor([2.0]),
+            }
+        },
+        checkpoint,
+    )
+
+    state_dict = load_torch_checkpoint_state_dict(
+        checkpoint,
+        state_dict_key="state_dict",
+        map_location="cpu",
+        weights_only=False,
+    )
+    stripped = strip_torch_state_dict_prefix(
+        state_dict,
+        strip_prefix="model.",
+        include_prefix="model.",
+    )
+
+    assert list(stripped) == ["layer.weight"]
+    assert torch.equal(stripped["layer.weight"], expected)
+
+
+def test_vendor_backbone_kwargs_reads_aliases_and_overrides():
+    @dataclass
+    class Config:
+        latent_dim: int = 4
+        num_labels: int = 25
+        dropout: float = 0.1
+
+    kwargs = vendor_backbone_kwargs(
+        Config(),
+        ("latent_dim", "num_cat", "dropout"),
+        aliases={"num_cat": "num_labels"},
+        overrides={"dropout": 0.0},
+    )
+
+    assert kwargs == {"latent_dim": 4, "num_cat": 25, "dropout": 0.0}
 
 
 def test_linear_bins_roundtrip_shape():

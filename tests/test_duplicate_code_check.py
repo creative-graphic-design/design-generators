@@ -159,34 +159,6 @@ def test_label_matches_module_suffixes() -> None:
     )
 
 
-def test_accepted_duplicate_block_allows_non_src_pair() -> None:
-    block = """foo.py:1:0: R0801: Similar lines in 2 files
-==generate_reference_outputs:[1:3]
-    a = 1
-==test_layout_flow_parity:[4:6]
-    a = 1 (duplicate-code)"""
-
-    assert check_duplicate_code.is_accepted_duplicate_block(block)
-
-
-def test_accepted_duplicate_pairs_reject_src_paths(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        check_duplicate_code,
-        "ACCEPTED_DUPLICATE_PAIRS",
-        (
-            (
-                "models/ds-gan/src/ds_gan/processing_ds_gan.py",
-                "models/layout-dm/tests/test_processing.py",
-            ),
-        ),
-    )
-
-    with pytest.raises(AssertionError, match="must not include src"):
-        check_duplicate_code._accepted_duplicate_pairs()
-
-
 def test_main_returns_success_when_no_targets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

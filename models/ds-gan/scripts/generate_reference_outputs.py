@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from collections import OrderedDict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Final
@@ -16,6 +15,10 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
+from laygen.common.testing import (
+    load_torch_checkpoint_state_dict,
+    strip_torch_state_dict_prefix,
+)
 from laygen.common.vendor import vendor_root
 
 _VENDOR_MODEL: Final[Path] = Path("model.py")
@@ -119,9 +122,9 @@ def main() -> None:
     }
     with _pushd(asset_root):
         model = generator(config).eval().to(device)
-    checkpoint = torch.load(args.checkpoint, map_location=device)
-    state_dict = OrderedDict(
-        (key.removeprefix("module."), value) for key, value in checkpoint.items()
+    state_dict = strip_torch_state_dict_prefix(
+        load_torch_checkpoint_state_dict(args.checkpoint, map_location=device),
+        strip_prefix="module.",
     )
     model.load_state_dict(state_dict, strict=True)
     fixed_noise = _random_init(args.batch_size, 32).to(device)
