@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import StrEnum, auto
 from typing import Final, TypedDict
 
+from laygen.common import RICO25_INTERACTION_LABEL_NAMES, WEBUI_BASE_LABEL_NAMES
+
 
 class ParseThenPlaceDatasetName(StrEnum):
     """Datasets supported by the original Parse-Then-Place release."""
@@ -40,32 +42,10 @@ RICO_LABELS: Final[tuple[str, ...]] = (
     "card",
     "advertisement",
     "image",
-    "drawer",
-    "radio button",
-    "checkbox",
-    "multi-tab",
-    "pager indicator",
-    "modal",
-    "on/off switch",
-    "slider",
-    "map view",
-    "button bar",
-    "video",
-    "bottom navigation",
-    "number stepper",
-    "date picker",
+    *RICO25_INTERACTION_LABEL_NAMES,
 )
 WEB_LABELS: Final[tuple[str, ...]] = (
-    "text",
-    "link",
-    "button",
-    "title",
-    "description",
-    "image",
-    "background",
-    "logo",
-    "icon",
-    "input",
+    *WEBUI_BASE_LABEL_NAMES,
     "select",
     "textarea",
 )
