@@ -26,6 +26,9 @@ def test_layoutganpp_model_card_metadata_and_sections():
     assert "max_abs=0 and max_rel=0" in text
     assert "https://github.com/ktrk115/const_layout" in text
     assert "10.1145/3474085.3475497" in text
+    assert "LayoutDM" not in text
+    assert "CyberAgentAILab" not in text
+    assert "2303.08137" not in text
     assert card.validate() is None
 
 

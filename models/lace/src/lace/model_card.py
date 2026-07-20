@@ -104,7 +104,7 @@ print(out.bbox, out.labels, out.mask)
         dataset_ids=[_DATASET_IDS[dataset_key]],
         license="mit",
         library_name="diffusers",
-        pipeline_tag="text-to-image",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "lace",

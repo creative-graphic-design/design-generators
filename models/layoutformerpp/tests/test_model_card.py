@@ -41,6 +41,9 @@ def test_layoutformerpp_model_card_sections() -> None:
     assert "Guo, Jiaqi and Sun, Shizhao" in text
     assert "Mijovic, Vuksan and Yang, Zijiang James" in text
     assert "every public `rico` and `publaynet`" in text
+    assert "LayoutDM" not in text
+    assert "CyberAgentAILab" not in text
+    assert "2303.08137" not in text
     assert "full constrained-decoding generation parity" not in text
     assert "More Information Needed" not in text
     assert "https://github.com/microsoft/LayoutGeneration" in text

@@ -29,6 +29,9 @@ def test_layoutflow_model_card_contains_required_metadata() -> None:
         "| publaynet | n/a | Euler trajectory not measured by parity test | 0 | 0 |"
         in card
     )
+    assert "LayoutDM" not in card
+    assert "CyberAgentAILab" not in card
+    assert "2303.08137" not in card
     assert "[More Information Needed]" not in card
     model_card.validate()
 
