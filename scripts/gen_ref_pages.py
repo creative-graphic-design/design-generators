@@ -296,15 +296,6 @@ def require_str_or_sequence(
     return require_str_sequence(value, key=key, member_dir=member_dir)
 
 
-def require_str_or_sequence(
-    value: object, *, key: str, member_dir: Path
-) -> tuple[str, ...]:
-    """Return a tuple of strings from a scalar or list metadata field."""
-    if isinstance(value, str):
-        return (value,)
-    return require_str_sequence(value, key=key, member_dir=member_dir)
-
-
 def validate_values(
     values: tuple[str, ...],
     *,

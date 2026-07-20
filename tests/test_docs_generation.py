@@ -71,6 +71,41 @@ def _write_shared_enum_sources(root: Path) -> None:
     )
 
 
+def _patch_docs_generator_root(
+    gen_ref_pages: ModuleType,
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Point the docs generator module at a temporary repository root."""
+    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
+    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
+    monkeypatch.setattr(
+        gen_ref_pages,
+        "GENERATED_MKDOCS_CONFIG",
+        tmp_path / "mkdocs.generated.yml",
+    )
+
+
+def _write_minimal_fake_model(
+    tmp_path: Path,
+    *,
+    pyproject: str,
+    with_reproducing: bool = True,
+) -> None:
+    """Write a minimal fake model package fixture."""
+    member_dir = tmp_path / "models" / "fake"
+    package_dir = member_dir / "src" / "fake_pkg"
+    package_dir.mkdir(parents=True)
+    (member_dir / "pyproject.toml").write_text(pyproject, encoding="utf-8")
+    if with_reproducing:
+        (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text(
+        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        encoding="utf-8",
+    )
+    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+
+
 def test_gen_ref_pages_writes_standalone_api_tree(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -141,13 +176,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
-    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
-    monkeypatch.setattr(
-        gen_ref_pages,
-        "GENERATED_MKDOCS_CONFIG",
-        tmp_path / "mkdocs.generated.yml",
-    )
+    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
 
     gen_ref_pages.main()
 
@@ -256,13 +285,7 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
     (tmp_path / "README.md").write_text("# Fake Repo\n", encoding="utf-8")
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
-    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
-    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
-    monkeypatch.setattr(
-        gen_ref_pages,
-        "GENERATED_MKDOCS_CONFIG",
-        tmp_path / "mkdocs.generated.yml",
-    )
+    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
 
     with pytest.raises(
         FileNotFoundError,
@@ -370,6 +393,99 @@ def test_gen_ref_pages_rejects_unknown_model_metadata_values(
             r"models/fake \[tool\.design-generators\] conditions: "
             r"has unknown values: \['gen_t'\].*Required keys: framework, task, "
             r"conditions, datasets.*Example: \[tool\.design-generators\]"
+        ),
+    ):
+        gen_ref_pages.main()
+
+
+def test_gen_ref_pages_requires_model_metadata_table(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
+    _write_minimal_fake_model(
+        tmp_path,
+        pyproject="[project]\nname = 'fake-project'\n",
+    )
+    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
+
+    with pytest.raises(
+        KeyError,
+        match=(
+            r"models/fake \[tool\.design-generators\] table: is required.*"
+            r"Required keys: framework, task, conditions, datasets.*"
+            r"Example: \[tool\.design-generators\]"
+        ),
+    ):
+        gen_ref_pages.main()
+
+
+def test_gen_ref_pages_requires_model_metadata_keys(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
+    _write_minimal_fake_model(
+        tmp_path,
+        pyproject="\n".join(
+            [
+                "[project]",
+                "name = 'fake-project'",
+                "",
+                "[tool.design-generators]",
+                "framework = 'transformers'",
+                "task = 'content-agnostic-layout-generation'",
+                "datasets = ['rico25']",
+                "",
+            ]
+        ),
+    )
+    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
+
+    with pytest.raises(
+        KeyError,
+        match=(
+            r"models/fake \[tool\.design-generators\] conditions: is required.*"
+            r"Required keys: framework, task, conditions, datasets.*"
+            r"Example: \[tool\.design-generators\]"
+        ),
+    ):
+        gen_ref_pages.main()
+
+
+def test_gen_ref_pages_rejects_empty_model_metadata_values(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
+    _write_minimal_fake_model(
+        tmp_path,
+        pyproject="\n".join(
+            [
+                "[project]",
+                "name = 'fake-project'",
+                "",
+                "[tool.design-generators]",
+                "framework = 'transformers'",
+                "task = 'content-agnostic-layout-generation'",
+                "conditions = []",
+                "datasets = ['rico25']",
+                "",
+            ]
+        ),
+    )
+    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"models/fake \[tool\.design-generators\] conditions: "
+            r"must be a non-empty list of strings.*"
+            r"Required keys: framework, task, conditions, datasets.*"
+            r"Example: \[tool\.design-generators\]"
         ),
     ):
         gen_ref_pages.main()
