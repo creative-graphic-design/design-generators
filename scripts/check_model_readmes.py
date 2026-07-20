@@ -129,6 +129,7 @@ EXPECTED_FRONTMATTER = {
         ],
     },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
+    "layout-transformer": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
     "layoutdiffusion": {
         "license": "other",
         "datasets": [
@@ -174,6 +175,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
     "layout-gpt": "LayoutGPT",
+    "layout-transformer": "LayoutTransformer",
     "layoutdiffusion": "LayoutDiffusion",
     "layoutformerpp": "LayoutFormer++",
     "layoutganpp": "LayoutGAN++",
@@ -185,6 +187,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
+    "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
 }
 
@@ -740,11 +743,11 @@ def _assert_library_name_style(path: Path) -> None:
 
 
 def check() -> None:
-    if len(MODEL_READMES) != 12:
-        raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
-    if len(MODEL_REPRODUCING) != 12:
+    if len(MODEL_READMES) != 13:
+        raise AssertionError(f"expected 13 model READMEs, found {len(MODEL_READMES)}")
+    if len(MODEL_REPRODUCING) != 13:
         raise AssertionError(
-            f"expected 12 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
+            f"expected 13 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
         )
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     for path in MODEL_READMES:

@@ -1,0 +1,30 @@
+[project]
+name = "layout-transformer"
+version = "0.1.0"
+description = "Transformers-style LayoutTransformer (LT-Net) conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "gdown>=6.1.0",
+]
+vendor = [
+    "gdown>=6.1.0",
+    "pycocotools>=2.0",
+    "scikit-image",
+    "scikit-learn",
+    "yacs",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
