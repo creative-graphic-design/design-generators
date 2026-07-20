@@ -4,6 +4,8 @@ __pycache__/
 build/
 dist/
 site/
+docs/api/
+mkdocs.generated.yml
 wheels/
 *.egg-info/
 
