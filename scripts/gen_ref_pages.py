@@ -290,10 +290,9 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
         if package.reproducing_path is not None:
             lines.extend(
                 [
-                    "## Reproducing Guide",
-                    "",
-                    "[Reproduce original-implementation parity]"
-                    f"({package.reproducing_path.relative_to(package.index_path.parent)})",
+                    "**Reproducing parity:** "
+                    "[Open the model reproducing guide]"
+                    f"({package.reproducing_path.relative_to(package.index_path.parent)}).",
                     "",
                 ]
             )
