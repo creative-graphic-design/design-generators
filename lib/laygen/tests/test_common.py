@@ -97,6 +97,40 @@ def test_prepare_layout_tensors_batches_masks_and_converts_boxes():
     assert mask.tolist() == [[True]]
 
 
+def test_prepare_layout_tensors_converts_ltwh_and_clamps_when_requested():
+    bbox, _, _ = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 0.75, 0.75]]],
+        labels=[[0]],
+        box_format=BoxFormat.ltwh,
+        clamp_converted_normalized=True,
+    )
+
+    assert bbox.tolist() == [[[1.0, 1.0, 0.75, 0.75]]]
+
+
+def test_prepare_layout_tensors_handles_1d_mask_and_unclamped_ltwh():
+    bbox, _, mask = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 0.75, 0.75]]],
+        labels=[[0]],
+        mask=[False],
+        box_format=BoxFormat.ltwh,
+    )
+
+    assert bbox.tolist() == [[[1.125, 1.125, 0.75, 0.75]]]
+    assert mask.tolist() == [[False]]
+
+
+def test_prepare_layout_tensors_clamps_converted_ltrb_when_requested():
+    bbox, _, _ = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 1.75, 1.75]]],
+        labels=[[0]],
+        box_format=BoxFormat.ltrb,
+        clamp_converted_normalized=True,
+    )
+
+    assert bbox.tolist() == [[[1.0, 1.0, 1.0, 1.0]]]
+
+
 def test_prepare_layout_tensors_normalizes_pixels_and_validates_canvas():
     bbox, labels, mask = prepare_layout_tensors(
         bbox=[[[10, 20, 110, 220]]],
