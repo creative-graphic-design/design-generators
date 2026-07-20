@@ -3,7 +3,14 @@
 from .bbox import BoxFormat, normalize_box_format
 from .conditions import ConditionAlias, ConditionType, normalize_condition_type
 from .discrete import SamplingMode, normalize_sampling_mode
-from .labels import DatasetName, max_elements_for_dataset, normalize_dataset_name
+from .enums import normalize_enum_value
+from .labels import (
+    RICO25_INTERACTION_LABEL_NAMES,
+    WEBUI_BASE_LABEL_NAMES,
+    DatasetName,
+    max_elements_for_dataset,
+    normalize_dataset_name,
+)
 from .model_card import ParityMetric, build_layout_model_card, layoutdm_model_card
 from .serialization import sanitize_for_yaml
 from .tokenization import (
@@ -22,8 +29,10 @@ __all__ = [
     "ConditionAlias",
     "DatasetName",
     "ParityMetric",
+    "RICO25_INTERACTION_LABEL_NAMES",
     "SamplingMode",
     "WhitespaceTokenizerMixin",
+    "WEBUI_BASE_LABEL_NAMES",
     "build_layout_model_card",
     "build_token_maps",
     "convert_id_to_token",
@@ -34,6 +43,7 @@ __all__ = [
     "normalize_box_format",
     "normalize_condition_type",
     "normalize_dataset_name",
+    "normalize_enum_value",
     "normalize_sampling_mode",
     "save_json_vocabulary",
     "sanitize_for_yaml",
