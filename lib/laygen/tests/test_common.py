@@ -38,6 +38,7 @@ from laygen.common.discrete import (
     sample_categorical,
     top_k_logits,
 )
+from laygen.common.enums import normalize_enum_value
 from laygen.common.labels import (
     DatasetName,
     id2label_for_dataset,
@@ -138,6 +139,20 @@ def test_discrete_sampling_helpers_cover_modes():
     assert normalize_sampling_mode(SamplingMode.random) is SamplingMode.random
     with pytest.raises(ValueError, match="Unsupported sampling mode"):
         normalize_sampling_mode("bad")
+    assert (
+        normalize_enum_value("random", SamplingMode, option_name="sampling mode")
+        is SamplingMode.random
+    )
+    assert (
+        normalize_enum_value(
+            SamplingMode.top_k,
+            SamplingMode,
+            option_name="sampling mode",
+        )
+        is SamplingMode.top_k
+    )
+    with pytest.raises(ValueError, match="Unsupported sampling mode: bad"):
+        normalize_enum_value("bad", SamplingMode, option_name="sampling mode")
     assert torch.equal(
         sample_categorical(logits, sampling=SamplingMode.deterministic),
         torch.tensor([[1, 0]]),
