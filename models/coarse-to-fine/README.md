@@ -219,7 +219,7 @@ Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration r
 ```bibtex
 @inproceedings{jiang2022coarse,
   title = {Coarse-to-Fine Generative Modeling for Graphic Layouts},
-  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Jichen and Deng, Jingwen and Luo, Jian and Li, Jianmin and Zheng, Yu and Fu, Yun},
+  author = {Jiang, Zhaoyun and Sun, Shizhao and Zhu, Jihua and Lou, Jian-Guang and Zhang, Dongmei},
   booktitle = {AAAI},
   year = {2022}
 }
