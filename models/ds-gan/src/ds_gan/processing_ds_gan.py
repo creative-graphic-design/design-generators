@@ -11,7 +11,7 @@ from PIL import Image
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
-from laygen.common.bbox import BoxFormat, normalize_boxes, normalize_box_format
+from laygen.common.bbox import BoxFormat, normalize_boxes, prepare_layout_tensors
 from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
@@ -168,33 +168,15 @@ class DSGANProcessor(ProcessorMixin):
         Returns:
             Dictionary with vendor ``layout``, normalized ``bbox``, labels, and mask.
         """
-        bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
-        labels_t = torch.as_tensor(labels, dtype=torch.long)
-        if labels_t.ndim == 1:
-            labels_t = labels_t.unsqueeze(0)
-            bbox_t = bbox_t.unsqueeze(0)
-        if mask is None:
-            mask_t = torch.ones(labels_t.shape, dtype=torch.bool)
-        else:
-            mask_t = torch.as_tensor(mask, dtype=torch.bool)
-            if mask_t.ndim == 1:
-                mask_t = mask_t.unsqueeze(0)
-        if not normalized:
-            if canvas_size is None:
-                raise ValueError("canvas_size is required when normalized=False")
-            bbox_t = normalize_boxes(
-                bbox_t,
-                canvas_size=canvas_size,
-                box_format=box_format,
-            )
-        else:
-            normalize_box_format(box_format)
-            if box_format != BoxFormat.xywh and str(box_format) != "xywh":
-                bbox_t = normalize_boxes(
-                    bbox_t,
-                    canvas_size=(1, 1),
-                    box_format=box_format,
-                )
+        bbox_t, labels_t, mask_t = prepare_layout_tensors(
+            bbox=bbox,
+            labels=labels,
+            mask=mask,
+            box_format=box_format,
+            normalized=normalized,
+            canvas_size=canvas_size,
+            clamp_converted_normalized=True,
+        )
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t, max_elem=max_elem)
         vendor_labels = torch.zeros_like(labels_t)
         vendor_labels[mask_t] = labels_t[mask_t] + 1

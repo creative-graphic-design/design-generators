@@ -9,6 +9,12 @@ import sys
 from pathlib import Path
 
 TARGET_DIRS = ("lib", "models", "scripts")
+ACCEPTED_DUPLICATE_PAIRS = (
+    (
+        "models/ds-gan/scripts/generate_reference_outputs.py",
+        "models/layout-flow/tests/vendor_parity/test_layout_flow_parity.py",
+    ),
+)
 _DUPLICATE_START_RE = re.compile(r"^.+:\d+:\d+: R0801: Similar lines in \d+ files$")
 _MODULE_SPAN_RE = re.compile(r"^(==[^:\n]+):\[\d+:\d+\](.*)$")
 
@@ -66,6 +72,38 @@ def module_labels_for_path(path: str) -> set[str]:
     if len(parts) >= 3 and parts[0] in {"lib", "models"}:
         labels.add(".".join(parts[2:]))
     return {label for label in labels if label}
+
+
+def is_src_path(path: str) -> bool:
+    """Return whether a repository path is package implementation code."""
+    return "/src/" in f"/{path}"
+
+
+def _path_matches_report(path: str, report_labels: set[str]) -> bool:
+    return any(
+        label_matches(path_label, report_label)
+        for path_label in module_labels_for_path(path)
+        for report_label in report_labels
+    )
+
+
+def _accepted_duplicate_pairs() -> tuple[tuple[str, str], ...]:
+    for left, right in ACCEPTED_DUPLICATE_PAIRS:
+        if is_src_path(left) or is_src_path(right):
+            raise AssertionError(
+                "accepted duplicate-code pairs must not include src implementation paths"
+            )
+    return ACCEPTED_DUPLICATE_PAIRS
+
+
+def is_accepted_duplicate_block(block: str) -> bool:
+    """Return whether a duplicate-code report block is an accepted non-src pair."""
+    report_labels = block_module_labels(block)
+    return any(
+        _path_matches_report(left, report_labels)
+        and _path_matches_report(right, report_labels)
+        for left, right in _accepted_duplicate_pairs()
+    )
 
 
 def build_command(targets: list[str]) -> list[str]:
@@ -152,6 +190,7 @@ def check_duplicate_code(root: Path, *, print_reports: bool = False) -> int:
     new_blocks = [
         block
         for block in blocks
+        if not is_accepted_duplicate_block(block)
         if any(
             label_matches(changed_label, report_label)
             for changed_label in changed_labels

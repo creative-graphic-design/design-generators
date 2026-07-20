@@ -17,6 +17,7 @@ from laygen.common.bbox import (
     linear_discretize,
     ltrb_to_xywh,
     normalize_boxes,
+    prepare_layout_tensors,
     xywh_to_ltrb,
 )
 from laygen.common.conditions import (
@@ -80,6 +81,40 @@ def test_bbox_conversions_roundtrip():
     )
     with pytest.raises(ValueError, match="Unsupported box_format"):
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="bad")
+
+
+def test_prepare_layout_tensors_batches_masks_and_converts_boxes():
+    bbox, labels, mask = prepare_layout_tensors(
+        bbox=[[0.0, 0.0, 1.0, 1.0]],
+        labels=[2],
+        box_format="ltrb",
+        normalized=True,
+    )
+
+    assert bbox.tolist() == [[[0.5, 0.5, 1.0, 1.0]]]
+    assert labels.tolist() == [[2]]
+    assert mask.tolist() == [[True]]
+
+
+def test_prepare_layout_tensors_normalizes_pixels_and_validates_canvas():
+    bbox, labels, mask = prepare_layout_tensors(
+        bbox=[[[10, 20, 110, 220]]],
+        labels=[[1]],
+        mask=[[False]],
+        box_format=BoxFormat.ltrb,
+        normalized=False,
+        canvas_size=(200, 400),
+    )
+
+    torch.testing.assert_close(bbox, torch.tensor([[[0.3, 0.3, 0.5, 0.5]]]))
+    assert labels.tolist() == [[1]]
+    assert mask.tolist() == [[False]]
+    with pytest.raises(ValueError, match="canvas_size is required"):
+        prepare_layout_tensors(
+            bbox=[[[0, 0, 1, 1]]],
+            labels=[[0]],
+            normalized=False,
+        )
 
 
 def test_linear_bins_roundtrip_shape():
