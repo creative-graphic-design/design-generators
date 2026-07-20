@@ -142,9 +142,12 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 
 ## Documentation
 
-- The docs site uses `mkdocs-material`, `mkdocstrings[python]`, and
-  `mkdocs-gen-files`; build it with
-  `uv run --group docs mkdocs build --strict`.
+- The docs site uses `zensical`, `mkdocstrings[python]`, and generated API
+  pages; build it with:
+  ```bash
+  uv run --group docs python scripts/gen_ref_pages.py
+  uv run --group docs zensical build --strict -f mkdocs.generated.yml
+  ```
 - The API reference is generated from workspace members under `lib/*` and
   `models/*`, using Python packages found below each member's `src/` directory.
 - Public API docstrings are the source text for the API reference. Use
