@@ -37,7 +37,10 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "[project]\nname = 'fake-project'\n",
         encoding="utf-8",
     )
-    (member_dir / "README.md").write_text("# Fake Project\n", encoding="utf-8")
+    (member_dir / "README.md").write_text(
+        "---\nmodel-index:\n  - name: FakeProject\n---\n\n# Model Card for FakeProject\n",
+        encoding="utf-8",
+    )
     (member_dir / "REPRODUCING.md").write_text(
         "# Reproducing Fake Project\n\nRun parity checks.\n",
         encoding="utf-8",
@@ -78,6 +81,12 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert (tmp_path / "docs/api/index.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
+    assert "- [FakeProject](models/fake-project/index.md)" in (
+        tmp_path / "docs/api/index.md"
+    ).read_text(encoding="utf-8")
+    assert "- [FakeProject](fake-project/index.md)" in (
+        tmp_path / "docs/api/models/index.md"
+    ).read_text(encoding="utf-8")
     package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
         encoding="utf-8"
     )
@@ -101,7 +110,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "      - Models:\n          - Overview: api/models/index.md" in generated_config
     )
     assert (
-        "          - fake-project: api/models/fake-project/index.md" in generated_config
+        "          - FakeProject: api/models/fake-project/index.md" in generated_config
     )
     assert "api/models/fake-project/reproducing.md" not in generated_config
     assert "api/models/fake-project/public.md" not in generated_config

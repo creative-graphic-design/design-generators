@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import shutil
 import tomllib
 
@@ -45,6 +46,7 @@ class ApiPackage:
 
     group: str
     project_name: str
+    display_name: str
     package_name: str
     member_dir: Path
     package_root: Path
@@ -83,6 +85,33 @@ def read_project_name(pyproject_path: Path) -> str:
     """Read the project name from a workspace member pyproject file."""
     data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     return str(data["project"]["name"])
+
+
+def read_model_display_name(member_dir: Path, project_name: str) -> str:
+    """Read the human-facing model name from a model README."""
+    readme_path = member_dir / "README.md"
+    if not readme_path.is_file():
+        return project_name
+    readme = readme_path.read_text(encoding="utf-8")
+    frontmatter_match = re.match(r"---\n(?P<frontmatter>.*?)\n---\n", readme, re.S)
+    if frontmatter_match is not None:
+        name_match = re.search(
+            r"(?m)^\s*-\s+name:\s+[\"']?(?P<name>[^\"'\n]+)[\"']?\s*$",
+            frontmatter_match.group("frontmatter"),
+        )
+        if name_match is not None:
+            return name_match.group("name")
+    heading_match = re.search(r"(?m)^# Model Card for (?P<name>.+?)\s*$", readme)
+    if heading_match is not None:
+        return heading_match.group("name")
+    return project_name
+
+
+def display_name_for_member(group: str, member_dir: Path, project_name: str) -> str:
+    """Return the human-facing label for docs navigation."""
+    if group == "Models":
+        return read_model_display_name(member_dir, project_name)
+    return project_name
 
 
 def group_for_member(member_dir: Path) -> str:
@@ -210,6 +239,7 @@ def discover_api_packages() -> list[ApiPackage]:
     for member_dir in iter_member_dirs():
         group = group_for_member(member_dir)
         project_name = read_project_name(member_dir / "pyproject.toml")
+        display_name = display_name_for_member(group, member_dir, project_name)
         for package_root in iter_package_roots(member_dir):
             package_name = package_root.name
             imported_modules = imported_public_modules(package_root / "__init__.py")
@@ -233,6 +263,7 @@ def discover_api_packages() -> list[ApiPackage]:
                 ApiPackage(
                     group=group,
                     project_name=project_name,
+                    display_name=display_name,
                     package_name=package_name,
                     member_dir=member_dir,
                     package_root=package_root,
@@ -250,7 +281,7 @@ def discover_api_packages() -> list[ApiPackage]:
                     pages=tuple(sorted(pages, key=lambda page: page.module)),
                 )
             )
-    return sorted(packages, key=lambda package: (package.group, package.project_name))
+    return sorted(packages, key=lambda package: (package.group, package.display_name))
 
 
 def write_api_index(packages: list[ApiPackage]) -> None:
@@ -279,7 +310,7 @@ def write_api_index(packages: list[ApiPackage]) -> None:
         lines.extend(["", f"## {group}", ""])
         for package in group_packages:
             lines.append(
-                f"- [{package.project_name}]({package.index_path.relative_to('api')})"
+                f"- [{package.display_name}]({package.index_path.relative_to('api')})"
             )
     lines.append("")
     write_text_file(Path("api/index.md"), "\n".join(lines))
@@ -299,7 +330,7 @@ def write_group_indexes(packages: list[ApiPackage]) -> None:
         ]
         for package in group_packages:
             lines.append(
-                f"- [{package.project_name}]({package.index_path.relative_to(Path('api', group.lower()))})"
+                f"- [{package.display_name}]({package.index_path.relative_to(Path('api', group.lower()))})"
             )
         lines.append("")
         write_text_file(Path("api", group.lower(), "index.md"), "\n".join(lines))
@@ -313,7 +344,7 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
         if readme_path.is_file():
             lines.extend([readme_path.read_text(encoding="utf-8").rstrip(), ""])
         else:
-            lines.extend([f"# {package.project_name}", ""])
+            lines.extend([f"# {package.display_name}", ""])
         if package.reproducing_path is not None:
             lines.extend(
                 [
@@ -351,7 +382,7 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
             ]
         )
         for package in group_packages:
-            lines.append(f"          - {package.project_name}: {package.index_path}")
+            lines.append(f"          - {package.display_name}: {package.index_path}")
     return lines
 
 
