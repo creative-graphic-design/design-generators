@@ -358,7 +358,7 @@ def test_layoutdm_model_card_metadata_and_sections():
 
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
-    assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["pipeline_tag"] == "other"
     assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/Rico"]

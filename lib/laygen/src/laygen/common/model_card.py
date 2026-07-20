@@ -347,7 +347,7 @@ print(out.bbox, out.labels, out.mask)
         dataset_ids=[dataset_id],
         license="apache-2.0",
         library_name="diffusers",
-        pipeline_tag="text-to-image",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "layout-dm",

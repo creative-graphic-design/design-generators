@@ -21,6 +21,18 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 Most weight-backed packages use locally converted checkpoint directories until planned Hub repos are published. Each model package has a `REPRODUCING.md` file with the download, reference generation, parity, conversion, and smoke-test commands that create the local path.
 
+For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for vendor reference generation, parity tests, and smoke tests.
+
+```bash
+uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+  --output-dir .cache/layout-dm/original
+
+uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+  --dataset rico25 \
+  --starter-dir .cache/layout-dm/original/download \
+  --output-dir .cache/layout-dm/converted/layoutdm-rico25
+```
+
 ```bash
 uv run --package layout-dm python
 ```
