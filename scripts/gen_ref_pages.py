@@ -33,6 +33,13 @@ PUBLIC_MODEL_MODULE_PREFIXES = (
     "tokenization",
     "tokenizer",
 )
+OVERVIEW_FRONTMATTER = """---
+icon: lucide/layout-template
+tags:
+  - Overview
+  - Documentation
+---
+"""
 
 
 @dataclass(frozen=True)
@@ -110,7 +117,10 @@ def rewrite_repo_relative_links(markdown: str) -> str:
 def write_overview_page() -> None:
     """Generate the documentation Overview page from the repository README."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8").rstrip()
-    write_text_file(Path("index.md"), f"{rewrite_repo_relative_links(readme)}\n")
+    write_text_file(
+        Path("index.md"),
+        f"{OVERVIEW_FRONTMATTER}\n{rewrite_repo_relative_links(readme)}\n",
+    )
 
 
 def iter_member_dirs() -> list[Path]:

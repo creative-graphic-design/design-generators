@@ -94,6 +94,13 @@ def test_gen_ref_pages_writes_standalone_api_tree(
 
     assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
         [
+            "---",
+            "icon: lucide/layout-template",
+            "tags:",
+            "  - Overview",
+            "  - Documentation",
+            "---",
+            "",
             "# Fake Repo",
             "",
             "[Model](api/models/fake-project/index.md)",
@@ -225,5 +232,5 @@ def test_generated_overview_matches_readme_with_rewritten_links() -> None:
     gen_ref_pages.main()
 
     assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
-        expected + "\n"
+        f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
     )
