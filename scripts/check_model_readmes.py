@@ -163,6 +163,13 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": ["creative-graphic-design/Rico", "Web"],
     },
+    "ralf": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/CGL-Dataset",
+            "creative-graphic-design/PKU-PosterLayout",
+        ],
+    },
 }
 
 
@@ -179,6 +186,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "ralf": "RALF",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -186,6 +194,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "ralf": "https://github.com/CyberAgentAILab/RALF",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
@@ -275,6 +284,8 @@ def _dataset_display_name(value: str) -> str:
         "creative-graphic-design/Rico": "RICO25",
         "creative-graphic-design/PubLayNet": "PubLayNet",
         "creative-graphic-design/magazine": "Magazine",
+        "creative-graphic-design/CGL-Dataset": "CGL",
+        "creative-graphic-design/PKU-PosterLayout": "PKU",
         "cyberagent/crello": "Crello",
     }.get(normalized, normalized)
 
@@ -740,11 +751,11 @@ def _assert_library_name_style(path: Path) -> None:
 
 
 def check() -> None:
-    if len(MODEL_READMES) != 12:
-        raise AssertionError(f"expected 12 model READMEs, found {len(MODEL_READMES)}")
-    if len(MODEL_REPRODUCING) != 12:
+    if len(MODEL_READMES) != 13:
+        raise AssertionError(f"expected 13 model READMEs, found {len(MODEL_READMES)}")
+    if len(MODEL_REPRODUCING) != 13:
         raise AssertionError(
-            f"expected 12 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
+            f"expected 13 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
         )
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     for path in MODEL_READMES:

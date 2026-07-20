@@ -5,7 +5,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=12&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=13&color=purple&style=flat-square)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -25,6 +25,7 @@
 | [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |
 | [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
 | [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
+| [`models/ralf`](models/ralf/README.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](models/ralf/REPRODUCING.md)) |
 
 Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
 

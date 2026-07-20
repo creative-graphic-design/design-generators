@@ -48,7 +48,7 @@ VERIFIED_SIMPLE_ICON_SLUGS = {
     "uv",
 }
 
-HF_DATASET_BADGE_MESSAGES = {"RICO25", "PubLayNet", "Crello", "Magazine"}
+HF_DATASET_BADGE_MESSAGES = {"RICO25", "PubLayNet", "Crello", "Magazine", "CGL", "PKU"}
 
 DOCS_URL = "https://creative-graphic-design.github.io/design-generators/"
 DATASET_LINKS = {
@@ -57,6 +57,8 @@ DATASET_LINKS = {
     "PubLayNet": "https://huggingface.co/datasets/creative-graphic-design/PubLayNet",
     "Crello": "https://huggingface.co/datasets/cyberagent/crello",
     "Magazine": "https://huggingface.co/datasets/creative-graphic-design/magazine",
+    "CGL": "https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset",
+    "PKU": "https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout",
 }
 PAPER_LINKS = {
     ("paper", "AAAI"): "https://ojs.aaai.org/index.php/AAAI/article/view/19994",
@@ -67,6 +69,7 @@ PAPER_LINKS = {
     ("arXiv", "2305.15393"): "https://arxiv.org/abs/2305.15393",
     ("arXiv", "2308.12700"): "https://arxiv.org/abs/2308.12700",
     ("arXiv", "2311.06495"): "https://arxiv.org/abs/2311.06495",
+    ("arXiv", "2311.13602"): "https://arxiv.org/abs/2311.13602",
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
