@@ -9,8 +9,11 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MODEL_READMES = sorted((REPO_ROOT / "models").glob("*/README.md"))
-MODEL_REPRODUCING = sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md"))
+MODEL_MEMBER_DIRS = sorted(
+    path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
+)
+MODEL_READMES = [member_dir / "README.md" for member_dir in MODEL_MEMBER_DIRS]
+MODEL_REPRODUCING = [member_dir / "REPRODUCING.md" for member_dir in MODEL_MEMBER_DIRS]
 README_LINK_CONTRACTS = [
     REPO_ROOT / "README.md",
     REPO_ROOT
@@ -298,6 +301,10 @@ def _badge_messages(text: str, label: str) -> list[str]:
         if query.get("label") == [label] and "message" in query:
             messages.append(unquote(query["message"][0]).replace("--", "-"))
     return messages
+
+
+def _model_member_slugs() -> set[str]:
+    return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
 
 
 def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
@@ -654,6 +661,15 @@ def _root_packages_table_lines(text: str) -> list[str]:
     return text[start:end].splitlines()
 
 
+def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
+    text = path.read_text(encoding="utf-8")
+    messages = _badge_messages(text, "models")
+    if messages != [str(expected_count)]:
+        raise AssertionError(
+            f"{path}: models badge {messages} != workspace model member count {expected_count}"
+        )
+
+
 def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
@@ -691,6 +707,64 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
                 f"{path}: weight-backed package {slug} must link conversion steps"
             )
     return runtime_by_slug
+
+
+def _assert_model_doc_sets() -> None:
+    member_slugs = _model_member_slugs()
+    readme_slugs = {
+        path.parent.name for path in sorted((REPO_ROOT / "models").glob("*/README.md"))
+    }
+    reproducing_slugs = {
+        path.parent.name
+        for path in sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md"))
+    }
+    for label, actual in (
+        ("README.md", readme_slugs),
+        ("REPRODUCING.md", reproducing_slugs),
+    ):
+        missing = sorted(member_slugs - actual)
+        extra = sorted(actual - member_slugs)
+        if missing or extra:
+            raise AssertionError(
+                f"model {label} set mismatch: missing={missing}, extra={extra}"
+            )
+
+
+def _assert_root_models_table_matches_members(
+    root_runtime_by_slug: dict[str, str],
+) -> None:
+    member_slugs = _model_member_slugs()
+    root_slugs = set(root_runtime_by_slug)
+    missing = sorted(member_slugs - root_slugs)
+    extra = sorted(root_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"root README Models table mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def _assert_generated_docs_targets_match_members() -> None:
+    import importlib.util
+
+    script_path = REPO_ROOT / "scripts" / "gen_ref_pages.py"
+    spec = importlib.util.spec_from_file_location("gen_ref_pages", script_path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"cannot load {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    docs_model_slugs = {
+        package.member_dir.name
+        for package in module.discover_api_packages()
+        if package.group == "Models"
+    }
+    member_slugs = _model_member_slugs()
+    missing = sorted(member_slugs - docs_model_slugs)
+    extra = sorted(docs_model_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"generated docs model targets mismatch: missing={missing}, extra={extra}"
+        )
 
 
 def _assert_linked_first_reference_policy(path: Path) -> None:
@@ -749,13 +823,11 @@ def _assert_library_name_style(path: Path) -> None:
 
 
 def check() -> None:
-    if len(MODEL_READMES) != 13:
-        raise AssertionError(f"expected 13 model READMEs, found {len(MODEL_READMES)}")
-    if len(MODEL_REPRODUCING) != 13:
-        raise AssertionError(
-            f"expected 13 model REPRODUCING.md files, found {len(MODEL_REPRODUCING)}"
-        )
+    _assert_model_doc_sets()
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
+    _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
+    _assert_root_models_table_matches_members(root_runtime_by_slug)
+    _assert_generated_docs_targets_match_members()
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
