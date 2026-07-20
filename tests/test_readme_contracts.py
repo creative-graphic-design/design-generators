@@ -6,6 +6,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import ModuleType
 
@@ -47,34 +48,56 @@ def test_readme_badge_contracts() -> None:
     _run_script("scripts/check_readme_badges.py")
 
 
-def _supported_checkpoint_ids(readme: Path) -> set[str]:
-    text = readme.read_text(encoding="utf-8")
-    match = re.search(r"^## Supported Checkpoints\s*$", text, re.MULTILINE)
-    if match is None:
-        return set()
-    section = text[match.end() :]
-    next_heading = re.search(r"\n## ", section)
-    if next_heading is not None:
-        section = section[: next_heading.start()]
-    return set(re.findall(r"creative-graphic-design/[A-Za-z0-9_.+-]+", section))
-
-
 def _model_workspace_slugs() -> set[str]:
     return {
         path.parent.name for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
     }
 
 
-def test_docs_models_hub_ids_match_model_readmes() -> None:
-    docs_rows: dict[str, set[str]] = {}
+def _docs_model_badge_rows() -> dict[str, dict[str, set[str]]]:
+    docs_rows: dict[str, dict[str, set[str]]] = {}
     for line in DOCS_MODELS.read_text(encoding="utf-8").splitlines():
-        if not line.startswith("| [`"):
+        if not line.startswith("| ["):
             continue
         slug_match = re.search(r"api/models/([^/]+)/index\.md", line)
-        assert slug_match is not None, line
-        docs_rows[slug_match.group(1)] = set(
-            re.findall(r"`(creative-graphic-design/[A-Za-z0-9_.+-]+)`", line)
-        )
+        if slug_match is None:
+            continue
+        badges: dict[str, set[str]] = {
+            "framework": set(),
+            "task": set(),
+            "condition": set(),
+            "dataset": set(),
+        }
+        for axis, value in re.findall(
+            r"!\[(framework|task|condition|dataset): ([^\]]+)\]"
+            r"\(https://img\.shields\.io/static/v1\?",
+            line,
+        ):
+            badges[axis].add(value)
+        docs_rows[slug_match.group(1)] = badges
+    return docs_rows
+
+
+def _metadata_values(pyproject: Path) -> dict[str, set[str]]:
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    metadata = data["tool"]["design-generators"]
+
+    def values(key: str) -> set[str]:
+        value = metadata[key]
+        if isinstance(value, str):
+            return {value}
+        return set(value)
+
+    return {
+        "framework": values("framework"),
+        "task": values("task"),
+        "condition": values("conditions"),
+        "dataset": values("datasets"),
+    }
+
+
+def test_docs_models_metadata_badges_match_model_pyprojects() -> None:
+    docs_rows = _docs_model_badge_rows()
 
     model_slugs = _model_workspace_slugs()
     missing_docs_rows = sorted(model_slugs.difference(docs_rows))
@@ -86,12 +109,8 @@ def test_docs_models_hub_ids_match_model_readmes() -> None:
         f"docs/models.md has rows for non-workspace model packages: {extra_docs_rows}"
     )
 
-    for readme in sorted((REPO_ROOT / "models").glob("*/README.md")):
-        slug = readme.parent.name
-        expected = _supported_checkpoint_ids(readme)
-        if not expected:
-            continue
-        assert docs_rows[slug] == expected
+    for pyproject in sorted((REPO_ROOT / "models").glob("*/pyproject.toml")):
+        assert docs_rows[pyproject.parent.name] == _metadata_values(pyproject)
 
 
 def test_hugging_face_emoji_contract_rejects_second_mention(tmp_path: Path) -> None:
