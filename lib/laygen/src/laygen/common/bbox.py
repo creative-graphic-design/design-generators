@@ -150,6 +150,65 @@ def normalize_boxes(
     assert_never(fmt)
 
 
+def prepare_layout_tensors(
+    *,
+    bbox: object,
+    labels: object,
+    mask: object | None = None,
+    box_format: BoxFormat | str = BoxFormat.xywh,
+    normalized: bool = True,
+    canvas_size: tuple[int, int] | None = None,
+    clamp_converted_normalized: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Convert public layout arrays to batched normalized tensor inputs.
+
+    Args:
+        bbox: Layout boxes in ``box_format``.
+        labels: Integer labels matching the layout boxes.
+        mask: Optional valid-element mask. All elements are valid when omitted.
+        box_format: Input box format.
+        normalized: Whether boxes are already normalized to ``[0, 1]``.
+        canvas_size: Pixel canvas size required when ``normalized=False``.
+        clamp_converted_normalized: Whether normalized ``ltwh``/``ltrb`` conversion
+            should clamp the resulting center ``xywh`` boxes to ``[0, 1]``.
+
+    Returns:
+        Batched ``bbox``, ``labels``, and ``mask`` tensors.
+
+    Raises:
+        ValueError: If pixel-space boxes are passed without ``canvas_size`` or if
+            ``box_format`` is unsupported.
+    """
+    import torch
+
+    bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
+    labels_t = torch.as_tensor(labels, dtype=torch.long)
+    if labels_t.ndim == 1:
+        labels_t = labels_t.unsqueeze(0)
+        bbox_t = bbox_t.unsqueeze(0)
+    if mask is None:
+        mask_t = torch.ones(labels_t.shape, dtype=torch.bool)
+    else:
+        mask_t = torch.as_tensor(mask, dtype=torch.bool)
+        if mask_t.ndim == 1:
+            mask_t = mask_t.unsqueeze(0)
+
+    fmt = normalize_box_format(box_format)
+    if not normalized:
+        if canvas_size is None:
+            raise ValueError("canvas_size is required when normalized=False")
+        bbox_t = normalize_boxes(bbox_t, canvas_size=canvas_size, box_format=fmt)
+    elif fmt is BoxFormat.ltwh:
+        bbox_t = ltwh_to_xywh(bbox_t)
+        if clamp_converted_normalized:
+            bbox_t = clamp_boxes(bbox_t)
+    elif fmt is BoxFormat.ltrb:
+        bbox_t = ltrb_to_xywh(bbox_t)
+        if clamp_converted_normalized:
+            bbox_t = clamp_boxes(bbox_t)
+    return bbox_t, labels_t, mask_t
+
+
 def denormalize_boxes(
     bbox: Float[torch.Tensor, "batch elements 4"],
     *,
