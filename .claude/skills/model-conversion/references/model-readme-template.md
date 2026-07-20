@@ -26,6 +26,8 @@ metrics:
   - "<metric-id>"
 base_model: "<base-model-hub-id>"
 # Use a Hub model id when the checkpoint derives from one; otherwise remove this key.
+# Required only for weight-backed packages. Prompt-only packages without learned
+# checkpoints must not include `model-index`.
 model-index:
   - name: "<model-id>"
     results:
@@ -57,14 +59,14 @@ model-index:
 
 <longer description of what the converted checkpoint does and what package loads it>
 
-<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is Transformers or Diffusers style. -->
+<!-- Mention normalized center xywh outputs, labels, mask semantics, and whether the wrapper is 🤗 `transformers` or `diffusers` style. -->
 
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
 - **Model type:** <architecture-and-task>
 - **Language(s) (NLP):** <not-applicable-or-language-list>
-- **License:** <license-id-or-review-needed>
+- **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
 
 ### Model Sources [optional]
@@ -110,18 +112,22 @@ model-index:
 
 ## How to Get Started with the Model
 
-<!-- Use the public from_pretrained surface exposed by this model package. -->
+<!-- Use a local converted checkpoint path that works before Hub publication. -->
 
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package <member-name>
+uv run --package <member-name> python
 ```
 
 ```python
 from <package_name> import <PipelineOrModelClass>
 
 pipe = <PipelineOrModelClass>.from_pretrained(
-    "creative-graphic-design/<hub-repo-id>",
+    ".cache/<slug>/converted/<local-checkpoint-dir>",
 )
+# After Hub publication: from_pretrained("creative-graphic-design/<hub-repo-id>")
 out = pipe(batch_size=1, seed=0)
 
 print(out.bbox)    # normalized center xywh boxes
@@ -157,7 +163,7 @@ print(out.mask)    # valid element mask
 
 ## Evaluation
 
-<!-- Official evaluation section. Project-specific vendor parity lives immediately below as a top-level section because issue #60 requires `## Parity Results`. -->
+<!-- Keep package-specific evaluation facts here. -->
 
 ### Testing Data, Factors & Metrics
 
@@ -173,11 +179,7 @@ print(out.mask)    # valid element mask
 
 <exact-match-tolerance-and-smoke-test-metrics>
 
-### Results
-
-<short evaluation summary that points to the numeric parity table below>
-
-## Parity Results
+### Parity Results
 
 <!-- Fill with numeric results from the real vendor-parity suite; do not replace this with prose. -->
 
@@ -187,53 +189,9 @@ print(out.mask)    # valid element mask
 
 ## Reproducibility
 
-This section reproduces the original-implementation agreement checks for <model-id>.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-<!-- Keep these commands copy-pasteable because coordinators run them mechanically during review. -->
-
-Download vendor assets:
-
-```bash
-uv run --package <member-name> python models/<slug>/scripts/download_original.py \
-  --output-dir .cache/<slug>/original
-```
-
-Generate vendor reference outputs:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package <member-name> --extra vendor python models/<slug>/scripts/generate_reference_outputs.py \
-  --output-dir models/<slug>/tests/vendor_parity/fixtures/<dataset-name> \
-  --seed <seed>
-```
-
-Convert checkpoints:
-
-```bash
-uv run --package <member-name> --extra convert python models/<slug>/scripts/convert_original_checkpoint.py \
-  --output-dir .cache/<slug>/converted/<hub-repo-id>
-```
-
-Run vendor parity tests:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package <member-name> pytest models/<slug>/tests/vendor_parity -m vendor_parity -rs
-```
-
-Run `from_pretrained` smoke tests:
-
-```bash
-uv run --package <member-name> python - <<'PY'
-from pathlib import Path
-from <package_name> import <PipelineOrModelClass>
-
-path = Path(".cache/<slug>/converted/<hub-repo-id>")
-pipe = <PipelineOrModelClass>.from_pretrained(path)
-out = pipe(batch_size=1, seed=0)
-assert out.bbox.shape[-1] == 4
-assert out.labels.shape == out.mask.shape
-print(out.bbox.shape, out.labels.shape)
-PY
-```
+<!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
 
 ## Model Examination [optional]
 
