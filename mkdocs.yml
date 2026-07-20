@@ -13,6 +13,18 @@ theme:
     - navigation.top
     - search.suggest
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/creative-graphic-design
+      name: creative-graphic-design on GitHub
+    - icon: fontawesome/brands/hugging-face
+      link: https://huggingface.co/creative-graphic-design
+      name: creative-graphic-design on Hugging Face
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/cgd_lab
+      name: Creative Graphic Design Lab on X
+
 nav:
   - Overview: index.md
   - Conventions: conventions.md
