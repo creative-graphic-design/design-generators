@@ -34,7 +34,7 @@ laygen = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
-task = "content-aware-layout-generation"
+task = "content-agnostic-layout-generation"
 conditions = ["text"]
 datasets = ["grit", "coco-grounded"]
 

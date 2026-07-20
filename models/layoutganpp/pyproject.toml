@@ -35,7 +35,7 @@ laygen = { workspace = true }
 framework = "transformers"
 task = "content-agnostic-layout-generation"
 conditions = ["label"]
-datasets = ["rico25", "publaynet", "magazine"]
+datasets = ["rico13", "publaynet", "magazine"]
 
 [tool.pytest.ini_options]
 markers = [

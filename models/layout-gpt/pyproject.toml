@@ -24,7 +24,7 @@ vendor = [
 
 [tool.design-generators]
 framework = "pydantic-ai"
-task = "content-aware-layout-generation"
+task = "content-agnostic-layout-generation"
 conditions = ["text", "unconditional"]
 datasets = ["nsr-1k"]
 

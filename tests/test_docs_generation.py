@@ -88,7 +88,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
                 "",
                 "[tool.design-generators]",
                 "framework = 'transformers'",
-                "task = 'content-agnostic-layout-generation'",
+                "task = ['content-agnostic-layout-generation', 'content-aware-layout-generation']",
                 "conditions = ['unconditional', 'label']",
                 "datasets = ['rico25', 'publaynet']",
                 "",
@@ -182,7 +182,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         encoding="utf-8"
     )
     assert package_index.startswith(
-        "---\ntags:\n  - transformers\n  - content-agnostic-layout-generation\n"
+        "---\ntags:\n  - transformers\n  - content-agnostic-layout-generation\n  - content-aware-layout-generation\n"
     )
     assert (
         "  - unconditional\n  - label\n  - rico25\n  - publaynet\n---\n"
@@ -207,7 +207,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
     assert (
         "| [FakeProject](api/models/fake-project/index.md) | `transformers` | "
-        "`content-agnostic-layout-generation` | `unconditional`, `label` | "
+        "`content-agnostic-layout-generation`, `content-aware-layout-generation` | `unconditional`, `label` | "
         "`rico25`, `publaynet` |"
     ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")

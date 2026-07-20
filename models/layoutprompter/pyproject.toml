@@ -15,7 +15,7 @@ laygen = { workspace = true }
 
 [tool.design-generators]
 framework = "pydantic-ai"
-task = "content-aware-layout-generation"
+task = ["content-agnostic-layout-generation", "content-aware-layout-generation"]
 conditions = ["label", "label_size", "relation", "completion", "refinement", "text", "content_image"]
 datasets = ["publaynet", "rico25", "posterlayout", "webui"]
 
