@@ -4,6 +4,8 @@ site_url: https://creative-graphic-design.github.io/design-generators/
 repo_url: https://github.com/creative-graphic-design/design-generators
 repo_name: creative-graphic-design/design-generators
 copyright: Copyright &copy; 2026 Creative Graphic Design Lab
+extra_css:
+  - stylesheets/extra.css
 
 theme:
   name: material
