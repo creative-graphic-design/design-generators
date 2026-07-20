@@ -317,7 +317,7 @@ def layoutdm_model_card(
     Examples:
         >>> card = layoutdm_model_card(dataset="publaynet")
         >>> card.data.to_dict()["datasets"]
-        ['creative-graphic-design/publaynet']
+        ['creative-graphic-design/PubLayNet']
     """
     dataset_id = _layoutdm_dataset_id(dataset)
     model_id = f"creative-graphic-design/layoutdm-{dataset}"

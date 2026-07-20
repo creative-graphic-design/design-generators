@@ -10,7 +10,7 @@ Prerequisites:
 - Use `uv sync --package coarse-to-fine --extra vendor` once before the first vendor run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated references under `.cache/coarse-to-fine/`; these files are local artifacts and are not committed.
-- Set `CUDA_VISIBLE_DEVICES=3` for the vendor reference/parity run.
+- Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to one CUDA device for the vendor reference/parity run.
 
 1. Download the public checkpoints into `.cache/coarse-to-fine/original`.
 
@@ -22,14 +22,14 @@ uv run --package coarse-to-fine python models/coarse-to-fine/scripts/download_or
 2. Generate vendor reference tensors.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
   --dataset rico25 \
   --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
   --seed 0 \
   --batch-size 2 \
   --output-dir .cache/coarse-to-fine/reference/rico25
 
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
   --dataset publaynet \
   --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
   --seed 0 \
@@ -54,7 +54,7 @@ uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_che
 4. Run vendor parity tests against cached references.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine pytest \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine pytest \
   models/coarse-to-fine/tests/vendor_parity \
   -m vendor_parity \
   -q

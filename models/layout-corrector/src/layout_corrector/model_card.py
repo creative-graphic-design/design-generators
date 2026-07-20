@@ -33,8 +33,8 @@ class LayoutCorrectorCardValue(StrEnum):
 _MODEL_ID_PREFIX: Final[str] = "creative-graphic-design/layout-corrector"
 _ORIGINAL_IMPLEMENTATION_URL: Final[str] = "https://github.com/line/Layout-Corrector"
 _DATASET_IDS: Final[dict[LayoutCorrectorCardDataset, str]] = {
-    LayoutCorrectorCardDataset.rico25: "creative-graphic-design/rico25",
-    LayoutCorrectorCardDataset.publaynet: "creative-graphic-design/publaynet",
+    LayoutCorrectorCardDataset.rico25: "creative-graphic-design/Rico",
+    LayoutCorrectorCardDataset.publaynet: "creative-graphic-design/PubLayNet",
     LayoutCorrectorCardDataset.crello: "cyberagent/crello",
 }
 
