@@ -13,10 +13,12 @@ classifiers = [
 ]
 dependencies = [
     "coarse-to-fine",
+    "ds-gan",
     "layout-corrector",
     "layoutdiffusion",
     "layout-flow",
     "layout-gpt",
+    "layout-transformer",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -26,6 +28,7 @@ dependencies = [
     "layoutformerpp",
     "parse-then-place",
     "posgen",
+    "ralf",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -64,10 +67,12 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 coarse-to-fine = { workspace = true }
+ds-gan = { workspace = true }
 layout-corrector = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
+layout-transformer = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
@@ -77,6 +82,7 @@ laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
 posgen = { workspace = true }
+ralf = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]

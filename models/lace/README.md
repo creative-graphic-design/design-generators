@@ -73,7 +73,17 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
-LACE runs unconditional generation from converted PubLayNet and RICO checkpoints. Local original checkpoints can be converted with:
+LACE runs unconditional, label-conditioned, label-size-conditioned, completion, and refinement generation from converted PubLayNet and RICO checkpoints. `beautify=True` applies the aesthetic-constraint post-optimization used by the package.
+
+| `condition_type` | Required inputs | Effect |
+| --- | --- | --- |
+| `unconditional` | none | samples all labels and boxes |
+| `label` | `labels`, `bbox`, optional `mask` | keeps labels fixed and samples geometry |
+| `label_size` | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed |
+| `completion` | `labels`, `bbox`, optional `mask` | preserves a random valid subset and fills the rest |
+| `refinement` | `labels`, `bbox`, optional `mask` | starts from a noised layout and refines it |
+
+Local original checkpoints can be converted with:
 
 ```bash
 uv run --package lace python models/lace/scripts/convert_checkpoint.py \
@@ -117,9 +127,22 @@ path = ".cache/lace/converted/lace-publaynet"
 pipe = LacePipeline.from_pretrained(path)
 out = pipe(batch_size=1, seed=0)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
+print(out.mask.any().item())
+```
+
+```python
+out = pipe(
+    condition_type="label_size",
+    labels=[[0, 1]],
+    bbox=[[[0.50, 0.50, 0.30, 0.20], [0.30, 0.25, 0.20, 0.10]]],
+    mask=[[True, True]],
+    beautify=True,
+    seed=0,
+)
+print(out.bbox.shape)
 ```
 
 ## Training Details

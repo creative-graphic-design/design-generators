@@ -8,12 +8,17 @@ from pathlib import Path
 from typing import Final, cast
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
+from laygen.common.tokenization import (
+    WhitespaceTokenizerMixin,
+    build_token_maps,
+    save_json_vocabulary,
+)
 from transformers import BatchEncoding, PreTrainedTokenizer
 
 DEFAULT_MODEL_MAX_LENGTH: Final[int] = 1_000_000_000_000_000_019_884_624_838_656
 
 
-class LayoutFormerPPTokenizer(PreTrainedTokenizer):
+class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
     """Whitespace tokenizer backed by the vendor `vocab.json` format."""
 
     vocab_files_names = {"vocab_file": "vocab.json"}
@@ -48,17 +53,11 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
         self.x_grid = x_grid
         self.y_grid = y_grid
         self.bbox_order = str(normalize_box_format(bbox_order))
-        if vocab_file is not None:
-            with Path(vocab_file).open() as f:
-                token2id = {str(k): int(v) for k, v in json.load(f).items()}
-        else:
-            base_tokens = ["<bos>", "<eos>", "<pad>", "<sep>", "<unk>"]
-            token2id = {token: idx for idx, token in enumerate(base_tokens)}
-            for token in tokens or []:
-                if token not in token2id:
-                    token2id[token] = len(token2id)
-        self._token2id = token2id
-        self._id2token = {idx: token for token, idx in token2id.items()}
+        self._token2id, self._id2token = build_token_maps(
+            vocab_file=vocab_file,
+            tokens=tokens,
+            base_tokens=("<bos>", "<eos>", "<pad>", "<sep>", "<unk>"),
+        )
         tokenizer_kwargs: dict[str, object] = {
             "bos_token": bos_token,
             "eos_token": eos_token,
@@ -76,42 +75,16 @@ class LayoutFormerPPTokenizer(PreTrainedTokenizer):
             tokenizer_kwargs["added_tokens_decoder"] = added_tokens_decoder
         super().__init__(**tokenizer_kwargs)
 
-    @property
-    def vocab_size(self) -> int:
-        """Return the number of saved vocabulary entries."""
-        return len(self._token2id)
-
-    def get_vocab(self) -> dict[str, int]:
-        """Return token-to-id vocabulary mapping."""
-        return dict(self._token2id)
-
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
-        _ = kwargs
-        return text.strip().split()
-
-    def _convert_token_to_id(self, token: str) -> int:
-        return self._token2id.get(token, self.unk_token_id)
-
-    def _convert_id_to_token(self, index: int) -> str:
-        return self._id2token.get(int(index), self.unk_token)
-
-    def convert_tokens_to_string(self, tokens: list[str]) -> str:
-        """Join synthetic layout tokens using spaces."""
-        return " ".join(tokens)
-
     def save_vocabulary(
         self, save_directory: str, filename_prefix: str | None = None
     ) -> tuple[str]:
         """Save `vocab.json` in vendor-compatible token-to-id format."""
-        out_dir = Path(save_directory)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        name = (
-            "vocab.json" if filename_prefix is None else f"{filename_prefix}-vocab.json"
+        return save_json_vocabulary(
+            save_directory=save_directory,
+            filename="vocab.json",
+            data=self._token2id,
+            filename_prefix=filename_prefix,
         )
-        out_path = out_dir / name
-        with out_path.open("w") as f:
-            json.dump(self._token2id, f, indent=2, sort_keys=True)
-        return (str(out_path),)
 
     def save_pretrained(
         self,
