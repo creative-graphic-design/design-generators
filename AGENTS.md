@@ -49,6 +49,12 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 ## Tracking
 
+- If the user asks to create or file an issue first, treat issue creation as a
+  hard gate: create the issue and record its URL before implementation, commits,
+  or PR work. Do not substitute a PR for the requested issue.
+- Every implementation PR must reference its implementation issue in the PR
+  summary with `Closes #N` or `Refs #N`. The standing checklist issue #60 does
+  not count as the implementation issue.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue

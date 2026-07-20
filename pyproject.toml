@@ -48,6 +48,7 @@ dev = [
     "beartype>=0.22.9,<0.23",
     "mkdocs-gen-files>=0.6.1",
     "pre-commit>=4.6.0",
+    "pylint>=4.0.0",
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.1.5",
@@ -115,6 +116,19 @@ unresolved-import = "ignore"
 
 [tool.ty.src]
 exclude = ["vendor"]
+
+[tool.pylint.main]
+ignore = ["vendor", ".cache", "site"]
+
+[tool.pylint.messages_control]
+disable = ["all"]
+enable = ["duplicate-code"]
+
+[tool.pylint.similarities]
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+min-similarity-lines = 8
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "lib", "models"]
