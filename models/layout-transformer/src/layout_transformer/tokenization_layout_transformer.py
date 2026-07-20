@@ -7,13 +7,18 @@ from os import PathLike
 from pathlib import Path
 from typing import Final, cast
 
+from laygen.common.tokenization import (
+    WhitespaceTokenizerMixin,
+    build_token_maps,
+    save_json_vocabulary,
+)
 from transformers import PreTrainedTokenizer
 
 DEFAULT_MODEL_MAX_LENGTH: Final[int] = 1_000_000_000_000_000_019_884_624_838_656
 SPECIAL_TOKENS: Final[tuple[str, ...]] = ("[PAD]", "[CLS]", "[SEP]", "[MASK]")
 
 
-class LayoutTransformerRelationTokenizer(PreTrainedTokenizer):
+class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
     """Discrete scene-graph tokenizer saved as a standard HF tokenizer.
 
     Args:
@@ -59,21 +64,12 @@ class LayoutTransformerRelationTokenizer(PreTrainedTokenizer):
     ) -> None:
         """Initialize vocabulary and object/relation id metadata."""
         _ = kwargs
-        if vocab_file is not None:
-            with Path(vocab_file).open() as f:
-                raw_vocab = json.load(f)
-            if all(str(key).isdigit() for key in raw_vocab):
-                id2token = {int(key): str(value) for key, value in raw_vocab.items()}
-                token2id = {value: key for key, value in id2token.items()}
-            else:
-                token2id = {str(key): int(value) for key, value in raw_vocab.items()}
-                id2token = {value: key for key, value in token2id.items()}
-        else:
-            token2id = {token: idx for idx, token in enumerate(SPECIAL_TOKENS)}
-            for token in tokens or []:
-                if token not in token2id:
-                    token2id[token] = len(token2id)
-            id2token = {idx: token for token, idx in token2id.items()}
+        token2id, id2token = build_token_maps(
+            vocab_file=vocab_file,
+            tokens=tokens,
+            base_tokens=SPECIAL_TOKENS,
+            numeric_id_vocab=True,
+        )
         self._token2id = token2id
         self._id2token = id2token
         self.object_token_ids = [int(item) for item in object_token_ids or []]
@@ -93,29 +89,6 @@ class LayoutTransformerRelationTokenizer(PreTrainedTokenizer):
         if added_tokens_decoder is not None:
             tokenizer_kwargs["added_tokens_decoder"] = added_tokens_decoder
         super().__init__(**tokenizer_kwargs)
-
-    @property
-    def vocab_size(self) -> int:
-        """Return the number of vocabulary entries."""
-        return len(self._token2id)
-
-    def get_vocab(self) -> dict[str, int]:
-        """Return token-to-id mapping."""
-        return dict(self._token2id)
-
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
-        _ = kwargs
-        return text.strip().split()
-
-    def _convert_token_to_id(self, token: str) -> int:
-        return self._token2id.get(token, self.unk_token_id)
-
-    def _convert_id_to_token(self, index: int) -> str:
-        return self._id2token.get(int(index), self.unk_token)
-
-    def convert_tokens_to_string(self, tokens: list[str]) -> str:
-        """Join scene-graph tokens with spaces."""
-        return " ".join(tokens)
 
     def encode_scene_graph_tokens(self, tokens: list[str]) -> list[int]:
         """Encode already-normalized scene-graph token strings.
@@ -145,22 +118,12 @@ class LayoutTransformerRelationTokenizer(PreTrainedTokenizer):
         self, save_directory: str, filename_prefix: str | None = None
     ) -> tuple[str]:
         """Save ``object_pred_id2name.json`` as id-to-token metadata."""
-        out_dir = Path(save_directory)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        name = (
-            "object_pred_id2name.json"
-            if filename_prefix is None
-            else f"{filename_prefix}-object_pred_id2name.json"
+        return save_json_vocabulary(
+            save_directory=save_directory,
+            filename="object_pred_id2name.json",
+            data={str(key): value for key, value in sorted(self._id2token.items())},
+            filename_prefix=filename_prefix,
         )
-        out_path = out_dir / name
-        with out_path.open("w") as f:
-            json.dump(
-                {str(key): value for key, value in sorted(self._id2token.items())},
-                f,
-                indent=2,
-                sort_keys=True,
-            )
-        return (str(out_path),)
 
     def save_pretrained(
         self,
