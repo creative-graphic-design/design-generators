@@ -39,6 +39,8 @@ def _write_shared_enum_sources(root: Path) -> None:
                 "class ConditionType(StrEnum):",
                 "    unconditional = auto()",
                 "    label = auto()",
+                "    label_size = auto()",
+                "    content_image = auto()",
                 "",
             ]
         ),
@@ -106,6 +108,24 @@ def _write_minimal_fake_model(
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
 
+def test_shields_static_badge_segments_are_escaped() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+
+    assert (
+        gen_ref_pages.escape_shields_static_badge_segment("label_size") == "label__size"
+    )
+    assert (
+        gen_ref_pages.escape_shields_static_badge_segment("content_image")
+        == "content__image"
+    )
+    assert (
+        gen_ref_pages.escape_shields_static_badge_segment(
+            "content-aware-layout-generation"
+        )
+        == "content--aware--layout--generation"
+    )
+
+
 def test_gen_ref_pages_writes_standalone_api_tree(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -124,7 +144,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
                 "[tool.design-generators]",
                 "framework = 'transformers'",
                 "task = ['content-agnostic-layout-generation', 'content-aware-layout-generation']",
-                "conditions = ['unconditional', 'label']",
+                "conditions = ['unconditional', 'label_size']",
                 "datasets = ['rico25', 'publaynet']",
                 "",
             ]
@@ -214,7 +234,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "---\ntags:\n  - transformers\n  - content-agnostic-layout-generation\n  - content-aware-layout-generation\n"
     )
     assert (
-        "  - unconditional\n  - label\n  - rico25\n  - publaynet\n---\n"
+        "  - unconditional\n  - label_size\n  - rico25\n  - publaynet\n---\n"
         in package_index
     )
     assert "model-index:" not in package_index
@@ -235,9 +255,14 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
     assert (
-        "| [FakeProject](api/models/fake-project/index.md) | `transformers` | "
-        "`content-agnostic-layout-generation`, `content-aware-layout-generation` | `unconditional`, `label` | "
-        "`rico25`, `publaynet` |"
+        "| [FakeProject](api/models/fake-project/index.md) | "
+        "![transformers](https://img.shields.io/badge/transformers-blue.svg?style=flat-square) | "
+        "![content-agnostic-layout-generation](https://img.shields.io/badge/content--agnostic--layout--generation-purple.svg?style=flat-square) "
+        "![content-aware-layout-generation](https://img.shields.io/badge/content--aware--layout--generation-purple.svg?style=flat-square) | "
+        "![unconditional](https://img.shields.io/badge/unconditional-green.svg?style=flat-square) "
+        "![label_size](https://img.shields.io/badge/label__size-green.svg?style=flat-square) | "
+        "![rico25](https://img.shields.io/badge/rico25-orange.svg?style=flat-square) "
+        "![publaynet](https://img.shields.io/badge/publaynet-orange.svg?style=flat-square) |"
     ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
     assert "  - Models: models.md" in generated_config
