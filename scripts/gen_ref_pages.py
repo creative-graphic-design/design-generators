@@ -48,6 +48,7 @@ class ApiPackage:
     member_dir: Path
     package_root: Path
     index_path: Path
+    reproducing_path: Path | None
     pages: tuple[ApiPage, ...]
 
 
@@ -217,6 +218,16 @@ def discover_api_packages() -> list[ApiPackage]:
                         package_slug(project_name),
                         "index.md",
                     ),
+                    reproducing_path=(
+                        Path(
+                            "api",
+                            group.lower(),
+                            package_slug(project_name),
+                            "reproducing.md",
+                        )
+                        if (member_dir / "REPRODUCING.md").is_file()
+                        else None
+                    ),
                     pages=tuple(sorted(pages, key=lambda page: page.module)),
                 )
             )
@@ -264,12 +275,34 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             lines.extend([readme_path.read_text(encoding="utf-8").rstrip(), ""])
         else:
             lines.extend([f"# {package.project_name}", ""])
+        if package.reproducing_path is not None:
+            lines.extend(
+                [
+                    "## Reproducing Guide",
+                    "",
+                    "[Reproduce original-implementation parity]"
+                    f"({package.reproducing_path.relative_to(package.index_path.parent)})",
+                    "",
+                ]
+            )
         lines.extend(["## API Modules", ""])
         for page in package.pages:
             relative_page_path = page.page_path.relative_to(package.index_path.parent)
             lines.append(f"- [`{page.module}`]({relative_page_path})")
         lines.append("")
         write_text_file(package.index_path, "\n".join(lines))
+
+
+def write_reproducing_pages(packages: list[ApiPackage]) -> None:
+    """Write package reproducing guides when the member ships one."""
+    for package in packages:
+        if package.reproducing_path is None:
+            continue
+        reproducing_path = package.member_dir / "REPRODUCING.md"
+        write_text_file(
+            package.reproducing_path,
+            f"{reproducing_path.read_text(encoding='utf-8').rstrip()}\n",
+        )
 
 
 def write_api_pages(packages: list[ApiPackage]) -> None:
@@ -294,6 +327,7 @@ def main() -> None:
     packages = discover_api_packages()
     write_api_index(packages)
     write_package_indexes(packages)
+    write_reproducing_pages(packages)
     write_api_pages(packages)
 
 
