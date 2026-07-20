@@ -19,8 +19,9 @@ tags:
   - "<method-tag>"
   - "<layout-generation-or-poster-generation>"
 datasets:
-  # Use approved dataset ids from issue #2 and issue #60.
-  - "creative-graphic-design/<dataset-id>"
+  # Use canonical dataset ids. RICO25 uses the Rico Hub dataset with config
+  # ui-screenshots-and-hierarchies-with-semantic-annotations.
+  - "creative-graphic-design/Rico"
 metrics:
   # Use Hub metric ids when applicable; remove this key when parity has no Hub metric id.
   - "<metric-id>"
@@ -35,9 +36,9 @@ model-index:
           type: "<hub-task-tag>"
           name: "<human-readable-task-name>"
         dataset:
-          type: "creative-graphic-design/<dataset-id>"
+          type: "creative-graphic-design/Rico"
           name: "<dataset-name>"
-          config: "<dataset-config-or-not-applicable>"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
           split: "<split-used-for-parity-or-evaluation>"
         metrics:
           - type: "<metric-or-vendor-parity>"
@@ -80,11 +81,11 @@ model-index:
 
 ## Supported Checkpoints
 
-<!-- Project-specific section placed after Model Sources because checkpoint publication state is model provenance. Use planned Hub ids from the model issue and mark Status as public, not-pushed, or planned. -->
+<!-- Project-specific section placed after Model Sources because checkpoint publication state is model provenance. Use planned Hub ids from the model issue and mark Status as public or planned. Hub ids stay planned until publication is complete. -->
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| <dataset-or-variant> | `creative-graphic-design/<hub-repo-id>` | <public-or-not-pushed> |
+| <dataset-or-variant> | `creative-graphic-design/<hub-repo-id>` | planned |
 
 ## Uses
 
@@ -112,7 +113,7 @@ model-index:
 
 ## How to Get Started with the Model
 
-<!-- Use a local converted checkpoint path that works before Hub publication. -->
+<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as planned until they are published. -->
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -139,11 +140,12 @@ print(out.mask)    # valid element mask
 
 ### Training Data
 
-<!-- Use approved creative-graphic-design dataset ids and note dataset-specific quirks from issue #2 and issue #60. -->
+<!-- Use canonical dataset ids and note dataset-specific configs or quirks. -->
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| <dataset-name> | `creative-graphic-design/<dataset-id>` | <pinned-config-or-dataset-quirk> |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | config `ui-screenshots-and-hierarchies-with-semantic-annotations` |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default config |
 
 ### Training Procedure
 
@@ -192,6 +194,7 @@ print(out.mask)    # valid element mask
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 <!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
+<!-- Commands that need CUDA should use CUDA_VISIBLE_DEVICES=<gpu-index> and explain that <gpu-index> is the selected local CUDA device. Do not hardcode machine-specific GPU numbers. -->
 
 ## Model Examination [optional]
 
@@ -221,7 +224,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Citation [optional]
 
-<!-- State the upstream paper citation required by the model issue. -->
+<!-- Verify the upstream paper citation against the paper or proceedings page before filling this block. Do not infer author lists from memory. -->
 
 ```bibtex
 <bibtex-citation>
