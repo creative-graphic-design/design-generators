@@ -36,8 +36,19 @@ def test_tiny_model_forward_and_generation() -> None:
         labels=labels,
     )
     assert outputs.logits.shape[:2] == labels.shape
+
+    def non_eos(
+        batch_idx: int, step: int, current: torch.Tensor
+    ) -> tuple[list[int], int | None]:
+        assert batch_idx == 0
+        assert step == current.numel()
+        return [5], None
+
     generated = model._generate_sequences(
-        encoded["input_ids"], encoded["attention_mask"], max_length=3
+        encoded["input_ids"],
+        encoded["attention_mask"],
+        max_length=3,
+        generation_constraint_fn=non_eos,
     )
     assert generated.shape == (1, 3)
 
