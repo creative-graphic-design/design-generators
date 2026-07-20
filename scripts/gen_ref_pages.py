@@ -132,6 +132,21 @@ def page_path_for(
     return Path("api", group_slug, project_slug, f"{module_slug}.md")
 
 
+def reproducing_page_path_for(
+    group: str,
+    project_name: str,
+    member_dir: Path,
+) -> Path | None:
+    """Return the generated reproducing guide path for a workspace member."""
+    reproducing_file = member_dir / "REPRODUCING.md"
+    if group == "Models" and not reproducing_file.is_file():
+        msg = f"Model package {member_dir.relative_to(ROOT)} must include REPRODUCING.md"
+        raise FileNotFoundError(msg)
+    if not reproducing_file.is_file():
+        return None
+    return Path("api", group.lower(), package_slug(project_name), "reproducing.md")
+
+
 def imported_public_modules(init_file: Path) -> set[str]:
     """Return sibling module stems imported by a package ``__init__`` file."""
     imported_modules: set[str] = set()
@@ -218,15 +233,10 @@ def discover_api_packages() -> list[ApiPackage]:
                         package_slug(project_name),
                         "index.md",
                     ),
-                    reproducing_path=(
-                        Path(
-                            "api",
-                            group.lower(),
-                            package_slug(project_name),
-                            "reproducing.md",
-                        )
-                        if (member_dir / "REPRODUCING.md").is_file()
-                        else None
+                    reproducing_path=reproducing_page_path_for(
+                        group,
+                        project_name,
+                        member_dir,
                     ),
                     pages=tuple(sorted(pages, key=lambda page: page.module)),
                 )
