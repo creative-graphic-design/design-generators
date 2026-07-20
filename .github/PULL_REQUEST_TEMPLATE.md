@@ -19,10 +19,13 @@
 Full checklist: see [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) (source of truth).
 
 - [ ] Confirmed the applicable issue #60 checklist items.
+- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.
+- [ ] Confirmed the implementation issue has a milestone and native Priority field set.
+- [ ] Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.
 - [ ] Read the model plan and amendment comments, if this is a model PR.
 - [ ] Left `vendor/` read-only and did not commit generated fixtures, weights, images, or downloaded artifacts.
 - [ ] Did not push Hub repositories or model artifacts unless explicitly requested.
-- [ ] Kept the PR description current as the single summary of this PR (no progress-log comments).
+- [ ] Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.
 - [ ] README reproducibility steps are copy-pasteable commands, if README docs changed.
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
 

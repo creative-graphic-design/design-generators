@@ -32,6 +32,9 @@ conversion.
 6. Confirm the model slug, Python package name, Hub repo ids, datasets, license
    status, and whether the implementation belongs in Transformers, Diffusers, a
    recipe, training code, or Pydantic AI.
+7. If the work reveals stale, incorrect, or missing guidance, do not silently
+   work around it; make the small in-scope fix or propose a focused `meta`
+   follow-up.
 
 ## Package Shape
 
@@ -264,6 +267,9 @@ PR bodies must follow `.github/PULL_REQUEST_TEMPLATE.md`: `Summary`, `Changes`,
 CLI-created PRs must use `--body-file .github/PULL_REQUEST_TEMPLATE.md` as the
 starting point and fill in that structure. Mark checklist items with `[x]` only
 when they were actually verified.
+When creating a PR, add the same lane/topic labels as the implementation issue;
+do not add issue-only status labels such as `plan-agreed`, `in-progress`, or
+`parity-verified` to PRs.
 
 Do not self-merge. Completion is a PR with green CI or a clearly documented CI
 blocker.
