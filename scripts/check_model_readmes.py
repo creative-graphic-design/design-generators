@@ -133,6 +133,7 @@ EXPECTED_FRONTMATTER = {
         ],
     },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
+    "layout-transformer": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
     "layoutdiffusion": {
         "license": "other",
         "datasets": [
@@ -179,6 +180,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
     "layout-gpt": "LayoutGPT",
+    "layout-transformer": "LayoutTransformer",
     "layoutdiffusion": "LayoutDiffusion",
     "layoutformerpp": "LayoutFormer++",
     "layoutganpp": "LayoutGAN++",
@@ -190,6 +192,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layousyn": "https://github.com/mlpc-ucsd/Lay-Your-Scene",
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
+    "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
 }

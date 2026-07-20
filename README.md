@@ -21,6 +21,7 @@
 | [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
 | [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
 | [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
+| [`models/layout-transformer`](models/layout-transformer/README.md) | LayoutTransformer | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](models/layout-transformer/REPRODUCING.md)) |
 | [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md)) |
 | [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutformerpp/REPRODUCING.md)) |
 | [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |

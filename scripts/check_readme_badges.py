@@ -64,6 +64,10 @@ PAPER_LINKS = {
         "CVPR 2023",
     ): "https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html",
     ("paper", "AAAI"): "https://ojs.aaai.org/index.php/AAAI/article/view/19994",
+    (
+        "paper",
+        "CVPR 2021",
+    ): "https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html",
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
