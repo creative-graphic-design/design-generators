@@ -74,6 +74,8 @@ Use this package for research inference, conversion checks, and vendor-parity va
 
 The pipeline owns the two-stage text-to-layout workflow: semantic parser -> placement constraint -> placement model -> common `LayoutGenerationOutput`. Full checkpoint inference requires converted `semantic_parser/` and `placement/` subfolders containing standard `AutoModelForSeq2SeqLM` weights.
 
+`layout_text` is an offline parser path for pre-generated placement strings; when it is supplied, the pipeline does not use `prompt`, the semantic parser, or the placement model. Use `prompt` without `layout_text` for the full two-stage checkpoint path.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -102,12 +104,36 @@ uv run --package parse-then-place python
 ```
 
 ```python
+from parse_then_place import ParseThenPlaceConfig, ParseThenPlacePipeline, ParseThenPlaceProcessor
+
+pipe = ParseThenPlacePipeline(
+    config=ParseThenPlaceConfig(dataset_name="rico"),
+    processor=ParseThenPlaceProcessor.from_config(dataset_name="rico"),
+)
+out = pipe(layout_text="text 0 0 10 20")
+
+print(out.bbox.shape)
+print(out.labels.tolist())
+print(out.mask.tolist())
+print(out.id2label[0])
+```
+
+```text
+torch.Size([1, 1, 4])
+[[4]]
+[[True]]
+text button
+```
+
+The `layout_text` token format is `label left top width height` in discrete `ltwh` coordinates on the dataset canvas. RICO uses the checkpoint-local label mapping and returns normalized center `xywh` boxes publicly.
+
+```python
 from parse_then_place import ParseThenPlacePipeline
 
 path = ".cache/parse-then-place/converted/rico-finetune"
 # After Hub publication: from_pretrained("creative-graphic-design/parse-then-place-rico-finetune")
 pipe = ParseThenPlacePipeline.from_pretrained(path, local_files_only=True)
-out = pipe(prompt="create a screen with text", layout_text="text 0 0 10 20")
+out = pipe(prompt="create a screen with text")
 
 print(out.bbox.shape, out.labels.tolist())
 ```
@@ -193,7 +219,7 @@ The original adapter/deepspeed training stack uses legacy pins (`adapter_transfo
 
 ## License
 
-Repository wrapper code is Apache-2.0. The original implementation is MIT licensed and published at `microsoft/LayoutGeneration` under `Parse-Then-Place`.
+Repository wrapper code is Apache-2.0. The original implementation is MIT licensed and published in [Microsoft LayoutGeneration Parse-Then-Place](https://github.com/microsoft/LayoutGeneration/tree/main/Parse-Then-Place).
 
 ## Citation
 

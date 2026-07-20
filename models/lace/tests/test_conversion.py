@@ -36,7 +36,10 @@ def test_vendor_key_families_match_model() -> None:
 def test_write_lace_model_card_smoke(tmp_path) -> None:
     path = write_lace_model_card(tmp_path, "publaynet")
     text = path.read_text(encoding="utf-8")
+    metadata = lace_model_card("publaynet").data.to_dict()
+
     assert path.name == "README.md"
+    assert metadata["pipeline_tag"] == "other"
     assert "# Model Card for creative-graphic-design/lace-publaynet" in text
     assert "creative-graphic-design/lace-publaynet" in text
     assert "creative-graphic-design/PubLayNet" in text

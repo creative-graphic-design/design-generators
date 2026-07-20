@@ -104,6 +104,21 @@ def build_layout_model_card(
     parity_metrics: Sequence[ParityMetricInput],
     citation_bibtex: str,
     original_implementation_url: str,
+    model_summary: str | None = None,
+    developers: str | None = None,
+    model_type: str = "Layout generation model.",
+    base_model: str | None = None,
+    paper: str | None = None,
+    preprocessing: str | None = None,
+    training_regime: str | None = None,
+    testing_data: str | None = None,
+    testing_metrics: str | None = None,
+    results_summary: str | None = None,
+    model_specs: str | None = None,
+    compute_infrastructure: str | None = None,
+    hardware_requirements: str | None = None,
+    software: str | None = None,
+    citation_apa: str | None = None,
 ) -> ModelCard:
     """Build a Hugging Face model card for a layout-generation checkpoint.
 
@@ -123,6 +138,21 @@ def build_layout_model_card(
         parity_metrics: Parity table rows.
         citation_bibtex: BibTeX citation without surrounding fences.
         original_implementation_url: URL for the upstream implementation.
+        model_summary: Short model summary for the card header.
+        developers: Original developer attribution.
+        model_type: User-facing model family/type.
+        base_model: Base-model or conversion-relationship statement.
+        paper: Paper URL.
+        preprocessing: Preprocessing description.
+        training_regime: Training-regime description.
+        testing_data: Evaluation data or fixture description.
+        testing_metrics: Evaluation metric description.
+        results_summary: Summary of recorded parity results.
+        model_specs: Architecture and objective summary.
+        compute_infrastructure: Conversion/parity compute description.
+        hardware_requirements: Runtime and parity hardware requirements.
+        software: Runtime and parity software requirements.
+        citation_apa: Optional APA-style citation.
 
     Returns:
         Validated ``huggingface_hub.ModelCard`` instance.
@@ -149,28 +179,29 @@ def build_layout_model_card(
         card_data,
         model_id=model_id,
         model_summary=(
-            f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
-            "conditional-free layout generation."
+            model_summary
+            or f"{model_name} is a converted checkpoint for layout generation."
         ),
         model_description=model_details,
-        developers="CyberAgentAILab released the original LayoutDM implementation.",
+        developers=developers or "See the original implementation and citation.",
         funded_by=(
             "Funding for the original checkpoint is not separately reported in "
             "this converted artifact."
         ),
         shared_by="creative-graphic-design",
-        model_type="Discrete diffusion model for layout generation.",
+        model_type=model_type,
         language=(
             "The model does not process natural language inputs; metadata uses "
             "English for this model card and category label names."
         ),
         license=license,
         base_model=(
-            "Not applicable. This is a direct conversion of the original "
-            "LayoutDM checkpoint, not a fine-tuned derivative of a Hub model."
+            base_model
+            or "Not applicable. This is a conversion of the original checkpoint, "
+            "not a fine-tuned derivative of a Hub model."
         ),
         repo=original_implementation_url,
-        paper="https://arxiv.org/abs/2303.08137",
+        paper=paper or "See the citation and original implementation.",
         demo="No hosted demo is packaged with this checkpoint.",
         direct_use=intended_uses,
         downstream_use=(
@@ -193,39 +224,40 @@ def build_layout_model_card(
         get_started_code=f"```python\n{how_to_use.strip()}\n```",
         training_data=training_data,
         preprocessing=(
-            "The converted tokenizer represents each layout element as "
-            "discrete category and bounding-box tokens. Bounding boxes use "
-            "normalized center `xywh` coordinates and dataset-specific cluster "
-            "centers stored with the tokenizer files."
+            preprocessing
+            or "Package adapters convert upstream layout representations to "
+            "normalized center `xywh` boxes, dataset-local labels, and mask-based "
+            "padding at the public API boundary."
         ),
         training_regime=(
-            "Original LayoutDM training regime as released by the upstream "
-            "project; this package converts the checkpoint and does not "
-            "retrain it."
+            training_regime
+            or "Original upstream training regime; this package converts released "
+            "artifacts and does not retrain them."
         ),
         speeds_sizes_times=(
             "Training speed, elapsed time, and hardware are not included in "
             "the upstream checkpoint bundle used for conversion."
         ),
         testing_data=(
-            "Vendor parity tests use deterministic samples and forward-pass "
-            "golden tensors generated from the original LayoutDM implementation "
-            "for each converted dataset."
+            testing_data
+            or "Vendor parity tests use local reference outputs from the original "
+            "implementation for each converted dataset or checkpoint."
         ),
         testing_factors=(
             "Parity is checked separately for each dataset conversion so that "
             "dataset-specific tokenization and checkpoint weights are covered."
         ),
         testing_metrics=(
-            "Tokenizer exact-match count, deterministic token-sequence "
-            "exact-match count, and denoiser logits maximum absolute and "
-            "relative error versus the original implementation."
+            testing_metrics
+            or "Recorded parity metrics report exact-match counts or numeric "
+            "maximum absolute and relative errors against the original "
+            "implementation."
         ),
         results=parity_table,
         results_summary=(
-            "The converted checkpoint matches the generated vendor reference "
-            "tensors exactly for tokenizer IO and deterministic sampling; "
-            "denoiser logits are within the reported numeric tolerance."
+            results_summary
+            or "Recorded parity results are listed in the table above; see the "
+            "package README for commands that regenerate local references."
         ),
         model_examination=(
             "No separate interpretability study is packaged with this converted "
@@ -252,30 +284,28 @@ def build_layout_model_card(
             "bundle alone."
         ),
         model_specs=(
-            "LayoutDM models layout generation as discrete diffusion over "
-            "category and bounding-box token sequences. This package exposes "
-            "the denoiser, tokenizer, scheduler, and Diffusers pipeline needed "
-            "to reproduce converted inference."
+            model_specs
+            or "The converted package exposes the model, preprocessing, and "
+            "pipeline or agent components needed to reproduce local inference."
         ),
         compute_infrastructure=(
-            "Conversion and parity generation run locally through the `uv` "
-            "workspace commands documented in `models/layout-dm/README.md`."
+            compute_infrastructure
+            or "Conversion and parity generation run locally through the `uv` "
+            "workspace commands documented in the package README."
         ),
         hardware_requirements=(
-            "CPU is sufficient for package loading and conversion. CUDA is "
-            "recommended for regenerating vendor parity references and running "
-            "the full parity test suite."
+            hardware_requirements
+            or "CPU is sufficient for package loading and lightweight smoke tests. "
+            "CUDA may be required for heavyweight vendor parity depending on the "
+            "original implementation."
         ),
         software=(
-            "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
-            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+            software
+            or "Python 3.11+, the package workspace dependencies, and any optional "
+            "vendor dependencies documented by the package."
         ),
         citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
-        citation_apa=(
-            "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
-            "(2023). LayoutDM: Discrete Diffusion Model for Controllable Layout "
-            "Generation. CVPR."
-        ),
+        citation_apa=citation_apa or "See the BibTeX citation above.",
         glossary=(
             "`xywh` means normalized center-x, center-y, width, and height. "
             "`Tokenizer exact` counts matching encoded and decoded token "
@@ -376,6 +406,67 @@ print(out.bbox, out.labels, out.mask)
         parity_metrics=metrics,
         citation_bibtex=_LAYOUTDM_BIBTEX,
         original_implementation_url=("https://github.com/CyberAgentAILab/layout-dm"),
+        model_summary=(
+            f"{model_name} is a Diffusers-format LayoutDM checkpoint for "
+            "conditional-free layout generation."
+        ),
+        developers="CyberAgentAILab released the original LayoutDM implementation.",
+        model_type="Discrete diffusion model for layout generation.",
+        base_model=(
+            "Not applicable. This is a direct conversion of the original "
+            "LayoutDM checkpoint, not a fine-tuned derivative of a Hub model."
+        ),
+        paper="https://arxiv.org/abs/2303.08137",
+        preprocessing=(
+            "The converted tokenizer represents each layout element as "
+            "discrete category and bounding-box tokens. Bounding boxes use "
+            "normalized center `xywh` coordinates and dataset-specific cluster "
+            "centers stored with the tokenizer files."
+        ),
+        training_regime=(
+            "Original LayoutDM training regime as released by the upstream "
+            "project; this package converts the checkpoint and does not "
+            "retrain it."
+        ),
+        testing_data=(
+            "Vendor parity tests use deterministic samples and forward-pass "
+            "golden tensors generated from the original LayoutDM implementation "
+            "for each converted dataset."
+        ),
+        testing_metrics=(
+            "Tokenizer exact-match count, deterministic token-sequence "
+            "exact-match count, and denoiser logits maximum absolute and "
+            "relative error versus the original implementation."
+        ),
+        results_summary=(
+            "The converted checkpoint matches the generated vendor reference "
+            "tensors exactly for tokenizer IO and deterministic sampling; "
+            "denoiser logits are within the reported numeric tolerance."
+        ),
+        model_specs=(
+            "LayoutDM models layout generation as discrete diffusion over "
+            "category and bounding-box token sequences. This package exposes "
+            "the denoiser, tokenizer, scheduler, and Diffusers pipeline needed "
+            "to reproduce converted inference."
+        ),
+        compute_infrastructure=(
+            "Conversion and parity generation run locally through the `uv` "
+            "workspace commands documented in `models/layout-dm/README.md`."
+        ),
+        hardware_requirements=(
+            "CPU is sufficient for package loading and conversion. CUDA is "
+            "recommended for regenerating vendor parity references and running "
+            "the full parity test suite."
+        ),
+        software=(
+            "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
+            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+        ),
+        citation_apa=(
+            "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
+            "(2023). LayoutDM: Discrete Diffusion Model for Controllable Layout "
+            "Generation. CVPR."
+        ),
     )
 
 

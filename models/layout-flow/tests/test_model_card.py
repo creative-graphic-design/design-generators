@@ -10,7 +10,7 @@ def test_layoutflow_model_card_contains_required_metadata() -> None:
 
     assert metadata["license"] == "mit"
     assert metadata["library_name"] == "diffusers"
-    assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["pipeline_tag"] == "other"
     assert metadata["language"] == ["en"]
     assert metadata["datasets"] == ["creative-graphic-design/PubLayNet"]
     assert "creative-graphic-design/layout-flow-publaynet" in card
@@ -25,7 +25,13 @@ def test_layoutflow_model_card_contains_required_metadata() -> None:
     assert "## Evaluation" in card
     assert "## Technical Specifications" in card
     assert "guerreiro2024layoutflow" in card
-    assert "| publaynet | n/a | Euler exact | 0 | 0 |" in card
+    assert (
+        "| publaynet | n/a | Euler trajectory not measured by parity test | 0 | 0 |"
+        in card
+    )
+    assert "LayoutDM" not in card
+    assert "CyberAgentAILab" not in card
+    assert "2303.08137" not in card
     assert "[More Information Needed]" not in card
     model_card.validate()
 

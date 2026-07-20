@@ -59,7 +59,9 @@ Use this package for research inference, prompt-serialization checks, and vendor
 
 Pass any `pydantic-ai` model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
 
-`condition_type` accepts the public names and common vendor aliases: `label`, `label_size`, `relation`, `completion`, `refinement`, `text`, `cat_cond`, `gen_t`, `size_cond`, `gen_ts`, `gen_r`, `partial`, and `refine`. The package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
+Real provider calls require the credentials used by the selected `pydantic-ai` provider. For the default OpenAI provider, set `OPENAI_API_KEY`; for other providers, set the provider-specific API key before running `run_sync()` or the demo script. The `TestModel` example below is an offline stub that returns the canned element supplied in `custom_output_args`; it does not call an LLM.
+
+`condition_type` accepts the public names and common vendor aliases: `label`, `label_size`, `relation`, `completion`, `refinement`, `text`, `cat_cond`, `gen_t`, `size_cond`, `gen_ts`, `gen_r`, `partial`, and `refine`. The package includes prompt serialization and parsing for `seq` and `html` layouts. String inputs are accepted for dataset names, condition types, prompt formats, output type, and box format.
 
 ### Downstream Use
 
@@ -101,9 +103,20 @@ agent.save_pretrained(".cache/layoutprompter/prompt-config")
 train_data = [{"labels": np.asarray([0]), "bboxes": np.asarray([[8, 10, 20, 15]]), "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15]])}]
 test_data = {"labels": np.asarray([0]), "bboxes": np.asarray([[0, 0, 1, 1]]), "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1]])}
 output = agent.run_sync(train_data, test_data)
-print(output.labels)
-print(output.bbox)
+print(output.bbox.shape)
+print(output.labels.tolist())
+print(output.mask.tolist())
+print(output.id2label[0])
 ```
+
+```text
+(1, 1, 4)
+[[0]]
+[[True]]
+text
+```
+
+LayoutPrompter records are dict-like examples with `labels`, `bboxes`, and `discrete_gold_bboxes`. Labels are dataset-local integer ids; `bboxes` and `discrete_gold_bboxes` are left-top-width-height boxes on the dataset's discrete canvas grid: PubLayNet uses `120x160`, RICO25 uses `90x160`, PosterLayout uses `102x150`, and WebUI uses `120x120`.
 
 ## Training Details
 

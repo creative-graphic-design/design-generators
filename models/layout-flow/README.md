@@ -161,10 +161,10 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 | Dataset | Vector field max abs | Vector field max rel | Euler trajectory max abs | Euler trajectory max rel |
 | --- | ---: | ---: | ---: | ---: |
-| PubLayNet | 0.0 | 0.0 | 0.0 | 0.0 |
-| RICO25 | 0.0 | 0.0 | 0.0 | 0.0 |
+| PubLayNet | 0.0 | 0.0 | not measured by the parity test | not measured by the parity test |
+| RICO25 | 0.0 | 0.0 | not measured by the parity test | not measured by the parity test |
 
-Parity is tested against the original vendor `LayoutDMBackbone` and `torchdyn.NeuralODE(..., solver="euler")` path using the released checkpoints.
+Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but the recorded vendor-parity assertion is the vector-field equality above.
 
 ## Reproducibility
 
