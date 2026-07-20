@@ -61,10 +61,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
         encoding="utf-8"
     )
-    assert (
-        "[Reproduce original-implementation parity](reproducing.md)"
-        in package_index
-    )
+    assert "[Reproduce original-implementation parity](reproducing.md)" in package_index
     assert (tmp_path / "docs/api/models/fake-project/reproducing.md").read_text(
         encoding="utf-8"
     ) == "# Reproducing Fake Project\n\nRun parity checks.\n"

@@ -140,7 +140,9 @@ def reproducing_page_path_for(
     """Return the generated reproducing guide path for a workspace member."""
     reproducing_file = member_dir / "REPRODUCING.md"
     if group == "Models" and not reproducing_file.is_file():
-        msg = f"Model package {member_dir.relative_to(ROOT)} must include REPRODUCING.md"
+        msg = (
+            f"Model package {member_dir.relative_to(ROOT)} must include REPRODUCING.md"
+        )
         raise FileNotFoundError(msg)
     if not reproducing_file.is_file():
         return None
