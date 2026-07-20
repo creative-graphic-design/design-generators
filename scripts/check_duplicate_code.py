@@ -147,9 +147,7 @@ def check_duplicate_code(root: Path, *, print_reports: bool = False) -> int:
         return 0
 
     changed_labels = {
-        label
-        for target in changed_targets
-        for label in module_labels_for_path(target)
+        label for target in changed_targets for label in module_labels_for_path(target)
     }
     new_blocks = [
         block

@@ -6,9 +6,13 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from types import ModuleType
 
+import pytest
+
 
 def load_check_duplicate_code() -> ModuleType:
-    module_path = Path(__file__).resolve().parents[1] / "scripts" / "check_duplicate_code.py"
+    module_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "check_duplicate_code.py"
+    )
     spec = importlib.util.spec_from_file_location("check_duplicate_code", module_path)
     assert spec is not None
     assert isinstance(spec.loader, SourceFileLoader)
@@ -22,7 +26,9 @@ check_duplicate_code = load_check_duplicate_code()
 
 def test_is_python_target_accepts_workspace_python_files() -> None:
     assert check_duplicate_code.is_python_target("lib/laygen/src/laygen/foo.py")
-    assert check_duplicate_code.is_python_target("models/layout-dm/src/layout_dm/foo.py")
+    assert check_duplicate_code.is_python_target(
+        "models/layout-dm/src/layout_dm/foo.py"
+    )
     assert check_duplicate_code.is_python_target("scripts/check_duplicate_code.py")
     assert not check_duplicate_code.is_python_target("vendor/example.py")
     assert not check_duplicate_code.is_python_target("README.md")
@@ -43,8 +49,8 @@ def test_python_targets_discovers_workspace_python_files(tmp_path: Path) -> None
 
 
 def test_changed_python_targets_reads_branch_and_local_diffs(
-    tmp_path: Path, monkeypatch
-) -> None:  # noqa: ANN001
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     outputs = {
         ("git", "diff", "--name-only", "--diff-filter=ACMR", "origin/main...HEAD"): (
             "lib/laygen/src/laygen/foo.py\nREADME.md\n"
@@ -142,27 +148,37 @@ def test_block_module_labels_extracts_report_modules() -> None:
 
 def test_label_matches_module_suffixes() -> None:
     assert check_duplicate_code.label_matches("layout_dm.pipeline", "pipeline")
-    assert check_duplicate_code.label_matches("layout_dm.pipeline", "layout_dm.pipeline")
-    assert check_duplicate_code.label_matches("src.layout_dm.pipeline", "layout_dm.pipeline")
-    assert not check_duplicate_code.label_matches("layout_dm.pipeline", "other.pipeline")
+    assert check_duplicate_code.label_matches(
+        "layout_dm.pipeline", "layout_dm.pipeline"
+    )
+    assert check_duplicate_code.label_matches(
+        "src.layout_dm.pipeline", "layout_dm.pipeline"
+    )
+    assert not check_duplicate_code.label_matches(
+        "layout_dm.pipeline", "other.pipeline"
+    )
 
 
-def test_main_returns_success_when_no_targets(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_main_returns_success_when_no_targets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(check_duplicate_code, "python_targets", lambda root: [])
     assert check_duplicate_code.main([]) == 0
 
 
 def test_check_duplicate_code_fails_when_changed_module_is_reported(
-    tmp_path: Path, monkeypatch
-) -> None:  # noqa: ANN001
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     block = """foo.py:1:0: R0801: Similar lines in 2 files
 ==layout_dm.pipeline:[1:3]
     a = 1
 ==pkg.b:[4:6]
     a = 1 (duplicate-code)"""
 
-    monkeypatch.setattr(check_duplicate_code, "python_targets", lambda root: ["lib/foo.py"])
+    monkeypatch.setattr(
+        check_duplicate_code, "python_targets", lambda root: ["lib/foo.py"]
+    )
     monkeypatch.setattr(
         check_duplicate_code,
         "changed_python_targets",
@@ -183,14 +199,16 @@ def test_check_duplicate_code_fails_when_changed_module_is_reported(
 
 
 def test_check_duplicate_code_passes_when_only_unchanged_modules_are_reported(
-    tmp_path: Path, monkeypatch
-) -> None:  # noqa: ANN001
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     block = """foo.py:1:0: R0801: Similar lines in 2 files
 ==pkg.a:[1:3]
     a = 1
 ==pkg.b:[4:6]
     a = 1 (duplicate-code)"""
-    monkeypatch.setattr(check_duplicate_code, "python_targets", lambda root: ["lib/foo.py"])
+    monkeypatch.setattr(
+        check_duplicate_code, "python_targets", lambda root: ["lib/foo.py"]
+    )
     monkeypatch.setattr(
         check_duplicate_code,
         "changed_python_targets",
