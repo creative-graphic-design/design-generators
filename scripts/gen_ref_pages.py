@@ -8,8 +8,6 @@ from pathlib import Path
 import shutil
 import tomllib
 
-import mkdocs_gen_files
-
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
 MEMBER_PARENTS = ("lib", "models")
@@ -51,6 +49,13 @@ class ApiPackage:
     package_root: Path
     index_path: Path
     pages: tuple[ApiPage, ...]
+
+
+def write_text_file(path: Path, content: str) -> None:
+    """Write generated Markdown content under ``docs/api``."""
+    target = ROOT / "docs" / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
 
 
 def iter_member_dirs() -> list[Path]:
@@ -220,87 +225,61 @@ def discover_api_packages() -> list[ApiPackage]:
 
 def write_api_index(packages: list[ApiPackage]) -> None:
     """Write the API reference landing page."""
-    with mkdocs_gen_files.open("api/index.md", "w") as nav_file:
-        nav_file.write("# API Reference\n\n")
-        if not packages:
-            nav_file.write(
+    lines = ["# API Reference", ""]
+    if not packages:
+        lines.extend(
+            [
                 "No workspace packages were discovered. Packages under `lib/*` "
-                "and `models/*` will appear here automatically when they are added.\n"
-            )
-            return
-        nav_file.write(
-            "The pages in this section are generated from Python packages under "
-            "`lib/*/src` and `models/*/src`.\n"
+                "and `models/*` will appear here automatically when they are added.",
+                "",
+            ]
         )
-        for group in GROUP_TITLES.values():
-            group_packages = [package for package in packages if package.group == group]
-            if not group_packages:
-                continue
-            nav_file.write(f"\n## {group}\n\n")
-            for package in group_packages:
-                nav_file.write(
-                    f"- [{package.project_name}]"
-                    f"({package.index_path.relative_to('api')})\n"
-                )
+        write_text_file(Path("api/index.md"), "\n".join(lines))
+        return
+    lines.extend(
+        [
+            "The pages in this section are generated from Python packages under "
+            "`lib/*/src` and `models/*/src`.",
+        ]
+    )
+    for group in GROUP_TITLES.values():
+        group_packages = [package for package in packages if package.group == group]
+        if not group_packages:
+            continue
+        lines.extend(["", f"## {group}", ""])
+        for package in group_packages:
+            lines.append(
+                f"- [{package.project_name}]({package.index_path.relative_to('api')})"
+            )
+    lines.append("")
+    write_text_file(Path("api/index.md"), "\n".join(lines))
 
 
 def write_package_indexes(packages: list[ApiPackage]) -> None:
     """Write package landing pages with README content and module links."""
     for package in packages:
         readme_path = package.member_dir / "README.md"
-        with mkdocs_gen_files.open(package.index_path, "w") as package_file:
-            if readme_path.is_file():
-                package_file.write(readme_path.read_text(encoding="utf-8").rstrip())
-                package_file.write("\n\n")
-            else:
-                package_file.write(f"# {package.project_name}\n\n")
-            package_file.write("## API Modules\n\n")
-            for page in package.pages:
-                relative_page_path = page.page_path.relative_to(
-                    package.index_path.parent
-                )
-                package_file.write(f"- [`{page.module}`]({relative_page_path})\n")
-        mkdocs_gen_files.set_edit_path(
-            package.index_path,
-            readme_path.relative_to(ROOT)
-            if readme_path.is_file()
-            else package.member_dir,
-        )
+        lines = []
+        if readme_path.is_file():
+            lines.extend([readme_path.read_text(encoding="utf-8").rstrip(), ""])
+        else:
+            lines.extend([f"# {package.project_name}", ""])
+        lines.extend(["## API Modules", ""])
+        for page in package.pages:
+            relative_page_path = page.page_path.relative_to(package.index_path.parent)
+            lines.append(f"- [`{page.module}`]({relative_page_path})")
+        lines.append("")
+        write_text_file(package.index_path, "\n".join(lines))
 
 
 def write_api_pages(packages: list[ApiPackage]) -> None:
     """Write one mkdocstrings page per discovered module."""
     for package in packages:
         for page in package.pages:
-            with mkdocs_gen_files.open(page.page_path, "w") as reference_file:
-                reference_file.write(f"# `{page.module}`\n\n")
-                reference_file.write(f"::: {page.module}\n")
-            mkdocs_gen_files.set_edit_path(
+            write_text_file(
                 page.page_path,
-                page.source_path.relative_to(ROOT),
+                f"# `{page.module}`\n\n::: {page.module}\n",
             )
-
-
-def write_literate_nav(packages: list[ApiPackage]) -> None:
-    """Write literate navigation for the generated API section."""
-    with mkdocs_gen_files.open("api/SUMMARY.md", "w") as summary_file:
-        summary_file.write("# API Reference\n\n")
-        summary_file.write("- [Overview](index.md)\n")
-        for group in GROUP_TITLES.values():
-            group_packages = [package for package in packages if package.group == group]
-            if not group_packages:
-                continue
-            summary_file.write(f"- {group}\n")
-            for package in group_packages:
-                summary_file.write(
-                    f"    - [{package.project_name}]"
-                    f"({package.index_path.relative_to('api')})\n"
-                )
-                for page in package.pages:
-                    summary_file.write(
-                        f"        - [`{page.module}`]"
-                        f"({page.page_path.relative_to('api')})\n"
-                    )
 
 
 def clean_generated_api_dir() -> None:
@@ -316,7 +295,7 @@ def main() -> None:
     write_api_index(packages)
     write_package_indexes(packages)
     write_api_pages(packages)
-    write_literate_nav(packages)
 
 
-main()
+if __name__ == "__main__":
+    main()
