@@ -289,10 +289,18 @@ def test_label_registry_aliases_and_errors():
         "rico13",
         "publaynet",
         "magazine",
+        "nsr-1k",
+        "grit",
+        "coco-grounded",
+        "web",
+        "webui",
     }
     assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
     assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
     assert normalize_dataset_name("rico13") is DatasetName.rico13
+    assert normalize_dataset_name("nsr-1k") is DatasetName.nsr_1k
+    assert normalize_dataset_name("COCO-grounded") is DatasetName.coco_grounded
+    assert normalize_dataset_name("webui") is DatasetName.webui
     assert labels_for_dataset("rico13")[:3] == ("Text", "Image", "Icon")
     assert labels_for_dataset("publaynet") == (
         "text",

@@ -32,6 +32,12 @@ vendor = [
 [tool.uv.sources]
 laygen = { workspace = true }
 
+[tool.design-generators]
+framework = "diffusers"
+task = "content-aware-layout-generation"
+conditions = ["text"]
+datasets = ["grit", "coco-grounded"]
+
 [tool.pytest.ini_options]
 markers = [
     "vendor_parity: requires original LayouSyn weights, embeddings, and vendor dependencies",

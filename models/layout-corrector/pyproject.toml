@@ -38,3 +38,9 @@ vendor = [
 markers = [
     "vendor_parity: requires original Layout-Corrector starter kit, original deps, and optionally one GPU",
 ]
+
+[tool.design-generators]
+framework = "diffusers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional", "label", "label_size", "completion", "refinement"]
+datasets = ["rico25", "publaynet", "crello"]

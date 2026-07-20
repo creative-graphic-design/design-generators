@@ -31,6 +31,12 @@ vendor = [
 [tool.uv.sources]
 laygen = { workspace = true }
 
+[tool.design-generators]
+framework = "transformers"
+task = "content-agnostic-layout-generation"
+conditions = ["label"]
+datasets = ["rico25", "publaynet", "magazine"]
+
 [tool.pytest.ini_options]
 markers = [
     "vendor_parity: requires original LayoutGAN++ weights and vendor dependencies",

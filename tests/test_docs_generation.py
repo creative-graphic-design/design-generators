@@ -25,16 +25,75 @@ def _load_gen_ref_pages() -> ModuleType:
     return module
 
 
+def _write_shared_enum_sources(root: Path) -> None:
+    """Write the minimal shared enum sources needed by docs generation tests."""
+    laygen_common = root / "lib" / "laygen" / "src" / "laygen" / "common"
+    posgen_common = root / "lib" / "posgen" / "src" / "posgen" / "common"
+    laygen_common.mkdir(parents=True)
+    posgen_common.mkdir(parents=True)
+    (laygen_common / "conditions.py").write_text(
+        "\n".join(
+            [
+                "from enum import StrEnum, auto",
+                "",
+                "class ConditionType(StrEnum):",
+                "    unconditional = auto()",
+                "    label = auto()",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (laygen_common / "labels.py").write_text(
+        "\n".join(
+            [
+                "from enum import StrEnum, auto",
+                "",
+                "class DatasetName(StrEnum):",
+                "    rico25 = auto()",
+                "    publaynet = auto()",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (posgen_common / "labels.py").write_text(
+        "\n".join(
+            [
+                "from enum import StrEnum",
+                "",
+                "class DatasetName(StrEnum):",
+                "    crello = 'crello'",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_gen_ref_pages_writes_standalone_api_tree(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
     gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
     member_dir = tmp_path / "models" / "fake"
     package_dir = member_dir / "src" / "fake_pkg"
     package_dir.mkdir(parents=True)
     (member_dir / "pyproject.toml").write_text(
-        "[project]\nname = 'fake-project'\n",
+        "\n".join(
+            [
+                "[project]",
+                "name = 'fake-project'",
+                "",
+                "[tool.design-generators]",
+                "framework = 'transformers'",
+                "task = 'content-agnostic-layout-generation'",
+                "conditions = ['unconditional', 'label']",
+                "datasets = ['rico25', 'publaynet']",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     (member_dir / "README.md").write_text(
@@ -110,6 +169,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         ]
     )
     assert (tmp_path / "docs/api/index.md").is_file()
+    assert (tmp_path / "docs/models.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
     assert "- [FakeProject](models/fake-project/index.md)" in (
@@ -121,6 +181,14 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
         encoding="utf-8"
     )
+    assert package_index.startswith(
+        "---\ntags:\n  - transformers\n  - content-agnostic-layout-generation\n"
+    )
+    assert (
+        "  - unconditional\n  - label\n  - rico25\n  - publaynet\n---\n"
+        in package_index
+    )
+    assert "model-index:" not in package_index
     assert (
         "**Reproducing parity:** [Open the model reproducing guide](reproducing.md)."
         in package_index
@@ -136,7 +204,14 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         encoding="utf-8"
     ) == "# `fake_pkg.public`\n\n::: fake_pkg.public\n"
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
+    models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
+    assert (
+        "| [FakeProject](api/models/fake-project/index.md) | `transformers` | "
+        "`content-agnostic-layout-generation` | `unconditional`, `label` | "
+        "`rico25`, `publaynet` |"
+    ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
+    assert "  - Models: models.md" in generated_config
     assert (
         "      - Models:\n          - Overview: api/models/index.md" in generated_config
     )
@@ -154,11 +229,24 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
     monkeypatch: MonkeyPatch,
 ) -> None:
     gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
     member_dir = tmp_path / "models" / "fake"
     package_dir = member_dir / "src" / "fake_pkg"
     package_dir.mkdir(parents=True)
     (member_dir / "pyproject.toml").write_text(
-        "[project]\nname = 'fake-project'\n",
+        "\n".join(
+            [
+                "[project]",
+                "name = 'fake-project'",
+                "",
+                "[tool.design-generators]",
+                "framework = 'transformers'",
+                "task = 'content-agnostic-layout-generation'",
+                "conditions = ['unconditional']",
+                "datasets = ['rico25']",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
     (tmp_path / "mkdocs.yml").write_text(
@@ -234,3 +322,54 @@ def test_generated_overview_matches_readme_with_rewritten_links() -> None:
     assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
         f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
     )
+
+
+def test_gen_ref_pages_rejects_unknown_model_metadata_values(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    _write_shared_enum_sources(tmp_path)
+    member_dir = tmp_path / "models" / "fake"
+    package_dir = member_dir / "src" / "fake_pkg"
+    package_dir.mkdir(parents=True)
+    (member_dir / "pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                "name = 'fake-project'",
+                "",
+                "[tool.design-generators]",
+                "framework = 'transformers'",
+                "task = 'content-agnostic-layout-generation'",
+                "conditions = ['gen_t']",
+                "datasets = ['rico25']",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text(
+        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        encoding="utf-8",
+    )
+    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
+    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
+    monkeypatch.setattr(
+        gen_ref_pages,
+        "GENERATED_MKDOCS_CONFIG",
+        tmp_path / "mkdocs.generated.yml",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"models/fake \[tool\.design-generators\] conditions: "
+            r"has unknown values: \['gen_t'\].*Required keys: framework, task, "
+            r"conditions, datasets.*Example: \[tool\.design-generators\]"
+        ),
+    ):
+        gen_ref_pages.main()

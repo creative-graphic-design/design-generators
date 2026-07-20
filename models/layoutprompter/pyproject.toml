@@ -13,6 +13,12 @@ dependencies = [
 [tool.uv.sources]
 laygen = { workspace = true }
 
+[tool.design-generators]
+framework = "pydantic-ai"
+task = "content-aware-layout-generation"
+conditions = ["label", "label_size", "relation", "completion", "refinement", "text", "content_image"]
+datasets = ["publaynet", "rico25", "posterlayout", "webui"]
+
 [project.optional-dependencies]
 vendor = [
     "opencv-python>=4.0.0",

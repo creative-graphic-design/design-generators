@@ -32,3 +32,9 @@ dev = [
 
 [tool.uv.sources]
 laygen = { workspace = true }
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware-layout-generation"
+conditions = ["text"]
+datasets = ["rico25", "web"]
