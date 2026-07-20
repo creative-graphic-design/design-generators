@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed and why. Include `Closes #N` or `Refs #N`. -->
+<!-- What changed and why. Include `Closes #N` or `Refs #N` for the implementation issue. Issue #60 alone does not satisfy the PR metadata check. -->
 
 - TODO
 
