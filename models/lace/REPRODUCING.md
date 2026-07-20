@@ -7,8 +7,8 @@ Workflow order: download assets, generate references, run parity checks, convert
 Run the following commands from the repository root. They keep downloaded
 weights under `.cache/lace/original`, local reference metadata under
 `.cache/lace/reference`, and converted pipelines under `.cache/lace/converted`.
-The commands use `CUDA_VISIBLE_DEVICES=2`; change that value if your CUDA device
-assignment differs.
+The commands use `CUDA_VISIBLE_DEVICES=<gpu-index>`; replace `<gpu-index>` with
+one CUDA device visible on your machine.
 
 Prerequisite for a fresh clone:
 
@@ -35,13 +35,13 @@ Expected files after extraction:
 2. Record local reference metadata for the available vendor checkpoints:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/generate_reference.py \
   --dataset publaynet \
   --checkpoint .cache/lace/original/model/publaynet_best.pt \
   --output-dir .cache/lace/reference/publaynet \
   --seed 123
 
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/generate_reference.py \
   --dataset rico25 \
   --checkpoint .cache/lace/original/model/rico25_best.pt \
   --output-dir .cache/lace/reference/rico25 \
@@ -58,7 +58,7 @@ Generated metadata:
 3. Run the parity tests:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace pytest \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace pytest \
   models/lace/tests/vendor_parity/test_lace_parity.py \
   -m vendor_parity -vv -rs
 ```
@@ -93,7 +93,7 @@ Each output directory contains 🤗 [`diffusers`](https://huggingface.co/docs/di
 5. Load the converted checkpoints with `from_pretrained` and run a short smoke:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package lace python models/lace/scripts/smoke_from_pretrained.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/smoke_from_pretrained.py \
   --path .cache/lace/converted/lace-publaynet \
   --path .cache/lace/converted/lace-rico25 \
   --device cuda

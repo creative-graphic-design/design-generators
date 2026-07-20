@@ -74,6 +74,15 @@ Use this package for research inference, conversion checks, and vendor-parity va
 
 LayoutDM supports controllable discrete diffusion over layout tokens. The converted checkpoints follow the original release for RICO25 mobile UI layouts and PubLayNet document page layouts, both with at most 25 elements.
 
+| `condition_type` | Required inputs | Effect |
+| --- | --- | --- |
+| `unconditional` | none | samples labels and geometry |
+| `label` | `labels`, `bbox`, `mask` | keeps labels fixed and samples geometry |
+| `label_size` | `labels`, `bbox`, `mask` | keeps labels and element sizes fixed |
+| `completion` | `labels`, `bbox`, `mask` | preserves provided elements and fills the remainder |
+| `refinement` | `labels`, `bbox`, `mask` | refines an existing layout |
+| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -107,11 +116,20 @@ from layout_dm import LayoutDMPipeline
 path = ".cache/layout-dm/converted/layoutdm-rico25"
 # After Hub publication: from_pretrained("creative-graphic-design/layoutdm-rico25")
 pipe = LayoutDMPipeline.from_pretrained(path)
-out = pipe(batch_size=1, generator=None, condition_type="unconditional", seed=0)
+out = pipe(batch_size=1, condition_type="unconditional", seed=0)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
+```
+
+```python
+labels = [[1, 2, 3]]
+bbox = [[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]]
+mask = [[True, True, True]]
+
+out = pipe(condition_type="label", labels=labels, bbox=bbox, mask=mask, seed=0)
+print(out.bbox.shape)
 ```
 
 ## Training Details

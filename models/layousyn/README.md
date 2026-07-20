@@ -70,7 +70,68 @@ LayouSyn generates natural-scene object layouts from caption and concept embeddi
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
-The public pipeline accepts text/concept conditions with caption and concept embeddings. A tiny constructed pipeline can be smoke-tested without downloaded weights:
+The public pipeline supports `condition_type="text"` with a caption, concept labels, and caption/concept embeddings. Other canonical condition names raise `NotImplementedError`.
+
+| `condition_type` | Required inputs | Support |
+| --- | --- | --- |
+| `text` | `prompt`, `labels`, caption embeddings, concept embeddings | supported |
+| `unconditional`, `label`, `label_size`, `completion`, `refinement`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md). Those steps create `.cache/layousyn/converted`.
+
+```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv sync --package layousyn
+uv run --package layousyn python
+```
+
+```python
+import torch
+
+from layousyn import LayouSynPipeline
+
+path = ".cache/layousyn/converted"
+# After Hub publication: from_pretrained("creative-graphic-design/layousyn-grit")
+pipe = LayouSynPipeline.from_pretrained(path)
+
+inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cpu")
+out = pipe(
+    prompt="a person sitting on a bench",
+    labels=[["person", "bench"]],
+    caption_embeds=inputs["pipeline_caption_embeds"],
+    caption_padding_mask=inputs["pipeline_caption_padding_mask"],
+    concept_embeds=inputs["pipeline_concept_embeds"],
+    aspect_ratio=inputs["pipeline_aspect_ratio"],
+    num_inference_steps=1,
+    guidance_scale=2.0,
+    generator=torch.Generator(device="cpu").manual_seed(0),
+)
+
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label)
+```
+
+A tiny constructed pipeline can be smoke-tested without downloaded weights:
 
 ```bash
 uv run --package layousyn python
@@ -102,46 +163,6 @@ out = pipe(
     seed=0,
 )
 print(out.bbox.shape)
-```
-
-### Downstream Use
-
-Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
-
-### Out-of-Scope Use
-
-Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
-
-## Bias, Risks, and Limitations
-
-The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
-
-### Recommendations
-
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
-
-## How to Get Started with the Model
-
-Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md). Those steps create `.cache/layousyn/converted`.
-
-```bash
-git clone https://github.com/creative-graphic-design/design-generators.git
-cd design-generators
-uv sync --package layousyn
-uv run --package layousyn python
-```
-
-```python
-from layousyn import LayouSynPipeline
-
-path = ".cache/layousyn/converted"
-# After Hub publication: from_pretrained("creative-graphic-design/layousyn-grit")
-pipe = LayouSynPipeline.from_pretrained(path)
-out = pipe(batch_size=1, seed=0, num_inference_steps=1)
-
-print(out.bbox)
-print(out.labels)
-print(out.mask)
 ```
 
 ## Training Details
@@ -196,7 +217,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | First DDIM scheduler step | 1 | exact `pred_xstart` and `prev_sample` tensor match | pass; max abs 0 / 0 |
 | Full 40-step sample public bbox | 1 | exact normalized public `xywh` tensor match | pass; max abs 0 |
 
-The parity path matches the original implementation with TF32 enabled, the vendor `nn.MultiheadAttention` `need_weights=True` code path, and the vendor CPU-to-device timestep-frequency embedding order. Those settings remove the previous denoiser-logit and full-sample drift.
+Parity requires TF32 enabled, the vendor `nn.MultiheadAttention` `need_weights=True` code path, and the vendor CPU-to-device timestep-frequency embedding order; the tests configure these settings.
 
 ## Reproducibility
 

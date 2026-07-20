@@ -80,12 +80,14 @@ from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
 from layout_dm import LayoutDMPipeline
 
 layout_dm = LayoutDMPipeline.from_pretrained(
-    "creative-graphic-design/layoutdm-rico25",
+    ".cache/layout-dm/converted/layoutdm-rico25",
 )
 corrector = LayoutCorrectorModel.from_pretrained(
-    "creative-graphic-design/layout-corrector-rico25",
+    ".cache/layout-corrector/converted/layout-corrector-rico25-smoke",
     subfolder="corrector",
 )
+# After Hub publication: use "creative-graphic-design/layoutdm-rico25" and
+# "creative-graphic-design/layout-corrector-rico25".
 
 pipe = LayoutCorrectorPipeline(layout_dm=layout_dm, corrector=corrector)
 out = pipe(
@@ -96,9 +98,9 @@ out = pipe(
     return_intermediates=True,
 )
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
 print(out.scores.shape)
 ```
 
@@ -126,6 +128,15 @@ LayoutDM samples the next step
 
 Conditional generation follows the nested LayoutDM processor path:
 
+| `condition_type` | Required inputs | Effect |
+| --- | --- | --- |
+| `unconditional` | none | samples with nested LayoutDM, then applies correction |
+| `label` | `labels`, `bbox`, optional `mask` | keeps labels fixed and corrects sampled geometry |
+| `label_size` | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed |
+| `completion` | `labels`, `bbox`, optional `mask` | preserves provided elements and completes the layout |
+| `refinement` | `labels`, `bbox`, optional `mask` | refines the provided layout |
+| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` through nested LayoutDM |
+
 ```python
 labels = [[1, 2, 3]]
 bbox = [[[0.2, 0.2, 0.1, 0.1], [0.5, 0.5, 0.2, 0.2], [0.7, 0.7, 0.1, 0.2]]]
@@ -138,6 +149,7 @@ out = pipe(
     mask=mask,
     seed=0,
 )
+print(out.bbox.shape)
 ```
 
 ### Downstream Use
@@ -175,9 +187,9 @@ path = ".cache/layout-corrector/converted/layout-corrector-rico25-smoke"
 pipe = LayoutCorrectorPipeline.from_pretrained(path)
 out = pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
 ```
 
 ## Training Details
