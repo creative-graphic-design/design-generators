@@ -17,6 +17,7 @@ from laygen.common.bbox import (
     linear_discretize,
     ltrb_to_xywh,
     normalize_boxes,
+    prepare_layout_tensors,
     xywh_to_ltrb,
 )
 from laygen.common.conditions import (
@@ -52,6 +53,9 @@ from laygen.common.testing import (
     assert_generator_reproducible,
     assert_layout_output_schema,
     assert_normalized_xywh,
+    load_torch_checkpoint_state_dict,
+    strip_torch_state_dict_prefix,
+    vendor_backbone_kwargs,
 )
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
@@ -81,6 +85,120 @@ def test_bbox_conversions_roundtrip():
     )
     with pytest.raises(ValueError, match="Unsupported box_format"):
         normalize_boxes(pixels, canvas_size=(100, 200), box_format="bad")
+
+
+def test_prepare_layout_tensors_batches_masks_and_converts_boxes():
+    bbox, labels, mask = prepare_layout_tensors(
+        bbox=[[0.0, 0.0, 1.0, 1.0]],
+        labels=[2],
+        box_format="ltrb",
+        normalized=True,
+    )
+
+    assert bbox.tolist() == [[[0.5, 0.5, 1.0, 1.0]]]
+    assert labels.tolist() == [[2]]
+    assert mask.tolist() == [[True]]
+
+
+def test_prepare_layout_tensors_converts_ltwh_and_clamps_when_requested():
+    bbox, _, _ = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 0.75, 0.75]]],
+        labels=[[0]],
+        box_format=BoxFormat.ltwh,
+        clamp_converted_normalized=True,
+    )
+
+    assert bbox.tolist() == [[[1.0, 1.0, 0.75, 0.75]]]
+
+
+def test_prepare_layout_tensors_handles_1d_mask_and_unclamped_ltwh():
+    bbox, _, mask = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 0.75, 0.75]]],
+        labels=[[0]],
+        mask=[False],
+        box_format=BoxFormat.ltwh,
+    )
+
+    assert bbox.tolist() == [[[1.125, 1.125, 0.75, 0.75]]]
+    assert mask.tolist() == [[False]]
+
+
+def test_prepare_layout_tensors_clamps_converted_ltrb_when_requested():
+    bbox, _, _ = prepare_layout_tensors(
+        bbox=[[[0.75, 0.75, 1.75, 1.75]]],
+        labels=[[0]],
+        box_format=BoxFormat.ltrb,
+        clamp_converted_normalized=True,
+    )
+
+    assert bbox.tolist() == [[[1.0, 1.0, 1.0, 1.0]]]
+
+
+def test_prepare_layout_tensors_normalizes_pixels_and_validates_canvas():
+    bbox, labels, mask = prepare_layout_tensors(
+        bbox=[[[10, 20, 110, 220]]],
+        labels=[[1]],
+        mask=[[False]],
+        box_format=BoxFormat.ltrb,
+        normalized=False,
+        canvas_size=(200, 400),
+    )
+
+    torch.testing.assert_close(bbox, torch.tensor([[[0.3, 0.3, 0.5, 0.5]]]))
+    assert labels.tolist() == [[1]]
+    assert mask.tolist() == [[False]]
+    with pytest.raises(ValueError, match="canvas_size is required"):
+        prepare_layout_tensors(
+            bbox=[[[0, 0, 1, 1]]],
+            labels=[[0]],
+            normalized=False,
+        )
+
+
+def test_testing_helpers_load_and_strip_vendor_state_dict(tmp_path: Path):
+    checkpoint = tmp_path / "checkpoint.pt"
+    expected = torch.tensor([1.0])
+    torch.save(
+        {
+            "state_dict": {
+                "model.layer.weight": expected,
+                "other.layer.weight": torch.tensor([2.0]),
+            }
+        },
+        checkpoint,
+    )
+
+    state_dict = load_torch_checkpoint_state_dict(
+        checkpoint,
+        state_dict_key="state_dict",
+        map_location="cpu",
+        weights_only=False,
+    )
+    stripped = strip_torch_state_dict_prefix(
+        state_dict,
+        strip_prefix="model.",
+        include_prefix="model.",
+    )
+
+    assert list(stripped) == ["layer.weight"]
+    assert torch.equal(stripped["layer.weight"], expected)
+
+
+def test_vendor_backbone_kwargs_reads_aliases_and_overrides():
+    @dataclass
+    class Config:
+        latent_dim: int = 4
+        num_labels: int = 25
+        dropout: float = 0.1
+
+    kwargs = vendor_backbone_kwargs(
+        Config(),
+        ("latent_dim", "num_cat", "dropout"),
+        aliases={"num_cat": "num_labels"},
+        overrides={"dropout": 0.0},
+    )
+
+    assert kwargs == {"latent_dim": 4, "num_cat": 25, "dropout": 0.0}
 
 
 def test_linear_bins_roundtrip_shape():
