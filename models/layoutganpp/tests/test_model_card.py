@@ -11,8 +11,9 @@ def test_layoutganpp_model_card_metadata_and_sections():
 
     assert metadata["license"] == "agpl-3.0"
     assert metadata["library_name"] == "transformers"
+    assert metadata["pipeline_tag"] == "other"
     assert metadata["language"] == ["en"]
-    assert metadata["datasets"] == ["creative-graphic-design/rico"]
+    assert metadata["datasets"] == ["creative-graphic-design/Rico"]
     assert "layoutganpp" in metadata["tags"]
     assert "LayoutGANPPPipeline.from_pretrained" in text
     assert '[["Toolbar", "Image"]]' in text
@@ -35,5 +36,6 @@ def test_write_layoutganpp_model_card_smoke(tmp_path):
     assert readme_path.name == "README.md"
     assert "LayoutGAN++ publaynet" in text
     assert "creative-graphic-design/layoutganpp-publaynet" in text
+    assert "creative-graphic-design/PubLayNet" in text
     assert "bbox exact" in text
     assert "## How to Get Started with the Model" in text

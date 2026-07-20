@@ -35,8 +35,8 @@ class ParityMetricText(TypedDict):
 
 
 _DATASET_IDS: Final[dict[DatasetName, str]] = {
-    DatasetName.rico13: "creative-graphic-design/rico",
-    DatasetName.publaynet: "creative-graphic-design/publaynet",
+    DatasetName.rico13: "creative-graphic-design/Rico",
+    DatasetName.publaynet: "creative-graphic-design/PubLayNet",
     DatasetName.magazine: "creative-graphic-design/magazine",
 }
 
@@ -119,7 +119,7 @@ print(out.bbox, out.labels, out.mask)
         dataset_ids=[_DATASET_IDS[dataset_name]],
         license="agpl-3.0",
         library_name="transformers",
-        pipeline_tag="text-to-image",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "layoutganpp",
