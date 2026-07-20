@@ -70,7 +70,14 @@ LayouSyn generates natural-scene object layouts from caption and concept embeddi
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
-The public pipeline accepts text/concept conditions with caption and concept embeddings. A tiny constructed pipeline can be smoke-tested without downloaded weights:
+The public pipeline supports `condition_type="text"` with a caption, concept labels, and caption/concept embeddings. Other canonical condition names raise `NotImplementedError`.
+
+| `condition_type` | Required inputs | Support |
+| --- | --- | --- |
+| `text` | `prompt`, `labels`, caption embeddings, concept embeddings | supported |
+| `unconditional`, `label`, `label_size`, `completion`, `refinement`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+
+A tiny constructed pipeline can be smoke-tested without downloaded weights:
 
 ```bash
 uv run --package layousyn python
@@ -137,11 +144,24 @@ from layousyn import LayouSynPipeline
 path = ".cache/layousyn/converted"
 # After Hub publication: from_pretrained("creative-graphic-design/layousyn-grit")
 pipe = LayouSynPipeline.from_pretrained(path)
-out = pipe(batch_size=1, seed=0, num_inference_steps=1)
+import torch
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+inputs = torch.load(".cache/layousyn/reference/inputs.pt", map_location="cpu")
+out = pipe(
+    prompt="a person sitting on a bench",
+    labels=[["person", "bench"]],
+    caption_embeds=inputs["pipeline_caption_embeds"],
+    caption_padding_mask=inputs["pipeline_caption_padding_mask"],
+    concept_embeds=inputs["pipeline_concept_embeds"],
+    aspect_ratio=inputs["pipeline_aspect_ratio"],
+    num_inference_steps=1,
+    guidance_scale=2.0,
+    generator=torch.Generator(device="cpu").manual_seed(0),
+)
+
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label)
 ```
 
 ## Training Details

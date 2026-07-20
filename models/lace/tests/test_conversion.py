@@ -39,7 +39,8 @@ def test_write_lace_model_card_smoke(tmp_path) -> None:
     assert path.name == "README.md"
     assert "# Model Card for creative-graphic-design/lace-publaynet" in text
     assert "creative-graphic-design/lace-publaynet" in text
-    assert "creative-graphic-design/publaynet" in text
+    assert "creative-graphic-design/PubLayNet" in text
+    assert "creative-graphic-design/publaynet" not in text
     assert "| publaynet | n/a | n/a | 0 | 0 |" in text
     assert "## Uses" in text
     assert "## Evaluation" in text
@@ -69,4 +70,6 @@ def test_build_pipeline_from_vendor_checkpoint_reports_key_mismatch(tmp_path) ->
 def test_rico13_model_card_omits_missing_parity_table() -> None:
     text = str(lace_model_card("rico13"))
     assert "creative-graphic-design/lace-rico13" in text
+    assert "creative-graphic-design/Rico" in text
+    assert "creative-graphic-design/rico13" not in text
     assert "Rico13 parity metrics are therefore not reported here" in text
