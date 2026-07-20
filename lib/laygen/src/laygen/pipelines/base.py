@@ -180,6 +180,27 @@ class PipelineComponentSpec:
         return self.subfolder
 
 
+def model_processor_component_specs(
+    *,
+    model_loader: PipelineComponentLoader,
+    processor_loader: PipelineComponentLoader,
+) -> dict[str, PipelineComponentSpec]:
+    """Build standard model/processor component specs for simple pipelines."""
+    return {
+        "model": PipelineComponentSpec(
+            attribute_name="model",
+            loader=model_loader,
+            marker_file="config.json",
+        ),
+        "processor": PipelineComponentSpec(
+            attribute_name="processor",
+            loader=processor_loader,
+            marker_file="processor_config.json",
+            save_with_is_main_process=False,
+        ),
+    }
+
+
 class LayoutGenerationPipeline(ABC):
     """Base class for Transformers-side layout-generation pipelines.
 
@@ -472,4 +493,5 @@ __all__ = [
     "LayoutGenerationPipeline",
     "PipelineComponentLoader",
     "PipelineComponentSpec",
+    "model_processor_component_specs",
 ]

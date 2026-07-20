@@ -1,3 +1,10 @@
+---
+icon: lucide/list-checks
+tags:
+  - Conventions
+  - Contributors
+---
+
 # Conventions
 
 This project exposes research implementations through package interfaces that behave like regular Transformers or Diffusers components. Public code should be importable, documented, and runnable without reading the original vendor repository.

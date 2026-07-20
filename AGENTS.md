@@ -63,6 +63,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Every implementation PR must reference its implementation issue in the PR
   summary with `Closes #N` or `Refs #N`. The standing checklist issue #60 does
   not count as the implementation issue.
+- Every PR must carry the same lane/topic labels as its implementation issue,
+  such as `ready-heavy`, `documentation`, or `meta`; status labels stay on
+  issues only and must not be added to PRs.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue
@@ -76,6 +79,16 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2`
   ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI,
   and `v0.5` train-ourselves.
+
+## Self-Improvement
+
+- Treat `AGENTS.md`, repo-local skills, PR templates, and checklist issues as
+  living documents. When work exposes incorrect, stale, or missing guidance,
+  fix it in the same PR if the change is small and in scope; otherwise open or
+  propose a focused `meta` issue.
+- Do not silently work around guidance known to be wrong. If the same kind of
+  mistake is raised repeatedly, add or revise a rule, template item, or check so
+  future work can catch it mechanically.
 
 ## Public Interface
 
@@ -142,9 +155,12 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 
 ## Documentation
 
-- The docs site uses `mkdocs-material`, `mkdocstrings[python]`, and
-  `mkdocs-gen-files`; build it with
-  `uv run --group docs mkdocs build --strict`.
+- The docs site uses `zensical`, `mkdocstrings[python]`, and generated API
+  pages; build it with:
+  ```bash
+  uv run --group docs python scripts/gen_ref_pages.py
+  uv run --group docs zensical build --strict -f mkdocs.generated.yml
+  ```
 - The API reference is generated from workspace members under `lib/*` and
   `models/*`, using Python packages found below each member's `src/` directory.
 - Public API docstrings are the source text for the API reference. Use

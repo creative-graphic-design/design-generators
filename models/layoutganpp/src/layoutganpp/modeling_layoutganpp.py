@@ -13,6 +13,7 @@ from transformers.utils import ModelOutput
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.enums import normalize_enum_value
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_layoutganpp import LayoutGANPPConfig
@@ -63,12 +64,11 @@ def normalize_output_type(output_type: OutputType | str) -> OutputType:
         >>> str(normalize_output_type("dict"))
         'dict'
     """
-    if isinstance(output_type, OutputType):
-        return output_type
-    try:
-        return OutputType(output_type)
-    except ValueError as exc:
-        raise ValueError(f"Unsupported output_type: {output_type}") from exc
+    return normalize_enum_value(
+        output_type,
+        OutputType,
+        option_name="output_type",
+    )
 
 
 class LayoutGANPPModel(PreTrainedModel):

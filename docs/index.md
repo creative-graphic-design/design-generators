@@ -1,3 +1,10 @@
+---
+icon: lucide/layout-template
+tags:
+  - Overview
+  - Documentation
+---
+
 # design-generators
 
 [![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
