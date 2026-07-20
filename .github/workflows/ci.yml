@@ -239,9 +239,9 @@ jobs:
         run: uv sync --all-packages --group docs
 
       - name: Build documentation
-        env:
-          DISABLE_MKDOCS_2_WARNING: "true"
-        run: uv run --group docs mkdocs build --strict
+        run: |
+          uv run --group docs python scripts/gen_ref_pages.py
+          uv run --group docs zensical build --strict -f mkdocs.generated.yml
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

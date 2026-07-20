@@ -53,7 +53,8 @@ uv run --package laygen pytest lib/laygen/tests
 uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
 uv run python scripts/check_model_readmes.py
 uv run python scripts/check_readme_badges.py
-uv run --group docs mkdocs build --strict
+uv run --group docs python scripts/gen_ref_pages.py
+uv run --group docs zensical build --strict -f mkdocs.generated.yml
 ```
 
 Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
