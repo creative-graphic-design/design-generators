@@ -361,7 +361,7 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert metadata["pipeline_tag"] == "text-to-image"
     assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
-    assert metadata["datasets"] == ["creative-graphic-design/rico25"]
+    assert metadata["datasets"] == ["creative-graphic-design/Rico"]
     card.validate()
     assert "## Model Details" in text
     assert "### Model Description" in text

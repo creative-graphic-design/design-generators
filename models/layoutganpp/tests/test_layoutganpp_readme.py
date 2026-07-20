@@ -4,15 +4,17 @@ from pathlib import Path
 
 
 def test_layoutganpp_readme_code_fences_are_tagged():
-    readme = Path(__file__).resolve().parents[1] / "README.md"
-    text = readme.read_text(encoding="utf-8")
+    model_dir = Path(__file__).resolve().parents[1]
+    text = (model_dir / "README.md").read_text(encoding="utf-8")
+    reproducing = (model_dir / "REPRODUCING.md").read_text(encoding="utf-8")
     assert "## Reproducibility" in text
+    assert "models/layoutganpp/REPRODUCING.md" in text
     assert (
-        "This section reproduces the parity verification against the original "
-        "implementation."
-    ) in text
+        "This guide reproduces the original-implementation agreement checks"
+        in reproducing
+    )
     assert "## Reproducing Vendor Parity" not in text
-    fence_lines = [line for line in text.splitlines() if line.startswith("```")]
+    fence_lines = [line for line in reproducing.splitlines() if line.startswith("```")]
 
     assert len(fence_lines) % 2 == 0
     opening_fences = fence_lines[::2]

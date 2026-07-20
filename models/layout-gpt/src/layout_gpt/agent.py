@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import json
+import os
+from pathlib import Path
 from typing import Final, assert_never, cast
 
 import torch
@@ -214,6 +217,33 @@ class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
         assert_never(normalized_output_type)
 
     generate = __call__
+
+    def save_pretrained(self, save_directory: str | os.PathLike[str]) -> None:
+        """Persist prompt and parser configuration without provider state."""
+        path = Path(save_directory)
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "layout_gpt_config.json").write_text(
+            json.dumps(self.config.model_dump(mode="json"), indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: str | os.PathLike[str],
+        *,
+        model: ModelLike = None,
+        token_counter: TokenCounter = default_token_counter,
+    ) -> "LayoutGPTAgent":
+        """Load saved LayoutGPT prompt and parser configuration."""
+        path = Path(pretrained_model_name_or_path) / "layout_gpt_config.json"
+        config_data = json.loads(path.read_text(encoding="utf-8"))
+        return cls(
+            model=model,
+            config=LayoutGPTConfig(**config_data),
+            token_counter=token_counter,
+        )
 
     def _select_examples(
         self,

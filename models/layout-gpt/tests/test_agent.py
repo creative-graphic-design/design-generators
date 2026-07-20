@@ -1,5 +1,6 @@
 """Tests for the LayoutGPT Pydantic AI runner."""
 
+from pathlib import Path
 from typing import cast
 
 from pydantic_ai.messages import ModelResponse, TextPart
@@ -119,6 +120,34 @@ def test_public_call_can_return_dict_and_hide_intermediates() -> None:
     output_dict = cast(dict[str, object], output)
     assert output_dict["intermediates"] is None
     assert output_dict["id2label"] == {0: "clock"}
+
+
+def test_save_pretrained_round_trip_preserves_prompt_config(tmp_path: Path) -> None:
+    """LayoutGPT persists prompt config without serializing provider state."""
+    model = FunctionModel(lambda _messages, _info: ModelResponse(parts=[]))
+    runner = LayoutGPTAgent(
+        model=model,
+        config=LayoutGPTConfig(
+            setting="spatial",
+            icl_type="fixed-random",
+            k=3,
+            canvas_size=128,
+            chat=False,
+            temperature=0.2,
+            top_p=0.8,
+        ),
+    )
+
+    runner.save_pretrained(tmp_path)
+    loaded = LayoutGPTAgent.from_pretrained(tmp_path, model=model)
+
+    assert loaded.config.setting == "spatial"
+    assert loaded.config.icl_type == "fixed-random"
+    assert loaded.config.k == 3
+    assert loaded.config.canvas_size == 128
+    assert loaded.config.chat is False
+    assert loaded.config.temperature == 0.2
+    assert loaded.config.top_p == 0.8
 
 
 def test_public_call_validates_batch_size_and_canvas() -> None:

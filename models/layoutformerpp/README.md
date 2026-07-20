@@ -1,66 +1,171 @@
-# LayoutFormer++
+---
+language:
+  - en
+license: "mit"
+library_name: "transformers"
+pipeline_tag: "other"
+tags:
+  - "layoutformerpp"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "LayoutFormer++"
+    results:
+      - task:
+          type: "other"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-LayoutFormer++ is an autoregressive Transformer for conditional graphic layout generation. This package converts the released LayoutFormer++ task checkpoints from `jzy124/LayoutFormer` into a Transformers-style API with `save_pretrained` / `from_pretrained`, a `PreTrainedTokenizer` layout tokenizer, and a processor that returns the shared `laygen.modeling_outputs.LayoutGenerationOutput` schema.
+# Model Card for LayoutFormer++
 
-Paper: https://arxiv.org/abs/2208.08037
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2208.08037&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2208.08037)
+![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-Vendor implementation: https://github.com/microsoft/LayoutGeneration/tree/main/LayoutFormer%2B%2B
+This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style pipeline.
 
-## Install
+## Model Details
 
-From the repository root:
+### Model Description
+
+LayoutFormer++ is a `transformers` layout generator that models layout sequences across label, label-size, relation, refinement, completion, and unconditional tasks. Converted checkpoints use task-specific token vocabularies for RICO25 and PubLayNet while preserving the vendor discrete layout representation internally. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+
+- **Developed by:** Zhaoyun Jiang et al.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
+
+### Model Sources
+
+- **Repository:** [Microsoft LayoutGeneration LayoutFormer++](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutFormer%2B%2B)
+- **Paper:** [arXiv 2208.08037](https://arxiv.org/abs/2208.08037)
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| RICO25 label | [`creative-graphic-design/layoutformerpp-rico25-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label) | not-published |
+| RICO25 label-size | [`creative-graphic-design/layoutformerpp-rico25-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-label-size) | not-published |
+| RICO25 relation | [`creative-graphic-design/layoutformerpp-rico25-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-relation) | not-published |
+| RICO25 refinement | [`creative-graphic-design/layoutformerpp-rico25-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-refinement) | not-published |
+| RICO25 completion | [`creative-graphic-design/layoutformerpp-rico25-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-completion) | not-published |
+| RICO25 unconditional | [`creative-graphic-design/layoutformerpp-rico25-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-rico25-unconditional) | not-published |
+| PubLayNet label | [`creative-graphic-design/layoutformerpp-publaynet-label`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label) | not-published |
+| PubLayNet label-size | [`creative-graphic-design/layoutformerpp-publaynet-label-size`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-label-size) | not-published |
+| PubLayNet relation | [`creative-graphic-design/layoutformerpp-publaynet-relation`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-relation) | not-published |
+| PubLayNet refinement | [`creative-graphic-design/layoutformerpp-publaynet-refinement`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-refinement) | not-published |
+| PubLayNet completion | [`creative-graphic-design/layoutformerpp-publaynet-completion`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-completion) | not-published |
+| PubLayNet unconditional | [`creative-graphic-design/layoutformerpp-publaynet-unconditional`](https://huggingface.co/creative-graphic-design/layoutformerpp-publaynet-unconditional) | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to vendor tasks as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md). Those steps create `.cache/layoutformerpp/converted/rico_gen_t`.
 
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package layoutformerpp
+uv run --package layoutformerpp python
 ```
-
-Run package-local tests with the workspace member selected:
-
-```bash
-uv run --package layoutformerpp pytest models/layoutformerpp/tests
-```
-
-## Usage
 
 ```python
 from layoutformerpp import LayoutFormerPPPipeline
 
-model_id = "creative-graphic-design/layoutformerpp-rico-label"
-pipe = LayoutFormerPPPipeline.from_pretrained(model_id)
-
+path = ".cache/layoutformerpp/converted/rico_gen_t"
+# After Hub publication: from_pretrained("creative-graphic-design/layoutformerpp-rico25-label")
+pipe = LayoutFormerPPPipeline.from_pretrained(path)
 out = pipe(condition_type="label", labels=[["Text", "Image"]], max_length=16)
-print(out.bbox)     # normalized center xywh, shape (B, S, 4)
-print(out.labels)   # dataset-local ids, padding controlled by out.mask
+
+print(out.bbox)
+print(out.labels)
 print(out.id2label)
 ```
 
-## Checkpoints
+## Training Details
 
-Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix.
+### Training Data
 
-| Dataset | Task | Condition | Hub id |
-| --- | --- | --- | --- |
-| RICO | `gen_t` | label | `creative-graphic-design/layoutformerpp-rico-label` |
-| RICO | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-rico-label-size` |
-| RICO | `gen_r` | relation | `creative-graphic-design/layoutformerpp-rico-relation` |
-| RICO | `refinement` | refinement | `creative-graphic-design/layoutformerpp-rico-refinement` |
-| RICO | `completion` | completion | `creative-graphic-design/layoutformerpp-rico-completion` |
-| RICO | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-rico-unconditional` |
-| PubLayNet | `gen_t` | label | `creative-graphic-design/layoutformerpp-publaynet-label` |
-| PubLayNet | `gen_ts` | label_size | `creative-graphic-design/layoutformerpp-publaynet-label-size` |
-| PubLayNet | `gen_r` | relation | `creative-graphic-design/layoutformerpp-publaynet-relation` |
-| PubLayNet | `refinement` | refinement | `creative-graphic-design/layoutformerpp-publaynet-refinement` |
-| PubLayNet | `completion` | completion | `creative-graphic-design/layoutformerpp-publaynet-completion` |
-| PubLayNet | `ugen` | unconditional | `creative-graphic-design/layoutformerpp-publaynet-unconditional` |
+| Dataset | Dataset ID | Notes |
+| --- | --- | --- |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
-## Datasets
+RICO25 public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens. PubLayNet COCO-style document boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
 
-- `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public outputs use zero-based dataset-local ids, while the internal LayoutFormer++ tokenizer uses one-based `label_<id>` tokens.
-- `creative-graphic-design/PubLayNet`: COCO-style document layout boxes are converted to the internal discrete LayoutFormer++ `ltwh` token grid and returned publicly as normalized center `xywh`.
+### Training Procedure
 
-## Parity Results
+This package ports released behavior and does not retrain the method in this repository.
 
-Current local parity coverage spans every public LayoutFormer++ checkpoint listed in the vendor README. On `CUDA_VISIBLE_DEVICES=3`, the vendor-parity suite passed 29/29 cases.
+#### Preprocessing
+
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training-time and carbon measurements are unknown.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Parity Results
 
 | Checkpoint | Public checkpoint | Vocab source | Tokenizer | Logits max abs | Logits max rel | Generation |
 | --- | --- | --- | ---: | ---: | ---: | --- |
@@ -71,106 +176,42 @@ Current local parity coverage spans every public LayoutFormer++ checkpoint liste
 | `rico_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
 | `rico_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
 | `publaynet_gen_t` | present | `ckpts/publaynet_gen_t/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-constrained loop |
-| `publaynet_gen_ts` | present | `ckpts/publaynet_gen_ts/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
+| `publaynet_gen_ts` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop; exact label-size-constrained loop |
 | `publaynet_gen_r` | present | `ckpts/publaynet_gen_r/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop with relation input |
-| `publaynet_refinement` | present | `ckpts/publaynet_refinement/vocab.json` | exact | 0.0 | 0.0 | exact vendor greedy loop |
-| `publaynet_completion` | present | `ckpts/publaynet_completion/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop |
-| `publaynet_ugen` | present | `ckpts/publaynet_ugen/vocab.json` | exact | 0.0 | 0.0 | exact vendor top-k loop |
-
-Verified command:
-
-```bash
-LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
-  models/layoutformerpp/tests/vendor_parity \
-  -m vendor_parity \
-  -q
-```
+| `publaynet_refinement` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor greedy loop |
+| `publaynet_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
+| `publaynet_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-Prerequisites:
 
-- Run commands from the repository root.
-- Use `uv sync --package layoutformerpp` once before the first run.
-- Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
-- Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
+## Environmental Impact
 
-1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
 
-```bash
-uv run --package layoutformerpp python models/layoutformerpp/scripts/download_original.py \
-  --output-dir .cache/layoutformerpp/original \
-  --allow-pattern "ckpts/**/final_checkpoint.pth.tar" \
-  --allow-pattern "ckpts/**/vocab.json"
-```
+## Technical Specifications
 
-2. Generate local vendor reference metadata for each public task fixture. Metadata is written under `.cache/layoutformerpp/reference/<dataset>_<task>/metadata.json`; generated tensors stay local.
+### Model Architecture and Objective
 
-```bash
-for dataset in rico publaynet; do
-  for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
-      --dataset "$dataset" \
-      --task "$task" \
-      --seed 500 \
-      --output-dir ".cache/layoutformerpp/reference/${dataset}_${task}"
-  done
-done
-```
+LayoutFormer++ uses an encoder-decoder Transformer with task-specific token vocabularies for label, label-size, relation, refinement, completion, and unconditional generation. Optional task prompt embeddings mirror the released checkpoints, while the processor decodes discrete tokens into normalized boxes and dataset labels.
 
-3. Run the vendor parity tests against the cached checkpoints and vendor source.
+### Compute Infrastructure
 
-```bash
-LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
-  models/layoutformerpp/tests/vendor_parity \
-  -m vendor_parity \
-  -q
-```
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
 
-4. Convert all public checkpoints into Transformers `save_pretrained` format. When a task-specific `vocab.json` is not published, the converter builds the matching synthetic single-task vocabulary from the dataset labels and selected task.
+#### Hardware
 
-```bash
-for dataset in rico publaynet; do
-  for task in gen_t gen_ts gen_r refinement completion ugen; do
-    uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
-      --checkpoint ".cache/layoutformerpp/original/ckpts/${dataset}_${task}/final_checkpoint.pth.tar" \
-      --dataset "$dataset" \
-      --task "$task" \
-      --output-dir ".cache/layoutformerpp/converted/${dataset}_${task}"
-  done
-done
-```
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
 
-5. Smoke-test `from_pretrained` from every converted artifact.
+#### Software
 
-```bash
-uv run --package layoutformerpp python - <<'PY'
-from layoutformerpp import LayoutFormerPPPipeline
-
-for dataset in ("rico", "publaynet"):
-    for task in ("gen_t", "gen_ts", "gen_r", "refinement", "completion", "ugen"):
-        path = f".cache/layoutformerpp/converted/{dataset}_{task}"
-        pipe = LayoutFormerPPPipeline.from_pretrained(path, local_files_only=True)
-        print(
-            pipe.config.dataset,
-            pipe.config.task,
-            pipe.processor.tokenizer.vocab_size,
-        )
-PY
-```
-
-## Model Cards
-
-Each converted output directory includes a `README.md` model card.
+Use `uv run --package layoutformerpp ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
 ## License
 
-The original implementation is MIT licensed in the parent Microsoft LayoutGeneration repository. Converted code in this package is for research conversion and evaluation of the released LayoutFormer++ checkpoints.
+Repository wrapper code is Apache-2.0. The original implementation is MIT licensed in the parent Microsoft LayoutGeneration repository. Converted code in this package is for research conversion and evaluation of the released LayoutFormer++ checkpoints.
 
 ## Citation
 

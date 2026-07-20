@@ -1,24 +1,92 @@
-# LayoutPrompter
+---
+language:
+  - en
+license: "mit"
+library_name: "pydantic-ai"
+pipeline_tag: "other"
+tags:
+  - "layoutprompter"
+  - "layout-generation"
+  - "neurips-2023"
+datasets:
+  - "creative-graphic-design/PubLayNet"
+  - "creative-graphic-design/Rico"
+  - "PosterLayout"
+---
 
-LayoutPrompter is a Pydantic AI agent for few-shot layout generation. It builds prompts from layout exemplars, calls a provider-configured LLM, and returns normalized layout arrays through `LayoutGenerationOutput`.
+# Model Card for LayoutPrompter
 
-The package is prompt-based and has no learned weights.
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.06495&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2311.06495)
+![venue](https://img.shields.io/static/v1?label=venue&message=NeurIPS+2023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
+
+This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
+
+## Model Details
+
+### Model Description
+
+LayoutPrompter is a prompt-based layout agent that selects in-context exemplars and asks a language model to complete structured layout coordinates. It has no learned checkpoint; `save_pretrained` stores prompt configuration and parser settings, while `pydantic-ai` supplies the runtime model backend. Public outputs use normalized center `xywh` boxes in `[0, 1]`, request-local integer labels, a valid-element `mask`, and `id2label`.
+
+- **Developed by:** Jiawei Lin et al.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** English prompts for prompt-only operation.
+- **License:** MIT.
+
+### Model Sources
+
+- **Repository:** [Microsoft LayoutGeneration LayoutPrompter](https://github.com/microsoft/LayoutGeneration/tree/main/LayoutPrompter)
+- **Paper:** [arXiv 2311.06495](https://arxiv.org/abs/2311.06495)
 
 ## Supported Checkpoints
 
-LayoutPrompter does not publish learned checkpoints or Hub model repositories. `save_pretrained` stores prompt configuration so an agent can be reloaded with a caller-provided Pydantic AI model.
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| prompt configuration | n/a | no learned checkpoint; `save_pretrained` stores reloadable prompt configuration |
 
-## Install
+## Uses
 
-From the repository root:
+### Direct Use
+
+Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
+
+Pass any `pydantic-ai` model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
+
+`condition_type` accepts the public names and common vendor aliases: `label`, `label_size`, `relation`, `completion`, `refinement`, `text`, `cat_cond`, `gen_t`, `size_cond`, `gen_ts`, `gen_r`, `partial`, and `refine`. The package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The packaged behavior follows the upstream prompt fixtures, parser rules, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses `pydantic-ai`'s `TestModel` so it runs without provider credentials.
 
 ```bash
-uv sync --all-packages
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv sync --package layoutprompter
+uv run --package layoutprompter python
 ```
-
-Run package commands with `uv run --package layoutprompter ...`.
-
-## Basic Usage
 
 ```python
 import numpy as np
@@ -26,89 +94,87 @@ from pydantic_ai.models.test import TestModel
 
 from layoutprompter import LayoutPrompter, LayoutPrompterConfig
 
-model = TestModel(
-    custom_output_args={
-        "elements": [
-            {
-                "label": "text",
-                "bbox": {"left": 12, "top": 16, "width": 24, "height": 32},
-            }
-        ]
-    }
-)
+model = TestModel(custom_output_args={"elements": [{"label": "text", "bbox": {"left": 12, "top": 16, "width": 24, "height": 32}}]})
+agent = LayoutPrompter(LayoutPrompterConfig(dataset="webui", model=model, shuffle=False, num_prompt=1))
+agent.save_pretrained(".cache/layoutprompter/prompt-config")
 
-train_data = [
-    {
-        "labels": np.asarray([0, 2]),
-        "bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
-        "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15], [70, 80, 10, 12]]),
-    }
-]
-test_data = {
-    "labels": np.asarray([0, 2]),
-    "bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
-    "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1], [0, 0, 1, 1]]),
-}
-
-agent = LayoutPrompter(
-    LayoutPrompterConfig(dataset="webui", model=model, shuffle=False, num_prompt=1)
-)
+train_data = [{"labels": np.asarray([0]), "bboxes": np.asarray([[8, 10, 20, 15]]), "discrete_gold_bboxes": np.asarray([[8, 10, 20, 15]])}]
+test_data = {"labels": np.asarray([0]), "bboxes": np.asarray([[0, 0, 1, 1]]), "discrete_gold_bboxes": np.asarray([[0, 0, 1, 1]])}
 output = agent.run_sync(train_data, test_data)
 print(output.labels)
 print(output.bbox)
 ```
 
-`output.bbox` is normalized center `xywh` with shape `(batch, elements, 4)`.
+## Training Details
 
-## Model Settings
+### Training Data
 
-Pass any Pydantic AI model object through `LayoutPrompterConfig.model`.
+| Dataset | Dataset ID | Notes |
+| --- | --- | --- |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PosterLayout | unknown | built-in label vocabulary |
+| WebUI | unknown | deterministic local fixture |
 
-```python
-import os
+Built-in label vocabularies are available for `publaynet`, `rico`, `posterlayout`, and `webui`.
 
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
+### Training Procedure
 
-from layoutprompter import LayoutPrompterConfig
+This package ports released behavior and does not retrain the method in this repository.
 
-provider = OpenAIProvider(
-    base_url=os.environ["OPENAI_BASE_URL"],
-    api_key=os.environ["OPENAI_API_KEY"],
-)
-config = LayoutPrompterConfig(
-    dataset="webui",
-    model=OpenAIChatModel("gpt-4o-mini", provider=provider),
-    shuffle=False,
-    num_prompt=1,
-)
-```
+#### Preprocessing
 
-If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
 
-## Datasets
+#### Training Hyperparameters
 
-Built-in label vocabularies are available for these dataset keys:
+- **Training regime:** original upstream training; not rerun in this repository.
 
-```text
-publaynet
-rico
-posterlayout
-webui
-```
+#### Speeds, Sizes, Times
 
-## Supported Tasks
+Training-time and carbon measurements are unknown.
 
-`condition_type` accepts the public names and common vendor aliases:
+## Evaluation
 
-```text
-label, label_size, relation, completion, refinement, text
-cat_cond, gen_t, size_cond, gen_ts, gen_r, partial, refine
-```
+### Testing Data, Factors & Metrics
 
-The current package includes prompt serialization and parsing for `seq` and `html` layouts. Closed string modes such as dataset names, condition types, prompt formats, output type, and box format are normalized to enums at public boundaries while string inputs remain accepted.
+#### Testing Data
 
-The demo script uses a tiny synthetic WebUI-style example.
+Vendor parity uses local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Parity Results
+
+| Check | Cases | Criterion | Result |
+| --- | ---: | --- | --- |
+| Prompt byte equality | 1 prompt fixture | exact byte match | pass |
+| Exemplar selection | 2 selected exemplar ids | exact id match | pass |
+| Parser golden output | 2 arrays (`labels`, `bbox`) | exact value match | pass |
+| Torch-to-numpy output equivalence | 1 public parser fixture | exact JSON match for `bbox`, `labels`, `mask`, and `id2label` | pass |
+
+## Reproducibility
+
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run parity checks, save prompt configuration, and smoke-test local loading.
+
+
+## Environmental Impact
+
+No new model training is performed by this prompt-only package. Parity costs depend on the selected prompt fixtures, provider configuration, and local hardware.
+
+## Technical Specifications
+
+### Model Architecture and Objective
+
+LayoutPrompter serializes few-shot exemplars, calls a configured `pydantic-ai` model, and parses either `seq` or `html` layout text into normalized boxes and request-local labels. `save_pretrained` stores prompt configuration and parser settings rather than learned weights.
+
+The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
 
 ```bash
 uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
@@ -116,125 +182,31 @@ uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
 
 Without `OPENAI_API_KEY`, the demo exits with a skip message.
 
-## Parity Results
+### Compute Infrastructure
 
-The numpy-only implementation was checked against the original LayoutPrompter
-vendor path and the previous torch-backed package output on the deterministic
-WebUI fixture.
+Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
 
-| Check | Cases | Result |
-| --- | ---: | --- |
-| Prompt byte equality | 1/1 prompt fixture | Exact byte match |
-| Exemplar selection | 2/2 selected exemplar ids | Exact id match |
-| Parser golden output | 2/2 arrays (`labels`, `bbox`) | Exact value match |
-| Torch-to-numpy output equivalence | 1/1 public parser fixture | Exact JSON match for `bbox`, `labels`, `mask`, and `id2label` |
+#### Hardware
 
-## Reproducibility
+CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
 
-This section reproduces the parity verification against the original implementation.
-Use these commands to regenerate deterministic reference data and run the
-vendor parity checks. The generated JSON is written to `/tmp`.
+#### Software
 
-### 1. Weights
+Use `uv run --package layoutprompter ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-LayoutPrompter has no weights to download.
+The demo script uses a tiny synthetic WebUI-style example.
 
-```bash
-printf 'LayoutPrompter has no learned weights.\n'
+## License
+
+Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration repository is MIT licensed; use any dataset or LLM provider outputs under their own terms.
+
+## Citation
+
+```bibtex
+@inproceedings{lin2023layoutprompter,
+  title = {LayoutPrompter: Awaken the Design Ability of Large Language Models},
+  author = {Lin, Jiawei and Guo, Jiaqi and Sun, Shizhao and Yang, Zijiang and Lou, Jian-Guang and Zhang, Dongmei},
+  booktitle = {Advances in Neural Information Processing Systems},
+  year = {2023}
+}
 ```
-
-### 2. Generate Reference Golden
-
-Prerequisites:
-
-```bash
-git submodule update --init vendor/ms-layout-generation
-```
-
-```text
-The script resolves vendor/ms-layout-generation through laygen.common.vendor_root()
-and then imports LayoutPrompter/src from that checkout.
-
-Set LAYOUTPROMPTER_VENDOR_SRC to another LayoutPrompter/src directory if needed.
-Set CUDA_VISIBLE_DEVICES for the same command shape used by model packages; this script does not use CUDA.
-```
-
-Command:
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
-  python models/layoutprompter/scripts/generate_vendor_golden.py \
-  --output /tmp/layoutprompter_vendor_golden.json
-```
-
-Generated file:
-
-```text
-/tmp/layoutprompter_vendor_golden.json
-```
-
-### 3. Run Parity Checks
-
-```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layoutprompter \
-  pytest models/layoutprompter/tests/vendor_parity -m vendor_parity
-```
-
-The test checks prompt bytes, selected exemplar ids, and parser output tensors.
-
-See `Parity Results` for the measured agreement table.
-
-### 4. Checkpoint Conversion
-
-There is no checkpoint conversion step for LayoutPrompter.
-
-```bash
-printf 'No checkpoint conversion is required for LayoutPrompter.\n'
-```
-
-### 5. from_pretrained Smoke
-
-`save_pretrained` stores prompt configuration, not weights.
-
-```bash
-uv run --package layoutprompter python - <<'PY'
-from tempfile import TemporaryDirectory
-
-from pydantic_ai.models.test import TestModel
-
-from layoutprompter import LayoutPrompter, LayoutPrompterConfig
-
-model = TestModel(custom_output_args={"elements": []})
-agent = LayoutPrompter(LayoutPrompterConfig(model=model, dataset="webui"))
-
-with TemporaryDirectory() as tmpdir:
-    agent.save_pretrained(tmpdir)
-    loaded = LayoutPrompter.from_pretrained(tmpdir, model=model)
-    print(loaded.config.dataset)
-PY
-```
-
-Smoke output:
-
-```text
-webui
-```
-
-## Regular Checks
-
-```bash
-uv run --package layoutprompter pytest models/layoutprompter/tests -m "not vendor_parity and not integration"
-uv run --package layoutprompter --with pytest-cov pytest models/layoutprompter/tests -m "not vendor_parity and not integration" --cov=layoutprompter --cov-report=term-missing
-uv run --package layoutprompter ruff check models/layoutprompter
-uv run --package layoutprompter ty check models/layoutprompter
-```
-
-The current package coverage under the command above is 99%.
-
-## Original Implementation
-
-The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository.
-
-## License And Citation
-
-Use this package together with the license terms of the original LayoutPrompter implementation and any dataset or LLM provider used at runtime. Cite the LayoutPrompter paper when publishing results based on this method.
