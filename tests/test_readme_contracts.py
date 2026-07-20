@@ -59,6 +59,12 @@ def _supported_checkpoint_ids(readme: Path) -> set[str]:
     return set(re.findall(r"creative-graphic-design/[A-Za-z0-9_.+-]+", section))
 
 
+def _model_workspace_slugs() -> set[str]:
+    return {
+        path.parent.name for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
+    }
+
+
 def test_docs_models_hub_ids_match_model_readmes() -> None:
     docs_rows: dict[str, set[str]] = {}
     for line in DOCS_MODELS.read_text(encoding="utf-8").splitlines():
@@ -69,6 +75,16 @@ def test_docs_models_hub_ids_match_model_readmes() -> None:
         docs_rows[slug_match.group(1)] = set(
             re.findall(r"`(creative-graphic-design/[A-Za-z0-9_.+-]+)`", line)
         )
+
+    model_slugs = _model_workspace_slugs()
+    missing_docs_rows = sorted(model_slugs.difference(docs_rows))
+    extra_docs_rows = sorted(set(docs_rows).difference(model_slugs))
+    assert not missing_docs_rows, (
+        f"docs/models.md missing rows for model workspace members: {missing_docs_rows}"
+    )
+    assert not extra_docs_rows, (
+        f"docs/models.md has rows for non-workspace model packages: {extra_docs_rows}"
+    )
 
     for readme in sorted((REPO_ROOT / "models").glob("*/README.md")):
         slug = readme.parent.name
