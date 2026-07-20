@@ -1,26 +1,103 @@
-# Coarse-to-Fine
+---
+language:
+  - en
+license: "mit"
+library_name: "transformers"
+pipeline_tag: "other"
+tags:
+  - "coarse-to-fine"
+  - "layout-generation"
+datasets:
+  - "creative-graphic-design/Rico"
+  - "creative-graphic-design/PubLayNet"
+model-index:
+  - name: "Coarse-to-Fine"
+    results:
+      - task:
+          type: "other"
+          name: "Layout generation"
+        dataset:
+          type: "creative-graphic-design/Rico"
+          name: "RICO25"
+          config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
+          split: "vendor parity fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
+---
 
-Coarse-to-Fine is an autoregressive hierarchical layout generator for graphic layouts. This package converts the released RICO and PubLayNet checkpoints from `jzy124/Coarse2Fine` into a Transformers-style `PreTrainedModel` with `save_pretrained` / `from_pretrained` support and the shared `laygen.modeling_outputs.LayoutGenerationOutput` schema.
+# Model Card for Coarse-to-Fine
 
-Paper: https://ojs.aaai.org/index.php/AAAI/article/view/19994
+[![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
+![venue](https://img.shields.io/static/v1?label=venue&message=AAAI+2022&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-Original implementation: https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine
+This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
-## Install
+## Model Details
 
-From the repository root:
+### Model Description
+
+Coarse-to-Fine generates page or UI layouts through a hierarchy-aware `transformers` model: it predicts coarse group structure before refining element boxes and labels for RICO25 or PubLayNet. It supports unconditional local inference from converted checkpoints and exposes hierarchy traces through `intermediates` when requested. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+
+- **Developed by:** Zhaoyun Jiang et al.
+- **Shared by:** creative-graphic-design.
+- **Model type:** layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** MIT.
+
+### Model Sources
+
+- **Repository:** [Microsoft LayoutGeneration Coarse-to-Fine](https://github.com/microsoft/LayoutGeneration/tree/main/Coarse-to-Fine)
+- **Paper:** [AAAI paper page](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| RICO25 | [`creative-graphic-design/coarse-to-fine-rico25`](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25) | not-published |
+| PubLayNet | [`creative-graphic-design/coarse-to-fine-publaynet`](https://huggingface.co/creative-graphic-design/coarse-to-fine-publaynet) | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+
+The released checkpoints support unconditional hierarchical generation only. Public v1/v2 condition names are accepted at the API boundary, but unsupported modes such as `label`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval` raise `NotImplementedError`.
+
+### Downstream Use
+
+Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared design assets without separate review.
+
+## Bias, Risks, and Limitations
+
+The converted behavior follows the upstream checkpoints, prompt fixtures, and datasets. Dataset coverage, label vocabularies, and layout quality inherit the limits of those sources.
+
+### Recommendations
+
+Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md). Those steps create `.cache/coarse-to-fine/converted/rico25`.
 
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv sync --package coarse-to-fine
+uv run --package coarse-to-fine python
 ```
-
-Run package-local tests with the workspace member selected:
-
-```bash
-uv run --package coarse-to-fine pytest models/coarse-to-fine/tests -m "not vendor_parity and not integration"
-```
-
-## Usage
 
 ```python
 from coarse_to_fine import (
@@ -29,38 +106,62 @@ from coarse_to_fine import (
     CoarseToFineProcessor,
 )
 
-model_id = "creative-graphic-design/coarse-to-fine-rico25"
-model = CoarseToFineForLayoutGeneration.from_pretrained(model_id)
-processor = CoarseToFineProcessor.from_pretrained(model_id)
+path = ".cache/coarse-to-fine/converted/rico25"
+# After Hub publication: from_pretrained("creative-graphic-design/coarse-to-fine-rico25")
+model = CoarseToFineForLayoutGeneration.from_pretrained(path)
+processor = CoarseToFineProcessor.from_pretrained(path)
 pipe = CoarseToFinePipeline(model=model, processor=processor)
 
 out = pipe(batch_size=2, seed=0, return_intermediates=True)
-print(out.bbox)    # normalized center xywh, shape (B, S, 4)
-print(out.labels)  # dataset-local ids, padding controlled by out.mask
+print(out.bbox)
+print(out.labels)
 print(out.intermediates["hierarchy"]["group_bbox"])
 ```
 
-## Checkpoints
+## Training Details
 
-| Dataset | Condition | Hub id |
+### Training Data
+
+| Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| RICO25 | unconditional | `creative-graphic-design/coarse-to-fine-rico25` |
-| PubLayNet | unconditional | `creative-graphic-design/coarse-to-fine-publaynet` |
+| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
-The released checkpoints support unconditional hierarchical generation only. Public v1/v2 condition names are accepted at the API boundary, but unsupported modes such as `label`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval` raise `NotImplementedError`.
+RICO25 public labels are zero-based; vendor tensors use one-based labels with SOS/EOS ids. PubLayNet COCO-style document boxes are converted to normalized `ltwh`, discretized on the vendor 128-bin grid, and returned publicly as normalized center `xywh`.
 
-## Datasets
+### Training Procedure
 
-- `creative-graphic-design/Rico`: use the `ui-screenshots-and-hierarchies-with-semantic-annotations` config for RICO25 labels and hierarchy bounds. Public labels are zero-based; vendor tensors use one-based labels with SOS/EOS ids.
-- `creative-graphic-design/PubLayNet`: COCO-style document boxes are converted to normalized `ltwh`, discretized on the vendor 128-bin grid, and returned publicly as normalized center `xywh`.
+This package ports released behavior and does not retrain the method in this repository.
 
-Coarse-to-Fine has structured tensor heads for labels, group label histograms, and four coordinate bins. There is no single unified token vocabulary for layout serialization, so this package uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
+#### Preprocessing
 
-## Parity Results
+Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
 
-Local fixtures compare the converted model/pipeline against the original
-Microsoft Coarse-to-Fine implementation with a fixed latent tensor. Vendor
-reference tensors are regenerated on demand and are not committed.
+#### Training Hyperparameters
+
+- **Training regime:** original upstream training; not rerun in this repository.
+
+#### Speeds, Sizes, Times
+
+Training-time and carbon measurements are unknown.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+
+#### Metrics
+
+Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+
+### Parity Results
 
 | Dataset | Comparison target | Cases | Agreement criterion | Result |
 | --- | --- | ---: | --- | --- |
@@ -78,107 +179,34 @@ Detailed max-abs values for the logits checks were:
 
 ## Reproducibility
 
-This section reproduces the parity verification against the original implementation.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
-Prerequisites:
 
-- Run commands from the repository root.
-- Use `uv sync --package coarse-to-fine --extra vendor` once before the first vendor run.
-- Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
-- Keep downloaded weights and generated references under `.cache/coarse-to-fine/`; these files are local artifacts and are not committed.
-- Set `CUDA_VISIBLE_DEVICES=3` for the vendor reference/parity run.
+## Environmental Impact
 
-1. Download the public checkpoints into `.cache/coarse-to-fine/original`.
+No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
 
-```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/download_original.py \
-  --output-dir .cache/coarse-to-fine/original
-```
+## Technical Specifications
 
-2. Convert both public checkpoints into Transformers format.
+### Model Architecture and Objective
 
-```bash
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
-  --dataset rico25 \
-  --output-dir .cache/coarse-to-fine/converted/rico25
+Coarse-to-Fine uses an autoregressive Transformer decoder with separate heads for element labels, group label histograms, and four coordinate bins. Generated hierarchy data is returned through `intermediates` when requested. There is no single unified token vocabulary for layout serialization, so Coarse-to-Fine uses a `ProcessorMixin` processor instead of a `PreTrainedTokenizer`.
 
-uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
-  --dataset publaynet \
-  --output-dir .cache/coarse-to-fine/converted/publaynet
-```
+### Compute Infrastructure
 
-3. Generate vendor reference tensors.
+Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
 
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
-  --dataset rico25 \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/rico/checkpoint.pth.tar \
-  --seed 0 \
-  --batch-size 2 \
-  --output-dir .cache/coarse-to-fine/reference/rico25
+#### Hardware
 
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine --extra vendor python models/coarse-to-fine/scripts/export_reference.py \
-  --dataset publaynet \
-  --checkpoint .cache/coarse-to-fine/original/ckpts/publaynet/checkpoint.pth.tar \
-  --seed 0 \
-  --batch-size 2 \
-  --output-dir .cache/coarse-to-fine/reference/publaynet
-```
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
 
-4. Run vendor parity tests against cached references.
+#### Software
 
-```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package coarse-to-fine pytest \
-  models/coarse-to-fine/tests/vendor_parity \
-  -m vendor_parity \
-  -q
-```
-
-Expected result with the fixtures above:
-
-```text
-4 passed
-```
-
-5. Smoke-test local `from_pretrained`.
-
-```bash
-uv run --package coarse-to-fine python - <<'PY'
-from coarse_to_fine import (
-    CoarseToFineForLayoutGeneration,
-    CoarseToFinePipeline,
-    CoarseToFineProcessor,
-)
-
-for dataset in ("rico25", "publaynet"):
-    path = f".cache/coarse-to-fine/converted/{dataset}"
-    model = CoarseToFineForLayoutGeneration.from_pretrained(path)
-    processor = CoarseToFineProcessor.from_pretrained(path)
-    pipe = CoarseToFinePipeline(model=model, processor=processor)
-    out = pipe(batch_size=1, seed=0)
-    assert out.bbox.shape == (1, 20, 4)
-    assert out.labels.shape == (1, 20)
-    assert bool(out.mask.any())
-    print(model.config.dataset, out.bbox.shape, out.labels.shape)
-PY
-```
-
-Expected output:
-
-```text
-rico25 torch.Size([1, 20, 4]) torch.Size([1, 20])
-publaynet torch.Size([1, 20, 4]) torch.Size([1, 20])
-```
-
-## Model Cards
-
-Converted output directories include a `README.md` model card when generated by the publishing flow. Hub publishing is deferred to issue #78.
+Use `uv run --package coarse-to-fine ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
 ## License
 
-The original Microsoft LayoutGeneration repository is MIT licensed. Converted code in this package is for research conversion and evaluation of the released Coarse-to-Fine checkpoints.
+Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration repository is MIT licensed. Converted code in this package is for research conversion and evaluation of the released Coarse-to-Fine checkpoints.
 
 ## Citation
 
