@@ -3,9 +3,25 @@ site_description: Transformers- and Diffusers-style layout and graphic-design ge
 site_url: https://creative-graphic-design.github.io/design-generators/
 repo_url: https://github.com/creative-graphic-design/design-generators
 repo_name: creative-graphic-design/design-generators
+copyright: Copyright &copy; 2026 Creative Graphic Design Lab
 
 theme:
   name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: lucide/sun
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: lucide/moon
+        name: Switch to light mode
   features:
     - content.code.copy
     - navigation.indexes
