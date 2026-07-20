@@ -67,6 +67,32 @@ def test_build_retrieved_batch_from_indexable_dataset() -> None:
     assert batch.mask.tolist() == [[[True, False], [True, False]]]
 
 
+def test_build_retrieved_batch_remaps_pku_labels_to_vendor_ids() -> None:
+    class Poster:
+        size = (10, 10)
+
+    class Dataset:
+        def __getitem__(self, index: int) -> dict[str, object]:
+            _ = index
+            return {
+                "poster": Poster(),
+                "annotations": {
+                    "box_elem": [[0, 0, 2, 2], [2, 2, 4, 4], [4, 4, 6, 6]],
+                    "cls_elem": [0, 1, 2],
+                },
+            }
+
+    batch = build_retrieved_batch(
+        Dataset(),
+        torch.tensor([[0]]),
+        max_seq_length=3,
+        dataset_name="pku",
+    )
+
+    assert batch.labels.tolist() == [[[1, 0, 2]]]
+    assert batch.mask.tolist() == [[[True, True, True]]]
+
+
 def test_load_ralf_dataset_rejects_unknown_source() -> None:
     try:
         load_ralf_dataset("cgl", "train", source="cache")

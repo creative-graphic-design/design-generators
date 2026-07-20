@@ -141,7 +141,9 @@ class RalfPipeline(LayoutGenerationPipeline):
         """Generate layouts through the RALF public interface.
 
         Args:
-            images: Poster/content images.
+            images: Poster/content images. When omitted, the pipeline uses a
+                zero image for smoke/debug calls; converted checkpoints were
+                trained with real content inputs.
             saliency: Optional saliency maps.
             batch_size: Batch size when images are absent.
             seed: Convenience seed used only when `generator` is absent.
@@ -154,7 +156,9 @@ class RalfPipeline(LayoutGenerationPipeline):
             box_format: Input box format.
             normalized: Whether boxes are normalized.
             canvas_size: Canvas size for pixel boxes.
-            retrieved_layouts: Explicit retrieved layouts.
+            retrieved_layouts: Explicit retrieved layouts. When no retrieval data is
+                supplied, the model receives zero retrieval memory for smoke/debug
+                calls rather than paper-equivalent retrieved examples.
             retrieved_images: Explicit retrieved images.
             retrieved_saliency: Explicit retrieved saliency maps.
             retrieved_indexes: Explicit retrieved indexes.

@@ -75,6 +75,8 @@ Use this package for research inference, conversion checks, and vendor-parity va
 
 Unconditional generation accepts optional content images, saliency maps, and explicit retrieval examples. Selected retrieval indexes are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
 
+Calling `pipe()` without images or retrieval data is a smoke/debug path that uses a zero image and zero retrieval memory. Use real content images, saliency maps, and retrieved examples for paper-equivalent inference.
+
 ### Downstream Use
 
 Generated layouts may feed poster rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.

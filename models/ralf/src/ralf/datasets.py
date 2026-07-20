@@ -21,8 +21,34 @@ class _IndexableDataset(Protocol):
         """Return one dataset row."""
 
 
+PKU_ORG_TO_VENDOR_LABEL_ID = torch.tensor([1, 0, 2], dtype=torch.long)
+RALF_STYLE_LABEL2ID = {
+    DatasetName.cgl: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
+    DatasetName.cgl_v2: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
+    DatasetName.pku_posterlayout: {"logo": 0, "text": 1, "underlay": 2},
+}
+
+
+def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch.Tensor:
+    if dataset is not DatasetName.pku_posterlayout:
+        return labels
+    if labels.numel() == 0:
+        return labels
+    return PKU_ORG_TO_VENDOR_LABEL_ID[labels.clamp(0, 2)]
+
+
+def _labels_to_tensor(labels: object, dataset: DatasetName) -> torch.Tensor:
+    values = list(cast(list[object], labels))
+    if values and isinstance(values[0], str):
+        label2id = RALF_STYLE_LABEL2ID[dataset]
+        return torch.tensor(
+            [label2id[str(value)] for value in values], dtype=torch.long
+        )
+    return torch.as_tensor(labels, dtype=torch.long)
+
+
 def normalize_org_sample(
-    sample: Mapping[str, object], dataset_name: str
+    sample: Mapping[str, object], dataset_name: DatasetName | str
 ) -> dict[str, object]:
     """Normalize one org-dataset sample to RALF-style fields.
 
@@ -37,6 +63,22 @@ def normalize_org_sample(
         ValueError: If the dataset is unsupported.
     """
     dataset = normalize_dataset_name(dataset_name)
+    if {"label", "center_x", "center_y", "width", "height"}.issubset(sample):
+        labels = _labels_to_tensor(sample["label"], dataset)
+        bbox = torch.stack(
+            [
+                torch.as_tensor(sample["center_x"], dtype=torch.float32),
+                torch.as_tensor(sample["center_y"], dtype=torch.float32),
+                torch.as_tensor(sample["width"], dtype=torch.float32),
+                torch.as_tensor(sample["height"], dtype=torch.float32),
+            ],
+            dim=-1,
+        )
+        return {
+            "bbox": bbox,
+            "labels": labels,
+            "mask": torch.ones(labels.shape, dtype=torch.bool),
+        }
     if dataset in {DatasetName.cgl, DatasetName.cgl_v2}:
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
@@ -117,6 +159,7 @@ def build_retrieved_batch(
     indexes: torch.Tensor,
     *,
     max_seq_length: int,
+    dataset_name: Literal["cgl", "cgl_v2", "pku", "pku_posterlayout"] = "cgl",
 ) -> RalfRetrievedBatch:
     """Build explicit retrieved layout tensors from dataset indexes.
 
@@ -124,10 +167,14 @@ def build_retrieved_batch(
         dataset: Indexable dataset whose rows match `normalize_org_sample`.
         indexes: Tensor of retrieved row indexes with shape `(batch, candidates)`.
         max_seq_length: Maximum elements retained per layout.
+        dataset_name: Dataset key used for row normalization. PKU labels are remapped
+            from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the vendor
+            checkpoint ids (`logo=0`, `text=1`, `underlay=2`) used by converted RALF.
 
     Returns:
         Retrieved batch with layout fields filled and image tensors as zeros.
     """
+    normalized_dataset = normalize_dataset_name(dataset_name)
     bbox_rows = []
     label_rows = []
     mask_rows = []
@@ -136,11 +183,13 @@ def build_retrieved_batch(
         label_candidates = []
         mask_candidates = []
         for idx in row:
-            sample = normalize_org_sample(dataset[int(idx)], "cgl")
+            sample = normalize_org_sample(dataset[int(idx)], normalized_dataset)
             bbox = torch.zeros(max_seq_length, 4)
             labels = torch.zeros(max_seq_length, dtype=torch.long)
             mask = torch.zeros(max_seq_length, dtype=torch.bool)
-            sample_labels = cast(torch.Tensor, sample["labels"])
+            sample_labels = _remap_retrieval_labels(
+                cast(torch.Tensor, sample["labels"]).long(), normalized_dataset
+            )
             sample_bbox = cast(torch.Tensor, sample["bbox"])
             length = min(max_seq_length, sample_labels.numel())
             bbox[:length] = sample_bbox[:length]

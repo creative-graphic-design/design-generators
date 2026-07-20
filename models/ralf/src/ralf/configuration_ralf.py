@@ -17,6 +17,12 @@ DEFAULT_VAR_ORDER: Final[tuple[str, ...]] = (
     "center_y",
 )
 DEFAULT_SPECIAL_TOKENS: Final[tuple[str, ...]] = ("pad", "bos", "eos")
+VENDOR_GEO_KEYS: Final[tuple[str, ...]] = (
+    "center_x",
+    "center_y",
+    "width",
+    "height",
+)
 
 
 class RalfConfig(PretrainedConfig):
@@ -189,5 +195,4 @@ class RalfConfig(PretrainedConfig):
             return 0
         if self.is_loc_vocab_shared:
             return self.num_labels
-        order = ("width", "height", "center_x", "center_y")
-        return self.num_labels + order.index(key) * self.num_bin
+        return self.num_labels + VENDOR_GEO_KEYS.index(key) * self.num_bin

@@ -7,7 +7,14 @@ from typing import cast
 import pytest
 import torch
 
-from ralf import RalfForConditionalLayoutGeneration
+from laygen.modeling_outputs import LayoutGenerationOutput
+from ralf import (
+    RalfConfig,
+    RalfForConditionalLayoutGeneration,
+    RalfLayoutTokenizer,
+    RalfPipeline,
+)
+from ralf.datasets import _IndexableDataset, build_retrieved_batch
 
 
 def _reference_dir() -> Path:
@@ -24,6 +31,46 @@ def _converted_dir() -> Path:
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[4]
+
+
+def _vendor_root() -> Path:  # pragma: no cover
+    return _repo_root() / "vendor" / "ralf"
+
+
+def _ensure_vendor_path() -> None:  # pragma: no cover
+    vendor_root = _vendor_root()
+    if not (vendor_root / "image2layout").exists():
+        pytest.skip("vendor/ralf is required for vendor parity")
+    if str(vendor_root) not in sys.path:
+        sys.path.insert(0, str(vendor_root))
+
+
+def _vendor_label_features(config: RalfConfig):  # pragma: no cover
+    _ensure_vendor_path()
+    from datasets import ClassLabel, Features, Sequence
+
+    id2label = cast(dict[int | str, str], config.id2label)
+    label_names = [
+        label for _idx, label in sorted(id2label.items(), key=lambda item: int(item[0]))
+    ]
+    return Features({"label": Sequence(ClassLabel(names=label_names))})
+
+
+def _build_vendor_tokenizer(config: RalfConfig):  # pragma: no cover
+    _ensure_vendor_path()
+    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+
+    features = _vendor_label_features(config)
+    return LayoutSequenceTokenizer(
+        label_feature=features["label"].feature,
+        max_seq_length=config.max_seq_length,
+        num_bin=config.num_bin,
+        var_order=list(config.var_order),
+        pad_until_max=False,
+        special_tokens=list(config.special_tokens),
+        is_loc_vocab_shared=config.is_loc_vocab_shared,
+        geo_quantization=config.geo_quantization,
+    )
 
 
 @pytest.mark.vendor_parity
@@ -153,19 +200,62 @@ def _synthetic_vendor_inputs(
     }
 
 
+@pytest.mark.vendor_parity
+def test_local_tokenizer_matches_vendor_token_mask_and_round_trip() -> (
+    None
+):  # pragma: no cover
+    config = RalfConfig(
+        id2label={0: "logo", 1: "text", 2: "underlay"},
+        max_seq_length=2,
+        num_bin=8,
+    )
+    tokenizer = RalfLayoutTokenizer(config)
+    vendor_tokenizer = _build_vendor_tokenizer(config)
+
+    labels = torch.tensor([[0, 1]])
+    bbox = torch.tensor([[[0.25, 0.5, 0.125, 0.375], [0.75, 0.25, 0.5, 0.25]]])
+    mask = torch.tensor([[True, False]])
+    local_encoded = tokenizer.encode_layout(labels=labels, bbox=bbox, mask=mask)
+    vendor_inputs = {
+        "label": labels.clone(),
+        "center_x": bbox[..., 0].clone(),
+        "center_y": bbox[..., 1].clone(),
+        "width": bbox[..., 2].clone(),
+        "height": bbox[..., 3].clone(),
+        "mask": mask.clone(),
+    }
+    vendor_encoded = vendor_tokenizer.encode(vendor_inputs)
+
+    assert torch.equal(tokenizer.token_mask(), vendor_tokenizer.token_mask)
+    assert torch.equal(local_encoded["input_ids"], vendor_encoded["seq"])
+    assert torch.equal(local_encoded["attention_mask"], vendor_encoded["mask"])
+
+    local_decoded = tokenizer.decode_layout(local_encoded["input_ids"])
+    vendor_decoded = vendor_tokenizer.decode(vendor_encoded["seq"][:, 1:])
+    vendor_bbox = torch.stack(
+        [
+            vendor_decoded["center_x"],
+            vendor_decoded["center_y"],
+            vendor_decoded["width"],
+            vendor_decoded["height"],
+        ],
+        dim=-1,
+    )
+    assert torch.equal(local_decoded["mask"], vendor_decoded["mask"])
+    valid = local_decoded["mask"]
+    assert torch.equal(local_decoded["labels"][valid], vendor_decoded["label"][valid])
+    assert torch.allclose(local_decoded["bbox"], vendor_bbox)
+
+
 def _build_vendor_reference_model(
     converted_model: RalfForConditionalLayoutGeneration,
 ):
-    vendor_root = _repo_root() / "vendor" / "ralf"
-    if not vendor_root.exists():
-        pytest.skip("vendor/ralf is required for local-vs-vendor parity")
-    sys.path.insert(0, str(vendor_root))
+    _ensure_vendor_path()
 
-    from datasets import ClassLabel, Dataset, Features, Sequence
+    from datasets import Dataset
     import image2layout.train.fid.model as fid_model
     import image2layout.train.helpers.layout_tokenizer as vendor_tokenizer
     import image2layout.train.models.common.image as vendor_image
-    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
     from image2layout.train.models.retrieval_augmented_autoreg import (
         ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg,
     )
@@ -178,21 +268,8 @@ def _build_vendor_reference_model(
     vendor_tokenizer.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
 
     config = converted_model.config
-    id2label = cast(dict[int | str, str], config.id2label)
-    label_names = [
-        label for _idx, label in sorted(id2label.items(), key=lambda item: int(item[0]))
-    ]
-    features = Features({"label": Sequence(ClassLabel(names=label_names))})
-    tokenizer = LayoutSequenceTokenizer(
-        label_feature=features["label"].feature,
-        max_seq_length=config.max_seq_length,
-        num_bin=config.num_bin,
-        var_order=list(config.var_order),
-        pad_until_max=False,
-        special_tokens=list(config.special_tokens),
-        is_loc_vocab_shared=config.is_loc_vocab_shared,
-        geo_quantization=config.geo_quantization,
-    )
+    features = _vendor_label_features(config)
+    tokenizer = _build_vendor_tokenizer(config)
     dataset_name = "pku" if config.dataset_name.startswith("pku") else "cgl"
     return ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg(
         features=features,
@@ -228,6 +305,83 @@ def _local_logits(
         tgt_key_padding_mask=cast(torch.Tensor, inputs["tgt_key_padding_mask"]),
         is_causal=True,
         **encoded,
+    )
+
+
+@pytest.mark.vendor_parity
+def test_local_pipeline_matches_vendor_golden_cgl_e2e() -> None:  # pragma: no cover
+    summary_path = _reference_dir() / "golden_summary.json"
+    converted = _converted_dir() / "ralf-cgl-unconditional-strict"
+    retrieval_index_path = (
+        _cache_dir()
+        / "PRECOMPUTED_WEIGHT_DIR"
+        / "retrieval_indexes"
+        / "cgl_test_dreamsim_wo_head_table_between_dataset_indexes_top_k32.pt"
+    )
+    dataset_path = _cache_dir() / "dataset" / "cgl"
+    if (
+        not summary_path.exists()
+        or not converted.exists()
+        or not retrieval_index_path.exists()
+        or not dataset_path.exists()
+    ):
+        pytest.skip(
+            "Run CGL reference generation and strict conversion before e2e parity"
+        )
+    if not torch.cuda.is_available():
+        pytest.skip("GPU 0 is required for RALF e2e parity")
+
+    from datasets import load_dataset
+
+    summary = json.loads(summary_path.read_text())
+    first = summary["first_result"]
+    test_dataset = load_dataset(str(dataset_path), split="test")
+    train_dataset = load_dataset(str(dataset_path), split="train")
+    sample = test_dataset[0]
+    assert sample["id"] == first["id"]
+    retrieval_indexes = torch.load(
+        retrieval_index_path,
+        map_location="cpu",
+        weights_only=False,
+    )
+    indexes = torch.tensor([retrieval_indexes[sample["id"]][:16]])
+    retrieved = build_retrieved_batch(
+        cast(_IndexableDataset, train_dataset),
+        indexes,
+        max_seq_length=10,
+        dataset_name="cgl",
+    )
+    pipe = RalfPipeline.from_pretrained(converted, local_files_only=True)
+    pipe.model.to(torch.device("cuda:0"))
+
+    output = cast(
+        LayoutGenerationOutput,
+        pipe(
+            images=[sample["image"]],
+            saliency=[sample["saliency"]],
+            retrieval={
+                "items": {
+                    "bbox": retrieved.bbox,
+                    "labels": retrieved.labels,
+                    "mask": retrieved.mask,
+                },
+                "ids": indexes,
+            },
+            seed=int(
+                json.loads((_reference_dir() / "golden_metadata.json").read_text())[
+                    "seed"
+                ]
+            ),
+            top_k=int(summary["test_cfg"]["sampling"]["top_k"]),
+        ),
+    )
+    valid = output.mask[0]
+    assert int(valid.sum()) == len(first["mask"])
+    assert all(first["mask"])
+    assert output.labels[0][valid].tolist() == first["labels"]
+    assert torch.equal(
+        output.bbox[0][valid].cpu(),
+        torch.tensor(first["bbox"], dtype=torch.float32),
     )
 
 

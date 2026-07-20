@@ -104,6 +104,8 @@ def _labels_from_vocabulary(
             vocabulary = json.load(f)
         names = sorted(vocabulary["label"].keys())
     elif dataset == "pku":
+        # Vendor ClassLabel(sorted(vocabulary["label"].keys())) order for
+        # PKU-PosterLayout after filtering the source INVALID class.
         names = ["logo", "text", "underlay"]
     else:
         raise FileNotFoundError(

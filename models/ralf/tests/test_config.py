@@ -14,7 +14,8 @@ def test_config_derives_token_ids_and_round_trips(tmp_path: Path) -> None:
     assert config.num_labels == 5
     assert config.vocab_size == 5 + 128 * 4 + 3
     assert config.pad_token_id == 5 + 128 * 4
-    assert config.bbox_token_offset("center_x") == 5 + 128 * 2
+    assert config.bbox_token_offset("center_x") == 5
+    assert config.bbox_token_offset("width") == 5 + 128 * 2
 
     config.save_pretrained(tmp_path)
     loaded = RalfConfig.from_pretrained(tmp_path)

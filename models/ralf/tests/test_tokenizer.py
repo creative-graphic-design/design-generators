@@ -24,14 +24,18 @@ def test_tokenizer_offsets_and_token_mask() -> None:
     config = RalfConfig(max_seq_length=1, num_bin=4)
     tokenizer = RalfLayoutTokenizer(config)
 
-    assert config.bbox_token_offset("width") == config.num_labels
-    assert config.bbox_token_offset("height") == config.num_labels + 4
+    assert config.bbox_token_offset("center_x") == config.num_labels
+    assert config.bbox_token_offset("center_y") == config.num_labels + 4
+    assert config.bbox_token_offset("width") == config.num_labels + 8
+    assert config.bbox_token_offset("height") == config.num_labels + 12
     mask = tokenizer.token_mask()
 
     assert mask.shape == (5, config.vocab_size)
     assert mask[0, 0]
     assert not mask[0, config.bbox_token_offset("width")]
     assert mask[1, config.bbox_token_offset("width")]
+    assert not mask[1, config.bbox_token_offset("center_x")]
+    assert mask[3, config.bbox_token_offset("center_x")]
 
 
 def test_tokenizer_save_pretrained_round_trip(tmp_path: Path) -> None:

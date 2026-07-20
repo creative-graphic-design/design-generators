@@ -11,10 +11,10 @@ import torch
 from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, PreTrainedTokenizer
 
-from .configuration_ralf import RalfConfig
+from .configuration_ralf import RalfConfig, VENDOR_GEO_KEYS
 
 TOKENIZER_CONFIG_FILE: Final[str] = "ralf_tokenizer_config.json"
-GEO_KEYS: Final[tuple[str, ...]] = ("width", "height", "center_x", "center_y")
+GEO_KEYS: Final[tuple[str, ...]] = VENDOR_GEO_KEYS
 
 
 class RalfLayoutTokenizer(PreTrainedTokenizer):
