@@ -4,34 +4,17 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: prepare prompt assets, generate references, run parity checks, save prompt configuration, then smoke-test local loading.
 
-Use these commands to regenerate deterministic reference data and run the
-vendor parity checks. The generated JSON is written under `.cache/layoutprompter/`.
+Use these commands to regenerate deterministic reference data and run the vendor parity checks. The generated JSON is an inspectable artifact written under `.cache/layoutprompter/`; the parity test also regenerates its golden data in-process so the test cannot accidentally pass by reading a stale file.
 
-### 1. Weights
+### 1. Prepare Prompt Assets
 
-LayoutPrompter has no weights to download.
-
-```bash
-mkdir -p .cache/layoutprompter
-printf 'LayoutPrompter has no learned weights.\n'
-```
-
-### 2. Generate Reference Golden
-
-Prerequisites:
+LayoutPrompter has no learned weights to download. Initialize the original prompt code before generating references.
 
 ```bash
 git submodule update --init vendor/ms-layout-generation
 ```
 
-```text
-The script resolves vendor/ms-layout-generation through laygen.common.vendor_root()
-and then imports LayoutPrompter/src from that checkout.
-
-Set LAYOUTPROMPTER_VENDOR_SRC to another LayoutPrompter/src directory if needed.
-```
-
-Command:
+### 2. Generate Reference Golden
 
 ```bash
 uv run --package layoutprompter python models/layoutprompter/scripts/generate_vendor_golden.py \
@@ -56,12 +39,7 @@ See `Parity Results` for the measured agreement table.
 
 ### 4. Persist Prompt Configuration
 
-There is no learned-weight conversion step for LayoutPrompter. `save_pretrained`
-stores prompt configuration for reload.
-
-```bash
-printf 'LayoutPrompter stores prompt configuration rather than learned weights.\n'
-```
+There is no learned-weight conversion step for LayoutPrompter. The smoke command below calls `save_pretrained` before reloading the prompt configuration.
 
 ### 5. from_pretrained Smoke
 

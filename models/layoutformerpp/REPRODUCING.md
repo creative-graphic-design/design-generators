@@ -10,7 +10,7 @@ Prerequisites:
 - Use `uv sync --package layoutformerpp` once before the first run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run.
+- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run. The review commands used GPU 5; replace the placeholder below with the index assigned on your machine.
 
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
@@ -26,7 +26,7 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/download_or
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+    CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
       --dataset "$dataset" \
       --task "$task" \
       --seed 500 \
@@ -39,7 +39,7 @@ done
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q

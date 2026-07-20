@@ -151,6 +151,8 @@ print(out.mask)
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 | Magazine | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine) | polygon-based train-only source |
 
+The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...), not the 25-class RICO25 mapping used by most other layout packages in this repository. The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
+
 ### Training Procedure
 
 This package ports released behavior and does not retrain the method in this repository.

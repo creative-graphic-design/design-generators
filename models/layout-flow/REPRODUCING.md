@@ -18,16 +18,16 @@ Run the commands below from the repository root. The original source under `vend
 uv run --package layout-flow python models/layout-flow/scripts/download_original.py
 ```
 
-2. Generate vendor golden/reference tensors. `CUDA_VISIBLE_DEVICES=3` selects the requested GPU; the script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
+2. Generate vendor golden/reference tensors. Set `CUDA_VISIBLE_DEVICES` to one GPU index; the review commands used GPU 5, while the placeholder below should be changed for your machine. The script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
 ```
 
 3. Run the parity pytest suite against both released checkpoints.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
 4. Convert both checkpoints to local 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.

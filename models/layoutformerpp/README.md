@@ -82,6 +82,9 @@ Use this package for research inference, conversion checks, and vendor-parity va
 
 Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to vendor tasks as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
 
+Task inputs follow the public condition shape for the selected checkpoint:
+`label` takes `labels=[["Text", "Image"]]`; `label_size` adds matching normalized center `xywh` boxes; `relation` takes five-integer relation tuples; `completion` and `refinement` take partial `labels`, `bbox`, and `mask`; `unconditional` needs no layout condition. If `normalized=False`, pass `canvas_size=(width, height)` so pixel boxes can be converted to the internal discrete `ltwh` grid.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -218,8 +221,8 @@ Repository wrapper code is Apache-2.0. The original implementation is MIT licens
 ```bibtex
 @inproceedings{jiang2023layoutformerpp,
   title = {LayoutFormer++: Conditional Graphic Layout Generation via Constraint Serialization and Decoding Space Restriction},
-  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Yihan and Deng, Jingwen and Li, Jianmin and Zheng, Yu and Fu, Yun},
-  booktitle = {CVPR},
+  author = {Jiang, Zhaoyun and Guo, Jiaqi and Sun, Shizhao and Deng, Huayu and Wu, Zhongkai and Mijovic, Vuksan and Yang, Zijiang James and Lou, Jian-Guang and Zhang, Dongmei},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
   year = {2023}
 }
 ```
