@@ -59,6 +59,20 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         ),
         encoding="utf-8",
     )
+    (tmp_path / "README.md").write_text(
+        "\n".join(
+            [
+                "# Fake Repo",
+                "",
+                "[Model](models/fake/README.md)",
+                "[Guide](models/fake/REPRODUCING.md)",
+                "[License](LICENSE)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "LICENSE").write_text("Fake license.\n", encoding="utf-8")
     (package_dir / "__init__.py").write_text(
         "from .public import PublicThing\n",
         encoding="utf-8",
@@ -78,6 +92,23 @@ def test_gen_ref_pages_writes_standalone_api_tree(
 
     gen_ref_pages.main()
 
+    assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
+        [
+            "---",
+            "icon: lucide/layout-template",
+            "tags:",
+            "  - Overview",
+            "  - Documentation",
+            "---",
+            "",
+            "# Fake Repo",
+            "",
+            "[Model](api/models/fake-project/index.md)",
+            "[Guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/fake/REPRODUCING.md)",
+            "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
+            "",
+        ]
+    )
     assert (tmp_path / "docs/api/index.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
@@ -109,6 +140,8 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert (
         "      - Models:\n          - Overview: api/models/index.md" in generated_config
     )
+    assert "  - Getting Started: getting-started.md" in generated_config
+    assert "  - Models: models.md" in generated_config
     assert (
         "          - FakeProject: api/models/fake-project/index.md" in generated_config
     )
@@ -132,6 +165,7 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
         "site_name: fake\nnav:\n  - Overview: index.md\n",
         encoding="utf-8",
     )
+    (tmp_path / "README.md").write_text("# Fake Repo\n", encoding="utf-8")
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
     monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
@@ -147,3 +181,56 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
         match=r"Model package models/fake must include REPRODUCING\.md",
     ):
         gen_ref_pages.main()
+
+
+def test_imported_public_modules_accepts_absolute_self_imports(tmp_path: Path) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    package = tmp_path / "layout_gpt"
+    package.mkdir()
+    init_file = package / "__init__.py"
+    init_file.write_text(
+        "\n".join(
+            [
+                "from layout_gpt.agent import LayoutGPTAgent",
+                "from layout_gpt.enums import ICLType",
+                "from .schema import LayoutGPTOutput",
+                "import layout_gpt.types",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert gen_ref_pages.imported_public_modules(init_file) == {
+        "agent",
+        "enums",
+        "schema",
+        "types",
+    }
+
+
+def test_model_conversion_modules_are_documented(tmp_path: Path) -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    package = tmp_path / "layout_dm"
+    package.mkdir()
+    conversion = package / "conversion.py"
+    conversion.write_text('"""Conversion helpers."""\n', encoding="utf-8")
+
+    assert gen_ref_pages.should_document_source(
+        conversion,
+        package,
+        "Models",
+        imported_modules=set(),
+    )
+
+
+def test_generated_overview_matches_readme_with_rewritten_links() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    expected = gen_ref_pages.rewrite_repo_relative_links(
+        (REPO_ROOT / "README.md").read_text(encoding="utf-8").rstrip()
+    )
+
+    gen_ref_pages.main()
+
+    assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
+        f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
+    )

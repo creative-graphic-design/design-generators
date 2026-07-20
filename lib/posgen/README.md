@@ -69,4 +69,9 @@ model package -> laygen
 
 ## Growth Rule
 
-Add to `posgen` only when a second package needs the same behavior, or when a first consumer needs a stable public contract before other position-generation packages arrive.
+Add to `posgen` only when a second package needs the same behavior, or when a first consumer needs a stable public contract before other poster/content-aware placement packages arrive.
+
+## Pointers
+
+- [Documentation site](https://creative-graphic-design.github.io/design-generators/)
+- [API reference](https://creative-graphic-design.github.io/design-generators/api/libraries/posgen/)

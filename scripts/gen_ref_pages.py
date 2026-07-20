@@ -12,12 +12,16 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
 GENERATED_MKDOCS_CONFIG = ROOT / "mkdocs.generated.yml"
+GITHUB_BLOB_BASE_URL = (
+    "https://github.com/creative-graphic-design/design-generators/blob/main"
+)
 MEMBER_PARENTS = ("lib", "models")
 GROUP_TITLES = {
     "lib": "Libraries",
     "models": "Models",
 }
 PUBLIC_MODEL_MODULE_PREFIXES = (
+    "conversion",
     "configuration",
     "modeling",
     "model_card",
@@ -29,6 +33,13 @@ PUBLIC_MODEL_MODULE_PREFIXES = (
     "tokenization",
     "tokenizer",
 )
+OVERVIEW_FRONTMATTER = """---
+icon: lucide/layout-template
+tags:
+  - Overview
+  - Documentation
+---
+"""
 
 
 @dataclass(frozen=True)
@@ -66,6 +77,50 @@ def write_generated_file(path: Path, content: str) -> None:
     """Write generated content outside the tracked documentation tree."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def site_page_for_repo_link(link: str) -> str:
+    """Return the documentation-site target for a repository-relative link."""
+    target = link.removeprefix("./")
+    if target.startswith(("http://", "https://", "#", "mailto:")):
+        return link
+    if target.startswith("models/") and target.endswith("/README.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            project_name = read_project_name(
+                ROOT / "models" / parts[1] / "pyproject.toml"
+            )
+            return f"api/models/{package_slug(project_name)}/index.md"
+    if target.startswith("lib/") and target.endswith("/README.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            project_name = read_project_name(ROOT / "lib" / parts[1] / "pyproject.toml")
+            return f"api/libraries/{package_slug(project_name)}/index.md"
+    return f"{GITHUB_BLOB_BASE_URL}/{target}"
+
+
+def rewrite_repo_relative_links(markdown: str) -> str:
+    """Rewrite README repository links for the generated documentation site."""
+
+    def replace(match: re.Match[str]) -> str:
+        label = match.group("label")
+        link = match.group("link")
+        return f"[{label}]({site_page_for_repo_link(link)})"
+
+    return re.sub(
+        r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
+        replace,
+        markdown,
+    )
+
+
+def write_overview_page() -> None:
+    """Generate the documentation Overview page from the repository README."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").rstrip()
+    write_text_file(
+        Path("index.md"),
+        f"{OVERVIEW_FRONTMATTER}\n{rewrite_repo_relative_links(readme)}\n",
+    )
 
 
 def iter_member_dirs() -> list[Path]:
@@ -188,10 +243,23 @@ def reproducing_page_path_for(
 def imported_public_modules(init_file: Path) -> set[str]:
     """Return sibling module stems imported by a package ``__init__`` file."""
     imported_modules: set[str] = set()
+    package_name = init_file.parent.name
     module = ast.parse(init_file.read_text(encoding="utf-8"), filename=str(init_file))
     for node in ast.walk(module):
-        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
-            imported_modules.add(node.module.split(".", maxsplit=1)[0])
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 1 and node.module:
+                imported_modules.add(node.module.split(".", maxsplit=1)[0])
+            elif node.level == 0 and node.module:
+                parts = node.module.split(".")
+                if len(parts) > 1 and parts[0] == package_name:
+                    imported_modules.add(parts[1])
+                elif node.module == package_name:
+                    imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if len(parts) > 1 and parts[0] == package_name:
+                    imported_modules.add(parts[1])
     return imported_modules
 
 
@@ -367,6 +435,8 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
     lines = [
         "nav:",
         "  - Overview: index.md",
+        "  - Getting Started: getting-started.md",
+        "  - Models: models.md",
         "  - Conventions: conventions.md",
         "  - API Reference:",
         "      - Overview: api/index.md",
@@ -436,6 +506,7 @@ def main() -> None:
     """Generate all API reference files."""
     clean_generated_api_dir()
     packages = discover_api_packages()
+    write_overview_page()
     write_api_index(packages)
     write_group_indexes(packages)
     write_package_indexes(packages)

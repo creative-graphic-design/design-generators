@@ -491,10 +491,11 @@ def test_layoutdm_model_card_metadata_and_sections():
 
     assert metadata["license"] == "apache-2.0"
     assert metadata["library_name"] == "diffusers"
-    assert metadata["pipeline_tag"] == "text-to-image"
+    assert metadata["pipeline_tag"] == "other"
     assert metadata["language"] == ["en"]
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/Rico"]
+    assert "ui-screenshots-and-hierarchies-with-semantic-annotations" in text
     card.validate()
     assert "## Model Details" in text
     assert "### Model Description" in text
@@ -537,6 +538,7 @@ def test_layoutdm_model_card_mapping_inputs_and_errors():
         ],
     )
     assert "| publaynet | 1/1 | 1/1 | 0 | 0 |" in str(card)
+    assert "creative-graphic-design/PubLayNet` with the default config" in str(card)
     with pytest.raises(ValueError, match="Unsupported LayoutDM dataset"):
         layoutdm_model_card(dataset="unknown")
 

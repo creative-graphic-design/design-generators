@@ -79,7 +79,19 @@ print(out.to_tuple()[0].shape)
 Subclass `laygen.pipelines.LayoutGenerationPipeline` for `transformers`-side pipeline packages that load a root config plus model or processor subfolders.
 
 ```python
+from __future__ import annotations
+
+from pathlib import Path
+
+from transformers import PretrainedConfig
+
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+
+
+class TinyModel:
+    @classmethod
+    def from_pretrained(cls, path: str | Path, **kwargs: object) -> "TinyModel":
+        return cls()
 
 
 class MyPipeline(LayoutGenerationPipeline):
@@ -87,9 +99,27 @@ class MyPipeline(LayoutGenerationPipeline):
         "model": PipelineComponentSpec(
             attribute_name="model",
             subfolder="model",
-            loader=load_model,
+            loader=TinyModel.from_pretrained,
         )
     }
+
+    @classmethod
+    def _from_pretrained_components(
+        cls,
+        *,
+        config: PretrainedConfig,
+        components: dict[str, object],
+        model_path: Path,
+        **kwargs: object,
+    ) -> "MyPipeline":
+        return cls(config=config, model=components["model"])
+
+    def __init__(self, *, config: PretrainedConfig, model: object) -> None:
+        super().__init__(config=config)
+        self.model = model
+
+    def __call__(self, **kwargs: object) -> object:
+        return {"model": self.model, "config": self.config}
 ```
 
 Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use `diffusers` under the hood while preserving vendor aliases such as `quad`.
@@ -176,3 +206,9 @@ Install the `torch` extra when constructing tensor-backed `LayoutGenerationOutpu
 - `laygen.pipelines.LayoutGenerationPipeline` owns the shared `transformers`-side pipeline contract for config/subfolder loading, saving, device/dtype movement, and generator-over-seed handling. Model packages own their task-specific `__call__` orchestration.
 - `laygen.modeling_outputs` and `laygen.pipelines.pipeline_output` own output schemas; `laygen.common` owns bbox, conditions, labels, testing, serialization, visualization, and model-card helpers; neural-network blocks live in `laygen.nn`, and scheduler adapters live in `laygen.schedulers`.
 - `diffusers`-backed helpers stay behind the `diffusion` extra unless they specifically target `diffusers` pipeline outputs.
+
+## Pointers
+
+- [Documentation site](https://creative-graphic-design.github.io/design-generators/)
+- [API reference](https://creative-graphic-design.github.io/design-generators/api/libraries/laygen/)
+- [Getting started](https://creative-graphic-design.github.io/design-generators/getting-started/)

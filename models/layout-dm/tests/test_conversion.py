@@ -70,7 +70,7 @@ def test_write_layoutdm_model_card(tmp_path):
     assert "tag:yaml.org" not in text
     assert "license: apache-2.0" in text
     assert "library_name: diffusers" in text
-    assert "pipeline_tag: text-to-image" in text
+    assert "pipeline_tag: other" in text
     assert "creative-graphic-design/Rico" in text
     assert "LayoutDMPipeline.from_pretrained" in text
     assert "## Uses" in text

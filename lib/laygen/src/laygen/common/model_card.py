@@ -320,6 +320,7 @@ def layoutdm_model_card(
         ['creative-graphic-design/PubLayNet']
     """
     dataset_id = _layoutdm_dataset_id(dataset)
+    dataset_config = _layoutdm_dataset_config(dataset)
     model_id = f"creative-graphic-design/layoutdm-{dataset}"
     model_name = f"LayoutDM {dataset}"
     metrics = parity_metrics or [
@@ -334,7 +335,9 @@ def layoutdm_model_card(
     how_to_use = f"""
 from layout_dm import LayoutDMPipeline
 
-pipe = LayoutDMPipeline.from_pretrained("{model_id}")
+path = ".cache/layout-dm/converted/layoutdm-{dataset}"
+# After Hub publication: from_pretrained("{model_id}")
+pipe = LayoutDMPipeline.from_pretrained(path)
 out = pipe(batch_size=1, seed=0, sampling="deterministic")
 print(out.bbox, out.labels, out.mask)
 """
@@ -344,7 +347,7 @@ print(out.bbox, out.labels, out.mask)
         dataset_ids=[dataset_id],
         license="apache-2.0",
         library_name="diffusers",
-        pipeline_tag="text-to-image",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "layout-dm",
@@ -366,7 +369,8 @@ print(out.bbox, out.labels, out.mask)
         ),
         how_to_use=how_to_use,
         training_data=(
-            f"The original checkpoint was trained on `{dataset_id}` as released by "
+            f"The original checkpoint was trained on `{dataset_id}`"
+            f"{dataset_config} as released by "
             "the original LayoutDM project."
         ),
         parity_metrics=metrics,
@@ -380,6 +384,14 @@ def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
         return "creative-graphic-design/Rico"
     if dataset == "publaynet":
         return "creative-graphic-design/PubLayNet"
+    raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
+
+
+def _layoutdm_dataset_config(dataset: DatasetName | str) -> str:
+    if dataset == "rico25":
+        return " with config `ui-screenshots-and-hierarchies-with-semantic-annotations`"
+    if dataset == "publaynet":
+        return " with the default config"
     raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 
