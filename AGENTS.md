@@ -9,7 +9,7 @@
 repositories into Transformers/Diffusers-style packages that can load converted
 weights with `from_pretrained` and run inference immediately. Keep repository
 rules here stable and concise; procedural implementation guidance lives in
-repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
+repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 
 ## Sources Of Truth
 
@@ -38,6 +38,14 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
 
+## Repo-Local Skills
+
+- Skill source of truth is `.agents/skills/<name>/SKILL.md`.
+- `.claude/skills` is a relative symlink to `.agents/skills` for Claude
+  compatibility.
+- Codex should read the relevant `.agents/skills/<name>/SKILL.md` directly
+  when a repo-local skill applies.
+
 ## Naming
 
 - Model package names and Hub repo ids use the method name known in the
@@ -49,6 +57,12 @@ repo-local skills such as `.claude/skills/model-conversion/SKILL.md`.
 
 ## Tracking
 
+- If the user asks to create or file an issue first, treat issue creation as a
+  hard gate: create the issue and record its URL before implementation, commits,
+  or PR work. Do not substitute a PR for the requested issue.
+- Every implementation PR must reference its implementation issue in the PR
+  summary with `Closes #N` or `Refs #N`. The standing checklist issue #60 does
+  not count as the implementation issue.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue

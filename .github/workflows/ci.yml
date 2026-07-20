@@ -7,6 +7,24 @@ on:
       - main
 
 jobs:
+  pr-metadata:
+    name: PR Metadata
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Check issue reference
+        run: python scripts/check_pr_issue_reference.py
+
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -221,9 +239,9 @@ jobs:
         run: uv sync --all-packages --group docs
 
       - name: Build documentation
-        env:
-          DISABLE_MKDOCS_2_WARNING: "true"
-        run: uv run --group docs mkdocs build --strict
+        run: |
+          uv run --group docs python scripts/gen_ref_pages.py
+          uv run --group docs zensical build --strict -f mkdocs.generated.yml
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
