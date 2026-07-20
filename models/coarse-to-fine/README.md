@@ -70,7 +70,12 @@ Coarse-to-Fine generates page or UI layouts through a hierarchy-aware `transform
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
-The released checkpoints support unconditional hierarchical generation only. Public v1/v2 condition names are accepted at the API boundary, but unsupported modes such as `label`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval` raise `NotImplementedError`.
+The released checkpoints support unconditional hierarchical generation only. Canonical `condition_type` names are normalized at the API boundary, and unsupported modes fail explicitly.
+
+| `condition_type` | Required inputs | Support |
+| --- | --- | --- |
+| `unconditional` | none | supported |
+| `label`, `label_size`, `completion`, `refinement`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
 
 ### Downstream Use
 
@@ -113,9 +118,10 @@ processor = CoarseToFineProcessor.from_pretrained(path)
 pipe = CoarseToFinePipeline(model=model, processor=processor)
 
 out = pipe(batch_size=2, seed=0, return_intermediates=True)
-print(out.bbox)
-print(out.labels)
-print(out.intermediates["hierarchy"]["group_bbox"])
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
+print(out.intermediates["hierarchy"]["group_bbox"].shape)
 ```
 
 ## Training Details
@@ -213,7 +219,7 @@ Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration r
 ```bibtex
 @inproceedings{jiang2022coarse,
   title = {Coarse-to-Fine Generative Modeling for Graphic Layouts},
-  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Jichen and Deng, Jingwen and Luo, Jian and Li, Jianmin and Zheng, Yu and Fu, Yun},
+  author = {Jiang, Zhaoyun and Sun, Shizhao and Zhu, Jihua and Lou, Jian-Guang and Zhang, Dongmei},
   booktitle = {AAAI},
   year = {2022}
 }

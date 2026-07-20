@@ -1,3 +1,5 @@
+import pytest
+
 from layout_corrector.model_card import MODEL_CARD_TEMPLATE, layout_corrector_model_card
 
 
@@ -11,16 +13,29 @@ def test_static_model_card_template_metadata():
     )
 
 
-def test_layout_corrector_model_card_metadata():
-    card = layout_corrector_model_card(dataset="crello-bbox")
+@pytest.mark.parametrize(
+    ("dataset", "expected_name", "expected_dataset_id"),
+    [
+        ("rico25", "rico25", "creative-graphic-design/Rico"),
+        ("publaynet", "publaynet", "creative-graphic-design/PubLayNet"),
+        ("crello-bbox", "crello", "cyberagent/crello"),
+    ],
+)
+def test_layout_corrector_model_card_metadata(
+    dataset: str, expected_name: str, expected_dataset_id: str
+) -> None:
+    card = layout_corrector_model_card(dataset=dataset)
 
     data = card.data.to_dict()
     assert data["license"] == "mit"
     assert data["library_name"] == "diffusers"
     assert data["pipeline_tag"] == "unconditional-layout-generation"
-    assert data["datasets"] == ["cyberagent/crello"]
+    assert data["datasets"] == [expected_dataset_id]
     text = str(card)
-    assert "Layout-Corrector crello" in text
+    assert f"Layout-Corrector {expected_name}" in text
+    assert expected_dataset_id in text
+    assert "creative-graphic-design/rico25" not in text
+    assert "creative-graphic-design/publaynet" not in text
     assert (
         "training-free corrector module for discrete diffusion layout generators"
         in text

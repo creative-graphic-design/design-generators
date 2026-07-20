@@ -59,7 +59,9 @@ def module_labels_for_path(path: str) -> set[str]:
     """Return Pylint module label variants that may refer to a file path."""
     without_suffix = path.removesuffix(".py")
     parts = without_suffix.split("/")
-    labels = {parts[-1], ".".join(parts)}
+    labels = {".".join(parts)}
+    if len(parts) == 2 and parts[0] == "scripts":
+        labels.add(parts[-1])
     if "src" in parts:
         src_index = parts.index("src")
         labels.add(".".join(parts[src_index + 1 :]))
@@ -113,6 +115,8 @@ def block_module_labels(block: str) -> set[str]:
 
 def label_matches(changed_label: str, report_label: str) -> bool:
     """Return whether a changed module label matches a Pylint report label."""
+    if "." not in changed_label or "." not in report_label:
+        return changed_label == report_label
     return (
         changed_label == report_label
         or changed_label.endswith(f".{report_label}")

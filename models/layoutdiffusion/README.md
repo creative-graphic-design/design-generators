@@ -72,6 +72,13 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
+| `condition_type` | Required inputs | Effect |
+| --- | --- | --- |
+| `unconditional` | none | samples labels and geometry |
+| `label` | `labels`, optional `num_elements` | keeps labels fixed and samples geometry |
+| `refinement` | `bbox`, `labels`, `mask` | refines an encoded layout |
+| `label_size`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -105,11 +112,16 @@ from layoutdiffusion import LayoutDiffusionPipeline
 path = ".cache/layoutdiffusion/converted/layoutdiffusion-rico25"
 # After Hub publication: from_pretrained("creative-graphic-design/layoutdiffusion-rico25")
 pipe = LayoutDiffusionPipeline.from_pretrained(path)
-out = pipe(batch_size=1, generator=None, condition_type="unconditional", seed=0)
+out = pipe(batch_size=1, condition_type="unconditional", seed=0)
 
-print(out.bbox)
-print(out.labels)
-print(out.mask)
+print(out.bbox.shape)
+print(out.labels.shape)
+print(out.id2label[int(out.labels[out.mask][0])])
+```
+
+```python
+out = pipe(condition_type="label", labels=[[0, 1, 2]], seed=0)
+print(out.bbox.shape)
 ```
 
 ## Training Details

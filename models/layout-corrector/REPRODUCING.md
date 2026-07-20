@@ -4,7 +4,7 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
 
-Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands below use GPU index 5; change it if needed. Initialize the required vendor submodules once with `git submodule update --init vendor/layout-corrector vendor/layout-dm`.
+Prerequisites: run from the repository root and use an environment with CUDA when reproducing GPU parity. The commands use `CUDA_VISIBLE_DEVICES=<gpu-index>`; replace `<gpu-index>` with one CUDA device visible on your machine. Initialize the required vendor submodules once with `git submodule update --init vendor/layout-corrector vendor/layout-dm`.
 
 1. Download the original starter kit. This creates `.cache/layout-corrector/original/layout_corrector_starter.zip` and extracts `.cache/layout-corrector/original/layout_corrector_starter_kit/download`.
 
@@ -24,7 +24,7 @@ uv run --package layout-dm --extra download python models/layout-dm/scripts/down
 
 ```bash
 for dataset in rico25 publaynet; do
-  CUDA_VISIBLE_DEVICES=5 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+  CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
     --dataset "${dataset}" \
     --starter-dir .cache/layout-dm/original/download \
     --output-dir "models/layout-dm/tests/vendor_parity/fixtures/${dataset}" \
@@ -65,7 +65,7 @@ done
 5. Run parity. This executes nine checks and prints exact-match and logits tolerance values.
 
 ```bash
-CUDA_VISIBLE_DEVICES=5 uv run --package layout-corrector --extra vendor pytest \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-corrector --extra vendor pytest \
   models/layout-corrector/tests/vendor_parity \
   -q -m vendor_parity -s
 ```

@@ -4,7 +4,7 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
 
-Run these commands from the repository root unless a block explicitly changes directory. The commands assume CUDA is available as device `0`, the vendored original implementation is present at `vendor/layout-dm`, and generated files may be written under `.cache/` and `models/layout-dm/tests/vendor_parity/fixtures/`. If this worktree does not contain the vendor submodule contents, pass `--vendor-dir /path/to/design-generators/vendor/layout-dm` to `generate_reference_outputs.py`.
+Run these commands from the repository root unless a block explicitly changes directory. The commands use `CUDA_VISIBLE_DEVICES=<gpu-index>`; replace `<gpu-index>` with one CUDA device visible on your machine. The vendored original implementation is present at `vendor/layout-dm`, and generated files may be written under `.cache/` and `models/layout-dm/tests/vendor_parity/fixtures/`. If this worktree does not contain the vendor submodule contents, pass `--vendor-dir /path/to/design-generators/vendor/layout-dm` to `generate_reference_outputs.py`.
 
 Prerequisite:
 
@@ -31,7 +31,7 @@ This writes local-only parity fixtures for each dataset:
 - `models/layout-dm/tests/vendor_parity/fixtures/<dataset>/meta.json`
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/rico25 \
@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/l
   --seed 0 \
   --batch-size 1
 
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
   --dataset publaynet \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir models/layout-dm/tests/vendor_parity/fixtures/publaynet \
@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm --extra vendor python models/l
 ### 3. Run Vendor Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity -m vendor_parity -rs
 ```
 
 Expected result with the fixtures above:
