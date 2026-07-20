@@ -4,7 +4,7 @@ This guide reproduces the original-implementation agreement checks for the Parse
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
-Run commands from the repository root. Set `CUDA_VISIBLE_DEVICES` to one GPU index for vendor reference generation and parity; the review commands used GPU 5, while the placeholder below should be changed for your machine.
+Run commands from the repository root. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use for vendor reference generation and parity.
 
 1. Download the original assets. This writes `.cache/parse-then-place/assets`, including the expected `ckpt/rico/stage1/pytorch_model.bin` parser state and stage-2 placement checkpoints.
 

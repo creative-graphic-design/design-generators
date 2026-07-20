@@ -83,7 +83,7 @@ Use this package for research inference, conversion checks, and vendor-parity va
 Each released task has an incompatible task-specific checkpoint, so Hub ids include the task suffix. Supported public conditions map to vendor tasks as follows: `gen_t` -> `label`, `gen_ts` -> `label_size`, `gen_r` -> `relation`, `refinement` -> `refinement`, `completion` -> `completion`, and `ugen` -> `unconditional`.
 
 Task inputs follow the public condition shape for the selected checkpoint:
-`label` takes `labels=[["Text", "Image"]]`; `label_size` adds matching normalized center `xywh` boxes; `relation` takes five-integer relation tuples; `completion` and `refinement` take partial `labels`, `bbox`, and `mask`; `unconditional` needs no layout condition. If `normalized=False`, pass `canvas_size=(width, height)` so pixel boxes can be converted to the internal discrete `ltwh` grid.
+`label` takes `labels=[["Text", "Image"]]`; `label_size` adds matching normalized center `xywh` boxes; `relation` takes five-integer relation tuples such as `(0, 1, 2, 3, 1)` for `(subject_index, relation_id, object_index, constraint_id, value)`; `completion` and `refinement` take partial `labels`, `bbox`, and `mask`; `unconditional` needs no layout condition. If `normalized=False`, pass `canvas_size=(width, height)` so pixel boxes can be converted to the internal discrete `ltwh` grid.
 
 ### Downstream Use
 

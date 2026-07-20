@@ -10,7 +10,7 @@ Prerequisites:
 - Use `uv sync --package layoutformerpp` once before the first run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES` to the GPU assigned for the vendor reference/parity run. The review commands used GPU 5; replace the placeholder below with the index assigned on your machine.
+- Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use.
 
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 

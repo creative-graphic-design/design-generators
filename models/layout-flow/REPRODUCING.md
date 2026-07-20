@@ -18,7 +18,7 @@ Run the commands below from the repository root. The original source under `vend
 uv run --package layout-flow python models/layout-flow/scripts/download_original.py
 ```
 
-2. Generate vendor golden/reference tensors. Set `CUDA_VISIBLE_DEVICES` to one GPU index; the review commands used GPU 5, while the placeholder below should be changed for your machine. The script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
+2. Generate vendor golden/reference tensors. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use. The script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
