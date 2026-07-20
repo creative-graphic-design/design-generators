@@ -60,6 +60,10 @@ DATASET_LINKS = {
 }
 PAPER_LINKS = {
     ("paper", "AAAI"): "https://ojs.aaai.org/index.php/AAAI/article/view/19994",
+    (
+        "paper",
+        "CVPR 2021",
+    ): "https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html",
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",

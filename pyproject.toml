@@ -17,6 +17,7 @@ dependencies = [
     "layoutdiffusion",
     "layout-flow",
     "layout-gpt",
+    "layout-transformer",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -68,6 +69,7 @@ layout-corrector = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
+layout-transformer = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
