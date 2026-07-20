@@ -171,6 +171,13 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": ["creative-graphic-design/Rico", "Web"],
     },
+    "ralf": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/CGL-Dataset",
+            "creative-graphic-design/PKU-PosterLayout",
+        ],
+    },
 }
 
 
@@ -189,6 +196,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "ralf": "RALF",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -197,6 +205,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
 }
 
@@ -287,6 +296,8 @@ def _dataset_display_name(value: str) -> str:
         "creative-graphic-design/Rico": "RICO25",
         "creative-graphic-design/PubLayNet": "PubLayNet",
         "creative-graphic-design/magazine": "Magazine",
+        "creative-graphic-design/CGL-Dataset": "CGL",
+        "creative-graphic-design/PKU-PosterLayout": "PKU",
         "cyberagent/crello": "Crello",
     }.get(normalized, normalized)
 

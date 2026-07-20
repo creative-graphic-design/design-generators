@@ -94,11 +94,19 @@ def test_module_labels_for_path_returns_pylint_variants() -> None:
     assert check_duplicate_code.module_labels_for_path(
         "models/layout-dm/src/layout_dm/pipeline.py"
     ) == {
-        "pipeline",
         "models.layout-dm.src.layout_dm.pipeline",
         "layout_dm.pipeline",
         "src.layout_dm.pipeline",
     }
+    assert (
+        "generate_reference_outputs"
+        not in check_duplicate_code.module_labels_for_path(
+            "models/ralf/scripts/generate_reference_outputs.py"
+        )
+    )
+    assert "check_duplicate_code" in check_duplicate_code.module_labels_for_path(
+        "scripts/check_duplicate_code.py"
+    )
 
 
 def test_build_command_uses_duplicate_code_only() -> None:
@@ -147,12 +155,15 @@ def test_block_module_labels_extracts_report_modules() -> None:
 
 
 def test_label_matches_module_suffixes() -> None:
-    assert check_duplicate_code.label_matches("layout_dm.pipeline", "pipeline")
+    assert check_duplicate_code.label_matches("pipeline", "pipeline")
     assert check_duplicate_code.label_matches(
         "layout_dm.pipeline", "layout_dm.pipeline"
     )
     assert check_duplicate_code.label_matches(
         "src.layout_dm.pipeline", "layout_dm.pipeline"
+    )
+    assert not check_duplicate_code.label_matches(
+        "models.ralf.scripts.generate_reference_outputs", "generate_reference_outputs"
     )
     assert not check_duplicate_code.label_matches(
         "layout_dm.pipeline", "other.pipeline"

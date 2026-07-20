@@ -1,0 +1,46 @@
+[project]
+name = "ralf"
+version = "0.1.0"
+description = "Transformers-style RALF conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "einops>=0.7",
+    "huggingface-hub>=0.24",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "posgen",
+    "safetensors>=0.4",
+    "timm>=0.9",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "gdown>=6.1",
+]
+vendor = [
+    "datasets>=2.18",
+    "fsspec>=2024",
+    "hydra-core>=1.3",
+    "omegaconf>=2.3",
+    "opencv-python>=4.8",
+    "prdc>=0.2",
+    "pytorch-fid>=0.3",
+    "pyyaml>=6.0",
+    "rich>=13",
+    "scikit-learn>=1.3",
+    "seaborn>=0.13",
+    "torch-fidelity>=0.3",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original RALF weights, cache.zip, and vendor dependencies",
+]
