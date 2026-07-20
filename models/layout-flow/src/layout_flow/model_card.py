@@ -63,7 +63,7 @@ print(out.bbox, out.labels, out.mask, out.id2label)
         dataset_ids=[dataset_id],
         license="mit",
         library_name="diffusers",
-        pipeline_tag="text-to-image",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "layout-flow",
@@ -101,7 +101,7 @@ print(out.bbox, out.labels, out.mask, out.id2label)
             {
                 "dataset": dataset_value,
                 "tokenizer_exact": "n/a",
-                "deterministic_exact": "Euler exact",
+                "deterministic_exact": "Euler trajectory not measured by parity test",
                 "logits_max_abs": 0.0,
                 "logits_max_rel": 0.0,
             }

@@ -22,8 +22,8 @@ from .tasks import (
 LAYOUTFORMERPP_BIBTEX = r"""
 @inproceedings{jiang2023layoutformerpp,
   title = {LayoutFormer++: Conditional Graphic Layout Generation via Constraint Serialization and Decoding Space Restriction},
-  author = {Jiang, Zhaoyun and Guo, Shizhao and Wang, Yihan and Deng, Jingwen and Li, Jianmin and Zheng, Yu and Fu, Yun},
-  booktitle = {CVPR},
+  author = {Jiang, Zhaoyun and Guo, Jiaqi and Sun, Shizhao and Deng, Huayu and Wu, Zhongkai and Mijovic, Vuksan and Yang, Zijiang James and Lou, Jian-Guang and Zhang, Dongmei},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
   year = {2023}
 }
 """
@@ -107,7 +107,7 @@ print(out.bbox, out.labels, out.mask)
         dataset_ids=[dataset_id],
         license="mit",
         library_name="transformers",
-        pipeline_tag="text-generation",
+        pipeline_tag="other",
         tags=[
             "layout-generation",
             "layoutformer++",

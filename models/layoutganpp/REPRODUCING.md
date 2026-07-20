@@ -14,24 +14,24 @@ uv run --package layoutganpp python models/layoutganpp/scripts/download_original
   --dataset all
 ```
 
-Step 2 generates golden vendor fixtures with the const-layout code. The generated files are `.cache/layoutganpp/fixtures/<dataset>/reference_seed0.pt`. Set `CUDA_VISIBLE_DEVICES` to the GPU index you want the vendor model to use.
+Step 2 generates golden vendor fixtures with the const-layout code. The generated files are `.cache/layoutganpp/fixtures/<dataset>/reference_seed0.pt`. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_rico.pth.tar \
   --output .cache/layoutganpp/fixtures/rico/reference_seed0.pt \
   --seed 0 \
   --batch-size 3
 
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_publaynet.pth.tar \
   --output .cache/layoutganpp/fixtures/publaynet/reference_seed0.pt \
   --seed 0 \
   --batch-size 3
 
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutganpp python models/layoutganpp/scripts/generate_reference.py \
   --vendor-dir vendor/const-layout \
   --checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar \
   --output .cache/layoutganpp/fixtures/magazine/reference_seed0.pt \
@@ -58,15 +58,15 @@ uv run --package layoutganpp python models/layoutganpp/scripts/convert_original_
 Step 4 runs the vendor parity tests against the generated references and converted checkpoints.
 
 ```bash
-CUDA_VISIBLE_DEVICES=3 uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutganpp pytest models/layoutganpp/tests/vendor_parity -m vendor_parity -q
 ```
 
 Expected parity results:
 
 ```text
-rico: shape=(3, 9, 4), max_abs=0, max_rel=0
-publaynet: shape=(3, 9, 4), max_abs=0, max_rel=0
-magazine: shape=(3, 33, 4), max_abs=0, max_rel=0
+rico: shape=(3, 9, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
+publaynet: shape=(3, 9, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
+magazine: shape=(3, 33, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
 ```
 
 Step 5 runs a `from_pretrained` smoke check for each converted checkpoint. The expected bbox shapes are `(1, 2, 4)`.

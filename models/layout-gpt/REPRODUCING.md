@@ -4,30 +4,23 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: prepare prompt assets, generate references, run parity checks, save prompt configuration, then smoke-test local loading.
 
-These steps reproduce the deterministic parity checks. The generated JSON is
-written to `.cache/layout-gpt/vendor-golden.json`. The scripts look for
-`vendor/layout-gpt` next to this worktree; pass `--vendor-root` if your checkout
-is elsewhere.
+These steps reproduce the deterministic parity checks. The generated JSON is an inspectable artifact written to `.cache/layout-gpt/vendor-golden.json`; the parity test also regenerates its golden data in-process so the test cannot accidentally pass by reading a stale file. The scripts look for `vendor/layout-gpt` inside this repository; pass `--vendor-root` if your checkout is elsewhere.
 
-### 1. Prepare Prompt Configuration Cache
+### 1. Prepare Prompt Assets
 
-LayoutGPT itself has no learned weights. This command prepares a cache
-directory for prompt configuration and generated vendor-reference JSON without
-downloading anything.
+LayoutGPT itself has no learned weights to download. Initialize the original prompt and NSR-1K data source before generating references.
 
 ```bash
-export LAYOUT_GPT_CACHE_DIR="${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}"
-mkdir -p "${LAYOUT_GPT_CACHE_DIR}"
-printf 'LayoutGPT has no learned weights to download. Cache: %s\n' "${LAYOUT_GPT_CACHE_DIR}"
+git submodule update --init vendor/layout-gpt
 ```
 
 ### 2. Regenerate Vendor Golden Data
 
-The generated JSON path is controlled by `LAYOUT_GPT_CACHE_DIR`.
+This writes an inspectable reference artifact.
 
 ```bash
 uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_golden.py \
-  --output "${LAYOUT_GPT_CACHE_DIR:-.cache/layout-gpt}/vendor-golden.json"
+  --output .cache/layout-gpt/vendor-golden.json
 ```
 
 ### 3. Run Parity Tests

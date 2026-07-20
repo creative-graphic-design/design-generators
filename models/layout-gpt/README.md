@@ -55,6 +55,8 @@ Use this package for research inference, prompt-serialization checks, and vendor
 
 LayoutGPT builds the same in-context prompts as the original 2D script, calls any `pydantic-ai` compatible chat model, and parses CSS-style layout lines into typed Python objects and the shared layout output schema. The supported settings are `counting` and `spatial`; exemplar selection supports `fixed-random` and `k-similar`.
 
+Real provider calls require the credentials used by the selected `pydantic-ai` provider. For the default OpenAI provider, set `OPENAI_API_KEY`; for other providers, set the provider-specific API key before running `run_sync()` or the demo script.
+
 ### Downstream Use
 
 Generated layouts may feed rendering, design tooling, layout evaluation, or downstream content placement systems after task-specific validation.
@@ -101,6 +103,14 @@ layout_output = output.to_layout_generation_output()
 print(loaded.config.setting)
 print(layout_output.bbox)
 print(layout_output.id2label)
+```
+
+The example above is an offline parser/output demo; it does not call an LLM provider.
+
+```text
+counting
+tensor([[[0.5000, 0.5000, 0.5000, 0.5000]]])
+{0: 'clock'}
 ```
 
 ## Training Details
