@@ -10,6 +10,7 @@ dependencies = [
     "pillow>=10",
     "safetensors>=0.4",
     "scikit-learn>=1.0",
+    "threadpoolctl>=3.0",
     "torch>=2.1",
     "torchvision>=0.16",
     "transformers[torch,vision]>=5.0.0",

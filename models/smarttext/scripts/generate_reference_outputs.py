@@ -6,6 +6,7 @@ models with small module shims that route those two alignment ops to the
 PyTorch port used by this package.
 """
 
+# ruff: noqa: E402
 from __future__ import annotations
 
 import argparse
@@ -18,9 +19,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
+# Set BLAS/OpenMP defaults before importing the vendor cal_color module.
+for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_thread_env_var, "1")
+
 import numpy as np
 import torch
 from PIL import Image, ImageDraw, ImageFont
+from threadpoolctl import threadpool_limits
 
 from smarttext.modeling_smarttext import SmartTextRoDAlignAvg, SmartTextRoIAlignAvg
 
@@ -314,9 +320,10 @@ def main() -> None:
                 int(top_row["yl"]) : int(top_row["yr"]),
             ]
             np.random.seed(args.seed)
-            color_candidates = cal_best_color(
-                image_array, crop, contrast_threshold=args.contrast_threshold
-            )
+            with threadpool_limits(limits=1):
+                color_candidates = cal_best_color(
+                    image_array, crop, contrast_threshold=args.contrast_threshold
+                )
             colors_by_image[image_name] = {
                 "candidate_index": int(order[0]),
                 "text_color": RGB_to_Hex(color_candidates[0]["color"]),

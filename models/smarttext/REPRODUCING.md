@@ -24,7 +24,7 @@ Expected artifacts:
 
 The original RoI/RoD CUDA extensions do not build against the current PyTorch extension API. This command keeps `vendor/` read-only and imports the vendor Python code with the package's PyTorch RoI/RoD shim. The shim is a source-level port of the vendor formulas: RoIAlign uses the scaled box lattice and bilinear interpolation, RoDAlign uses the whole-feature lattice and masks the inside of the scaled box, and both average variants apply the same 2x2 stride-1 pooling.
 
-The script sets `torch.use_deterministic_algorithms(True)`, disables TF32, disables cuDNN, and fixes the KMeans seed used by vendor `cal_best_color`. With cuDNN enabled, the first cross-process drift appears at the scorer's first ShuffleNetV2 convolution (`Feat_ext.feature3.0.0`) by a few float32 ULPs even with deterministic algorithms enabled.
+The script sets `torch.use_deterministic_algorithms(True)`, disables TF32, disables cuDNN, and fixes the KMeans seed and threadpool used by vendor `cal_best_color`. With cuDNN enabled, the first cross-process drift appears at the scorer's first ShuffleNetV2 convolution (`Feat_ext.feature3.0.0`) by a few float32 ULPs even with deterministic algorithms enabled.
 
 ```bash
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=2 \

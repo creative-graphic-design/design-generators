@@ -148,7 +148,7 @@ Training is not implemented in this workspace member. The package focuses on arc
 | Scorer inputs | 43 candidates | Exact tensor match against vendor `setup_test_dataset` RoE preprocessing | Passed |
 | Raw SMT scores | 43 candidates | Bit-exact with `torch.use_deterministic_algorithms(True)`, TF32 disabled, and cuDNN disabled | Passed |
 | Selected boxes | 3 images, top 3 each | Exact selected candidate indices | Passed |
-| Text color | 3 selected top boxes | Exact hex color match against vendor `cal_best_color` with fixed KMeans seed | Passed |
+| Text color | 3 selected top boxes | Exact hex color match against vendor `cal_best_color` with fixed KMeans seed and threadpool limit | Passed |
 
 ## Reproducibility
 

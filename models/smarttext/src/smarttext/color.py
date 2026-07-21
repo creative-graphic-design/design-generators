@@ -1,10 +1,18 @@
 """Text color helpers ported from the SmartText demo path."""
 
+# ruff: noqa: E402
 from __future__ import annotations
+
+import os
+
+# Set BLAS/OpenMP defaults before importing scikit-learn.
+for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_thread_env_var, "1")
 
 import numpy as np
 from PIL import Image
 from sklearn.cluster import KMeans
+from threadpoolctl import threadpool_limits
 from typing import cast
 
 Color = np.ndarray | list[float] | list[int]
@@ -23,7 +31,8 @@ def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
     """
     pixels = image.reshape((image.shape[0] * image.shape[1], image.shape[2]))
     estimator = KMeans(n_clusters=clusters, max_iter=300, n_init=2)
-    estimator.fit(pixels)
+    with threadpool_limits(limits=1):
+        estimator.fit(pixels)
     return sorted(estimator.cluster_centers_, key=lambda row: (row[0], row[1], row[2]))
 
 
