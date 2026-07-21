@@ -40,6 +40,41 @@ EXPECTED_REFERENCES = {
     },
 }
 
+EXPECTED_LAYER_PROBES = {
+    "crello-attr": {
+        "path": Path(".cache/flex-dm/probes/crello-attr/torch_compare.json"),
+        "max_logit_atol": 1.1e-5,
+    },
+    "crello-elem": {
+        "path": Path(".cache/flex-dm/probes/crello-elem/torch_compare.json"),
+        "max_logit_atol": 8.0e-6,
+    },
+    "crello-img": {
+        "path": Path(".cache/flex-dm/probes/crello-img/torch_compare.json"),
+        "max_logit_atol": 6.0e-6,
+    },
+    "crello-pos": {
+        "path": Path(".cache/flex-dm/probes/crello-pos/torch_compare.json"),
+        "max_logit_atol": 1.0e-5,
+    },
+    "crello-txt": {
+        "path": Path(".cache/flex-dm/probes/crello-txt/torch_compare.json"),
+        "max_logit_atol": 2.5e-6,
+    },
+    "rico-attr": {
+        "path": Path(".cache/flex-dm/probes/rico-attr/torch_compare.json"),
+        "max_logit_atol": 1.4e-4,
+    },
+    "rico-elem": {
+        "path": Path(".cache/flex-dm/probes/rico-elem/torch_compare.json"),
+        "max_logit_atol": 1.3e-4,
+    },
+    "rico-pos": {
+        "path": Path(".cache/flex-dm/probes/rico-pos/torch_compare.json"),
+        "max_logit_atol": 1.3e-5,
+    },
+}
+
 
 def _load_json(path: Path) -> dict[str, object]:
     if not path.exists():
@@ -102,3 +137,17 @@ def test_vendor_reference_results_metadata(
     task_cases = sum(len(cases) for cases in reference["results"].values())
     assert task_cases == expected["task_cases"]
     assert _count_finite_scores(reference["results"]) > 0
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(("case", "expected"), EXPECTED_LAYER_PROBES.items())
+def test_layer_probe_tolerances(case: str, expected: dict[str, object]) -> None:
+    """Layer probes identify the first divergent op and assert final tolerances."""
+    probe = _load_json(Path(expected["path"]))
+    comparisons = {item["name"]: item for item in probe["comparisons"]}
+    assert probe["max_logit_abs"] <= expected["max_logit_atol"]
+    assert comparisons["encoder"]["max_abs"] <= 3e-7
+    assert comparisons["block0_attention_output"]["max_abs"] <= 8e-7
+    assert comparisons["block0_score"]["max_abs"] > comparisons["block0_q"]["max_abs"]
+    assert probe["device"] == "cuda"
+    _ = case

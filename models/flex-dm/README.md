@@ -121,17 +121,27 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint | dataset | vendor reference cases | exact state tensors | tolerance probe | result |
+| checkpoint | dataset | vendor reference cases | exact state tensors | layer/logit probe | result |
 | --- | --- | ---: | ---: | --- | --- |
-| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | not recorded | reference generated; state mapping exact |
-| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | max logit abs diff within `atol=1.66e-3` | reference generated; state mapping exact; first drift after block 0 |
+| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | 5 task probes; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated; state mapping exact; attention-score TF32 matched |
+| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | 3 task probes; max logit abs diff within `atol=1.4e-4`, `rtol=0` | reference generated; state mapping exact; attention-score TF32 matched |
 
-The RICO forward probe used one vendor test batch after `preprocess_for_test`.
-The encoder output was effectively exact (`max_abs=2.98e-8`, masks equal);
-the first material drift appeared after transformer block 0
-(`max_abs=4.24e-5`) and accumulated to `1.17e-3` after block 3. This is
-consistent with TensorFlow/PyTorch floating-point operation-order differences
-inside the transformer stack, not a state-mapping gap.
+Layer probes use one vendor test batch after `preprocess_for_test` for every
+supported task (`elem`, `pos`, `attr`, plus Crello `img` and `txt`). The
+first divergent block-0 operation that explained the previous RICO
+`1.66e-3` logit drift was the attention score matmul
+`tf.matmul(q, k^T)`: TensorFlow 2.15 on A100 uses TF32 for that operation,
+while PyTorch was using fp32. The PyTorch port now enables TF32 only for the
+attention-score matmul, leaving Dense/Linear projections in fp32. GELU was not
+involved because the vendor MLP uses ReLU; Keras LayerNormalization epsilon is
+`1e-3` and is matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask
+remains `-1e9` before softmax.
+
+After the fix, RICO `attr` changed from block-0 output `3.60e-5`, block-3
+output `1.54e-3`, and max logit `1.55e-3` to block-0 attention output
+`2.53e-7`, block-0 output `3.35e-7`, block-3 output `1.13e-4`, and max logit
+`1.32e-4`. Across all probes, Crello max logit diff is `1.01e-5` and RICO max
+logit diff is `1.32e-4`.
 
 ## Reproducibility
 
