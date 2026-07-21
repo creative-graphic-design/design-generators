@@ -101,6 +101,13 @@ EXPECTED_FRONTMATTER = {
         "license": "other",
         "datasets": ["PosterLayout"],
     },
+    "flex-dm": {
+        "license": "apache-2.0",
+        "datasets": [
+            "cyberagent/crello",
+            "creative-graphic-design/Rico",
+        ],
+    },
     "lace": {
         "license": "mit",
         "datasets": [
@@ -184,6 +191,7 @@ EXPECTED_FRONTMATTER = {
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
+    "flex-dm": "Flex-DM",
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
@@ -207,6 +215,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
@@ -591,7 +600,11 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     if badge is None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
     expected = (
-        "tolerance--verified" if _parity_requires_tolerance(section) else "bit--exact"
+        "not--run"
+        if "not run" in section
+        else "tolerance--verified"
+        if _parity_requires_tolerance(section)
+        else "bit--exact"
     )
     actual = badge.group(1)
     if actual != expected:

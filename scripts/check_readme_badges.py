@@ -73,6 +73,7 @@ PAPER_LINKS = {
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
+    ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
     ("arXiv", "2305.15393"): "https://arxiv.org/abs/2305.15393",
     ("arXiv", "2308.12700"): "https://arxiv.org/abs/2308.12700",
@@ -168,6 +169,8 @@ def _expected_color(label: str, message: str | None) -> str | None:
         return "informational"
     if label in {"models", "venue"}:
         return "purple"
+    if label == "vendor--parity" and message == "not--run":
+        return "lightgrey"
     if label == "core" or label == "vendor--parity":
         return "success"
     if label == "status":
