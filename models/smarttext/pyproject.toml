@@ -1,0 +1,37 @@
+[project]
+name = "smarttext"
+version = "0.1.0"
+description = "Transformers-style SmartText text placement components."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = ["gdown>=6.1.0"]
+convert = ["huggingface-hub>=0.24", "pyyaml>=6"]
+vendor = ["opencv-python>=4.8", "pyyaml>=6", "scikit-image>=0.21"]
+cuda-ext = []
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.pytest.ini_options]
+addopts = ["--cov=smarttext", "--cov-report=term-missing", "--cov-fail-under=90"]
+markers = [
+    "vendor_parity: requires SmartText vendor weights and optional compiled RoI/RoD extensions",
+    "integration: requires external downloads or heavyweight runtime setup",
+]
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware text placement"
+conditions = ["content_image"]
+datasets = ["smarttext-demo"]
