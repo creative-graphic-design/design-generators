@@ -32,6 +32,6 @@ markers = [
 
 [tool.design-generators]
 framework = "transformers"
-task = "content-aware text placement"
+task = "content-aware-layout-generation"
 conditions = ["content_image"]
-datasets = ["smarttext-demo"]
+datasets = ["posterlayout"]

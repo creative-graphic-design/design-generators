@@ -12,6 +12,21 @@ from smarttext.candidate_generation import (
 from smarttext.configuration_smarttext import SmartTextConfig
 
 
+def _system_font_path() -> str:
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    ):
+        try:
+            ImageFont.truetype(path, size=10)
+        except OSError:
+            continue
+        return path
+    pytest.skip("No system TrueType font available for font-path coverage.")
+
+
 def test_split_prompt_lines_rejects_empty_prompt():
     assert split_prompt_lines("A\nB", (1.0, 0.8)) == ("A", "B")
     with pytest.raises(ValueError):
@@ -49,7 +64,7 @@ def test_candidate_generation_accepts_font_path_and_resizes_saliency():
         min_font_size=10,
         max_font_size=10,
         min_text_area_coef=2,
-        max_text_area_coef=50,
+        max_text_area_coef=500,
     )
     image = Image.new("RGB", (96, 96), "white")
 
@@ -57,7 +72,7 @@ def test_candidate_generation_accepts_font_path_and_resizes_saliency():
         image,
         np.zeros((16, 16), dtype=np.float32),
         prompt="ICME",
-        font="vendor/smarttext/test_data/Fonts/verdanab.ttf",
+        font=_system_font_path(),
         config=config,
     )
 
@@ -77,7 +92,7 @@ def test_prepare_scorer_batch_uses_expanded_regions_by_default():
         image,
         np.zeros((96, 96), dtype=np.float32),
         prompt="ICME",
-        font="vendor/smarttext/test_data/Fonts/verdanab.ttf",
+        font=ImageFont.load_default(),
         config=config,
     )[:2]
 

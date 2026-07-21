@@ -82,6 +82,7 @@ PAPER_LINKS = {
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",
+    ("paper", "TMM 2021"): "https://ieeexplore.ieee.org/document/9520053",
 }
 HUB_LINKS = {
     "coarse-to-fine": "https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25",

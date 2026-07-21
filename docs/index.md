@@ -12,7 +12,7 @@ tags:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=15&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=16&color=purple&style=flat-square)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -35,6 +35,7 @@ tags:
 | [`models/layoutprompter`](api/models/layoutprompter/index.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
 | [`models/parse-then-place`](api/models/parse-then-place/index.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md)) |
 | [`models/ralf`](api/models/ralf/index.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md)) |
+| [`models/smarttext`](api/models/smarttext/index.md) | SmartText | `transformers` | PosterLayout-style demo assets | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md)) |
 
 Shared libraries live under `lib/*`: [`laygen`](api/libraries/laygen/index.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](api/libraries/posgen/index.md) reserves small poster/content-aware placement contracts for future consumers.
 
