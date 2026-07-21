@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -39,6 +40,23 @@ def resolve_vocabulary_path(asset_dir: Path, dataset: str) -> Path:
     direct = asset_dir / "data" / dataset / "vocabulary.json"
     nested = asset_dir / "data" / dataset / dataset / "vocabulary.json"
     return direct if direct.exists() else nested
+
+
+def checkpoint_sha256(checkpoint_prefix: Path) -> str:
+    """Hash all TensorFlow checkpoint shard files for freshness checks."""
+    files = sorted(checkpoint_prefix.parent.glob(f"{checkpoint_prefix.name}*"))
+    if not files:
+        raise FileNotFoundError(
+            f"missing TensorFlow checkpoint files: {checkpoint_prefix}"
+        )
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 def main() -> None:
@@ -106,6 +124,8 @@ def main() -> None:
         "matched_tensor_count": report.matched_tensor_count,
         "matched_parameter_count": report.matched_parameter_count,
         "missing_target_keys": [],
+        "source_checkpoint": str(checkpoint),
+        "source_checkpoint_sha256": checkpoint_sha256(checkpoint),
         "unexpected_source_keys": [],
         "strict": True,
     }

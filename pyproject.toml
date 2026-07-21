@@ -66,8 +66,9 @@ docs = [
 ]
 
 [tool.uv]
-# NOTE: flex-dm[vendor-tf] pins TensorFlow 2.15.1, which requires protobuf<5,
-# while the pydantic-ai/logfire stacks below currently require protobuf>=5.
+# NOTE: flex-dm[vendor-tf] and flex-dm[convert] pin TensorFlow 2.15.1, which
+# requires protobuf<5, while the pydantic-ai/logfire stacks below currently
+# require protobuf>=5.
 # These conflicts can be removed once the TF/vendor runtime supports protobuf>=5
 # or the pydantic-ai/logfire stacks no longer require protobuf>=5.
 conflicts = [
@@ -76,20 +77,40 @@ conflicts = [
         { package = "flex-dm", extra = "vendor-tf" },
     ],
     [
+        { package = "design-generators", extra = "llm-agent" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
         { package = "design-generators" },
         { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "design-generators" },
+        { package = "flex-dm", extra = "convert" },
     ],
     [
         { package = "laygen", extra = "agents" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
     [
+        { package = "laygen", extra = "agents" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
         { package = "layout-gpt" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
     [
+        { package = "layout-gpt" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
         { package = "layoutprompter" },
         { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "layoutprompter" },
+        { package = "flex-dm", extra = "convert" },
     ],
 ]
 

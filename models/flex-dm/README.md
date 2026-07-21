@@ -107,6 +107,12 @@ pipe = FlexDmPipeline.from_pretrained(".cache/flex-dm/converted/flex-dm-crello")
 # After Hub publication: from_pretrained("creative-graphic-design/flex-dm-crello")
 ```
 
+Flex-DM's public inference path is deterministic for the supported completion,
+refinement, and image/text feature infilling modes. The pipeline accepts
+`seed` and `generator` to match the common layout-generation API, and
+`generator` takes precedence over `seed` when both are supplied, but the
+current public path does not consume random numbers.
+
 ## Training Details
 
 ### Training Data

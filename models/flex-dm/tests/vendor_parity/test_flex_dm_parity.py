@@ -12,6 +12,7 @@ import pytest
 import torch
 
 from flex_dm import FlexDmForMaskedDocumentModeling
+from flex_dm.masking import iterative_decode
 
 
 EXPECTED_CONVERSIONS = {
@@ -157,6 +158,37 @@ def _max_logit_diff(
     return max_abs
 
 
+def _assert_case_inputs_equal(
+    *,
+    current: dict[str, torch.Tensor],
+    case: np.lib.npyio.NpzFile,
+    prefix: str,
+    device: torch.device,
+    model: FlexDmForMaskedDocumentModeling,
+) -> None:
+    for key in case.files:
+        if not key.startswith(prefix):
+            continue
+        name = key.rsplit("__", 1)[1]
+        expected = _tensor_from_case(case, key, device=device, model=model)
+        actual = current[name]
+        assert torch.equal(actual, expected), f"{prefix}{name} diverged"
+
+
+class _TracingModel:
+    def __init__(self, model: FlexDmForMaskedDocumentModeling) -> None:
+        self.model = model
+        self.inputs: list[dict[str, torch.Tensor]] = []
+
+    def __call__(self, **kwargs: object) -> object:
+        inputs = kwargs["inputs"]
+        assert isinstance(inputs, dict)
+        self.inputs.append(
+            {key: value.detach().clone() for key, value in inputs.items()}
+        )
+        return self.model(**kwargs)
+
+
 @pytest.mark.vendor_parity
 def test_vendor_parity_assets_present() -> None:
     """Skip cleanly unless Flex-DM vendor assets and goldens are present."""
@@ -182,6 +214,7 @@ def test_tf_checkpoint_conversion_report_is_exact(
     assert report["matched_parameter_count"] == expected["matched_parameter_count"]
     assert report["missing_target_keys"] == []
     assert report["unexpected_source_keys"] == []
+    assert report["source_checkpoint_sha256"]
     assert report["strict"] is True
 
 
@@ -195,6 +228,17 @@ def test_vendor_reference_results_metadata(
     assert reference["dataset"] == dataset
     assert reference["variant"] == "ours-exp-ft"
     assert reference["checkpoint"].endswith("/checkpoints/best.ckpt")
+    assert reference["checkpoint_sha256"]
+    assert reference["generation_args"] == {
+        "batch_size": 1,
+        "dataset": dataset,
+        "disable_tf32": True,
+        "max_steps": 1,
+        "num_iter": [1, 4],
+        "seed": 0,
+        "tasks": expected["tasks"],
+        "variant": "ours-exp-ft",
+    }
     assert reference["cuda_visible_devices"] == "1"
     assert reference["tensorflow_version"] == "2.15.1"
     assert reference["tf32_enabled"] is False
@@ -204,6 +248,19 @@ def test_vendor_reference_results_metadata(
     assert reference["batch_size"] == 1
     assert reference["max_steps"] == 1
     assert len(reference["forward_cases"]) == expected["task_cases"]
+    report = _load_json(Path(EXPECTED_CONVERSIONS[dataset]["report"]))
+    assert reference["checkpoint_sha256"] == report["source_checkpoint_sha256"]
+    for item in reference["forward_cases"]:
+        assert item["checkpoint_sha256"] == reference["checkpoint_sha256"]
+        assert item["generation_args"] == reference["generation_args"]
+        case = _load_forward_case(Path(item["path"]))
+        assert (
+            str(case["metadata__checkpoint_sha256"]) == reference["checkpoint_sha256"]
+        )
+        assert (
+            json.loads(str(case["metadata__generation_args"]))
+            == reference["generation_args"]
+        )
     assert sum(item["forward_steps"] for item in reference["forward_cases"]) == (
         5 * expected["task_cases"] // 2
     )
@@ -252,6 +309,75 @@ def test_converted_model_matches_vendor_forward_cases(
                         prefix=f"{prefix}logits__",
                     ),
                 )
+    assert max_abs <= expected["max_logit_atol"]
+    _ = dataset
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(("dataset", "expected"), EXPECTED_REFERENCES.items())
+def test_public_iterative_decode_matches_vendor_step_sequence(
+    dataset: str,
+    expected: dict[str, object],
+) -> None:
+    """Public iterative_decode regenerates vendor num_iter=4 commit steps."""
+    if not torch.cuda.is_available():
+        pytest.skip("Flex-DM iterative decode parity requires CUDA")
+    reference = _load_json(Path(expected["path"]))
+    checkpoint_dir = Path(expected["checkpoint_dir"])
+    if not checkpoint_dir.exists():
+        pytest.skip(f"missing converted Flex-DM checkpoint: {checkpoint_dir}")
+    device = torch.device("cuda")
+    model = (
+        FlexDmForMaskedDocumentModeling.from_pretrained(checkpoint_dir)
+        .to(device)
+        .eval()
+    )
+    max_abs = 0.0
+    with torch.no_grad():
+        for item in reference["forward_cases"]:
+            if item["num_iter"] != 4:
+                continue
+            case = _load_forward_case(Path(item["path"]))
+            tracer = _TracingModel(model)
+            output = iterative_decode(
+                tracer,
+                inputs=_inputs_from_case(
+                    case,
+                    "step0__input__",
+                    device=device,
+                    model=model,
+                ),
+                masks=_inputs_from_case(
+                    case,
+                    "mask__",
+                    device=device,
+                    model=model,
+                ),
+                num_iter=4,
+                input_columns=model.config.input_columns,
+                source_inputs=_inputs_from_case(
+                    case,
+                    "source__",
+                    device=device,
+                    model=model,
+                ),
+            )
+            assert len(tracer.inputs) == int(item["forward_steps"])
+            for step, traced_inputs in enumerate(tracer.inputs):
+                _assert_case_inputs_equal(
+                    current=traced_inputs,
+                    case=case,
+                    prefix=f"step{step}__input__",
+                    device=device,
+                    model=model,
+                )
+            max_abs = max(
+                max_abs,
+                _max_logit_diff(
+                    output.logits,  # ty: ignore[unresolved-attribute]
+                    case,
+                ),
+            )
     assert max_abs <= expected["max_logit_atol"]
     _ = dataset
 

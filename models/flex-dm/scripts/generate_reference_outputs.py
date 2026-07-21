@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -82,6 +83,23 @@ def resolve_data_root(asset_dir: Path, dataset: str) -> Path:
     direct = asset_dir / "data" / dataset
     nested = asset_dir / "data" / dataset / dataset
     return nested if nested.exists() else direct
+
+
+def checkpoint_sha256(checkpoint_prefix: Path) -> str:
+    """Hash all TensorFlow checkpoint shard files for freshness checks."""
+    files = sorted(checkpoint_prefix.parent.glob(f"{checkpoint_prefix.name}*"))
+    if not files:
+        raise FileNotFoundError(
+            f"missing TensorFlow checkpoint files: {checkpoint_prefix}"
+        )
+    digest = hashlib.sha256()
+    for path in files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 def install_vendor_eval_shims() -> None:
@@ -290,8 +308,14 @@ def _write_forward_case(
     modified_inputs: dict[str, object],
     outputs: dict[str, object],
     trace: list[tuple[dict[str, object], dict[str, object]]],
+    checkpoint_hash: str,
+    generation_args: dict[str, object],
 ) -> dict[str, object]:
     arrays: dict[str, np.ndarray] = {}
+    arrays["metadata__checkpoint_sha256"] = np.asarray(checkpoint_hash)
+    arrays["metadata__generation_args"] = np.asarray(
+        json.dumps(generation_args, sort_keys=True)
+    )
     for key in modified_inputs:
         if key == "task":
             continue
@@ -321,6 +345,8 @@ def _write_forward_case(
         "num_iter": num_iter,
         "forward_steps": len(trace),
         "path": str(case_path),
+        "checkpoint_sha256": checkpoint_hash,
+        "generation_args": generation_args,
         "inputs": sorted(key for key in arrays if key.startswith("input__")),
         "masks": sorted(key for key in arrays if key.startswith("mask__")),
         "logits": sorted(key for key in arrays if key.startswith("logits__")),
@@ -365,7 +391,19 @@ def main() -> None:
         input_dtype=train_args["input_dtype"],
     )
     model.compile(optimizer=tf.keras.optimizers.legacy.Adam())
-    model.load_weights(str(variant_root / "checkpoints" / "best.ckpt"))
+    checkpoint = variant_root / "checkpoints" / "best.ckpt"
+    checkpoint_hash = checkpoint_sha256(checkpoint)
+    generation_args = {
+        "batch_size": args.batch_size,
+        "dataset": args.dataset,
+        "disable_tf32": args.disable_tf32,
+        "max_steps": args.max_steps,
+        "num_iter": [int(item) for item in args.num_iter.split(",")],
+        "seed": args.seed,
+        "tasks": args.tasks.split(","),
+        "variant": args.variant,
+    }
+    model.load_weights(str(checkpoint))
     attribute_groups = get_attribute_groups(input_columns.keys())
 
     results: dict[str, object] = {}
@@ -412,6 +450,8 @@ def main() -> None:
                     modified_inputs=modified_inputs,
                     outputs=outputs,
                     trace=trace,
+                    checkpoint_hash=checkpoint_hash,
+                    generation_args=generation_args,
                 )
             )
         results[task] = task_results
@@ -424,13 +464,15 @@ def main() -> None:
         "num_iter": [int(item) for item in args.num_iter.split(",")],
         "batch_size": args.batch_size,
         "max_steps": args.max_steps,
+        "generation_args": generation_args,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "tensorflow_version": tf.__version__,
         "tf32_enabled": tf.config.experimental.tensor_float_32_execution_enabled(),
         "gpu_devices": [
             device.name for device in tf.config.list_physical_devices("GPU")
         ],
-        "checkpoint": str(variant_root / "checkpoints" / "best.ckpt"),
+        "checkpoint": str(checkpoint),
+        "checkpoint_sha256": checkpoint_hash,
         "data_root": str(data_root),
         "results": results,
         "forward_cases": forward_cases,

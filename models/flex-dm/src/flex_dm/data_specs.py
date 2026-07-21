@@ -31,7 +31,14 @@ CRELLO_TYPE_VOCABULARY: Final[tuple[str, ...]] = (
     "svgElement",
     "textElement",
 )
-CRELLO_MODEL_TYPE_VOCABULARY: Final[tuple[str, ...]] = ("", *CRELLO_TYPE_VOCABULARY)
+CRELLO_MODEL_TYPE_VOCABULARY: Final[tuple[str, ...]] = (
+    "",
+    "svgElement",
+    "textElement",
+    "imageElement",
+    "coloredBackground",
+    "maskElement",
+)
 RICO_TYPE_VOCABULARY: Final[tuple[str, ...]] = tuple(
     laygen_id2label_for_dataset("rico25").values()
 )
@@ -181,6 +188,24 @@ def _vocabulary_size(
     return 1
 
 
+def _lookup_vocabulary(
+    key: str,
+    *,
+    dataset_name: FlexDmDatasetName,
+    vocabulary: Mapping[str, object],
+) -> tuple[str, ...]:
+    raw = vocabulary.get(key)
+    if isinstance(raw, Mapping):
+        return ("", *tuple(str(item) for item in raw))
+    if isinstance(raw, list | tuple):
+        return ("", *tuple(str(item) for item in raw))
+    if dataset_name is FlexDmDatasetName.crello and key == "type":
+        return CRELLO_MODEL_TYPE_VOCABULARY
+    if dataset_name is FlexDmDatasetName.rico and key == "type":
+        return ("", *RICO_TYPE_VOCABULARY)
+    return ()
+
+
 def build_column_specs(
     *,
     dataset_name: FlexDmDatasetName | str,
@@ -190,6 +215,9 @@ def build_column_specs(
     dataset = _normalize_dataset(dataset_name)
     spec = load_builtin_spec(dataset)
     columns = cast(Mapping[str, Mapping[str, object]], spec["columns"])
+    type_vocabulary = _lookup_vocabulary(
+        "type", dataset_name=dataset, vocabulary=vocabulary
+    )
     input_columns: dict[str, FlexDmColumnSpec] = {}
     for key, column in columns.items():
         shape = tuple(cast(tuple[int, ...], column.get("shape", (1,))))
@@ -237,9 +265,7 @@ def build_column_specs(
             }[key]
             item["loss_condition"] = {
                 "key": "type",
-                "mask": tuple(
-                    label in allowed for label in CRELLO_MODEL_TYPE_VOCABULARY
-                ),
+                "mask": tuple(label in allowed for label in type_vocabulary),
             }
         _ = dtype
         input_columns[key] = item

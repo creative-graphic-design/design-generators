@@ -243,9 +243,7 @@ def iterative_decode(
             )
             for key in confidence:
                 pred = logits[key].argmax(dim=-1)
-                update_field = (confidence[key] >= threshold[:, None]) & (
-                    confidence[key] > 0
-                )
+                update_field = (confidence[key] >= threshold) & (confidence[key] > 0)
                 filtered_inputs[key] = torch.where(
                     update_field.unsqueeze(-1),
                     pred,

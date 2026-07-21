@@ -38,3 +38,36 @@ def test_column_specs_and_vocabulary_mapping() -> None:
         0: "a",
         1: "b",
     }
+
+
+def test_crello_loss_conditions_follow_vendor_lookup_order() -> None:
+    """Crello attribute validity follows StringLookup vocabulary order."""
+    specs = build_column_specs(
+        dataset_name="crello",
+        vocabulary={
+            "type": {
+                "svgElement": 118006,
+                "textElement": 96879,
+                "imageElement": 21306,
+                "coloredBackground": 5791,
+                "maskElement": 4117,
+            },
+        },
+    )
+
+    assert specs["color"]["loss_condition"]["mask"] == (
+        False,
+        False,
+        True,
+        False,
+        True,
+        False,
+    )
+    assert specs["font_family"]["loss_condition"]["mask"] == (
+        False,
+        False,
+        True,
+        False,
+        False,
+        False,
+    )

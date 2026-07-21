@@ -124,8 +124,11 @@ class FlexDmPipeline(LayoutGenerationPipeline):
 
         Args:
             batch_size: Batch size used when synthetic empty inputs are created.
-            seed: Convenience seed used only when ``generator`` is absent.
-            generator: Optional PyTorch generator; takes precedence over seed.
+            seed: Common API compatibility argument. Flex-DM's public inference
+                path is deterministic and does not currently consume randomness.
+            generator: Common API compatibility argument. When supplied, it
+                takes precedence over ``seed``; the deterministic Flex-DM
+                inference path does not currently consume it.
             condition_type: Canonical condition or local vendor task alias.
             labels: Public element labels.
             bbox: Public element boxes.
