@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 
+import numpy as np
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -155,6 +157,176 @@ def install_vendor_eval_shims() -> None:
     vendor_mfp.iterative_decode = iterative_decode
 
 
+def _build_eval_inputs(
+    *,
+    task: str,
+    group: tuple[str, tuple[str, ...]],
+    model: object,
+    dataset: object,
+    input_columns: dict[str, object],
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    import tensorflow as tf
+    from mfp.models.architecture.mask import get_seq_mask
+    from mfp.models.masking import get_initial_masks
+    from mfp.models.mfp import preprocess_for_test
+
+    example = iter(dataset).get_next()
+    seq_mask = get_seq_mask(example["length"])
+    masks = get_initial_masks(input_columns, seq_mask)
+    if task == "elem":
+        sequence_length = int(example["left"].shape[1])
+        elem_mask = tf.cast(tf.eye(sequence_length), tf.bool)
+        for key, column in input_columns.items():
+            example[key] = tf.repeat(example[key], sequence_length, axis=0)
+            if key in model.input_columns and column["is_sequence"]:
+                masks[key] = elem_mask
+    else:
+        for key in group[1]:
+            masks[key] = seq_mask
+
+    task_ids = None
+    if model.context == "id":
+        from mfp.models.masking import get_task_names
+
+        task_id = get_task_names(input_columns).index(group[0])
+        task_ids = tf.fill(tf.shape(example["left"])[:1], task_id)
+    modified_inputs = preprocess_for_test(
+        example,
+        model.input_columns,
+        masks,
+        task_ids,
+    )
+    return example, masks, modified_inputs
+
+
+def _run_reference_forward(
+    *,
+    model: object,
+    example: dict[str, object],
+    masks: dict[str, object],
+    modified_inputs: dict[str, object],
+    num_iter: int,
+) -> tuple[dict[str, object], list[tuple[dict[str, object], dict[str, object]]]]:
+    if num_iter <= 1:
+        outputs = model.model(modified_inputs, training=False)
+        return outputs, [(dict(modified_inputs), outputs)]
+
+    import tensorflow as tf
+    from mfp.models.architecture.mask import get_seq_mask
+    from mfp.models.masking import apply_token, filter_padding
+
+    masks = masks.copy()
+    modified_inputs = dict(modified_inputs)
+    seq_mask = get_seq_mask(example["length"])
+    filtered_inputs = filter_padding(example, model.input_columns, seq_mask)
+    categorical_keys = [
+        key
+        for key, value in model.input_columns.items()
+        if value["is_sequence"] and value.get("type") == "categorical"
+    ]
+    num_masked = sum(
+        masks[key].numpy().astype("int").sum(-1) for key in categorical_keys
+    )
+    num_update_per_iter = (num_masked / num_iter).round().astype("int")
+    final_outputs = {}
+    outputs = {}
+    trace = []
+    for index in range(num_iter):
+        outputs = model.model(modified_inputs, training=False)
+        trace.append((dict(modified_inputs), dict(outputs)))
+        if index == 0:
+            final_outputs = dict(outputs)
+        confidence = {
+            key: tf.where(
+                masks[key],
+                tf.reduce_mean(
+                    tf.reduce_max(tf.nn.softmax(outputs[key], axis=-1), axis=-1),
+                    axis=-1,
+                ),
+                0.0,
+            )
+            for key in categorical_keys
+        }
+        confidence_sorted = tf.sort(
+            tf.concat([confidence[key] for key in categorical_keys], axis=-1),
+            axis=-1,
+            direction="DESCENDING",
+        )
+        threshold = tf.stack(
+            [confidence_sorted[row, k] for row, k in enumerate(num_update_per_iter)]
+        )
+        for key in categorical_keys:
+            pred = tf.argmax(outputs[key], axis=-1, output_type=tf.int32)
+            update_field = (confidence[key] >= threshold) & (confidence[key] > 0)
+            filtered_inputs[key] = tf.where(
+                update_field[:, :, None], pred, filtered_inputs[key]
+            )
+            masks[key] = tf.where(masks[key] == update_field, False, masks[key])
+            if index > 0:
+                final_outputs[key] = tf.where(
+                    update_field[:, :, None, None],
+                    outputs[key],
+                    final_outputs[key],
+                )
+        for key, column in model.input_columns.items():
+            if column["is_sequence"]:
+                modified_inputs[key] = apply_token(
+                    filtered_inputs[key], column, masks[key], "masked"
+                )
+    for key in ["image_embedding", "text_embedding"]:
+        if key in outputs:
+            final_outputs[key] = outputs[key]
+    return final_outputs, trace
+
+
+def _write_forward_case(
+    *,
+    output_dir: Path,
+    dataset_name: str,
+    task: str,
+    num_iter: int,
+    example: dict[str, object],
+    masks: dict[str, object],
+    modified_inputs: dict[str, object],
+    outputs: dict[str, object],
+    trace: list[tuple[dict[str, object], dict[str, object]]],
+) -> dict[str, object]:
+    arrays: dict[str, np.ndarray] = {}
+    for key in modified_inputs:
+        if key == "task":
+            continue
+        arrays[f"source__{key}"] = example[key].numpy()
+    for key, value in masks.items():
+        arrays[f"mask__{key}"] = value.numpy()
+    for key, value in modified_inputs.items():
+        arrays[f"input__{key}"] = value.numpy()
+    for key, value in outputs.items():
+        if key == "tasks":
+            continue
+        arrays[f"logits__{key}"] = value.numpy()
+    for index, (step_inputs, step_outputs) in enumerate(trace):
+        for key, value in step_inputs.items():
+            arrays[f"step{index}__input__{key}"] = value.numpy()
+        for key, value in step_outputs.items():
+            if key == "tasks":
+                continue
+            arrays[f"step{index}__logits__{key}"] = value.numpy()
+
+    case_path = output_dir / "forward_cases" / f"{task}-{num_iter}.npz"
+    case_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(case_path, **arrays)
+    return {
+        "dataset": dataset_name,
+        "task": task,
+        "num_iter": num_iter,
+        "forward_steps": len(trace),
+        "path": str(case_path),
+        "inputs": sorted(key for key in arrays if key.startswith("input__")),
+        "masks": sorted(key for key in arrays if key.startswith("mask__")),
+        "logits": sorted(key for key in arrays if key.startswith("logits__")),
+    }
+
+
 def main() -> None:
     """Run the vendor TensorFlow evaluator for a bounded reference fixture."""
     args = parse_args()
@@ -197,6 +369,7 @@ def main() -> None:
     attribute_groups = get_attribute_groups(input_columns.keys())
 
     results: dict[str, object] = {}
+    forward_cases: list[dict[str, object]] = []
     for task in args.tasks.split(","):
         task_results = {}
         for num_iter in [int(item) for item in args.num_iter.split(",")]:
@@ -213,6 +386,33 @@ def main() -> None:
             )
             task_results[str(num_iter)] = evaluate(
                 eval_args, model, dataset, input_columns, group
+            )
+            example, masks, modified_inputs = _build_eval_inputs(
+                task=task,
+                group=group,
+                model=model,
+                dataset=dataset,
+                input_columns=input_columns,
+            )
+            outputs, trace = _run_reference_forward(
+                model=model,
+                example=example,
+                masks=masks,
+                modified_inputs=modified_inputs,
+                num_iter=num_iter,
+            )
+            forward_cases.append(
+                _write_forward_case(
+                    output_dir=args.output_dir,
+                    dataset_name=args.dataset,
+                    task=task,
+                    num_iter=num_iter,
+                    example=example,
+                    masks=masks,
+                    modified_inputs=modified_inputs,
+                    outputs=outputs,
+                    trace=trace,
+                )
             )
         results[task] = task_results
     metadata = {
@@ -233,6 +433,7 @@ def main() -> None:
         "checkpoint": str(variant_root / "checkpoints" / "best.ckpt"),
         "data_root": str(data_root),
         "results": results,
+        "forward_cases": forward_cases,
     }
     (args.output_dir / "reference_results.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True)

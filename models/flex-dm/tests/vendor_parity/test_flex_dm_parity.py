@@ -7,7 +7,11 @@ import math
 import os
 from pathlib import Path
 
+import numpy as np
 import pytest
+import torch
+
+from flex_dm import FlexDmForMaskedDocumentModeling
 
 
 EXPECTED_CONVERSIONS = {
@@ -30,13 +34,17 @@ EXPECTED_REFERENCES = {
         "path": Path(
             ".cache/flex-dm/goldens/crello-ours-exp-ft/reference_results.json"
         ),
+        "checkpoint_dir": Path(".cache/flex-dm/converted/flex-dm-crello"),
         "tasks": ["elem", "pos", "attr", "img", "txt"],
         "task_cases": 10,
+        "max_logit_atol": 1.1e-5,
     },
     "rico": {
         "path": Path(".cache/flex-dm/goldens/rico-ours-exp-ft/reference_results.json"),
+        "checkpoint_dir": Path(".cache/flex-dm/converted/flex-dm-rico"),
         "tasks": ["elem", "pos", "attr"],
         "task_cases": 6,
+        "max_logit_atol": 5.5e-6,
     },
 }
 
@@ -82,12 +90,71 @@ def _load_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text())
 
 
+def _load_forward_case(path: Path) -> np.lib.npyio.NpzFile:
+    if not path.exists():
+        pytest.skip(f"missing Flex-DM forward parity artifact: {path}")
+    return np.load(path)
+
+
 def _count_finite_scores(value: object) -> int:
     if isinstance(value, dict):
         return sum(_count_finite_scores(item) for item in value.values())
     if isinstance(value, float):
         return int(math.isfinite(value))
     return 0
+
+
+def _tensor_from_case(
+    case: np.lib.npyio.NpzFile,
+    key: str,
+    *,
+    device: torch.device,
+    model: FlexDmForMaskedDocumentModeling,
+) -> torch.Tensor:
+    input_name = key.rsplit("__", 1)[1]
+    tensor = torch.from_numpy(case[key]).to(device)
+    if key.startswith("mask__"):
+        return tensor.bool()
+    column = model.config.input_columns.get(input_name)
+    if input_name in {"length", "task"} or (column and column["type"] == "categorical"):
+        return tensor.long()
+    return tensor.float()
+
+
+def _inputs_from_case(
+    case: np.lib.npyio.NpzFile,
+    prefix: str,
+    *,
+    device: torch.device,
+    model: FlexDmForMaskedDocumentModeling,
+) -> dict[str, torch.Tensor]:
+    return {
+        key.rsplit("__", 1)[1]: _tensor_from_case(
+            case,
+            key,
+            device=device,
+            model=model,
+        )
+        for key in case.files
+        if key.startswith(prefix)
+    }
+
+
+def _max_logit_diff(
+    current: dict[str, torch.Tensor],
+    case: np.lib.npyio.NpzFile,
+    *,
+    prefix: str = "logits__",
+) -> float:
+    max_abs = 0.0
+    for key in case.files:
+        if not key.startswith(prefix):
+            continue
+        name = key.rsplit("__", 1)[1]
+        expected = torch.from_numpy(case[key]).to(current[name].device)
+        diff = (current[name] - expected).abs().max().item()
+        max_abs = max(max_abs, float(diff))
+    return max_abs
 
 
 @pytest.mark.vendor_parity
@@ -109,7 +176,7 @@ def test_vendor_parity_assets_present() -> None:
 def test_tf_checkpoint_conversion_report_is_exact(
     dataset: str, expected: dict[str, object]
 ) -> None:
-    """Converted checkpoints cover every vendor model tensor exactly once."""
+    """Precomputed conversion reports cover every vendor model tensor once."""
     report = _load_json(Path(expected["report"]))
     assert report["matched_tensor_count"] == expected["matched_tensor_count"]
     assert report["matched_parameter_count"] == expected["matched_parameter_count"]
@@ -122,7 +189,7 @@ def test_tf_checkpoint_conversion_report_is_exact(
 def test_vendor_reference_results_metadata(
     dataset: str, expected: dict[str, object]
 ) -> None:
-    """Vendor evaluator wrote bounded GPU reference scores for every task case."""
+    """Precomputed vendor reference metadata covers every bounded task case."""
     reference = _load_json(Path(expected["path"]))
     assert reference["dataset"] == dataset
     assert reference["variant"] == "ours-exp-ft"
@@ -135,15 +202,63 @@ def test_vendor_reference_results_metadata(
     assert reference["num_iter"] == [1, 4]
     assert reference["batch_size"] == 1
     assert reference["max_steps"] == 1
+    assert len(reference["forward_cases"]) == expected["task_cases"]
+    assert sum(item["forward_steps"] for item in reference["forward_cases"]) == (
+        5 * expected["task_cases"] // 2
+    )
     task_cases = sum(len(cases) for cases in reference["results"].values())
     assert task_cases == expected["task_cases"]
     assert _count_finite_scores(reference["results"]) > 0
 
 
 @pytest.mark.vendor_parity
+@pytest.mark.parametrize(("dataset", "expected"), EXPECTED_REFERENCES.items())
+def test_converted_model_matches_vendor_forward_cases(
+    dataset: str,
+    expected: dict[str, object],
+) -> None:
+    """Run converted checkpoints against saved vendor inputs and logits."""
+    if not torch.cuda.is_available():
+        pytest.skip("Flex-DM vendor forward parity requires CUDA")
+    reference = _load_json(Path(expected["path"]))
+    checkpoint_dir = Path(expected["checkpoint_dir"])
+    if not checkpoint_dir.exists():
+        pytest.skip(f"missing converted Flex-DM checkpoint: {checkpoint_dir}")
+    device = torch.device("cuda")
+    model = (
+        FlexDmForMaskedDocumentModeling.from_pretrained(checkpoint_dir)
+        .to(device)
+        .eval()
+    )
+    max_abs = 0.0
+    with torch.no_grad():
+        for item in reference["forward_cases"]:
+            case = _load_forward_case(Path(item["path"]))
+            for step in range(int(item["forward_steps"])):
+                prefix = f"step{step}__"
+                inputs = _inputs_from_case(
+                    case,
+                    f"{prefix}input__",
+                    device=device,
+                    model=model,
+                )
+                output = model(inputs=inputs, return_dict=True)
+                max_abs = max(
+                    max_abs,
+                    _max_logit_diff(
+                        output.logits,
+                        case,
+                        prefix=f"{prefix}logits__",
+                    ),
+                )
+    assert max_abs <= expected["max_logit_atol"]
+    _ = dataset
+
+
+@pytest.mark.vendor_parity
 @pytest.mark.parametrize(("case", "expected"), EXPECTED_LAYER_PROBES.items())
 def test_layer_probe_tolerances(case: str, expected: dict[str, object]) -> None:
-    """Layer probes identify the first divergent op and assert final tolerances."""
+    """Precomputed layer probes identify the first divergent op."""
     probe_path = Path(expected["path"])
     probe = _load_json(probe_path)
     metadata = _load_json(probe_path.parent / "metadata.json")
