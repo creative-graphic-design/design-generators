@@ -97,7 +97,7 @@ uv run --package flex-dm --extra data python models/flex-dm/scripts/download_ori
 uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello-explicit-ft
 ```
 
-See [REPRODUCING.md](REPRODUCING.md) for the full reference-generation and parity workflow.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full reference-generation and parity workflow.
 
 ```python
 from flex_dm import FlexDmPipeline
