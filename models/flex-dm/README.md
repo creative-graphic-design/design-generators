@@ -121,14 +121,19 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint | dataset | vendor reference cases | exact state tensors | layer/logit probe | result |
+| checkpoint | dataset | vendor reference cases | exact state tensors | forward/layer probe | result |
 | --- | --- | ---: | ---: | --- | --- |
-| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | 5 task probes; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
-| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | 3 task probes; max logit abs diff within `atol=4.0e-6`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
+| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | 10 forward cases / 25 forward steps; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
+| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | 6 forward cases / 15 forward steps; max logit abs diff within `atol=5.5e-6`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
 
-Layer probes use one vendor test batch after `preprocess_for_test` for every
-supported task (`elem`, `pos`, `attr`, plus Crello `img` and `txt`). The
-first divergent block-0 operation in the default vendor GPU path was the
+Vendor parity tests load the saved TF32-disabled reference inputs from
+`forward_cases/*.npz`, load the converted checkpoints with `from_pretrained`,
+and execute every saved vendor forward step inside pytest. This covers
+Crello's 10 task/iteration cases and RICO's 6 cases, including the four
+forward steps used by `num_iter=4`. Layer probes also use one vendor test batch
+after `preprocess_for_test` for every supported task (`elem`, `pos`, `attr`,
+plus Crello `img` and `txt`). The first divergent block-0 operation in the
+default vendor GPU path was the
 attention score matmul `tf.matmul(q, k^T)`: TensorFlow 2.15 on A100 used TF32
 there, while the public PyTorch model used fp32. Direct q/k isolation showed
 the TF32 score differed from NumPy/PyTorch fp32 by `7.92e-3`, and PyTorch CUDA
@@ -143,8 +148,9 @@ matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask remains
 With TF32 disabled in the vendor run, all probe metadata records
 `tf32_enabled=false`. The remaining first measurable difference is the fp32
 attention-score reduction order at block 0, with max score diff up to
-`7.63e-6`; block-0 attention output stays below `5.59e-8`. Across all probes,
-Crello max logit diff is `1.00e-5` and RICO max logit diff is `3.81e-6`.
+`7.63e-6`; block-0 attention output stays below `5.59e-8`. Across the
+pytest-executed forward cases, Crello max logit diff is `1.00e-5` and RICO max
+logit diff is `5.25e-6`.
 
 ## Reproducibility
 

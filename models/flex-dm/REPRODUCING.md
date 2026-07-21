@@ -9,6 +9,12 @@ Vendor reference and probe generation disable TensorFlow TF32 with both
 `tf.config.experimental.enable_tensor_float_32_execution(False)` alone records
 `tf32_enabled=false` but does not change the GPU matmul output.
 
+`generate_reference_outputs.py` writes both the aggregate
+`reference_results.json` and per-case `forward_cases/*.npz` files. The
+`vendor_parity` pytest target loads those saved vendor inputs, loads the
+converted checkpoint with `from_pretrained`, and executes the PyTorch model in
+the test process before comparing logits.
+
 ## Crello
 
 ```bash
