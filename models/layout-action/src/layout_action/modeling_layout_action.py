@@ -38,7 +38,7 @@ class LayoutActionCausalSelfAttention(nn.Module):
         self.attn_drop = nn.Dropout(config.attn_pdrop)
         self.resid_drop = nn.Dropout(config.resid_pdrop)
         self.proj = nn.Linear(config.n_embd, config.n_embd)
-        self.register_buffer("mask", mask)
+        self.register_buffer("mask", mask.clone())
         self.n_head = config.n_head
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

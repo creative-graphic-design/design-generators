@@ -17,12 +17,17 @@ from pathlib import Path
 from typing import Final
 
 GOOGLE_DRIVE_FOLDER_ID: Final[str] = "1KU9q83gzKD2HGoBduN2CWC0LHUmDcFy0"
-EXPECTED_FILES: Final[tuple[str, ...]] = (
-    "Resources/pretrained_model_resources/Ours/rico.pth",
-    "Resources/pretrained_model_resources/Ours/publaynet.pth",
+EXPECTED_CHECKPOINTS: Final[tuple[str, ...]] = (
+    "pretrained_model_resources/Ours/rico.pth",
+    "pretrained_model_resources/Ours/publaynet.pth",
 )
-OPTIONAL_FILES: Final[tuple[str, ...]] = (
-    "Resources/pretrained_model_resources/Ours/infoppt.pth",
+OPTIONAL_CHECKPOINTS: Final[tuple[str, ...]] = (
+    "pretrained_model_resources/Ours/infoppt.pth",
+)
+OPTIONAL_PROCESSED_DATA: Final[tuple[str, ...]] = (
+    "processed_data/LayoutGAN++/rico/processed/test.pt",
+    "processed_data/LayoutGAN++/rico/processed/val.pt",
+    "processed_data/LayoutGAN++/publaynet/processed/test.pt",
 )
 
 
@@ -68,11 +73,11 @@ def inventory(root: Path) -> dict[str, object]:
     files: dict[str, dict[str, object]] = {}
     missing_required: list[str] = []
     missing_optional: list[str] = []
-    for rel in EXPECTED_FILES + OPTIONAL_FILES:
+    for rel in EXPECTED_CHECKPOINTS + OPTIONAL_CHECKPOINTS + OPTIONAL_PROCESSED_DATA:
         path = root / rel
         if path.exists():
             files[rel] = {"size": path.stat().st_size, "sha256": sha256_file(path)}
-        elif rel in EXPECTED_FILES:
+        elif rel in EXPECTED_CHECKPOINTS:
             missing_required.append(rel)
         else:
             missing_optional.append(rel)

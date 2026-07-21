@@ -47,8 +47,7 @@ def main() -> None:
         config=config,
         strict=True,
     )
-    with (args.output_dir / "conversion_report.json").open("w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, sort_keys=True)
+    print(json.dumps(report, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

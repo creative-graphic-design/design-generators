@@ -124,10 +124,13 @@ Training follows the original GPT-style causal language-model objective over pad
 
 | Check | Cases | Match Criterion | Result |
 | --- | ---: | --- | --- |
-| Fixed-input logits | 0 | `torch.equal`, or documented tight tolerance after root-cause analysis | Not run; original assets required |
-| Greedy sequences | 0 | Exact token ids | Not run; original assets required |
-| Category forced labels | 0 | Exact forced label-token positions | Not run; original assets required |
-| Decoded layouts | 0 | Exact after token parity | Not run; original assets required |
+| Strict checkpoint conversion | 2 | `missing_keys == []` and `unexpected_keys == []` for RICO13 and PubLayNet | Pass |
+| Fixed-input logits | 6 | `torch.equal` for RICO13/PubLayNet across `random_generate`, `category_generate`, and `completion_generate` references | Pass |
+| Stochastic top-k sequences | 6 | Exact token ids with seed 42 on `CUDA_VISIBLE_DEVICES=0` | Pass |
+| Category forced labels | 2 | Exact forced label-token positions for RICO13 and PubLayNet | Pass |
+| Decoded layouts | 6 | Exact `bbox`, `labels`, and `mask` after token parity | Pass |
+
+The reference artifacts were generated from the released Google Drive checkpoints with synthetic fixed action-token prompts because the public Resources folder includes LayoutGAN++ processed data but not LayoutAction `preprocess_data` files. The converted checkpoints matched the vendor GPT and sampler bit-exactly for `random_generate`, `category_generate`, and `completion_generate`. Checkpoint SHA256 values were `c3a65ff7c1bf996d76f56ae15070c6c41f817744e5fb91752e1cb96600231614` for RICO13 and `08cd7d6bd2c745e90c8c7ce3c8b25627d004d7d7efc69b986e0f2b6b9e89ec17` for PubLayNet. InfoPPT was not present in the downloaded folder and remains pending original-author assets.
 
 ## Reproducibility
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
+import json
 from pathlib import Path
 
 import torch
@@ -52,6 +54,15 @@ def remap_state_dict(
     return remapped, report
 
 
+def sha256_file(path: str | Path) -> str:
+    """Return the SHA256 digest for a checkpoint file."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def convert_layout_action_checkpoint(
     *,
     checkpoint: str | Path,
@@ -70,8 +81,9 @@ def convert_layout_action_checkpoint(
     Returns:
         Conversion report dictionary.
     """
+    checkpoint_path = Path(checkpoint)
     model = LayoutActionForCausalLM(config)
-    raw = torch.load(checkpoint, map_location="cpu")
+    raw = torch.load(checkpoint_path, map_location="cpu")
     if not isinstance(raw, dict):
         raise TypeError("LayoutAction checkpoint must be a state-dict mapping")
     remapped, report = remap_state_dict(raw, model)
@@ -81,11 +93,21 @@ def convert_layout_action_checkpoint(
     processor = LayoutActionProcessor(LayoutActionTokenizer(config))
     model.save_pretrained(out_dir)
     processor.save_pretrained(out_dir)
+    checkpoint_sha256 = sha256_file(checkpoint_path)
+    config.original_asset_manifest = {
+        **config.original_asset_manifest,
+        "checkpoint": str(checkpoint_path),
+        "checkpoint_sha256": checkpoint_sha256,
+    }
+    config.save_pretrained(out_dir)
     conversion_report = {
-        "checkpoint": str(checkpoint),
+        "checkpoint": str(checkpoint_path),
+        "checkpoint_sha256": checkpoint_sha256,
         "config": config.to_dict(),
         "keys": [asdict(row) for row in report],
         "missing_keys": list(missing),
         "unexpected_keys": list(unexpected),
     }
+    with (out_dir / "conversion_report.json").open("w", encoding="utf-8") as f:
+        json.dump(conversion_report, f, indent=2, sort_keys=True)
     return conversion_report
