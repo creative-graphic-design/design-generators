@@ -186,7 +186,7 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PKU-PosterLayout",
         ],
     },
-    "smarttext": {"license": "other", "datasets": ["PosterLayout"]},
+    "smarttext": {"license": "other", "datasets": ["SmartText demo"]},
 }
 
 

@@ -222,7 +222,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
             "",
             "# Fake Repo",
             "",
-            "[Model](api/models/fake-project/index.md)",
+            "[Model](api/models/fake-project/)",
             "[Guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/fake/REPRODUCING.md)",
             "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
             "",
@@ -232,10 +232,10 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert (tmp_path / "docs/models.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
-    assert "- [FakeProject](models/fake-project/index.md)" in (
+    assert "- [FakeProject](models/fake-project/)" in (
         tmp_path / "docs/api/index.md"
     ).read_text(encoding="utf-8")
-    assert "- [FakeProject](fake-project/index.md)" in (
+    assert "- [FakeProject](fake-project/)" in (
         tmp_path / "docs/api/models/index.md"
     ).read_text(encoding="utf-8")
     package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
@@ -250,7 +250,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     )
     assert "model-index:" not in package_index
     assert (
-        "**Reproducing parity:** [Open the model reproducing guide](reproducing.md)."
+        "**Reproducing parity:** [Open the model reproducing guide](reproducing/)."
         in package_index
     )
     assert "## Reproducing Guide" not in package_index
@@ -266,7 +266,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
     assert (
-        "| [FakeProject](api/models/fake-project/index.md) | "
+        "| [FakeProject](api/models/fake-project/) | "
         "![framework: transformers](https://img.shields.io/static/v1?label=framework&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white) | "
         "![task: content-agnostic-layout-generation](https://img.shields.io/static/v1?label=task&message=content-agnostic-layout-generation&color=purple&style=flat-square) "
         "![task: content-aware-layout-generation](https://img.shields.io/static/v1?label=task&message=content-aware-layout-generation&color=purple&style=flat-square) | "

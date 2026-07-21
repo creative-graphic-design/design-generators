@@ -12,7 +12,7 @@ tags:
   - "content-image"
   - "layout-generation"
 datasets:
-  - "PosterLayout"
+  - "SmartText demo"
 model-index:
   - name: "SmartText"
     results:
@@ -20,8 +20,8 @@ model-index:
           type: "other"
           name: "Content-aware text placement"
         dataset:
-          type: "PosterLayout"
-          name: "PosterLayout-style vendor demo assets"
+          type: "SmartText demo"
+          name: "SmartText vendor demo assets"
           split: "vendor parity fixture"
         metrics:
           - type: "vendor-parity"
@@ -35,7 +35,7 @@ model-index:
 ![venue](https://img.shields.io/static/v1?label=venue&message=TMM+2021&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=SmartText+demo&color=informational&style=flat-square)
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
@@ -148,6 +148,7 @@ Training is not implemented in this workspace member. The package focuses on arc
 | Scorer inputs | 43 candidates | Exact tensor match against vendor `setup_test_dataset` RoE preprocessing | Passed |
 | Raw SMT scores | 43 candidates | Bit-exact with `torch.use_deterministic_algorithms(True)`, TF32 disabled, and cuDNN disabled | Passed |
 | Selected boxes | 3 images, top 3 each | Exact selected candidate indices | Passed |
+| Text color | 3 selected top boxes | Exact hex color match against vendor `cal_best_color` with fixed KMeans seed | Passed |
 
 ## Reproducibility
 
