@@ -34,9 +34,9 @@ posgen = { workspace = true }
 
 [tool.design-generators]
 framework = "transformers"
-task = "masked-document-modeling"
+task = ["content-agnostic-layout-generation", "content-aware-layout-generation"]
 conditions = ["completion", "refinement", "content_image"]
-datasets = ["cyberagent/crello", "creative-graphic-design/Rico"]
+datasets = ["crello", "rico25"]
 vendor = "CyberAgentAILab/flex-dm"
 paper = "https://arxiv.org/abs/2303.18248"
 
