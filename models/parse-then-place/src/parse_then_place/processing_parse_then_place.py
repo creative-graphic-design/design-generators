@@ -215,9 +215,10 @@ class ParseThenPlaceProcessor(ProcessorMixin):
     def ir_to_placement_inputs(self, logical_forms: Sequence[str]) -> list[str]:
         """Convert logical forms to placement-constraint strings.
 
-        The full vendor grammar executor is used in parity scripts. Runtime keeps
-        this method deterministic and accepts already-linearized constraints,
-        which is also the artifact stored in stage-1 prediction JSON files.
+        Runtime keeps this method deterministic and accepts already-linearized
+        constraints, which is also the artifact stored in stage-1 prediction JSON
+        files. The current parity scripts do not execute the vendor grammar
+        executor.
         """
         return [self._logical_form_to_constraint(item) for item in logical_forms]
 

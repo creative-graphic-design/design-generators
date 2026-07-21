@@ -22,7 +22,7 @@ def _set_seed(seed: int) -> None:
 
 
 def main() -> None:
-    """Run vendor-equivalent stage-2 generation and save reference JSON."""
+    """Run the stage-2 Transformers generation wrapper and save reference JSON."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--original-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -85,8 +85,11 @@ def main() -> None:
         "stage2_mode": args.stage2_mode,
         "seed": args.seed,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "4"),
-        "vendor_root": "vendor/ms-layout-generation/Parse-Then-Place",
-        "vendor_entrypoint": "layout_placement.trainer.Trainer.test",
+        "reference_path": (
+            "Transformers T5ForConditionalGeneration.generate call with "
+            "generation arguments copied from the vendor stage-2 trainer"
+        ),
+        "vendor_code_executed": False,
         "num_examples": args.num_examples,
         "num_return_sequences": args.num_return_sequences,
         "temperature": args.temperature,

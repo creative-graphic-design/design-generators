@@ -189,9 +189,9 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 | Dataset | Compared artifact | Cases | Match criterion | Result |
 | --- | --- | ---: | --- | --- |
-| Rico | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; observed `max_abs=0`, `max_rel=0`; pass threshold `atol=1e-6`, `rtol=1e-5` | passed |
-| PubLayNet | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; observed `max_abs=0`, `max_rel=0`; pass threshold `atol=1e-6`, `rtol=1e-5` | passed |
-| Magazine | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 33, 4)` bbox; observed `max_abs=0`, `max_rel=0`; pass threshold `atol=1e-6`, `rtol=1e-5` | passed |
+| Rico | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
+| PubLayNet | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 9, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
+| Magazine | vendor `netG` fixture vs. converted `LayoutGANPPModel` | 1 | `(3, 33, 4)` bbox; `torch.testing.assert_close(atol=1e-6, rtol=1e-5)` | passed |
 
 ## Reproducibility
 

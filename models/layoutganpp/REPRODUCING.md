@@ -64,9 +64,9 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutganpp pytest models/layo
 Expected parity results:
 
 ```text
-rico: shape=(3, 9, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
-publaynet: shape=(3, 9, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
-magazine: shape=(3, 33, 4), observed max_abs=0, observed max_rel=0; pass threshold atol=1e-6, rtol=1e-5
+rico: shape=(3, 9, 4); torch.testing.assert_close(atol=1e-6, rtol=1e-5)
+publaynet: shape=(3, 9, 4); torch.testing.assert_close(atol=1e-6, rtol=1e-5)
+magazine: shape=(3, 33, 4); torch.testing.assert_close(atol=1e-6, rtol=1e-5)
 ```
 
 Step 5 runs a `from_pretrained` smoke check for each converted checkpoint. The expected bbox shapes are `(1, 2, 4)`.

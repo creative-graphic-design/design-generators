@@ -35,7 +35,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutDM](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html), the CVPR 2023 discrete diffusion model for controllable layout generation, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
@@ -175,10 +175,12 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Parity Results
 
-| Dataset | Tokenizer exact | Deterministic exact | Logits max abs | Logits max rel |
-| --- | ---: | ---: | ---: | ---: |
-| RICO25 | 125/125 | 125/125 | 0 | 0 |
-| PubLayNet | 125/125 | 125/125 | 0 | 0 |
+| Dataset | Tokenizer exact | Deterministic exact | Denoiser logits assertion |
+| --- | ---: | ---: | --- |
+| RICO25 | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+
+The deterministic sequence check uses the non-default argmax sampling mode (`sampling="deterministic"`), not the pipeline's stochastic default.
 
 ## Reproducibility
 
