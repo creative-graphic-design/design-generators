@@ -129,6 +129,15 @@ def test_layout_action_vendor_logits_and_sequences_match_converted_model(
     if isinstance(forced, torch.Tensor):
         forced = forced.to(device)
     sample_sequences = cast(torch.Tensor, reference["sample_sequences"])
+    tokenizer = LayoutActionTokenizer(LayoutActionConfig(dataset_name=dataset))
+    if eval_command == "completion_generate":
+        prompt_cpu = prompt_ids.detach().cpu()
+        assert torch.isin(
+            torch.tensor(
+                [tokenizer.config.copy_token_id, tokenizer.config.margin_token_id]
+            ),
+            prompt_cpu,
+        ).all()
     max_new_tokens = sample_sequences.shape[1] - prompt_ids.shape[1]
     _set_seed(int(cast(int, reference["seed"])))
     with torch.no_grad():
@@ -141,7 +150,6 @@ def test_layout_action_vendor_logits_and_sequences_match_converted_model(
             forced_token_ids=forced,
         )
     assert torch.equal(sequences.cpu(), sample_sequences)
-    tokenizer = LayoutActionTokenizer(LayoutActionConfig(dataset_name=dataset))
     expected_layout = tokenizer.decode_layout(sample_sequences)
     actual_layout = tokenizer.decode_layout(sequences.cpu())
     assert torch.equal(actual_layout["bbox"], expected_layout["bbox"])

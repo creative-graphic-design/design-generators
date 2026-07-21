@@ -191,12 +191,14 @@ def write_reference(
             gt=gt_input_ids,
         )
     elif eval_command == "completion_generate":
-        prompt_ids = gt_input_ids[:, : 1 + config.element_token_width]
+        prompt_elements = 2
+        prompt_ids = gt_input_ids[:, : 1 + prompt_elements * config.element_token_width]
         forced = None
         sequences = sample(
             model,
             prompt_ids,
-            steps=config.max_token_length - config.element_token_width,
+            steps=config.max_token_length
+            - prompt_elements * config.element_token_width,
             temperature=1.0,
             sample=True,
             top_k=5,
