@@ -204,6 +204,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--prompt", default="ICME 2020\n6-10 July, London")
     parser.add_argument("--max-images", type=int, default=3)
+    parser.add_argument("--contrast-threshold", type=float, default=5.0)
     args = parser.parse_args()
 
     for path in (
@@ -225,6 +226,7 @@ def main() -> None:
     sys.path.insert(0, str(args.vendor_dir.resolve()))
 
     from BASNet.model import BASNet  # type: ignore[import-not-found]
+    from cal_color import RGB_to_Hex, cal_best_color  # type: ignore[import-not-found]
     from smtDataset import setup_test_dataset  # type: ignore[import-not-found]
     from smtModel import build_smt_model  # type: ignore[import-not-found]
 
@@ -270,6 +272,7 @@ def main() -> None:
     scorer_inputs_by_image: dict[str, dict[str, torch.Tensor]] = {}
     candidates_by_image: dict[str, object] = {}
     selected_by_image: dict[str, object] = {}
+    colors_by_image: dict[str, object] = {}
     image_paths: dict[str, str] = {}
     case_count = min(args.max_images, len(dataset))
     with torch.no_grad():
@@ -304,6 +307,20 @@ def main() -> None:
                 }
                 for rank, candidate_index in enumerate(order[:3])
             ]
+            top_row = sample["box_list"][order[0]][0]
+            image_array = np.asarray(Image.open(sample["imgpath"]).convert("RGB"))
+            crop = image_array[
+                int(top_row["xl"]) : int(top_row["xr"]),
+                int(top_row["yl"]) : int(top_row["yr"]),
+            ]
+            np.random.seed(args.seed)
+            color_candidates = cal_best_color(
+                image_array, crop, contrast_threshold=args.contrast_threshold
+            )
+            colors_by_image[image_name] = {
+                "candidate_index": int(order[0]),
+                "text_color": RGB_to_Hex(color_candidates[0]["color"]),
+            }
             image_paths[image_name] = str(sample["imgpath"])
             saliency_path = work_dir / "visimp_pred" / f"{Path(image_name).stem}.png"
             saliency_by_image[image_name] = torch.from_numpy(
@@ -323,6 +340,7 @@ def main() -> None:
         "image_paths": image_paths,
         "font": str(args.font),
         "prompt": args.prompt,
+        "contrast_threshold": args.contrast_threshold,
         "model_type": "RoE",
         "align_backend": "vendor smtModel.py with SmartText PyTorch RoI/RoD shim",
         "determinism": {
@@ -346,6 +364,10 @@ def main() -> None:
     )
     (args.output_dir / "selected.json").write_text(
         json.dumps(selected_by_image, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (args.output_dir / "colors.json").write_text(
+        json.dumps(colors_by_image, indent=2, sort_keys=True),
         encoding="utf-8",
     )
     torch.save(scores_by_image, args.output_dir / "scores.pt")

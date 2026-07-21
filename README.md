@@ -28,7 +28,7 @@
 | [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
 | [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
 | [`models/ralf`](models/ralf/README.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](models/ralf/REPRODUCING.md)) |
-| [`models/smarttext`](models/smarttext/README.md) | SmartText | `transformers` | PosterLayout-style demo assets | convert locally ([REPRODUCING.md](models/smarttext/REPRODUCING.md)) |
+| [`models/smarttext`](models/smarttext/README.md) | SmartText | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](models/smarttext/REPRODUCING.md)) |
 
 Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
 

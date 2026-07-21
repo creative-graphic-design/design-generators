@@ -314,15 +314,18 @@ class SmartTextPipeline(LayoutGenerationPipeline):
             boxes.to(self._runtime_device()),
         ).scores
         top_k = candi_res or self.config.candi_res
-        text_color = (
-            choose_text_color(
+        raw_scores = scores.detach().cpu().float().flatten()
+        if candidates:
+            selected_color_index = max(
+                range(len(candidates)), key=lambda index: float(raw_scores[index])
+            )
+            text_color = choose_text_color(
                 image,
-                candidates[0].bbox_ltrb_px,
+                candidates[selected_color_index].bbox_ltrb_px,
                 contrast_threshold=self.config.contrast_threshold,
             )
-            if candidates
-            else None
-        )
+        else:
+            text_color = None
         intermediates = None
         if return_intermediates:
             intermediates = {

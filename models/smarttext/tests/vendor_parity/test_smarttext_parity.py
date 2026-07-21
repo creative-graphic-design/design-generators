@@ -54,6 +54,7 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
         "saliency.pt",
         "scorer_inputs.pt",
         "selected.json",
+        "colors.json",
     ]
     missing = [name for name in required if not (reference_dir / name).exists()]
     if missing:
@@ -68,6 +69,9 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
     selected_by_image = json.loads(
         (reference_dir / "selected.json").read_text(encoding="utf-8")
     )
+    colors_by_image = json.loads(
+        (reference_dir / "colors.json").read_text(encoding="utf-8")
+    )
     reference_scores = torch.load(reference_dir / "scores.pt", map_location="cpu")
     reference_saliency = torch.load(reference_dir / "saliency.pt", map_location="cpu")
     reference_scorer_inputs = torch.load(
@@ -78,6 +82,10 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
         "cuda" if meta.get("device") == "cuda" and torch.cuda.is_available() else "cpu"
     )
     pipe.to(device)
+    assert meta["case_count"] == 3
+    assert len(candidates_by_image) == 3
+    assert sum(len(rows) for rows in candidates_by_image.values()) == 43
+    np.random.seed(int(meta["seed"]))
 
     for image_name, candidates in candidates_by_image.items():
         image = Image.open(meta["image_paths"][image_name]).convert("RGB")
@@ -127,3 +135,8 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
         assert intermediates["selected_indexes"] == [
             row["candidate_index"] for row in selected_by_image[image_name]
         ]
+        assert (
+            colors_by_image[image_name]["candidate_index"]
+            == selected_by_image[image_name][0]["candidate_index"]
+        )
+        assert intermediates["text_color"] == colors_by_image[image_name]["text_color"]
