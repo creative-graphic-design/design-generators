@@ -185,6 +185,8 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | `publaynet_completion` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
 | `publaynet_ugen` | present | synthetic task vocab; no task `vocab.json` is published | exact | 0.0 | 0.0 | exact vendor top-k loop |
 
+The substantive vendor-parity sweep covers 28 checkpoint/check combinations: 12 checkpoint-logit checks, 12 checkpoint-generation checks, and 4 label-constrained generation checks. The separate `FileNotFoundError` loader test is not counted as a parity case.
+
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.

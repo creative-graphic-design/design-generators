@@ -10,7 +10,7 @@ Prerequisites:
 - Use `uv sync --package layoutformerpp` once before the first run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use.
+- Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use for the parity pytest run when CUDA is available.
 
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
@@ -21,12 +21,12 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/download_or
   --allow-pattern "ckpts/**/vocab.json"
 ```
 
-2. Generate local vendor reference metadata for each public task fixture. Metadata is written under `.cache/layoutformerpp/reference/<dataset>_<task>/metadata.json`; generated tensors stay local.
+2. Record local reference metadata for each public task fixture. `export_reference.py` writes static metadata under `.cache/layoutformerpp/reference/<dataset>_<task>/metadata.json`; it does not execute a model or require a GPU, and generated tensors stay local.
 
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+    uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
       --dataset "$dataset" \
       --task "$task" \
       --seed 500 \

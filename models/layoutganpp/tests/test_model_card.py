@@ -23,7 +23,7 @@ def test_layoutganpp_model_card_metadata_and_sections():
     assert "## Evaluation" in text
     assert "## Technical Specifications" in text
     assert "bbox tensors with shape (3, 9, 4)" in text
-    assert "max_abs=0 and max_rel=0" in text
+    assert "torch.testing.assert_close(atol=1e-6, rtol=1e-5)" in text
     assert "https://github.com/ktrk115/const_layout" in text
     assert "10.1145/3474085.3475497" in text
     assert "LayoutDM" not in text

@@ -1,4 +1,4 @@
-"""Write local metadata for LACE vendor parity reference generation."""
+"""Write local metadata for LACE parity-reference bookkeeping."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ def _default_checkpoint(dataset: DatasetName | str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Record local metadata for a LACE vendor parity reference run. "
-            "The actual golden tensors are local-only because they depend on "
-            "the original vendor environment and checkpoint files."
+            "Record local metadata for LACE parity-reference bookkeeping. "
+            "This script does not generate reference tensors; the denoiser "
+            "parity test loads local original checkpoints directly."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -61,7 +61,10 @@ def main() -> None:
         "dataset": str(dataset),
         "checkpoint": checkpoint,
         "seed": args.seed,
-        "note": "Run vendor/lace reference generation in an isolated vendor environment; fixtures are local-only.",
+        "note": (
+            "Metadata only. This script does not generate reference tensors; "
+            "the denoiser parity test loads the local original checkpoint directly."
+        ),
     }
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
