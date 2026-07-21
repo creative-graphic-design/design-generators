@@ -14,6 +14,7 @@ classifiers = [
 dependencies = [
     "coarse-to-fine",
     "ds-gan",
+    "flex-dm",
     "layout-corrector",
     "layoutdiffusion",
     "layout-flow",
@@ -68,6 +69,7 @@ members = ["lib/*", "models/*"]
 [tool.uv.sources]
 coarse-to-fine = { workspace = true }
 ds-gan = { workspace = true }
+flex-dm = { workspace = true }
 layout-corrector = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
@@ -118,7 +120,7 @@ unsupported-base = "ignore"
 unresolved-import = "ignore"
 
 [tool.ty.src]
-exclude = ["vendor"]
+exclude = ["vendor", "models/flex-dm/scripts", "models/flex-dm/tests"]
 
 [tool.pylint.main]
 ignore = ["vendor", ".cache", "site"]
