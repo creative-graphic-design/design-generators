@@ -2,6 +2,8 @@
 
 These commands reproduce the Flex-DM vendor-reference generation, parity checks, checkpoint conversion, and local `from_pretrained` smoke test.
 
+Workflow order: download assets, generate references and goldens, run parity checks, convert checkpoints, then smoke-test `from_pretrained` local loading.
+
 ## Crello
 
 ```bash
