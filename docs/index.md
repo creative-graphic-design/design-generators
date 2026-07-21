@@ -36,6 +36,7 @@ tags:
 | [`models/layoutprompter`](api/models/layoutprompter/index.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
 | [`models/parse-then-place`](api/models/parse-then-place/index.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md)) |
 | [`models/ralf`](api/models/ralf/index.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md)) |
+| [`models/smarttext`](api/models/smarttext/index.md) | SmartText | `transformers` | PosterLayout-style demo assets | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md)) |
 
 Shared libraries live under `lib/*`: [`laygen`](api/libraries/laygen/index.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](api/libraries/posgen/index.md) reserves small poster/content-aware placement contracts for future consumers.
 

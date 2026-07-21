@@ -2,6 +2,8 @@
 
 These commands reproduce SmartText agreement checks against the original implementation by downloading the released checkpoints, generating vendor references, converting weights, and running parity plus smoke tests.
 
+Workflow order: download assets, generate references, convert checkpoints, run parity checks, then smoke-test local loading with `from_pretrained`.
+
 ## Download Original Assets
 
 ```bash

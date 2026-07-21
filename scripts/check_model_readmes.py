@@ -186,6 +186,7 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PKU-PosterLayout",
         ],
     },
+    "smarttext": {"license": "other", "datasets": ["PosterLayout"]},
 }
 
 
@@ -206,6 +207,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
     "ralf": "RALF",
+    "smarttext": "SmartText",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -217,6 +219,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "smarttext": "https://github.com/chenqi008/SmartText",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
