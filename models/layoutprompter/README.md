@@ -170,7 +170,6 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | Prompt byte equality | 1 prompt fixture | exact byte match | pass |
 | Exemplar selection | 2 selected exemplar ids | exact id match | pass |
 | Parser golden output | 2 arrays (`labels`, `bbox`) | exact value match | pass |
-| Torch-to-numpy output equivalence | 1 public parser fixture | exact JSON match for `bbox`, `labels`, `mask`, and `id2label` | pass |
 
 ## Reproducibility
 

@@ -188,6 +188,8 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | RICO finetune stage-2 token ids | 1 prompt x 5 samples | Exact generated token-id sequence match | 5/5 |
 | RICO finetune stage-2 decoded layouts | 1 prompt x 5 samples | Exact decoded layout string match | 5/5 |
 
+The current parity test loads the original stage-2 placement checkpoint through the converted package wrapper and compares it with references produced by a direct `transformers` generation call using hand-copied vendor generation settings; it does not execute the vendor trainer path or the converted checkpoint artifact.
+
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.

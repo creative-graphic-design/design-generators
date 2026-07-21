@@ -159,17 +159,6 @@ def test_layout_corrector_logits_match_vendor_transformer(
         converted_logits = converted.calc_confidence_score(input_ids, timesteps)
         vendor_logits = vendor(input_ids, timestep=timesteps)["logits"].squeeze(-1)
 
-    diff = (converted_logits - vendor_logits).abs()
-    denominator = vendor_logits.abs().clamp_min(1.0e-12)
-    max_abs = float(diff.max().item())
-    max_rel = float((diff / denominator).max().item())
-    token_exact = int(torch.eq(input_ids, input_ids.clone()).sum().item())
-    total_tokens = input_ids.numel()
-    print(
-        f"{dataset}/seed{seed}: token_exact={token_exact}/{total_tokens} "
-        f"logits_max_abs={max_abs:.8g} logits_max_rel={max_rel:.8g}"
-    )
-    assert token_exact == total_tokens
     assert torch.allclose(
         converted_logits.cpu(),
         vendor_logits.cpu(),
