@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import copy
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import ClassVar, Literal, cast
@@ -274,8 +275,10 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         self.prepare_generator(generator=generator, seed=seed, device=self.device)
         if font is None:
             font = ImageFont.load_default()
+        effective_config = self.config
         if text_spacing is not None:
-            self.config.text_spacing = int(text_spacing)
+            effective_config = copy.copy(self.config)
+            effective_config.text_spacing = int(text_spacing)
         encoded = self.processor(
             images,
             content=content,
@@ -301,13 +304,13 @@ class SmartTextPipeline(LayoutGenerationPipeline):
                 cast(torch.Tensor, resolved_saliency),
                 prompt=prompt_text,
                 font=font,
-                config=self.config,
+                config=effective_config,
                 ratio_list=ratio_list,
             )
         pixel_values, boxes, candidates = prepare_scorer_batch(
             image,
             candidates,
-            config=self.config,
+            config=effective_config,
         )
         scores = self.scorer(
             pixel_values.to(self._runtime_device()),
