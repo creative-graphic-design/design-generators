@@ -111,15 +111,64 @@ def test_random_numerical_tokens_elem_and_invalid_group() -> None:
 
 
 def test_iterative_decode_updates_categorical_inputs() -> None:
-    """Iterative decode updates masked categorical positions."""
+    """Iterative decode uses the vendor confidence-commit mask update."""
+    config = tiny_config()
+    batch, seq_len = 1, 4
+    source_inputs = {
+        key: torch.zeros(
+            (batch, seq_len, int(column["shape"][-1])),
+            dtype=torch.float32 if column["type"] == "numerical" else torch.long,
+        )
+        for key, column in config.input_columns.items()
+    }
+    source_inputs["length"] = torch.tensor([[seq_len - 1]])
+    current_inputs = dict(source_inputs)
+    current_inputs["left"] = torch.full_like(
+        source_inputs["left"],
+        int(config.input_columns["left"]["input_dim"]),
+    )
+    masks = {
+        key: torch.zeros((batch, seq_len), dtype=torch.bool)
+        for key, column in config.input_columns.items()
+        if column["is_sequence"]
+    }
+    masks["left"] = torch.ones((batch, seq_len), dtype=torch.bool)
 
     class DummyModel:
+        def __init__(self) -> None:
+            self.seen_left: list[torch.Tensor] = []
+            self.seen_left_masks: list[torch.Tensor] = []
+
         def __call__(self, **kwargs):
-            logits = {"left": torch.tensor([[[[0.0, 1.0, 0.0, 0.0]]]])}
+            self.seen_left.append(kwargs["inputs"]["left"].clone())
+            self.seen_left_masks.append(kwargs["masks"]["left"].clone())
+            logits = {
+                "left": torch.tensor(
+                    [
+                        [
+                            [[0.0, 4.0, 0.0, 0.0]],
+                            [[0.0, 3.0, 0.0, 0.0]],
+                            [[0.0, 2.0, 0.0, 0.0]],
+                            [[0.0, 1.0, 0.0, 0.0]],
+                        ]
+                    ]
+                )
+            }
             return FlexDmModelOutput(logits=logits)
 
-    inputs = {"left": torch.zeros((1, 1, 1), dtype=torch.long)}
-    masks = {"left": torch.tensor([[True]])}
-    output = iterative_decode(DummyModel(), inputs=inputs, masks=masks, num_iter=2)
+    model = DummyModel()
+    output = iterative_decode(
+        model,
+        inputs=current_inputs,
+        masks=masks,
+        num_iter=2,
+        input_columns=config.input_columns,
+        source_inputs=source_inputs,
+    )
 
-    assert output.logits["left"].shape == (1, 1, 1, 4)
+    assert output.logits["left"].shape == (batch, seq_len, 1, 4)
+    assert model.seen_left[1][0, :3, 0].tolist() == [1, 1, 1]
+    assert model.seen_left[1][0, 3, 0].item() == int(
+        config.input_columns["left"]["input_dim"]
+    )
+    assert model.seen_left_masks[1].tolist() == [[False, False, False, True]]

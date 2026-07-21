@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import Final, Literal
+from typing import Final, Literal, Protocol, cast
 
 import torch
 
@@ -13,6 +13,12 @@ from .configuration_flex_dm import FlexDmColumnSpec
 
 MASK_VALUE: Final[float] = 10.0
 NULL_VALUE: Final[float] = 0.0
+
+
+class _MutableLogitsOutput(Protocol):
+    logits: dict[str, torch.Tensor]
+
+    def __setitem__(self, key: str, value: object) -> None: ...
 
 
 def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Tensor:
@@ -168,6 +174,8 @@ def iterative_decode(
     inputs: dict[str, torch.Tensor],
     masks: dict[str, torch.Tensor],
     num_iter: int,
+    input_columns: Mapping[str, FlexDmColumnSpec],
+    source_inputs: Mapping[str, torch.Tensor] | None = None,
 ) -> object:
     """Run a deterministic MaskGIT-like categorical decode loop.
 
@@ -176,21 +184,99 @@ def iterative_decode(
         inputs: Current model inputs.
         masks: Per-column masks where ``True`` means hidden.
         num_iter: Number of decode iterations.
+        input_columns: Vendor column definitions.
+        source_inputs: Unmasked source inputs used for confidence-commit updates.
 
     Returns:
         The final model output.
     """
+    if num_iter <= 0:
+        raise ValueError("num_iter must be positive")
     output = None
     current_inputs = dict(inputs)
-    for _step in range(max(num_iter, 1)):
-        output = model(inputs=current_inputs, masks=masks, return_dict=True)
+    current_masks = dict(masks)
+    original_inputs = source_inputs or inputs
+    first_key = next(
+        key for key, column in input_columns.items() if column["is_sequence"]
+    )
+    seq_mask = get_seq_mask(
+        original_inputs["length"].reshape(-1),
+        maxlen=original_inputs[first_key].shape[1],
+    )
+    filtered_inputs = filter_padding(original_inputs, input_columns, seq_mask)
+    categorical_keys = [
+        key
+        for key, column in input_columns.items()
+        if column["is_sequence"] and column["type"] == "categorical"
+    ]
+    masked_counts = sum(
+        current_masks[key].detach().cpu().numpy().astype("int").sum(-1)
+        for key in categorical_keys
+    )
+    updates_per_iter = (masked_counts / num_iter).round().astype("int")
+    final_logits: dict[str, torch.Tensor] | None = None
+    for index in range(num_iter):
+        output = model(inputs=current_inputs, masks=current_masks, return_dict=True)
         logits = output.logits  # ty: ignore[unresolved-attribute]
-        for key, mask in masks.items():
-            if key in logits and logits[key].ndim == 4:
+        if index == 0:
+            final_logits = dict(logits)
+        confidence = {
+            key: torch.where(
+                current_masks[key],
+                torch.softmax(logits[key], dim=-1).amax(dim=-1).mean(dim=-1),
+                torch.zeros_like(current_masks[key], dtype=logits[key].dtype),
+            )
+            for key in categorical_keys
+            if key in logits
+        }
+        if confidence:
+            confidence_sorted = torch.sort(
+                torch.cat([confidence[key] for key in confidence], dim=-1),
+                dim=-1,
+                descending=True,
+            ).values
+            threshold = torch.stack(
+                [
+                    confidence_sorted[row, int(update_count)]
+                    for row, update_count in enumerate(updates_per_iter)
+                ]
+            )
+            for key in confidence:
                 pred = logits[key].argmax(dim=-1)
-                current_inputs[key] = torch.where(
-                    mask.unsqueeze(-1), pred, current_inputs[key]
+                update_field = (confidence[key] >= threshold[:, None]) & (
+                    confidence[key] > 0
                 )
+                filtered_inputs[key] = torch.where(
+                    update_field.unsqueeze(-1),
+                    pred,
+                    filtered_inputs[key],
+                )
+                current_masks[key] = torch.where(
+                    current_masks[key] == update_field,
+                    torch.zeros_like(current_masks[key]),
+                    current_masks[key],
+                )
+                if index > 0 and final_logits is not None:
+                    final_logits[key] = torch.where(
+                        update_field[:, :, None, None],
+                        logits[key],
+                        final_logits[key],
+                    )
+            for key, column in input_columns.items():
+                if column["is_sequence"]:
+                    current_inputs[key] = apply_token(
+                        filtered_inputs[key],
+                        column,
+                        current_masks[key],
+                        "masked",
+                    )
     if output is None:
         raise ValueError("num_iter must be positive")
+    if final_logits is not None:
+        output_any = cast(_MutableLogitsOutput, output)
+        for key in ("image_embedding", "text_embedding"):
+            if key in output_any.logits:
+                final_logits[key] = output_any.logits[key]
+        output_any.logits = final_logits
+        output_any["logits"] = final_logits
     return output

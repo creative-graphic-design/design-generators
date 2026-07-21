@@ -192,6 +192,8 @@ class FlexDmPipeline(LayoutGenerationPipeline):
                         inputs=masked_inputs,
                         masks=masks,
                         num_iter=num_inference_steps,
+                        input_columns=self.config.input_columns,
+                        source_inputs=inputs,
                     ),
                 )
             else:

@@ -182,6 +182,7 @@ def test_tf_checkpoint_conversion_report_is_exact(
     assert report["matched_parameter_count"] == expected["matched_parameter_count"]
     assert report["missing_target_keys"] == []
     assert report["unexpected_source_keys"] == []
+    assert report["strict"] is True
 
 
 @pytest.mark.vendor_parity

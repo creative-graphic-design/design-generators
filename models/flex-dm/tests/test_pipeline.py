@@ -67,6 +67,23 @@ def test_pipeline_refinement_content_image_and_iterative() -> None:
     assert iterative.labels.shape == (1, 1)
 
 
+def test_pipeline_generator_takes_precedence_over_seed() -> None:
+    """Changing seed does not matter when the generator state is fixed."""
+    pipe = tiny_pipeline()
+    kwargs = {
+        "bbox": torch.tensor([[[0.5, 0.5, 0.25, 0.25]]]),
+        "labels": torch.tensor([[1]]),
+        "mask": torch.tensor([[True]]),
+        "feature_group": "pos",
+    }
+
+    first = pipe(generator=torch.Generator().manual_seed(123), seed=1, **kwargs)
+    second = pipe(generator=torch.Generator().manual_seed(123), seed=999, **kwargs)
+
+    assert torch.equal(first.bbox, second.bbox)
+    assert torch.equal(first.labels, second.labels)
+
+
 def test_pipeline_save_pretrained_round_trip(tmp_path) -> None:
     """Pipeline root save/load uses standard component specs."""
     pipe = tiny_pipeline()
