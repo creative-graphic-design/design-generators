@@ -26,6 +26,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--probe-dir", type=Path, required=True)
     parser.add_argument("--checkpoint-dir", type=Path)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--disable-tf32",
+        action="store_true",
+        help="Disable TensorFlow TF32 execution before exporting vendor probes.",
+    )
     return parser.parse_args()
 
 
@@ -91,6 +96,8 @@ def export_vendor(args: argparse.Namespace) -> None:
     from mfp.models.masking import get_initial_masks
     from mfp.models.mfp import MFP, preprocess_for_test
 
+    if args.disable_tf32:
+        tf.config.experimental.enable_tensor_float_32_execution(False)
     tf.random.set_seed(0)
     np.random.seed(0)
     variant_root = _variant_root(args.asset_dir, args.dataset, args.variant)
@@ -198,6 +205,7 @@ def export_vendor(args: argparse.Namespace) -> None:
             {
                 "dataset": args.dataset,
                 "task": args.task,
+                "tf32_enabled": tf.config.experimental.tensor_float_32_execution_enabled(),
                 "tensorflow_version": tf.__version__,
                 "gpu_devices": [
                     device.name for device in tf.config.list_physical_devices("GPU")
@@ -259,7 +267,7 @@ def compare_torch(args: argparse.Namespace) -> None:
         query = attn._split(attn.q_proj(norm1))
         key = attn._split(attn.k_proj(norm1))
         value = attn._split(attn.v_proj(norm1))
-        score = attn._vendor_score_matmul(query, key)
+        score = torch.matmul(query, key.transpose(-2, -1))
         scaled_score = score / (attn.head_dim**0.5)
         additive = (~seq_mask).to(scaled_score.device).unsqueeze(1).unsqueeze(2)
         masked_score = scaled_score.masked_fill(additive, -1e9)

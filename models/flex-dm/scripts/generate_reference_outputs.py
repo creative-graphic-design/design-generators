@@ -24,6 +24,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-iter", default="1,4")
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=1)
+    parser.add_argument(
+        "--disable-tf32",
+        action="store_true",
+        help="Disable TensorFlow TF32 execution for fp32 parity references.",
+    )
     return parser.parse_args()
 
 
@@ -167,6 +172,8 @@ def main() -> None:
     from mfp.models.mfp import MFP
 
     install_vendor_eval_shims()
+    if args.disable_tf32:
+        tf.config.experimental.enable_tensor_float_32_execution(False)
     tf.random.set_seed(args.seed)
     variant_root = resolve_variant_root(args.asset_dir, args.dataset, args.variant)
     data_root = resolve_data_root(args.asset_dir, args.dataset)
@@ -219,6 +226,7 @@ def main() -> None:
         "max_steps": args.max_steps,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "tensorflow_version": tf.__version__,
+        "tf32_enabled": tf.config.experimental.tensor_float_32_execution_enabled(),
         "gpu_devices": [
             device.name for device in tf.config.list_physical_devices("GPU")
         ],

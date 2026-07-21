@@ -63,15 +63,15 @@ EXPECTED_LAYER_PROBES = {
     },
     "rico-attr": {
         "path": Path(".cache/flex-dm/probes/rico-attr/torch_compare.json"),
-        "max_logit_atol": 1.4e-4,
+        "max_logit_atol": 4.0e-6,
     },
     "rico-elem": {
         "path": Path(".cache/flex-dm/probes/rico-elem/torch_compare.json"),
-        "max_logit_atol": 1.3e-4,
+        "max_logit_atol": 4.0e-6,
     },
     "rico-pos": {
         "path": Path(".cache/flex-dm/probes/rico-pos/torch_compare.json"),
-        "max_logit_atol": 1.3e-5,
+        "max_logit_atol": 2.5e-6,
     },
 }
 
@@ -129,6 +129,7 @@ def test_vendor_reference_results_metadata(
     assert reference["checkpoint"].endswith("/checkpoints/best.ckpt")
     assert reference["cuda_visible_devices"] == "1"
     assert reference["tensorflow_version"] == "2.15.1"
+    assert reference["tf32_enabled"] is False
     assert reference["gpu_devices"]
     assert reference["tasks"] == expected["tasks"]
     assert reference["num_iter"] == [1, 4]
@@ -143,11 +144,14 @@ def test_vendor_reference_results_metadata(
 @pytest.mark.parametrize(("case", "expected"), EXPECTED_LAYER_PROBES.items())
 def test_layer_probe_tolerances(case: str, expected: dict[str, object]) -> None:
     """Layer probes identify the first divergent op and assert final tolerances."""
-    probe = _load_json(Path(expected["path"]))
+    probe_path = Path(expected["path"])
+    probe = _load_json(probe_path)
+    metadata = _load_json(probe_path.parent / "metadata.json")
     comparisons = {item["name"]: item for item in probe["comparisons"]}
     assert probe["max_logit_abs"] <= expected["max_logit_atol"]
+    assert metadata["tf32_enabled"] is False
     assert comparisons["encoder"]["max_abs"] <= 3e-7
-    assert comparisons["block0_attention_output"]["max_abs"] <= 8e-7
-    assert comparisons["block0_score"]["max_abs"] > comparisons["block0_q"]["max_abs"]
+    assert comparisons["block0_score"]["max_abs"] <= 8e-6
+    assert comparisons["block0_attention_output"]["max_abs"] <= 8e-8
     assert probe["device"] == "cuda"
     _ = case
