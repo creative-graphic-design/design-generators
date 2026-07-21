@@ -35,7 +35,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
@@ -159,12 +159,12 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Parity Results
 
-| Dataset | Vector field max abs | Vector field max rel | Euler trajectory max abs | Euler trajectory max rel |
-| --- | ---: | ---: | ---: | ---: |
-| PubLayNet | 0.0 | 0.0 | not measured by the parity test | not measured by the parity test |
-| RICO25 | 0.0 | 0.0 | not measured by the parity test | not measured by the parity test |
+| Dataset | Compared path | Cases | Assertion |
+| --- | --- | ---: | --- |
+| PubLayNet | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
+| RICO25 | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
 
-Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but the recorded vendor-parity assertion is the vector-field equality above.
+Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed parity test compares an Euler trajectory against the vendor.
 
 ## Reproducibility
 

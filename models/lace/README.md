@@ -63,9 +63,9 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published |
+| PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published; denoiser forward exact-match parity only |
 | RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public vendor checkpoint not present in model.tar.gz |
-| RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published |
+| RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published; denoiser forward exact-match parity only |
 
 ## Uses
 
@@ -196,7 +196,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | PubLayNet | Denoiser logits | `(2, 25, 10)` | 0.0 | 0 | 0 |
 | Rico25 | Denoiser logits | `(2, 25, 30)` | 0.0 | 0 | 0 |
 
-Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied, because the public `model.tar.gz` archive contains only `publaynet_best.pt` and `rico25_best.pt`.
+Conversion smoke tests pass for PubLayNet and Rico25. Rico13 conversion parity is skipped unless `.cache/lace/original/model/rico13_best.pt` is supplied, because the public `model.tar.gz` archive contains only `publaynet_best.pt` and `rico25_best.pt`. The committed vendor-parity tests cover only the denoiser forward path; sampler loops, `beautify`, and conditional generation modes are not vendor-parity verified.
 
 ## Reproducibility
 

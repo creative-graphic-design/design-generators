@@ -133,8 +133,8 @@ print(out.bbox, out.labels, out.mask)
             f"for `{dataset_key}`. The model generates normalized center `xywh` "
             "layout boxes from category-label conditions. Vendor parity compares "
             f"bbox tensors with shape {_parity_metric(metrics, ParityMetricKey.shape)} "
-            "and observed max_abs=0 "
-            "and max_rel=0 against local const-layout fixtures."
+            "against local const-layout fixtures with "
+            "`torch.testing.assert_close(atol=1e-6, rtol=1e-5)`."
         ),
         intended_uses=(
             "Use this checkpoint for research on constrained graphic layout "
