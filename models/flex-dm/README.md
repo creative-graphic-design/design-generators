@@ -22,8 +22,8 @@ model-index:
           split: vendor parity fixture
         metrics:
           - type: vendor-parity
-            value: not run
-            name: Vendor parity
+            value: 16
+            name: Vendor reference task cases
 ---
 
 # Model Card for Flex-DM
@@ -34,7 +34,7 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Crello&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/cyberagent/crello)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=not--run&color=lightgrey&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports Flex-DM, the MFP masked multi-field document model from [arXiv 2303.18248](https://arxiv.org/abs/2303.18248), to a 🤗 `transformers`-style package for document layout completion, refinement, and Crello image/text feature infilling.
@@ -60,8 +60,8 @@ Flex-DM models document elements as rows with element class, position, size, col
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| Crello `ours-exp-ft` | `creative-graphic-design/flex-dm-crello-explicit-ft` | not-published |
-| RICO `ours-exp-ft` | `creative-graphic-design/flex-dm-rico-explicit-ft` | not-published |
+| Crello `ours-exp-ft` | `creative-graphic-design/flex-dm-crello` | not-published |
+| RICO `ours-exp-ft` | `creative-graphic-design/flex-dm-rico` | not-published |
 
 ## Uses
 
@@ -94,7 +94,7 @@ git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package flex-dm
 uv run --package flex-dm --extra data python models/flex-dm/scripts/download_original_assets.py --output-dir .cache/flex-dm/original --dataset all --assets weights
-uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello-explicit-ft
+uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
 ```
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full reference-generation and parity workflow.
@@ -102,9 +102,9 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 ```python
 from flex_dm import FlexDmPipeline
 
-pipe = FlexDmPipeline.from_pretrained(".cache/flex-dm/converted/flex-dm-crello-explicit-ft")
+pipe = FlexDmPipeline.from_pretrained(".cache/flex-dm/converted/flex-dm-crello")
 
-# After Hub publication: from_pretrained("creative-graphic-design/flex-dm-crello-explicit-ft")
+# After Hub publication: from_pretrained("creative-graphic-design/flex-dm-crello")
 ```
 
 ## Training Details
@@ -121,10 +121,17 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint | dataset | task cases | exact items | tolerance items | result |
-| --- | --- | ---: | ---: | ---: | --- |
-| `ours-exp-ft` | Crello | 0 | 0 | 0 | not run |
-| `ours-exp-ft` | RICO | 0 | 0 | 0 | not run |
+| checkpoint | dataset | vendor reference cases | exact state tensors | tolerance probe | result |
+| --- | --- | ---: | ---: | --- | --- |
+| `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | not recorded | reference generated; state mapping exact |
+| `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | max logit abs diff within `atol=1.66e-3` | reference generated; state mapping exact; first drift after block 0 |
+
+The RICO forward probe used one vendor test batch after `preprocess_for_test`.
+The encoder output was effectively exact (`max_abs=2.98e-8`, masks equal);
+the first material drift appeared after transformer block 0
+(`max_abs=4.24e-5`) and accumulated to `1.17e-3` after block 3. This is
+consistent with TensorFlow/PyTorch floating-point operation-order differences
+inside the transformer stack, not a state-mapping gap.
 
 ## Reproducibility
 

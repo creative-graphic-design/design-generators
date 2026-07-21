@@ -63,6 +63,34 @@ docs = [
     "zensical>=0.0.50,<0.1",
 ]
 
+[tool.uv]
+# NOTE: flex-dm[vendor-tf] pins TensorFlow 2.15.1, which requires protobuf<5,
+# while the pydantic-ai/logfire stacks below currently require protobuf>=5.
+# These conflicts can be removed once the TF/vendor runtime supports protobuf>=5
+# or the pydantic-ai/logfire stacks no longer require protobuf>=5.
+conflicts = [
+    [
+        { package = "design-generators", extra = "llm-agent" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "design-generators" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "layout-gpt" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "layoutprompter" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+]
+
 [tool.uv.workspace]
 members = ["lib/*", "models/*"]
 

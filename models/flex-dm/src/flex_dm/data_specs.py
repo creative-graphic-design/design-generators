@@ -31,6 +31,7 @@ CRELLO_TYPE_VOCABULARY: Final[tuple[str, ...]] = (
     "svgElement",
     "textElement",
 )
+CRELLO_MODEL_TYPE_VOCABULARY: Final[tuple[str, ...]] = ("", *CRELLO_TYPE_VOCABULARY)
 RICO_TYPE_VOCABULARY: Final[tuple[str, ...]] = tuple(
     laygen_id2label_for_dataset("rico25").values()
 )
@@ -162,13 +163,17 @@ def _vocabulary_size(
         return 16
     if key == "clickable":
         return 2
+    if key == "type" and dataset_name is FlexDmDatasetName.crello:
+        return len(CRELLO_MODEL_TYPE_VOCABULARY)
     raw = vocabulary.get(key)
+    if key in ("font_family", "icon", "text_button") and isinstance(raw, Mapping):
+        return sum(1 for count in raw.values() if int(cast(int, count)) >= 500) + 1
+    if key == "type" and isinstance(raw, Mapping):
+        return len(raw) + 1
     if isinstance(raw, Mapping):
         return len(raw)
     if isinstance(raw, list | tuple):
         return len(raw)
-    if key == "type" and dataset_name is FlexDmDatasetName.crello:
-        return len(CRELLO_TYPE_VOCABULARY)
     if key == "type":
         return len(RICO_TYPE_VOCABULARY)
     if key in ("font_family", "icon", "text_button"):
@@ -232,7 +237,9 @@ def build_column_specs(
             }[key]
             item["loss_condition"] = {
                 "key": "type",
-                "mask": tuple(label in allowed for label in CRELLO_TYPE_VOCABULARY),
+                "mask": tuple(
+                    label in allowed for label in CRELLO_MODEL_TYPE_VOCABULARY
+                ),
             }
         _ = dtype
         input_columns[key] = item
