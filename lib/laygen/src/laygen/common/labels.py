@@ -13,6 +13,13 @@ class DatasetName(StrEnum):
     rico13 = auto()
     publaynet = auto()
     magazine = auto()
+    nsr_1k = "nsr-1k"
+    grit = auto()
+    coco = auto()
+    vg_msdn = "vg-msdn"
+    coco_grounded = "coco-grounded"
+    web = auto()
+    webui = auto()
 
 
 class Rico25Label(StrEnum):
@@ -131,6 +138,14 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "publaynet": DatasetName.publaynet,
     "publaynet_max25": DatasetName.publaynet,
     "magazine": DatasetName.magazine,
+    "nsr_1k": DatasetName.nsr_1k,
+    "nsr1k": DatasetName.nsr_1k,
+    "grit": DatasetName.grit,
+    "coco": DatasetName.coco,
+    "vg_msdn": DatasetName.vg_msdn,
+    "coco_grounded": DatasetName.coco_grounded,
+    "web": DatasetName.web,
+    "webui": DatasetName.webui,
 }
 
 DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {

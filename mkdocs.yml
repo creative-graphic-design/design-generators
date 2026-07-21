@@ -48,6 +48,7 @@ nav:
   - Getting Started: getting-started.md
   - Models: models.md
   - Conventions: conventions.md
+  - Models: models.md
   - API Reference: api/
 
 markdown_extensions:
@@ -59,6 +60,7 @@ markdown_extensions:
 
 plugins:
   - search
+  - tags
   - mkdocstrings:
       handlers:
         python:

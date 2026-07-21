@@ -26,5 +26,11 @@ vendor = [
     "yacs",
 ]
 
+[tool.design-generators]
+framework = "transformers"
+task = "content-agnostic-layout-generation"
+conditions = ["relation"]
+datasets = ["coco", "vg-msdn"]
+
 [tool.uv.sources]
 laygen = { workspace = true }

@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 import re
 import shutil
 import tomllib
+from typing import cast
+from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
@@ -40,6 +43,40 @@ tags:
   - Documentation
 ---
 """
+DESIGN_METADATA_TOOL_KEY = "design-generators"
+DESIGN_METADATA_REQUIRED_KEYS = ("framework", "task", "conditions", "datasets")
+DESIGN_METADATA_EXAMPLE = (
+    '[tool.design-generators] framework = "transformers" '
+    'task = "content-agnostic-layout-generation" '
+    'conditions = ["unconditional"] datasets = ["rico25"]'
+)
+MODEL_OVERVIEW_BADGE_COLORS = {
+    "framework": "blue",
+    "task": "purple",
+    "conditions": "green",
+    "datasets": "orange",
+}
+MODEL_OVERVIEW_FRAMEWORK_LOGOS = {
+    "diffusers": "huggingface",
+    "pydantic-ai": "pydantic",
+    "transformers": "huggingface",
+}
+MODEL_OVERVIEW_HF_DATASETS = frozenset(
+    {
+        "crello",
+        "magazine",
+        "publaynet",
+        "rico13",
+        "rico25",
+    }
+)
+FRAMEWORK_TAGS = frozenset({"transformers", "diffusers", "pydantic-ai"})
+TASK_TAGS = frozenset(
+    {
+        "content-agnostic-layout-generation",
+        "content-aware-layout-generation",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +86,26 @@ class ApiPage:
     module: str
     page_path: Path
     source_path: Path
+
+
+@dataclass(frozen=True)
+class ModelDesignMetadata:
+    """Documentation tag metadata declared by a model workspace member."""
+
+    framework: str
+    tasks: tuple[str, ...]
+    conditions: tuple[str, ...]
+    datasets: tuple[str, ...]
+
+    @property
+    def tags(self) -> tuple[str, ...]:
+        """Return the flat tag list consumed by the docs site."""
+        return (
+            self.framework,
+            *self.tasks,
+            *self.conditions,
+            *self.datasets,
+        )
 
 
 @dataclass(frozen=True)
@@ -64,6 +121,7 @@ class ApiPackage:
     index_path: Path
     reproducing_path: Path | None
     pages: tuple[ApiPage, ...]
+    design_metadata: ModelDesignMetadata | None
 
 
 def write_text_file(path: Path, content: str) -> None:
@@ -140,6 +198,186 @@ def read_project_name(pyproject_path: Path) -> str:
     """Read the project name from a workspace member pyproject file."""
     data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     return str(data["project"]["name"])
+
+
+def read_pyproject(member_dir: Path) -> dict[str, object]:
+    """Read a workspace member ``pyproject.toml`` file."""
+    return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def read_str_enum_values(source_path: Path, class_name: str) -> frozenset[str]:
+    """Return string values declared by a ``StrEnum`` source class."""
+    module = ast.parse(
+        source_path.read_text(encoding="utf-8"), filename=str(source_path)
+    )
+    for node in module.body:
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        values: set[str] = set()
+        for item in node.body:
+            if not isinstance(item, ast.Assign) or len(item.targets) != 1:
+                continue
+            target = item.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            if isinstance(item.value, ast.Constant) and isinstance(
+                item.value.value, str
+            ):
+                values.add(item.value.value)
+            elif isinstance(item.value, ast.Call) and isinstance(
+                item.value.func, ast.Name
+            ):
+                if item.value.func.id == "auto":
+                    values.add(target.id)
+        return frozenset(values)
+    raise ValueError(f"Could not find enum class {class_name} in {source_path}")
+
+
+def allowed_condition_tags() -> frozenset[str]:
+    """Return canonical condition tags from the shared condition enum."""
+    return read_str_enum_values(
+        ROOT / "lib" / "laygen" / "src" / "laygen" / "common" / "conditions.py",
+        "ConditionType",
+    )
+
+
+def allowed_dataset_tags() -> frozenset[str]:
+    """Return canonical dataset tags from shared layout and poster enums."""
+    return read_str_enum_values(
+        ROOT / "lib" / "laygen" / "src" / "laygen" / "common" / "labels.py",
+        "DatasetName",
+    ) | read_str_enum_values(
+        ROOT / "lib" / "posgen" / "src" / "posgen" / "common" / "labels.py",
+        "DatasetName",
+    )
+
+
+def model_metadata_error(member_dir: Path, key: str, detail: str) -> str:
+    """Return an actionable model metadata validation error."""
+    required = ", ".join(DESIGN_METADATA_REQUIRED_KEYS)
+    return (
+        f"{member_dir.relative_to(ROOT)} [tool.{DESIGN_METADATA_TOOL_KEY}] "
+        f"{key}: {detail}. Required keys: {required}. Example: {DESIGN_METADATA_EXAMPLE}"
+    )
+
+
+def require_str_sequence(
+    value: object, *, key: str, member_dir: Path
+) -> tuple[str, ...]:
+    """Return a tuple of strings from a model metadata list."""
+    if not isinstance(value, list):
+        raise TypeError(
+            model_metadata_error(member_dir, key, "must be a non-empty list of strings")
+        )
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise TypeError(
+                model_metadata_error(
+                    member_dir, key, "must be a non-empty list of strings"
+                )
+            )
+        items.append(item.strip())
+    if not items or any(not item for item in items):
+        raise ValueError(
+            model_metadata_error(member_dir, key, "must be a non-empty list of strings")
+        )
+    return tuple(items)
+
+
+def require_str_or_sequence(
+    value: object, *, key: str, member_dir: Path
+) -> tuple[str, ...]:
+    """Return a tuple of strings from a scalar or list metadata field."""
+    if isinstance(value, str):
+        if not value.strip():
+            raise ValueError(model_metadata_error(member_dir, key, "must not be empty"))
+        return (value.strip(),)
+    return require_str_sequence(value, key=key, member_dir=member_dir)
+
+
+def validate_values(
+    values: tuple[str, ...],
+    *,
+    allowed: frozenset[str],
+    key: str,
+    member_dir: Path,
+) -> None:
+    """Validate model metadata values against a closed vocabulary."""
+    unknown = sorted(set(values) - allowed)
+    if unknown:
+        raise ValueError(
+            model_metadata_error(member_dir, key, f"has unknown values: {unknown}")
+        )
+
+
+def required_metadata_value(
+    table: Mapping[str, object], *, key: str, member_dir: Path
+) -> object:
+    """Return a required metadata value or fail with an actionable error."""
+    if key not in table:
+        raise KeyError(model_metadata_error(member_dir, key, "is required"))
+    return table[key]
+
+
+def read_model_design_metadata(member_dir: Path) -> ModelDesignMetadata:
+    """Read and validate model docs tag metadata from ``pyproject.toml``."""
+    data = read_pyproject(member_dir)
+    tool = data.get("tool", {})
+    if not isinstance(tool, dict):
+        tool = {}
+    table = tool.get(DESIGN_METADATA_TOOL_KEY)
+    if not isinstance(table, dict):
+        raise KeyError(model_metadata_error(member_dir, "table", "is required"))
+    metadata_table = cast(Mapping[str, object], table)
+    framework = required_metadata_value(
+        metadata_table, key="framework", member_dir=member_dir
+    )
+    tasks = require_str_or_sequence(
+        required_metadata_value(metadata_table, key="task", member_dir=member_dir),
+        key="task",
+        member_dir=member_dir,
+    )
+    if not isinstance(framework, str) or not framework.strip():
+        raise TypeError(
+            model_metadata_error(member_dir, "framework", "must be a non-empty string")
+        )
+    framework = framework.strip()
+    if framework not in FRAMEWORK_TAGS:
+        raise ValueError(
+            model_metadata_error(member_dir, "framework", f"is unknown: {framework}")
+        )
+    validate_values(tasks, allowed=TASK_TAGS, key="task", member_dir=member_dir)
+    conditions = require_str_sequence(
+        required_metadata_value(
+            metadata_table, key="conditions", member_dir=member_dir
+        ),
+        key="conditions",
+        member_dir=member_dir,
+    )
+    datasets = require_str_sequence(
+        required_metadata_value(metadata_table, key="datasets", member_dir=member_dir),
+        key="datasets",
+        member_dir=member_dir,
+    )
+    validate_values(
+        conditions,
+        allowed=allowed_condition_tags(),
+        key="conditions",
+        member_dir=member_dir,
+    )
+    validate_values(
+        datasets,
+        allowed=allowed_dataset_tags(),
+        key="datasets",
+        member_dir=member_dir,
+    )
+    return ModelDesignMetadata(
+        framework=framework,
+        tasks=tasks,
+        conditions=conditions,
+        datasets=datasets,
+    )
 
 
 def read_model_display_name(member_dir: Path, project_name: str) -> str:
@@ -308,6 +546,9 @@ def discover_api_packages() -> list[ApiPackage]:
         group = group_for_member(member_dir)
         project_name = read_project_name(member_dir / "pyproject.toml")
         display_name = display_name_for_member(group, member_dir, project_name)
+        design_metadata = (
+            read_model_design_metadata(member_dir) if group == "Models" else None
+        )
         for package_root in iter_package_roots(member_dir):
             package_name = package_root.name
             imported_modules = imported_public_modules(package_root / "__init__.py")
@@ -347,6 +588,7 @@ def discover_api_packages() -> list[ApiPackage]:
                         member_dir,
                     ),
                     pages=tuple(sorted(pages, key=lambda page: page.module)),
+                    design_metadata=design_metadata,
                 )
             )
     return sorted(packages, key=lambda package: (package.group, package.display_name))
@@ -404,13 +646,65 @@ def write_group_indexes(packages: list[ApiPackage]) -> None:
         write_text_file(Path("api", group.lower(), "index.md"), "\n".join(lines))
 
 
+def strip_markdown_frontmatter(markdown: str) -> str:
+    """Remove YAML front matter from embedded README content."""
+    frontmatter_match = re.match(r"---\n.*?\n---\n", markdown, re.S)
+    if frontmatter_match is None:
+        return markdown
+    return markdown[frontmatter_match.end() :].lstrip("\n")
+
+
+def render_tags_frontmatter(tags: tuple[str, ...]) -> list[str]:
+    """Render YAML front matter for docs page tags."""
+    if not tags:
+        return []
+    lines = ["---", "tags:"]
+    lines.extend(f"  - {tag}" for tag in tags)
+    lines.extend(["---", ""])
+    return lines
+
+
+def model_overview_badge_logo(value: str, *, axis: str) -> str | None:
+    """Return a Simple Icons slug for a model overview badge when applicable."""
+    if axis == "framework":
+        return MODEL_OVERVIEW_FRAMEWORK_LOGOS.get(value)
+    if axis == "datasets" and value in MODEL_OVERVIEW_HF_DATASETS:
+        return "huggingface"
+    return None
+
+
+def render_model_overview_badge(value: str, *, axis: str) -> str:
+    """Render a shields.io static badge for the model overview table."""
+    color = MODEL_OVERVIEW_BADGE_COLORS[axis]
+    params = [
+        ("label", axis.removesuffix("s")),
+        ("message", value),
+        ("color", color),
+        ("style", "flat-square"),
+    ]
+    logo = model_overview_badge_logo(value, axis=axis)
+    if logo is not None:
+        params.extend([("logo", logo), ("logoColor", "white")])
+    url = f"https://img.shields.io/static/v1?{urlencode(params)}"
+    return f"![{axis.removesuffix('s')}: {value}]({url})"
+
+
+def render_model_overview_badges(values: tuple[str, ...], *, axis: str) -> str:
+    """Render badges for one metadata axis in the model overview table."""
+    return " ".join(render_model_overview_badge(value, axis=axis) for value in values)
+
+
 def write_package_indexes(packages: list[ApiPackage]) -> None:
     """Write package landing pages with README content and module links."""
     for package in packages:
         readme_path = package.member_dir / "README.md"
-        lines = []
+        metadata = package.design_metadata
+        lines = render_tags_frontmatter(metadata.tags if metadata is not None else ())
         if readme_path.is_file():
-            lines.extend([readme_path.read_text(encoding="utf-8").rstrip(), ""])
+            readme = strip_markdown_frontmatter(
+                readme_path.read_text(encoding="utf-8")
+            ).rstrip()
+            lines.extend([readme, ""])
         else:
             lines.extend([f"# {package.display_name}", ""])
         if package.reproducing_path is not None:
@@ -428,6 +722,47 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             lines.append(f"- [`{page.module}`]({relative_page_path})")
         lines.append("")
         write_text_file(package.index_path, "\n".join(lines))
+
+
+def write_models_overview(packages: list[ApiPackage]) -> None:
+    """Write the generated model comparison table."""
+    model_packages = [package for package in packages if package.group == "Models"]
+    lines = [
+        "---",
+        "tags:",
+        "  - Models",
+        "  - Documentation",
+        "---",
+        "",
+        "# Models",
+        "",
+        "This generated table summarizes model package metadata declared in each "
+        "`models/*/pyproject.toml`.",
+        "",
+        "| Package | Framework | Task | Conditions | Datasets |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for package in model_packages:
+        metadata = package.design_metadata
+        if metadata is None:
+            raise ValueError(f"Missing model metadata for {package.project_name}")
+        package_link = f"[{package.display_name}]({package.index_path})"
+        lines.append(
+            " | ".join(
+                [
+                    f"| {package_link}",
+                    render_model_overview_badge(metadata.framework, axis="framework"),
+                    render_model_overview_badges(metadata.tasks, axis="task"),
+                    render_model_overview_badges(
+                        metadata.conditions, axis="conditions"
+                    ),
+                    render_model_overview_badges(metadata.datasets, axis="datasets")
+                    + " |",
+                ]
+            )
+        )
+    lines.append("")
+    write_text_file(Path("models.md"), "\n".join(lines))
 
 
 def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
@@ -510,6 +845,7 @@ def main() -> None:
     write_api_index(packages)
     write_group_indexes(packages)
     write_package_indexes(packages)
+    write_models_overview(packages)
     write_reproducing_pages(packages)
     write_api_pages(packages)
     write_generated_mkdocs_config(packages)
