@@ -204,7 +204,7 @@ class FlexDmMultiHeadSelfAttention(nn.Module):
         query = self._split(self.q_proj(hidden_states))
         key = self._split(self.k_proj(hidden_states))
         value = self._split(self.v_proj(hidden_states))
-        scores = self._vendor_score_matmul(query, key) / (self.head_dim**0.5)
+        scores = torch.matmul(query, key.transpose(-2, -1)) / (self.head_dim**0.5)
         additive = (~attention_mask).to(scores.device).unsqueeze(1).unsqueeze(2)
         scores = scores.masked_fill(additive, -1e9)
         weights = scores.softmax(dim=-1)
@@ -212,24 +212,6 @@ class FlexDmMultiHeadSelfAttention(nn.Module):
         batch, seq_len = hidden_states.shape[:2]
         context = context.view(batch, seq_len, self.num_heads * self.head_dim)
         return self.out_proj(context)
-
-    @staticmethod
-    def _vendor_score_matmul(query: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
-        """Match TensorFlow GPU attention-score matmul precision.
-
-        TensorFlow 2.15 uses TF32 for the vendor ``tf.matmul(q, k^T)`` attention
-        score on Ampere GPUs. PyTorch has TF32 disabled in this workspace, so
-        enabling it only for this score matmul keeps Dense/Linear projections in
-        fp32 while matching the vendor attention path.
-        """
-        if not query.is_cuda:
-            return torch.matmul(query, key.transpose(-2, -1))
-        previous = torch.backends.cuda.matmul.allow_tf32
-        torch.backends.cuda.matmul.allow_tf32 = True
-        try:
-            return torch.matmul(query, key.transpose(-2, -1))
-        finally:
-            torch.backends.cuda.matmul.allow_tf32 = previous
 
 
 class FlexDmDeepSvgBlock(nn.Module):
