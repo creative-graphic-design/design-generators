@@ -94,14 +94,20 @@ def main() -> None:
         source_keys=model_source_keys,
         consumed_source_keys=consumed,
     )
-    missing, unexpected = model.load_state_dict(converted, strict=False)
+    if report.missing_target_keys or report.unexpected_source_keys:
+        raise ValueError(
+            "Flex-DM checkpoint conversion is incomplete: "
+            f"missing={list(report.missing_target_keys)} "
+            f"unexpected={list(report.unexpected_source_keys)}"
+        )
+    model.load_state_dict(converted, strict=True)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.config.conversion_report = {
         "matched_tensor_count": report.matched_tensor_count,
         "matched_parameter_count": report.matched_parameter_count,
-        "missing_target_keys": list(missing or report.missing_target_keys),
-        "unexpected_source_keys": list(unexpected or report.unexpected_source_keys),
-        "strict": False,
+        "missing_target_keys": [],
+        "unexpected_source_keys": [],
+        "strict": True,
     }
     model.save_pretrained(args.output_dir)
     processor.save_pretrained(args.output_dir)
