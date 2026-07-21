@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
+import os
 from os import PathLike
-from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
+from typing import TYPE_CHECKING, NoReturn, Protocol, TypeAlias, cast
 
 import numpy as np
 from jaxtyping import Bool, Float, Int
@@ -24,6 +25,65 @@ if TYPE_CHECKING:
     LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 else:
     ArrayLike: TypeAlias = object
+
+
+def parity_require_enabled() -> bool:
+    """Return whether vendor parity skips should fail.
+
+    Returns:
+        ``True`` when ``PARITY_REQUIRE`` is exactly ``"1"``; otherwise
+        ``False``.
+
+    Raises:
+        None.
+
+    Examples:
+        >>> parity_require_enabled() in {True, False}
+        True
+    """
+    return os.environ.get("PARITY_REQUIRE") == "1"
+
+
+def skip_or_fail_vendor_parity(
+    reason: str,
+    *,
+    missing_paths: Sequence[str | PathLike[str]] = (),
+    regeneration_hint: str | None = None,
+) -> NoReturn:
+    """Skip or fail a vendor-parity test when required assets are absent.
+
+    Args:
+        reason: Human-readable reason the parity assertion cannot run.
+        missing_paths: Optional paths, cache entries, or environment-backed
+            assets that were expected but absent.
+        regeneration_hint: Optional command or instruction for regenerating the
+            missing assets.
+
+    Returns:
+        This helper never returns. It raises pytest's skip outcome when
+        ``PARITY_REQUIRE`` is unset, and pytest's failure outcome when
+        ``PARITY_REQUIRE=1``.
+
+    Raises:
+        pytest.skip.Exception: When ``PARITY_REQUIRE`` is not set to ``"1"``.
+        pytest.fail.Exception: When ``PARITY_REQUIRE`` is set to ``"1"``.
+
+    Examples:
+        >>> callable(skip_or_fail_vendor_parity)
+        True
+    """
+    import pytest
+
+    lines = [reason]
+    if missing_paths:
+        lines.append("Missing assets:")
+        lines.extend(f"- {path}" for path in missing_paths)
+    if regeneration_hint:
+        lines.append(f"Regeneration hint: {regeneration_hint}")
+    message = "\n".join(lines)
+    if parity_require_enabled():
+        pytest.fail(message, pytrace=False)
+    pytest.skip(message)
 
 
 class LayoutOutputLike(Protocol):

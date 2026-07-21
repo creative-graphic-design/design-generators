@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from layout_dm import LayoutDMPipeline
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
@@ -22,7 +23,14 @@ def test_tokenizer_parity(dataset: str):
     fixture_dir, converted_dir = _paths(dataset)
     fixture = fixture_dir / "tokenizer_io.pt"
     if not fixture.exists() or not converted_dir.exists():
-        pytest.skip("LayoutDM parity fixtures and converted weights are local-only")
+        skip_or_fail_vendor_parity(
+            "LayoutDM parity fixtures and converted weights are local-only",
+            missing_paths=[fixture, converted_dir],
+            regeneration_hint=(
+                "run models/layout-dm/scripts/export_reference.py and "
+                "models/layout-dm/scripts/convert_original_checkpoint.py"
+            ),
+        )
     data = torch.load(fixture, map_location="cpu")
     tokenizer = LayoutDMTokenizer.from_pretrained(converted_dir)
     encoded = tokenizer.encode_layout(
@@ -42,7 +50,14 @@ def test_denoiser_logits_parity(dataset: str):
     fixture_dir, converted_dir = _paths(dataset)
     fixture = fixture_dir / "denoiser_forward.pt"
     if not fixture.exists() or not converted_dir.exists():
-        pytest.skip("LayoutDM parity fixtures and converted weights are local-only")
+        skip_or_fail_vendor_parity(
+            "LayoutDM parity fixtures and converted weights are local-only",
+            missing_paths=[fixture, converted_dir],
+            regeneration_hint=(
+                "run models/layout-dm/scripts/export_reference.py and "
+                "models/layout-dm/scripts/convert_original_checkpoint.py"
+            ),
+        )
     data = torch.load(fixture, map_location="cpu")
     pipe = LayoutDMPipeline.from_pretrained(converted_dir)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,7 +76,14 @@ def test_deterministic_sequence_parity(dataset: str):
     fixture_dir, converted_dir = _paths(dataset)
     fixture = fixture_dir / "sample_unconditional.pt"
     if not fixture.exists() or not converted_dir.exists():
-        pytest.skip("LayoutDM parity fixtures and converted weights are local-only")
+        skip_or_fail_vendor_parity(
+            "LayoutDM parity fixtures and converted weights are local-only",
+            missing_paths=[fixture, converted_dir],
+            regeneration_hint=(
+                "run models/layout-dm/scripts/export_reference.py and "
+                "models/layout-dm/scripts/convert_original_checkpoint.py"
+            ),
+        )
     data = torch.load(fixture, map_location="cpu")
     pipe = LayoutDMPipeline.from_pretrained(converted_dir)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

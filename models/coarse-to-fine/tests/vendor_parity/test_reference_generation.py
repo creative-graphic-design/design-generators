@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from coarse_to_fine import CoarseToFineForLayoutGeneration
 
 
@@ -28,9 +29,17 @@ def test_reference_generation_artifact_matches_when_available(
     dataset, checkpoint, reference
 ):
     if not reference.exists():
-        pytest.skip("generate vendor reference artifact first")
+        skip_or_fail_vendor_parity(
+            "generate vendor reference artifact first",
+            missing_paths=[reference],
+            regeneration_hint="run models/coarse-to-fine/scripts/export_reference.py",
+        )
     if not checkpoint.exists():
-        pytest.skip("convert original checkpoint first")
+        skip_or_fail_vendor_parity(
+            "convert original checkpoint first",
+            missing_paths=[checkpoint],
+            regeneration_hint="run models/coarse-to-fine/scripts/convert_original_checkpoint.py",
+        )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cuda.matmul.allow_tf32 = False

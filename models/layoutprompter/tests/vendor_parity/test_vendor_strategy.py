@@ -11,6 +11,7 @@ from typing import cast
 import pytest
 import numpy as np
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from layoutprompter.parsing import Parser
 from layoutprompter.selection import GenTypeExemplarSelection
 from layoutprompter.serialization import build_prompt, create_serializer
@@ -21,7 +22,13 @@ from layoutprompter.vendor_parity import fixture_records
 def test_prompt_selection_and_parser_match_vendor_golden(tmp_path: Path) -> None:
     """Prompt bytes, selected exemplars, and parsed tensors match vendor golden."""
     if not _vendor_available():
-        pytest.skip("LayoutPrompter vendor source is not available")
+        skip_or_fail_vendor_parity(
+            "LayoutPrompter vendor source is not available",
+            missing_paths=[
+                Path("vendor/ms-layout-generation/LayoutPrompter/src/serialization.py")
+            ],
+            regeneration_hint="initialize the ms-layout-generation vendor submodule before running vendor parity",
+        )
     golden = _generate_vendor_golden(tmp_path)
     train_data, test_data = fixture_records()
 

@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from layoutdiffusion import LayoutDiffusionPipeline
 
@@ -26,9 +27,11 @@ def _available_datasets() -> list[str]:
 def _load_reference(dataset: str) -> dict[str, object]:
     path = REFERENCE_ROOT / dataset / "vendor_reference.pt"
     if not path.exists():
-        pytest.skip(
+        skip_or_fail_vendor_parity(
             "LayoutDiffusion vendor parity fixtures are not generated; run "
-            "models/layoutdiffusion/scripts/generate_reference_outputs.py"
+            "models/layoutdiffusion/scripts/generate_reference_outputs.py",
+            missing_paths=[path],
+            regeneration_hint="run models/layoutdiffusion/scripts/generate_reference_outputs.py",
         )
     return torch.load(path, map_location="cpu", weights_only=False)
 
@@ -36,9 +39,11 @@ def _load_reference(dataset: str) -> dict[str, object]:
 def _load_pipeline(dataset: str) -> LayoutDiffusionPipeline:
     path = CONVERTED_ROOT / f"layoutdiffusion-{dataset}"
     if not path.exists():
-        pytest.skip(
+        skip_or_fail_vendor_parity(
             "LayoutDiffusion converted checkpoint is missing; run "
-            "models/layoutdiffusion/scripts/convert_original_checkpoint.py"
+            "models/layoutdiffusion/scripts/convert_original_checkpoint.py",
+            missing_paths=[path],
+            regeneration_hint="run models/layoutdiffusion/scripts/convert_original_checkpoint.py",
         )
     return LayoutDiffusionPipeline.from_pretrained(path)
 

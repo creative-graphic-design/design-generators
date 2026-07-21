@@ -128,6 +128,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   Commit only metadata needed to regenerate them: seeds, conditions, environment
   notes, config hashes, and script arguments.
 - Run parity generation on one explicitly selected GPU with fixed seeds.
+- Coordinator parity reruns must set `PARITY_REQUIRE=1` so missing local
+  assets fail loudly instead of turning an all-skip run into an apparent
+  success.
 - For LLM API or in-context methods, parity means prompt bytes, exemplar
   selection, parser behavior, and repair policy match the paper/vendor path.
 - Keep vendor-parity and heavyweight integration tests outside regular CI and

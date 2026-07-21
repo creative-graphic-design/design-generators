@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -40,7 +41,11 @@ def test_checkpoint_conversion_smoke(dataset: str, checkpoint: str) -> None:
     root = Path(__file__).parents[4]
     path = root / ".cache" / "lace" / "original" / "model" / checkpoint
     if not path.exists():
-        pytest.skip("LACE vendor checkpoint is local-only")
+        skip_or_fail_vendor_parity(
+            "LACE vendor checkpoint is local-only",
+            missing_paths=[path],
+            regeneration_hint="download the LACE vendor checkpoints into .cache/lace/original/model",
+        )
     pipe = build_pipeline_from_vendor_checkpoint(dataset, path)
     out = cast(
         LayoutGenerationOutput, pipe(batch_size=1, seed=0, num_inference_steps=2)
@@ -62,7 +67,11 @@ def test_denoiser_logits_match_vendor(dataset: str, checkpoint: str) -> None:
     root = Path(__file__).parents[4]
     path = root / ".cache" / "lace" / "original" / "model" / checkpoint
     if not path.exists():
-        pytest.skip("LACE vendor checkpoint is local-only")
+        skip_or_fail_vendor_parity(
+            "LACE vendor checkpoint is local-only",
+            missing_paths=[path],
+            regeneration_hint="download the LACE vendor checkpoints into .cache/lace/original/model",
+        )
     vendor_dir = vendor_root("lace", marker=Path("util") / "backbone.py")
     TransformerEncoder = _load_vendor_transformer_encoder(vendor_dir)
     config = default_model_config(dataset)

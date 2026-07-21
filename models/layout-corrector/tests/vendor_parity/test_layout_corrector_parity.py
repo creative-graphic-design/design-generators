@@ -9,6 +9,7 @@ from typing import Final
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
 from layout_corrector.conversion import build_corrector_from_original
 from layout_dm.pipeline import LayoutDMPipeline
@@ -56,11 +57,23 @@ def _require_artifacts(dataset: str, seed: int) -> tuple[Path, Path]:
     corrector_dir = _checkpoint_dir(dataset, seed, "layout_corrector")
     layout_dm_dir = _converted_layout_dm_dir(dataset, seed)
     if not starter_dir.exists():
-        pytest.skip("Layout-Corrector starter kit is local-only")
+        skip_or_fail_vendor_parity(
+            "Layout-Corrector starter kit is local-only",
+            missing_paths=[starter_dir],
+            regeneration_hint="download the Layout-Corrector starter kit into .cache/layout-corrector/original",
+        )
     if not (corrector_dir / "best_model.pt").is_file():
-        pytest.skip("Layout-Corrector checkpoint is local-only")
+        skip_or_fail_vendor_parity(
+            "Layout-Corrector checkpoint is local-only",
+            missing_paths=[corrector_dir / "best_model.pt"],
+            regeneration_hint="download Layout-Corrector pretrained_weights into the starter kit cache",
+        )
     if not layout_dm_dir.exists():
-        pytest.skip("Converted LayoutDM checkpoint is local-only")
+        skip_or_fail_vendor_parity(
+            "Converted LayoutDM checkpoint is local-only",
+            missing_paths=[layout_dm_dir],
+            regeneration_hint="run the Layout-Corrector/LayoutDM conversion scripts before vendor parity",
+        )
     return corrector_dir, layout_dm_dir
 
 

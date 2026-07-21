@@ -6,6 +6,7 @@ from typing import Literal, cast
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from laygen.schedulers.continuous import get_layousyn_beta_schedule
 from layousyn import LayouSynPipeline
@@ -29,16 +30,25 @@ def _parity_paths() -> tuple[Path, Path]:
         if not path.exists()
     ]
     if missing:
-        pytest.skip(
+        skip_or_fail_vendor_parity(
             "LayouSyn vendor parity requires generated references and a converted checkpoint: "
-            + ", ".join(str(path) for path in missing)
+            + ", ".join(str(path) for path in missing),
+            missing_paths=missing,
+            regeneration_hint=(
+                "run models/layousyn/scripts/generate_reference_outputs.py and "
+                "models/layousyn/scripts/convert_original_checkpoint.py"
+            ),
         )
     return reference_dir, converted_dir
 
 
 def _device() -> torch.device:
     if not torch.cuda.is_available():
-        pytest.skip("LayouSyn vendor parity requires CUDA")
+        skip_or_fail_vendor_parity(
+            "LayouSyn vendor parity requires CUDA",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun on a CUDA-enabled host with generated LayouSyn parity assets",
+        )
     return torch.device("cuda")
 
 
