@@ -152,7 +152,7 @@ def _expected_color(label: str, message: str | None) -> str | None:
     if label == "CI":
         return None
     if label == "docs":
-        return "brightgreen"
+        return None
     if label == "license":
         if message in {"Apache--2.0", "MIT"}:
             return "green"
@@ -196,7 +196,11 @@ def _iter_badges(path: Path) -> list[Badge]:
                 raise AssertionError(
                     f"{path}: badge missing label/message/color: {url}"
                 )
-        elif not parsed.path.startswith("/github/actions/workflow/status/"):
+        elif not (
+            parsed.path.startswith("/github/actions/workflow/status/")
+            or parsed.path
+            == "/github/deployments/creative-graphic-design/design-generators/github-pages"
+        ):
             raise AssertionError(f"{path}: unsupported shields badge path: {url}")
         if "label" not in query:
             raise AssertionError(f"{path}: badge missing label: {url}")

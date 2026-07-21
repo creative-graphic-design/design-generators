@@ -36,6 +36,12 @@ vendor = [
     "torch-fidelity>=0.3",
 ]
 
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware-layout-generation"
+conditions = ["unconditional"]
+datasets = ["cgl", "pku_posterlayout"]
+
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }

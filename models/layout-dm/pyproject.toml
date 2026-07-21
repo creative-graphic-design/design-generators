@@ -38,6 +38,12 @@ vendor = [
 [tool.uv.sources]
 laygen = { workspace = true }
 
+[tool.design-generators]
+framework = "diffusers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional", "label", "label_size", "completion", "refinement"]
+datasets = ["rico25", "publaynet"]
+
 [tool.pytest.ini_options]
 markers = [
     "vendor_parity: requires original LayoutDM weights and vendor dependencies",

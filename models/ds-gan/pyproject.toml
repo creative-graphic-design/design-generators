@@ -25,6 +25,12 @@ vendor = [
     "torchvision>=0.16",
 ]
 
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware-layout-generation"
+conditions = ["content_image"]
+datasets = ["posterlayout"]
+
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }

@@ -25,6 +25,12 @@ vendor = [
     "tqdm>=4.66",
 ]
 
+[tool.design-generators]
+framework = "diffusers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional", "label", "label_size", "completion", "refinement"]
+datasets = ["publaynet", "rico25"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

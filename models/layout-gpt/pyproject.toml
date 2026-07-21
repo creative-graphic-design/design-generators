@@ -22,6 +22,12 @@ vendor = [
     "numpy>=1.26.0",
 ]
 
+[tool.design-generators]
+framework = "pydantic-ai"
+task = "content-agnostic-layout-generation"
+conditions = ["text", "unconditional"]
+datasets = ["nsr-1k"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

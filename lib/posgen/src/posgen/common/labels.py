@@ -12,6 +12,7 @@ class DatasetName(StrEnum):
     cgl = "cgl"
     cgl_v2 = "cgl_v2"
     pku_posterlayout = "pku_posterlayout"
+    posterlayout = "posterlayout"
     crello = "crello"
 
 
@@ -58,6 +59,8 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "pku": DatasetName.pku_posterlayout,
     "pku_posterlayout": DatasetName.pku_posterlayout,
     "pku_poster_layout": DatasetName.pku_posterlayout,
+    "posterlayout": DatasetName.posterlayout,
+    "poster_layout": DatasetName.posterlayout,
     "crello": DatasetName.crello,
 }
 
@@ -65,6 +68,7 @@ _LABELS: Final[dict[DatasetName, tuple[StrEnum, ...]]] = {
     DatasetName.cgl: CGL_LABELS,
     DatasetName.cgl_v2: CGL_LABELS,
     DatasetName.pku_posterlayout: PKU_POSTERLAYOUT_LABELS,
+    DatasetName.posterlayout: PKU_POSTERLAYOUT_LABELS,
     DatasetName.crello: CRELLO_LABELS,
 }
 
