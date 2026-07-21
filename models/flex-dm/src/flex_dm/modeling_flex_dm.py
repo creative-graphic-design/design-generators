@@ -128,11 +128,9 @@ class FlexDmInputEncoder(nn.Module):
             column = self.config.input_columns[key]
             value = inputs[key].to(device)
             if column["type"] == "categorical":
-                embedded = self.input_embeddings[_module_key(key)](
-                    value.long().squeeze(-1)
-                )
+                embedded = self.input_embeddings[_module_key(key)](value.long())
                 if embedded.ndim == 4:
-                    embedded = embedded.mean(dim=-2)
+                    embedded = embedded.sum(dim=-2)
             else:
                 projected = self.input_projections[_module_key(key)](value.float())
                 masked = (value == 10.0).all(dim=-1)
@@ -226,10 +224,9 @@ class FlexDmDeepSvgBlock(nn.Module):
         self.attention = FlexDmMultiHeadSelfAttention(config.latent_dim)
         self.norm2 = nn.LayerNorm(config.latent_dim, eps=config.layer_norm_epsilon)
         self.mlp = nn.Sequential(
-            nn.Linear(config.latent_dim, config.latent_dim * 4),
-            nn.GELU(),
-            nn.Dropout(config.dropout),
-            nn.Linear(config.latent_dim * 4, config.latent_dim),
+            nn.Linear(config.latent_dim, config.latent_dim * 2),
+            nn.ReLU(),
+            nn.Linear(config.latent_dim * 2, config.latent_dim),
         )
         self.dropout = nn.Dropout(config.dropout)
 

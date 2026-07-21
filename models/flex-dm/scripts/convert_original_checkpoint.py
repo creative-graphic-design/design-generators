@@ -27,11 +27,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_variant_root(asset_dir: Path, dataset: str, variant: str) -> Path:
+    """Return the extracted checkpoint variant directory."""
+    direct = asset_dir / "weights" / dataset / variant
+    nested = asset_dir / "weights" / dataset / dataset / variant
+    return direct if direct.exists() else nested
+
+
+def resolve_vocabulary_path(asset_dir: Path, dataset: str) -> Path:
+    """Return the extracted vendor vocabulary path."""
+    direct = asset_dir / "data" / dataset / "vocabulary.json"
+    nested = asset_dir / "data" / dataset / dataset / "vocabulary.json"
+    return direct if direct.exists() else nested
+
+
 def main() -> None:
     """Convert variables by semantic mapping and save model/processor."""
     args = parse_args()
-    vocabulary_path = args.vocabulary_json or (
-        args.asset_dir / "data" / args.dataset / "vocabulary.json"
+    vocabulary_path = args.vocabulary_json or resolve_vocabulary_path(
+        args.asset_dir, args.dataset
     )
     vocabulary = (
         json.loads(vocabulary_path.read_text()) if vocabulary_path.exists() else {}
@@ -41,18 +55,32 @@ def main() -> None:
         vocabulary=vocabulary,
         checkpoint_variant=args.variant,
     )
+    checkpoint_root = resolve_variant_root(args.asset_dir, args.dataset, args.variant)
+    args_path = checkpoint_root / "args.json"
+    if args_path.exists():
+        original_args = json.loads(args_path.read_text())
+        processor.config.original_args = original_args
+        for key in (
+            "latent_dim",
+            "num_blocks",
+            "block_type",
+            "masking_method",
+            "seq_type",
+            "arch_type",
+            "context",
+            "input_dtype",
+        ):
+            if key in original_args:
+                setattr(processor.config, key, original_args[key])
     model = FlexDmForMaskedDocumentModeling(processor.config)
-    checkpoint_root = args.asset_dir / "weights" / args.dataset / args.variant
-    nested_root = (
-        args.asset_dir / "weights" / args.dataset / args.dataset / args.variant
-    )
-    if not checkpoint_root.exists() and nested_root.exists():
-        checkpoint_root = nested_root
     checkpoint = checkpoint_root / "checkpoints" / args.checkpoint_name
     variables = load_tf_checkpoint_variables(checkpoint)
     converted: dict[str, torch.Tensor] = {}
     consumed: set[str] = set()
+    model_source_keys: set[str] = set()
     for source_name, value in variables.items():
+        if source_name.startswith("model/") and "/.OPTIMIZER_SLOT/" not in source_name:
+            model_source_keys.add(source_name)
         mapped = map_tensor_by_rule(source_name, value)
         if mapped is None:
             continue
@@ -63,7 +91,7 @@ def main() -> None:
     report = conversion_report(
         converted=converted,
         target_keys=set(model.state_dict()),
-        source_keys=set(variables),
+        source_keys=model_source_keys,
         consumed_source_keys=consumed,
     )
     missing, unexpected = model.load_state_dict(converted, strict=False)
