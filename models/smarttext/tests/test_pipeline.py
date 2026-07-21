@@ -47,6 +47,38 @@ def test_pipeline_smoke_with_injected_saliency():
     assert "raw_scorer_boxes" in output.intermediates
 
 
+def test_text_spacing_override_does_not_leak_to_later_calls():
+    pipe = _pipeline()
+    original_spacing = pipe.config.text_spacing
+    image = Image.new("RGB", (96, 96), "white")
+    saliency = torch.zeros(96, 96)
+    font = ImageFont.load_default()
+
+    def first_candidate_line_gap(output):
+        lines = output.intermediates["candidates"][0].lines
+        return lines[1].bbox_ltrb_px[1] - lines[0].bbox_ltrb_px[3]
+
+    override_output = pipe(
+        image,
+        prompt="ICME\n2020",
+        saliency=saliency,
+        font=font,
+        text_spacing=1,
+        return_intermediates=True,
+    )
+    default_output = pipe(
+        image,
+        prompt="ICME\n2020",
+        saliency=saliency,
+        font=font,
+        return_intermediates=True,
+    )
+
+    assert pipe.config.text_spacing == original_spacing
+    assert first_candidate_line_gap(override_output) == 1
+    assert first_candidate_line_gap(default_output) == original_spacing
+
+
 def test_pipeline_output_dict_and_unsupported_mode():
     pipe = _pipeline()
 
