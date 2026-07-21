@@ -1,7 +1,9 @@
-import torch
 from typing import cast
+
+import torch
 from transformers import PreTrainedTokenizer
 
+import layout_action.tokenization_layout_action as tokenization_layout_action
 from layout_action import LayoutActionConfig, LayoutActionTokenizer
 
 
@@ -37,6 +39,41 @@ def test_encode_decode_layout_round_trip() -> None:
     assert "actions" in decoded
 
 
+def test_encode_action_layout_uses_copy_and_margin_actions() -> None:
+    tokenizer = LayoutActionTokenizer(
+        LayoutActionConfig(dataset_name="publaynet", max_elements=2)
+    )
+    cfg = tokenizer.config
+    qbox = torch.tensor([[[40, 80, 20, 20], [70, 80, 20, 20]]])
+    labels = torch.tensor([[0, 4]])
+    mask = torch.tensor([[True, True]])
+
+    sequences = tokenizer.encode_action_layout(
+        quantized_bbox=qbox, labels=labels, mask=mask
+    )
+    decoded = tokenizer.decode_action_tokens(sequences, return_actions=True)
+    actions = cast(dict[str, torch.Tensor], decoded["actions"])
+
+    assert actions["option"][0, 1].tolist() == [
+        cfg.margin_token_id,
+        cfg.copy_token_id,
+        cfg.copy_token_id,
+        cfg.copy_token_id,
+    ]
+    assert actions["object"][0, 1].tolist() == [cfg.object_token_id(1)] * 4
+    assert actions["value"][0, 1].tolist() == [
+        10,
+        cfg.no_value_token_id,
+        cfg.no_value_token_id,
+        cfg.no_value_token_id,
+    ]
+    assert cast(torch.Tensor, decoded["mask"]).tolist() == [[True, True]]
+    assert cast(torch.Tensor, decoded["labels"]).tolist() == labels.tolist()
+    assert torch.equal(
+        tokenizer.quantize_bbox(cast(torch.Tensor, decoded["bbox"])), qbox
+    )
+
+
 def test_tokenizer_save_pretrained_round_trip(tmp_path) -> None:
     tokenizer = tiny_tokenizer()
 
@@ -45,6 +82,38 @@ def test_tokenizer_save_pretrained_round_trip(tmp_path) -> None:
 
     assert restored.config.vocab_size == tokenizer.config.vocab_size
     assert restored.get_vocab()["label:0:text"] == tokenizer.config.label_token_id(0)
+
+
+def test_tokenizer_from_pretrained_resolves_hub_style_subfolder(
+    tmp_path, monkeypatch
+) -> None:
+    tokenizer = tiny_tokenizer()
+    (metadata_path,) = tokenizer.save_vocabulary(tmp_path)
+    calls: dict[str, object] = {}
+
+    def fake_cached_file(path_or_repo_id, filename, **kwargs):  # type: ignore[no-untyped-def]
+        calls["path_or_repo_id"] = path_or_repo_id
+        calls["filename"] = filename
+        calls.update(kwargs)
+        return metadata_path
+
+    monkeypatch.setattr(tokenization_layout_action, "cached_file", fake_cached_file)
+
+    restored = LayoutActionTokenizer.from_pretrained(
+        "creative-graphic-design/layout-action-publaynet",
+        cache_dir=tmp_path / "cache",
+        force_download=True,
+        local_files_only=True,
+        token="token",
+        revision="abc123",
+        subfolder="processor",
+    )
+
+    assert restored.config.dataset_name == "publaynet"
+    assert calls["path_or_repo_id"] == "creative-graphic-design/layout-action-publaynet"
+    assert calls["filename"] == tokenization_layout_action.TOKENIZER_CONFIG_FILE
+    assert calls["subfolder"] == "processor"
+    assert calls["revision"] == "abc123"
 
 
 def test_tokenizer_text_api_and_metadata_file(tmp_path) -> None:

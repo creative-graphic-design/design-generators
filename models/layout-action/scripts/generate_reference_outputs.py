@@ -15,7 +15,7 @@ from typing import cast
 
 import torch
 
-from layout_action import LayoutActionConfig
+from layout_action import LayoutActionConfig, LayoutActionTokenizer
 
 
 EVAL_COMMANDS = ("random_generate", "category_generate", "completion_generate")
@@ -83,26 +83,33 @@ def set_deterministic_torch(seed: int) -> None:
 
 def synthetic_vendor_batch(config: LayoutActionConfig, batch_size: int) -> torch.Tensor:
     """Create deterministic action-token inputs with the vendor grammar."""
-    rows: list[list[int]] = []
+    tokenizer = LayoutActionTokenizer(config)
+    bbox = torch.zeros(batch_size, config.max_elements, 4, dtype=torch.long)
+    labels = torch.zeros(batch_size, config.max_elements, dtype=torch.long)
+    mask = torch.ones(batch_size, config.max_elements, dtype=torch.bool)
     label_count = len(cast(dict[int, str], config.id2label))
     for batch_idx in range(batch_size):
-        tokens: list[int] = [config.bos_token_id]
         for element_idx in range(config.max_elements):
-            label_id = (batch_idx + element_idx) % label_count
-            tokens.append(config.label_token_id(label_id))
-            for geo_idx in range(4):
-                tokens.extend(
-                    [
-                        config.generate_token_id,
-                        config.no_obj_token_id,
-                        (17 * batch_idx + 23 * element_idx + 31 * geo_idx)
-                        % config.size,
-                    ]
+            labels[batch_idx, element_idx] = (batch_idx + element_idx) % label_count
+            if element_idx == 0:
+                bbox[batch_idx, element_idx] = torch.tensor(
+                    [40 + batch_idx, 80, 20, 20], dtype=torch.long
                 )
-        tokens.append(config.eos_token_id)
-        tokens.append(config.pad_token_id)
-        rows.append(tokens)
-    return torch.tensor(rows, dtype=torch.long)
+            elif element_idx == 1:
+                bbox[batch_idx, element_idx] = torch.tensor(
+                    [70 + batch_idx, 80, 20, 20], dtype=torch.long
+                )
+            else:
+                bbox[batch_idx, element_idx] = torch.tensor(
+                    [
+                        (40 + batch_idx + 17 * element_idx) % config.size,
+                        (80 + 19 * element_idx) % config.size,
+                        (20 + 3 * element_idx) % config.size,
+                        (20 + 5 * element_idx) % config.size,
+                    ],
+                    dtype=torch.long,
+                )
+    return tokenizer.encode_action_layout(quantized_bbox=bbox, labels=labels, mask=mask)
 
 
 def forced_label_tokens(

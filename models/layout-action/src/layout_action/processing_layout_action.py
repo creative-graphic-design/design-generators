@@ -228,8 +228,7 @@ class LayoutActionProcessor(ProcessorMixin):
         revision: str = "main",
         **kwargs: object,
     ) -> "LayoutActionProcessor":
-        """Load processor metadata from a checkpoint directory."""
-        _ = kwargs
+        """Load processor metadata from a checkpoint directory or Hub repo id."""
         tokenizer = LayoutActionTokenizer.from_pretrained(
             pretrained_model_name_or_path,
             cache_dir=cache_dir,
@@ -237,6 +236,7 @@ class LayoutActionProcessor(ProcessorMixin):
             local_files_only=local_files_only,
             token=token,
             revision=revision,
+            **kwargs,
         )
         return cls(tokenizer=tokenizer)
 

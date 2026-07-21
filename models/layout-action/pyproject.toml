@@ -39,7 +39,6 @@ datasets = ["rico13", "publaynet"]
 default_hub_ids = [
     "creative-graphic-design/layout-action-rico13",
     "creative-graphic-design/layout-action-publaynet",
-    "creative-graphic-design/layout-action-infoppt",
 ]
 vendor = "layout-action"
 
