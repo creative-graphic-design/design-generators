@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from flex_dm import FlexDmForMaskedDocumentModeling
 from flex_dm.masking import iterative_decode
 
@@ -87,13 +88,21 @@ EXPECTED_LAYER_PROBES = {
 
 def _load_json(path: Path) -> dict[str, object]:
     if not path.exists():
-        pytest.skip(f"missing Flex-DM parity artifact: {path}")
+        skip_or_fail_vendor_parity(
+            f"missing Flex-DM parity artifact: {path}",
+            missing_paths=[path],
+            regeneration_hint="run the Flex-DM conversion/reference generation scripts before vendor parity",
+        )
     return json.loads(path.read_text())
 
 
 def _load_forward_case(path: Path) -> np.lib.npyio.NpzFile:
     if not path.exists():
-        pytest.skip(f"missing Flex-DM forward parity artifact: {path}")
+        skip_or_fail_vendor_parity(
+            f"missing Flex-DM forward parity artifact: {path}",
+            missing_paths=[path],
+            regeneration_hint="run models/flex-dm/scripts/generate_reference_outputs.py",
+        )
     return np.load(path)
 
 
@@ -198,7 +207,14 @@ def test_vendor_parity_assets_present() -> None:
         path for path in (Path(asset_dir), Path(golden_dir)) if not path.exists()
     ]
     if missing:
-        pytest.skip(f"missing Flex-DM parity artifact root(s): {missing}")
+        skip_or_fail_vendor_parity(
+            f"missing Flex-DM parity artifact root(s): {missing}",
+            missing_paths=missing,
+            regeneration_hint=(
+                "set FLEX_DM_ORIGINAL_ASSET_DIR/FLEX_DM_GOLDEN_DIR or populate "
+                ".cache/flex-dm/original and .cache/flex-dm/goldens"
+            ),
+        )
     assert Path(asset_dir).exists()
     assert Path(golden_dir).exists()
 
@@ -277,11 +293,19 @@ def test_converted_model_matches_vendor_forward_cases(
 ) -> None:
     """Run converted checkpoints against saved vendor inputs and logits."""
     if not torch.cuda.is_available():
-        pytest.skip("Flex-DM vendor forward parity requires CUDA")
+        skip_or_fail_vendor_parity(
+            "Flex-DM vendor forward parity requires CUDA",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun on a CUDA-enabled host with generated Flex-DM parity assets",
+        )
     reference = _load_json(Path(expected["path"]))
     checkpoint_dir = Path(expected["checkpoint_dir"])
     if not checkpoint_dir.exists():
-        pytest.skip(f"missing converted Flex-DM checkpoint: {checkpoint_dir}")
+        skip_or_fail_vendor_parity(
+            f"missing converted Flex-DM checkpoint: {checkpoint_dir}",
+            missing_paths=[checkpoint_dir],
+            regeneration_hint="run models/flex-dm/scripts/convert_original_checkpoint.py",
+        )
     device = torch.device("cuda")
     model = (
         FlexDmForMaskedDocumentModeling.from_pretrained(checkpoint_dir)
@@ -321,11 +345,19 @@ def test_public_iterative_decode_matches_vendor_step_sequence(
 ) -> None:
     """Public iterative_decode regenerates vendor num_iter=4 commit steps."""
     if not torch.cuda.is_available():
-        pytest.skip("Flex-DM iterative decode parity requires CUDA")
+        skip_or_fail_vendor_parity(
+            "Flex-DM iterative decode parity requires CUDA",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun on a CUDA-enabled host with generated Flex-DM parity assets",
+        )
     reference = _load_json(Path(expected["path"]))
     checkpoint_dir = Path(expected["checkpoint_dir"])
     if not checkpoint_dir.exists():
-        pytest.skip(f"missing converted Flex-DM checkpoint: {checkpoint_dir}")
+        skip_or_fail_vendor_parity(
+            f"missing converted Flex-DM checkpoint: {checkpoint_dir}",
+            missing_paths=[checkpoint_dir],
+            regeneration_hint="run models/flex-dm/scripts/convert_original_checkpoint.py",
+        )
     device = torch.device("cuda")
     model = (
         FlexDmForMaskedDocumentModeling.from_pretrained(checkpoint_dir)

@@ -7,6 +7,7 @@ import pytest
 import torch
 from PIL import Image
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.modeling_outputs import LayoutGenerationOutput
 from smarttext import SmartTextPipeline
 from smarttext.candidate_generation import (
@@ -58,9 +59,17 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
     ]
     missing = [name for name in required if not (reference_dir / name).exists()]
     if missing:
-        pytest.skip(f"SmartText vendor references missing: {missing}")
+        skip_or_fail_vendor_parity(
+            f"SmartText vendor references missing: {missing}",
+            missing_paths=[reference_dir / name for name in missing],
+            regeneration_hint="run models/smarttext/scripts/generate_reference_outputs.py",
+        )
     if not checkpoint_dir.exists():
-        pytest.skip(f"Converted SmartText checkpoint missing: {checkpoint_dir}")
+        skip_or_fail_vendor_parity(
+            f"Converted SmartText checkpoint missing: {checkpoint_dir}",
+            missing_paths=[checkpoint_dir],
+            regeneration_hint="run models/smarttext/scripts/convert_original_checkpoint.py",
+        )
 
     meta = json.loads((reference_dir / "meta.json").read_text(encoding="utf-8"))
     candidates_by_image = json.loads(
