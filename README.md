@@ -7,7 +7,7 @@
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
 ![models](https://img.shields.io/static/v1?label=models&message=18&color=purple&style=flat-square)
 
-design-generators ports layout, poster, and graphic-design generation research repositories into 🤗 transformers-, 🤗 diffusers-, and 🤖 pydantic-ai-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
+design-generators ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and 🤖 [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Models
 
@@ -41,13 +41,18 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Quick Start
 
-Install one workspace member and run a smoke import from the repository root.
+Install the shared layout library directly from this repository.
 
 ```bash
-git clone https://github.com/creative-graphic-design/design-generators.git
-cd design-generators
-uv sync --package layout-dm
-uv run --package layout-dm python
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+
+Install a model package by listing its shared workspace dependencies in the same command.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
 ```python
@@ -56,11 +61,13 @@ from layout_dm import LayoutDMPipeline
 print(LayoutDMPipeline.__name__)
 ```
 
-Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` in the same install command. If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
 
-Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
 
 ```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
 ```
 
