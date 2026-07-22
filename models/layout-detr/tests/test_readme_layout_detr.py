@@ -21,9 +21,10 @@ def test_reproducing_has_ordered_commands():
     text = (ROOT / "REPRODUCING.md").read_text(encoding="utf-8")
 
     assert (
-        "Workflow order: download assets, generate references, run parity checks, convert checkpoints"
+        "Workflow order: download assets, generate references, convert checkpoints, run parity checks"
         in text
     )
     assert "CUDA_VISIBLE_DEVICES=1" in text
+    assert "PARITY_REQUIRE=1" in text
     assert "uv run --package layout-detr" in text
     assert "from_pretrained" in text

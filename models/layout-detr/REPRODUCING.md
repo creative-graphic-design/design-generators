@@ -2,7 +2,7 @@
 
 These commands reproduce LayoutDETR agreement checks against the original implementation by downloading the released assets, generating vendor references, running parity tests, converting the pickle, and smoke-testing local loading with `from_pretrained`.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading. Strict conversion now loads the released `G_ema` state dict completely; raw `bbox_fake` parity is numerically close within `1e-6` on both GPU and CPU, while bitwise equality is false from floating-op order differences.
+Workflow order: download assets, generate references, convert checkpoints, run parity checks, then smoke-test local loading. Strict conversion now loads the released `G_ema` state dict completely; raw `bbox_fake` parity is rerunnable with `pytest -m vendor_parity` and is numerically close within `1e-6` on both GPU and CPU, while bitwise equality is false from floating-op order differences.
 
 ## Download Original Assets
 
@@ -38,15 +38,6 @@ CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models
   --output-dir .cache/layout-detr/reference/lumber2
 ```
 
-## Run Vendor Parity
-
-```bash
-CUDA_VISIBLE_DEVICES=1 LAYOUT_DETR_VENDOR_ROOT=vendor/layout-detr \
-  LAYOUT_DETR_CHECKPOINT=.cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
-  LAYOUT_DETR_REFERENCE_DIR=.cache/layout-detr/reference/lumber2 \
-  uv run --package layout-detr --extra vendor --with pytest --with pytest-cov pytest models/layout-detr/tests/vendor_parity -m vendor_parity --no-cov
-```
-
 ## Convert Checkpoint
 
 This strict conversion writes
@@ -58,6 +49,20 @@ CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models
   --vendor-root vendor/layout-detr \
   --checkpoint .cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
   --output-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
+```
+
+## Run Vendor Parity
+
+This command asserts the strict conversion report and compares the converted
+model's raw `bbox_fake` forward output against the generated vendor reference
+with `atol=1e-6` and `rtol=1e-6`.
+
+```bash
+CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 LAYOUT_DETR_VENDOR_ROOT=vendor/layout-detr \
+  LAYOUT_DETR_CHECKPOINT=.cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
+  LAYOUT_DETR_REFERENCE_DIR=.cache/layout-detr/reference/lumber2 \
+  LAYOUT_DETR_CONVERTED_DIR=.cache/layout-detr/converted/layout-detr-ad-banner-strict \
+  uv run --package layout-detr --extra vendor pytest models/layout-detr/tests/vendor_parity -m vendor_parity --no-cov
 ```
 
 Use `--allow-partial` only for debugging schema and `from_pretrained` smoke paths;
@@ -75,5 +80,5 @@ uv run --package layout-detr --extra convert python models/layout-detr/scripts/c
 
 ```bash
 uv run --package layout-detr python models/layout-detr/scripts/smoke_from_pretrained.py \
-  --model-dir .cache/layout-detr/converted/layout-detr-ad-banner
+  --model-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
 ```

@@ -260,6 +260,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             flat_input_ids,
             attention_mask=flat_attention,
             return_dict=True,
+            mode="text",
         )
         text_features = text_output.last_hidden_state[:, 0, :].view(
             labels.shape[0], labels.shape[1], -1

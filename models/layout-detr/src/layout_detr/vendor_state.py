@@ -40,6 +40,12 @@ class _LegacyModuleProtocol(Protocol):
     _LegacyUnpickler: type[_LegacyUnpicklerProtocol]
 
 
+class _VendorGeneratorStateProtocol(Protocol):
+    """Protocol for the loaded vendor generator state-dict surface."""
+
+    def state_dict(self) -> Mapping[str, torch.Tensor]: ...
+
+
 def remap_generator_key(source_key: str) -> str:
     """Map a vendor ``G_ema`` key to the local model key when possible."""
     if source_key.startswith("module."):
@@ -102,26 +108,16 @@ def extract_generator_state(
     ``from_pretrained`` inference never imports ``vendor/layout-detr`` or
     ``torch_utils.ops``.
     """
-    vendor_path = Path(vendor_root).resolve()
-    custom_op_import_required = False
-    before_modules = set(sys.modules)
-    with temporary_sys_path(vendor_path):
-        _install_transformers_vendor_compat()
-        import dnnlib  # type: ignore[import-not-found]
-        import legacy  # type: ignore[import-not-found]
-
-        _patch_legacy_unpickler(legacy)
-        with dnnlib.util.open_url(str(pickle_path)) as handle:
-            generator = legacy.load_network_pkl(handle)["G_ema"].to(device)
-    custom_op_import_required = any(
-        name.startswith("torch_utils.ops")
-        for name in set(sys.modules).difference(before_modules)
+    generator, custom_op_import_required = load_vendor_generator(
+        pickle_path,
+        vendor_root=vendor_root,
+        device=device,
     )
     source_state = {
         key: value.detach().cpu()
-        for key, value in cast(
-            Mapping[str, torch.Tensor], generator.state_dict()
-        ).items()
+        for key, value in cast(_VendorGeneratorStateProtocol, generator)
+        .state_dict()
+        .items()
     }
     init_kwargs = dict(getattr(generator, "init_kwargs", {}) or {})
     config = LayoutDetrConfig(
@@ -152,6 +148,30 @@ def extract_generator_state(
     )
     config.conversion_report = dict(report)
     return remapped, config, report
+
+
+def load_vendor_generator(
+    pickle_path: str | Path,
+    *,
+    vendor_root: str | Path,
+    device: str | torch.device = "cpu",
+) -> tuple[object, bool]:  # pragma: no cover
+    """Load the original ``G_ema`` generator with conversion-only shims."""
+    vendor_path = Path(vendor_root).resolve()
+    before_modules = set(sys.modules)
+    with temporary_sys_path(vendor_path):
+        _install_transformers_vendor_compat()
+        import dnnlib  # type: ignore[import-not-found]
+        import legacy  # type: ignore[import-not-found]
+
+        _patch_legacy_unpickler(legacy)
+        with dnnlib.util.open_url(str(pickle_path)) as handle:
+            generator = legacy.load_network_pkl(handle)["G_ema"].to(device)
+    custom_op_import_required = any(
+        name.startswith("torch_utils.ops")
+        for name in set(sys.modules).difference(before_modules)
+    )
+    return generator, custom_op_import_required
 
 
 class _LegacyTokenizerHelper:

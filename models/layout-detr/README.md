@@ -140,7 +140,7 @@ Training follows the original LayoutDETR GAN/DETR objective and vendor environme
 | --- | ---: | --- | --- |
 | Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
 | Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys |
-| Vendor `G_ema` forward reference | 1 fixed GPU-1 probe and 1 CPU probe | numeric agreement on raw `bbox_fake` before postprocessing | GPU: `max_abs=1.49e-7`, `mean_abs=3.39e-8`, `allclose(atol=1e-6, rtol=1e-6)=true`; CPU: `max_abs=1.19e-7`, `mean_abs=1.82e-8`, `allclose(atol=1e-6, rtol=1e-6)=true`; bitwise exact is false from floating-op order differences |
+| Vendor `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated vendor tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
 | Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
 | Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
 
