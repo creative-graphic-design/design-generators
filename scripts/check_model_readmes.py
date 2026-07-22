@@ -108,6 +108,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/Rico",
         ],
     },
+    "housegan": {
+        "license": "gpl-3.0",
+        "datasets": ["housegan-floorplan-vectorized"],
+    },
     "lace": {
         "license": "mit",
         "datasets": [
@@ -201,6 +205,7 @@ EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
     "flex-dm": "Flex-DM",
+    "housegan": "House-GAN",
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
@@ -229,6 +234,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
+    "housegan": "https://github.com/ennauata/housegan",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}

@@ -2,6 +2,8 @@
 
 This walkthrough reproduces House-GAN agreement checks against the original implementation using local Dropbox assets, fixed seeds, and generated external parity artifacts.
 
+Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
+
 ## 1. Validate Original Assets
 
 ```bash

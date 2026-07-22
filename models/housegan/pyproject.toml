@@ -32,7 +32,7 @@ vendor = [
 
 [tool.design-generators]
 framework = "transformers"
-task = "layout-generation"
+task = "content-agnostic-layout-generation"
 conditions = ["relation"]
 datasets = ["housegan-floorplan-vectorized"]
 
