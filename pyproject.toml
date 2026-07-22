@@ -16,6 +16,7 @@ dependencies = [
     "ds-gan",
     "flex-dm",
     "layout-corrector",
+    "layout-detr",
     "layoutdiffusion",
     "layout-flow",
     "layout-gpt",
@@ -112,6 +113,14 @@ conflicts = [
         { package = "layoutprompter" },
         { package = "flex-dm", extra = "convert" },
     ],
+    [
+        { package = "ds-gan" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
+    [
+        { package = "ds-gan", extra = "download" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
 ]
 
 [tool.uv.workspace]
@@ -122,6 +131,7 @@ coarse-to-fine = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
 layout-corrector = { workspace = true }
+layout-detr = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
