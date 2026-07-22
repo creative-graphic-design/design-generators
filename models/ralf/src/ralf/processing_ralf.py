@@ -164,7 +164,7 @@ class RalfProcessor(ProcessorMixin):
     def normalize_condition_type(
         self, condition_type: ConditionType | str
     ) -> ConditionType:
-        """Normalize a public or vendor condition string."""
+        """Normalize a public condition string."""
         return normalize_condition_type(condition_type)
 
     def _coerce_labels(

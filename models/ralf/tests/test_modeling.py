@@ -93,22 +93,22 @@ def test_forward_requires_input_ids_for_non_vendor_model() -> None:
         model()
 
 
-def test_vendor_task_aliases() -> None:
+def test_task_name_aliases() -> None:
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("unconditional")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("unconditional")
         == "uncond"
     )
-    assert RalfForConditionalLayoutGeneration._canonical_to_vendor_task("label") == "c"
+    assert RalfForConditionalLayoutGeneration._canonical_to_task_name("label") == "c"
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("label_size")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("label_size")
         == "cwh"
     )
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("completion")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("completion")
         == "partial"
     )
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("relation")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("relation")
         == "relation"
     )
 

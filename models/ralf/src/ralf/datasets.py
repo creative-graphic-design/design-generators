@@ -21,7 +21,7 @@ class _IndexableDataset(Protocol):
         """Return one dataset row."""
 
 
-PKU_ORG_TO_VENDOR_LABEL_ID = torch.tensor([1, 0, 2], dtype=torch.long)
+PKU_ORG_TO_CHECKPOINT_LABEL_ID = torch.tensor([1, 0, 2], dtype=torch.long)
 RALF_STYLE_LABEL2ID = {
     DatasetName.cgl: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
     DatasetName.cgl_v2: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
@@ -34,7 +34,7 @@ def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch
         return labels
     if labels.numel() == 0:
         return labels
-    return PKU_ORG_TO_VENDOR_LABEL_ID[labels.clamp(0, 2)]
+    return PKU_ORG_TO_CHECKPOINT_LABEL_ID[labels.clamp(0, 2)]
 
 
 def _labels_to_tensor(labels: object, dataset: DatasetName) -> torch.Tensor:
@@ -141,7 +141,9 @@ def load_ralf_dataset(
     try:
         from datasets import load_dataset
     except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError("Install ralf[vendor] to load org datasets") from exc
+        raise ImportError(
+            "Install the optional reference dependencies to load org datasets"
+        ) from exc
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.cgl:
         return load_dataset(
@@ -172,8 +174,8 @@ def build_retrieved_batch(
         indexes: Tensor of retrieved row indexes with shape `(batch, candidates)`.
         max_seq_length: Maximum elements retained per layout.
         dataset_name: Dataset key used for row normalization. PKU labels are remapped
-            from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the vendor
-            checkpoint ids (`logo=0`, `text=1`, `underlay=2`) used by converted RALF.
+            from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the checkpoint
+            ids (`logo=0`, `text=1`, `underlay=2`) used by converted RALF.
 
     Returns:
         Retrieved batch with layout fields filled and image tensors as zeros.

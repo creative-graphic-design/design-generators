@@ -15,7 +15,7 @@ import torch
 from laygen.common.conditions import normalize_condition_type
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration, RalfProcessor
-from ralf.modeling_ralf import VENDOR_TASK_BY_CANONICAL
+from ralf.modeling_ralf import TASK_BY_CONDITION
 
 
 def _int_value(value: object, default: int) -> int:
@@ -42,8 +42,8 @@ def _canonical_task(value: str) -> str:
     return str(normalize_condition_type(value))
 
 
-def _vendor_task(value: str) -> str:
-    return VENDOR_TASK_BY_CANONICAL.get(value, value)
+def _task_name(value: str) -> str:
+    return TASK_BY_CONDITION.get(value, value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -140,12 +140,12 @@ def _config_from_original(
     tokenizer_cfg = cast(dict[str, object], original_config.get("tokenizer", {}))
     generator_cfg = cast(dict[str, object], original_config.get("generator", {}))
     canonical_task = _canonical_task(task)
-    config_vendor_task = _vendor_task(str(generator_cfg.get("auxilary_task", task)))
-    requested_vendor_task = _vendor_task(canonical_task)
-    if config_vendor_task != requested_vendor_task:
+    config_task_name = _task_name(str(generator_cfg.get("auxilary_task", task)))
+    requested_task_name = _task_name(canonical_task)
+    if config_task_name != requested_task_name:
         raise ValueError(
             "Requested task does not match config.yaml generator.auxilary_task: "
-            f"{requested_vendor_task!r} != {config_vendor_task!r}"
+            f"{requested_task_name!r} != {config_task_name!r}"
         )
     return RalfConfig(
         dataset_name=dataset,
@@ -166,7 +166,7 @@ def _config_from_original(
         saliency_k=_int_or_str(generator_cfg.get("saliency_k"), "None"),
         top_k=_int_value(generator_cfg.get("top_k"), 16),
         retrieval_metadata={
-            "vendor_task": config_vendor_task,
+            "task_name": config_task_name,
             "requested_task": canonical_task,
         },
         original_config=original_config,
@@ -243,7 +243,7 @@ def main() -> None:
         "checkpoint": str(args.checkpoint),
         "job_dir": str(args.job_dir),
         "task": config.task,
-        "vendor_task": config.retrieval_metadata.get("vendor_task"),
+        "task_name": config.retrieval_metadata.get("task_name"),
         "vocabulary_json": None if vocabulary_path is None else str(vocabulary_path),
         "source_key_count": len(state_dict),
         "target_key_count": len(model.state_dict()),

@@ -12,7 +12,7 @@ from ralf.modeling_ralf import (
     PositionalEncoding1d,
     RalfConditionalInputs,
     RalfTaskPreprocessor,
-    RalfVendorTokenizerView,
+    RalfTokenizerView,
     ResnetBackbone,
     _apply_decode_space_restriction,
     _restrict_reliable_label_or_size,
@@ -58,7 +58,7 @@ def test_feedforward_attention_and_backbone_validation() -> None:
 
 def test_task_preprocessor_sequences_for_supported_tasks() -> None:
     config = RalfConfig(max_seq_length=2, num_bin=8)
-    tokenizer = RalfVendorTokenizerView(config)
+    tokenizer = RalfTokenizerView(config)
     labels = torch.tensor([[0, 1]])
     bbox = torch.full((1, 2, 4), 0.5)
     encoded = RalfLayoutTokenizer(config).encode_layout(

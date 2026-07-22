@@ -21,7 +21,7 @@ from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput
 
 from .configuration_ralf import RalfConfig
-from .retrieval import RalfRetrievedBatch, retrieved_batch_to_vendor_dict
+from .retrieval import RalfRetrievedBatch, retrieved_batch_to_model_inputs
 
 GEO_KEYS: tuple[str, ...] = ("width", "height", "center_x", "center_y")
 FID_BBOX_KEYS: tuple[str, ...] = ("center_x", "center_y", "width", "height")
@@ -50,7 +50,7 @@ RELATIONSHIP_SIZE_TOKENS: tuple[str, ...] = (
     "larger",
     "equal",
 )
-VENDOR_TASK_BY_CANONICAL: Final[dict[str, str]] = {
+TASK_BY_CONDITION: Final[dict[str, str]] = {
     "unconditional": "uncond",
     "retrieval": "uncond",
     "content_image": "uncond",
@@ -88,7 +88,7 @@ class ImageReshaper(nn.Module):
 
 
 class PositionalEncoding1d(nn.Module):
-    """Vendor-compatible sine positional encoding for token sequences."""
+    """RALF sine positional encoding for token sequences."""
 
     def __init__(
         self,
@@ -128,7 +128,7 @@ class PositionalEncoding1d(nn.Module):
 
 
 class PositionEmbeddingSine(nn.Module):
-    """Vendor-compatible 2D sine positional encoding."""
+    """RALF 2D sine positional encoding."""
 
     def __init__(
         self,
@@ -175,7 +175,7 @@ class PositionEmbeddingSine(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """Vendor-compatible MLP block."""
+    """RALF MLP block."""
 
     def __init__(
         self,
@@ -200,7 +200,7 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    """Vendor-compatible cross-attention block."""
+    """RALF cross-attention block."""
 
     def __init__(
         self,
@@ -240,7 +240,7 @@ class Attention(nn.Module):
 
 
 class ResnetBackbone(nn.Module):
-    """Vendor-compatible ResNet50 FPN feature extractor without external loads."""
+    """RALF ResNet50 FPN feature extractor without external loads."""
 
     def __init__(
         self, backbone: str = "resnet50", d_model: int = 256, head: str = "transformer"
@@ -284,7 +284,7 @@ class ResnetBackbone(nn.Module):
 
 
 class ResnetFeatureExtractor(nn.Module):
-    """Container preserving vendor checkpoint key prefix."""
+    """Container preserving checkpoint key prefix."""
 
     def __init__(
         self,
@@ -362,7 +362,7 @@ class FIDNetFeatureExtractor(nn.Module):
 
 
 class BaseDecoder(nn.Module):
-    """Vendor-compatible autoregressive transformer decoder."""
+    """RALF autoregressive transformer decoder."""
 
     def __init__(
         self,
@@ -431,7 +431,7 @@ class BaseDecoder(nn.Module):
 
 
 class UserConstraintTransformerEncoder(nn.Module):
-    """Vendor-compatible encoder for task/user constraint tokens."""
+    """RALF encoder for task/user constraint tokens."""
 
     def __init__(
         self,
@@ -472,8 +472,8 @@ class UserConstraintTransformerEncoder(nn.Module):
         return h
 
 
-class RalfVendorTokenizerView:
-    """Small tokenizer view matching the vendor ids needed by the model."""
+class RalfTokenizerView:
+    """Small tokenizer view matching the token ids needed by the model."""
 
     def __init__(self, config: RalfConfig) -> None:
         self.config = config
@@ -524,18 +524,18 @@ class RalfVendorTokenizerView:
 
 
 class RalfTaskPreprocessor:
-    """Vendor-compatible RALF task token preprocessor."""
+    """RALF task token preprocessor."""
 
     def __init__(
         self,
-        tokenizer: RalfVendorTokenizerView,
+        tokenizer: RalfTokenizerView,
         *,
         task: str,
         global_task_embedding: bool = False,
     ) -> None:
         self.tokenizer = tokenizer
         self.global_task_embedding = global_task_embedding
-        self.vendor_task = task
+        self.task_name = task
         self._TASK = {
             "uncond": "uncondition",
             "c": "label",
@@ -604,14 +604,14 @@ class RalfTaskPreprocessor:
 
     def _geo_sequence(self, inputs: "RalfConditionalInputs") -> Tensor:
         if inputs.seq is None:
-            raise ValueError(f"condition_type={self.vendor_task!r} requires labels")
+            raise ValueError(f"condition_type={self.task_name!r} requires labels")
         seq_vars = self._parse_seq_into_vars(inputs.seq)
         valid = (
             self._valid_element_mask(seq_vars)
             if inputs.element_mask is None
             else inputs.element_mask[:, : seq_vars["label"].size(1)].bool()
         )
-        if self.vendor_task == "partial":
+        if self.task_name == "partial":
             valid = torch.zeros_like(valid)
             if valid.size(1) > 0:
                 valid[:, 0] = True
@@ -640,7 +640,7 @@ class RalfTaskPreprocessor:
         eos = self.get_token("eos", batch)
         body = (
             torch.empty(batch, 0, dtype=torch.long, device=self.device)
-            if self.vendor_task == "uncond"
+            if self.task_name == "uncond"
             else self._geo_sequence(inputs)
         )
         if self.global_task_embedding:
@@ -787,7 +787,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     def __init__(self, config: RalfConfig) -> None:
         """Initialize a local module tree matching original RALF checkpoint keys."""
         super().__init__(config)
-        self.tokenizer = RalfVendorTokenizerView(config)
+        self.tokenizer = RalfTokenizerView(config)
         self.dataset_name = config.dataset_name
         self.d_model = config.d_model
         self.max_seq_length = config.max_seq_length
@@ -846,7 +846,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             dim=256, hidden_dim=4 * config.d_model, output_dim=config.d_model
         )
         self.head = FeedForward(dim=config.d_model, hidden_dim=4 * config.d_model)
-        self.auxilary_task = self._canonical_to_vendor_task(config.task)
+        self.auxilary_task = self._canonical_to_task_name(config.task)
         self.use_multitask = config.use_multitask
         self.global_task_embedding = config.global_task_embedding
         self.preprocessor = RalfTaskPreprocessor(
@@ -873,8 +873,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
-    def _canonical_to_vendor_task(task: str) -> str:
-        return VENDOR_TASK_BY_CANONICAL.get(task, task)
+    def _canonical_to_task_name(task: str) -> str:
+        return TASK_BY_CONDITION.get(task, task)
 
     def _default_retrieved(
         self, batch_size: int, device: torch.device, dtype: torch.dtype
@@ -983,14 +983,14 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 key: value.to(device=device, dtype=dtype)
                 if value.is_floating_point()
                 else value.to(device=device)
-                for key, value in retrieved_batch_to_vendor_dict(retrieved).items()
+                for key, value in retrieved_batch_to_model_inputs(retrieved).items()
             }
         )
         if retrieved_dict["image"].size(2) == 3:
             retrieved_dict["image"] = torch.cat(
                 [retrieved_dict["image"], retrieved_dict["saliency"]], dim=2
             )
-        task = self._canonical_to_vendor_task(condition_type or self.auxilary_task)
+        task = self._canonical_to_task_name(condition_type or self.auxilary_task)
         preprocessor = (
             self.preprocessor
             if task == self.auxilary_task
@@ -1104,7 +1104,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         _ = attention_mask
         was_training = self.training
         self.eval()
-        task = self._canonical_to_vendor_task(condition_type or self.auxilary_task)
+        task = self._canonical_to_task_name(condition_type or self.auxilary_task)
         generated = input_ids[:, :1].clone()
         start_step = 0
         if task == "partial":

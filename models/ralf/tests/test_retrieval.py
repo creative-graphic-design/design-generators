@@ -5,8 +5,8 @@ import torch
 from ralf import RalfRetrievalTable
 from ralf.retrieval import (
     RalfRetrievedBatch,
-    retrieved_batch_to_vendor_dict,
-    vendor_dict_to_retrieved_batch,
+    retrieved_batch_to_model_inputs,
+    model_inputs_to_retrieved_batch,
 )
 
 
@@ -38,8 +38,8 @@ def test_retrieved_batch_vendor_adapters() -> None:
         indexes=torch.tensor([[5, 6]]),
     )
 
-    vendor = retrieved_batch_to_vendor_dict(batch)
-    restored = vendor_dict_to_retrieved_batch(vendor)
+    vendor = retrieved_batch_to_model_inputs(batch)
+    restored = model_inputs_to_retrieved_batch(vendor)
 
     assert restored.indexes is not None
     assert restored.indexes.tolist() == [[5, 6]]
