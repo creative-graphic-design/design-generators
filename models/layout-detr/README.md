@@ -138,7 +138,7 @@ Training follows the original LayoutDETR GAN/DETR objective and vendor environme
 
 | Compared target | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
-| Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time Transformers compatibility shims; `torch_utils.ops` was imported |
+| Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
 | Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | fails: 852 source keys, 41 target keys, 6 loaded keys, 34 missing keys, 845 unexpected keys, and `fc_z.weight` shape `[768, 36]` vs `[768, 4]` |
 | Vendor `G_ema` forward reference | 0 | bitwise equality on `bbox_fake` | not run because strict checkpoint conversion failed before a comparable converted forward path existed |
 | Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
