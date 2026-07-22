@@ -38,6 +38,7 @@ members = [
     "parse-then-place",
     "posgen",
     "ralf",
+    "smarttext",
 ]
 
 [[package]]
@@ -1192,6 +1193,7 @@ dependencies = [
     { name = "parse-then-place" },
     { name = "posgen" },
     { name = "ralf" },
+    { name = "smarttext" },
     { name = "transformers", extra = ["torch", "vision"] },
 ]
 
@@ -1249,6 +1251,7 @@ requires-dist = [
     { name = "posgen", editable = "lib/posgen" },
     { name = "pydantic-ai", marker = "extra == 'llm-agent'", specifier = ">=2.7.0" },
     { name = "ralf", editable = "models/ralf" },
+    { name = "smarttext", editable = "models/smarttext" },
     { name = "transformers", extras = ["torch", "vision"], specifier = ">=5.0.0" },
 ]
 provides-extras = ["diffusion", "download", "llm-agent", "training"]
@@ -6658,6 +6661,57 @@ sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
+
+[[package]]
+name = "smarttext"
+version = "0.1.0"
+source = { editable = "models/smarttext" }
+dependencies = [
+    { name = "laygen" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pillow" },
+    { name = "safetensors" },
+    { name = "scikit-learn" },
+    { name = "threadpoolctl" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "transformers", extra = ["torch", "vision"] },
+]
+
+[package.optional-dependencies]
+convert = [
+    { name = "huggingface-hub" },
+    { name = "pyyaml" },
+]
+download = [
+    { name = "gdown" },
+]
+vendor = [
+    { name = "opencv-python" },
+    { name = "pyyaml" },
+    { name = "scikit-image" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
+    { name = "huggingface-hub", marker = "extra == 'convert'", specifier = ">=0.24" },
+    { name = "laygen", editable = "lib/laygen" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "opencv-python", marker = "extra == 'vendor'", specifier = ">=4.8" },
+    { name = "pillow", specifier = ">=10" },
+    { name = "pyyaml", marker = "extra == 'convert'", specifier = ">=6" },
+    { name = "pyyaml", marker = "extra == 'vendor'", specifier = ">=6" },
+    { name = "safetensors", specifier = ">=0.4" },
+    { name = "scikit-image", marker = "extra == 'vendor'", specifier = ">=0.21" },
+    { name = "scikit-learn", specifier = ">=1.0" },
+    { name = "threadpoolctl", specifier = ">=3.0" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "torchvision", specifier = ">=0.16" },
+    { name = "transformers", extras = ["torch", "vision"], specifier = ">=5.0.0" },
+]
+provides-extras = ["download", "convert", "vendor", "cuda-ext"]
 
 [[package]]
 name = "smmap"

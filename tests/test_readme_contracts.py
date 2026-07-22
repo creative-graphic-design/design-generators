@@ -59,7 +59,7 @@ def _docs_model_badge_rows() -> dict[str, dict[str, set[str]]]:
     for line in DOCS_MODELS.read_text(encoding="utf-8").splitlines():
         if not line.startswith("| ["):
             continue
-        slug_match = re.search(r"api/models/([^/]+)/index\.md", line)
+        slug_match = re.search(r"api/models/([^/]+)/", line)
         if slug_match is None:
             continue
         badges: dict[str, set[str]] = {

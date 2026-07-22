@@ -137,6 +137,21 @@ def write_generated_file(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def docs_route(path: Path) -> str:
+    """Return a documentation URL route for a generated markdown page."""
+    if path.name == "index.md":
+        return f"{path.parent.as_posix()}/"
+    if path.suffix == ".md":
+        return f"{path.with_suffix('').as_posix()}/"
+    return path.as_posix()
+
+
+def relative_docs_route(target: Path, *, source: Path) -> str:
+    """Return a relative documentation route between generated pages."""
+    relative = target.relative_to(source.parent)
+    return docs_route(relative)
+
+
 def site_page_for_repo_link(link: str) -> str:
     """Return the documentation-site target for a repository-relative link."""
     target = link.removeprefix("./")
@@ -148,12 +163,16 @@ def site_page_for_repo_link(link: str) -> str:
             project_name = read_project_name(
                 ROOT / "models" / parts[1] / "pyproject.toml"
             )
-            return f"api/models/{package_slug(project_name)}/index.md"
+            return docs_route(
+                Path("api", "models", package_slug(project_name), "index.md")
+            )
     if target.startswith("lib/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
             project_name = read_project_name(ROOT / "lib" / parts[1] / "pyproject.toml")
-            return f"api/libraries/{package_slug(project_name)}/index.md"
+            return docs_route(
+                Path("api", "libraries", package_slug(project_name), "index.md")
+            )
     return f"{GITHUB_BLOB_BASE_URL}/{target}"
 
 
@@ -620,7 +639,7 @@ def write_api_index(packages: list[ApiPackage]) -> None:
         lines.extend(["", f"## {group}", ""])
         for package in group_packages:
             lines.append(
-                f"- [{package.display_name}]({package.index_path.relative_to('api')})"
+                f"- [{package.display_name}]({relative_docs_route(package.index_path, source=Path('api/index.md'))})"
             )
     lines.append("")
     write_text_file(Path("api/index.md"), "\n".join(lines))
@@ -640,7 +659,7 @@ def write_group_indexes(packages: list[ApiPackage]) -> None:
         ]
         for package in group_packages:
             lines.append(
-                f"- [{package.display_name}]({package.index_path.relative_to(Path('api', group.lower()))})"
+                f"- [{package.display_name}]({relative_docs_route(package.index_path, source=Path('api', group.lower(), 'index.md'))})"
             )
         lines.append("")
         write_text_file(Path("api", group.lower(), "index.md"), "\n".join(lines))
@@ -712,13 +731,15 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
                 [
                     "**Reproducing parity:** "
                     "[Open the model reproducing guide]"
-                    f"({package.reproducing_path.relative_to(package.index_path.parent)}).",
+                    f"({relative_docs_route(package.reproducing_path, source=package.index_path)}).",
                     "",
                 ]
             )
         lines.extend(["## API Modules", ""])
         for page in package.pages:
-            relative_page_path = page.page_path.relative_to(package.index_path.parent)
+            relative_page_path = relative_docs_route(
+                page.page_path, source=package.index_path
+            )
             lines.append(f"- [`{page.module}`]({relative_page_path})")
         lines.append("")
         write_text_file(package.index_path, "\n".join(lines))
@@ -746,7 +767,7 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
         metadata = package.design_metadata
         if metadata is None:
             raise ValueError(f"Missing model metadata for {package.project_name}")
-        package_link = f"[{package.display_name}]({package.index_path})"
+        package_link = f"[{package.display_name}]({docs_route(package.index_path)})"
         lines.append(
             " | ".join(
                 [

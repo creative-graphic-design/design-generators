@@ -30,6 +30,7 @@ dependencies = [
     "parse-then-place",
     "posgen",
     "ralf",
+    "smarttext",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -85,6 +86,7 @@ layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
+smarttext = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]

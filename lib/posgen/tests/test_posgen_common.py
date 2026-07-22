@@ -31,12 +31,14 @@ def test_posgen_dataset_registry_and_domain_split():
         "cgl_v2",
         "pku_posterlayout",
         "posterlayout",
+        "smarttext-demo",
         "crello",
     }
     assert normalize_dataset_name(DatasetName.crello) is DatasetName.crello
     assert normalize_dataset_name("CGL-Dataset-v2") is DatasetName.cgl_v2
     assert normalize_dataset_name("pku-poster-layout") is DatasetName.pku_posterlayout
     assert normalize_dataset_name("posterlayout") is DatasetName.posterlayout
+    assert normalize_dataset_name("smarttext-demo") is DatasetName.smarttext_demo
     assert labels_for_dataset("crello") == (
         "coloredBackground",
         "imageElement",
