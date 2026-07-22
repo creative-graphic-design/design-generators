@@ -3,6 +3,9 @@ from typing import cast
 import pytest
 import torch
 
+pytest.importorskip("lightning")
+pytest.importorskip("traingen_parity")
+
 from layout_flow import LayoutFlowConfig
 from layout_flow.training.cli import LayoutFlowLightningCLI, main
 from layout_flow.training.config import LayoutFlowSeedMode
@@ -13,7 +16,7 @@ from layout_flow.training.parity import (
     trace_layout_flow_step,
 )
 from layout_flow.training.seed import apply_layout_flow_seed_mode
-from traingen.parity.trace import build_step_trace
+from traingen_parity.trace import build_step_trace
 
 
 pytestmark = pytest.mark.training

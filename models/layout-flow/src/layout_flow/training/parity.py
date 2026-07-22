@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import torch
 
-from traingen.parity.compare import (
+from traingen_parity.compare import (
     OptimizerStepReport,
     StepReport,
     TensorTolerance,
     compare_optimizer_step,
     compare_step_trace,
 )
-from traingen.parity.determinism import RNGState
-from traingen.parity.trace import StepTrace, TrainingStepModule, trace_training_step
+from traingen_parity.determinism import RNGState
+from traingen_parity.trace import StepTrace, TrainingStepModule, trace_training_step
 
 TRACE_POINTS: tuple[str, ...] = (
     "bbox",

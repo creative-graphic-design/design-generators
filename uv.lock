@@ -136,6 +136,7 @@ members = [
     "ralf",
     "smarttext",
     "traingen",
+    "traingen-parity",
 ]
 
 [[package]]
@@ -1338,6 +1339,7 @@ dependencies = [
     { name = "ralf", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "smarttext", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "traingen", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
+    { name = "traingen-parity", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "transformers", extra = ["torch", "vision"], marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
 ]
 
@@ -1353,6 +1355,7 @@ llm-agent = [
 ]
 training = [
     { name = "traingen", extra = ["lightning"], marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
+    { name = "traingen-parity", extra = ["lightning"], marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
 ]
 
 [package.dev-dependencies]
@@ -1398,6 +1401,8 @@ requires-dist = [
     { name = "smarttext", editable = "models/smarttext" },
     { name = "traingen", editable = "lib/traingen" },
     { name = "traingen", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", editable = "lib/traingen-parity" },
+    { name = "traingen-parity", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch", "vision"], specifier = ">=5.0.0" },
 ]
 provides-extras = ["diffusion", "download", "llm-agent", "training"]
@@ -3365,6 +3370,7 @@ training = [
     { name = "torchdiffeq" },
     { name = "torchdyn" },
     { name = "traingen", extra = ["lightning"] },
+    { name = "traingen-parity", extra = ["lightning"] },
 ]
 vendor = [
     { name = "h5pickle" },
@@ -3402,6 +3408,7 @@ requires-dist = [
     { name = "torchdyn", marker = "extra == 'training'" },
     { name = "torchdyn", marker = "extra == 'vendor'" },
     { name = "traingen", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", specifier = ">=5.0.0" },
 ]
 provides-extras = ["training", "vendor"]
@@ -8697,10 +8704,6 @@ name = "traingen"
 version = "0.1.0"
 source = { editable = "lib/traingen" }
 dependencies = [
-    { name = "jaxtyping" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
-    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
     { name = "torch" },
 ]
 
@@ -8718,12 +8721,44 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "jaxtyping", specifier = ">=0.3.11,<0.4" },
     { name = "jsonargparse", extras = ["signatures"], marker = "extra == 'lightning'", specifier = ">=4.27" },
     { name = "lightning", marker = "extra == 'lightning'", specifier = ">=2.4,<3" },
-    { name = "numpy", specifier = ">=1.24" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torchmetrics", marker = "extra == 'lightning'", specifier = ">=1.4" },
+]
+provides-extras = ["lightning"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=6.0.0" }]
+
+[[package]]
+name = "traingen-parity"
+version = "0.1.0"
+source = { editable = "lib/traingen-parity" }
+dependencies = [
+    { name = "jaxtyping" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
+    { name = "torch" },
+]
+
+[package.optional-dependencies]
+lightning = [
+    { name = "traingen", extra = ["lightning"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jaxtyping", specifier = ">=0.3.11,<0.4" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "traingen", extras = ["lightning"], marker = "extra == 'lightning'", editable = "lib/traingen" },
 ]
 provides-extras = ["lightning"]
 

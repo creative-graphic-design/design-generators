@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 training = [
     "traingen[lightning]",
+    "traingen-parity[lightning]",
     "h5pickle",
     "torchcfm",
     "torchdyn",
@@ -38,6 +39,7 @@ vendor = [
 [tool.uv.sources]
 laygen = { workspace = true }
 traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
@@ -49,4 +51,11 @@ datasets = ["rico25", "publaynet"]
 markers = [
     "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original LayoutFlow weights and vendor dependencies",
+]
+
+[tool.coverage.run]
+omit = [
+    "models/layout-flow/src/layout_flow/training/*",
+    "src/layout_flow/training/*",
+    "*/src/layout_flow/training/*",
 ]

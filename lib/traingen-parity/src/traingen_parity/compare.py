@@ -119,7 +119,7 @@ def compare_step_trace(
         RuntimeError: If tensor comparisons fail unexpectedly.
 
     Examples:
-        >>> from .trace import build_step_trace
+        >>> from traingen_parity.trace import build_step_trace
         >>> a = build_step_trace("a", {"x": torch.ones(1)})
         >>> compare_step_trace(a, a).passed
         True

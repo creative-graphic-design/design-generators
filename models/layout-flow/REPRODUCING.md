@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pyt
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
-4. Run the training-parity S0-S2 hooks. These tests instantiate the vendor training module from `vendor/layout-flow`, copy its synthetic initialized state into the package-local LightningModule, then compare S0 static state, S1 fixed-batch pre-optimizer traces, and S2 one optimizer step.
+4. Run the training-parity S0-S2 hooks. These tests instantiate the vendor training module from `vendor/layout-flow`, copy its synthetic initialized state into the package-local LightningModule, then compare S0 static state, S1 fixed-batch pre-optimizer traces, and S2 one optimizer step through `traingen-parity`.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \

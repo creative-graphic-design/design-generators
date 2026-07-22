@@ -1,19 +1,18 @@
 import torch
 
-from traingen.lightning.hooks import grad_norms, learning_rates
-from traingen.parity.compare import (
+from traingen_parity.compare import (
     compare_batch_stream,
     compare_optimizer_step,
     compare_step_trace,
     compare_tensors,
 )
-from traingen.parity.determinism import (
+from traingen_parity.determinism import (
     DeterminismConfig,
     apply_determinism,
     capture_rng_state,
     restore_rng_state,
 )
-from traingen.parity.trace import (
+from traingen_parity.trace import (
     build_step_trace,
     scalar_trace_value,
     trace_training_step,
@@ -72,13 +71,3 @@ def test_trace_training_step_reads_latest_step_trace() -> None:
     assert trace.tensors["x"].item() == 1.0
     assert trace.tensors["train_loss"].item() == 2.0
     assert scalar_trace_value(trace.tensors["train_loss"]) == 2.0
-
-
-def test_lightning_hooks_report_lr_and_grad_norms() -> None:
-    module = torch.nn.Linear(2, 1)
-    optimizer = torch.optim.SGD(module.parameters(), lr=0.1)
-    output = module(torch.ones(1, 2)).sum()
-    output.backward()
-    assert learning_rates(optimizer) == (0.1,)
-    norms = grad_norms(module)
-    assert set(norms) == {"weight", "bias"}

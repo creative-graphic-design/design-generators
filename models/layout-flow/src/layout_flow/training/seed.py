@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from traingen.parity.determinism import DeterminismConfig, apply_determinism
+from traingen_parity.determinism import DeterminismConfig, apply_determinism
 
 from .config import LayoutFlowSeedMode
 

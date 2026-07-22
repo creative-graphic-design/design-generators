@@ -9,19 +9,23 @@ import pytest
 import torch
 import torch.nn.functional as F
 
+pytest.importorskip("lightning")
+pytest.importorskip("traingen_parity")
+
+from laygen.common.testing import skip_or_fail_vendor_parity
+from laygen.common.vendor import vendor_root
 from layout_flow import LayoutFlowConfig
 from layout_flow.training.lightning_module import LayoutFlowTrainingModule
 from layout_flow.training.parity import (
     compare_layout_flow_optimizer_step,
     compare_layout_flow_step,
 )
-from traingen.parity.trace import build_step_trace
+from traingen_parity.trace import build_step_trace
 
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
 ROOT = Path(__file__).resolve().parents[4]
-VENDOR_ROOT = ROOT / "vendor" / "layout-flow"
 
 
 class VendorTrainingModule(Protocol):
@@ -73,7 +77,19 @@ class TrainingParityFixture(NamedTuple):
 def _vendor_classes() -> tuple[
     type[torch.nn.Module], type[torch.nn.Module], type[torch.nn.Module]
 ]:
-    sys.path.insert(0, str(VENDOR_ROOT))
+    try:
+        vendor_dir = vendor_root(
+            "layout-flow",
+            marker=Path("src/models/LayoutFlow.py"),
+            repo_root=ROOT,
+        )
+    except FileNotFoundError as exc:
+        skip_or_fail_vendor_parity(
+            str(exc),
+            missing_paths=[ROOT / "vendor" / "layout-flow"],
+            regeneration_hint="run `git submodule update --init vendor/layout-flow`",
+        )
+    sys.path.insert(0, str(vendor_dir))
     from src.models.LayoutFlow import LayoutFlow as VendorLayoutFlow
     from src.models.backbone.layoutdm_backbone import LayoutDMBackbone as VendorBackbone
     from src.utils.distribution_sampler import DistributionSampler

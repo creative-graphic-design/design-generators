@@ -127,7 +127,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package ports released behavior and now includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. Vendor-compatible configs preserve the original random seeding behavior; strict parity configs use deterministic settings for S0 static checks, S1 fixed-batch pre-optimizer traces, and S2 one-step optimizer comparisons.
+This package ports released behavior and now includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. Vendor-compatible configs preserve the original random seeding behavior; strict parity configs use deterministic settings for S0 static checks, S1 fixed-batch pre-optimizer traces, and S2 one-step optimizer comparisons. Shared training primitives come from `traingen`, while deterministic trace and comparison helpers come from the separate `traingen-parity` workspace member.
 
 #### Preprocessing
 

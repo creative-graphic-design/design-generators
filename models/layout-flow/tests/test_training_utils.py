@@ -1,7 +1,6 @@
-import torch
 import pytest
+import torch
 
-from layout_flow.training.datamodule import LayoutFlowDataModule
 from layout_flow.training.dataset import LayoutFlowH5Dataset, collate_layout_flow_batch
 from layout_flow.training.losses import layout_flow_losses
 
@@ -35,7 +34,12 @@ def test_layout_flow_losses_use_flow_plus_weighted_geom_l1() -> None:
 
 
 def test_h5_dataset_and_datamodule_read_tiny_vendor_file(tmp_path) -> None:
+    pytest.importorskip("h5pickle")
+    pytest.importorskip("lightning")
+
     import h5py
+
+    from layout_flow.training.datamodule import LayoutFlowDataModule
 
     path = tmp_path / "publaynet_train.h5"
     with h5py.File(path, "w") as h5:

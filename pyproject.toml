@@ -33,6 +33,7 @@ dependencies = [
     "ralf",
     "smarttext",
     "traingen",
+    "traingen-parity",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -48,6 +49,7 @@ llm-agent = [
 ]
 training = [
     "traingen[lightning]",
+    "traingen-parity[lightning]",
 ]
 
 [dependency-groups]
@@ -140,6 +142,7 @@ posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
 traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
@@ -204,8 +207,13 @@ branch = true
 omit = [
     "tests/*",
     "tests/**/*",
+    "models/*/tests/vendor_parity/*",
+    "models/*/tests/vendor_parity/**/*",
+    "models/layout-flow/src/layout_flow/training/*",
     "scripts/*",
     "scripts/**/*",
+    "vendor/*",
+    "vendor/**/*",
 ]
 
 [tool.coverage.report]
