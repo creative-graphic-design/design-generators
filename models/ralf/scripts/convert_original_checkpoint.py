@@ -12,8 +12,10 @@ from pathlib import Path
 from typing import cast
 
 import torch
+from laygen.common.conditions import normalize_condition_type
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration, RalfProcessor
+from ralf.modeling_ralf import VENDOR_TASK_BY_CANONICAL
 
 
 def _int_value(value: object, default: int) -> int:
@@ -34,6 +36,14 @@ def _int_or_str(value: object, default: int | str) -> int | str:
     if isinstance(value, int):
         return value
     return str(value)
+
+
+def _canonical_task(value: str) -> str:
+    return str(normalize_condition_type(value))
+
+
+def _vendor_task(value: str) -> str:
+    return VENDOR_TASK_BY_CANONICAL.get(value, value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -129,9 +139,17 @@ def _config_from_original(
     dataset_cfg = cast(dict[str, object], original_config.get("dataset", {}))
     tokenizer_cfg = cast(dict[str, object], original_config.get("tokenizer", {}))
     generator_cfg = cast(dict[str, object], original_config.get("generator", {}))
+    canonical_task = _canonical_task(task)
+    config_vendor_task = _vendor_task(str(generator_cfg.get("auxilary_task", task)))
+    requested_vendor_task = _vendor_task(canonical_task)
+    if config_vendor_task != requested_vendor_task:
+        raise ValueError(
+            "Requested task does not match config.yaml generator.auxilary_task: "
+            f"{requested_vendor_task!r} != {config_vendor_task!r}"
+        )
     return RalfConfig(
         dataset_name=dataset,
-        task=task,
+        task=canonical_task,
         id2label=cast(dict[int | str, str], id2label),
         max_seq_length=_int_value(dataset_cfg.get("max_seq_length"), 10),
         num_bin=_int_value(tokenizer_cfg.get("num_bin"), 128),
@@ -147,6 +165,10 @@ def _config_from_original(
         retrieval_backbone=str(generator_cfg.get("retrieval_backbone", "dreamsim")),
         saliency_k=_int_or_str(generator_cfg.get("saliency_k"), "None"),
         top_k=_int_value(generator_cfg.get("top_k"), 16),
+        retrieval_metadata={
+            "vendor_task": config_vendor_task,
+            "requested_task": canonical_task,
+        },
         original_config=original_config,
     )
 
@@ -220,6 +242,8 @@ def main() -> None:
     report = {
         "checkpoint": str(args.checkpoint),
         "job_dir": str(args.job_dir),
+        "task": config.task,
+        "vendor_task": config.retrieval_metadata.get("vendor_task"),
         "vocabulary_json": None if vocabulary_path is None else str(vocabulary_path),
         "source_key_count": len(state_dict),
         "target_key_count": len(model.state_dict()),

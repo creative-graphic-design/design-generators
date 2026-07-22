@@ -19,6 +19,15 @@ def test_retrieval_table_save_lookup_round_trip(tmp_path: Path) -> None:
     assert loaded.lookup(["query"]).tolist() == [[1, 2]]
 
 
+def test_retrieval_table_pads_short_rows_and_overrides_top_k(tmp_path: Path) -> None:
+    table = RalfRetrievalTable({"query": [7]}, top_k=3)
+
+    table.save_pretrained(tmp_path)
+    loaded = RalfRetrievalTable.from_pretrained(tmp_path, top_k=2)
+
+    assert loaded.lookup(["query"]).tolist() == [[7, -1]]
+
+
 def test_retrieved_batch_vendor_adapters() -> None:
     batch = RalfRetrievedBatch(
         image=torch.zeros(1, 2, 3, 1, 1),

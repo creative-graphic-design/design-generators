@@ -50,9 +50,22 @@ def _ensure_vendor_path() -> None:  # pragma: no cover
         sys.path.insert(0, str(vendor_root))
 
 
+def _skip_missing_vendor_dependency(
+    exc: ModuleNotFoundError,
+) -> None:  # pragma: no cover
+    skip_or_fail_vendor_parity(
+        f"RALF vendor dependency is required: {exc.name}",
+        regeneration_hint="install the RALF vendor optional dependencies before running vendor parity",
+    )
+
+
 def _vendor_label_features(config: RalfConfig):  # pragma: no cover
     _ensure_vendor_path()
-    from datasets import ClassLabel, Features, Sequence
+    try:
+        from datasets import ClassLabel, Features, Sequence
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
 
     id2label = cast(dict[int | str, str], config.id2label)
     label_names = [
@@ -63,7 +76,11 @@ def _vendor_label_features(config: RalfConfig):  # pragma: no cover
 
 def _build_vendor_tokenizer(config: RalfConfig):  # pragma: no cover
     _ensure_vendor_path()
-    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    try:
+        from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
 
     features = _vendor_label_features(config)
     return LayoutSequenceTokenizer(

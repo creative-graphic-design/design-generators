@@ -35,6 +35,7 @@ class ConditionAlias(StrEnum):
     gen_t = auto()
     label_size = auto()
     cwh = auto()
+    chw = auto()
     size_cond = auto()
     gen_ts = auto()
     completion = auto()
@@ -75,6 +76,7 @@ _CONDITION_ALIASES: Final[dict[ConditionAlias, ConditionType]] = {
     ConditionAlias.gen_t: ConditionType.label,
     ConditionAlias.label_size: ConditionType.label_size,
     ConditionAlias.cwh: ConditionType.label_size,
+    ConditionAlias.chw: ConditionType.label_size,
     ConditionAlias.size_cond: ConditionType.label_size,
     ConditionAlias.gen_ts: ConditionType.label_size,
     ConditionAlias.completion: ConditionType.completion,

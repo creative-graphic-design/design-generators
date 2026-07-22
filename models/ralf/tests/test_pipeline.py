@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
@@ -22,10 +23,23 @@ def _pipeline() -> RalfPipeline:
         num_attention_heads=4,
         d_model=16,
     )
-    return RalfPipeline(
-        model=RalfForConditionalLayoutGeneration(config),
-        processor=RalfProcessor.from_config(config),
-    )
+    model = RalfForConditionalLayoutGeneration(config)
+
+    def encode(
+        inputs: Mapping[str, torch.Tensor | Mapping[str, torch.Tensor]],
+    ) -> dict[str, torch.Tensor]:
+        image = cast(torch.Tensor, inputs["image"])
+        return {
+            "memory": torch.zeros(
+                image.size(0),
+                1,
+                config.decoder_d_model,
+                device=image.device,
+            )
+        }
+
+    model._encode_into_memory = encode  # ty: ignore[invalid-assignment]
+    return RalfPipeline(model=model, processor=RalfProcessor.from_config(config))
 
 
 def test_pipeline_smoke_and_schema() -> None:
@@ -70,14 +84,14 @@ def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:
     assert loaded.processor.config.max_seq_length == 2
 
 
-def test_pipeline_retrieval_table_intermediates_and_unsupported_condition() -> None:
+def test_pipeline_retrieval_table_intermediates_and_retrieval_condition() -> None:
     from ralf import RalfRetrievalTable
 
     pipe = _pipeline()
     table = RalfRetrievalTable({"q": [1, 2]}, top_k=2)
 
     output = pipe(
-        condition_type="unconditional",
+        condition_type="retrieval",
         retrieval_table=table,
         query_ids=["q"],
         return_intermediates=True,
@@ -89,12 +103,6 @@ def test_pipeline_retrieval_table_intermediates_and_unsupported_condition() -> N
     intermediates = cast(dict[str, object], output.intermediates)
     retrieval = cast(dict[str, torch.Tensor], intermediates["retrieval"])
     assert retrieval["indexes"].tolist() == [[1, 2]]
-    try:
-        pipe(condition_type="retrieval")
-    except NotImplementedError as exc:
-        assert "unconditional" in str(exc)
-    else:
-        raise AssertionError("expected NotImplementedError")
 
 
 def test_pipeline_explicit_retrieval_indexes_are_returned() -> None:

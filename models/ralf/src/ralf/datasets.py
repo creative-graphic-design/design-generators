@@ -83,6 +83,8 @@ def normalize_org_sample(
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("bbox", []), dtype=torch.float32)
+        if bbox.numel() == 0:
+            bbox = bbox.reshape(0, 4)
         labels = torch.as_tensor(annotations.get("category", []), dtype=torch.long)
         width_obj = sample.get("width", 1)
         height_obj = sample.get("height", 1)
@@ -99,6 +101,8 @@ def normalize_org_sample(
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("box_elem", []), dtype=torch.float32)
+        if bbox.numel() == 0:
+            bbox = bbox.reshape(0, 4)
         labels = torch.as_tensor(annotations.get("cls_elem", []), dtype=torch.long)
         valid = labels.ne(3)
         size = sample.get("poster") or sample.get("canvas") or sample.get("image")
