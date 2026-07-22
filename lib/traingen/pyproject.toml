@@ -1,0 +1,22 @@
+[project]
+name = "traingen"
+version = "0.1.0"
+description = "Shared training and parity helpers for generator packages."
+requires-python = ">=3.11"
+dependencies = [
+    "jaxtyping>=0.3.11,<0.4",
+    "numpy>=1.24",
+    "torch>=2.1",
+]
+
+[project.optional-dependencies]
+lightning = [
+    "lightning>=2.4,<3",
+    "jsonargparse[signatures]>=4.27",
+    "torchmetrics>=1.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0.0",
+]

@@ -127,7 +127,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+This package ports released behavior and now includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. Vendor-compatible configs preserve the original random seeding behavior; strict parity configs use deterministic settings for S0 static checks, S1 fixed-batch pre-optimizer traces, and S2 one-step optimizer comparisons.
 
 #### Preprocessing
 
@@ -135,7 +135,10 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream training for released checkpoints; package-local LightningCLI configs for retraining and S0-S2 step parity.
+- **Optimizer:** AdamW, `lr=0.0005`, `betas=(0.9, 0.98)`.
+- **Condition policy:** vendor `random4`.
+- **Loss:** flow MSE plus `0.2 * geom_l1_loss`.
 
 #### Speeds, Sizes, Times
 
@@ -163,6 +166,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | --- | --- | ---: | --- |
 | PubLayNet | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
 | RICO25 | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
+| Training S0-S2 | LightningCLI training wrapper vs. vendor training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | S0 state exact, S1 trace exact, S2 one optimizer step exact |
 
 Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed parity test compares an Euler trajectory against the vendor.
 

@@ -16,11 +16,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "traingen[lightning]",
+    "h5pickle",
+    "torchcfm",
+    "torchdyn",
+    "torchdiffeq",
+]
 vendor = [
     "h5pickle",
     "hydra-core~=1.3",
     "lightning",
     "omegaconf~=2.3",
+    "pytorch-fid",
     "seaborn",
     "torchcfm",
     "torchdyn",
@@ -29,6 +37,7 @@ vendor = [
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
@@ -38,5 +47,6 @@ datasets = ["rico25", "publaynet"]
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original LayoutFlow weights and vendor dependencies",
 ]
