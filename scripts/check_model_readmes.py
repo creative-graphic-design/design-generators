@@ -340,6 +340,13 @@ def _model_member_slugs() -> set[str]:
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
 
 
+def _library_member_slugs() -> set[str]:
+    return {
+        path.parent.name
+        for path in sorted((REPO_ROOT / "lib").glob("*/pyproject.toml"))
+    }
+
+
 def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
     for key in ("language", "tags", "datasets"):
         values = _frontmatter_list(frontmatter, key)
@@ -698,6 +705,13 @@ def _root_packages_table_lines(text: str) -> list[str]:
     return text[start:end].splitlines()
 
 
+def _root_libraries_table_lines(text: str) -> list[str]:
+    marker = "## Libraries\n\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n\n", start)
+    return text[start:end].splitlines()
+
+
 def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
     text = path.read_text(encoding="utf-8")
     messages = _badge_messages(text, "models")
@@ -710,18 +724,22 @@ def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
 def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
-    expected_header = "| Model | Method | Runtime | Primary datasets | Weights |"
-    if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
-        raise AssertionError(f"{path}: Models table must use a Weights column")
+    expected_header = "| Method | Runtime | Primary datasets | Weights |"
+    if table_lines[:2] != [expected_header, "| --- | --- | --- | --- |"]:
+        raise AssertionError(
+            f"{path}: Models table must use Method, Runtime, Primary datasets, Weights"
+        )
     runtime_by_slug: dict[str, str] = {}
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) != 5:
-            raise AssertionError(f"{path}: malformed Packages table row: {line}")
-        package_cell, _method_cell, runtime_cell, _datasets_cell, weights_cell = cells
-        slug_match = re.search(r"`models/([^`]+)`", package_cell)
+        if len(cells) != 4:
+            raise AssertionError(f"{path}: malformed Models table row: {line}")
+        method_cell, runtime_cell, _datasets_cell, weights_cell = cells
+        slug_match = re.search(r"\]\(models/([^/)]+)/README\.md\)", method_cell)
         if slug_match is None:
-            raise AssertionError(f"{path}: package row missing models/<slug>: {line}")
+            raise AssertionError(
+                f"{path}: Method cell must link models/<slug>/README.md: {line}"
+            )
         slug = slug_match.group(1)
         if runtime_cell not in {"`transformers`", "`diffusers`", "`pydantic-ai`"}:
             raise AssertionError(
@@ -730,7 +748,7 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
         runtime_by_slug[slug] = runtime_cell.strip("`")
         if "documented" in weights_cell.lower():
             raise AssertionError(
-                f"{path}: Packages table Weights column must not use status wording"
+                f"{path}: Models table Weights column must not use status wording"
             )
         if slug in PROMPT_ONLY_SLUGS:
             if weights_cell != "none (prompt-based)":
@@ -744,6 +762,42 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
                 f"{path}: weight-backed package {slug} must link conversion steps"
             )
     return runtime_by_slug
+
+
+def _assert_root_libraries_table_matches_members(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    table_lines = _root_libraries_table_lines(text)
+    expected_header = "| Library | Description |"
+    if table_lines[:2] != [expected_header, "| --- | --- |"]:
+        raise AssertionError(
+            f"{path}: Libraries table must use Library and Description"
+        )
+    root_slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) != 2:
+            raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+        library_cell, description_cell = cells
+        slug_match = re.fullmatch(
+            r"\[([^]]+)\]\(lib/([^/)]+)/README\.md\)", library_cell
+        )
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Library cell must link lib/<slug>/README.md: {line}"
+            )
+        label, slug = slug_match.groups()
+        if label != slug:
+            raise AssertionError(f"{path}: Library label {label!r} must match {slug!r}")
+        if not description_cell:
+            raise AssertionError(f"{path}: Library {slug} must have a description")
+        root_slugs.add(slug)
+    member_slugs = _library_member_slugs()
+    missing = sorted(member_slugs - root_slugs)
+    extra = sorted(root_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"root README Libraries table mismatch: missing={missing}, extra={extra}"
+        )
 
 
 def _assert_model_doc_sets() -> None:
@@ -864,6 +918,7 @@ def check() -> None:
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
     _assert_root_models_table_matches_members(root_runtime_by_slug)
+    _assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
     _assert_generated_docs_targets_match_members()
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")

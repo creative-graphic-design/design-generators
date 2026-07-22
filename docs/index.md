@@ -18,28 +18,33 @@ tags:
 
 ## Models
 
-| Model | Method | Runtime | Primary datasets | Weights |
-| --- | --- | --- | --- | --- |
-| [`models/coarse-to-fine`](api/models/coarse-to-fine/) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md)) |
-| [`models/ds-gan`](api/models/ds-gan/) | DS-GAN | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md)) |
-| [`models/flex-dm`](api/models/flex-dm/) | Flex-DM | `transformers` | Crello, RICO25 | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md)) |
-| [`models/lace`](api/models/lace/) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md)) |
-| [`models/layousyn`](api/models/layousyn/) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md)) |
-| [`models/layout-corrector`](api/models/layout-corrector/) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md)) |
-| [`models/layout-dm`](api/models/layout-dm/) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md)) |
-| [`models/layout-action`](api/models/layout-action/) | LayoutAction | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/REPRODUCING.md)) |
-| [`models/layout-flow`](api/models/layout-flow/) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md)) |
-| [`models/layout-gpt`](api/models/layout-gpt/) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
-| [`models/layout-transformer`](api/models/layout-transformer/) | LayoutTransformer | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-transformer/REPRODUCING.md)) |
-| [`models/layoutdiffusion`](api/models/layoutdiffusion/) | LayoutDiffusion | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md)) |
-| [`models/layoutformerpp`](api/models/layoutformerpp/) | LayoutFormer++ | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md)) |
-| [`models/layoutganpp`](api/models/layoutganpp/) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md)) |
-| [`models/layoutprompter`](api/models/layoutprompter/) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
-| [`models/parse-then-place`](api/models/parse-then-place/) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md)) |
-| [`models/ralf`](api/models/ralf/) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md)) |
-| [`models/smarttext`](api/models/smarttext/) | SmartText | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md)) |
+| Method | Runtime | Primary datasets | Weights |
+| --- | --- | --- | --- |
+| [Coarse-to-Fine](api/models/coarse-to-fine/) | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md)) |
+| [DS-GAN](api/models/ds-gan/) | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md)) |
+| [Flex-DM](api/models/flex-dm/) | `transformers` | Crello, RICO25 | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md)) |
+| [LACE](api/models/lace/) | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md)) |
+| [LayouSyn](api/models/layousyn/) | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md)) |
+| [Layout-Corrector](api/models/layout-corrector/) | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md)) |
+| [LayoutDM](api/models/layout-dm/) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md)) |
+| [LayoutAction](api/models/layout-action/) | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/REPRODUCING.md)) |
+| [LayoutFlow](api/models/layout-flow/) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md)) |
+| [LayoutGPT](api/models/layout-gpt/) | `pydantic-ai` | NSR-1K | none (prompt-based) |
+| [LayoutTransformer](api/models/layout-transformer/) | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-transformer/REPRODUCING.md)) |
+| [LayoutDiffusion](api/models/layoutdiffusion/) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md)) |
+| [LayoutFormer++](api/models/layoutformerpp/) | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md)) |
+| [LayoutGAN++](api/models/layoutganpp/) | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md)) |
+| [LayoutPrompter](api/models/layoutprompter/) | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
+| [Parse-Then-Place](api/models/parse-then-place/) | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md)) |
+| [RALF](api/models/ralf/) | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md)) |
+| [SmartText](api/models/smarttext/) | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md)) |
 
-Shared libraries live under `lib/*`: [`laygen`](api/libraries/laygen/) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](api/libraries/posgen/) reserves small poster/content-aware placement contracts for future consumers.
+## Libraries
+
+| Library | Description |
+| --- | --- |
+| [laygen](api/libraries/laygen/) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. |
+| [posgen](api/libraries/posgen/) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
 
 ## Quick Start
 

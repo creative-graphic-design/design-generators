@@ -11,28 +11,33 @@
 
 ## Models
 
-| Model | Method | Runtime | Primary datasets | Weights |
-| --- | --- | --- | --- | --- |
-| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
-| [`models/ds-gan`](models/ds-gan/README.md) | DS-GAN | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](models/ds-gan/REPRODUCING.md)) |
-| [`models/flex-dm`](models/flex-dm/README.md) | Flex-DM | `transformers` | Crello, RICO25 | convert locally ([REPRODUCING.md](models/flex-dm/REPRODUCING.md)) |
-| [`models/lace`](models/lace/README.md) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
-| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
-| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
-| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
-| [`models/layout-action`](models/layout-action/README.md) | LayoutAction | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](models/layout-action/REPRODUCING.md)) |
-| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
-| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
-| [`models/layout-transformer`](models/layout-transformer/README.md) | LayoutTransformer | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](models/layout-transformer/REPRODUCING.md)) |
-| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md)) |
-| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutformerpp/REPRODUCING.md)) |
-| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |
-| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
-| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
-| [`models/ralf`](models/ralf/README.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](models/ralf/REPRODUCING.md)) |
-| [`models/smarttext`](models/smarttext/README.md) | SmartText | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](models/smarttext/REPRODUCING.md)) |
+| Method | Runtime | Primary datasets | Weights |
+| --- | --- | --- | --- |
+| [Coarse-to-Fine](models/coarse-to-fine/README.md) | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
+| [DS-GAN](models/ds-gan/README.md) | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](models/ds-gan/REPRODUCING.md)) |
+| [Flex-DM](models/flex-dm/README.md) | `transformers` | Crello, RICO25 | convert locally ([REPRODUCING.md](models/flex-dm/REPRODUCING.md)) |
+| [LACE](models/lace/README.md) | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
+| [LayouSyn](models/layousyn/README.md) | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
+| [Layout-Corrector](models/layout-corrector/README.md) | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
+| [LayoutDM](models/layout-dm/README.md) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
+| [LayoutAction](models/layout-action/README.md) | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](models/layout-action/REPRODUCING.md)) |
+| [LayoutFlow](models/layout-flow/README.md) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
+| [LayoutGPT](models/layout-gpt/README.md) | `pydantic-ai` | NSR-1K | none (prompt-based) |
+| [LayoutTransformer](models/layout-transformer/README.md) | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](models/layout-transformer/REPRODUCING.md)) |
+| [LayoutDiffusion](models/layoutdiffusion/README.md) | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md)) |
+| [LayoutFormer++](models/layoutformerpp/README.md) | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutformerpp/REPRODUCING.md)) |
+| [LayoutGAN++](models/layoutganpp/README.md) | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |
+| [LayoutPrompter](models/layoutprompter/README.md) | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
+| [Parse-Then-Place](models/parse-then-place/README.md) | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
+| [RALF](models/ralf/README.md) | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](models/ralf/REPRODUCING.md)) |
+| [SmartText](models/smarttext/README.md) | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](models/smarttext/REPRODUCING.md)) |
 
-Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
+## Libraries
+
+| Library | Description |
+| --- | --- |
+| [laygen](lib/laygen/README.md) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. |
+| [posgen](lib/posgen/README.md) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
 
 ## Quick Start
 
