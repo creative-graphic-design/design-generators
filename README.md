@@ -5,7 +5,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=15&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=16&color=purple&style=flat-square)
 
 `design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -19,6 +19,7 @@
 | [`models/layousyn`](models/layousyn/README.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
 | [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
 | [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
+| [`models/layout-action`](models/layout-action/README.md) | LayoutAction | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](models/layout-action/REPRODUCING.md)) |
 | [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
 | [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
 | [`models/layout-transformer`](models/layout-transformer/README.md) | LayoutTransformer | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](models/layout-transformer/REPRODUCING.md)) |

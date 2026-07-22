@@ -1,0 +1,51 @@
+[project]
+name = "layout-action"
+version = "0.1.0"
+description = "Transformers-style LayoutAction conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = [
+    "gdown>=6.1.0",
+    "huggingface-hub>=0.24",
+]
+convert = [
+    "gdown>=6.1.0",
+    "huggingface-hub>=0.24",
+]
+vendor = [
+    "gdown>=6.1.0",
+    "pycocotools>=2.0",
+    "python-pptx>=0.6",
+    "seaborn>=0.13",
+    "tqdm>=4",
+]
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-agnostic-layout-generation"
+model_type = "autoregressive-action-sequence"
+conditions = ["unconditional", "label", "completion"]
+datasets = ["rico13", "publaynet"]
+default_hub_ids = [
+    "creative-graphic-design/layout-action-rico13",
+    "creative-graphic-design/layout-action-publaynet",
+]
+vendor = "layout-action"
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original LayoutAction assets and vendor dependencies",
+]
