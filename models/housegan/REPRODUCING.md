@@ -16,11 +16,11 @@ uv run --package housegan --extra download \
 ## 2. Generate Vendor References
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package housegan --extra vendor \
+CUDA_VISIBLE_DEVICES=0 uv run --package housegan \
   python models/housegan/scripts/generate_reference_outputs.py \
     --vendor-dir ./vendor/housegan \
     --assets-dir .cache/housegan/original \
-    --checkpoint .cache/housegan/original/checkpoints/exp_with_graph_global_new_D_200000.pth \
+    --checkpoint .cache/housegan/original/exp_demo_D_500000.pth \
     --target-set D \
     --indices 0 6 42 \
     --seed 0 \
@@ -39,8 +39,9 @@ CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --package housegan \
 ```bash
 uv run --package housegan \
   python models/housegan/scripts/convert_original_checkpoint.py \
-    --checkpoint .cache/housegan/original/checkpoints/exp_with_graph_global_new_D_200000.pth \
+    --checkpoint .cache/housegan/original/exp_demo_D_500000.pth \
     --target-set D \
+    --checkpoint-step 500000 \
     --output-dir .cache/housegan/converted/housegan-floorplan-d
 ```
 
