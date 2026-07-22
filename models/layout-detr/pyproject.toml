@@ -18,13 +18,20 @@ dependencies = [
 
 [project.optional-dependencies]
 download = ["gdown>=6.1.0"]
-convert = ["gdown>=6.1.0"]
+convert = [
+    "click",
+    "fairscale",
+    "gdown>=6.1.0",
+    "setuptools<81",
+    "timm>=0.5.4",
+]
 vendor = [
     "click",
     "fairscale",
     "gdown>=6.1.0",
     "seaborn",
     "selenium",
+    "setuptools<81",
     "timm>=0.5.4",
 ]
 

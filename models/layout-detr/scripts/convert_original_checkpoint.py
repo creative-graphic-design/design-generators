@@ -27,6 +27,11 @@ def main() -> None:
         vendor_root=args.vendor_root,
         device="cpu",
     )
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    (args.output_dir / "conversion_report.json").write_text(
+        json.dumps(report, indent=2),
+        encoding="utf-8",
+    )
     model = LayoutDetrForConditionalGeneration(config)
     if args.allow_partial:
         compatible = {
@@ -41,10 +46,6 @@ def main() -> None:
     processor = LayoutDetrProcessor(config=config)
     pipe = LayoutDetrPipeline(model=model, processor=processor, config=config)
     pipe.save_pretrained(args.output_dir)
-    (args.output_dir / "conversion_report.json").write_text(
-        json.dumps(report, indent=2),
-        encoding="utf-8",
-    )
     print(json.dumps(report, indent=2))
 
 

@@ -2,7 +2,7 @@
 
 These commands reproduce LayoutDETR agreement checks against the original implementation by downloading the released assets, generating vendor references, running parity tests, converting the pickle, and smoke-testing local loading with `from_pretrained`.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
+Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading. The current implementation records the released-checkpoint strict-load failure before any `bbox_fake` parity claim.
 
 ## Download Original Assets
 
@@ -17,8 +17,11 @@ To include the Up-DETR preinit weights and the vendor Ad Banner dataset, use:
 ```bash
 uv run --package layout-detr --extra download python models/layout-detr/scripts/download_original_assets.py \
   --output-dir .cache/layout-detr/original \
-  --include all
+  --include model \
+  --include up-detr
 ```
+
+Use `--include all` only when the full Ad Banner dataset is needed locally.
 
 ## Generate Vendor References
 
@@ -45,6 +48,21 @@ CUDA_VISIBLE_DEVICES=1 LAYOUT_DETR_VENDOR_ROOT=vendor/layout-detr \
 ```
 
 ## Convert Checkpoint
+
+This strict conversion currently exits non-zero after writing
+`.cache/layout-detr/converted/layout-detr-ad-banner-strict/conversion_report.json`
+because the released `G_ema` architecture does not strict-load into the current
+`LayoutDetrForConditionalGeneration` implementation.
+
+```bash
+CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models/layout-detr/scripts/convert_original_checkpoint.py \
+  --vendor-root vendor/layout-detr \
+  --checkpoint .cache/layout-detr/original/checkpoints/layoutdetr_ad_banner.pkl \
+  --output-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
+```
+
+The partial conversion below is a schema and `from_pretrained` smoke path only;
+it is not vendor parity.
 
 ```bash
 uv run --package layout-detr --extra convert python models/layout-detr/scripts/convert_original_checkpoint.py \

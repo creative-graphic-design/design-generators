@@ -37,7 +37,7 @@ model-index:
 ![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=not--run&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package with `from_pretrained` loading and a `laygen.pipelines.LayoutGenerationPipeline` subclass.
+This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -49,7 +49,7 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 - **Shared by:** creative-graphic-design.
 - **Model type:** content-image layout generation.
 - **Language(s) (NLP):** English ad-banner text strings.
-- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the vendored StyleGAN3, DETR, Up-DETR, BLIP/BERT, LayoutGAN++, Pitt Image Ads, and LaMa acknowledgements.
+- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the vendor-acknowledged [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama) components.
 
 ### Model Sources
 
@@ -138,7 +138,9 @@ Training follows the original LayoutDETR GAN/DETR objective and vendor environme
 
 | Compared target | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
-| Vendor `G_ema` forward reference | 0 | bitwise equality on `bbox_fake` | not run; released 2.7 GB pickle not downloaded in this PR |
+| Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time Transformers compatibility shims; `torch_utils.ops` was imported |
+| Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | fails: 852 source keys, 41 target keys, 6 loaded keys, 34 missing keys, 845 unexpected keys, and `fc_z.weight` shape `[768, 36]` vs `[768, 4]` |
+| Vendor `G_ema` forward reference | 0 | bitwise equality on `bbox_fake` | not run because strict checkpoint conversion failed before a comparable converted forward path existed |
 | Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
 | Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
 

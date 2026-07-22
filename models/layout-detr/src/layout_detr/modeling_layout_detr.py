@@ -52,7 +52,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         self.text_len_embeddings = nn.Embedding(
             config.max_text_length, config.bert_f_dim
         )
-        self.background_proj = nn.Linear(config.hidden_dim, config.bert_f_dim)
+        self.background_proj = nn.Linear(config.hidden_dim, config.hidden_dim)
         self.fc_in = nn.Sequential(
             nn.Linear(config.bert_f_dim * 4, config.hidden_dim),
             nn.GELU(),
