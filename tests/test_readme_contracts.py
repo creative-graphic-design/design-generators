@@ -15,6 +15,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECK_MODEL_READMES = REPO_ROOT / "scripts/check_model_readmes.py"
+CHECK_README_BADGES = REPO_ROOT / "scripts/check_readme_badges.py"
 DOCS_MODELS = REPO_ROOT / "docs" / "models.md"
 
 
@@ -25,6 +26,19 @@ def _load_check_model_readmes() -> ModuleType:
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_check_readme_badges() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "check_readme_badges", CHECK_README_BADGES
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -46,6 +60,19 @@ def test_model_readme_contracts() -> None:
 
 def test_readme_badge_contracts() -> None:
     _run_script("scripts/check_readme_badges.py")
+
+
+def test_static_v1_badges_reject_double_hyphen_query_values(tmp_path: Path) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "![vendor-parity](https://img.shields.io/static/v1?"
+        "label=vendor--parity&message=bit--exact&color=success&style=flat-square)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="must not contain '--'"):
+        check_readme_badges._iter_badges(readme)
 
 
 def _model_workspace_slugs() -> set[str]:

@@ -1,7 +1,7 @@
 # posgen
 
 ![package](https://img.shields.io/static/v1?label=package&message=posgen&color=blue&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![runtime](https://img.shields.io/static/v1?label=runtime&message=torch&color=informational&style=flat-square)
 ![status](https://img.shields.io/static/v1?label=status&message=skeleton&color=lightgrey&style=flat-square)

@@ -621,15 +621,15 @@ def _parity_requires_tolerance(section: str) -> bool:
 
 def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     section = _section(text, "### Parity Results")
-    badge = re.search(r"!\[vendor--parity\]\([^)]*[?&]message=([^&)]*)", text)
+    badge = re.search(r"!\[vendor-parity\]\([^)]*[?&]message=([^&)]*)", text)
     if badge is None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
     expected = (
-        "not--run"
+        "not-run"
         if "not run" in section
-        else "tolerance--verified"
+        else "tolerance-verified"
         if _parity_requires_tolerance(section)
-        else "bit--exact"
+        else "bit-exact"
     )
     actual = badge.group(1)
     if actual != expected:
