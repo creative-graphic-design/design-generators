@@ -54,6 +54,8 @@ from laygen.common.testing import (
     assert_layout_output_schema,
     assert_normalized_xywh,
     load_torch_checkpoint_state_dict,
+    parity_require_enabled,
+    skip_or_fail_vendor_parity,
     strip_torch_state_dict_prefix,
     vendor_backbone_kwargs,
 )
@@ -638,3 +640,37 @@ def test_testing_helpers_and_visualization():
     assert len(ax.patches) == 1
     assert len(ax.texts) == 1
     plt.close("all")
+
+
+def test_vendor_parity_missing_assets_skip_by_default(monkeypatch):
+    monkeypatch.delenv("PARITY_REQUIRE", raising=False)
+
+    with pytest.raises(pytest.skip.Exception) as exc_info:
+        skip_or_fail_vendor_parity(
+            "fixture is missing",
+            missing_paths=[".cache/example/reference.pt"],
+            regeneration_hint="uv run --package example pytest -m vendor_parity",
+        )
+
+    assert parity_require_enabled() is False
+    message = str(exc_info.value)
+    assert "fixture is missing" in message
+    assert ".cache/example/reference.pt" in message
+    assert "Regeneration hint:" in message
+
+
+def test_vendor_parity_missing_assets_fail_when_required(monkeypatch):
+    monkeypatch.setenv("PARITY_REQUIRE", "1")
+
+    with pytest.raises(pytest.fail.Exception) as exc_info:
+        skip_or_fail_vendor_parity(
+            "fixture is missing",
+            missing_paths=[".cache/example/reference.pt"],
+            regeneration_hint="uv run --package example pytest -m vendor_parity",
+        )
+
+    assert parity_require_enabled() is True
+    message = str(exc_info.value)
+    assert "fixture is missing" in message
+    assert ".cache/example/reference.pt" in message
+    assert "Regeneration hint:" in message

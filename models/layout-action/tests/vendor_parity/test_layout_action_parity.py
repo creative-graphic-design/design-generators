@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from layout_action import (
     LayoutActionConfig,
     LayoutActionForCausalLM,
@@ -25,7 +26,14 @@ EVAL_COMMANDS = ("random_generate", "category_generate", "completion_generate")
 def _require_env(name: str) -> Path:
     value = os.environ.get(name)
     if not value:
-        pytest.skip(f"Set {name} to run LayoutAction vendor parity.")
+        skip_or_fail_vendor_parity(
+            f"Set {name} to run LayoutAction vendor parity.",
+            missing_paths=[name],
+            regeneration_hint=(
+                "set LAYOUT_ACTION_ASSET_DIR and LAYOUT_ACTION_REFERENCE_DIR "
+                "after generating LayoutAction vendor parity references"
+            ),
+        )
     return Path(value)
 
 
@@ -42,7 +50,11 @@ def _set_seed(seed: int) -> None:
 def _checkpoint(asset_dir: Path, dataset: str) -> Path:
     path = asset_dir / "pretrained_model_resources" / "Ours" / f"{dataset}.pth"
     if not path.exists():
-        pytest.skip(f"Missing LayoutAction checkpoint: {path}")
+        skip_or_fail_vendor_parity(
+            f"Missing LayoutAction checkpoint: {path}",
+            missing_paths=[path],
+            regeneration_hint="download LayoutAction pretrained_model_resources into LAYOUT_ACTION_ASSET_DIR",
+        )
     return path
 
 
@@ -54,7 +66,11 @@ def _reference(
         dataset_dir = reference_root
     path = dataset_dir / f"{eval_command}.pt"
     if not path.exists():
-        pytest.skip(f"Missing LayoutAction reference artifact: {path}")
+        skip_or_fail_vendor_parity(
+            f"Missing LayoutAction reference artifact: {path}",
+            missing_paths=[path],
+            regeneration_hint="run models/layout-action/scripts/generate_reference_outputs.py",
+        )
     return torch.load(path, map_location="cpu", weights_only=False)
 
 

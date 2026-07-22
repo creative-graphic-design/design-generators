@@ -8,6 +8,7 @@ import torch
 
 from laygen.common.testing import (
     load_torch_checkpoint_state_dict,
+    skip_or_fail_vendor_parity,
     strip_torch_state_dict_prefix,
     vendor_backbone_kwargs,
 )
@@ -45,7 +46,11 @@ def test_converted_vector_field_matches_vendor(
 ) -> None:
     checkpoint = CHECKPOINT_DIR / checkpoint_name
     if not checkpoint.exists():
-        pytest.skip(f"missing checkpoint: {checkpoint}")
+        skip_or_fail_vendor_parity(
+            f"missing checkpoint: {checkpoint}",
+            missing_paths=[checkpoint],
+            regeneration_hint="download LayoutFlow checkpoints into .cache/layout-flow/original/checkpoints",
+        )
     LayoutDMBackbone = _load_vendor_backbone()
     config = LayoutFlowConfig(dataset_name=dataset)
     state_dict = load_torch_checkpoint_state_dict(

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Protocol, cast
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root as resolve_vendor_root
 import pytest
 from typing_extensions import TypedDict
@@ -54,7 +55,11 @@ def _vendor_root() -> Path:
     try:
         return resolve_vendor_root("layout-gpt", marker=COUNTING_TRAIN_JSON)
     except FileNotFoundError as exc:
-        pytest.skip(str(exc))
+        skip_or_fail_vendor_parity(
+            str(exc),
+            missing_paths=[Path("vendor/layout-gpt") / COUNTING_TRAIN_JSON],
+            regeneration_hint="initialize the layout-gpt vendor submodule before running vendor parity",
+        )
 
 
 def test_prompt_and_exemplar_selection_match_vendor_generated_golden() -> None:

@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.modeling_outputs import LayoutGenerationOutput
 from ralf import (
     RalfConfig,
@@ -40,7 +41,11 @@ def _vendor_root() -> Path:  # pragma: no cover
 def _ensure_vendor_path() -> None:  # pragma: no cover
     vendor_root = _vendor_root()
     if not (vendor_root / "image2layout").exists():
-        pytest.skip("vendor/ralf is required for vendor parity")
+        skip_or_fail_vendor_parity(
+            "vendor/ralf is required for vendor parity",
+            missing_paths=[vendor_root / "image2layout"],
+            regeneration_hint="initialize the RALF vendor submodule before running vendor parity",
+        )
     if str(vendor_root) not in sys.path:
         sys.path.insert(0, str(vendor_root))
 
@@ -77,8 +82,10 @@ def _build_vendor_tokenizer(config: RalfConfig):  # pragma: no cover
 def test_vendor_reference_metadata_exists() -> None:
     metadata = _reference_dir() / "golden_metadata.json"
     if not metadata.exists():
-        pytest.skip(
-            "Run generate_reference_outputs.py with the RALF cache to create metadata"
+        skip_or_fail_vendor_parity(
+            "Run generate_reference_outputs.py with the RALF cache to create metadata",
+            missing_paths=[metadata],
+            regeneration_hint="run models/ralf/scripts/generate_reference_outputs.py with RALF cache paths",
         )
     data = json.loads(metadata.read_text())
     assert data["status"] == "vendor-run"
@@ -90,8 +97,10 @@ def test_vendor_reference_metadata_exists() -> None:
 def test_vendor_reference_summary_contains_public_layout() -> None:
     summary = _reference_dir() / "golden_summary.json"
     if not summary.exists():
-        pytest.skip(
-            "Run generate_reference_outputs.py --run-vendor with the RALF cache"
+        skip_or_fail_vendor_parity(
+            "Run generate_reference_outputs.py --run-vendor with the RALF cache",
+            missing_paths=[summary],
+            regeneration_hint="run models/ralf/scripts/generate_reference_outputs.py --run-vendor with RALF cache paths",
         )
     data = json.loads(summary.read_text())
     assert data["num_results"] >= 1
@@ -262,7 +271,11 @@ def _build_vendor_reference_model(
 
     precomputed_dir = _cache_dir() / "PRECOMPUTED_WEIGHT_DIR"
     if not precomputed_dir.exists():
-        pytest.skip("RALF PRECOMPUTED_WEIGHT_DIR cache is required")
+        skip_or_fail_vendor_parity(
+            "RALF PRECOMPUTED_WEIGHT_DIR cache is required",
+            missing_paths=[precomputed_dir],
+            regeneration_hint="populate RALF PRECOMPUTED_WEIGHT_DIR under RALF_CACHE_DIR before vendor parity",
+        )
     fid_model.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
     vendor_image.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
     vendor_tokenizer.PRECOMPUTED_WEIGHT_DIR = str(precomputed_dir)
@@ -325,11 +338,20 @@ def test_local_pipeline_matches_vendor_golden_cgl_e2e() -> None:  # pragma: no c
         or not retrieval_index_path.exists()
         or not dataset_path.exists()
     ):
-        pytest.skip(
-            "Run CGL reference generation and strict conversion before e2e parity"
+        skip_or_fail_vendor_parity(
+            "Run CGL reference generation and strict conversion before e2e parity",
+            missing_paths=[summary_path, converted, retrieval_index_path, dataset_path],
+            regeneration_hint=(
+                "run models/ralf/scripts/generate_reference_outputs.py --run-vendor "
+                "and strict RALF conversion for CGL"
+            ),
         )
     if not torch.cuda.is_available():
-        pytest.skip("GPU 0 is required for RALF e2e parity")
+        skip_or_fail_vendor_parity(
+            "GPU 0 is required for RALF e2e parity",
+            missing_paths=["CUDA device 0"],
+            regeneration_hint="rerun on a host with GPU 0 and generated RALF assets",
+        )
 
     from datasets import load_dataset
 
@@ -399,7 +421,11 @@ def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
     checkpoint = _cache_dir() / "training_logs" / job_name / "gen_final_model.pt"
     converted = _converted_dir() / converted_name
     if not checkpoint.exists() or not converted.exists():
-        pytest.skip("Run strict RALF conversion for CGL and PKU before parity tests")
+        skip_or_fail_vendor_parity(
+            "Run strict RALF conversion for CGL and PKU before parity tests",
+            missing_paths=[checkpoint, converted],
+            regeneration_hint="run the strict RALF conversion commands for CGL and PKU before vendor parity",
+        )
 
     report = json.loads((converted / "conversion_report.json").read_text())
     assert report["source_key_count"] == 664
@@ -422,7 +448,11 @@ def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
         assert torch.equal(converted_state[key].cpu(), value), f"{name}:{key}"
 
     if not torch.cuda.is_available():
-        pytest.skip("GPU 0 is required for RALF local-vs-vendor logits parity")
+        skip_or_fail_vendor_parity(
+            "GPU 0 is required for RALF local-vs-vendor logits parity",
+            missing_paths=["CUDA device 0"],
+            regeneration_hint="rerun on a host with GPU 0 and generated RALF assets",
+        )
     device = torch.device("cuda:0")
     reference_model = _build_vendor_reference_model(converted_model).eval()
     reference_model.load_state_dict(state_dict, strict=True)

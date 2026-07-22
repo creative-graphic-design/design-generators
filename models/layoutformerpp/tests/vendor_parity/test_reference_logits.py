@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from layoutformerpp import (
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
@@ -229,8 +230,13 @@ def test_public_checkpoint_logits_match_vendor(case: ParityCase) -> None:
     root = _repo_root()
     checkpoint, vendor_src, vocab = _case_paths(root, case)
     if not checkpoint.exists() or not vendor_src.exists():
-        pytest.skip(
-            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        skip_or_fail_vendor_parity(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}",
+            missing_paths=[checkpoint, vendor_src],
+            regeneration_hint=(
+                "initialize the LayoutFormer++ vendor source and run "
+                "models/layoutformerpp/scripts/convert_original_checkpoint.py"
+            ),
         )
 
     layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
@@ -277,8 +283,13 @@ def test_public_checkpoint_generation_matches_vendor(case: ParityCase) -> None:
     root = _repo_root()
     checkpoint, vendor_src, vocab = _case_paths(root, case)
     if not checkpoint.exists() or not vendor_src.exists():
-        pytest.skip(
-            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        skip_or_fail_vendor_parity(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}",
+            missing_paths=[checkpoint, vendor_src],
+            regeneration_hint=(
+                "initialize the LayoutFormer++ vendor source and run "
+                "models/layoutformerpp/scripts/convert_original_checkpoint.py"
+            ),
         )
 
     layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
@@ -332,8 +343,13 @@ def test_label_constrained_generation_matches_vendor(case: ParityCase) -> None:
     root = _repo_root()
     checkpoint, vendor_src, vocab = _case_paths(root, case)
     if not checkpoint.exists() or not vendor_src.exists():
-        pytest.skip(
-            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}"
+        skip_or_fail_vendor_parity(
+            f"LayoutFormer++ checkpoint or vendor source is absent for {case.checkpoint_name}",
+            missing_paths=[checkpoint, vendor_src],
+            regeneration_hint=(
+                "initialize the LayoutFormer++ vendor source and run "
+                "models/layoutformerpp/scripts/convert_original_checkpoint.py"
+            ),
         )
 
     layout_transformer, vendor_tokenizer_class = _vendor_modules(vendor_src)
