@@ -22,7 +22,7 @@ model-index:
           split: "target set D parity fixture"
         metrics:
           - type: "vendor-parity"
-            value: "not run without local assets"
+            value: "bit-exact with local assets"
             name: "Vendor parity"
 ---
 
@@ -33,7 +33,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=GPL--3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=housegan-floorplan-vectorized&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=not--run&color=lightgrey&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [House-GAN](https://arxiv.org/abs/2003.06988), a graph-constrained floorplan layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
