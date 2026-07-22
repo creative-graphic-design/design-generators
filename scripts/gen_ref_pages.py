@@ -185,6 +185,10 @@ def site_page_for_repo_link(link: str) -> str:
             return docs_route(
                 Path("api", "libraries", package_slug(project_name), "index.md")
             )
+    if target.startswith("docs/") and target.endswith(".md"):
+        parts = target.split("/")
+        if len(parts) == 2:
+            return docs_route(Path(parts[1]))
     return f"{GITHUB_BLOB_BASE_URL}/{target}"
 
 
@@ -806,6 +810,7 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
         "  - Getting Started: getting-started.md",
         "  - Models: models.md",
         "  - Conventions: conventions.md",
+        "  - Extending: extending.md",
         "  - API Reference:",
         "      - Overview: api/index.md",
     ]

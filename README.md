@@ -9,6 +9,11 @@
 
 design-generators ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and 🤖 [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
+## Extension Policy
+
+> [!WARNING]
+> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) / 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
+
 ## Models
 
 | Method | Venue | Runtime | Datasets | Reproduction |

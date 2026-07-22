@@ -191,6 +191,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
                 "",
                 "[Model](models/fake/README.md)",
                 "[Guide](models/fake/REPRODUCING.md)",
+                "[Extending](docs/extending.md)",
                 "[License](LICENSE)",
                 "",
             ]
@@ -224,6 +225,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
             "",
             "[Model](api/models/fake-project/)",
             "[Guide](api/models/fake-project/reproducing/)",
+            "[Extending](extending/)",
             "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
             "",
         ]
