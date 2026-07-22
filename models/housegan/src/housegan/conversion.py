@@ -10,6 +10,7 @@ import torch
 
 from .configuration_housegan import HouseGanConfig
 from .modeling_housegan import HouseGanGenerator
+from .pipeline_housegan import HouseGanPipeline
 from .processing_housegan import HouseGanProcessor
 from .vendor_state_dict import convert_state_dict
 
@@ -52,14 +53,15 @@ def convert_original_checkpoint(
     }
     model.config.conversion_report = measured
     output_path = Path(output_dir)
-    model.save_pretrained(output_path / "model")
-    HouseGanProcessor(
+    processor = HouseGanProcessor(
         id2label=config.id2label,
         relation_id2label=config.relation_id2label,
         canvas_size=config.canvas_size,
         mask_size=config.mask_size,
-    ).save_pretrained(output_path / "processor")
-    config.save_pretrained(output_path)
+    )
+    HouseGanPipeline(model=model, processor=processor, config=config).save_pretrained(
+        output_path
+    )
     (output_path / "conversion_report.json").write_text(
         json.dumps(measured, indent=2, sort_keys=True),
         encoding="utf-8",

@@ -28,5 +28,5 @@ def test_convert_original_checkpoint_writes_hf_files(tmp_path):
     )
     assert report["source_sha256"] == sha256_file(checkpoint)
     assert (tmp_path / "converted" / "config.json").exists()
-    assert (tmp_path / "converted" / "model" / "config.json").exists()
-    assert (tmp_path / "converted" / "processor" / "processor_config.json").exists()
+    assert (tmp_path / "converted" / "model.safetensors").exists()
+    assert (tmp_path / "converted" / "processor_config.json").exists()
