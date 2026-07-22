@@ -51,6 +51,7 @@ class LayoutDetrConfig(PretrainedConfig):
         backbone_name: str = "resnet50",
         image_mean: Sequence[float] = (0.485, 0.456, 0.406),
         image_std: Sequence[float] = (0.229, 0.224, 0.225),
+        architecture: str = "lightweight",
         model_subfolder: str = "model",
         processor_subfolder: str = "processor",
         original_training_options: Mapping[str, object] | None = None,
@@ -81,6 +82,7 @@ class LayoutDetrConfig(PretrainedConfig):
         self.backbone_name = backbone_name
         self.image_mean = tuple(float(value) for value in image_mean)
         self.image_std = tuple(float(value) for value in image_std)
+        self.architecture = architecture
         self.model_subfolder = model_subfolder
         self.processor_subfolder = processor_subfolder
         self.original_training_options = dict(original_training_options or {})

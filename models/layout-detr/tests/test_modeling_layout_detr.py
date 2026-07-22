@@ -54,4 +54,6 @@ def test_model_forward_tuple_and_validation_errors():
     with pytest.raises(ValueError):
         model(**{**kwargs, "latents": torch.zeros(1, 9, 2)})
     with pytest.raises(ValueError):
+        model(**{**kwargs, "input_ids": torch.zeros(1, 8, 4, dtype=torch.long)})
+    with pytest.raises(ValueError):
         model(**{**kwargs, "bbox_labels": torch.full((1, 9), 99)})

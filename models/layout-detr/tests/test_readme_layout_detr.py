@@ -9,7 +9,10 @@ def test_readme_contains_required_layout_detr_contracts():
 
     assert "creative-graphic-design/layout-detr-ad-banner" in text
     assert "### Parity Results" in text
-    assert "not run" in text
+    assert "tolerance-verified" in text
+    assert "852 loaded keys" in text
+    assert "max_abs=1.49e-7" in text
+    assert "max_abs=1.19e-7" in text
     assert "https://github.com/salesforce/LayoutDETR" in text
     assert "```bibtex" in text
 

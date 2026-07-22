@@ -198,6 +198,7 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
             bbox_labels=encoded["bbox_labels"],
             layout_mask=encoded["layout_mask"],
             latents=latents,
+            text_lengths=encoded["text_lengths"],
         )
         bbox_out = apply_postprocessing(
             model_output.bbox,

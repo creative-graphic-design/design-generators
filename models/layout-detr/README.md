@@ -34,7 +34,7 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Ad+Banner+vendor+distribution&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=not--run&color=lightgrey&style=flat-square)
+![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
@@ -139,8 +139,8 @@ Training follows the original LayoutDETR GAN/DETR objective and vendor environme
 | Compared target | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
 | Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
-| Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | fails: 852 source keys, 41 target keys, 6 loaded keys, 34 missing keys, 845 unexpected keys, and `fc_z.weight` shape `[768, 36]` vs `[768, 4]` |
-| Vendor `G_ema` forward reference | 0 | bitwise equality on `bbox_fake` | not run because strict checkpoint conversion failed before a comparable converted forward path existed |
+| Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys |
+| Vendor `G_ema` forward reference | 1 fixed GPU-1 probe and 1 CPU probe | numeric agreement on raw `bbox_fake` before postprocessing | GPU: `max_abs=1.49e-7`, `mean_abs=3.39e-8`, `allclose(atol=1e-6, rtol=1e-6)=true`; CPU: `max_abs=1.19e-7`, `mean_abs=1.82e-8`, `allclose(atol=1e-6, rtol=1e-6)=true`; bitwise exact is false from floating-op order differences |
 | Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
 | Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
 

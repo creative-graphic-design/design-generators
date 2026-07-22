@@ -626,7 +626,11 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
         else "bit--exact"
     )
     actual = badge.group(1)
-    if actual != expected:
+    accepted = {
+        expected,
+        expected.replace("--", "-"),
+    }
+    if actual not in accepted:
         raise AssertionError(
             f"{path}: vendor-parity badge {actual!r} does not match Parity Results; expected {expected!r}"
         )

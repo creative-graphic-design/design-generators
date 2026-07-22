@@ -126,6 +126,10 @@ def extract_generator_state(
     init_kwargs = dict(getattr(generator, "init_kwargs", {}) or {})
     config = LayoutDetrConfig(
         z_dim=int(getattr(generator, "z_dim", init_kwargs.get("z_dim", 4))),
+        architecture="vendor",
+        text_vocab_size=30_524,
+        bert_num_heads=4,
+        bert_num_decoder_layers=2,
         max_text_length=int(
             getattr(
                 generator, "max_text_length", init_kwargs.get("max_text_length", 256)
@@ -134,7 +138,12 @@ def extract_generator_state(
         original_training_options=init_kwargs,
     )
     target_state = LayoutDetrForConditionalGeneration(config).state_dict()
-    remapped = {remap_generator_key(key): value for key, value in source_state.items()}
+    if config.architecture == "vendor":
+        remapped = source_state
+    else:
+        remapped = {
+            remap_generator_key(key): value for key, value in source_state.items()
+        }
     report = build_conversion_report(
         source_state,
         target_state,

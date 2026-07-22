@@ -2,7 +2,7 @@
 
 These commands reproduce LayoutDETR agreement checks against the original implementation by downloading the released assets, generating vendor references, running parity tests, converting the pickle, and smoke-testing local loading with `from_pretrained`.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading. The current implementation records the released-checkpoint strict-load failure before any `bbox_fake` parity claim.
+Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading. Strict conversion now loads the released `G_ema` state dict completely; raw `bbox_fake` parity is numerically close within `1e-6` on both GPU and CPU, while bitwise equality is false from floating-op order differences.
 
 ## Download Original Assets
 
@@ -49,10 +49,9 @@ CUDA_VISIBLE_DEVICES=1 LAYOUT_DETR_VENDOR_ROOT=vendor/layout-detr \
 
 ## Convert Checkpoint
 
-This strict conversion currently exits non-zero after writing
+This strict conversion writes
 `.cache/layout-detr/converted/layout-detr-ad-banner-strict/conversion_report.json`
-because the released `G_ema` architecture does not strict-load into the current
-`LayoutDetrForConditionalGeneration` implementation.
+with 852 source keys, 852 target keys, and 852 loaded keys.
 
 ```bash
 CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models/layout-detr/scripts/convert_original_checkpoint.py \
@@ -61,8 +60,8 @@ CUDA_VISIBLE_DEVICES=1 uv run --package layout-detr --extra vendor python models
   --output-dir .cache/layout-detr/converted/layout-detr-ad-banner-strict
 ```
 
-The partial conversion below is a schema and `from_pretrained` smoke path only;
-it is not vendor parity.
+Use `--allow-partial` only for debugging schema and `from_pretrained` smoke paths;
+it is not the parity conversion.
 
 ```bash
 uv run --package layout-detr --extra convert python models/layout-detr/scripts/convert_original_checkpoint.py \

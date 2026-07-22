@@ -161,6 +161,7 @@ class LayoutDetrProcessor(ProcessorMixin):
             label_rows,
             layout_mask,
         )
+        text_lengths = _pad_text_lengths(text_rows, self.config.max_seq_length)
         image_batch = image_features["pixel_values"].shape[0]
         if image_batch == 1 and bbox_labels.shape[0] > 1:
             image_features["pixel_values"] = image_features["pixel_values"].expand(
@@ -180,6 +181,7 @@ class LayoutDetrProcessor(ProcessorMixin):
                 "bbox_labels": bbox_labels,
                 "layout_mask": padded_mask,
                 "texts": padded_texts,
+                "text_lengths": text_lengths,
             }
         )
 
@@ -294,6 +296,18 @@ def _hash_token_ids(text: str, max_length: int, vocab_size: int) -> list[int]:
     ids.append(sep_id if text else 0)
     ids = ids[:max_length]
     return ids + [0] * (max_length - len(ids))
+
+
+def _pad_text_lengths(
+    text_rows: list[list[str]],
+    max_seq_length: int,
+) -> torch.Tensor:
+    rows = []
+    for row in text_rows:
+        lengths = [len(text) for text in row[:max_seq_length]]
+        lengths.extend([0] * (max_seq_length - len(lengths)))
+        rows.append(lengths)
+    return torch.tensor(rows, dtype=torch.long)
 
 
 def _processor_root(
