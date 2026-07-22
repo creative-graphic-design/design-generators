@@ -12,6 +12,7 @@ from ralf import (
     RalfPipeline,
     RalfProcessor,
 )
+from ralf.modeling_ralf import RalfTaskPreprocessor
 
 
 def _pipeline() -> RalfPipeline:
@@ -135,3 +136,39 @@ def test_pipeline_explicit_retrieval_indexes_are_returned() -> None:
         assert "text" in str(exc)
     else:
         raise AssertionError("expected NotImplementedError")
+
+
+def test_pipeline_passes_relation_constraints_to_model_runtime() -> None:
+    pipe = _pipeline()
+    relation = [
+        pipe.model.tokenizer.names[0],
+        "A",
+        "left",
+        pipe.model.tokenizer.names[1],
+        "B",
+    ]
+    encoded = pipe.processor(
+        condition_type="relation",
+        labels=torch.tensor([[0, 1]]),
+        bbox=torch.full((1, 2, 4), 0.5),
+        mask=torch.tensor([[True, True]]),
+    )
+    prepared = pipe.model._prepare_conditional_inputs(
+        pixel_values=cast(torch.Tensor, encoded["pixel_values"]),
+        saliency=cast(torch.Tensor, encoded["saliency"]),
+        retrieved=None,
+        batch_size=1,
+        condition_type="relation",
+        constraint_input_ids=cast(torch.Tensor, encoded["input_ids"]),
+        constraint_mask=cast(torch.Tensor, encoded["attention_mask"]),
+        constraint_element_mask=cast(torch.Tensor, encoded["constraint_mask"]),
+        relationship_table={"sample": [relation]},
+        sample_ids=["sample"],
+    )
+
+    relation_sep = RalfTaskPreprocessor(
+        pipe.model.tokenizer,
+        task="relation",
+    ).name_to_id("relation_sep")
+    seq_layout_const = cast(torch.Tensor, prepared["seq_layout_const"])
+    assert relation_sep in seq_layout_const[0].tolist()

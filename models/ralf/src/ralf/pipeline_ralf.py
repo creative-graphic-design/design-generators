@@ -240,6 +240,11 @@ class RalfPipeline(LayoutGenerationPipeline):
             constraint_input_ids=encoded["input_ids"].to(model_device),
             constraint_mask=encoded["attention_mask"].to(model_device),
             constraint_element_mask=encoded["constraint_mask"].to(model_device),
+            relationship_table=cast(
+                Mapping[str, list[object]] | None,
+                relations if isinstance(relations, Mapping) else None,
+            ),
+            sample_ids=query_ids,
         )
         return self.processor.post_process_layouts(
             sequences.cpu(),

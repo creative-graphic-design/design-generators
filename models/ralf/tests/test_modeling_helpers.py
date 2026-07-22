@@ -1,4 +1,5 @@
 import math
+import random
 
 import pytest
 import torch
@@ -82,9 +83,10 @@ def test_task_preprocessor_sequences_for_supported_tasks() -> None:
     ]
 
     label = RalfTaskPreprocessor(tokenizer, task="c")
+    torch.manual_seed(1)
     label_seq = label(inputs)["seq"]
     assert label_seq[0, 1].item() == label.name_to_id("label")
-    assert label_seq[0, 3].item() == 0
+    assert label_seq[0, 3].item() in {0, 1}
 
     global_label = RalfTaskPreprocessor(
         tokenizer,
@@ -97,6 +99,65 @@ def test_task_preprocessor_sequences_for_supported_tasks() -> None:
 
     partial = RalfTaskPreprocessor(tokenizer, task="partial")
     assert partial(inputs)["seq"][0, 1].item() == partial.name_to_id("completion")
+
+
+def test_relation_task_preprocessor_sequences_and_helpers() -> None:
+    config = RalfConfig(max_seq_length=2, num_bin=8)
+    tokenizer = RalfTokenizerView(config)
+    labels = torch.tensor([[0, 1]])
+    bbox = torch.full((1, 2, 4), 0.5)
+    encoded = RalfLayoutTokenizer(config).encode_layout(
+        labels=labels,
+        bbox=bbox,
+        mask=torch.tensor([[True, True]]),
+    )
+    inputs = RalfConditionalInputs(
+        image=torch.zeros(1, 4, 64, 64),
+        retrieved={},
+        seq=encoded["input_ids"],
+        id="sample",
+    )
+    relation = [
+        tokenizer.names[0],
+        "A",
+        "left",
+        tokenizer.names[1],
+        "B",
+    ]
+    random.seed(1)
+    torch.manual_seed(1)
+    preprocessor = RalfTaskPreprocessor(
+        tokenizer,
+        task="relation",
+        relationship_table={"sample": [relation]},
+        relation_size=100,
+    )
+    sequence = preprocessor(inputs)["seq"]
+    assert sequence[0, 1].item() == preprocessor.name_to_id("relationship")
+    assert preprocessor.name_to_id("relation_sep") in sequence[0].tolist()
+    assert sequence[0, -1].item() == config.eos_token_id
+
+    missing = RalfTaskPreprocessor(
+        tokenizer,
+        task="relation",
+        relationship_table={"other": [relation]},
+    )
+    missing_sequence = missing(inputs)["seq"]
+    assert missing_sequence[0, 1].item() == missing.name_to_id("relationship")
+    assert missing_sequence[0, -1].item() == config.eos_token_id
+
+    assert preprocessor._relation_ids(None, 2) == ["", ""]
+    assert preprocessor._relation_ids(torch.tensor([3]), 1) == ["3"]
+    assert preprocessor._relation_ids(["a"], 1) == ["a"]
+
+    class RelSize:
+        name = "UNKNOWN"
+
+    class RelLoc:
+        name = "UNKNOWN"
+
+    assert preprocessor._relation_item_to_name(RelSize()) == "unknown_size"
+    assert preprocessor._relation_item_to_name(RelLoc()) == "unknown_loc"
 
 
 def test_decode_space_restrictions() -> None:
