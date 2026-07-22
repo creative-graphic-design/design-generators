@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Float, Int
 
 from .transformer import CategoricalTransformer, TimestepType
 
@@ -17,7 +18,7 @@ from .transformer import CategoricalTransformer, TimestepType
 class LayoutDMDenoiserOutput(BaseOutput):
     """Denoiser output containing token logits."""
 
-    logits: torch.Tensor
+    logits: Float[torch.Tensor, "batch tokens vocab"]
 
 
 class LayoutDMDenoiser(ModelMixin, ConfigMixin):
@@ -69,7 +70,9 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
         )
 
     def forward(
-        self, input_ids: torch.Tensor, timesteps: torch.Tensor
+        self,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timesteps: Int[torch.Tensor, "batch"],
     ) -> LayoutDMDenoiserOutput:
         """Predict token logits for noised LayoutDM sequences."""
         return LayoutDMDenoiserOutput(
@@ -77,8 +80,10 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
         )
 
     def predict_start_log_probs(
-        self, input_ids: torch.Tensor, timesteps: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timesteps: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch tokens vocab"]:
         """Predict log probabilities for the denoised start sequence."""
         logits = self(input_ids=input_ids, timesteps=timesteps).logits[:, :, :-1]
         log_pred = F.log_softmax(logits.double(), dim=-1).float()
