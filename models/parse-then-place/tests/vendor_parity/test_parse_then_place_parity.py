@@ -8,6 +8,7 @@ import pytest
 import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer  # ty: ignore[possibly-missing-import]
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from parse_then_place import (
     ParseThenPlaceConfig,
     ParseThenPlacePipeline,
@@ -21,10 +22,18 @@ pytestmark = pytest.mark.vendor_parity
 def test_vendor_reference_metadata_exists() -> None:
     reference_root = os.environ.get("PARSE_THEN_PLACE_REFERENCE_DIR")
     if reference_root is None:
-        pytest.skip("PARSE_THEN_PLACE_REFERENCE_DIR is required for vendor parity")
+        skip_or_fail_vendor_parity(
+            "PARSE_THEN_PLACE_REFERENCE_DIR is required for vendor parity",
+            missing_paths=["PARSE_THEN_PLACE_REFERENCE_DIR"],
+            regeneration_hint="set PARSE_THEN_PLACE_REFERENCE_DIR to generated Parse-Then-Place references",
+        )
     metadata = Path(reference_root) / "reference_metadata.json"
     if not metadata.exists():
-        pytest.skip("Generate references before running vendor parity")
+        skip_or_fail_vendor_parity(
+            "Generate references before running vendor parity",
+            missing_paths=[metadata],
+            regeneration_hint="run models/parse-then-place/scripts/generate_reference_outputs.py",
+        )
     assert metadata.read_text(encoding="utf-8")
 
 
@@ -32,14 +41,27 @@ def test_stage2_reference_matches_converted_place() -> None:
     reference_root = os.environ.get("PARSE_THEN_PLACE_REFERENCE_DIR")
     original_root = os.environ.get("PARSE_THEN_PLACE_ORIGINAL_ROOT")
     if reference_root is None or original_root is None:
-        pytest.skip(
-            "PARSE_THEN_PLACE_REFERENCE_DIR and PARSE_THEN_PLACE_ORIGINAL_ROOT are required"
+        skip_or_fail_vendor_parity(
+            "PARSE_THEN_PLACE_REFERENCE_DIR and PARSE_THEN_PLACE_ORIGINAL_ROOT are required",
+            missing_paths=[
+                name
+                for name, value in (
+                    ("PARSE_THEN_PLACE_REFERENCE_DIR", reference_root),
+                    ("PARSE_THEN_PLACE_ORIGINAL_ROOT", original_root),
+                )
+                if value is None
+            ],
+            regeneration_hint="set both env vars to generated references and the original Parse-Then-Place checkout",
         )
     reference_dir = Path(reference_root)
     metadata_path = reference_dir / "reference_metadata.json"
     reference_path = reference_dir / "stage2_reference.json"
     if not metadata_path.exists() or not reference_path.exists():
-        pytest.skip("Generate stage2 references before running vendor parity")
+        skip_or_fail_vendor_parity(
+            "Generate stage2 references before running vendor parity",
+            missing_paths=[metadata_path, reference_path],
+            regeneration_hint="run models/parse-then-place/scripts/generate_reference_outputs.py",
+        )
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     reference = json.loads(reference_path.read_text(encoding="utf-8"))
     dataset_name = str(metadata["dataset_name"])

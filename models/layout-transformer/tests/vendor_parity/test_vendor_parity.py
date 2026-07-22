@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from layout_transformer import LayoutTransformerForLayoutGeneration
 
 
@@ -13,9 +14,20 @@ def test_vendor_reference_matches_local_converted_checkpoint(dataset_name):
     sample_path = reference_dir / dataset_name / f"{dataset_name}_sample_0.pt"
     converted_dir = Path(".cache/layout-transformer/converted") / dataset_name
     if not sample_path.exists() or not (converted_dir / "config.json").exists():
-        pytest.skip("Generate vendor references with scripts/export_reference.py first")
+        skip_or_fail_vendor_parity(
+            "Generate vendor references with scripts/export_reference.py first",
+            missing_paths=[sample_path, converted_dir / "config.json"],
+            regeneration_hint=(
+                "run models/layout-transformer/scripts/export_reference.py and "
+                "models/layout-transformer/scripts/convert_original_checkpoint.py"
+            ),
+        )
     if not torch.cuda.is_available():
-        pytest.skip("LT-Net GMM inference parity requires CUDA")
+        skip_or_fail_vendor_parity(
+            "LT-Net GMM inference parity requires CUDA",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun on a CUDA-enabled host with Layout Transformer parity assets",
+        )
 
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False

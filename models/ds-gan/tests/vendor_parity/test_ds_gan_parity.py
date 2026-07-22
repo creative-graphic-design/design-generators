@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 import torch
 
+from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from ds_gan import DSGANConfig, DSGANModel, DSGANProcessor
@@ -15,9 +16,17 @@ def test_ds_gan_vendor_forward_parity():
     fixture = Path(".cache/ds-gan/fixtures/pku/reference_seed0.pt")
     checkpoint = Path(".cache/ds-gan/original/DS-GAN-Epoch300.pth")
     if not fixture.exists() or not checkpoint.exists():
-        pytest.skip("DS-GAN vendor parity requires local weights and fixture")
+        skip_or_fail_vendor_parity(
+            "DS-GAN vendor parity requires local weights and fixture",
+            missing_paths=[fixture, checkpoint],
+            regeneration_hint="run models/ds-gan/scripts/generate_reference_outputs.py after downloading DS-GAN weights",
+        )
     if not torch.cuda.is_available():
-        pytest.skip("DS-GAN vendor parity fixture is generated on CUDA")
+        skip_or_fail_vendor_parity(
+            "DS-GAN vendor parity fixture is generated on CUDA",
+            missing_paths=["CUDA device"],
+            regeneration_hint="rerun on a CUDA-enabled host with DS-GAN parity assets",
+        )
 
     reference = torch.load(fixture, map_location="cpu")
     device = torch.device("cuda")
@@ -76,7 +85,11 @@ def test_ds_gan_processor_matches_vendor_fixture_pixels():
     fixture = Path(".cache/ds-gan/fixtures/pku/reference_seed0.pt")
     dataset_root = Path(".cache/ds-gan/original/Dataset/test")
     if not fixture.exists() or not dataset_root.exists():
-        pytest.skip("DS-GAN processor parity requires local dataset fixture")
+        skip_or_fail_vendor_parity(
+            "DS-GAN processor parity requires local dataset fixture",
+            missing_paths=[fixture, dataset_root],
+            regeneration_hint="download the DS-GAN dataset fixture and run models/ds-gan/scripts/generate_reference_outputs.py",
+        )
 
     reference = torch.load(fixture, map_location="cpu")
     processor = DSGANProcessor()
