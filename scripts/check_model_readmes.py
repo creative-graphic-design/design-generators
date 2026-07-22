@@ -135,6 +135,14 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "layout-action": {
+        "license": "other",
+        "datasets": [
+            "RICO13",
+            "creative-graphic-design/PubLayNet",
+            "InfoPPT",
+        ],
+    },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
     "layout-transformer": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
     "layoutdiffusion": {
@@ -189,6 +197,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-corrector": "Layout-Corrector",
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
+    "layout-action": "LayoutAction",
     "layout-gpt": "LayoutGPT",
     "layout-transformer": "LayoutTransformer",
     "layoutdiffusion": "LayoutDiffusion",
@@ -204,6 +213,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-gpt": "https://github.com/UCSB-AI/LayoutGPT",
     "layoutdiffusion": "https://github.com/microsoft/LayoutGeneration/tree/main/LayoutDiffusion",
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
+    "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",

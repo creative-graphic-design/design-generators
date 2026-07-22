@@ -27,9 +27,11 @@ class ConditionAlias(StrEnum):
     unconditional = auto()
     uncond = auto()
     ugen = auto()
+    random_generate = auto()
     label = auto()
     c = auto()
     cat_cond = auto()
+    category_generate = auto()
     gen_t = auto()
     label_size = auto()
     cwh = auto()
@@ -39,6 +41,7 @@ class ConditionAlias(StrEnum):
     partial = auto()
     complete = auto()
     elem_compl = auto()
+    completion_generate = auto()
     refinement = auto()
     refine = auto()
     text = auto()
@@ -64,9 +67,11 @@ _CONDITION_ALIASES: Final[dict[ConditionAlias, ConditionType]] = {
     ConditionAlias.unconditional: ConditionType.unconditional,
     ConditionAlias.uncond: ConditionType.unconditional,
     ConditionAlias.ugen: ConditionType.unconditional,
+    ConditionAlias.random_generate: ConditionType.unconditional,
     ConditionAlias.label: ConditionType.label,
     ConditionAlias.c: ConditionType.label,
     ConditionAlias.cat_cond: ConditionType.label,
+    ConditionAlias.category_generate: ConditionType.label,
     ConditionAlias.gen_t: ConditionType.label,
     ConditionAlias.label_size: ConditionType.label_size,
     ConditionAlias.cwh: ConditionType.label_size,
@@ -76,6 +81,7 @@ _CONDITION_ALIASES: Final[dict[ConditionAlias, ConditionType]] = {
     ConditionAlias.partial: ConditionType.completion,
     ConditionAlias.complete: ConditionType.completion,
     ConditionAlias.elem_compl: ConditionType.completion,
+    ConditionAlias.completion_generate: ConditionType.completion,
     ConditionAlias.refinement: ConditionType.refinement,
     ConditionAlias.refine: ConditionType.refinement,
     ConditionAlias.text: ConditionType.text,

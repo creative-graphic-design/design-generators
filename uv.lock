@@ -25,6 +25,7 @@ members = [
     "lace",
     "laygen",
     "layousyn",
+    "layout-action",
     "layout-corrector",
     "layout-dm",
     "layout-flow",
@@ -1178,6 +1179,7 @@ dependencies = [
     { name = "lace" },
     { name = "laygen" },
     { name = "layousyn" },
+    { name = "layout-action" },
     { name = "layout-corrector" },
     { name = "layout-dm" },
     { name = "layout-flow" },
@@ -1232,6 +1234,7 @@ requires-dist = [
     { name = "lace", editable = "models/lace" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "layousyn", editable = "models/layousyn" },
+    { name = "layout-action", editable = "models/layout-action" },
     { name = "layout-corrector", editable = "models/layout-corrector" },
     { name = "layout-dm", editable = "models/layout-dm" },
     { name = "layout-flow", editable = "models/layout-flow" },
@@ -2777,6 +2780,59 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.0.0" },
 ]
 provides-extras = ["vendor"]
+
+[[package]]
+name = "layout-action"
+version = "0.1.0"
+source = { editable = "models/layout-action" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "jaxtyping" },
+    { name = "laygen" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "safetensors" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+convert = [
+    { name = "gdown" },
+    { name = "huggingface-hub" },
+]
+download = [
+    { name = "gdown" },
+    { name = "huggingface-hub" },
+]
+vendor = [
+    { name = "gdown" },
+    { name = "pycocotools" },
+    { name = "python-pptx" },
+    { name = "seaborn" },
+    { name = "tqdm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gdown", marker = "extra == 'convert'", specifier = ">=6.1.0" },
+    { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
+    { name = "gdown", marker = "extra == 'vendor'", specifier = ">=6.1.0" },
+    { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "huggingface-hub", marker = "extra == 'convert'", specifier = ">=0.24" },
+    { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
+    { name = "laygen", editable = "lib/laygen" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pycocotools", marker = "extra == 'vendor'", specifier = ">=2.0" },
+    { name = "python-pptx", marker = "extra == 'vendor'", specifier = ">=0.6" },
+    { name = "safetensors", specifier = ">=0.4" },
+    { name = "seaborn", marker = "extra == 'vendor'", specifier = ">=0.13" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "tqdm", marker = "extra == 'vendor'", specifier = ">=4" },
+    { name = "transformers", specifier = ">=5.0.0" },
+]
+provides-extras = ["download", "convert", "vendor"]
 
 [[package]]
 name = "layout-corrector"
@@ -5525,6 +5581,21 @@ wheels = [
 ]
 
 [[package]]
+name = "python-pptx"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lxml" },
+    { name = "pillow" },
+    { name = "typing-extensions" },
+    { name = "xlsxwriter" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/a9/0c0db8d37b2b8a645666f7fd8accea4c6224e013c42b1d5c17c93590cd06/python_pptx-1.0.2.tar.gz", hash = "sha256:479a8af0eaf0f0d76b6f00b0887732874ad2e3188230315290cd1f9dd9cc7095", size = 10109297, upload-time = "2024-08-07T17:33:37.772Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/4f/00be2196329ebbff56ce564aa94efb0fbc828d00de250b1980de1a34ab49/python_pptx-1.0.2-py3-none-any.whl", hash = "sha256:160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba", size = 472788, upload-time = "2024-08-07T17:33:28.192Z" },
+]
+
+[[package]]
 name = "pytorch-fid"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -7587,6 +7658,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/33/90/623f99c55c7d0727a58eb2b7dfb65cb406c561a5c2e9a95b0d6a450c473d/wurlitzer-3.1.1.tar.gz", hash = "sha256:bfb9144ab9f02487d802b9ff89dbd3fa382d08f73e12db8adc4c2fb00cd39bd9", size = 11867, upload-time = "2024-06-12T10:27:30.089Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9a/24/93ce54550a9dd3fd996ed477f00221f215bf6da3580397fbc138d6036e2e/wurlitzer-3.1.1-py3-none-any.whl", hash = "sha256:0b2749c2cde3ef640bf314a9f94b24d929fe1ca476974719a6909dfc568c3aac", size = 8590, upload-time = "2024-06-12T10:27:28.787Z" },
+]
+
+[[package]]
+name = "xlsxwriter"
+version = "3.2.9"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/2c/c06ef49dc36e7954e55b802a8b231770d286a9758b3d936bd1e04ce5ba88/xlsxwriter-3.2.9.tar.gz", hash = "sha256:254b1c37a368c444eac6e2f867405cc9e461b0ed97a3233b2ac1e574efb4140c", size = 215940, upload-time = "2025-09-16T00:16:21.63Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/0c/3662f4a66880196a590b202f0db82d919dd2f89e99a27fadef91c4a33d41/xlsxwriter-3.2.9-py3-none-any.whl", hash = "sha256:9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3", size = 175315, upload-time = "2025-09-16T00:16:20.108Z" },
 ]
 
 [[package]]
