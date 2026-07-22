@@ -9,6 +9,11 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
+    "🤗 transformers": "transformers",
+    "🤗 diffusers": "diffusers",
+    "🤖 pydantic-ai": "pydantic-ai",
+}
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )
@@ -724,43 +729,38 @@ def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
 def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
-    expected_header = "| Method | Runtime | Primary datasets | Weights |"
-    if table_lines[:2] != [expected_header, "| --- | --- | --- | --- |"]:
+    expected_header = "| Method | Venue | Runtime | Datasets | Reproduction |"
+    if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
         raise AssertionError(
-            f"{path}: Models table must use Method, Runtime, Primary datasets, Weights"
+            f"{path}: Models table must use Method, Venue, Runtime, Datasets, Reproduction"
         )
     runtime_by_slug: dict[str, str] = {}
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) != 4:
+        if len(cells) != 5:
             raise AssertionError(f"{path}: malformed Models table row: {line}")
-        method_cell, runtime_cell, _datasets_cell, weights_cell = cells
+        method_cell, venue_cell, runtime_cell, _datasets_cell, reproduction_cell = cells
         slug_match = re.search(r"\]\(models/([^/)]+)/README\.md\)", method_cell)
         if slug_match is None:
             raise AssertionError(
                 f"{path}: Method cell must link models/<slug>/README.md: {line}"
             )
         slug = slug_match.group(1)
-        if runtime_cell not in {"`transformers`", "`diffusers`", "`pydantic-ai`"}:
+        if not venue_cell:
+            raise AssertionError(f"{path}: Models table Venue cell is empty: {line}")
+        root_library = ROOT_RUNTIME_DISPLAY_TO_LIBRARY.get(runtime_cell)
+        if root_library is None:
             raise AssertionError(
-                f"{path}: Models table Runtime cell must use code-form library name"
+                f"{path}: Models table Runtime cell must use emoji-form library name"
             )
-        runtime_by_slug[slug] = runtime_cell.strip("`")
-        if "documented" in weights_cell.lower():
+        runtime_by_slug[slug] = root_library
+        if "documented" in reproduction_cell.lower():
             raise AssertionError(
-                f"{path}: Models table Weights column must not use status wording"
+                f"{path}: Models table Reproduction column must not use status wording"
             )
-        if slug in PROMPT_ONLY_SLUGS:
-            if weights_cell != "none (prompt-based)":
-                raise AssertionError(
-                    f"{path}: prompt-only package {slug} must state no weights"
-                )
-            continue
         expected_link = f"[REPRODUCING.md](models/{slug}/REPRODUCING.md)"
-        if weights_cell != f"convert locally ({expected_link})":
-            raise AssertionError(
-                f"{path}: weight-backed package {slug} must link conversion steps"
-            )
+        if reproduction_cell != expected_link:
+            raise AssertionError(f"{path}: package {slug} must link reproduction steps")
     return runtime_by_slug
 
 
@@ -889,24 +889,27 @@ def _assert_library_name_style(path: Path) -> None:
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
     emoji_mentions = re.findall(
-        r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`)",
+        r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`|(?:transformers|diffusers))",
         text,
     )
     if text.count("🤗") != len(emoji_mentions):
         raise AssertionError(
             f"{path}: 🤗 must annotate a transformers/diffusers library mention"
         )
-    if len(emoji_mentions) > 1:
-        raise AssertionError(
-            f"{path}: 🤗 may appear only on the first Hugging Face library mention"
-        )
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
+        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+    if re.search(r"🤗\s+pydantic-ai", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
     spans = _markdown_link_spans(text)
     for library in ("transformers", "diffusers", "pydantic-ai"):
         for match in re.finditer(
             rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w-])", text
         ):
+            prefix = text[max(0, match.start() - 4) : match.start()]
+            if library in {"transformers", "diffusers"} and prefix.endswith("🤗 "):
+                continue
+            if library == "pydantic-ai" and prefix.endswith("🤖 "):
+                continue
             if not _in_any_span(match.start(), spans):
                 raise AssertionError(
                     f"{path}: use code-form `{library}` for library names"

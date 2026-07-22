@@ -113,17 +113,18 @@ def test_docs_models_metadata_badges_match_model_pyprojects() -> None:
         assert docs_rows[pyproject.parent.name] == _metadata_values(pyproject)
 
 
-def test_hugging_face_emoji_contract_rejects_second_mention(tmp_path: Path) -> None:
+def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(
+    tmp_path: Path,
+) -> None:
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
         "First 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) "
-        "and second 🤗 `transformers`.",
+        "and second 🤗 transformers.",
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="only on the first"):
-        check_model_readmes._assert_library_name_style(readme)
+    check_model_readmes._assert_library_name_style(readme)
 
 
 def test_hugging_face_emoji_contract_rejects_unattached_emoji(

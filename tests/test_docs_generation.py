@@ -223,7 +223,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
             "# Fake Repo",
             "",
             "[Model](api/models/fake-project/)",
-            "[Guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/fake/REPRODUCING.md)",
+            "[Guide](api/models/fake-project/reproducing/)",
             "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
             "",
         ]

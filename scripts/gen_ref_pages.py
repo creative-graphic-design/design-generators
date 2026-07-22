@@ -166,6 +166,18 @@ def site_page_for_repo_link(link: str) -> str:
             return docs_route(
                 Path("api", "models", package_slug(project_name), "index.md")
             )
+    if target.startswith("models/") and target.endswith("/REPRODUCING.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            member_dir = ROOT / "models" / parts[1]
+            project_name = read_project_name(member_dir / "pyproject.toml")
+            reproducing_path = reproducing_page_path_for(
+                "Models",
+                project_name,
+                member_dir,
+            )
+            if reproducing_path is not None:
+                return docs_route(reproducing_path)
     if target.startswith("lib/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:

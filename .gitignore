@@ -5,6 +5,7 @@ build/
 dist/
 site/
 docs/api/
+docs/index.md
 mkdocs.generated.yml
 wheels/
 *.egg-info/
