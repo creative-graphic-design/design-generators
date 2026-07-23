@@ -1,0 +1,47 @@
+[project]
+name = "cgb-dm"
+version = "0.1.0"
+description = "Diffusers-style CGB-DM content-aware poster layout package."
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "posgen",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+training = [
+    "lightning>=2.0.0",
+]
+vendor = [
+    "opencv-python>=4.10",
+    "pandas>=2.0",
+    "torchvision>=0.18",
+    "tqdm>=4.66",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.design-generators]
+framework = "diffusers"
+task = "content-aware-poster-layout-generation"
+conditions = ["content_image", "label", "label_size", "completion", "refinement"]
+datasets = ["pku_posterlayout", "cgl"]
+
+[tool.pytest.ini_options]
+markers = [
+    "training: tests that exercise Lightning training paths",
+    "vendor_parity: requires original CGB-DM assets and dependencies",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

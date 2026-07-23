@@ -1,0 +1,38 @@
+model:
+  class_path: cgb_dm.training.lightning_module.CGBDMTrainingModule
+  init_args:
+    config:
+      dataset_name: pku_posterlayout
+      num_labels: 4
+      max_seq_length: 2
+      image_size: [32, 32]
+      dim_model: 16
+      n_head: 2
+      num_layers: 1
+      feature_dim: 32
+      num_train_timesteps: 10
+      ddim_num_steps: 1
+    learning_rate: 0.0001
+    condition_type: content_image
+    seed_mode: deterministic
+data:
+  class_path: cgb_dm.training.datamodule.CGBDMDataModule
+  init_args:
+    config:
+      dataset_name: pku_posterlayout
+      num_labels: 4
+      max_seq_length: 2
+      image_size: [32, 32]
+      dim_model: 16
+      n_head: 2
+      num_layers: 1
+      feature_dim: 32
+      num_train_timesteps: 10
+      ddim_num_steps: 1
+    source: synthetic
+    batch_size: 2
+    num_workers: 0
+trainer:
+  max_epochs: 1
+  limit_train_batches: 1
+  limit_val_batches: 0
