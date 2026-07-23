@@ -72,7 +72,7 @@ class CGBDMOriginalDataset(Dataset[dict[str, torch.Tensor]]):
         split: Literal["train", "val", "test"] | str = "train",
         processor: CGBDMProcessor | None = None,
         name_manifest: str | Path | list[str] | tuple[str, ...] | None = None,
-        encoding: Literal["public", "vendor"] = "public",
+        encoding: Literal["public", "reference"] = "public",
     ) -> None:
         """Initialize file lists and CSV indexes."""
         self.paths = CGBDMDataPaths(Path(root), split)
@@ -94,8 +94,8 @@ class CGBDMOriginalDataset(Dataset[dict[str, torch.Tensor]]):
         width, height = image.size
         saliency = Image.open(self.paths.saliency_dir / name).convert("L")
         saliency_sub = Image.open(self.paths.saliency_sub_dir / name).convert("L")
-        if self.encoding == "vendor":
-            return _encode_vendor_row(
+        if self.encoding == "reference":
+            return _encode_reference_row(
                 image=image,
                 saliency=saliency,
                 saliency_sub=saliency_sub,
@@ -171,7 +171,7 @@ def _normalize_ltrb(
     return ltrb_to_xywh(tensor).clamp(0.0, 1.0)
 
 
-def _encode_vendor_row(
+def _encode_reference_row(
     *,
     image: Image.Image,
     saliency: Image.Image,
@@ -191,10 +191,10 @@ def _encode_vendor_row(
     saliency_tensor = _pil_to_normalized_tensor(saliency_map, image_size, mode="L")
     return {
         "pixel_values": torch.cat((rgb, saliency_tensor), dim=0),
-        "layout": _encode_vendor_layout(
+        "layout": _encode_reference_layout(
             annotations, width, height, max_seq_length, num_labels
         ),
-        "saliency_box": _encode_vendor_saliency_box(saliency_box, width, height),
+        "saliency_box": _encode_reference_saliency_box(saliency_box, width, height),
     }
 
 
@@ -215,7 +215,7 @@ def _pil_to_normalized_tensor(
     return tensor * 2 - 1
 
 
-def _encode_vendor_layout(
+def _encode_reference_layout(
     annotations: list[tuple[tuple[float, float, float, float], int]],
     width: int,
     height: int,
@@ -243,7 +243,7 @@ def _encode_vendor_layout(
     return torch.tensor(label).float()
 
 
-def _encode_vendor_saliency_box(
+def _encode_reference_saliency_box(
     saliency_box: tuple[tuple[float, float, float, float], int],
     width: int,
     height: int,

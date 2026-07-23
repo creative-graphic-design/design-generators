@@ -78,7 +78,7 @@ def test_original_dataset_replays_manifest_with_vendor_encoding(tmp_path):
 
     public_dataset = CGBDMOriginalDataset(root, split="train")
     vendor_dataset = CGBDMOriginalDataset(
-        root, split="train", name_manifest=manifest, encoding="vendor"
+        root, split="train", name_manifest=manifest, encoding="reference"
     )
 
     assert public_dataset.names == ["a.png", "b.png"]

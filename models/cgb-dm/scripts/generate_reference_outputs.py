@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from cgb_dm.training.parity import write_vendor_order_manifest
+from cgb_dm.training.parity import write_source_order_manifest
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,7 +39,7 @@ def main() -> None:
         manifest_output = args.manifest_output or str(
             path.with_name(f"{args.dataset}_{args.split}_manifest.json")
         )
-        manifest_path = write_vendor_order_manifest(
+        manifest_path = write_source_order_manifest(
             data_root=args.data_root,
             output=manifest_output,
             dataset=args.dataset,

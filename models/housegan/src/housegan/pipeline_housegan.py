@@ -89,10 +89,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         self.config = config or model.config
         self.model = model
         self.processor = processor or HouseGanProcessor(
-            id2label=self.config.id2label,
-            relation_id2label=self.config.relation_id2label,
-            canvas_size=cast(tuple[int, int], self.config.canvas_size),
-            mask_size=self.config.mask_size,
+            config=self.config,
         )
         if device is not None:
             resolved = (

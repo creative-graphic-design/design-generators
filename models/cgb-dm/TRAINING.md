@@ -12,8 +12,10 @@ uv run --package cgb-dm --extra training \
   --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml
 ```
 
-Use `models/cgb-dm/configs/training/smoke.yaml` for local configuration smoke
-checks. Full 500-epoch PKU/CGL training is intentionally outside the first PR.
+Use `models/cgb-dm/configs/training/smoke.yaml` for local and CI configuration
+smoke checks. Full 500-epoch PKU/CGL training runs outside regular CI and is
+reported as run metadata until the paired full-run statistical comparison is
+complete.
 
 ## Parity Stages
 

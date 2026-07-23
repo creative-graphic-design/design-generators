@@ -37,5 +37,5 @@ uv run --package cgb-dm python models/cgb-dm/scripts/convert_training_checkpoint
 uv run --package cgb-dm python models/cgb-dm/scripts/smoke_from_pretrained.py --path .cache/cgb-dm/converted/pku
 ```
 
-The current first PR does not claim full PKU/CGL training or generated-metric
-equivalence.
+Full PKU/CGL training and generated-metric equivalence are reported from
+explicit full-run jobs, not regular CI.

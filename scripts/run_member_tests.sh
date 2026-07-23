@@ -5,6 +5,8 @@
 # @description
 #   The default mode matches CI and enforces member coverage. Set
 #   `MEMBER_TEST_COVERAGE=0` to keep local pre-commit runs coverage-free.
+#   Set `MEMBER_TEST_COVERAGE_XML_DIR` to write pytest-cov XML for CI Codecov
+#   upload.
 # @arg $1 member_dir Workspace member directory such as `models/layout-dm`.
 # @stdout Pytest output for the selected workspace member.
 # @example
@@ -84,6 +86,9 @@ fi
 if [[ " ${optional_extras} " == *" diffusion "* ]]; then
   uv_run_args+=(--extra diffusion)
 fi
+if [[ " ${optional_extras} " == *" training "* ]]; then
+  uv_run_args+=(--extra training)
+fi
 
 if [ "${MEMBER_TEST_RUNNER_DEPS:-1}" != "0" ]; then
   uv_run_args+=(--with "beartype>=0.22.9,<0.23")
@@ -135,6 +140,13 @@ PY
     "--cov-report=term-missing"
     "--cov-fail-under=${fail_under}"
   )
+
+  if [ -n "${MEMBER_TEST_COVERAGE_XML_DIR:-}" ]; then
+    mkdir -p "${MEMBER_TEST_COVERAGE_XML_DIR}"
+    pytest_args+=(
+      "--cov-report=xml:${MEMBER_TEST_COVERAGE_XML_DIR}/${package_name}.xml"
+    )
+  fi
 fi
 
 uv run "${uv_run_args[@]}" pytest "${pytest_args[@]}"

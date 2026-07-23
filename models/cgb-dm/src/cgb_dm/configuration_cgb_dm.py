@@ -22,7 +22,7 @@ class CGBDMDatasetSpec:
     Attributes:
         dataset_name: Canonical poster/content dataset enum.
         num_labels: Number of internal class channels, including invalid/pad.
-        train_batch_size: Vendor-compatible train batch size.
+        train_batch_size: Reference train batch size.
         id2label: Public label map persisted in checkpoints.
     """
 

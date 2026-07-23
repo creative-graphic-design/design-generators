@@ -136,14 +136,14 @@ class LayoutFlowProcessor(ProcessorMixin):
         return {"bbox": bbox_t, "labels": labels_t, "mask": mask_t, "length": lengths}
 
     def encode_labels(self, labels: torch.Tensor) -> torch.Tensor:
-        """Encode integer labels as vendor analog-bit vectors."""
+        """Encode integer labels as analog-bit vectors."""
         bit_mask = self.bit_mask.to(labels.device)
         return (
             torch.bitwise_and(labels.unsqueeze(-1), bit_mask).float() / bit_mask.float()
         )
 
     def decode_labels(self, bits: torch.Tensor) -> torch.Tensor:
-        """Decode vendor analog-bit vectors into integer labels."""
+        """Decode analog-bit vectors into integer labels."""
         bit_mask = self.bit_mask.to(bits.device)
         active = (bits - 0.5 >= 0).long()
         return (
@@ -169,7 +169,7 @@ class LayoutFlowProcessor(ProcessorMixin):
         mask: torch.Tensor,
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
-        """Create the vendor condition mask for a conditioning mode.
+        """Create the condition mask for a conditioning mode.
 
         Args:
             condition_type: Canonical condition or alias.

@@ -1,4 +1,5 @@
 """PyTorch modules for the converted LayoutFlow vector-field model."""
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
@@ -38,7 +39,7 @@ def _get_activation_fn(
 
 
 class PositionalEncoding(nn.Module):
-    """Sinusoidal positional encoding used by the vendor backbone."""
+    """Sinusoidal positional encoding used by the LayoutFlow backbone."""
 
     def __init__(
         self, d_model: int, dropout: float = 0.1, max_len: int = 10000
@@ -91,7 +92,7 @@ class AdaLayerNorm(nn.Module):
 
 
 class LayoutFlowBlock(nn.Module):
-    """Transformer encoder block matching the original LayoutFlow backbone."""
+    """Transformer encoder block used by the LayoutFlow backbone."""
 
     def __init__(
         self,
@@ -188,7 +189,7 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
 
 class LayoutDMBackbone(nn.Module):
-    """Vendor-compatible LayoutFlow backbone module."""
+    """LayoutFlow backbone module."""
 
     def __init__(
         self,
@@ -204,7 +205,7 @@ class LayoutDMBackbone(nn.Module):
         attr_encoding: AttrEncoding = AttrEncoding.continuous,
         seq_type: SeqType = SeqType.stacked,
     ) -> None:
-        """Initialize the vendor-compatible backbone."""
+        """Initialize the LayoutFlow backbone."""
         super().__init__()
         self.geom_dim = 4
         self.num_cat = num_cat
@@ -348,7 +349,7 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
 
         Args:
             num_labels: Number of dataset labels.
-            latent_dim: Vendor latent dimension.
+            latent_dim: Latent dimension.
             tr_enc_only: Whether to use the encoder-only path.
             d_model: Transformer hidden size.
             nhead: Number of attention heads.
@@ -356,8 +357,8 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
             num_layers: Number of transformer layers.
             dropout: Dropout probability.
             use_pos_enc: Whether to add positional encodings.
-            attr_encoding: Vendor attribute encoding.
-            seq_type: Vendor sequence type.
+            attr_encoding: Attribute encoding.
+            seq_type: Sequence type.
         """
         super().__init__()
         self.geom_dim = 4

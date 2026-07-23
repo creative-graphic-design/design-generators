@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
+
 import torch
 from torch import nn
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
 from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
@@ -13,13 +17,20 @@ from laygen.common import ConditionType
 
 from .losses import denoising_mse
 
-try:
+if TYPE_CHECKING:
     from lightning.pytorch import LightningModule
     from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
-except ImportError:  # pragma: no cover - exercised only without training extra
-    LightningModule = nn.Module  # type: ignore[misc,assignment]
-    OptimizerCallable = object  # type: ignore[misc,assignment]
-    LRSchedulerCallable = object  # type: ignore[misc,assignment]
+    from lightning.pytorch.utilities.types import OptimizerLRScheduler
+else:
+    try:
+        from lightning.pytorch import LightningModule
+        from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
+        from lightning.pytorch.utilities.types import OptimizerLRScheduler
+    except ImportError:  # pragma: no cover - exercised only without training extra
+        LightningModule = nn.Module
+        OptimizerCallable = Callable[[Iterable[nn.Parameter]], Optimizer]
+        LRSchedulerCallable = Callable[[Optimizer], LRScheduler]
+        OptimizerLRScheduler = Optimizer | dict[str, object]
 
 
 class CGBDMTrainingModule(LightningModule):
@@ -29,7 +40,7 @@ class CGBDMTrainingModule(LightningModule):
         self,
         *,
         config: CGBDMConfig | dict[str, object],
-        optimizer: OptimizerCallable,
+        optimizer: OptimizerCallable | None = None,
         lr_scheduler: LRSchedulerCallable | None = None,
         model: CGBDMTransformerModel | None = None,
         condition_type: str = "content_image",
@@ -110,10 +121,21 @@ class CGBDMTrainingModule(LightningModule):
             self.log("train_loss", loss)
         return loss
 
-    def configure_optimizers(self) -> Optimizer | dict[str, object]:
+    def configure_optimizers(self) -> OptimizerLRScheduler:
         """Build optimizers injected by LightningCLI."""
-        optimizer = self.optimizer(self.parameters())
+        optimizer = (
+            self.optimizer(self.parameters())  # type: ignore[call-arg]
+            if self.optimizer is not None
+            else torch.optim.Adam(
+                self.parameters(),
+                lr=1.0e-4,
+                weight_decay=0.0,
+                betas=(0.9, 0.999),
+                amsgrad=False,
+                eps=1.0e-8,
+            )
+        )
         if self.lr_scheduler is None:
             return optimizer
-        scheduler = self.lr_scheduler(optimizer)
+        scheduler = self.lr_scheduler(optimizer)  # type: ignore[call-arg]
         return {"optimizer": optimizer, "lr_scheduler": scheduler}

@@ -46,12 +46,12 @@ class CGBDMStepTraceAdapter:
         return cast(Mapping[str, torch.Tensor], batch)
 
 
-def capture_vendor_order(data_root: str | Path, *, split: str = "train") -> list[str]:
+def capture_source_order(data_root: str | Path, *, split: str = "train") -> list[str]:
     """Capture the filename order used by the original CGB-DM training loader."""
     return list(os.listdir(Path(data_root) / split / "inpaint"))
 
 
-def write_vendor_order_manifest(
+def write_source_order_manifest(
     *,
     data_root: str | Path,
     output: str | Path,
@@ -59,8 +59,8 @@ def write_vendor_order_manifest(
     split: str = "train",
     seed: int = 1,
 ) -> Path:
-    """Write a regenerated vendor-order manifest outside the repository."""
-    names = capture_vendor_order(data_root, split=split)
+    """Write a regenerated source-order manifest outside the repository."""
+    names = capture_source_order(data_root, split=split)
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -69,7 +69,7 @@ def write_vendor_order_manifest(
                 "dataset": dataset,
                 "split": split,
                 "seed": seed,
-                "source": "vendor train_dataset os.listdir order",
+                "source": "original train_dataset os.listdir order",
                 "data_root": str(data_root),
                 "names": names,
             },
@@ -80,19 +80,19 @@ def write_vendor_order_manifest(
     return path
 
 
-def load_vendor_order_manifest(path: str | Path) -> list[str]:
-    """Load names from a regenerated vendor-order manifest."""
+def load_source_order_manifest(path: str | Path) -> list[str]:
+    """Load names from a regenerated source-order manifest."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return [str(name) for name in payload["names"]]
 
 
-def build_vendor_compatible_dataset(
+def build_reference_encoded_dataset(
     data_root: str | Path, *, manifest: str | Path, split: str = "train"
 ) -> CGBDMOriginalDataset:
-    """Build a CGB-DM dataset that replays captured vendor order and encoding."""
+    """Build a CGB-DM dataset that replays captured source order and encoding."""
     return CGBDMOriginalDataset(
         data_root,
         split=split,
         name_manifest=manifest,
-        encoding="vendor",
+        encoding="reference",
     )

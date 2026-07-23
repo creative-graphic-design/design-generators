@@ -1,16 +1,18 @@
 import torch
+import pytest
 
 from cgb_dm.training import CGBDMDataModule, CGBDMTrainingModule
 from PIL import Image
 
 from cgb_dm.training.parity import (
     CGBDMStepTraceAdapter,
-    build_vendor_compatible_dataset,
-    capture_vendor_order,
-    load_vendor_order_manifest,
-    write_vendor_order_manifest,
+    build_reference_encoded_dataset,
+    capture_source_order,
+    load_source_order_manifest,
+    write_source_order_manifest,
 )
 from cgb_dm.training.seed import apply_seed_mode
+from traingen.lightning.cli import main
 
 
 def test_training_step_records_required_trace():
@@ -103,7 +105,6 @@ def test_training_helpers_cover_tuple_adapter_and_plain_optimizer():
     }
     module = CGBDMTrainingModule(
         config=config,
-        optimizer=lambda params: torch.optim.Adam(params, lr=1.0e-4),
     )
     assert isinstance(module.configure_optimizers(), torch.optim.Adam)
 
@@ -115,6 +116,27 @@ def test_training_helpers_cover_tuple_adapter_and_plain_optimizer():
     assert batch["pixel_values"] is image
     assert batch["layout"] is layout
     assert batch["saliency_box"] is saliency_box
+
+
+def test_shared_lightning_cli_runs_smoke_config(tmp_path):
+    main(
+        [
+            "fit",
+            "--config",
+            "models/cgb-dm/configs/training/smoke.yaml",
+            "--trainer.accelerator",
+            "cpu",
+            "--trainer.devices",
+            "1",
+            "--trainer.default_root_dir",
+            str(tmp_path),
+        ]
+    )
+
+
+def test_shared_lightning_cli_help_is_available():
+    with pytest.raises(SystemExit):
+        main(["--help"])
 
 
 def test_vendor_order_manifest_helpers(tmp_path):
@@ -139,15 +161,15 @@ def test_vendor_order_manifest_helpers(tmp_path):
     )
     manifest = tmp_path / "manifest.json"
 
-    assert capture_vendor_order(root) == ["sample.png"]
+    assert capture_source_order(root) == ["sample.png"]
     assert (
-        write_vendor_order_manifest(
+        write_source_order_manifest(
             data_root=root,
             output=manifest,
             dataset="pku_posterlayout",
         )
         == manifest
     )
-    assert load_vendor_order_manifest(manifest) == ["sample.png"]
-    dataset = build_vendor_compatible_dataset(root, manifest=manifest)
+    assert load_source_order_manifest(manifest) == ["sample.png"]
+    dataset = build_reference_encoded_dataset(root, manifest=manifest)
     assert dataset[0]["layout"].shape == (16, 8)

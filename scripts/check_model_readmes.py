@@ -12,9 +12,9 @@ from urllib.parse import parse_qs, unquote, urlparse
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git"
 ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
-    "`🤗 transformers`": "transformers",
-    "`🧨 diffusers`": "diffusers",
-    "`🤖 pydantic-ai`": "pydantic-ai",
+    "`🤗transformers`": "transformers",
+    "`🧨diffusers`": "diffusers",
+    "`🤖pydantic-ai`": "pydantic-ai",
 }
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
@@ -40,6 +40,7 @@ README_POLICY_DOCS = [
     REPO_ROOT / "README.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
 ]
+LIB_READMES = sorted((REPO_ROOT / "lib").glob("*/README.md"))
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -735,6 +736,22 @@ def _assert_code_fences_tagged(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: unterminated code fence")
 
 
+def _assert_lib_readme_install_contract(path: Path, text: str) -> None:
+    package = path.parent.name
+    install = _section(text, "## Install")
+    direct_reference = (
+        f'pip install "{package} @ '
+        "git+https://github.com/creative-graphic-design/design-generators.git"
+        f'#subdirectory=lib/{package}"'
+    )
+    if direct_reference not in install:
+        raise AssertionError(
+            f"{path}: Install must include pip direct-reference subdirectory form"
+        )
+    if f"uv sync --package {package}" not in install:
+        raise AssertionError(f"{path}: Install must include workspace uv sync form")
+
+
 def _assert_parity_table(path: Path, text: str) -> None:
     section = _section(text, "### Parity Results")
     if "| ---" not in section:
@@ -1038,9 +1055,9 @@ def _assert_linked_first_reference_policy(path: Path) -> None:
 def _assert_library_name_style(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     banned_names = {
-        "Transformers": "`🤗 transformers`",
-        "Diffusers": "`🧨 diffusers`",
-        "Pydantic AI": "`🤖 pydantic-ai`",
+        "Transformers": "`🤗transformers`",
+        "Diffusers": "`🧨diffusers`",
+        "Pydantic AI": "`🤖pydantic-ai`",
     }
     for name, replacement in banned_names.items():
         match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
@@ -1048,13 +1065,13 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
-    huggingface_mentions = re.findall(r"`🤗 transformers`", text)
+    huggingface_mentions = re.findall(r"`🤗transformers`", text)
     if text.count("🤗") != len(huggingface_mentions):
         raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
-    diffusers_mentions = re.findall(r"`🧨 diffusers`", text)
+    diffusers_mentions = re.findall(r"`🧨diffusers`", text)
     if text.count("🧨") != len(diffusers_mentions):
         raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
-    pydantic_ai_mentions = re.findall(r"`🤖 pydantic-ai`", text)
+    pydantic_ai_mentions = re.findall(r"`🤖pydantic-ai`", text)
     if text.count("🤖") != len(pydantic_ai_mentions):
         raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
@@ -1062,9 +1079,9 @@ def _assert_library_name_style(path: Path) -> None:
     if re.search(r"🤗\s+pydantic-ai", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
     required_code_spans = {
-        "transformers": "`🤗 transformers`",
-        "diffusers": "`🧨 diffusers`",
-        "pydantic-ai": "`🤖 pydantic-ai`",
+        "transformers": "`🤗transformers`",
+        "diffusers": "`🧨diffusers`",
+        "pydantic-ai": "`🤖pydantic-ai`",
     }
     for library in ("transformers", "diffusers", "pydantic-ai"):
         for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
@@ -1120,6 +1137,8 @@ def check() -> None:
         text = path.read_text(encoding="utf-8")
         _assert_code_fences_tagged(path, text)
         _assert_banned_patterns(path, text)
+    for path in LIB_READMES:
+        _assert_lib_readme_install_contract(path, path.read_text(encoding="utf-8"))
 
 
 def main() -> int:

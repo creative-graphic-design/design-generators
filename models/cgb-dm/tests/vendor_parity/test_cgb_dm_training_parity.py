@@ -12,7 +12,7 @@ from cgb_dm.modeling_cgb_dm import CGBDMModelOutput
 from cgb_dm.training import CGBDMTrainingModule
 from cgb_dm.training.parity import (
     CGBDMStepTraceAdapter,
-    build_vendor_compatible_dataset,
+    build_reference_encoded_dataset,
 )
 
 
@@ -49,12 +49,12 @@ def test_s0_real_vendor_loader_matches_manifest_replay():
     if not data_root.exists():
         raise AssertionError(f"CGB-DM data root is missing: {data_root}")
     if not manifest.exists():
-        raise AssertionError(f"CGB-DM vendor order manifest is missing: {manifest}")
+        raise AssertionError(f"CGB-DM source order manifest is missing: {manifest}")
     if not vendor_root.exists():
         raise AssertionError(f"CGB-DM vendor root is missing: {vendor_root}")
 
     vendor_batch = _load_vendor_rows(vendor_root, data_root, count=3)
-    replay = build_vendor_compatible_dataset(data_root, manifest=manifest)
+    replay = build_reference_encoded_dataset(data_root, manifest=manifest)
     assert len(replay) >= len(vendor_batch)
     for index, (image, layout, saliency_box) in enumerate(vendor_batch):
         row = replay[index]

@@ -57,9 +57,14 @@ def convert_lightning_state_dict(
         >>> out = convert_lightning_state_dict({"model.linear.weight": torch.zeros(1)})
         >>> list(out)
         ['backbone.linear.weight']
+        >>> out = convert_lightning_state_dict({"model.backbone.linear.weight": torch.zeros(1)})
+        >>> list(out)
+        ['backbone.linear.weight']
     """
     converted: dict[str, torch.Tensor] = {}
     for key, value in state_dict.items():
-        if key.startswith("model."):
+        if key.startswith("model.backbone."):
+            converted[f"backbone.{key.removeprefix('model.backbone.')}"] = value
+        elif key.startswith("model."):
             converted[f"backbone.{key.removeprefix('model.')}"] = value
     return converted
