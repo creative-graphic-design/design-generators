@@ -15,17 +15,27 @@ dependencies = [
 
 [project.optional-dependencies]
 training = [
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
+    "h5py>=3.10",
+    "jsonargparse[signatures]>=4.27.7",
     "lightning>=2.0.0",
 ]
 vendor = [
     "accelerate>=0.30",
+    "coloredlogs>=15",
+    "labml-nn>=0.4",
     "ml-collections>=0.1",
+    "opencv-python-headless>=4.8",
     "path>=16",
     "tqdm>=4.66",
+    "wandb>=0.17",
 ]
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"

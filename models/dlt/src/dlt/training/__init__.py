@@ -1,8 +1,7 @@
 """Training utilities for DLT."""
 
-from .config import DLTOptimizerConfig, DLTSeedMode
+from .config import DLTSeedMode
 
 __all__ = [
-    "DLTOptimizerConfig",
     "DLTSeedMode",
 ]

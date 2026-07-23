@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader
 
-from .dataset import SyntheticDLTDataset, collate_dlt_batch
+from .dataset import H5DLTDataset, SyntheticDLTDataset, collate_dlt_batch
 
 
 class DLTDataModule(LightningDataModule):
@@ -21,6 +23,10 @@ class DLTDataModule(LightningDataModule):
         max_num_comp: int = 4,
         categories_num: int = 7,
         seed: int = 0,
+        data_path: str | None = None,
+        train_file: str = "publaynet_train.h5",
+        val_file: str = "publaynet_val.h5",
+        shuffle_train: bool = False,
     ) -> None:
         """Initialize data-module parameters."""
         super().__init__()
@@ -30,10 +36,24 @@ class DLTDataModule(LightningDataModule):
         self.max_num_comp = max_num_comp
         self.categories_num = categories_num
         self.seed = seed
+        self.data_path = Path(data_path) if data_path is not None else None
+        self.train_file = train_file
+        self.val_file = val_file
+        self.shuffle_train = shuffle_train
 
     def setup(self, stage: str | None = None) -> None:
-        """Create synthetic train/validation datasets."""
+        """Create train/validation datasets."""
         del stage
+        if self.data_path is not None:
+            self.train_dataset = H5DLTDataset(
+                self.data_path / self.train_file,
+                max_num_comp=self.max_num_comp,
+            )
+            self.val_dataset = H5DLTDataset(
+                self.data_path / self.val_file,
+                max_num_comp=self.max_num_comp,
+            )
+            return
         self.train_dataset = SyntheticDLTDataset(
             length=self.length,
             max_num_comp=self.max_num_comp,
@@ -54,7 +74,7 @@ class DLTDataModule(LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=False,
+            shuffle=self.shuffle_train,
             num_workers=self.num_workers,
             collate_fn=collate_dlt_batch,
         )
