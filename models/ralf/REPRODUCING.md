@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/s
   --run-vendor
 ```
 
-Step 3 converts the CGL and PKU checkpoints to local 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style directories. The PKU vendor wrapper calls the label-size task `chw`; the converter normalizes both `chw` and `cwh` to canonical `label_size`.
+Step 3 converts the CGL and PKU checkpoints to local [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style directories. The PKU original wrapper calls the label-size task `chw`; the converter normalizes both `chw` and `cwh` to canonical `label_size`.
 
 ```bash
 uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Final, assert_never, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from laygen.agents import BaseLayoutAgent, ModelLike
 from laygen.common import ConditionType
 from laygen.common.bbox import BoxFormat
@@ -55,7 +56,7 @@ def build_agent(model: ModelLike = None) -> object:
 
 
 class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
-    """High-level LayoutGPT runner that ports vendor prompt and parse strategy."""
+    """High-level LayoutGPT runner that ports released prompt and parse strategy."""
 
     def __init__(
         self,
@@ -169,10 +170,10 @@ class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str | ConditionType = ConditionType.text,
-        labels: torch.Tensor | list[object] | None = None,
-        bbox: torch.Tensor | list[object] | None = None,
-        mask: torch.Tensor | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: str | BoxFormat = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

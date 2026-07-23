@@ -6,6 +6,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import BoxFormat
@@ -37,10 +38,19 @@ class LayoutDiffusionProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | list[object]
+        | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -85,10 +95,10 @@ class LayoutDiffusionProcessor(ProcessorMixin):
 
     def num_elements_to_tensor(
         self,
-        num_elements: int | list[int] | torch.Tensor | None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None,
         *,
         batch_size: int,
-    ) -> torch.Tensor | None:
+    ) -> Int[torch.Tensor, "batch"] | None:
         """Convert public element counts to a tensor."""
         if num_elements is None:
             return None

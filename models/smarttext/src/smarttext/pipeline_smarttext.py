@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, cast
 
 import torch
+from jaxtyping import Float, Int
 from PIL import ImageFont
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
@@ -198,7 +199,10 @@ class SmartTextPipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch channels height width"]
+        | None = None,
         *,
         content: Mapping[str, object] | None = None,
         prompt: str | Sequence[str] | None = None,
@@ -210,7 +214,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         labels: object = None,
         bbox: object = None,
         mask: object = None,
-        num_elements: int | Sequence[int] | torch.Tensor | None = None,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -221,7 +225,10 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         ratio_list: Sequence[float] | None = None,
         text_spacing: int | None = None,
         candi_res: int | None = None,
-        saliency: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        saliency: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch height width"]
+        | None = None,
         candidate_boxes: Sequence[Mapping[str, object]]
         | Sequence[Sequence[Mapping[str, object]]]
         | None = None,
@@ -254,7 +261,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
             text_spacing: Optional text-spacing override.
             candi_res: Optional top-k override.
             saliency: Optional saliency map bypassing BASNet.
-            candidate_boxes: Optional vendor-style candidates.
+            candidate_boxes: Optional reference-style candidates.
             return_text_lines: Return per-line boxes for top candidate.
             score_normalization: ``mos`` or ``raw``.
 

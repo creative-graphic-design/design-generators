@@ -169,7 +169,7 @@ def build_default_tokens(
     grid: int,
     add_sep_token: bool = True,
 ) -> list[str]:
-    """Construct a vendor-compatible vocabulary when no `vocab.json` is available."""
+    """Construct a checkpoint-compatible vocabulary when no `vocab.json` is available."""
     normalized_task = normalize_layoutformerpp_task(task)
     tokens = [f"label_{idx}" for idx in range(1, len(dataset_labels) + 1)]
     tokens.extend(str(idx) for idx in range(grid))

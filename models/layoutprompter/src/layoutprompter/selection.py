@@ -1,4 +1,4 @@
-"""Exemplar selection strategies ported from the LayoutPrompter vendor code."""
+"""Exemplar selection strategies for LayoutPrompter prompt construction."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Final
 
+from jaxtyping import Bool, Float
 from laygen.agents import BaseExemplarSelector
 import numpy as np
-from numpy.typing import NDArray
 from typing_extensions import override
 
 from layoutprompter.arrays import as_float_array, as_int_array
@@ -186,7 +186,9 @@ class ContentAwareExemplarSelection(ExemplarSelection):
             scores.append((index, float((intersection + 1) / (union + 1))))
         return self._retrieve_exemplars(scores)
 
-    def _to_binary_mask(self, content_bboxes: NDArray[np.float32]) -> NDArray[np.bool_]:
+    def _to_binary_mask(
+        self, content_bboxes: Float[np.ndarray, "elements 4"]
+    ) -> Bool[np.ndarray, "height width"]:
         width, height = POSTER_MASK_SIZE
         mask = np.zeros((height, width), dtype=np.bool_)
         for left, top, box_width, box_height in content_bboxes.astype(

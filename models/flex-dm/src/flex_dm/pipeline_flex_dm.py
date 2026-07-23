@@ -8,6 +8,7 @@ from typing import ClassVar, Literal, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -104,10 +105,19 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.completion,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -117,7 +127,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         attributes: Mapping[str, object] | None = None,
         content: Mapping[str, object] | None = None,
         feature_group: str | None = None,
-        target_indices: torch.Tensor | None = None,
+        target_indices: Int[torch.Tensor, "..."] | None = None,
         **model_kwargs: object,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Infills masked Flex-DM document fields.
@@ -129,7 +139,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
             generator: Common API compatibility argument. When supplied, it
                 takes precedence over ``seed``; the deterministic Flex-DM
                 inference path does not currently consume it.
-            condition_type: Canonical condition or local vendor task alias.
+            condition_type: Canonical condition or local task alias.
             labels: Public element labels.
             bbox: Public element boxes.
             mask: Public valid-element mask.

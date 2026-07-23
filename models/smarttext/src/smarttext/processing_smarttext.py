@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal, Self, cast
 
 import torch
+from jaxtyping import Float
 from PIL import Image, ImageFont
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
@@ -19,7 +20,7 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .candidate_generation import (
     SmartTextCandidate,
-    candidate_from_vendor_json,
+    candidate_from_reference_json,
 )
 from .configuration_smarttext import SmartTextConfig
 from .image_processing_smarttext import SmartTextImageProcessor
@@ -132,12 +133,15 @@ class SmartTextProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch channels height width"]
+        | None = None,
         *,
         content: Mapping[str, object] | None = None,
         prompt: str | Sequence[str] | None = None,
         text: str | Sequence[str] | None = None,
-        saliency: object | None = None,
+        saliency: Float[torch.Tensor, "batch height width"] | object | None = None,
         candidate_boxes: Sequence[Mapping[str, object]]
         | Sequence[Sequence[Mapping[str, object]]]
         | None = None,
@@ -154,7 +158,7 @@ class SmartTextProcessor(ProcessorMixin):
             prompt: Prompt text payload.
             text: Alias for prompt text.
             saliency: Optional saliency map.
-            candidate_boxes: Optional vendor-style candidate rows.
+            candidate_boxes: Optional reference-style candidate rows.
             font: Font path or PIL font object.
             return_tensors: Tensor framework. Only ``pt`` is supported.
             kwargs: Ignored forward-compatibility kwargs.
@@ -333,11 +337,11 @@ def _decode_candidate_payload(
     first = candidate_boxes[0]
     if isinstance(first, Mapping):
         return [
-            candidate_from_vendor_json(
+            candidate_from_reference_json(
                 cast(Sequence[Mapping[str, object]], candidate_boxes)
             )
         ]
     return [
-        candidate_from_vendor_json(cast(Sequence[Mapping[str, object]], row))
+        candidate_from_reference_json(cast(Sequence[Mapping[str, object]], row))
         for row in candidate_boxes
     ]

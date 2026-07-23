@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from torch import nn
 from torch.nn import functional as F
 from transformers import PreTrainedModel
@@ -103,13 +104,16 @@ class FlexDmInputEncoder(nn.Module):
         self,
         inputs: Mapping[str, torch.Tensor],
         *,
-        task_ids: torch.LongTensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        task_ids: Int[torch.Tensor, "batch"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch seq channels"],
+        Bool[torch.Tensor, "batch seq"],
+    ]:
         """Encode model inputs.
 
         Args:
             inputs: Per-column tensors.
-            task_ids: Optional vendor task ids.
+            task_ids: Optional task ids.
 
         Returns:
             Hidden sequence and valid-element mask.
@@ -175,7 +179,7 @@ class FlexDmInputEncoder(nn.Module):
 
 
 class FlexDmMultiHeadSelfAttention(nn.Module):
-    """Vendor-style explicit multi-head self-attention."""
+    """Explicit explicit multi-head self-attention."""
 
     def __init__(self, hidden_size: int, num_heads: int = 8) -> None:
         """Create attention projections."""
@@ -189,7 +193,9 @@ class FlexDmMultiHeadSelfAttention(nn.Module):
         self.v_proj = nn.Linear(hidden_size, hidden_size)
         self.out_proj = nn.Linear(hidden_size, hidden_size)
 
-    def _split(self, x: torch.Tensor) -> torch.Tensor:
+    def _split(
+        self, x: Float[torch.Tensor, "batch seq channels"]
+    ) -> Float[torch.Tensor, "batch heads seq head_dim"]:
         batch, seq_len, hidden = x.shape
         return x.view(
             batch, seq_len, self.num_heads, hidden // self.num_heads
@@ -197,9 +203,9 @@ class FlexDmMultiHeadSelfAttention(nn.Module):
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
+        hidden_states: Float[torch.Tensor, "batch seq channels"],
+        attention_mask: Bool[torch.Tensor, "batch seq"],
+    ) -> Float[torch.Tensor, "batch seq channels"]:
         """Apply self-attention using an additive ``-1e9`` padding mask."""
         query = self._split(self.q_proj(hidden_states))
         key = self._split(self.k_proj(hidden_states))
@@ -232,9 +238,9 @@ class FlexDmDeepSvgBlock(nn.Module):
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
+        hidden_states: Float[torch.Tensor, "batch seq channels"],
+        attention_mask: Bool[torch.Tensor, "batch seq"],
+    ) -> Float[torch.Tensor, "batch seq channels"]:
         """Apply pre-norm attention and MLP residuals."""
         hidden_states = hidden_states + self.dropout(
             self.attention(self.norm1(hidden_states), attention_mask)
@@ -243,7 +249,7 @@ class FlexDmDeepSvgBlock(nn.Module):
 
 
 class FlexDmDecoder(nn.Module):
-    """Decode hidden states into one head per vendor column."""
+    """Decode hidden states into one head per model column."""
 
     def __init__(self, config: FlexDmConfig) -> None:
         """Create per-column output heads."""
@@ -257,7 +263,9 @@ class FlexDmDecoder(nn.Module):
                 units *= cast(int, column["input_dim"])
             self.heads[_module_key(key)] = nn.Linear(config.latent_dim, units)
 
-    def forward(self, hidden_states: torch.Tensor) -> dict[str, torch.Tensor]:
+    def forward(
+        self, hidden_states: Float[torch.Tensor, "batch seq channels"]
+    ) -> dict[str, torch.Tensor]:
         """Return per-column logits and predictions."""
         outputs: dict[str, torch.Tensor] = {}
         for key in self.config.valid_sequence_keys:
@@ -296,7 +304,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
         inputs: Mapping[str, torch.Tensor],
         masks: Mapping[str, torch.Tensor] | None = None,
         labels: Mapping[str, torch.Tensor] | None = None,
-        task_ids: torch.LongTensor | None = None,
+        task_ids: Int[torch.Tensor, "batch"] | None = None,
         output_hidden_states: bool = False,
         return_dict: bool | None = None,
     ) -> FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]:
@@ -306,7 +314,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
             inputs: Per-column model input tensors.
             masks: Optional hidden-field masks for diagnostics.
             labels: Optional per-column reconstruction targets.
-            task_ids: Optional vendor task ids.
+            task_ids: Optional task ids.
             output_hidden_states: Whether to include final hidden states.
             return_dict: Whether to return a ``ModelOutput``.
 

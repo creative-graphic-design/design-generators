@@ -130,8 +130,8 @@ print(out.bbox, out.labels, out.mask)
         limitations=(
             "This conversion preserves the released LayoutFormer++ checkpoint "
             "contract and inherits the dataset and task coverage of the original "
-            "research release. Local vendor parity covers tokenizer behavior, "
-            "teacher-forced logits, vendor greedy/top-k generation, and constrained "
+            "research release. Local reference parity covers tokenizer behavior, "
+            "teacher-forced logits, reference greedy/top-k generation, and constrained "
             "label or label-size generation for every public `rico` and `publaynet` "
             "LayoutFormer++ task checkpoint. This checkpoint is not intended for "
             "OCR, document understanding, or unreviewed production design decisions."

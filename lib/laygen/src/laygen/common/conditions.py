@@ -22,7 +22,7 @@ class ConditionType(StrEnum):
 
 
 class ConditionAlias(StrEnum):
-    """Supported public and implementation-specific condition aliases."""
+    """Supported public and release-specific condition aliases."""
 
     unconditional = auto()
     uncond = auto()
@@ -110,7 +110,7 @@ def normalize_condition_type(condition_type: ConditionType | str) -> ConditionTy
     """Normalize condition aliases to a canonical ``ConditionType``.
 
     Args:
-        condition_type: Canonical condition enum or a public alias.
+        condition_type: Canonical condition enum or a public/release alias.
 
     Returns:
         Canonical condition enum.

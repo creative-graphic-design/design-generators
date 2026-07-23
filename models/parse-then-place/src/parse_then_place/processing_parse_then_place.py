@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Final, Literal, TypedDict, cast
 
 import torch
+from jaxtyping import Int
 from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
 
 from laygen.common.bbox import normalize_boxes
@@ -72,7 +73,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
             else id2label_for_dataset(dataset)
         )
         self.label2id = {label.lower(): idx for idx, label in self.id2label.items()}
-        # Keep vendor spellings as aliases because RICO uses lower-case labels.
+        # Keep released spellings as aliases because RICO uses lower-case labels.
         self.label2id.update(label2id_for_dataset(dataset))
         if parser_tokenizer is not None and placement_tokenizer is not None:
             super().__init__(
@@ -103,7 +104,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         *,
         replace_explicit_value: bool = True,
     ) -> PromptEncoding:
-        """Apply the vendor text normalization used before stage-1 parsing.
+        """Apply the released text normalization used before stage-1 parsing.
 
         Args:
             prompt: Natural-language text prompt.
@@ -172,7 +173,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
 
     def postprocess_ir(
         self,
-        generated_ids: torch.Tensor | Sequence[str],
+        generated_ids: Int[torch.Tensor, "batch tokens"] | Sequence[str],
         *,
         value_maps: list[dict[str, str] | None] | None = None,
     ) -> list[str]:
@@ -217,7 +218,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
 
         Runtime keeps this method deterministic and accepts already-linearized
         constraints, which is also the artifact stored in stage-1 prediction JSON
-        files. The current parity scripts do not execute the vendor grammar
+        files. The current parity scripts do not execute the released grammar
         executor.
         """
         return [self._logical_form_to_constraint(item) for item in logical_forms]
