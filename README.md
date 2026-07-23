@@ -42,6 +42,8 @@ design-generators ports layout, poster, and graphic-design generation research r
 | --- | --- |
 | [laygen](lib/laygen/README.md) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. |
 | [posgen](lib/posgen/README.md) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
+| [traingen](lib/traingen/README.md) | Training utilities for package-local PyTorch Lightning CLI integration in train-ourselves packages. |
+| [traingen-parity](lib/traingen-parity/README.md) | Deterministic trace capture and comparison helpers for training-parity checks. |
 
 ## Quick Start
 
@@ -88,9 +90,13 @@ Converted checkpoint directories and vendor fixtures are generated under `.cache
 > [!WARNING]
 > ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on [`🤗transformers`](https://huggingface.co/docs/transformers/index) / [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
 
+### Training
+
+Train-ourselves model packages use [`PyTorch Lightning`](https://lightning.ai/docs/pytorch/stable/) with [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) YAML configs and no Hydra dependency in the package-local training path. Each trainable model keeps its `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package; package-specific launch, resume, conversion, and smoke-test commands live in that package's `TRAINING.md`. Training validation is staged from static config parity to fixed-batch traces, one optimizer step, scheduler-enabled checks, validation-metric behavior, and full-run statistical comparison; deterministic mode gates the exact static, trace, and one-step checks, while regular full runs use the package default seed mode. Shared infrastructure belongs in `lib/traingen` and comparison helpers in `lib/traingen-parity`.
+
 ## Documentation
 
-The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/).
+The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/). API pages are generated from workspace members below `lib/*/src` and `models/*/src`. Public API docstrings are the source text for the API reference.
 
 ## License
 

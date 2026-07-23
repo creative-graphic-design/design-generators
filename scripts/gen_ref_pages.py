@@ -49,6 +49,7 @@ API_MODULE_ICON = "lucide/file-code"
 API_PACKAGE_ICON = "lucide/package"
 MODELS_OVERVIEW_ICON = "lucide/table-properties"
 REPRODUCING_ICON = "lucide/refresh-cw"
+TRAINING_ICON = "lucide/dumbbell"
 DESIGN_METADATA_TOOL_KEY = "design-generators"
 DESIGN_METADATA_REQUIRED_KEYS = ("framework", "task", "conditions", "datasets")
 DESIGN_METADATA_EXAMPLE = (
@@ -126,6 +127,7 @@ class ApiPackage:
     package_root: Path
     index_path: Path
     reproducing_path: Path | None
+    training_path: Path | None
     pages: tuple[ApiPage, ...]
     design_metadata: ModelDesignMetadata | None
 
@@ -519,6 +521,18 @@ def reproducing_page_path_for(
     return Path("api", group.lower(), package_slug(project_name), "reproducing.md")
 
 
+def training_page_path_for(
+    group: str,
+    project_name: str,
+    member_dir: Path,
+) -> Path | None:
+    """Return the generated training guide path for a workspace member."""
+    training_file = member_dir / "TRAINING.md"
+    if not training_file.is_file():
+        return None
+    return Path("api", group.lower(), package_slug(project_name), "training.md")
+
+
 def imported_public_modules(init_file: Path) -> set[str]:
     """Return sibling module stems imported by a package ``__init__`` file."""
     imported_modules: set[str] = set()
@@ -624,6 +638,11 @@ def discover_api_packages() -> list[ApiPackage]:
                         "index.md",
                     ),
                     reproducing_path=reproducing_page_path_for(
+                        group,
+                        project_name,
+                        member_dir,
+                    ),
+                    training_path=training_page_path_for(
                         group,
                         project_name,
                         member_dir,
@@ -769,6 +788,15 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
                     "",
                 ]
             )
+        if package.training_path is not None:
+            lines.extend(
+                [
+                    "**Training:** "
+                    "[Open the model training guide]"
+                    f"({relative_docs_route(package.training_path, source=package.index_path)}).",
+                    "",
+                ]
+            )
         lines.extend(["## API Modules", ""])
         for page in package.pages:
             relative_page_path = relative_docs_route(
@@ -843,7 +871,26 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
             ]
         )
         for package in group_packages:
-            lines.append(f"          - {package.display_name}: {package.index_path}")
+            lines.extend(
+                [
+                    f"          - {package.display_name}:",
+                    f"              - Overview: {package.index_path}",
+                ]
+            )
+            if package.reproducing_path is not None:
+                lines.append(f"              - Reproducing: {package.reproducing_path}")
+            if package.training_path is not None:
+                lines.append(f"              - Training: {package.training_path}")
+            if package.pages:
+                lines.extend(
+                    [
+                        "              - API Modules:",
+                        *(
+                            f"                  - {page.module}: {page.page_path}"
+                            for page in package.pages
+                        ),
+                    ]
+                )
     return lines
 
 
@@ -881,6 +928,28 @@ def write_reproducing_pages(packages: list[ApiPackage]) -> None:
                 [
                     *frontmatter,
                     reproducing_path.read_text(encoding="utf-8").rstrip(),
+                    "",
+                ]
+            ),
+        )
+
+
+def write_training_pages(packages: list[ApiPackage]) -> None:
+    """Write package training guides when the member ships one."""
+    for package in packages:
+        if package.training_path is None:
+            continue
+        training_path = package.member_dir / "TRAINING.md"
+        frontmatter = render_page_frontmatter(
+            TRAINING_ICON,
+            ("Training", package.group),
+        )
+        write_text_file(
+            package.training_path,
+            "\n".join(
+                [
+                    *frontmatter,
+                    training_path.read_text(encoding="utf-8").rstrip(),
                     "",
                 ]
             ),
@@ -925,6 +994,7 @@ def main() -> None:
     write_package_indexes(packages)
     write_models_overview(packages)
     write_reproducing_pages(packages)
+    write_training_pages(packages)
     write_api_pages(packages)
     write_generated_mkdocs_config(packages)
 

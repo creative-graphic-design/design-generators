@@ -1,0 +1,32 @@
+seed_everything: 42975
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  max_epochs: 1
+  limit_train_batches: 1
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+model:
+  class_path: layout_flow.training.LayoutFlowTrainingModule
+  init_args:
+    config:
+      class_path: layout_flow.LayoutFlowConfig
+      init_args:
+        dataset_name: publaynet
+    learning_rate: 0.0005
+    scheduler: null
+    condition_policy: random4
+    geom_l1_weight: 0.2
+    seed_mode: deterministic
+    fid_calc_every_n: 0
+data:
+  class_path: layout_flow.training.LayoutFlowDataModule
+  init_args:
+    dataset_name: publaynet
+    data_path: .cache/layout-flow/data/publaynet
+    batch_size: 4
+    max_length: 20
+    num_workers: 0
+    box_format: xywh

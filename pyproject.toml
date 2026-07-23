@@ -35,6 +35,8 @@ dependencies = [
     "posgen",
     "ralf",
     "smarttext",
+    "traingen",
+    "traingen-parity",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -49,7 +51,8 @@ llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
 training = [
-    "lightning>=2.0.0",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
 ]
 
 [dependency-groups]
@@ -188,6 +191,8 @@ postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
@@ -243,6 +248,7 @@ testpaths = ["tests", "lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original model weights and vendor dependencies",
 ]
 
@@ -251,8 +257,13 @@ branch = true
 omit = [
     "tests/*",
     "tests/**/*",
+    "models/*/tests/vendor_parity/*",
+    "models/*/tests/vendor_parity/**/*",
+    "models/layout-flow/src/layout_flow/training/*",
     "scripts/*",
     "scripts/**/*",
+    "vendor/*",
+    "vendor/**/*",
 ]
 
 [tool.coverage.report]

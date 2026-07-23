@@ -96,7 +96,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             batch_size: Number of layouts to generate.
             seed: Optional seed used when ``generator`` is omitted.
             generator: Optional torch random generator.
-            condition_type: Public condition name or vendor alias.
+            condition_type: Public condition name or supported alias.
             labels: Optional condition labels.
             bbox: Optional condition boxes.
             mask: Optional valid-element mask.
