@@ -8,6 +8,7 @@ from typing import Final, assert_never
 
 import torch
 from diffusers import DiffusionPipeline
+from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
@@ -169,9 +170,9 @@ class LacePipeline(DiffusionPipeline):
         generator: torch.Generator | None = None,
         seed: int | None = None,
         condition_type: ConditionType | str | None = ConditionType.unconditional,
-        bbox: torch.Tensor | None = None,
-        labels: torch.Tensor | None = None,
-        mask: torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

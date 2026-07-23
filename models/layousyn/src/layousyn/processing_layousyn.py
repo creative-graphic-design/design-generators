@@ -10,6 +10,7 @@ from typing import Final, Literal, TypedDict
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -142,19 +143,26 @@ class LayouSynProcessor(ProcessorMixin):
         prompt: str | Sequence[str] | None = None,
         labels: Sequence[str]
         | Sequence[Sequence[str]]
-        | torch.Tensor
-        | np.ndarray
+        | Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
         | None = None,
         id2label: dict[int, str] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-        aspect_ratio: float | Sequence[float] | torch.Tensor = 1.0,
-        caption_embeds: torch.Tensor | None = None,
-        caption_padding_mask: torch.Tensor | None = None,
-        concept_embeds: torch.Tensor | None = None,
+        aspect_ratio: float | Sequence[float] | Float[torch.Tensor, "batch"] = 1.0,
+        caption_embeds: Float[torch.Tensor, "batch tokens embedding_dim"] | None = None,
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"]
+        | None = None,
     ) -> LayouSynBatch:
         """Encode public text and concept inputs.
 
