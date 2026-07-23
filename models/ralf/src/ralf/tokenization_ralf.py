@@ -50,7 +50,9 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         if config is None and tokenizer_config_file is not None:
             with Path(tokenizer_config_file).open() as f:
                 config = RalfConfig(**json.load(f)["config"])
-        self.config = config or RalfConfig()
+        if config is None:
+            raise ValueError("RalfLayoutTokenizer requires an explicit config")
+        self.config = config
         self._token2id = self._build_vocab()
         self._id2token = {idx: token for token, idx in self._token2id.items()}
         kwargs.setdefault("pad_token", "[pad]")
