@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import re
 import sys
 from types import ModuleType
 
@@ -13,6 +14,28 @@ from pytest import MonkeyPatch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GEN_REF_PAGES = REPO_ROOT / "scripts/gen_ref_pages.py"
+FRONTMATTER_RE = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.S)
+
+
+def _docs_markdown_pages(root: Path = REPO_ROOT) -> list[Path]:
+    return [
+        path
+        for path in sorted((root / "docs").rglob("*.md"))
+        if "stylesheets" not in path.relative_to(root / "docs").parts
+    ]
+
+
+def _assert_docs_page_frontmatter(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    match = FRONTMATTER_RE.match(text)
+    assert match is not None, f"{path}: missing YAML frontmatter"
+    frontmatter = match.group("body")
+    assert re.search(r"(?m)^icon:\s+lucide/", frontmatter), (
+        f"{path}: frontmatter must include a lucide icon"
+    )
+    assert re.search(r"(?m)^tags:\n(?:  - .+\n?)+", frontmatter), (
+        f"{path}: frontmatter must include non-empty tags"
+    )
 
 
 def _load_gen_ref_pages() -> ModuleType:
@@ -137,6 +160,14 @@ def test_shields_static_badge_messages_use_query_encoding() -> None:
     )
 
 
+def test_docs_markdown_pages_have_icon_and_tags_frontmatter() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    gen_ref_pages.main()
+
+    for path in _docs_markdown_pages():
+        _assert_docs_page_frontmatter(path)
+
+
 def test_gen_ref_pages_writes_standalone_api_tree(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -212,6 +243,9 @@ def test_gen_ref_pages_writes_standalone_api_tree(
 
     gen_ref_pages.main()
 
+    for path in _docs_markdown_pages(tmp_path):
+        _assert_docs_page_frontmatter(path)
+
     assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
         [
             "---",
@@ -244,7 +278,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         encoding="utf-8"
     )
     assert package_index.startswith(
-        "---\ntags:\n  - transformers\n  - content-agnostic-layout-generation\n  - content-aware-layout-generation\n"
+        "---\nicon: lucide/package\ntags:\n  - Models\n  - API Reference\n  - transformers\n  - content-agnostic-layout-generation\n  - content-aware-layout-generation\n"
     )
     assert (
         "  - unconditional\n  - label_size\n  - rico25\n  - publaynet\n---\n"
@@ -258,13 +292,55 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     assert "## Reproducing Guide" not in package_index
     assert (tmp_path / "docs/api/models/fake-project/reproducing.md").read_text(
         encoding="utf-8"
-    ) == "# Reproducing Fake Project\n\nRun parity checks.\n"
+    ) == "\n".join(
+        [
+            "---",
+            "icon: lucide/refresh-cw",
+            "tags:",
+            "  - Reproducibility",
+            "  - Models",
+            "---",
+            "",
+            "# Reproducing Fake Project",
+            "",
+            "Run parity checks.",
+            "",
+        ]
+    )
     assert (tmp_path / "docs/api/models/fake-project/package.md").read_text(
         encoding="utf-8"
-    ) == "# `fake_pkg`\n\n::: fake_pkg\n"
+    ) == "\n".join(
+        [
+            "---",
+            "icon: lucide/file-code",
+            "tags:",
+            "  - API Reference",
+            "  - Models",
+            "---",
+            "",
+            "# `fake_pkg`",
+            "",
+            "::: fake_pkg",
+            "",
+        ]
+    )
     assert (tmp_path / "docs/api/models/fake-project/public.md").read_text(
         encoding="utf-8"
-    ) == "# `fake_pkg.public`\n\n::: fake_pkg.public\n"
+    ) == "\n".join(
+        [
+            "---",
+            "icon: lucide/file-code",
+            "tags:",
+            "  - API Reference",
+            "  - Models",
+            "---",
+            "",
+            "# `fake_pkg.public`",
+            "",
+            "::: fake_pkg.public",
+            "",
+        ]
+    )
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
     assert (

@@ -168,6 +168,7 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   ```
 - The API reference is generated from workspace members under `lib/*` and
   `models/*`, using Python packages found below each member's `src/` directory.
+- Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags`.
 - Public API docstrings are the source text for the API reference. Use
   google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples`
   sections for public pipelines, tokenizers, processors, configs,

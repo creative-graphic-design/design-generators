@@ -1,3 +1,10 @@
+---
+icon: lucide/play
+tags:
+  - Getting Started
+  - Documentation
+---
+
 # Getting Started
 
 Install workspace members from the repository root with `uv`. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so extras and dependency source mappings resolve correctly.

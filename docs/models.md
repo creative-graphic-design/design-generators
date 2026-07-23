@@ -1,4 +1,5 @@
 ---
+icon: lucide/table-properties
 tags:
   - Models
   - Documentation

@@ -88,6 +88,8 @@ Vendor parity fixtures are reference outputs regenerated from the original imple
 
 ### Documentation
 
+Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags` so the docs site has consistent navigation metadata.
+
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 
 Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running `from_pretrained` smoke tests.
