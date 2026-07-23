@@ -2,7 +2,7 @@ import torch
 
 from laygen.common.discrete import SamplingMode
 from layout_dm.sampling import LayoutDMSamplingConfig
-from layout_dm.scheduler import LayoutDMScheduler
+from layout_dm.scheduling_layout_dm import LayoutDMScheduler
 
 
 def test_scheduler_step_shape():

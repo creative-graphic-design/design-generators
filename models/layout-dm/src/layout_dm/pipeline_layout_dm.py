@@ -17,10 +17,10 @@ from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .conditioning import build_condition
-from .denoiser import LayoutDMDenoiser
+from .modeling_layout_dm import LayoutDMDenoiser
 from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
-from .scheduler import LayoutDMScheduler
+from .scheduling_layout_dm import LayoutDMScheduler
 from .tokenization_layout_dm import LayoutDMTokenizer
 
 
@@ -102,7 +102,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             batch_size: Number of layouts generated for unconditional sampling.
             seed: Optional seed used only when ``generator`` is omitted.
             generator: Optional torch generator. Takes precedence over ``seed``.
-            condition_type: Canonical condition type or supported vendor alias.
+            condition_type: Canonical condition type or supported source alias.
             labels: Optional labels used by conditional modes.
             bbox: Optional boxes used by conditional modes.
             mask: Optional valid-element mask for conditional inputs.
@@ -133,18 +133,25 @@ class LayoutDMPipeline(DiffusionPipeline):
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical is not ConditionType.unconditional:
-            if bbox is None or labels is None:
-                raise ValueError(
+            missing_inputs = [
+                name
+                for name, value in (("bbox", bbox), ("labels", labels))
+                if value is None
+            ]
+            if missing_inputs:
+                message = (
                     f"bbox and labels are required for condition_type={condition_type}"
                 )
-            processed = self.processor(
-                bbox=bbox,
-                labels=labels,
-                mask=mask,
-                box_format=box_format,
-                normalized=normalized,
-                canvas_size=canvas_size,
-            )
+                raise ValueError(message)
+            processor_inputs = {
+                "bbox": bbox,
+                "labels": labels,
+                "mask": mask,
+                "box_format": box_format,
+                "normalized": normalized,
+                "canvas_size": canvas_size,
+            }
+            processed = self.processor(**processor_inputs)
             decoded_input = self.tokenizer.decode_layout(processed["input_ids"])
             condition = build_condition(
                 self.tokenizer,

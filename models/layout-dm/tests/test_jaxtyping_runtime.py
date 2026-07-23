@@ -25,8 +25,8 @@ def test_denoiser_hook_liveness_rejects_logits_dtype_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_dm.denoiser"], "beartype.beartype"):
-            from layout_dm.denoiser import LayoutDMDenoiserOutput
+        with install_import_hook(["layout_dm.modeling_layout_dm"], "beartype.beartype"):
+            from layout_dm.modeling_layout_dm import LayoutDMDenoiserOutput
 
         LayoutDMDenoiserOutput(logits=torch.zeros(1, 2, 3, dtype=torch.long))
         """,
@@ -40,8 +40,8 @@ def test_denoiser_hook_liveness_rejects_logits_rank_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_dm.denoiser"], "beartype.beartype"):
-            from layout_dm.denoiser import LayoutDMDenoiserOutput
+        with install_import_hook(["layout_dm.modeling_layout_dm"], "beartype.beartype"):
+            from layout_dm.modeling_layout_dm import LayoutDMDenoiserOutput
 
         LayoutDMDenoiserOutput(logits=torch.zeros(1, 2))
         """,
@@ -55,7 +55,7 @@ def test_denoiser_hook_liveness_rejects_timestep_shape_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_dm.denoiser"], "beartype.beartype"):
+        with install_import_hook(["layout_dm.modeling_layout_dm"], "beartype.beartype"):
             from layout_dm import LayoutDMDenoiser
 
         model = LayoutDMDenoiser(vocab_size=8, max_token_length=4, hidden_size=8, num_attention_heads=2, num_hidden_layers=1, intermediate_size=16)
@@ -70,7 +70,7 @@ def test_denoiser_without_hook_accepts_output_annotation_mismatches() -> None:
         """
         import torch
 
-        from layout_dm.denoiser import LayoutDMDenoiserOutput
+        from layout_dm.modeling_layout_dm import LayoutDMDenoiserOutput
 
         assert LayoutDMDenoiserOutput(logits=torch.zeros(1, 2, 3, dtype=torch.long)).logits.shape == (1, 2, 3)
         assert LayoutDMDenoiserOutput(logits=torch.zeros(1, 2)).logits.shape == (1, 2)
