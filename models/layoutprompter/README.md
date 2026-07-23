@@ -81,6 +81,14 @@ Re-run the vendor parity suite before publishing prompt configurations or compar
 
 ## How to Get Started with the Model
 
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layoutprompter @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layoutprompter"
+```
+
 Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses `pydantic-ai`'s `TestModel` so it runs without provider credentials.
 
 ```bash

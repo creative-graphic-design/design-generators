@@ -24,7 +24,7 @@ class DSGANModelOutput(ModelOutput):
     """Raw DS-GAN generator output.
 
     Attributes:
-        class_probs: Vendor class probabilities with shape
+        class_probs: Internal class probabilities with shape
             ``(batch, elements, 4)`` where id 0 is ``no object``.
         bbox: Normalized center ``xywh`` boxes with shape
             ``(batch, elements, 4)``.
@@ -37,7 +37,7 @@ class DSGANModelOutput(ModelOutput):
 
 
 class ResnetBackbone(nn.Module):
-    """Vendor ResNet-FPN encoder used to initialize the DS-GAN LSTM state."""
+    """DS-GAN ResNet-FPN encoder used to initialize the DS-GAN LSTM state."""
 
     def __init__(self, config: DSGANConfig) -> None:
         """Initialize the ResNet-FPN encoder."""
@@ -93,7 +93,7 @@ class ResnetBackbone(nn.Module):
 
 
 class CNNLSTM(nn.Module):
-    """Vendor CNN-LSTM sequence model."""
+    """DS-GAN CNN-LSTM sequence model."""
 
     def __init__(self, config: DSGANConfig) -> None:
         """Initialize the CNN-LSTM block."""
@@ -121,7 +121,7 @@ class CNNLSTM(nn.Module):
         layout: Float[torch.Tensor, "batch elements 2 4"],
         h0: Float[torch.Tensor, "layers2 batch hidden"],
     ) -> Float[torch.Tensor, "batch elements hidden2"]:
-        """Run the vendor CNN-LSTM over initial layout tensors."""
+        """Run the DS-GAN CNN-LSTM over initial layout tensors."""
         self.lstm.flatten_parameters()
         x = layout.flatten(start_dim=2).permute(0, 2, 1).contiguous()
         x = self.conv(x).permute(0, 2, 1).contiguous()
@@ -165,7 +165,7 @@ class DSGANModel(PreTrainedModel):
 
         Args:
             pixel_values: RGB plus saliency tensor shaped ``(B, 4, H, W)``.
-            layout: Initial vendor layout shaped ``(B, max_elem, 2, 4)``.
+            layout: Initial internal layout shaped ``(B, max_elem, 2, 4)``.
             return_dict: Whether to return a dataclass output.
 
         Returns:
@@ -216,7 +216,7 @@ def random_initial_layout(
     weighted_classes: bool = True,
     use_numpy_classes: bool = False,
 ) -> Float[torch.Tensor, "batch elements 2 4"]:
-    """Sample the vendor DS-GAN initial layout tensor.
+    """Sample the DS-GAN initial layout tensor.
 
     Args:
         batch_size: Batch size.
@@ -225,9 +225,9 @@ def random_initial_layout(
         seed: Convenience seed used only when ``generator`` is absent.
         device: Target torch device.
         dtype: Target floating dtype.
-        weighted_classes: Whether to use the vendor inference class prior.
+        weighted_classes: Whether to use the released inference class prior.
         use_numpy_classes: Use NumPy's legacy ``RandomState`` class sampler to
-            mirror the vendor script's weighted class prior when ``seed`` is
+            mirror the reference script's weighted class prior when ``seed`` is
             supplied. Torch box sampling still follows ``generator`` or ``seed``.
 
     Returns:

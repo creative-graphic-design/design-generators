@@ -88,7 +88,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         num_inference_steps: int | None = None,
         device: torch.device | str | None = None,
     ) -> None:
-        """Set descending denoising timesteps with vendor respacing."""
+        """Set descending denoising timesteps with reference respacing."""
         steps = num_inference_steps or self.num_train_timesteps
         if steps > self.num_train_timesteps:
             raise ValueError("num_inference_steps cannot exceed num_train_timesteps")
@@ -263,7 +263,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
 
 def _space_timesteps(num_timesteps: int, section_count: int) -> set[int]:
-    """Match vendor ``space_timesteps`` for one section count."""
+    """Match reference ``space_timesteps`` for one section count."""
     if num_timesteps < section_count:
         raise ValueError(
             f"cannot divide section of {num_timesteps} into {section_count}"

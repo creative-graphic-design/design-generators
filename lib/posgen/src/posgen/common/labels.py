@@ -104,7 +104,7 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """Normalize poster/content dataset aliases to canonical names.
 
     Args:
-        dataset_name: Dataset enum or public/vendor alias.
+        dataset_name: Dataset enum or public/release alias.
 
     Returns:
         Canonical posgen dataset enum.

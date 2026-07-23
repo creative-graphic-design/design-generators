@@ -131,11 +131,11 @@ def build_cut_hierarchy(
     discrete_x_grid: int,
     discrete_y_grid: int,
 ) -> CoarseToFineHierarchyEncoding:
-    """Build the vendor bottom-two hierarchy for one layout.
+    """Build the checkpoint bottom-two hierarchy for one layout.
 
     Args:
         bbox_ltwh: Normalized ``ltwh`` boxes for valid elements.
-        labels_1based: Vendor one-based labels for valid elements.
+        labels_1based: Internal one-based labels for valid elements.
         num_labels: Number of dataset labels.
         discrete_x_grid: Number of x bins.
         discrete_y_grid: Number of y bins.

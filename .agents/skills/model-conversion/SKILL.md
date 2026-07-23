@@ -36,6 +36,20 @@ conversion.
    work around it; make the small in-scope fix or propose a focused `meta`
    follow-up.
 
+## Source Language
+
+Main package code under `models/*/src` and `lib/*/src` must read as this
+repository's own implementation. Do not describe runtime modules, public
+arguments, comments, or docstrings as vendor wrappers, vendor-compatible
+surfaces, or ports of vendor code. Use repository-owned wording such as
+`released`, `checkpoint`, `reference`, `source`, or `original-code dependency`
+when the distinction is needed.
+
+Vendor-language references are limited to conversion-responsibility modules,
+`tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs
+to compare against an original implementation, keep that detail in conversion,
+reference-generation, or parity-test paths rather than the public runtime API.
+
 ## Package Shape
 
 Create one uv workspace member under `models/<slug>/`:
@@ -216,6 +230,23 @@ details. Keep the final README in model-card style. Include:
 - reproducibility summary with vendor-parity numbers
 - license status and citation
 - `Reproducibility` link to `models/<slug>/REPRODUCING.md`
+
+The user-facing install snippet must use pip direct references to this
+repository's package subdirectories. Include workspace libraries that are not
+published on PyPI, such as `laygen` or `posgen`, in the same command as the
+model package. Preserve clone + uv commands only for development or
+`REPRODUCING.md` workflows.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "<package-name> @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/<slug>"
+```
+
+Omit `posgen` when the model does not depend on it, and keep extras on the
+shared package requirement when the model depends on one, for example
+`laygen[agents]`.
 
 Every model README must include a `### Parity Results` section under `## Evaluation`. Put
 the vendor-parity summary in a numeric table that states what was compared, the

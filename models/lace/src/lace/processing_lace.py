@@ -213,7 +213,7 @@ class LaceProcessor(ProcessorMixin):
     def encode(
         self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
     ) -> torch.Tensor:
-        """Encode normalized boxes and labels into the vendor latent range.
+        """Encode normalized boxes and labels into the LACE latent range.
 
         Args:
             bbox: Normalized center ``xywh`` boxes.
