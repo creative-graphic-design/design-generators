@@ -1,6 +1,7 @@
 import torch
 
 from layoutdiffusion import LayoutDiffusionConfig, LayoutDiffusionScheduler
+from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
 from laygen.common.discrete import index_to_log_onehot
 
 
@@ -39,6 +40,11 @@ def test_scheduler_step_is_generator_reproducible() -> None:
     sample = index_to_log_onehot(sample_ids, scheduler.vocab_size)
     logits = torch.zeros(1, scheduler.vocab_size - 1, 6)
     t = torch.tensor([1])
-    out1 = scheduler.step(logits, t, sample, generator=torch.Generator().manual_seed(1))
-    out2 = scheduler.step(logits, t, sample, generator=torch.Generator().manual_seed(1))
+    sampling = LayoutDiffusionSamplingConfig()
+    out1 = scheduler.step(
+        logits, t, sample, sampling=sampling, generator=torch.Generator().manual_seed(1)
+    )
+    out2 = scheduler.step(
+        logits, t, sample, sampling=sampling, generator=torch.Generator().manual_seed(1)
+    )
     assert torch.equal(out1.prev_sample, out2.prev_sample)
