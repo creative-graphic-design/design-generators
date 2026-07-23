@@ -22,7 +22,12 @@ CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm python models/cgb-dm/scripts/gene
 ### 3. Run Vendor Parity Tests
 
 ```bash
-PARITY_REQUIRE=1 uv run --package cgb-dm pytest models/cgb-dm/tests/vendor_parity -m vendor_parity
+PARITY_REQUIRE=1 \
+CGB_DM_DATA_ROOT=.cache/cgb-dm/datasets/pku/split \
+CGB_DM_VENDOR_ORDER_MANIFEST=.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json \
+CUDA_VISIBLE_DEVICES=0 \
+uv run --package cgb-dm --extra vendor --with pytz \
+  pytest models/cgb-dm/tests/vendor_parity -m vendor_parity
 ```
 
 ### 4. Convert Checkpoints And Smoke Test from_pretrained

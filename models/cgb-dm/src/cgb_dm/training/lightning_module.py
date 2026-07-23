@@ -86,7 +86,9 @@ class CGBDMTrainingModule(LightningModule):
         noise = torch.randn_like(layout)
         fix_mask = self.scheduler.condition_mask(layout, self.condition_type)
         noisy = self.scheduler.add_noise(layout, noise, timesteps, fix_mask=fix_mask)
-        pred = self(noisy, image, saliency_box, timesteps)
+        model_output = self.model(noisy, image, saliency_box, timesteps)
+        pred = model_output.sample if hasattr(model_output, "sample") else model_output
+        cgb_weight = getattr(model_output, "cgb_weight", None)
         loss = denoising_mse(pred, noise)
         self.latest_step_trace = {
             "pixel_values": image.detach(),
@@ -97,6 +99,11 @@ class CGBDMTrainingModule(LightningModule):
             "fix_mask": fix_mask.detach(),
             "noisy_layout": noisy.detach(),
             "predicted_epsilon": pred.detach(),
+            "cgb_weight": (
+                cgb_weight.detach()
+                if isinstance(cgb_weight, torch.Tensor)
+                else torch.empty(0, device=layout.device)
+            ),
             "loss": loss.detach().reshape(1),
         }
         if hasattr(self, "log"):
