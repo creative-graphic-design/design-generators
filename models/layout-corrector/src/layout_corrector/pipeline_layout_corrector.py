@@ -26,7 +26,7 @@ from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_layout_corrector import CorrectorReconType
-from .corrector import LayoutCorrectorModel
+from .modeling_layout_corrector import LayoutCorrectorModel
 from .sampling import (
     LayoutCorrectorSamplingConfig,
     add_confidence_gumbel_noise,
@@ -182,18 +182,26 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical != "unconditional":
-            if bbox is None or labels is None:
+            missing_inputs = [
+                name
+                for name, value in (("bbox", bbox), ("labels", labels))
+                if value is None
+            ]
+            if missing_inputs:
                 raise ValueError(
-                    f"bbox and labels are required for condition_type={condition_type}"
+                    "bbox and labels are required "
+                    f"for condition_type={condition_type}; "
+                    f"missing {', '.join(missing_inputs)}"
                 )
-            processed = self.processor(
-                bbox=bbox,
-                labels=labels,
-                mask=mask,
-                box_format=box_format,
-                normalized=normalized,
-                canvas_size=canvas_size,
-            )
+            processor_inputs = {
+                "bbox": bbox,
+                "labels": labels,
+                "mask": mask,
+                "box_format": box_format,
+                "normalized": normalized,
+                "canvas_size": canvas_size,
+            }
+            processed = self.processor(**processor_inputs)
             decoded_input = self.layout_dm.tokenizer.decode_layout(
                 processed["input_ids"]
             )

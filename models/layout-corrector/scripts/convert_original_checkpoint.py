@@ -13,7 +13,7 @@ from layout_corrector.conversion import (
     discover_seed_dirs,
 )
 from layout_corrector.model_card import layout_corrector_model_card
-from layout_corrector.pipeline import LayoutCorrectorPipeline
+from layout_corrector.pipeline_layout_corrector import LayoutCorrectorPipeline
 from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 
 _LAYGEN_DATASETS: Final[tuple[DatasetName, ...]] = (
