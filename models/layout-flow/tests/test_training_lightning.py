@@ -7,7 +7,6 @@ pytest.importorskip("lightning")
 pytest.importorskip("traingen_parity")
 
 from layout_flow import LayoutFlowConfig
-from layout_flow.training.cli import main
 from layout_flow.training.config import (
     LayoutFlowConditionPolicy,
     LayoutFlowSeedMode,
@@ -21,6 +20,7 @@ from layout_flow.training.parity import (
     trace_layout_flow_step,
 )
 from layout_flow.training.seed import apply_layout_flow_seed_mode
+from traingen.lightning.cli import main
 from traingen_parity.trace import build_step_trace
 
 
