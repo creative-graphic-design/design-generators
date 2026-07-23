@@ -5,7 +5,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=19&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=20&color=purple&style=flat-square)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-, [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`🤖 pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -14,6 +14,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 | Method | Venue | Runtime | Datasets | Reproduction |
 | --- | --- | --- | --- | --- |
 | [Coarse-to-Fine](models/coarse-to-fine/README.md) | AAAI 2022 | `🤗 transformers` | RICO25, PubLayNet | [REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md) |
+| [DLT](models/dlt/README.md) | ICCV 2023 | `🧨 diffusers` | PubLayNet, RICO13, Magazine | [REPRODUCING.md](models/dlt/REPRODUCING.md) |
 | [DS-GAN](models/ds-gan/README.md) | CVPR 2023 | `🤗 transformers` | PosterLayout | [REPRODUCING.md](models/ds-gan/REPRODUCING.md) |
 | [Flex-DM](models/flex-dm/README.md) | CVPR 2023 | `🤗 transformers` | Crello, RICO25 | [REPRODUCING.md](models/flex-dm/REPRODUCING.md) |
 | [House-GAN](models/housegan/README.md) | ECCV 2020 | `🤗 transformers` | housegan-floorplan-vectorized | [REPRODUCING.md](models/housegan/REPRODUCING.md) |

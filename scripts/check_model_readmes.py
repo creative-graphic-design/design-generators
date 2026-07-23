@@ -111,6 +111,14 @@ EXPECTED_FRONTMATTER = {
         "license": "other",
         "datasets": ["PosterLayout"],
     },
+    "dlt": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PubLayNet",
+            "RICO13",
+            "creative-graphic-design/magazine",
+        ],
+    },
     "flex-dm": {
         "license": "apache-2.0",
         "datasets": [
@@ -214,6 +222,7 @@ EXPECTED_FRONTMATTER = {
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
+    "dlt": "DLT",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
     "lace": "LACE",
@@ -242,6 +251,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",

@@ -84,6 +84,9 @@ fi
 if [[ " ${optional_extras} " == *" diffusion "* ]]; then
   uv_run_args+=(--extra diffusion)
 fi
+if [[ " ${optional_extras} " == *" training "* ]]; then
+  uv_run_args+=(--extra training)
+fi
 
 if [ "${MEMBER_TEST_RUNNER_DEPS:-1}" != "0" ]; then
   uv_run_args+=(--with "beartype>=0.22.9,<0.23")

@@ -216,6 +216,7 @@ exclude-newer-span = "P7D"
 members = [
     "coarse-to-fine",
     "design-generators",
+    "dlt",
     "ds-gan",
     "flex-dm",
     "housegan",
@@ -1423,6 +1424,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "coarse-to-fine", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
+    { name = "dlt", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "ds-gan", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "flex-dm", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "housegan", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
@@ -1480,6 +1482,7 @@ docs = [
 requires-dist = [
     { name = "coarse-to-fine", editable = "models/coarse-to-fine" },
     { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusion'", specifier = ">=0.36.0" },
+    { name = "dlt", editable = "models/dlt" },
     { name = "ds-gan", editable = "models/ds-gan" },
     { name = "flex-dm", editable = "models/flex-dm" },
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
@@ -1578,6 +1581,51 @@ sdist = { url = "https://files.pythonhosted.org/packages/fc/f8/98eea607f65de6527
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2", size = 20277, upload-time = "2023-12-24T09:54:30.421Z" },
 ]
+
+[[package]]
+name = "dlt"
+version = "0.1.0"
+source = { editable = "models/dlt" }
+dependencies = [
+    { name = "diffusers", extra = ["torch"] },
+    { name = "einops" },
+    { name = "jaxtyping" },
+    { name = "laygen" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
+    { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-8-housegan-vendor' or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
+    { name = "torch", version = "2.13.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or extra != 'extra-8-housegan-vendor' or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+training = [
+    { name = "lightning" },
+]
+vendor = [
+    { name = "accelerate" },
+    { name = "ml-collections" },
+    { name = "path" },
+    { name = "tqdm" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'vendor'", specifier = ">=0.30" },
+    { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
+    { name = "einops", specifier = ">=0.8" },
+    { name = "jaxtyping", specifier = ">=0.3" },
+    { name = "laygen", editable = "lib/laygen" },
+    { name = "lightning", marker = "extra == 'training'", specifier = ">=2.0.0" },
+    { name = "ml-collections", marker = "extra == 'vendor'", specifier = ">=0.1" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "path", marker = "extra == 'vendor'", specifier = ">=16" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "tqdm", marker = "extra == 'vendor'", specifier = ">=4.66" },
+    { name = "transformers", specifier = ">=5.0.0" },
+]
+provides-extras = ["training", "vendor"]
 
 [[package]]
 name = "dm-tree"
@@ -4331,6 +4379,19 @@ wheels = [
 ]
 
 [[package]]
+name = "ml-collections"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "absl-py" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/f8/1a9ae6696dbb6bc9c44ddf5c5e84710d77fe9a35a57e8a06722e1836a4a6/ml_collections-1.1.0.tar.gz", hash = "sha256:0ac1ac6511b9f1566863e0bb0afad0c64e906ea278ad3f4d2144a55322671f6f", size = 61356, upload-time = "2025-04-17T08:25:02.247Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/8a/18d4ff2c7bd83f30d6924bd4ad97abf418488c3f908dea228d6f0961ad68/ml_collections-1.1.0-py3-none-any.whl", hash = "sha256:23b6fa4772aac1ae745a96044b925a5746145a70734f087eaca6626e92c05cbc", size = 76707, upload-time = "2025-04-17T08:24:59.038Z" },
+]
+
+[[package]]
 name = "ml-dtypes"
 version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -6452,6 +6513,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/76/f1/4594f5e0fcddb6953e5b8fe00da8c317b8b41b547e2b3ae2da7512943c62/pastel-0.2.1.tar.gz", hash = "sha256:e6581ac04e973cac858828c6202c1e1e81fee1dc7de7683f3e1ffe0bfd8a573d", size = 7555, upload-time = "2020-09-16T19:21:12.43Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/aa/18/a8444036c6dd65ba3624c63b734d3ba95ba63ace513078e1580590075d21/pastel-0.2.1-py2.py3-none-any.whl", hash = "sha256:4349225fcdf6c2bb34d483e523475de5bb04a5c10ef711263452cb37d7dd4364", size = 5955, upload-time = "2020-09-16T19:21:11.409Z" },
+]
+
+[[package]]
+name = "path"
+version = "17.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/52/a7bdd5ef8488977d354b7915d1e75009bebbd04f73eff14e52372d5e9435/path-17.1.1.tar.gz", hash = "sha256:2dfcbfec8b4d960f3469c52acf133113c2a8bf12ac7b98d629fa91af87248d42", size = 50528, upload-time = "2025-07-27T20:40:23.79Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/50/11c9ee1ede64b45d687fd36eb8768dafc57afc78b4d83396920cfd69ed30/path-17.1.1-py3-none-any.whl", hash = "sha256:ec7e136df29172e5030dd07e037d55f676bdb29d15bfa09b80da29d07d3b9303", size = 23936, upload-time = "2025-07-27T20:40:22.453Z" },
 ]
 
 [[package]]

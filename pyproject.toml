@@ -13,6 +13,7 @@ classifiers = [
 ]
 dependencies = [
     "coarse-to-fine",
+    "dlt",
     "ds-gan",
     "flex-dm",
     "housegan",
@@ -132,6 +133,7 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 coarse-to-fine = { workspace = true }
+dlt = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
 housegan = { workspace = true }
@@ -207,6 +209,7 @@ testpaths = ["tests", "lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original model weights and vendor dependencies",
 ]
 
