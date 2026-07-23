@@ -8,6 +8,11 @@ def test_training_configs_use_shared_cli_class_paths():
         assert "cgb_dm.training.cli" not in text
         assert "cgb_dm.training.lightning_module.CGBDMTrainingModule" in text
         assert "cgb_dm.training.datamodule.CGBDMDataModule" in text
+        assert "optimizer:\n  class_path: torch.optim.Adam" in text
+        assert (
+            "lr_scheduler:\n  class_path: torch.optim.lr_scheduler.CosineAnnealingLR"
+            in text
+        )
 
 
 def test_docs_include_reproducibility_commands():

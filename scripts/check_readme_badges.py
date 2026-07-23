@@ -84,6 +84,7 @@ PAPER_LINKS = {
     ("arXiv", "2311.06495"): "https://arxiv.org/abs/2311.06495",
     ("arXiv", "2311.13602"): "https://arxiv.org/abs/2311.13602",
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
+    ("arXiv", "2407.15233"): "https://arxiv.org/abs/2407.15233",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",

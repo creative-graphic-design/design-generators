@@ -102,6 +102,13 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "cgb-dm": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PKU-PosterLayout",
+            "creative-graphic-design/CGL-Dataset",
+        ],
+    },
     "ds-gan": {
         "license": "other",
         "datasets": ["PosterLayout"],
@@ -204,6 +211,7 @@ EXPECTED_FRONTMATTER = {
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
+    "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
     "flex-dm": "Flex-DM",
     "lace": "LACE",
@@ -232,6 +240,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
 }

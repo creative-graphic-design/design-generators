@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from torch.optim import Optimizer
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
 from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
@@ -14,8 +15,11 @@ from .losses import denoising_mse
 
 try:
     from lightning.pytorch import LightningModule
+    from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
 except ImportError:  # pragma: no cover - exercised only without training extra
     LightningModule = nn.Module  # type: ignore[misc,assignment]
+    OptimizerCallable = object  # type: ignore[misc,assignment]
+    LRSchedulerCallable = object  # type: ignore[misc,assignment]
 
 
 class CGBDMTrainingModule(LightningModule):
@@ -24,18 +28,17 @@ class CGBDMTrainingModule(LightningModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, object] | None = None,
+        config: CGBDMConfig | dict[str, object],
+        optimizer: OptimizerCallable,
+        lr_scheduler: LRSchedulerCallable | None = None,
         model: CGBDMTransformerModel | None = None,
-        learning_rate: float = 1.0e-4,
-        weight_decay: float = 0.0,
-        gradient_clipping: float = 1.0,
         condition_type: str = "content_image",
         seed_mode: str = "default",
     ) -> None:
         """Initialize model, scheduler, and optimizer settings."""
         super().__init__()
         self.config_obj = (
-            config if isinstance(config, CGBDMConfig) else CGBDMConfig(**(config or {}))
+            config if isinstance(config, CGBDMConfig) else CGBDMConfig(**config)
         )
         self.model = model or CGBDMTransformerModel(
             num_labels=self.config_obj.num_labels,
@@ -53,9 +56,8 @@ class CGBDMTrainingModule(LightningModule):
             train_beta_schedule=self.config_obj.train_beta_schedule,
             sampling_beta_schedule=self.config_obj.sampling_beta_schedule,
         )
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.gradient_clipping = gradient_clipping
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
         self.condition_type = ConditionType(condition_type)
         self.seed_mode = seed_mode
         self.latest_step_trace: dict[str, torch.Tensor] = {}
@@ -101,15 +103,10 @@ class CGBDMTrainingModule(LightningModule):
             self.log("train_loss", loss)
         return loss
 
-    def configure_optimizers(self) -> dict[str, object]:
-        """Return Adam plus cosine LR scheduler matching CGB-DM defaults."""
-        optimizer = torch.optim.Adam(
-            self.model.parameters(),
-            lr=self.learning_rate,
-            weight_decay=self.weight_decay,
-            betas=(0.9, 0.999),
-            eps=1e-8,
-            amsgrad=False,
-        )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=500)
+    def configure_optimizers(self) -> Optimizer | dict[str, object]:
+        """Build optimizers injected by LightningCLI."""
+        optimizer = self.optimizer(self.parameters())
+        if self.lr_scheduler is None:
+            return optimizer
+        scheduler = self.lr_scheduler(optimizer)
         return {"optimizer": optimizer, "lr_scheduler": scheduler}

@@ -1,84 +1,146 @@
 ---
-library_name: diffusers
-pipeline_tag: image-to-layout
-license: apache-2.0
+language:
+  - en
+license: "apache-2.0"
+library_name: "diffusers"
+pipeline_tag: "other"
 tags:
-  - layout-generation
-  - poster-layout
+  - "cgb-dm"
+  - "layoutdit"
+  - "poster-layout"
+  - "layout-generation"
+  - "content-aware-layout"
 datasets:
-  - creative-graphic-design/PKU-PosterLayout
-  - creative-graphic-design/CGL-Dataset
+  - "creative-graphic-design/PKU-PosterLayout"
+  - "creative-graphic-design/CGL-Dataset"
+model-index:
+  - name: "CGB-DM"
+    results:
+      - task:
+          type: "other"
+          name: "Content-aware poster layout generation"
+        dataset:
+          type: "creative-graphic-design/PKU-PosterLayout"
+          name: "PKU PosterLayout"
+          split: "test"
+        metrics:
+          - type: "vendor-parity"
+            value: "see Parity Results"
+            name: "Vendor parity"
 ---
 
-# CGB-DM
+# Model Card for CGB-DM
 
-CGB-DM is a content-aware diffusion transformer for poster layout generation.
-This package provides a Diffusers-style pipeline for training-produced
-checkpoints and local conversion experiments.
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2407.15233&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2407.15233)
+![venue](https://img.shields.io/static/v1?label=venue&message=arXiv+2024&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PKU&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-## Usage
+This package ports CGB-DM, the content-aware poster layout diffusion model from LayoutDiT, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
-Install the workspace package with its shared libraries:
+## Model Details
 
-```bash
-pip install -e lib/laygen -e lib/posgen -e models/cgb-dm
-```
+### Model Description
 
-Load a converted checkpoint:
+CGB-DM generates poster layouts from content images, saliency information, and optional layout constraints. The package exposes `CGBDMTransformerModel`, `CGBDMProcessor`, `CGBDMScheduler`, and `CGBDMPipeline`; public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+
+- **Developed by:** Yu Li, Yifan Chen, Gongye Liu, Fei Yin, Qingyan Bai, Jie Wu, Hongfa Wang, Ruihang Chu, and Yujiu Yang.
+- **Shared by:** creative-graphic-design.
+- **Model type:** content-aware poster layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** Apache-2.0 for the original implementation and this package.
+
+### Model Sources
+
+- **Repository:** [LayoutDiT repository](https://github.com/yuli0103/LayoutDiT)
+- **Paper:** [CGB-DM: Content and Graphic Balance Layout Generation with Transformer-based Diffusion Model](https://arxiv.org/abs/2407.15233)
+- **Training assets:** [CGB-DM asset release page](https://github.com/yuli0103/CGB-DM)
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | planned after training |
+| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | planned after training |
+
+## Uses
+
+### Direct Use
+
+Use this package for research conversion checks, local training experiments, and content-aware poster layout generation after checkpoints have been trained or converted.
 
 ```python
 import torch
 from cgb_dm import CGBDMPipeline
 
 pipe = CGBDMPipeline.from_pretrained("creative-graphic-design/cgb-dm-pku-posterlayout")
-output = pipe(pixel_values=torch.zeros(1, 4, 384, 256), condition_type="content_image")
+out = pipe(pixel_values=torch.zeros(1, 4, 384, 256), condition_type="content_image")
+print(out.bbox, out.labels, out.mask)
 ```
 
-## Checkpoints
-
-| Checkpoint | Dataset | Status |
-| --- | --- | --- |
-| `creative-graphic-design/cgb-dm-pku-posterlayout` | PKU PosterLayout | planned after training |
-| `creative-graphic-design/cgb-dm-cgl` | CGL | planned after training |
-
-## Datasets
-
-PKU PosterLayout and CGL are supported. The original CGB-DM zip remains the
-authoritative source for parity staging because it includes inpainted images,
-saliency maps, saliency boxes, and CSV row ordering.
-
-## Evaluation
-
-### Parity Results
-
-| Dataset | Stage | Cases | Criterion | Result |
-| --- | --- | ---: | --- | --- |
-| PKU PosterLayout | S0-S2 synthetic | 0 | gated adapter present | pending assets |
-| CGL | S0-S2 synthetic | 0 | gated adapter present | pending assets |
-
-## Reproducibility
-
-The original-implementation agreement checks are reproduced by preparing the
-original assets, generating reference metadata, running gated parity tests,
-converting a training checkpoint, and smoke-testing `from_pretrained`.
+Install the package with its shared libraries:
 
 ```bash
-uv run --package cgb-dm python models/cgb-dm/scripts/download_original_assets.py
-CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py --dataset pku_posterlayout
-PARITY_REQUIRE=1 uv run --package cgb-dm pytest models/cgb-dm/tests/vendor_parity -m vendor_parity
-uv run --package cgb-dm python models/cgb-dm/scripts/convert_training_checkpoint.py --checkpoint .cache/cgb-dm/checkpoints/example.ckpt --output-dir .cache/cgb-dm/converted/pku
-uv run --package cgb-dm python models/cgb-dm/scripts/smoke_from_pretrained.py --path .cache/cgb-dm/converted/pku
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "cgb-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/cgb-dm"
 ```
 
-## Training
+### Downstream Use
 
-Use the shared class-path LightningCLI entry point:
+Generated layouts may support poster composition tools, design evaluation, layout reranking, and controlled layout editing workflows after task-specific validation.
+
+### Out-of-Scope Use
+
+Do not treat generated layouts as production accessibility annotations, OCR output, semantic scene understanding, or license-cleared visual designs without separate review.
+
+## Bias, Risks, and Limitations
+
+CGB-DM behavior depends on the upstream data preparation path, including inpainted poster images, saliency maps, saliency boxes, CSV row ordering, and dataset label conventions. The first package version is train-first because released generator checkpoints were not available during implementation.
+
+### Recommendations
+
+Run the gated parity workflow before publishing trained checkpoints or comparing generated metrics. Review generated layouts separately for each poster domain and dataset split.
+
+## How to Get Started with the Model
+
+Clone this repository, install the workspace member, and run the training or conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md). Those steps create converted pipeline directories under `.cache/cgb-dm/converted/`.
+
+## Training Details
+
+### Training Data
+
+PKU PosterLayout and CGL are supported through the original CGB-DM asset structure. The original asset zip remains authoritative for parity because it includes the image, saliency, saliency-box, and CSV ordering needed to mirror the upstream training loop.
+
+### Training Procedure
+
+Training uses the shared class-path [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) entry point with package-local YAML configs. Optimizer and scheduler defaults live in `models/cgb-dm/configs/training/*.yaml`.
 
 ```bash
 uv run --package cgb-dm --extra training \
   python -m traingen.lightning.cli fit \
   --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml
 ```
+
+## Evaluation
+
+### Parity Results
+
+The full vendor parity suite is not run unless local CGB-DM assets are present and `PARITY_REQUIRE=1` is set.
+
+| Dataset | Stage | Cases | Criterion | Result |
+| --- | --- | ---: | --- | --- |
+| PKU PosterLayout | synthetic training-step parity | 0 | gated adapter present | not run |
+| CGL | synthetic training-step parity | 0 | gated adapter present | not run |
+
+## Reproducibility
+
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 ## License
 
@@ -87,8 +149,10 @@ The original implementation is Apache-2.0. This package is Apache-2.0.
 ## Citation
 
 ```bibtex
-@article{layoutdit2024,
-  title = {LayoutDiT: Content-Graphic Balance Layout Generation with Diffusion Transformer},
-  year = {2024}
+@article{li2024cgbdm,
+  title = {CGB-DM: Content and Graphic Balance Layout Generation with Transformer-based Diffusion Model},
+  author = {Li, Yu and Chen, Yifan and Liu, Gongye and Yin, Fei and Bai, Qingyan and Wu, Jie and Wang, Hongfa and Chu, Ruihang and Yang, Yujiu},
+  year = {2024},
+  url = {https://arxiv.org/abs/2407.15233}
 }
 ```

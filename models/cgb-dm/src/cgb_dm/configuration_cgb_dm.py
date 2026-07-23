@@ -23,14 +23,12 @@ class CGBDMDatasetSpec:
         dataset_name: Canonical poster/content dataset enum.
         num_labels: Number of internal class channels, including invalid/pad.
         train_batch_size: Vendor-compatible train batch size.
-        learning_rate: Vendor-compatible Adam learning rate.
         id2label: Public label map persisted in checkpoints.
     """
 
     dataset_name: DatasetName
     num_labels: int
     train_batch_size: int
-    learning_rate: float
     id2label: dict[int, str]
 
 
@@ -44,14 +42,12 @@ DATASET_SPECS: Final[dict[DatasetName, CGBDMDatasetSpec]] = {
         dataset_name=DatasetName.pku_posterlayout,
         num_labels=4,
         train_batch_size=32,
-        learning_rate=1.0e-4,
         id2label=_public_labels(DatasetName.pku_posterlayout),
     ),
     DatasetName.cgl: CGBDMDatasetSpec(
         dataset_name=DatasetName.cgl,
         num_labels=5,
         train_batch_size=128,
-        learning_rate=2.0e-4,
         id2label=_public_labels(DatasetName.cgl),
     ),
 }

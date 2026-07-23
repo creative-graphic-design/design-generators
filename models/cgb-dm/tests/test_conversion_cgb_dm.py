@@ -1,8 +1,12 @@
 import pytest
 import torch
 
-from cgb_dm import CGBDMConfig, CGBDMTransformerModel
-from cgb_dm.conversion import build_pipeline_from_checkpoint, convert_state_dict
+from cgb_dm import CGBDMConfig
+from cgb_dm.conversion import (
+    build_model_from_config,
+    build_pipeline_from_checkpoint,
+    convert_state_dict,
+)
 
 
 def tiny_config() -> CGBDMConfig:
@@ -26,16 +30,7 @@ def test_convert_state_dict_strips_wrappers():
 
 def test_build_pipeline_from_checkpoint_and_rejects_unmatched(tmp_path):
     config = tiny_config()
-    model = CGBDMTransformerModel(
-        num_labels=config.num_labels,
-        max_seq_length=config.max_seq_length,
-        image_size=config.image_size,
-        dim_model=config.dim_model,
-        n_head=config.n_head,
-        feature_dim=config.feature_dim,
-        num_layers=config.num_layers,
-        num_train_timesteps=config.num_train_timesteps,
-    )
+    model = build_model_from_config(config)
     checkpoint = tmp_path / "model.pt"
     torch.save({"state_dict": model.state_dict()}, checkpoint)
 
