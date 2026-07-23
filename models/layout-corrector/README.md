@@ -170,6 +170,14 @@ Re-run the vendor parity suite before publishing converted checkpoints or compar
 
 ## How to Get Started with the Model
 
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-corrector @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-corrector"
+```
+
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md). Those steps create `.cache/layout-corrector/converted/layout-corrector-rico25-smoke`.
 
 ```bash

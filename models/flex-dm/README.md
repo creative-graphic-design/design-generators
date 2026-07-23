@@ -87,6 +87,15 @@ Validate outputs against the target dataset schema before using generated layout
 
 ## How to Get Started with the Model
 
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "flex-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/flex-dm"
+```
+
 The Hub repos are not published yet. Until then, create a local converted checkpoint and load it from `.cache/flex-dm/converted`.
 
 ```bash

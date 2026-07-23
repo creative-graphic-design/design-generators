@@ -101,6 +101,14 @@ Use local converted checkpoints only after validating the original asset provena
 
 ## How to Get Started with the Model
 
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-action @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-action"
+```
+
 Install the workspace member and load a converted checkpoint directory.
 
 ```bash

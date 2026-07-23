@@ -15,6 +15,22 @@ API reference pages are generated on the documentation site: <https://creative-g
 
 ## Install
 
+Install directly from this repository.
+
+```bash
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+
+Install optional extras from the same subdirectory when tensor-backed outputs, `diffusers` helpers, or agent integrations are needed.
+
+```bash
+pip install "laygen[torch] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+pip install "laygen[diffusion] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+pip install "laygen[agents] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+
+For local development in a checkout, use uv workspace commands.
+
 ```bash
 uv sync --package laygen
 uv sync --package laygen --extra torch
