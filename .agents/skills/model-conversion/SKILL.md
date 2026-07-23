@@ -68,6 +68,16 @@ Use the literature method name for `<slug>` and `<package>`. Put original
 implementation dependencies in a `vendor` optional extra and keep `vendor/`
 submodules read-only.
 
+Name direct package modules under `models/<slug>/src/<package>/` with
+Hugging Face-style core filenames when they implement package surface or core
+runtime behavior: `configuration_<package>.py`, `modeling_<package>.py`,
+`pipeline_<package>.py`, `scheduling_<package>.py`,
+`processing_<package>.py`, `tokenization_<package>.py`,
+`image_processing_<package>.py`, or `generation_<package>.py`. Keep
+repository convention files such as `conversion.py` and narrowly scoped domain
+helpers only when they are covered by `scripts/check_module_naming.py`; extend
+that checker deliberately before adding a new direct helper filename.
+
 Use shared libraries by import:
 
 ```python
