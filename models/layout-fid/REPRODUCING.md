@@ -4,6 +4,8 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
+This first package PR reproduces the LayoutFlow-sourced RICO25 and PubLayNet LayoutNet/FIDNet assets. The issue #165 amendment assigns the LayoutDM and RALF FIDNetV3 variants (`layout-fid-rico25-layoutdm`, `layout-fid-publaynet-layoutdm`, `layout-fid-pku10-ralf`, and `layout-fid-cgl-ralf`) to follow-up slice 2 after this PR merges. Slice 2 prefers original vendor artifacts as the weight source and uses the 2024 `creative-graphic-design/layout-fidnet-v3-*` Hub repositories as secondary sources and tensor-for-tensor cross-check targets.
+
 ### Prerequisites
 
 Run the commands below from the repository root. The original source under `vendor/` is read-only; downloads and generated artifacts are written under `.cache/layout-fid`.

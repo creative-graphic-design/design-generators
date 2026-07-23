@@ -51,12 +51,13 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout evaluation.
 - **Language(s) (NLP):** not applicable.
-- **License:** redistribution of converted weights and statistics is pending binary-asset review.
+- **License:** repository code is Apache-2.0; converted artifact model cards record source repository, license, and provenance per variant.
 
 ### Model Sources
 
 - **LayoutFlow source:** [LayoutFlow repository](https://github.com/julianguerreiro/LayoutFlow)
 - **LayoutDM source:** [layout-dm repository](https://github.com/CyberAgentAILab/layout-dm)
+- **RALF FIDNetV3 source:** `vendor/ralf/image2layout/train/fid/model.py`
 - **LayoutFlow checkpoint host:** [JulianGuerreiro/LayoutFlow](https://huggingface.co/JulianGuerreiro/LayoutFlow)
 
 ## Supported Checkpoints
@@ -65,8 +66,10 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 | --- | --- | --- |
 | RICO25 LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-rico25-layoutflow` | not-published |
 | PubLayNet LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-publaynet-layoutflow` | not-published |
-| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | blocked until FIDNetV3 assets and redistribution are clear |
-| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | blocked until FIDNetV3 assets and redistribution are clear |
+| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | follow-up slice 2; see issue #165 amendment |
+| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | follow-up slice 2; see issue #165 amendment |
+| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | follow-up slice 2; see issue #165 amendment |
+| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | follow-up slice 2; see issue #165 amendment |
 
 ## Uses
 
@@ -84,7 +87,7 @@ Do not compare scores across checkpoint families unless feature-level equivalenc
 
 ## Bias, Risks, and Limitations
 
-Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until binary redistribution terms are resolved.
+Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until publication; LayoutDM and RALF FIDNetV3 variants are handled in the follow-up slice 2 described by the issue #165 amendment.
 
 ### Recommendations
 
@@ -201,7 +204,7 @@ Use `uv run --package layout-fid ...` from the repository root so workspace depe
 
 ## License
 
-Repository code is Apache-2.0. Converted FID weights and real-distribution statistics are not published until redistribution coverage for the binary assets is confirmed.
+Repository code is Apache-2.0. Converted artifact model cards record source repository, license, and provenance for every variant. The issue #165 amendment treats redistribution of LayoutDM-derived FID weights as settled by the 2024 `layout-fid-models` publication precedent; slice 2 rebuilds the LayoutDM and RALF FIDNetV3 variants in this package, preferring original vendor artifacts and using the 2024 Hub repositories as secondary weight sources and tensor-for-tensor cross-check targets.
 
 ## Citation
 
