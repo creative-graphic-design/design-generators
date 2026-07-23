@@ -30,19 +30,19 @@ model-index:
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2003.06988&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2003.06988)
 ![venue](https://img.shields.io/static/v1?label=venue&message=ECCV+2020&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=GPL--3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=GPL-3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=housegan-floorplan-vectorized&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [House-GAN](https://arxiv.org/abs/2003.06988), a graph-constrained floorplan layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [House-GAN](https://arxiv.org/abs/2003.06988), a graph-constrained floorplan layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
 ### Model Description
 
-House-GAN predicts room masks from a room-relation graph and decodes those masks into normalized layout boxes. The package wraps the released generator as `HouseGanGenerator`, `HouseGanProcessor`, and `HouseGanPipeline`; public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer room labels, a valid-element `mask`, and `id2label`.
+House-GAN predicts room masks from a room-relation graph and decodes those masks into normalized layout boxes. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer room labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Nelson Nauata, Kai-Hung Chang, Chin-Yi Cheng, Greg Mori, and Yasutaka Furukawa.
 - **Shared by:** creative-graphic-design.
@@ -128,7 +128,15 @@ Re-run the vendor parity suite with the released assets before publishing conver
 
 ## How to Get Started with the Model
 
-Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md). Those steps create `.cache/housegan/converted/housegan-floorplan-d`.
+Install the package with its shared layout dependency:
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "housegan @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/housegan"
+```
+
+Run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md) to create `.cache/housegan/converted/housegan-floorplan-d`. For local conversion workflows, clone the repository and install the workspace member:
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git

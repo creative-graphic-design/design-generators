@@ -2,47 +2,61 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
 [![docs](https://img.shields.io/github/deployments/creative-graphic-design/design-generators/github-pages?label=docs&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
-![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
 ![models](https://img.shields.io/static/v1?label=models&message=19&color=purple&style=flat-square)
 
-`design-generators` ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
+design-generators ports layout, poster, and graphic-design generation research repositories into [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-, [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`🤖 pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Models
 
-| Model | Method | Runtime | Primary datasets | Weights |
+| Method | Venue | Runtime | Datasets | Reproduction |
 | --- | --- | --- | --- | --- |
-| [`models/coarse-to-fine`](models/coarse-to-fine/README.md) | Coarse-to-Fine | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md)) |
-| [`models/ds-gan`](models/ds-gan/README.md) | DS-GAN | `transformers` | PosterLayout | convert locally ([REPRODUCING.md](models/ds-gan/REPRODUCING.md)) |
-| [`models/flex-dm`](models/flex-dm/README.md) | Flex-DM | `transformers` | Crello, RICO25 | convert locally ([REPRODUCING.md](models/flex-dm/REPRODUCING.md)) |
-| [`models/housegan`](models/housegan/README.md) | House-GAN | `transformers` | House-GAN floorplan vectorized | convert locally ([REPRODUCING.md](models/housegan/REPRODUCING.md)) |
-| [`models/lace`](models/lace/README.md) | LACE | `diffusers` | RICO25, RICO13, PubLayNet | convert locally ([REPRODUCING.md](models/lace/REPRODUCING.md)) |
-| [`models/layousyn`](models/layousyn/README.md) | LayouSyn | `diffusers` | GRIT, COCO grounded | convert locally ([REPRODUCING.md](models/layousyn/REPRODUCING.md)) |
-| [`models/layout-corrector`](models/layout-corrector/README.md) | Layout-Corrector | `diffusers` | RICO25, PubLayNet, Crello | convert locally ([REPRODUCING.md](models/layout-corrector/REPRODUCING.md)) |
-| [`models/layout-dm`](models/layout-dm/README.md) | LayoutDM | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-dm/REPRODUCING.md)) |
-| [`models/layout-action`](models/layout-action/README.md) | LayoutAction | `transformers` | RICO13, PubLayNet, InfoPPT | convert locally ([REPRODUCING.md](models/layout-action/REPRODUCING.md)) |
-| [`models/layout-flow`](models/layout-flow/README.md) | LayoutFlow | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layout-flow/REPRODUCING.md)) |
-| [`models/layout-gpt`](models/layout-gpt/README.md) | LayoutGPT | `pydantic-ai` | NSR-1K | none (prompt-based) |
-| [`models/layout-transformer`](models/layout-transformer/README.md) | LayoutTransformer | `transformers` | COCO, VG-MSDN | convert locally ([REPRODUCING.md](models/layout-transformer/REPRODUCING.md)) |
-| [`models/layoutdiffusion`](models/layoutdiffusion/README.md) | LayoutDiffusion | `diffusers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md)) |
-| [`models/layoutformerpp`](models/layoutformerpp/README.md) | LayoutFormer++ | `transformers` | RICO25, PubLayNet | convert locally ([REPRODUCING.md](models/layoutformerpp/REPRODUCING.md)) |
-| [`models/layoutganpp`](models/layoutganpp/README.md) | LayoutGAN++ | `transformers` | RICO25, PubLayNet, Magazine | convert locally ([REPRODUCING.md](models/layoutganpp/REPRODUCING.md)) |
-| [`models/layoutprompter`](models/layoutprompter/README.md) | LayoutPrompter | `pydantic-ai` | PubLayNet, RICO25, PosterLayout | none (prompt-based) |
-| [`models/parse-then-place`](models/parse-then-place/README.md) | Parse-Then-Place | `transformers` | RICO25, Web | convert locally ([REPRODUCING.md](models/parse-then-place/REPRODUCING.md)) |
-| [`models/ralf`](models/ralf/README.md) | RALF | `transformers` | CGL, PKU | convert locally ([REPRODUCING.md](models/ralf/REPRODUCING.md)) |
-| [`models/smarttext`](models/smarttext/README.md) | SmartText | `transformers` | SmartText demo assets | convert locally ([REPRODUCING.md](models/smarttext/REPRODUCING.md)) |
+| [Coarse-to-Fine](models/coarse-to-fine/README.md) | AAAI 2022 | `🤗 transformers` | RICO25, PubLayNet | [REPRODUCING.md](models/coarse-to-fine/REPRODUCING.md) |
+| [DS-GAN](models/ds-gan/README.md) | CVPR 2023 | `🤗 transformers` | PosterLayout | [REPRODUCING.md](models/ds-gan/REPRODUCING.md) |
+| [Flex-DM](models/flex-dm/README.md) | CVPR 2023 | `🤗 transformers` | Crello, RICO25 | [REPRODUCING.md](models/flex-dm/REPRODUCING.md) |
+| [House-GAN](models/housegan/README.md) | ECCV 2020 | `🤗 transformers` | housegan-floorplan-vectorized | [REPRODUCING.md](models/housegan/REPRODUCING.md) |
+| [LACE](models/lace/README.md) | ICLR 2024 | `🧨 diffusers` | RICO25, RICO13, PubLayNet | [REPRODUCING.md](models/lace/REPRODUCING.md) |
+| [LayouSyn](models/layousyn/README.md) | ICCV 2025 | `🧨 diffusers` | GRIT, COCO grounded | [REPRODUCING.md](models/layousyn/REPRODUCING.md) |
+| [Layout-Corrector](models/layout-corrector/README.md) | ECCV 2024 | `🧨 diffusers` | RICO25, PubLayNet, Crello | [REPRODUCING.md](models/layout-corrector/REPRODUCING.md) |
+| [LayoutDM](models/layout-dm/README.md) | CVPR 2023 | `🧨 diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layout-dm/REPRODUCING.md) |
+| [LayoutAction](models/layout-action/README.md) | AAAI 2023 | `🤗 transformers` | RICO13, PubLayNet, InfoPPT | [REPRODUCING.md](models/layout-action/REPRODUCING.md) |
+| [LayoutFlow](models/layout-flow/README.md) | ECCV 2024 | `🧨 diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layout-flow/REPRODUCING.md) |
+| [LayoutGPT](models/layout-gpt/README.md) | NeurIPS 2023 | `🤖 pydantic-ai` | NSR-1K | [REPRODUCING.md](models/layout-gpt/REPRODUCING.md) |
+| [LayoutTransformer](models/layout-transformer/README.md) | CVPR 2021 | `🤗 transformers` | COCO, VG-MSDN | [REPRODUCING.md](models/layout-transformer/REPRODUCING.md) |
+| [LayoutDiffusion](models/layoutdiffusion/README.md) | ICCV 2023 | `🧨 diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md) |
+| [LayoutFormer++](models/layoutformerpp/README.md) | CVPR 2023 | `🤗 transformers` | RICO25, PubLayNet | [REPRODUCING.md](models/layoutformerpp/REPRODUCING.md) |
+| [LayoutGAN++](models/layoutganpp/README.md) | ACM MM 2021 | `🤗 transformers` | RICO25, PubLayNet, Magazine | [REPRODUCING.md](models/layoutganpp/REPRODUCING.md) |
+| [LayoutPrompter](models/layoutprompter/README.md) | NeurIPS 2023 | `🤖 pydantic-ai` | PubLayNet, RICO25, PosterLayout | [REPRODUCING.md](models/layoutprompter/REPRODUCING.md) |
+| [Parse-Then-Place](models/parse-then-place/README.md) | ICCV 2023 | `🤗 transformers` | RICO25, Web | [REPRODUCING.md](models/parse-then-place/REPRODUCING.md) |
+| [RALF](models/ralf/README.md) | CVPR 2024 | `🤗 transformers` | CGL, PKU | [REPRODUCING.md](models/ralf/REPRODUCING.md) |
+| [SmartText](models/smarttext/README.md) | TMM 2021 | `🤗 transformers` | SmartText demo assets | [REPRODUCING.md](models/smarttext/REPRODUCING.md) |
 
-Shared libraries live under `lib/*`: [`laygen`](lib/laygen/README.md) contains layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers; [`posgen`](lib/posgen/README.md) reserves small poster/content-aware placement contracts for future consumers.
+## Libraries
+
+| Library | Description |
+| --- | --- |
+| [laygen](lib/laygen/README.md) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. |
+| [posgen](lib/posgen/README.md) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
 
 ## Quick Start
 
-Install one workspace member and run a smoke import from the repository root.
+Install the shared layout library directly from this repository:
 
 ```bash
-uv sync --package layout-dm
-uv run --package layout-dm python
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
 ```
+
+Install a model package by listing its shared workspace dependencies in the same command. Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` alongside the model package.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
+```
+
+If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
 
 ```python
 from layout_dm import LayoutDMPipeline
@@ -50,29 +64,30 @@ from layout_dm import LayoutDMPipeline
 print(LayoutDMPipeline.__name__)
 ```
 
-Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
-
-## Workspace Commands
+For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
 
 ```bash
-uv sync --all-packages
-uv run --package laygen pytest lib/laygen/tests
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
 uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
-uv run python scripts/check_model_readmes.py
-uv run python scripts/check_readme_badges.py
-uv run --group docs python scripts/gen_ref_pages.py
-uv run --group docs zensical build --strict -f mkdocs.generated.yml
 ```
 
-Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) for member-specific commands so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+## Policies
+
+### Reproducibility
+
+Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+
+Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+
+### Extension
+
+> [!WARNING]
+> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on [`🤗 transformers`](https://huggingface.co/docs/transformers/index) / [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
 
 ## Documentation
 
-The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/). API pages are generated from workspace members below `lib/*/src` and `models/*/src`. Public API docstrings are the source text for the API reference.
-
-## Reproducibility Policy
-
-Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/).
 
 ## License
 
