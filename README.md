@@ -69,6 +69,7 @@ print(LayoutDMPipeline.__name__)
 ```
 
 For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+Use the root `evaluation` extra when running scripts that load the org's Hugging Face `evaluate` layout-metric modules.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git

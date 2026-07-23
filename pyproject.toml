@@ -46,6 +46,9 @@ diffusion = [
 download = [
     "gdown>=6.1.0",
 ]
+evaluation = [
+    "evaluate",
+]
 llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
