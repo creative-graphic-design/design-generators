@@ -128,7 +128,7 @@ Re-run the vendor parity suite with the released assets before publishing conver
 
 ## How to Get Started with the Model
 
-Install House-GAN with its shared `laygen` dependency:
+Install House-GAN with its required `laygen` workspace dependency:
 
 ```bash
 pip install \
