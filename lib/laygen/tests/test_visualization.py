@@ -14,6 +14,7 @@ from laygen.common.visualization import (
     render_layout,
     render_trajectory,
     render_trajectory_gif,
+    save_layout_gif,
 )
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -124,12 +125,39 @@ def test_render_trajectory_gif_writes_expected_frames(tmp_path: Path) -> None:
     output = _toy_output()
     path = tmp_path / "trajectory.gif"
 
-    written = render_trajectory_gif(output, path, canvas_size=(96, 96), duration_ms=200)
+    written = render_trajectory_gif(
+        output,
+        path,
+        canvas_size=(96, 96),
+        duration_ms=200,
+        final_hold_ms=1200,
+    )
 
     assert written == path
     assert path.stat().st_size > 0
     with Image.open(path) as image:
+        frame_count = cast(int, getattr(image, "n_frames"))
+        assert frame_count == 2
+        durations = []
+        for frame_index in range(frame_count):
+            image.seek(frame_index)
+            durations.append(image.info["duration"])
+        assert durations == [200, 1200]
+
+
+def test_save_layout_gif_alias_writes_final_hold_metadata(tmp_path: Path) -> None:
+    path = save_layout_gif(
+        _toy_output(),
+        tmp_path / "alias.gif",
+        canvas_size=(96, 96),
+        duration_ms=100,
+        final_hold_ms=1500,
+    )
+
+    with Image.open(path) as image:
         assert getattr(image, "n_frames") == 2
+        image.seek(1)
+        assert image.info["duration"] == 1500
 
 
 def test_make_gallery_grid_composes_outputs() -> None:
