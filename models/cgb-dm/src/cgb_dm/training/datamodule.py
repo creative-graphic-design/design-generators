@@ -22,7 +22,7 @@ class CGBDMDataModule(LightningDataModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, object] | None = None,
+        config: CGBDMConfig | dict[str, object],
         source: str = "synthetic",
         data_root: str | None = None,
         batch_size: int = 2,
@@ -31,7 +31,7 @@ class CGBDMDataModule(LightningDataModule):
         """Initialize data module options."""
         super().__init__()
         self.config = (
-            config if isinstance(config, CGBDMConfig) else CGBDMConfig(**(config or {}))
+            config if isinstance(config, CGBDMConfig) else CGBDMConfig(**config)
         )
         self.source = source
         self.data_root = data_root

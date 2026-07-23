@@ -118,6 +118,13 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "cgb-dm": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PKU-PosterLayout",
+            "creative-graphic-design/CGL-Dataset",
+        ],
+    },
     "ds-gan": {
         "license": "other",
         "datasets": ["creative-graphic-design/PKU-PosterLayout"],
@@ -246,6 +253,7 @@ EXPECTED_FRONTMATTER = {
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
+    "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
@@ -282,6 +290,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
     "smarttext": "https://github.com/intchous/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",

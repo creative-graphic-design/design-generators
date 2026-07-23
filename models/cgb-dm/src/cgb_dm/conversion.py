@@ -50,16 +50,30 @@ def load_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
     raise TypeError("Expected a state_dict-like checkpoint")
 
 
+def build_model_from_config(config: CGBDMConfig) -> CGBDMTransformerModel:
+    """Build the CGB-DM denoiser shape described by ``config``."""
+    return CGBDMTransformerModel(
+        num_labels=config.num_labels,
+        max_seq_length=config.max_seq_length,
+        image_size=config.image_size,
+        dim_model=config.dim_model,
+        n_head=config.n_head,
+        feature_dim=config.feature_dim,
+        num_layers=config.num_layers,
+        num_train_timesteps=config.num_train_timesteps,
+    )
+
+
 def build_pipeline_from_checkpoint(
     checkpoint_path: str | Path,
     *,
-    config: CGBDMConfig | None = None,
+    config: CGBDMConfig,
 ) -> CGBDMPipeline:
     """Build a CGB-DM pipeline from a package-local training checkpoint.
 
     Args:
         checkpoint_path: Path to a PyTorch checkpoint.
-        config: Optional CGB-DM config. Defaults to PKU PosterLayout settings.
+        config: CGB-DM config that matches the training checkpoint.
 
     Returns:
         Pipeline with converted model weights loaded.
@@ -67,17 +81,7 @@ def build_pipeline_from_checkpoint(
     Raises:
         ValueError: If the checkpoint keys do not match the model.
     """
-    cfg = config or CGBDMConfig()
-    model = CGBDMTransformerModel(
-        num_labels=cfg.num_labels,
-        max_seq_length=cfg.max_seq_length,
-        image_size=cfg.image_size,
-        dim_model=cfg.dim_model,
-        n_head=cfg.n_head,
-        feature_dim=cfg.feature_dim,
-        num_layers=cfg.num_layers,
-        num_train_timesteps=cfg.num_train_timesteps,
-    )
+    model = build_model_from_config(config)
     converted = convert_state_dict(load_state_dict(checkpoint_path))
     missing, unexpected = model.load_state_dict(converted, strict=False)
     if unexpected:
@@ -87,16 +91,16 @@ def build_pipeline_from_checkpoint(
     return CGBDMPipeline(
         model=model,
         scheduler=CGBDMScheduler(
-            num_train_timesteps=cfg.num_train_timesteps,
-            ddim_num_steps=cfg.ddim_num_steps,
-            train_beta_schedule=cfg.train_beta_schedule,
-            sampling_beta_schedule=cfg.sampling_beta_schedule,
+            num_train_timesteps=config.num_train_timesteps,
+            ddim_num_steps=config.ddim_num_steps,
+            train_beta_schedule=config.train_beta_schedule,
+            sampling_beta_schedule=config.sampling_beta_schedule,
         ),
         processor=CGBDMProcessor(
-            dataset_name=cfg.dataset_name,
-            id2label=cfg.id2label,
-            num_labels=cfg.num_labels,
-            max_seq_length=cfg.max_seq_length,
-            image_size=cfg.image_size,
+            dataset_name=config.dataset_name,
+            id2label=config.id2label,
+            num_labels=config.num_labels,
+            max_seq_length=config.max_seq_length,
+            image_size=config.image_size,
         ),
     )

@@ -32,7 +32,7 @@ posgen = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
-task = "content-aware-poster-layout-generation"
+task = "content-aware-layout-generation"
 conditions = ["content_image", "label", "label_size", "completion", "refinement"]
 datasets = ["pku_posterlayout", "cgl"]
 
