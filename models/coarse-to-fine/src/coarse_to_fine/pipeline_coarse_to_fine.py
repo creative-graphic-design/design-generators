@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import Pipeline
 from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
@@ -70,9 +71,9 @@ class CoarseToFinePipeline(Pipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: object = None,
-        bbox: object = None,
-        mask: object = None,
+        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
         num_elements: int | list[int] | torch.Tensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -80,7 +81,7 @@ class CoarseToFinePipeline(Pipeline):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        latent_z: torch.FloatTensor | None = None,
+        latent_z: Float[torch.Tensor, "1 batch latent"] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts through model decode and processor post-processing."""
         _ = (

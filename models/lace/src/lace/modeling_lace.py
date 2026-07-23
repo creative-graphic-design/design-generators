@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Bool, Float, Int
 from torch import nn
 from laygen.nn import (
     ActivationFn,
@@ -50,7 +51,7 @@ class LaceModelOutput(BaseOutput):
         sample: Predicted noise tensor with the same shape as the input sample.
     """
 
-    sample: torch.FloatTensor
+    sample: Float[torch.Tensor, "batch elements channels"]
 
 
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
@@ -117,11 +118,11 @@ class LaceTransformerModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        attention_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool = True,
-    ) -> LaceModelOutput | tuple[torch.Tensor]:
+    ) -> LaceModelOutput | tuple[Float[torch.Tensor, "batch elements channels"]]:
         """Predict denoising residuals for a layout sample.
 
         Args:

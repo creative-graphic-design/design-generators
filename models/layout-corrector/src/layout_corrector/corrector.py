@@ -8,6 +8,7 @@ import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Bool, Float, Int
 from torch import nn
 
 from laygen.nn import (
@@ -35,7 +36,7 @@ class LayoutCorrectorOutput(BaseOutput):
         logits: Token confidence logits shaped `(batch, tokens)`.
     """
 
-    logits: torch.Tensor
+    logits: Float[torch.Tensor, "batch tokens"]
 
 
 class AggregatedCategoricalTransformer(nn.Module):
@@ -116,11 +117,11 @@ class AggregatedCategoricalTransformer(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.LongTensor,
+        input_ids: Int[torch.Tensor, "batch tokens"],
         *,
-        timestep: torch.LongTensor | None = None,
-        src_key_padding_mask: torch.BoolTensor | None = None,
-    ) -> torch.Tensor:
+        timestep: Int[torch.Tensor, "batch"] | None = None,
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens 1"]:
         """Predict token confidence logits.
 
         Args:
@@ -300,9 +301,9 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
-        timesteps: torch.Tensor,
-        padding_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timesteps: Int[torch.Tensor, "batch"],
+        padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
     ) -> LayoutCorrectorOutput:
         """Run the corrector model.
 
@@ -326,10 +327,10 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
 
     def calc_confidence_score(
         self,
-        input_ids: torch.Tensor,
-        timesteps: torch.Tensor,
-        padding_mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timesteps: Int[torch.Tensor, "batch"],
+        padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens"]:
         """Return confidence logits for token remasking.
 
         Args:

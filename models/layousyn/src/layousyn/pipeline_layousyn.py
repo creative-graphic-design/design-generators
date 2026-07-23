@@ -9,6 +9,7 @@ from typing import Literal
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
+from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat
@@ -101,23 +102,33 @@ class LayouSynPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.text,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
         id2label: dict[int, str] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-        aspect_ratio: float | list[float] | torch.Tensor = 1.0,
+        aspect_ratio: float | list[float] | Float[torch.Tensor, "batch"] = 1.0,
         num_inference_steps: int | None = None,
         guidance_scale: float = 2.0,
         sampling_type: Literal["ddim", "ddpm"] = "ddim",
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        caption_embeds: torch.Tensor | None = None,
-        caption_padding_mask: torch.Tensor | None = None,
-        concept_embeds: torch.Tensor | None = None,
+        caption_embeds: Float[torch.Tensor, "batch tokens embedding_dim"] | None = None,
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"]
+        | None = None,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
         """Run LayouSyn denoising.
 

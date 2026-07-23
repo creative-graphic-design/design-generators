@@ -10,6 +10,7 @@ from typing import Literal, TypedDict, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -162,17 +163,26 @@ class FlexDmProcessor(ProcessorMixin):
         self,
         *,
         condition_type: ConditionType | str = ConditionType.completion,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | list[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         attributes: Mapping[str, object] | None = None,
         content: Mapping[str, object] | None = None,
         feature_group: str | None = None,
-        target_indices: torch.Tensor | None = None,
+        target_indices: Int[torch.Tensor, "..."] | None = None,
         batch_size: int = 1,
         return_tensors: Literal["pt"] = "pt",
     ) -> dict[str, object]:

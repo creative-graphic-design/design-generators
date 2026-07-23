@@ -6,6 +6,7 @@ from typing import cast
 
 import torch
 import torch.nn as nn
+from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedModel
 
 from .configuration_coarse_to_fine import CoarseToFineConfig
@@ -155,8 +156,12 @@ class VAE(nn.Module):
         nn.init.constant_(self.enc_sigma_fcn.bias, 0)
 
     def forward(
-        self, memory: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, memory: Float[torch.Tensor, "1 batch channels"]
+    ) -> tuple[
+        Float[torch.Tensor, "1 batch latent"],
+        Float[torch.Tensor, "1 batch latent"],
+        Float[torch.Tensor, "1 batch latent"],
+    ]:
         """Sample latent ``z`` from encoded memory."""
         mu = self.enc_mu_fcn(memory)
         logvar = self.enc_sigma_fcn(memory)
@@ -165,8 +170,12 @@ class VAE(nn.Module):
         return z, mu, logvar
 
     def inference(
-        self, z: torch.Tensor | None, *, batch_size: int, device: torch.device
-    ) -> torch.Tensor:
+        self,
+        z: Float[torch.Tensor, "1 batch latent"] | None,
+        *,
+        batch_size: int,
+        device: torch.device,
+    ) -> Float[torch.Tensor, "1 batch latent"]:
         """Return seq-first latent tensor for generation."""
         if z is None:
             return torch.randn(size=(1, batch_size, self.config.d_z), device=device)
@@ -467,16 +476,16 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
 
     def forward(
         self,
-        labels: torch.LongTensor,
-        bbox: torch.LongTensor,
-        mask: torch.BoolTensor,
-        group_bounding_box: torch.LongTensor,
-        label_in_one_group: torch.FloatTensor,
-        group_mask: torch.BoolTensor,
-        grouped_bbox: torch.LongTensor,
-        grouped_labels: torch.LongTensor,
-        grouped_mask: torch.BoolTensor,
-        latent_z: torch.FloatTensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"],
+        bbox: Int[torch.Tensor, "batch elements 4"],
+        mask: Bool[torch.Tensor, "batch elements"],
+        group_bounding_box: Int[torch.Tensor, "batch seq 4"],
+        label_in_one_group: Float[torch.Tensor, "batch seq vocab"],
+        group_mask: Bool[torch.Tensor, "batch seq"],
+        grouped_bbox: Int[torch.Tensor, "batch seq elements 4"],
+        grouped_labels: Int[torch.Tensor, "batch seq elements"],
+        grouped_mask: Bool[torch.Tensor, "batch seq elements"],
+        latent_z: Float[torch.Tensor, "1 batch latent"] | None = None,
         use_teacher_forcing: bool = True,
         return_dict: bool | None = None,
     ) -> dict[str, torch.Tensor] | tuple[torch.Tensor, ...]:

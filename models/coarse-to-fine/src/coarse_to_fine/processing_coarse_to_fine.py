@@ -7,8 +7,10 @@ from os import PathLike
 from pathlib import Path
 from typing import Literal, cast
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import BoxFormat
@@ -129,9 +131,17 @@ class CoarseToFineProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        labels: list[list[int | str]] | torch.Tensor | None = None,
-        bbox: list[list[list[float]]] | torch.Tensor | None = None,
-        mask: torch.BoolTensor | None = None,
+        labels: list[list[int | str]]
+        | Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | None = None,
+        bbox: list[list[list[float]]]
+        | Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         return_tensors: Literal["pt"] = "pt",
@@ -163,7 +173,7 @@ class CoarseToFineProcessor(ProcessorMixin):
         encoded_mask = (
             cast(torch.BoolTensor, torch.ones(label_tensor.shape, dtype=torch.bool))
             if mask is None
-            else cast(torch.BoolTensor, mask.bool())
+            else cast(torch.BoolTensor, torch.as_tensor(mask, dtype=torch.bool))
         )
         ltwh = public_to_ltwh(bbox_tensor, box_format=box_format)
         discrete = discretize_ltwh(ltwh, num_x_grid=self.x_grid, num_y_grid=self.y_grid)
@@ -173,10 +183,10 @@ class CoarseToFineProcessor(ProcessorMixin):
         )
 
     def _coerce_labels(
-        self, labels: list[list[int | str]] | torch.Tensor
+        self, labels: list[list[int | str]] | torch.Tensor | np.ndarray
     ) -> torch.LongTensor:
-        if isinstance(labels, torch.Tensor):
-            return cast(torch.LongTensor, labels.long())
+        if isinstance(labels, torch.Tensor | np.ndarray):
+            return cast(torch.LongTensor, torch.as_tensor(labels, dtype=torch.long))
         rows: list[list[int]] = []
         for row in labels:
             values: list[int] = []
@@ -192,9 +202,9 @@ class CoarseToFineProcessor(ProcessorMixin):
 
     def build_hierarchy_batch(
         self,
-        labels: torch.LongTensor,
-        bbox: torch.FloatTensor,
-        mask: torch.BoolTensor,
+        labels: Int[torch.Tensor, "batch elements"],
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        mask: Bool[torch.Tensor, "batch elements"],
     ) -> BatchEncoding:
         """Build padded hierarchy tensors for training/reference batches."""
         batch = labels.size(0)
