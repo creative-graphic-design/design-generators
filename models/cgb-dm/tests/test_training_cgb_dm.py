@@ -1,7 +1,15 @@
 import torch
 
 from cgb_dm.training import CGBDMDataModule, CGBDMTrainingModule
-from cgb_dm.training.parity import CGBDMStepTraceAdapter
+from PIL import Image
+
+from cgb_dm.training.parity import (
+    CGBDMStepTraceAdapter,
+    build_vendor_compatible_dataset,
+    capture_vendor_order,
+    load_vendor_order_manifest,
+    write_vendor_order_manifest,
+)
 from cgb_dm.training.seed import apply_seed_mode
 
 
@@ -107,3 +115,39 @@ def test_training_helpers_cover_tuple_adapter_and_plain_optimizer():
     assert batch["pixel_values"] is image
     assert batch["layout"] is layout
     assert batch["saliency_box"] is saliency_box
+
+
+def test_vendor_order_manifest_helpers(tmp_path):
+    root = tmp_path / "split"
+    for rel in [
+        "train/inpaint",
+        "train/saliency",
+        "train/saliency_sub",
+        "csv",
+    ]:
+        (root / rel).mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (20, 20)).save(root / "train/inpaint/sample.png")
+    Image.new("L", (20, 20)).save(root / "train/saliency/sample.png")
+    Image.new("L", (20, 20)).save(root / "train/saliency_sub/sample.png")
+    (root / "csv/train.csv").write_text(
+        'poster_path,box_elem,cls_elem\nsample.png,"[0, 0, 10, 10]",1\n',
+        encoding="utf-8",
+    )
+    (root / "csv/train_sal.csv").write_text(
+        'poster_path,box_elem\nsample.png,"[0, 0, 20, 20]"\n',
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "manifest.json"
+
+    assert capture_vendor_order(root) == ["sample.png"]
+    assert (
+        write_vendor_order_manifest(
+            data_root=root,
+            output=manifest,
+            dataset="pku_posterlayout",
+        )
+        == manifest
+    )
+    assert load_vendor_order_manifest(manifest) == ["sample.png"]
+    dataset = build_vendor_compatible_dataset(root, manifest=manifest)
+    assert dataset[0]["layout"].shape == (16, 8)

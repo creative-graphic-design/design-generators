@@ -13,7 +13,10 @@ uv run --package cgb-dm python models/cgb-dm/scripts/download_original_assets.py
 ### 2. Generate Golden Reference Metadata
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py --dataset pku_posterlayout
+CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py \
+  --dataset pku_posterlayout \
+  --data-root .cache/cgb-dm/datasets/pku/split \
+  --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
 ```
 
 ### 3. Run Vendor Parity Tests

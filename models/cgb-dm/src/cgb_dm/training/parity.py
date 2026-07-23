@@ -1,11 +1,16 @@
-"""Synthetic S0-S2 parity adapters for CGB-DM."""
+"""S0-S2 parity adapters for CGB-DM."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
+import os
+from pathlib import Path
 from typing import cast
 
 import torch
+
+from cgb_dm.data import CGBDMOriginalDataset
 
 CGBDMBatch = (
     Mapping[str, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
@@ -38,3 +43,55 @@ class CGBDMStepTraceAdapter:
             }
             return result
         return cast(Mapping[str, torch.Tensor], batch)
+
+
+def capture_vendor_order(data_root: str | Path, *, split: str = "train") -> list[str]:
+    """Capture the filename order used by the original CGB-DM training loader."""
+    return list(os.listdir(Path(data_root) / split / "inpaint"))
+
+
+def write_vendor_order_manifest(
+    *,
+    data_root: str | Path,
+    output: str | Path,
+    dataset: str,
+    split: str = "train",
+    seed: int = 1,
+) -> Path:
+    """Write a regenerated vendor-order manifest outside the repository."""
+    names = capture_vendor_order(data_root, split=split)
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "dataset": dataset,
+                "split": split,
+                "seed": seed,
+                "source": "vendor train_dataset os.listdir order",
+                "data_root": str(data_root),
+                "names": names,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def load_vendor_order_manifest(path: str | Path) -> list[str]:
+    """Load names from a regenerated vendor-order manifest."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return [str(name) for name in payload["names"]]
+
+
+def build_vendor_compatible_dataset(
+    data_root: str | Path, *, manifest: str | Path, split: str = "train"
+) -> CGBDMOriginalDataset:
+    """Build a CGB-DM dataset that replays captured vendor order and encoding."""
+    return CGBDMOriginalDataset(
+        data_root,
+        split=split,
+        name_manifest=manifest,
+        encoding="vendor",
+    )
