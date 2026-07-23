@@ -1,4 +1,4 @@
-"""BASNet saliency model ported from the SmartText vendor architecture."""
+"""BASNet saliency model ported from the SmartText reference architecture."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ class _BasicBlock(nn.Module):
         self.stride = stride
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run one vendor BASNet residual block."""
+        """Run one BASNet residual block."""
         residual = x
         out = self.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
@@ -104,7 +104,7 @@ class _RefUnet(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run the vendor RefUnet refinement module."""
+        """Run the RefUnet refinement module."""
         hx = self.conv0(x)
         hx1 = self.relu1(self.bn1(self.conv1(hx)))
         hx = self.pool1(hx1)
@@ -134,9 +134,9 @@ def normalize_saliency(pred: torch.Tensor) -> torch.Tensor:
 
 
 class SmartTextBASNet(PreTrainedModel):
-    """Vendor-compatible BASNet saliency predictor.
+    """Reference-compatible BASNet saliency predictor.
 
-    Module names match ``vendor/smarttext/BASNet/model/BASNet.py::BASNet(3, 1)``
+    Module names match the original ``BASNet.py::BASNet(3, 1)``
     so ``gdi-basnet.pth`` can be loaded directly after any documented key
     normalization needed by the released file.
     """
@@ -146,7 +146,7 @@ class SmartTextBASNet(PreTrainedModel):
     _tied_weights_keys: list[str] = []
 
     def __init__(self, config: SmartTextConfig) -> None:
-        """Initialize the vendor BASNet architecture without downloading weights."""
+        """Initialize the BASNet architecture without downloading weights."""
         super().__init__(config)
         self.all_tied_weights_keys: dict[str, str] = {}
         resnet = models.resnet34(weights=None)
@@ -252,7 +252,7 @@ class SmartTextBASNet(PreTrainedModel):
         self.outconv1 = nn.Conv2d(64, 1, 3, padding=1)
         self.refunet = _RefUnet(1, 64)
 
-    def _forward_vendor(
+    def _forward_reference(
         self, x: Float[torch.Tensor, "batch channels height width"]
     ) -> tuple[torch.Tensor, ...]:
         hx = self.inrelu(self.inbn(self.inconv(x)))
@@ -309,11 +309,11 @@ class SmartTextBASNet(PreTrainedModel):
         pixel_values: Float[torch.Tensor, "batch channels height width"],
         return_dict: bool | None = None,
     ) -> SmartTextSaliencyOutput | tuple[torch.Tensor, ...]:
-        """Predict saliency with the vendor BASNet forward path."""
+        """Predict saliency with the BASNet forward path."""
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
         )
-        outputs = self._forward_vendor(pixel_values)
+        outputs = self._forward_reference(pixel_values)
         saliency = normalize_saliency(outputs[0][:, 0, :, :])
         if not return_dict:
             return (saliency, *outputs)

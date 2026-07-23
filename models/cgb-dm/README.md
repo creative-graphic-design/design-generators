@@ -109,6 +109,15 @@ Run the gated parity workflow before publishing trained checkpoints or comparing
 
 ## How to Get Started with the Model
 
+Install the package with its shared libraries:
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "cgb-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/cgb-dm"
+```
+
 Clone this repository, install the workspace member, and run the training or conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md). Those steps create converted pipeline directories under `.cache/cgb-dm/converted/`.
 
 ## Training Details

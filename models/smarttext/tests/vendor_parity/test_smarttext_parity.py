@@ -11,8 +11,8 @@ from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.modeling_outputs import LayoutGenerationOutput
 from smarttext import SmartTextPipeline
 from smarttext.candidate_generation import (
-    candidate_from_vendor_json,
-    candidate_to_vendor_json,
+    candidate_from_reference_json,
+    candidate_to_reference_json,
     generate_candidates,
     prepare_scorer_batch,
 )
@@ -60,7 +60,7 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
     missing = [name for name in required if not (reference_dir / name).exists()]
     if missing:
         skip_or_fail_vendor_parity(
-            f"SmartText vendor references missing: {missing}",
+            f"SmartText reference artifacts missing: {missing}",
             missing_paths=[reference_dir / name for name in missing],
             regeneration_hint="run models/smarttext/scripts/generate_reference_outputs.py",
         )
@@ -106,9 +106,9 @@ def test_converted_pipeline_matches_vendor_reference_artifacts():
             config=pipe.config,
         )
         assert [
-            candidate_to_vendor_json(candidate) for candidate in generated_candidates
+            candidate_to_reference_json(candidate) for candidate in generated_candidates
         ] == candidates
-        decoded_candidates = [candidate_from_vendor_json(row) for row in candidates]
+        decoded_candidates = [candidate_from_reference_json(row) for row in candidates]
         pixel_values, boxes, _ = prepare_scorer_batch(
             image, decoded_candidates, config=pipe.config
         )

@@ -29,18 +29,18 @@ class DSGANConfig(PretrainedConfig):
 
     Args:
         dataset_name: Dataset key. DS-GAN currently supports PKU PosterLayout.
-        backbone: Timm ResNet backbone name used by the vendor checkpoint.
+        backbone: Timm ResNet backbone name used by the reference checkpoint.
         max_elem: Maximum number of generated elements.
         in_channels: CNN-LSTM input channels after flattening class and box planes.
         out_channels: CNN-LSTM convolution output channels.
         hidden_size: Bidirectional LSTM hidden size.
         num_layers: Number of LSTM layers.
-        output_size: Combined class and box output width in the vendor model.
+        output_size: Combined class and box output width in the internal model.
         image_size: Processor/model input size as ``(height, width)``.
-        vendor_canvas_size: Vendor normalization canvas as ``(width, height)``.
-        backbone_feature_size: Flattened ResNet-FPN spatial size. The vendor
+        reference_canvas_size: Reference normalization canvas as ``(width, height)``.
+        backbone_feature_size: Flattened ResNet-FPN spatial size. The reference
             default is ``22 * 15 = 330`` for ``image_size=(350, 240)``.
-        vendor_num_classes: Vendor class channels including ``0 = no object``.
+        model_num_classes: Internal class channels including ``0 = no object``.
         id2label: Public zero-based semantic label mapping.
         model_subfolder: Pipeline subfolder for the model component.
         processor_subfolder: Pipeline subfolder for the processor component.
@@ -63,9 +63,9 @@ class DSGANConfig(PretrainedConfig):
         num_layers: int = 4,
         output_size: int = 8,
         image_size: tuple[int, int] | list[int] = (350, 240),
-        vendor_canvas_size: tuple[int, int] | list[int] = (513, 750),
+        reference_canvas_size: tuple[int, int] | list[int] = (513, 750),
         backbone_feature_size: int = 330,
-        vendor_num_classes: int = 4,
+        model_num_classes: int = 4,
         id2label: Id2LabelMapping | None = None,
         label2id: dict[str, int] | None = None,
         model_subfolder: str = "model",
@@ -108,9 +108,9 @@ class DSGANConfig(PretrainedConfig):
         self.num_layers = num_layers
         self.output_size = output_size
         self.image_size = tuple(int(v) for v in image_size)
-        self.vendor_canvas_size = tuple(int(v) for v in vendor_canvas_size)
+        self.reference_canvas_size = tuple(int(v) for v in reference_canvas_size)
         self.backbone_feature_size = backbone_feature_size
-        self.vendor_num_classes = vendor_num_classes
+        self.model_num_classes = model_num_classes
         self.model_subfolder = model_subfolder
         self.processor_subfolder = processor_subfolder
         self.condition_types = list(condition_types or ["content_image"])
@@ -122,7 +122,7 @@ class DSGANConfig(PretrainedConfig):
 
 
 def default_ds_gan_config() -> DSGANConfig:
-    """Return the vendor-compatible DS-GAN default configuration.
+    """Return the reference-compatible DS-GAN default configuration.
 
     Examples:
         >>> default_ds_gan_config().backbone
@@ -131,11 +131,11 @@ def default_ds_gan_config() -> DSGANConfig:
     return DSGANConfig()
 
 
-def pku_vendor_label2id() -> dict[str, int]:
-    """Return DS-GAN vendor labels including the no-object class.
+def pku_model_label2id() -> dict[str, int]:
+    """Return DS-GAN model labels including the no-object class.
 
     Examples:
-        >>> pku_vendor_label2id()["no_object"]
+        >>> pku_model_label2id()["no_object"]
         0
     """
     return {"no_object": 0, "text": 1, "logo": 2, "underlay": 3}

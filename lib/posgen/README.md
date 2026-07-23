@@ -13,6 +13,14 @@ Use `posgen` for poster or content-aware placement concerns such as Crello-style
 
 ## Install
 
+Install directly from this repository.
+
+```bash
+pip install "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen"
+```
+
+For local development in a checkout, use uv workspace commands.
+
 ```bash
 uv sync --package posgen
 ```

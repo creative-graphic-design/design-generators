@@ -57,7 +57,7 @@ PARITY_METRIC_KEYS: Final[tuple[ParityMetricKey, ...]] = tuple(ParityMetricKey)
 
 @dataclass(frozen=True)
 class ParityMetric:
-    """Vendor-parity metric row included in generated model cards.
+    """Reference-parity metric row included in generated model cards.
 
     Attributes:
         dataset: Dataset or checkpoint name.
@@ -240,7 +240,7 @@ def build_layout_model_card(
         ),
         testing_data=(
             testing_data
-            or "Vendor parity tests use local reference outputs from the original "
+            or "Reference parity tests use local outputs from the original "
             "implementation for each converted dataset or checkpoint."
         ),
         testing_factors=(
@@ -265,7 +265,7 @@ def build_layout_model_card(
         ),
         hardware_type=(
             "Original training hardware is not reported in this converted "
-            "artifact. Vendor parity regeneration is documented for "
+            "artifact. Reference regeneration is documented for "
             "`CUDA_VISIBLE_DEVICES=0` when a CUDA device is available."
         ),
         hours_used=(
@@ -296,13 +296,13 @@ def build_layout_model_card(
         hardware_requirements=(
             hardware_requirements
             or "CPU is sufficient for package loading and lightweight smoke tests. "
-            "CUDA may be required for heavyweight vendor parity depending on the "
-            "original implementation."
+            "CUDA may be required for heavyweight reference parity depending on "
+            "the original implementation."
         ),
         software=(
             software
             or "Python 3.11+, the package workspace dependencies, and any optional "
-            "vendor dependencies documented by the package."
+            "original-code dependencies documented by the package."
         ),
         citation_bibtex=f"```bibtex\n{citation_bibtex.strip()}\n```",
         citation_apa=citation_apa or "See the BibTeX citation above.",
@@ -314,7 +314,7 @@ def build_layout_model_card(
         ),
         more_information=(
             "See the package README for copy-paste reproduction commands, "
-            "checkpoint conversion, and vendor parity fixture generation."
+            "checkpoint conversion, and reference fixture generation."
         ),
         model_card_authors="creative-graphic-design maintainers.",
         model_card_contact=(
@@ -429,7 +429,7 @@ print(out.bbox, out.labels, out.mask)
             "retrain it."
         ),
         testing_data=(
-            "Vendor parity tests use deterministic samples and forward-pass "
+            "Reference parity tests use deterministic samples and forward-pass "
             "golden tensors generated from the original LayoutDM implementation "
             "for each converted dataset."
         ),
@@ -439,7 +439,7 @@ print(out.bbox, out.labels, out.mask)
             "relative error versus the original implementation."
         ),
         results_summary=(
-            "The converted checkpoint matches the generated vendor reference "
+            "The converted checkpoint matches the generated reference "
             "tensors exactly for tokenizer IO and deterministic sampling; "
             "denoiser logits are within the reported numeric tolerance."
         ),
@@ -455,12 +455,12 @@ print(out.bbox, out.labels, out.mask)
         ),
         hardware_requirements=(
             "CPU is sufficient for package loading and conversion. CUDA is "
-            "recommended for regenerating vendor parity references and running "
+            "recommended for regenerating reference parity outputs and running "
             "the full parity test suite."
         ),
         software=(
             "Python 3.11+, PyTorch, Diffusers, Transformers, and the optional "
-            "LayoutDM vendor dependencies declared by the `layout-dm` package."
+            "LayoutDM original-code dependencies declared by the `layout-dm` package."
         ),
         citation_apa=(
             "Inoue, N., Kikuchi, K., Simo-Serra, E., Otani, M., & Yamaguchi, K. "
