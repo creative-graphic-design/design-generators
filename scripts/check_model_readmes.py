@@ -155,7 +155,7 @@ EXPECTED_FRONTMATTER = {
         ],
     },
     "layout-fid": {
-        "license": "other",
+        "license": "apache-2.0",
         "datasets": [
             "creative-graphic-design/Rico",
             "creative-graphic-design/PubLayNet",

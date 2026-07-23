@@ -1,7 +1,7 @@
 ---
 language:
   - en
-license: "other"
+license: "apache-2.0"
 library_name: "transformers"
 pipeline_tag: "other"
 tags:
@@ -30,9 +30,9 @@ model-index:
 
 # Model Card for Layout FID
 
-[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2403.18187&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2403.18187)
-![venue](https://img.shields.io/static/v1?label=venue&message=evaluation&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2108.00871&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2108.00871)
+![venue](https://img.shields.io/static/v1?label=venue&message=ACMMM+2021&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
@@ -51,10 +51,11 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout evaluation.
 - **Language(s) (NLP):** not applicable.
-- **License:** repository code is Apache-2.0; converted artifact model cards record source repository, license, and provenance per variant.
+- **License:** Apache-2.0 for repository code.
 
 ### Model Sources
 
+- **FIDNet/LayoutNet paper:** [Constrained Graphic Layout Generation via Latent Optimization](https://arxiv.org/abs/2108.00871)
 - **LayoutFlow source:** [LayoutFlow repository](https://github.com/julianguerreiro/LayoutFlow)
 - **LayoutDM source:** [layout-dm repository](https://github.com/CyberAgentAILab/layout-dm)
 - **RALF FIDNetV3 source:** `vendor/ralf/image2layout/train/fid/model.py`
@@ -204,17 +205,18 @@ Use `uv run --package layout-fid ...` from the repository root so workspace depe
 
 ## License
 
-Repository code is Apache-2.0. Converted artifact model cards record source repository, license, and provenance for every variant. The issue #165 amendment treats redistribution of LayoutDM-derived FID weights as settled by the 2024 `layout-fid-models` publication precedent; slice 2 rebuilds the LayoutDM and RALF FIDNetV3 variants in this package, preferring original vendor artifacts and using the 2024 Hub repositories as secondary weight sources and tensor-for-tensor cross-check targets.
+Repository code is Apache-2.0. The LayoutFlow source repository is MIT licensed; LayoutDM and RALF source repositories are Apache-2.0 licensed. Converted Layout FID artifacts are not published on the Hub in this PR.
 
 ## Citation
 
 ```bibtex
-@inproceedings{guerreiro2024layoutflow,
-  title={LayoutFlow: Flow Matching For Layout Generation},
-  author={Guerreiro, Julian Jorge Andrade and Inoue, Naoto and Masui, Kento and Otani, Mayu and Nakayama, Hideki},
-  booktitle={European Conference on Computer Vision},
-  pages={56--72},
-  year={2024},
-  organization={Springer}
+@inproceedings{Kikuchi2021,
+    title = {Constrained Graphic Layout Generation via Latent Optimization},
+    author = {Kotaro Kikuchi and Edgar Simo-Serra and Mayu Otani and Kota Yamaguchi},
+    booktitle = {ACM International Conference on Multimedia},
+    series = {MM '21},
+    year = {2021},
+    pages = {88--96},
+    doi = {10.1145/3474085.3475497}
 }
 ```
