@@ -33,12 +33,14 @@ def test_posgen_dataset_registry_and_domain_split():
         "posterlayout",
         "smarttext-demo",
         "crello",
+        "ad_banner",
     }
     assert normalize_dataset_name(DatasetName.crello) is DatasetName.crello
     assert normalize_dataset_name("CGL-Dataset-v2") is DatasetName.cgl_v2
     assert normalize_dataset_name("pku-poster-layout") is DatasetName.pku_posterlayout
     assert normalize_dataset_name("posterlayout") is DatasetName.posterlayout
     assert normalize_dataset_name("smarttext-demo") is DatasetName.smarttext_demo
+    assert normalize_dataset_name("ad-banner") is DatasetName.ad_banner
     assert labels_for_dataset("crello") == (
         "coloredBackground",
         "imageElement",
@@ -48,6 +50,7 @@ def test_posgen_dataset_registry_and_domain_split():
     )
     assert label2id_for_dataset("cgl")["highlighted text"] == 4
     assert id2label_for_dataset("pku")[3] == "INVALID"
+    assert id2label_for_dataset("ad_banner")[5] == "button"
     assert set(item.value for item in DatasetName).isdisjoint(
         item.value for item in LayoutDatasetName
     )
