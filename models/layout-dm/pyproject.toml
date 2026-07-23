@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "diffusers[torch]>=0.36.0",
     "einops>=0.8",
+    "jaxtyping>=0.3",
     "laygen",
     "numpy>=1.24",
     "safetensors>=0.4",
