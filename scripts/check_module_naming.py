@@ -37,6 +37,7 @@ ALLOWLIST_CATEGORIES = {
     },
     "conversion-support": {
         "tf_checkpoint.py",
+        "vendor_state.py",
         "vendor_state_dict.py",
     },
     "layout-domain": {
@@ -44,6 +45,7 @@ ALLOWLIST_CATEGORIES = {
         "constraints.py",
         "data_specs.py",
         "geometry.py",
+        "graph_schema.py",
         "hierarchy.py",
         "labels.py",
         "masking.py",

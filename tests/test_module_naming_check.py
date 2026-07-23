@@ -67,10 +67,31 @@ def test_violation_for_module_rejects_hf_core_wrong_suffix(tmp_path: Path) -> No
 def test_violation_for_module_accepts_allowlist_categories(tmp_path: Path) -> None:
     conversion = write_module(tmp_path, "layout-dm", "conversion.py")
     geometry = write_module(tmp_path, "layout-dm", "geometry.py")
+    graph_schema = write_module(tmp_path, "housegan", "graph_schema.py")
+    postprocessing = write_module(tmp_path, "layout-detr", "postprocessing.py")
+    vendor_state = write_module(tmp_path, "layout-detr", "vendor_state.py")
 
     assert (
         check_module_naming.violation_for_module(
             check_module_naming.ModuleRecord("layout_dm", conversion, tmp_path)
+        )
+        is None
+    )
+    assert (
+        check_module_naming.violation_for_module(
+            check_module_naming.ModuleRecord("housegan", graph_schema, tmp_path)
+        )
+        is None
+    )
+    assert (
+        check_module_naming.violation_for_module(
+            check_module_naming.ModuleRecord("layout_detr", postprocessing, tmp_path)
+        )
+        is None
+    )
+    assert (
+        check_module_naming.violation_for_module(
+            check_module_naming.ModuleRecord("layout_detr", vendor_state, tmp_path)
         )
         is None
     )
