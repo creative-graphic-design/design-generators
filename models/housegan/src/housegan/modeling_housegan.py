@@ -127,7 +127,7 @@ class HouseGanGenerator(PreTrainedModel):
     supports_gradient_checkpointing = False
 
     def __init__(self, config: HouseGanConfig) -> None:
-        """Initialize generator layers with vendor-compatible names."""
+        """Initialize generator layers."""
         super().__init__(config)
         init_size = config.mask_size // 4
         in_features = config.latent_dim + config.node_feature_dim
@@ -161,7 +161,7 @@ class HouseGanGenerator(PreTrainedModel):
         Args:
             latents: Per-room latent vectors.
             node_features: Per-room one-hot room features.
-            edges: Vendor signed complete graph triples.
+            edges: Signed complete graph triples.
             return_dict: Whether to return ``HouseGanModelOutput``.
 
         Returns:

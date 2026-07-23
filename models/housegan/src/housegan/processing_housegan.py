@@ -244,7 +244,7 @@ class HouseGanProcessor(ProcessorMixin):
 
 
 def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
-    """Port vendor ``mask_to_bb`` behavior to torch tensors."""
+    """Convert thresholded masks to inclusive-exclusive ``ltrb`` boxes."""
     boxes: list[list[float]] = []
     for mask in masks.detach().cpu():
         inds = torch.nonzero(mask > threshold, as_tuple=False)

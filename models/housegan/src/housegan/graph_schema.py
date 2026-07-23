@@ -112,7 +112,7 @@ def complete_signed_edges(
     default_adjacent: bool = False,
     device: torch.device | None = None,
 ) -> torch.LongTensor:
-    """Build vendor signed complete graph triples.
+    """Build signed complete graph triples.
 
     Args:
         nodes: Room nodes in preserved graph order.
@@ -145,7 +145,7 @@ def graph_to_node_features(
     num_labels: int,
     device: torch.device | None = None,
 ) -> torch.FloatTensor:
-    """Convert public room labels to vendor 10-way one-hot features."""
+    """Convert public room labels to 10-way one-hot features."""
     label_ids = [_label_to_id(node.label, label2id=label2id) for node in nodes]
     labels_t = torch.tensor(label_ids, dtype=torch.long, device=device)
     if labels_t.numel() and (

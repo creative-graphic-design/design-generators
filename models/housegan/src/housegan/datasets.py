@@ -28,12 +28,12 @@ def load_housegan_numpy(path: str | Path) -> np.ndarray:
     return np.load(Path(path), allow_pickle=True)
 
 
-def normalize_vendor_graph_row(
+def normalize_graph_row(
     row: object,
     *,
     canvas_size: tuple[int, int] = (256, 256),
 ) -> HouseGanSceneGraph:
-    """Convert one vendor ``[room_types, ltrb_boxes]`` row to a scene graph."""
+    """Convert one ``[room_types, ltrb_boxes]`` row to a scene graph."""
     del canvas_size
     room_types, room_bbs = cast(tuple[object, object], row)
     bboxes = np.asarray(room_bbs, dtype=np.float32) / 256.0

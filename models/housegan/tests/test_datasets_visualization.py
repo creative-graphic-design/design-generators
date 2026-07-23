@@ -4,7 +4,7 @@ import torch
 from housegan.datasets import (
     build_edges_from_bboxes,
     load_housegan_numpy,
-    normalize_vendor_graph_row,
+    normalize_graph_row,
     split_target_set,
 )
 from housegan.graph_schema import HouseGanSceneGraph
@@ -18,7 +18,7 @@ def test_dataset_adapters_and_split(tmp_path):
     array[0] = row
     np.save(data_path, array)
     loaded = load_housegan_numpy(data_path)
-    graph = normalize_vendor_graph_row(loaded[0])
+    graph = normalize_graph_row(loaded[0])
     assert isinstance(graph, HouseGanSceneGraph)
     assert [node.label for node in graph.nodes] == [0, 1]
     assert split_target_set([graph], target_set="A", split="eval") == [graph]

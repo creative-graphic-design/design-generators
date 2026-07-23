@@ -34,7 +34,7 @@ class HouseGanConfig(PretrainedConfig):
 
     Args:
         dataset_name: Dataset identifier for the vectorized floorplan assets.
-        target_set: Vendor split target set, one of ``A`` through ``E``.
+        target_set: House-GAN split target set, one of ``A`` through ``E``.
         checkpoint_step: Original checkpoint training step.
         id2label: Public zero-based room label map.
         relation_id2label: Signed relation label map.
