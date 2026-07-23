@@ -86,6 +86,7 @@ PAPER_LINKS = {
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
+    ("arXiv", "2003.06988"): "https://arxiv.org/abs/2003.06988",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",
     ("paper", "TMM 2021"): "https://ieeexplore.ieee.org/document/9520053",
 }
@@ -162,7 +163,7 @@ def _expected_color(label: str, message: str | None) -> str | None:
     if label == "license":
         if message in {"Apache-2.0", "MIT"}:
             return "green"
-        if message in {"AGPL-3.0", "CC-BY-NC-4.0"}:
+        if message in {"AGPL-3.0", "CC-BY-NC-4.0", "GPL-3.0"}:
             return "orange"
         if message == "review-needed":
             return "yellow"
