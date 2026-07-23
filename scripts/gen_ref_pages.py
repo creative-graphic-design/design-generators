@@ -82,6 +82,7 @@ TASK_TAGS = frozenset(
     {
         "content-agnostic-layout-generation",
         "content-aware-layout-generation",
+        "layout-evaluation",
     }
 )
 
@@ -281,7 +282,7 @@ def allowed_condition_tags() -> frozenset[str]:
     return read_str_enum_values(
         ROOT / "lib" / "laygen" / "src" / "laygen" / "common" / "conditions.py",
         "ConditionType",
-    )
+    ) | {"evaluation"}
 
 
 def allowed_dataset_tags() -> frozenset[str]:

@@ -154,6 +154,13 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "layout-fid": {
+        "license": "other",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
     "layout-flow": {
         "license": "mit",
         "datasets": [
@@ -226,6 +233,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-corrector": "Layout-Corrector",
     "layout-detr": "LayoutDETR",
     "layout-dm": "LayoutDM",
+    "layout-fid": "Layout FID",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
     "layout-gpt": "LayoutGPT",
