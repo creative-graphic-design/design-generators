@@ -66,6 +66,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Every PR must carry the same lane/topic labels as its implementation issue,
   such as `ready-heavy`, `documentation`, or `meta`; status labels stay on
   issues only and must not be added to PRs.
+- PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do
+  not replace the template when creating PRs with `gh pr create --body`.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue
