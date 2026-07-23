@@ -3543,6 +3543,7 @@ name = "layout-gpt"
 version = "0.1.0"
 source = { editable = "models/layout-gpt" }
 dependencies = [
+    { name = "jaxtyping", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "laygen", extra = ["agents"], marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "pydantic", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "pydantic-ai", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
@@ -3566,6 +3567,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cssutils", marker = "extra == 'vendor'", specifier = ">=2.9.0" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", extras = ["agents"], editable = "lib/laygen" },
     { name = "numpy", marker = "extra == 'vendor'", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
@@ -3782,6 +3784,7 @@ name = "layoutprompter"
 version = "0.1.0"
 source = { editable = "models/layoutprompter" }
 dependencies = [
+    { name = "jaxtyping", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "laygen", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "pydantic", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
     { name = "pydantic-ai", marker = "extra == 'extra-17-design-generators-llm-agent' or extra == 'extra-6-laygen-agents' or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf')" },
@@ -3797,6 +3800,7 @@ vendor = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "opencv-python", marker = "extra == 'vendor'", specifier = ">=4.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
@@ -6368,6 +6372,7 @@ version = "0.1.0"
 source = { editable = "models/parse-then-place" }
 dependencies = [
     { name = "huggingface-hub" },
+    { name = "jaxtyping" },
     { name = "lark" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
@@ -6401,6 +6406,7 @@ dev = [
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "lark", specifier = ">=1.1" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
@@ -9092,6 +9098,7 @@ name = "smarttext"
 version = "0.1.0"
 source = { editable = "models/smarttext" }
 dependencies = [
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf' or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor')" },
@@ -9126,6 +9133,7 @@ vendor = [
 requires-dist = [
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
     { name = "huggingface-hub", marker = "extra == 'convert'", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "opencv-python", marker = "extra == 'vendor'", specifier = ">=4.8" },

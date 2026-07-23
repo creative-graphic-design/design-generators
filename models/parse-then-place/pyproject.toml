@@ -5,6 +5,7 @@ description = "Transformers-style Parse-Then-Place conversion package."
 requires-python = ">=3.11"
 dependencies = [
     "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
     "laygen",
     "lark>=1.1",
     "numpy>=1.24",

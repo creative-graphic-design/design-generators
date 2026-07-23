@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, Protocol, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import AutoModelForSeq2SeqLM, PreTrainedModel  # ty: ignore[possibly-missing-import]
 from transformers import PretrainedConfig
 
@@ -22,12 +23,12 @@ from .processing_parse_then_place import ParseThenPlaceProcessor
 class _GenerationModel(Protocol):
     def generate(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         max_length: int,
         **generate_kwargs: object,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate token ids."""
 
 
@@ -163,12 +164,12 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def parse(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         generation_max_length: int | None = None,
         **generate_kwargs: object,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate logical-form token ids with the parser stage."""
         if self.parser is None:
             raise ValueError("Parser stage is not loaded")
@@ -220,10 +221,10 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.text,
-        labels: torch.Tensor | list[object] | None = None,
-        bbox: torch.Tensor | list[object] | None = None,
-        mask: torch.Tensor | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
