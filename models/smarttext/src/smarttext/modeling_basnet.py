@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
+from jaxtyping import Float
 from torchvision import models
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
@@ -17,7 +18,7 @@ from .configuration_smarttext import SmartTextConfig
 class SmartTextSaliencyOutput(ModelOutput):
     """Output of ``SmartTextBASNet.forward``."""
 
-    saliency: torch.Tensor
+    saliency: Float[torch.Tensor, "batch height width"]
     side_outputs: tuple[torch.Tensor, ...] | None = None
 
 
@@ -251,7 +252,9 @@ class SmartTextBASNet(PreTrainedModel):
         self.outconv1 = nn.Conv2d(64, 1, 3, padding=1)
         self.refunet = _RefUnet(1, 64)
 
-    def _forward_vendor(self, x: torch.Tensor) -> tuple[torch.Tensor, ...]:
+    def _forward_vendor(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> tuple[torch.Tensor, ...]:
         hx = self.inrelu(self.inbn(self.inconv(x)))
         h1 = self.encoder1(hx)
         h2 = self.encoder2(h1)
@@ -303,7 +306,7 @@ class SmartTextBASNet(PreTrainedModel):
 
     def forward(
         self,
-        pixel_values: torch.Tensor,
+        pixel_values: Float[torch.Tensor, "batch channels height width"],
         return_dict: bool | None = None,
     ) -> SmartTextSaliencyOutput | tuple[torch.Tensor, ...]:
         """Predict saliency with the vendor BASNet forward path."""

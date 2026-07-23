@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedTokenizer
 
 from laygen.common.bbox import (
@@ -114,9 +115,9 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | list[object],
-        labels: torch.Tensor | list[object],
-        mask: torch.Tensor | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
+        labels: Int[torch.Tensor, "batch elements"] | list[object],
+        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -146,9 +147,9 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
     def encode_layout(
         self,
         *,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

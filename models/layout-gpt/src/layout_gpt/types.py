@@ -1,6 +1,7 @@
 """Structured dictionary types used by LayoutGPT."""
 
 import torch
+from jaxtyping import Bool, Float, Int
 from typing_extensions import TypedDict
 
 
@@ -23,9 +24,9 @@ class LayoutGPTIntermediates(TypedDict):
 class LayoutGPTOutputDict(TypedDict):
     """Dictionary form returned when ``output_type='dict'``."""
 
-    bbox: torch.Tensor
-    labels: torch.Tensor
-    mask: torch.Tensor
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
     id2label: dict[int, str]
     sequences: torch.Tensor | None
     scores: object | None

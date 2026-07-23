@@ -9,6 +9,7 @@ from typing import cast
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
@@ -40,7 +41,9 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         self.pos_token = nn.Parameter(torch.rand(max_len, 1, d_model))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "seq batch channels"]
+    ) -> Float[torch.Tensor, "seq batch channels"]:
         """Add learned position tokens to `(seq, batch, hidden)` input."""
         return self.dropout(x + self.pos_token[: x.size(0)])
 
@@ -115,10 +118,13 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
 
     def encode(
         self,
-        input_ids: torch.Tensor,
-        padding_mask: torch.Tensor,
-        task_ids: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        padding_mask: Bool[torch.Tensor, "batch tokens"],
+        task_ids: Int[torch.Tensor, "batch"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "seq batch channels"],
+        Bool[torch.Tensor, "batch seq"],
+    ]:
         """Encode input token ids with optional task prompt embeddings."""
         if self.task_prompt_embed is not None:
             if task_ids is None:
@@ -156,11 +162,11 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
-        labels: torch.Tensor | None = None,
-        decoder_input_ids: torch.Tensor | None = None,
-        task_ids: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        labels: Int[torch.Tensor, "batch tokens"] | None = None,
+        decoder_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        task_ids: Int[torch.Tensor, "batch"] | None = None,
         return_dict: bool | None = None,
     ) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
         """Run teacher-forced LayoutFormer++ decoding."""
@@ -199,8 +205,8 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
     @torch.no_grad()
     def _generate_sequences(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         max_length: int | None = None,
         do_sample: bool = False,
@@ -210,9 +216,9 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
             [int, int, torch.Tensor], tuple[list[int], int | None]
         ]
         | None = None,
-        task_ids: torch.Tensor | None = None,
+        task_ids: Int[torch.Tensor, "batch"] | None = None,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Run the vendor greedy/top-k autoregressive loop."""
         if attention_mask is None:
             attention_mask = input_ids.ne(self.pad_token_id)
