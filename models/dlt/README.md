@@ -39,7 +39,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [DLT](https://arxiv.org/abs/2303.03755), the ICCV 2023 joint continuous and discrete diffusion model for content-agnostic layout generation, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
+This package ports [DLT](https://arxiv.org/abs/2303.03755), the ICCV 2023 joint continuous and discrete diffusion model for content-agnostic layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
