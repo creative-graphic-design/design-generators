@@ -192,7 +192,23 @@ jobs:
           uv sync --all-packages
 
       - name: Run root tests
-        run: uv run pytest tests -m "not integration" --import-mode=importlib
+        run: |
+          mkdir -p coverage-root
+          COVERAGE_FILE=coverage-root/.coverage \
+            uv run coverage run --rcfile=/dev/null --include='scripts/*.py' \
+            -m pytest tests -m "not integration" --import-mode=importlib
+          COVERAGE_FILE=coverage-root/.coverage uv run coverage report --rcfile=/dev/null
+          COVERAGE_FILE=coverage-root/.coverage \
+            uv run coverage xml --rcfile=/dev/null -o coverage-root/root.xml
+
+      - name: Upload root coverage to Codecov
+        if: github.event_name != 'merge_group'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-root/root.xml
+          flags: root
+          fail_ci_if_error: false
 
   test-member:
     name: Test (member)
@@ -227,8 +243,18 @@ jobs:
 
       - name: Run workspace member tests
         env:
+          MEMBER_TEST_COVERAGE_XML_DIR: coverage-reports
           WORKSPACE_COVERAGE_FAIL_UNDER: "90"
         run: scripts/run_member_tests.sh "${{ matrix.member.dir }}"
+
+      - name: Upload member coverage to Codecov
+        if: github.event_name != 'merge_group'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-reports/${{ matrix.member.package }}.xml
+          flags: ${{ matrix.member.package }}
+          fail_ci_if_error: false
 
   test:
     name: Test
