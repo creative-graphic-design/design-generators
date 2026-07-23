@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 from transformers.tokenization_utils_base import BatchEncoding
 
@@ -260,14 +261,17 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        labels: list[list[str | int]] | list[str | int] | torch.Tensor | None = None,
+        labels: list[list[str | int]]
+        | list[str | int]
+        | Int[torch.Tensor, "batch elements"]
+        | None = None,
         *,
         batch_size: int = 1,
         condition_type: ConditionType | str = ConditionType.label,
-        bbox: torch.Tensor | None = None,
-        mask: torch.Tensor | None = None,
-        attention_mask: torch.Tensor | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+        attention_mask: Bool[torch.Tensor, "batch elements"] | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -276,7 +280,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        latents: torch.Tensor | None = None,
+        latents: Float[torch.Tensor, "batch elements latent"] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
         """Generate LayoutGAN++ boxes from labels.
 

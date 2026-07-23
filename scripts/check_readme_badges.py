@@ -30,7 +30,7 @@ MODEL_ORDER = [
     ("license",),
     ("base",),
     ("dataset", "task"),
-    ("vendor--parity",),
+    ("vendor-parity",),
     ("hub",),
 ]
 
@@ -122,9 +122,9 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     if label == "docs":
         return {"readthedocs"}
     if label == "license":
-        if message == "Apache--2.0":
+        if message == "Apache-2.0":
             return {"apache"}
-        if message and message.startswith("CC--"):
+        if message and message.startswith("CC-"):
             return {"creativecommons"}
         if message == "review-needed":
             return {None}
@@ -149,7 +149,7 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
         if message == "n/a":
             return {None}
         return {"huggingface"}
-    if label == "vendor--parity":
+    if label == "vendor-parity":
         return {None}
     raise AssertionError(f"no badge logo rule for label={label!r} message={message!r}")
 
@@ -160,9 +160,9 @@ def _expected_color(label: str, message: str | None) -> str | None:
     if label == "docs":
         return None
     if label == "license":
-        if message in {"Apache--2.0", "MIT"}:
+        if message in {"Apache-2.0", "MIT"}:
             return "green"
-        if message in {"AGPL--3.0", "CC--BY--NC--4.0"}:
+        if message in {"AGPL-3.0", "CC-BY-NC-4.0"}:
             return "orange"
         if message == "review-needed":
             return "yellow"
@@ -174,9 +174,9 @@ def _expected_color(label: str, message: str | None) -> str | None:
         return "informational"
     if label in {"models", "venue"}:
         return "purple"
-    if label == "vendor--parity" and message == "not--run":
+    if label == "vendor-parity" and message == "not-run":
         return "lightgrey"
-    if label == "core" or label == "vendor--parity":
+    if label == "core" or label == "vendor-parity":
         return "success"
     if label == "status":
         return "lightgrey"
@@ -214,6 +214,12 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(f"{path}: badge missing label: {url}")
         label = query["label"][0]
         message = query.get("message", [None])[0]
+        if parsed.path == "/static/v1":
+            for key, value in (("label", label), ("message", message)):
+                if value is not None and "--" in value:
+                    raise AssertionError(
+                        f"{path}:{line}: static/v1 badge {key} must not contain '--': {url}"
+                    )
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
         allowed_logos = _allowed_logos(label, message)
@@ -265,7 +271,7 @@ def _expected_link(badge: Badge) -> str | None:
             )
         return None
     if badge.label == "hub":
-        if badge.message in {"n/a", "not--published"}:
+        if badge.message in {"n/a", "not-published"}:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
@@ -276,7 +282,7 @@ def _expected_link(badge: Badge) -> str | None:
 def _assert_badge_links() -> None:
     for path in BADGE_DOCS:
         for badge in _iter_badges(path):
-            if badge.label == "hub" and badge.message in {"n/a", "not--published"}:
+            if badge.label == "hub" and badge.message in {"n/a", "not-published"}:
                 if badge.link is not None:
                     raise AssertionError(
                         f"{badge.path}:{badge.line}: hub badge {badge.message!r} must not link to an unpublished Hub repo"

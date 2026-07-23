@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, cast
 
 import torch
+from jaxtyping import Bool, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -124,11 +125,15 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: list[list[int | str]] | None = None,
+        labels: list[list[int | str]]
+        | Int[torch.Tensor, "batch elements"]
+        | None = None,
         bbox: object = None,
-        mask: torch.Tensor | None = None,
-        relations: list[list[tuple[int, int, int, int, int]]] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+        relations: list[list[tuple[int, int, int, int, int]]]
+        | Int[torch.Tensor, "batch relations relation_attrs"]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
