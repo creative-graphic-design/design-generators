@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=1 uv run --package ds-gan --extra vendor python models/ds-g
   --batch-size 4
 ```
 
-Step 3 converts the original checkpoint into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style directory. The output directory contains model weights, config, processor files, and a generated `README.md` model card.
+Step 3 converts the original checkpoint into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style directory. The output directory contains model weights, config, processor files, and a generated `README.md` model card.
 
 ```bash
 uv run --package ds-gan python models/ds-gan/scripts/convert_original_checkpoint.py \
