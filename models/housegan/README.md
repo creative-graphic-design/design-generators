@@ -36,7 +36,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [House-GAN](https://arxiv.org/abs/2003.06988), a graph-constrained floorplan layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [House-GAN](https://arxiv.org/abs/2003.06988), a graph-constrained floorplan layout generator, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 

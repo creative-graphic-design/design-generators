@@ -45,7 +45,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp pytest \
   -q
 ```
 
-4. Convert all public checkpoints into [`🤗 transformers`](https://huggingface.co/docs/transformers/index) `save_pretrained` format. When a task-specific `vocab.json` is not published, the converter builds the matching synthetic single-task vocabulary from the dataset labels and selected task.
+4. Convert all public checkpoints into [`🤗transformers`](https://huggingface.co/docs/transformers/index) `save_pretrained` format. When a task-specific `vocab.json` is not published, the converter builds the matching synthetic single-task vocabulary from the dataset labels and selected task.
 
 ```bash
 for dataset in rico publaynet; do
