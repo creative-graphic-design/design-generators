@@ -32,6 +32,18 @@ def _toy_output() -> LayoutGenerationOutput:
     )
 
 
+def _long_trajectory_output(step_count: int = 10) -> LayoutGenerationOutput:
+    output = _toy_output()
+    output.trajectory = [
+        torch.tensor([[[0.20 + step * 0.04, 0.50, 0.30, 0.30]]])
+        for step in range(step_count)
+    ]
+    output.bbox = output.trajectory[-1]
+    output.labels = torch.tensor([[0]])
+    output.mask = torch.tensor([[True]])
+    return output
+
+
 def test_render_layout_uses_stable_label_colors_and_legend() -> None:
     output = _toy_output()
     bbox = cast(torch.Tensor, output.bbox)
@@ -143,6 +155,35 @@ def test_render_trajectory_gif_writes_expected_frames(tmp_path: Path) -> None:
             image.seek(frame_index)
             durations.append(image.info["duration"])
         assert durations == [200, 1200]
+
+
+def test_render_trajectory_gif_defaults_to_external_counter_band_and_hold(
+    tmp_path: Path,
+) -> None:
+    path = render_trajectory_gif(
+        _toy_output(),
+        tmp_path / "default.gif",
+        canvas_size=(96, 96),
+        counter_band_height=24,
+    )
+
+    with Image.open(path) as image:
+        assert image.size == (96, 120)
+        image.seek(1)
+        assert image.info["duration"] == 3000
+
+
+def test_render_trajectory_gif_subsamples_long_trajectories(tmp_path: Path) -> None:
+    path = render_trajectory_gif(
+        _long_trajectory_output(step_count=10),
+        tmp_path / "subsampled.gif",
+        canvas_size=(96, 96),
+        max_frames=4,
+        trajectory_total_steps=100,
+    )
+
+    with Image.open(path) as image:
+        assert getattr(image, "n_frames") == 4
 
 
 def _gif_frame(path: Path, frame_index: int) -> np.ndarray:

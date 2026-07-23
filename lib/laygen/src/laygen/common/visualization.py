@@ -346,10 +346,13 @@ def render_trajectory_gif(
     sample_index: int = 0,
     canvas_size: tuple[int, int] = (512, 512),
     colors: Iterable[str] | None = None,
-    duration_ms: int = 240,
-    final_hold_ms: int = 1500,
+    duration_ms: int = 125,
+    final_hold_ms: int = 3000,
+    max_frames: int = 24,
     show_step_counter: bool = True,
     show_trajectory_lines: bool = True,
+    counter_band_height: int = 24,
+    trajectory_total_steps: int | None = None,
     dpi: int = 100,
 ) -> Path:
     """Render trajectory steps as an animated GIF.
@@ -363,9 +366,16 @@ def render_trajectory_gif(
         duration_ms: Frame duration in milliseconds.
         final_hold_ms: Final-frame duration in milliseconds. The final hold is
             encoded as GIF frame metadata instead of duplicated frames.
+        max_frames: Maximum GIF frames. Longer trajectories are sampled with
+            evenly spaced frame indices.
         show_step_counter: Whether to overlay a compact ``step k/n`` counter.
         show_trajectory_lines: Whether to draw cumulative element-center
             trajectories up to the current frame.
+        counter_band_height: Pixel height of the external counter band below
+            the layout canvas when the step counter is enabled.
+        trajectory_total_steps: Optional denominator for step counter text. Use
+            the model inference step count when it differs from stored
+            trajectory length.
         dpi: Matplotlib output DPI.
 
     Returns:
@@ -392,26 +402,58 @@ def render_trajectory_gif(
     typed = cast(_LayoutOutputLike, output)
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    steps = _trajectory_bbox_steps(output, sample_index)
+    full_steps = _trajectory_bbox_steps(output, sample_index)
+    if max_frames < 1:
+        msg = "max_frames must be at least 1"
+        raise ValueError(msg)
+    if len(full_steps) > max_frames:
+        frame_indices = (
+            np.linspace(0, len(full_steps) - 1, num=max_frames).round().astype(int)
+        )
+    else:
+        frame_indices = np.arange(len(full_steps), dtype=int)
+    steps = [full_steps[int(index)] for index in frame_indices.tolist()]
+    total_steps = trajectory_total_steps or len(full_steps)
+    step_numbers = np.linspace(1, total_steps, num=len(full_steps)).round().astype(int)
+    frame_step_numbers = [
+        int(step_numbers[int(index)]) for index in frame_indices.tolist()
+    ]
     labels = _sample_layout_field(typed.labels, sample_index, unbatched_ndim=1).long()
     mask = _sample_layout_field(typed.mask, sample_index, unbatched_ndim=1).bool()
     id2label = typed.id2label or {}
     palette = tuple(colors or _GALLERY_PALETTE)
-    fig, ax = plt.subplots(
-        figsize=(canvas_size[0] / dpi, canvas_size[1] / dpi),
+    band_height = counter_band_height if show_step_counter else 0
+    total_canvas_size = (canvas_size[0], canvas_size[1] + band_height)
+    fig = plt.figure(
+        figsize=(total_canvas_size[0] / dpi, total_canvas_size[1] / dpi),
         dpi=dpi,
     )
+    bottom = band_height / total_canvas_size[1] if band_height else 0.0
+    ax = fig.add_axes((0.0, bottom, 1.0, canvas_size[1] / total_canvas_size[1]))
+    if band_height:
+        fig.patches.append(
+            Rectangle(
+                (0.0, 0.0),
+                1.0,
+                bottom,
+                transform=fig.transFigure,
+                facecolor="#f6f8fa",
+                edgecolor="none",
+                zorder=0,
+            )
+        )
 
     def draw_trajectory_lines(frame_index: int) -> None:
         if not show_trajectory_lines or frame_index <= 0:
             return
         width, height = canvas_size
-        element_count = min(labels.shape[0], *(step.shape[0] for step in steps))
+        full_step_index = int(frame_indices[frame_index])
+        element_count = min(labels.shape[0], *(step.shape[0] for step in full_steps))
         for element_index in range(element_count):
             if not bool(mask[element_index]):
                 continue
             xy = torch.stack(
-                [step[element_index, :2] for step in steps[: frame_index + 1]]
+                [step[element_index, :2] for step in full_steps[: full_step_index + 1]]
             )
             label_id = int(labels[element_index])
             ax.plot(
@@ -428,26 +470,21 @@ def render_trajectory_gif(
     def draw_step_counter(frame_index: int) -> None:
         if not show_step_counter:
             return
-        width, height = canvas_size
-        ax.text(
-            width - 6,
-            height - 6,
-            f"step {frame_index + 1}/{len(steps)}",
+        fig.text(
+            0.98,
+            (band_height / 2) / total_canvas_size[1],
+            f"step {frame_step_numbers[frame_index]}/{total_steps}",
             color="#57606a",
             fontsize=7,
             ha="right",
-            va="bottom",
+            va="center",
             zorder=8,
-            bbox={
-                "facecolor": "#ffffff",
-                "edgecolor": "none",
-                "alpha": 0.75,
-                "pad": 1.5,
-            },
         )
 
     def update(frame_index: int) -> list[Artist]:
         ax.clear()
+        for text in list(fig.texts):
+            text.remove()
         draw_trajectory_lines(frame_index)
         render_layout(
             steps[frame_index],
@@ -491,10 +528,13 @@ def save_layout_gif(
     sample_index: int = 0,
     canvas_size: tuple[int, int] = (512, 512),
     colors: Iterable[str] | None = None,
-    duration_ms: int = 240,
-    final_hold_ms: int = 1500,
+    duration_ms: int = 125,
+    final_hold_ms: int = 3000,
+    max_frames: int = 24,
     show_step_counter: bool = True,
     show_trajectory_lines: bool = True,
+    counter_band_height: int = 24,
+    trajectory_total_steps: int | None = None,
     dpi: int = 100,
 ) -> Path:
     """Save a layout trajectory GIF with gallery-friendly timing metadata.
@@ -510,8 +550,11 @@ def save_layout_gif(
         colors=colors,
         duration_ms=duration_ms,
         final_hold_ms=final_hold_ms,
+        max_frames=max_frames,
         show_step_counter=show_step_counter,
         show_trajectory_lines=show_trajectory_lines,
+        counter_band_height=counter_band_height,
+        trajectory_total_steps=trajectory_total_steps,
         dpi=dpi,
     )
 
