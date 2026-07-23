@@ -21,7 +21,7 @@ BADGE_DOCS = [
     *sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md")),
 ]
 
-ROOT_ORDER = ["CI", "docs", "license", "python", "uv", "models"]
+ROOT_ORDER = ["CI", "coverage", "docs", "license", "python", "uv", "models"]
 LAYGEN_ORDER = ["package", "license", "python", "core", "extras", "docs"]
 POSGEN_ORDER = ["package", "license", "python", "runtime", "status", "docs"]
 MODEL_ORDER = [
@@ -119,6 +119,8 @@ class Badge:
 def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     if label == "CI":
         return {"githubactions"}
+    if label == "coverage":
+        return {None}
     if label == "docs":
         return {"readthedocs"}
     if label == "license":
@@ -156,6 +158,8 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
 
 def _expected_color(label: str, message: str | None) -> str | None:
     if label == "CI":
+        return None
+    if label == "coverage":
         return None
     if label == "docs":
         return None
@@ -199,7 +203,13 @@ def _iter_badges(path: Path) -> list[Badge]:
         query = parse_qs(parsed.query)
         if query.get("style") != ["flat-square"]:
             raise AssertionError(f"{path}: badge must use style=flat-square: {url}")
-        if parsed.path == "/static/v1":
+        if parsed.path == "/endpoint":
+            endpoint_url = query.get("url", [None])[0]
+            if endpoint_url != f"{DOCS_URL}coverage-badge.json":
+                raise AssertionError(
+                    f"{path}: coverage endpoint badge points at {endpoint_url!r}: {url}"
+                )
+        elif parsed.path == "/static/v1":
             if "label" not in query or "message" not in query or "color" not in query:
                 raise AssertionError(
                     f"{path}: badge missing label/message/color: {url}"
@@ -210,9 +220,16 @@ def _iter_badges(path: Path) -> list[Badge]:
             == "/github/deployments/creative-graphic-design/design-generators/github-pages"
         ):
             raise AssertionError(f"{path}: unsupported shields badge path: {url}")
-        if "label" not in query:
+        if parsed.path == "/endpoint":
+            label = match.group("alt")
+            if label != "coverage":
+                raise AssertionError(
+                    f"{path}: endpoint badge alt must be coverage: {url}"
+                )
+        elif "label" not in query:
             raise AssertionError(f"{path}: badge missing label: {url}")
-        label = query["label"][0]
+        else:
+            label = query["label"][0]
         message = query.get("message", [None])[0]
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
