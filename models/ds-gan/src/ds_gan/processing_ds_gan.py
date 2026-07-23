@@ -16,7 +16,7 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
 PKU_DATASET_LABEL2ID: dict[str, int] = {"text": 0, "logo": 1, "underlay": 2}
-PKU_VENDOR_LABEL2ID: dict[str, int] = {
+PKU_MODEL_LABEL2ID: dict[str, int] = {
     "no_object": 0,
     "text": 1,
     "logo": 2,
@@ -30,7 +30,7 @@ class DSGANProcessor(ProcessorMixin):
 
     Args:
         dataset_name: Dataset key. Only PKU PosterLayout is supported.
-        id2label: Public semantic labels excluding vendor ``no object``.
+        id2label: Public semantic labels excluding model ``no object``.
         image_size: Resize target as ``(height, width)``.
 
     Examples:
@@ -114,7 +114,7 @@ class DSGANProcessor(ProcessorMixin):
         """Decode raw DS-GAN class probabilities and boxes.
 
         Args:
-            class_probs: Vendor class probabilities shaped ``(B, E, 4)``.
+            class_probs: Internal class probabilities shaped ``(B, E, 4)``.
             bbox: Normalized center ``xywh`` boxes shaped ``(B, E, 4)``.
             output_type: Return format.
             scores: Optional per-element class scores.
@@ -154,7 +154,7 @@ class DSGANProcessor(ProcessorMixin):
         canvas_size: tuple[int, int] | None = None,
         max_elem: int = 32,
     ) -> dict[str, torch.Tensor]:
-        """Encode public boxes/labels into the vendor layout tensor.
+        """Encode public boxes/labels into the internal layout tensor.
 
         Args:
             bbox: Public boxes.
@@ -166,7 +166,7 @@ class DSGANProcessor(ProcessorMixin):
             max_elem: Output slot count.
 
         Returns:
-            Dictionary with vendor ``layout``, normalized ``bbox``, labels, and mask.
+            Dictionary with internal ``layout``, normalized ``bbox``, labels, and mask.
         """
         bbox_t, labels_t, mask_t = prepare_layout_tensors(
             bbox=bbox,
@@ -178,9 +178,9 @@ class DSGANProcessor(ProcessorMixin):
             clamp_converted_normalized=True,
         )
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t, max_elem=max_elem)
-        vendor_labels = torch.zeros_like(labels_t)
-        vendor_labels[mask_t] = labels_t[mask_t] + 1
-        class_one_hot = torch.nn.functional.one_hot(vendor_labels, num_classes=4).to(
+        model_labels = torch.zeros_like(labels_t)
+        model_labels[mask_t] = labels_t[mask_t] + 1
+        class_one_hot = torch.nn.functional.one_hot(model_labels, num_classes=4).to(
             dtype=bbox_t.dtype
         )
         layout = torch.stack((class_one_hot, bbox_t), dim=2)
@@ -354,13 +354,13 @@ def annotations_from_pku_example(
 
     The adapter filters ``INVALID`` annotations, converts pixel ``ltrb`` boxes
     to normalized center ``xywh``, derives canvas size from the image columns,
-    and applies the vendor ``designSeq.reorder`` ordering policy.
+    and applies the reference ``designSeq.reorder`` ordering policy.
     """
     annotations = cast(dict[str, object], example.get("annotations", example))
     raw_labels = cast(list[object], annotations["cls_elem"])
     raw_boxes = cast(list[object], annotations["box_elem"])
     canvas_size = _canvas_size_from_example(example)
-    vendor_labels: list[int] = []
+    model_labels: list[int] = []
     public_labels: list[int] = []
     boxes: list[list[float]] = []
     for raw_label, raw_box in zip(raw_labels, raw_boxes, strict=True):
@@ -368,12 +368,12 @@ def annotations_from_pku_example(
         if label == "INVALID":
             continue
         public_id = PKU_DATASET_LABEL2ID[label]
-        vendor_labels.append(PKU_VENDOR_LABEL2ID[label])
+        model_labels.append(PKU_MODEL_LABEL2ID[label])
         public_labels.append(public_id)
         boxes.append(_parse_box(raw_box))
     if boxes:
         box_t = torch.tensor(boxes, dtype=torch.float32)
-        order = _designseq_reorder(vendor_labels, box_t, max_elem=max_elem)
+        order = _designseq_reorder(model_labels, box_t, max_elem=max_elem)
         box_t = box_t[order]
         labels_t = torch.tensor([public_labels[i] for i in order], dtype=torch.long)
         bbox_t = normalize_boxes(
@@ -428,7 +428,7 @@ def _canvas_size_from_example(example: dict[str, object]) -> tuple[int, int]:
 
 
 def _designseq_reorder(
-    vendor_labels: list[int],
+    model_labels: list[int],
     boxes: torch.Tensor,
     *,
     max_elem: int,
@@ -436,26 +436,26 @@ def _designseq_reorder(
     try:
         from designSeq import reorder
     except ImportError:
-        return _fallback_reorder(vendor_labels, boxes, max_elem=max_elem)
-    return [int(i) for i in reorder(vendor_labels, boxes, "xyxy", max_elem)]
+        return _fallback_reorder(model_labels, boxes, max_elem=max_elem)
+    return [int(i) for i in reorder(model_labels, boxes, "xyxy", max_elem)]
 
 
 def _fallback_reorder(
-    vendor_labels: list[int],
+    model_labels: list[int],
     boxes: torch.Tensor,
     *,
     max_elem: int,
 ) -> list[int]:
     areas = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-    indices = list(range(len(vendor_labels)))
-    logos = [i for i in indices if vendor_labels[i] == 2]
+    indices = list(range(len(model_labels)))
+    logos = [i for i in indices if model_labels[i] == 2]
     texts = sorted(
-        [i for i in indices if vendor_labels[i] == 1],
+        [i for i in indices if model_labels[i] == 1],
         key=lambda i: float(areas[i]),
         reverse=True,
     )
     underlays = sorted(
-        [i for i in indices if vendor_labels[i] == 3],
+        [i for i in indices if model_labels[i] == 3],
         key=lambda i: float(areas[i]),
     )
     return (logos + texts + underlays)[:max_elem]
