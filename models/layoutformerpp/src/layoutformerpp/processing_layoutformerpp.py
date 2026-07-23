@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Final, Literal, assert_never, cast
 
 import torch
+from jaxtyping import Bool, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import BoxFormat, normalize_box_format, normalize_boxes
@@ -170,12 +171,14 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def _prepare_labels(
         self,
-        labels: list[list[int | str]] | None,
+        labels: list[list[int | str]] | Int[torch.Tensor, "batch elements"] | None,
         batch_size: int,
         mask: list[list[bool]] | None = None,
     ) -> list[list[int]]:
         if labels is None:
             return [[] for _ in range(batch_size)]
+        if isinstance(labels, torch.Tensor):
+            return [[int(value) for value in row] for row in labels.tolist()]
         rows: list[list[int]] = []
         for row_idx, item in enumerate(labels):
             row_mask = None if mask is None else mask[row_idx]
@@ -252,10 +255,17 @@ class LayoutFormerPPProcessor(ProcessorMixin):
     def __call__(
         self,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: list[list[int | str]] | None = None,
+        labels: list[list[int | str]]
+        | Int[torch.Tensor, "batch elements"]
+        | None = None,
         bbox: object = None,
-        mask: torch.Tensor | list[list[bool]] | list[bool] | None = None,
-        relations: list[list[tuple[int, int, int, int, int]]] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | list[list[bool]]
+        | list[bool]
+        | None = None,
+        relations: list[list[tuple[int, int, int, int, int]]]
+        | Int[torch.Tensor, "batch relations relation_attrs"]
+        | None = None,
         batch_size: int | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -300,6 +310,14 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                 )
             elif condition is ConditionType.relation:
                 item_relations = [] if relations is None else relations[idx]
+                if isinstance(item_relations, torch.Tensor):
+                    item_relations = cast(
+                        list[tuple[int, int, int, int, int]],
+                        [
+                            tuple(int(value) for value in row)
+                            for row in item_relations.tolist()
+                        ],
+                    )
                 texts.append(
                     self.gen_r_serializer.build_input_seq(
                         internal_labels[idx], item_relations

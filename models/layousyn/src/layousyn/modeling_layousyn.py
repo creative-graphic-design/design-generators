@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
+from jaxtyping import Bool, Float, Int
 from torch import nn
 
 from .configuration_layousyn import resolve_model_shape
@@ -51,8 +52,10 @@ class ScalarEmbedder(nn.Module):
 
     @staticmethod
     def scalar_embedding(
-        scalar: torch.Tensor, dim: int, max_period: int = 10000
-    ) -> torch.Tensor:
+        scalar: Float[torch.Tensor, "batch"] | Int[torch.Tensor, "batch"],
+        dim: int,
+        max_period: int = 10000,
+    ) -> Float[torch.Tensor, "batch channels"]:
         """Create sinusoidal embeddings for scalar values."""
         half = dim // 2
         freqs = torch.exp(
@@ -68,7 +71,9 @@ class ScalarEmbedder(nn.Module):
             )
         return embedding
 
-    def forward(self, scalar: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, scalar: Float[torch.Tensor, "batch"] | Int[torch.Tensor, "batch"]
+    ) -> Float[torch.Tensor, "batch channels"]:
         """Embed scalar values."""
         return self.mlp(self.scalar_embedding(scalar, self.frequency_embedding_size))
 
@@ -443,15 +448,15 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
         *,
-        x_padding_mask: torch.Tensor,
-        aspect_ratio: torch.Tensor,
-        concept_embeds: torch.Tensor,
-        caption_embeds: torch.Tensor | None = None,
-        caption_padding_mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        x_padding_mask: Bool[torch.Tensor, "batch elements"],
+        aspect_ratio: Float[torch.Tensor, "batch"],
+        concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"],
+        caption_embeds: Float[torch.Tensor, "batch tokens embedding_dim"] | None = None,
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+    ) -> Float[torch.Tensor, "batch seq channels"]:
         """Predict epsilon and variance channels for one timestep."""
         x = self.x_embedder(sample)
         x_enc = self.concept_embedder(concept_embeds)
@@ -480,16 +485,16 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
 
     def forward_with_cfg(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
         *,
-        x_padding_mask: torch.Tensor,
-        aspect_ratio: torch.Tensor,
-        concept_embeds: torch.Tensor,
-        caption_embeds: torch.Tensor,
-        caption_padding_mask: torch.Tensor,
+        x_padding_mask: Bool[torch.Tensor, "batch elements"],
+        aspect_ratio: Float[torch.Tensor, "batch"],
+        concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"],
+        caption_embeds: Float[torch.Tensor, "batch tokens embedding_dim"],
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"],
         guidance_scale: float,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch seq channels"]:
         """Run vendor classifier-free guidance batching."""
         half = sample[: len(sample) // 2]
         combined = torch.cat([half, half], dim=0)

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal, Self, cast
 
 import torch
+from jaxtyping import Float
 from PIL import Image, ImageFont
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
@@ -132,12 +133,15 @@ class SmartTextProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch channels height width"]
+        | None = None,
         *,
         content: Mapping[str, object] | None = None,
         prompt: str | Sequence[str] | None = None,
         text: str | Sequence[str] | None = None,
-        saliency: object | None = None,
+        saliency: Float[torch.Tensor, "batch height width"] | object | None = None,
         candidate_boxes: Sequence[Mapping[str, object]]
         | Sequence[Sequence[Mapping[str, object]]]
         | None = None,

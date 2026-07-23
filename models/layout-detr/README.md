@@ -31,13 +31,13 @@ model-index:
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2212.09877&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2212.09877)
 ![venue](https://img.shields.io/static/v1?label=venue&message=ECCV+2024&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=Ad+Banner+vendor+distribution&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance-verified&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -103,7 +103,16 @@ Run the parity commands on one selected GPU before comparing research numbers, a
 
 ## How to Get Started with the Model
 
-The Hub checkpoint is not published yet. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/REPRODUCING.md) to convert the released weights locally and load the converted directory:
+The Hub checkpoint is not published yet. Install the package with its shared workspace dependencies from this repository:
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "layout-detr @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-detr"
+```
+
+Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/REPRODUCING.md) from a local clone to convert the released weights locally. The conversion creates `.cache/layout-detr/converted/layout-detr-ad-banner`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git

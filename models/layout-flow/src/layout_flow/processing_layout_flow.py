@@ -7,6 +7,7 @@ from typing import TypeAlias, assert_never
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -45,10 +46,19 @@ class LayoutFlowProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        bbox: TensorInput = None,
-        labels: TensorInput = None,
-        mask: TensorInput = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[object]
+        | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         batch_size: int = 1,
         box_format: BoxFormat | str = "xywh",
         normalized: bool = True,

@@ -36,10 +36,10 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=SmartText+demo&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports SmartText, the TMM 2021 content-aware text placement method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package with vendor-compatible `PreTrainedModel` components and a `laygen.pipelines.LayoutGenerationPipeline` subclass.
+This package ports SmartText, the TMM 2021 content-aware text placement method, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package with vendor-compatible `PreTrainedModel` components and a `laygen.pipelines.LayoutGenerationPipeline` subclass.
 
 ## Model Details
 
