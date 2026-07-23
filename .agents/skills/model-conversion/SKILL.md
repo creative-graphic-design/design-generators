@@ -154,6 +154,10 @@ Before implementing or reviewing a plan, verify these rules:
   unavoidable, document the reason in the PR body. Standard loading is what
   makes local smoke tests, Hub checkpoints, config round-trips, and downstream
   tooling work predictably.
+- Public constructors must not synthesize default configs. Require an explicit
+  config at construction time or derive it from a loaded artifact such as
+  `model.config`; do not hide `config or SomeConfig(...)` fallbacks in
+  tokenizers, processors, pipelines, agents, or conversion helpers.
 - Use upstream class suffixes only when the class satisfies the upstream
   contract. For example, `ForConditionalGeneration` implies seq2seq-style
   `forward` plus `generate`; do not reuse that suffix for classes that cannot

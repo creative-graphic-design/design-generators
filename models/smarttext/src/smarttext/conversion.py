@@ -52,7 +52,7 @@ def convert_original_checkpoints(
     smt_checkpoint: Path,
     basnet_checkpoint: Path,
     output_dir: Path,
-    config: SmartTextConfig | None = None,
+    config: SmartTextConfig,
 ) -> dict[str, object]:
     """Convert raw SmartText checkpoints into a pipeline directory.
 
@@ -60,7 +60,7 @@ def convert_original_checkpoints(
         smt_checkpoint: Raw SMT scorer checkpoint.
         basnet_checkpoint: Raw BASNet checkpoint.
         output_dir: Output pipeline directory.
-        config: Optional SmartText config.
+        config: SmartText config.
 
     Returns:
         Conversion report dictionary.
@@ -68,9 +68,8 @@ def convert_original_checkpoints(
     Raises:
         RuntimeError: If converted keys do not strictly match the target models.
     """
-    resolved_config = config or SmartTextConfig()
-    scorer = SmartTextScorer(resolved_config)
-    saliency_model = SmartTextBASNet(resolved_config)
+    scorer = SmartTextScorer(config)
+    saliency_model = SmartTextBASNet(config)
     smt_state = strip_module_prefix(torch.load(smt_checkpoint, map_location="cpu"))
     basnet_state = strip_module_prefix(
         torch.load(basnet_checkpoint, map_location="cpu")
@@ -95,14 +94,14 @@ def convert_original_checkpoints(
     if scorer_missing or scorer_unexpected or basnet_missing or basnet_unexpected:
         raise RuntimeError(json.dumps(report, indent=2, sort_keys=True))
     processor = SmartTextProcessor(
-        image_processor=SmartTextImageProcessor.from_config(resolved_config),
-        config=resolved_config,
+        image_processor=SmartTextImageProcessor.from_config(config),
+        config=config,
     )
     pipeline = SmartTextPipeline(
         scorer=scorer,
         saliency_model=saliency_model,
         processor=processor,
-        config=resolved_config,
+        config=config,
     )
     pipeline.save_pretrained(output_dir)
     (output_dir / CONVERSION_REPORT).write_text(
