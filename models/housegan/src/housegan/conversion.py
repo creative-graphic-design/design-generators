@@ -53,12 +53,7 @@ def convert_original_checkpoint(
     }
     model.config.conversion_report = measured
     output_path = Path(output_dir)
-    processor = HouseGanProcessor(
-        id2label=config.id2label,
-        relation_id2label=config.relation_id2label,
-        canvas_size=config.canvas_size,
-        mask_size=config.mask_size,
-    )
+    processor = HouseGanProcessor(config=config)
     HouseGanPipeline(model=model, processor=processor, config=config).save_pretrained(
         output_path
     )
