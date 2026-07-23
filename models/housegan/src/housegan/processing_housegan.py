@@ -20,7 +20,7 @@ from laygen.common.bbox import (
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
-from .configuration_housegan import DEFAULT_ID2LABEL, DEFAULT_RELATION_ID2LABEL
+from .configuration_housegan import HouseGanConfig
 from .graph_schema import (
     HouseGanSceneGraph,
     complete_signed_edges,
@@ -42,23 +42,24 @@ class HouseGanProcessor(ProcessorMixin):
     def __init__(
         self,
         *,
-        id2label: Id2LabelMapping | None = None,
-        relation_id2label: Id2LabelMapping | None = None,
-        canvas_size: tuple[int, int] = (256, 256),
-        mask_size: int = 32,
+        config: HouseGanConfig,
         default_missing_relation: Literal["not_adjacent", "error"] = "not_adjacent",
     ) -> None:
         """Initialize processor metadata."""
+        self.config = config
         self.id2label = {
-            int(key): value for key, value in (id2label or DEFAULT_ID2LABEL).items()
+            int(key): value
+            for key, value in cast(Id2LabelMapping, self.config.id2label).items()
         }
         self.label2id = {value: key for key, value in self.id2label.items()}
         self.relation_id2label = {
             int(key): value
-            for key, value in (relation_id2label or DEFAULT_RELATION_ID2LABEL).items()
+            for key, value in cast(
+                Id2LabelMapping, self.config.relation_id2label
+            ).items()
         }
-        self.canvas_size = tuple(canvas_size)
-        self.mask_size = mask_size
+        self.canvas_size = tuple(self.config.canvas_size)
+        self.mask_size = self.config.mask_size
         self.default_missing_relation = default_missing_relation
         self.chat_template = None
 
@@ -73,6 +74,7 @@ class HouseGanProcessor(ProcessorMixin):
         root = Path(save_directory)
         root.mkdir(parents=True, exist_ok=True)
         payload = {
+            "config": self.config.to_dict(),
             "processor_class": self.__class__.__name__,
             "id2label": self.id2label,
             "relation_id2label": self.relation_id2label,
@@ -102,11 +104,11 @@ class HouseGanProcessor(ProcessorMixin):
         if subfolder is not None:
             root = root / subfolder
         payload = json.loads((root / cls.config_name).read_text(encoding="utf-8"))
+        config_payload = payload.get("config")
+        if not isinstance(config_payload, dict):
+            raise TypeError("processor config payload must be a dictionary")
         return cls(
-            id2label=payload.get("id2label"),
-            relation_id2label=payload.get("relation_id2label"),
-            canvas_size=tuple(payload.get("canvas_size", (256, 256))),
-            mask_size=int(payload.get("mask_size", 32)),
+            config=HouseGanConfig.from_dict(config_payload),
             default_missing_relation=payload.get(
                 "default_missing_relation", "not_adjacent"
             ),
