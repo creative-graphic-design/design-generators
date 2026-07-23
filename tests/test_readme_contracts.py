@@ -146,7 +146,7 @@ def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) "
+        "First 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index) "
         "and second 🤗 transformers.",
         encoding="utf-8",
     )
@@ -160,8 +160,23 @@ def test_hugging_face_emoji_contract_rejects_unattached_emoji(
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) "
+        "First 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index) "
         "and stray 🤗.",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="must annotate"):
+        check_model_readmes._assert_library_name_style(readme)
+
+
+def test_diffusers_emoji_contract_rejects_unattached_emoji(
+    tmp_path: Path,
+) -> None:
+    check_model_readmes = _load_check_model_readmes()
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "First 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) "
+        "and stray 🧨.",
         encoding="utf-8",
     )
 

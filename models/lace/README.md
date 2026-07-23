@@ -40,7 +40,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
+This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
 
 ## Model Details
 

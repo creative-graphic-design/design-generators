@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
     "🤗 transformers": "transformers",
-    "🤗 diffusers": "diffusers",
+    "🧨 diffusers": "diffusers",
     "🤖 pydantic-ai": "pydantic-ai",
 }
 MODEL_MEMBER_DIRS = sorted(
@@ -879,7 +879,7 @@ def _assert_library_name_style(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     banned_names = {
         "Transformers": "🤗 `transformers`",
-        "Diffusers": "🤗 `diffusers`",
+        "Diffusers": "🧨 `diffusers`",
         "Pydantic AI": "`pydantic-ai`",
     }
     for name, replacement in banned_names.items():
@@ -888,14 +888,18 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
-    emoji_mentions = re.findall(
-        r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`|(?:transformers|diffusers))",
+    huggingface_mentions = re.findall(
+        r"🤗\s+(?:\[`transformers`\]\([^)]*\)|`transformers`|transformers)",
         text,
     )
-    if text.count("🤗") != len(emoji_mentions):
-        raise AssertionError(
-            f"{path}: 🤗 must annotate a transformers/diffusers library mention"
-        )
+    if text.count("🤗") != len(huggingface_mentions):
+        raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
+    diffusers_mentions = re.findall(
+        r"🧨\s+(?:\[`diffusers`\]\([^)]*\)|`diffusers`|diffusers)",
+        text,
+    )
+    if text.count("🧨") != len(diffusers_mentions):
+        raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
     if re.search(r"🤗\s+pydantic-ai", text):
@@ -906,7 +910,9 @@ def _assert_library_name_style(path: Path) -> None:
             rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w-])", text
         ):
             prefix = text[max(0, match.start() - 4) : match.start()]
-            if library in {"transformers", "diffusers"} and prefix.endswith("🤗 "):
+            if library == "transformers" and prefix.endswith("🤗 "):
+                continue
+            if library == "diffusers" and prefix.endswith("🧨 "):
                 continue
             if library == "pydantic-ai" and prefix.endswith("🤖 "):
                 continue

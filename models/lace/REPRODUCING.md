@@ -83,7 +83,7 @@ uv run --package lace python models/lace/scripts/convert_checkpoint.py \
   --output .cache/lace/converted/lace-rico25
 ```
 
-Each output directory contains 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) pipeline files and `README.md`:
+Each output directory contains 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index) pipeline files and `README.md`:
 
 ```text
 .cache/lace/converted/lace-publaynet/README.md

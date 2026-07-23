@@ -7,7 +7,7 @@
 ![extras](https://img.shields.io/static/v1?label=extras&message=agents+%7C+diffusion+%7C+torch&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`laygen` contains shared layout-generation schemas and utilities used by this repository's model packages. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
+`laygen` contains shared layout-generation schemas and utilities used by this repository's model packages. The core package is intentionally torch-free; tensor-backed helpers, agent integrations, and 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index) adapters are available through extras declared in `lib/laygen/pyproject.toml`.
 
 Model-specific tokenizers and generation logic stay in each model package. Shared pipeline loading rules, output schemas, bbox helpers, schedulers, and model-card helpers live here.
 
