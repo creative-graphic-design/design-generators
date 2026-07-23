@@ -71,16 +71,18 @@ cd design-generators
 uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
 ```
 
-## Extension Policy
+## Policies
 
-> [!WARNING]
-> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) / 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
-
-## Reproducibility Policy
+### Reproducibility
 
 Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
 
 Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+
+### Extension
+
+> [!WARNING]
+> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) / 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
 
 ## Documentation
 
