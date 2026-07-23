@@ -71,7 +71,7 @@ class LayoutActionProcessor(ProcessorMixin):
         """Encode a public generation condition.
 
         Args:
-            condition_type: Canonical condition or supported vendor alias.
+            condition_type: Canonical condition or supported release alias.
             bbox: Optional public boxes for completion prompts.
             labels: Optional labels for label/completion prompts.
             mask: Optional valid-element mask.

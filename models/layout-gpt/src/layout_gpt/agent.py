@@ -56,7 +56,7 @@ def build_agent(model: ModelLike = None) -> object:
 
 
 class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
-    """High-level LayoutGPT runner that ports vendor prompt and parse strategy."""
+    """High-level LayoutGPT runner that ports released prompt and parse strategy."""
 
     def __init__(
         self,

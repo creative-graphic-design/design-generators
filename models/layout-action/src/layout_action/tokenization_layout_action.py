@@ -170,7 +170,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         return cls(config=config)
 
     def quantize_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
-        """Quantize normalized center ``xywh`` boxes with vendor binning."""
+        """Quantize normalized center ``xywh`` boxes with checkpoint binning."""
         return (
             bbox.clamp(0.0, 1.0)
             .mul(self.config.size - 1)
@@ -248,7 +248,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
     def _encode_action_triples(
         self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
     ) -> list[tuple[int, int, int]]:
-        """Encode one quantized box with vendor copy/margin/generate precedence."""
+        """Encode one quantized box with checkpoint copy/margin/generate precedence."""
         if not previous_boxes:
             return [
                 (

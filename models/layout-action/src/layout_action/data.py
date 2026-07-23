@@ -49,7 +49,7 @@ INFOPPT_LABELS: Final[tuple[str, ...]] = (
 
 
 def normalize_vendor_dataset_name(dataset_name: str | LayoutActionDatasetName) -> str:
-    """Normalize public and vendor dataset aliases.
+    """Normalize public and release dataset aliases.
 
     Args:
         dataset_name: Dataset name or alias.
@@ -77,7 +77,7 @@ def normalize_vendor_dataset_name(dataset_name: str | LayoutActionDatasetName) -
 def layout_action_labels(
     dataset_name: str | LayoutActionDatasetName,
 ) -> tuple[str, ...]:
-    """Return the exact label order used by the LayoutAction vendor assets."""
+    """Return the exact label order used by the LayoutAction released assets."""
     dataset = normalize_vendor_dataset_name(dataset_name)
     if dataset == "rico13":
         return RICO13_LABELS
@@ -91,7 +91,7 @@ def layout_action_labels(
 def max_elements_for_layout_action_dataset(
     dataset_name: str | LayoutActionDatasetName,
 ) -> int:
-    """Return the vendor maximum element count for a LayoutAction dataset."""
+    """Return the released maximum element count for a LayoutAction dataset."""
     dataset = normalize_vendor_dataset_name(dataset_name)
     if dataset in {"rico13", "publaynet"}:
         return 9
@@ -123,8 +123,8 @@ def iter_org_publaynet_samples() -> None:
 
 
 def iter_vendor_infoppt_samples() -> None:
-    """Placeholder for vendor-distribution-only InfoPPT loading."""
+    """Placeholder for original-distribution-only InfoPPT loading."""
     raise NotImplementedError(
         "InfoPPT is not available in the creative-graphic-design HF org yet; "
-        "use the vendor distribution until it is imported."
+        "use the original distribution until it is imported."
     )

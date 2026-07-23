@@ -79,7 +79,7 @@ class LayoutPrompterConfig:
     Args:
         dataset: Dataset vocabulary to use. Public strings are normalized to
             `LayoutPrompterDataset`.
-        condition_type: Public condition name or vendor alias.
+        condition_type: Public condition name or release alias.
         input_format: Prompt input format, either `seq` or `html`.
         output_format: Model output format, either `seq` or `html`.
         candidate_size: Number of training candidates to keep before retrieval.
@@ -134,7 +134,7 @@ class LayoutPrompterConfig:
 
     @property
     def task(self) -> LayoutPrompterTask:
-        """Return the vendor task key."""
+        """Return the released task key."""
         condition_type = normalize_condition_type(self.condition_type)
         try:
             return TASK_ALIASES[condition_type]

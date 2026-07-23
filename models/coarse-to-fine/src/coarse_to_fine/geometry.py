@@ -58,7 +58,7 @@ def ltwh_to_public_xywh(bbox: torch.Tensor) -> torch.Tensor:
 def discretize_ltwh(
     bbox: torch.Tensor, *, num_x_grid: int, num_y_grid: int
 ) -> torch.LongTensor:
-    """Discretize normalized ``ltwh`` with the vendor ``floor(coord*(grid-1))`` rule.
+    """Discretize normalized ``ltwh`` with the reference ``floor(coord*(grid-1))`` rule.
 
     Args:
         bbox: Normalized ``ltwh`` tensor.

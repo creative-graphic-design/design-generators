@@ -42,12 +42,12 @@ class LayoutActionConfig(PretrainedConfig):
 
     Args:
         dataset_name: Dataset slug. ``rico`` and ``layout_action_rico13`` map to
-            the vendor RICO13 label order.
+            the released RICO13 label order.
         id2label: Dataset-local label mapping.
-        precision: Coordinate precision; vendor defaults to 8 bits.
+        precision: Coordinate precision; checkpoint defaults to 8 bits.
         max_elements: Maximum number of layout elements.
-        block_size: GPT context length. Defaults to vendor max token length.
-        vocab_size: Token vocabulary size. Defaults to the vendor formula.
+        block_size: GPT context length. Defaults to released max token length.
+        vocab_size: Token vocabulary size. Defaults to the reference formula.
         n_layer: Number of GPT blocks.
         n_head: Attention heads.
         n_embd: Hidden size.
@@ -57,7 +57,7 @@ class LayoutActionConfig(PretrainedConfig):
         default_sampling: Default pipeline sampling mode.
         default_top_k: Default top-k value.
         default_temperature: Default sampling temperature.
-        original_dataset_name: Original vendor dataset name.
+        original_dataset_name: Original dataset name.
         original_asset_manifest: Optional asset manifest.
         kwargs: Additional ``PretrainedConfig`` fields.
 

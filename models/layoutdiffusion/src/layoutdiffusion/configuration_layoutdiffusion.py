@@ -16,22 +16,22 @@ class LayoutDiffusionConfig(ConfigMixin):
         dataset_name: Dataset name or alias.
         id2label: Optional persisted dataset-local label mapping.
         vocab: Optional token-to-id vocabulary loaded from ``vocab.json``.
-        seq_length: Full vendor token sequence length.
+        seq_length: Full internal token sequence length.
         max_num_elements: Maximum number of layout elements.
         num_coordinate_bins: Number of coordinate tokens.
         diffusion_steps: Number of training diffusion timesteps.
-        noise_schedule: Vendor diffusion schedule name.
+        noise_schedule: Reference diffusion schedule name.
         num_channels: OpenAI timestep embedding dimension.
-        bert_config_name: Name of the BERT config used by the vendor.
+        bert_config_name: Name of the BERT config used by the checkpoint.
         hidden_size: Transformer hidden size.
         num_hidden_layers: BERT encoder layer count.
         num_attention_heads: Attention head count.
         intermediate_size: Feed-forward hidden size.
         dropout: Dropout probability.
-        training_mode: Vendor training mode.
+        training_mode: Reference training mode.
         vocab_size: Full vocabulary size including mask.
         refine_start_step: Dataset-specific refinement start step.
-        type_start_step: Vendor type-conditioned start step.
+        type_start_step: Reference type-conditioned start step.
         element_count_prior: Optional 20-entry unconditional element count prior.
         pow_num: Gaussian transition exponent.
         mul_num: Gaussian transition multiplier.
@@ -146,7 +146,7 @@ class LayoutDiffusionConfig(ConfigMixin):
 
     @property
     def type_classes(self) -> int:
-        """Return the number of vendor type classes."""
+        """Return the number of reference type classes."""
         return self.vocab_size - 1 - self.num_coordinate_bins - 5
 
     def default_vocab(self) -> dict[str, int]:
@@ -160,7 +160,7 @@ class LayoutDiffusionConfig(ConfigMixin):
         return vocab
 
     def default_element_prior(self) -> list[float]:
-        """Return the vendor unconditional element-count prior."""
+        """Return the reference unconditional element-count prior."""
         if self.dataset_name == str(DatasetName.publaynet):
             return [
                 0.00321776,

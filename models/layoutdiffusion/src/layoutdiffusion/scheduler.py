@@ -43,7 +43,7 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         type_classes: Number of label/type classes.
         num_special_tokens: Number of leading special tokens.
         num_coordinate_bins: Coordinate vocabulary size.
-        noise_schedule: Vendor schedule name.
+        noise_schedule: Reference schedule name.
         pow_num: Gaussian transition exponent.
         mul_num: Gaussian transition multiplier.
         type_start_step: Label-conditioned start step.

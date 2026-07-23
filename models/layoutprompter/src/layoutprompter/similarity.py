@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 def labels_similarity(
     labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
 ) -> float:
-    """Compute the vendor multiset label overlap score."""
+    """Compute the reference multiset label overlap score."""
     values_1 = [int(value) for value in labels_1.reshape(-1).tolist()]
     values_2 = [int(value) for value in labels_2.reshape(-1).tolist()]
     counts_1 = Counter(values_1)
@@ -59,7 +59,7 @@ def labels_bboxes_similarity(
     labels_weight: float,
     bboxes_weight: float,
 ) -> float:
-    """Combine label and bbox similarities with vendor weights."""
+    """Combine label and bbox similarities with reference weights."""
     return labels_weight * labels_similarity(
         labels_1, labels_2
     ) + bboxes_weight * bboxes_similarity(
