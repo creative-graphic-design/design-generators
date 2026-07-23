@@ -144,7 +144,7 @@ The full vendor parity suite is not run unless local CGB-DM assets are present a
 
 | Dataset | Stage | Cases | Criterion | Result |
 | --- | --- | ---: | --- | --- |
-| PKU PosterLayout | synthetic training-step parity | 0 | gated adapter present | not run |
+| PKU PosterLayout | real vendor S0-S2 training-step parity | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
 | CGL | synthetic training-step parity | 0 | gated adapter present | not run |
 
 ## Reproducibility

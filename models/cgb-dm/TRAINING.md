@@ -32,6 +32,13 @@ observed filename order into a regenerated `.cache` manifest and replays that
 manifest explicitly for vendor-compatible S0 checks. The manifest is
 regeneration metadata and is not committed.
 
-The first PR wires these stages behind gated parity tests. Full
-[PKU PosterLayout](https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023) and
-CGL asset runs are deferred until the original assets are available locally.
+The gated PKU check now runs a fixed-batch original-code training step and the
+package training step with the same RNG state. S1 compares timestep ids, noise,
+condition masks, noised layouts, predicted epsilon, loss, and content-graphic
+balance weights. S2 compares clipped gradients, post-Adam parameters, and Adam
+state after one update. Floating comparisons use narrow tolerances because the
+same CUDA model path produces small roundoff differences across separate
+forward/backward executions.
+
+Full [PKU PosterLayout](https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023)
+and CGL asset runs remain outside regular CI.

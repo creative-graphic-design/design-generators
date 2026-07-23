@@ -29,6 +29,7 @@ class CGBDMStepTraceAdapter:
         "fix_mask",
         "noisy_layout",
         "predicted_epsilon",
+        "cgb_weight",
         "loss",
     )
 
