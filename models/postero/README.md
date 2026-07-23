@@ -16,10 +16,13 @@ datasets:
 
 # Model Card for PosterO
 
-![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square)
+[![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2025&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&logo=apache&logoColor=white&style=flat-square)
+![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&logo=pydantic&logoColor=white&style=flat-square)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=PKU&color=informational&logo=huggingface&logoColor=white&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&logo=huggingface&logoColor=white&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=PKU&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
 This package builds PosterO-style SVG prompts for content-aware poster layout generation, runs a `pydantic-ai` provider, and parses generated rectangles into the shared layout schema.
 

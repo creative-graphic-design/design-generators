@@ -38,3 +38,21 @@ def test_record_serialization_and_prompt_include_exemplars() -> None:
     prompt = build_prompt(_record(), [_record()], config=config)
     assert "Examples:" in prompt
     assert "Return only one <svg>...</svg> block." in prompt
+
+
+def test_hierarchical_serialization_nests_contained_elements() -> None:
+    config = PosterOConfig(structure="hierarchical")
+    record = PosterORecord(
+        id="r2",
+        dataset="pku",
+        elements=[
+            PosterLayoutElement(label=1, bbox_ltrb=(0.0, 0.0, 100.0, 100.0)),
+            PosterLayoutElement(label="caption", bbox_ltrb=(10.0, 10.0, 20.0, 20.0)),
+        ],
+    )
+
+    description, svg = serialize_record(record, config)
+
+    assert description.startswith("Example r2 hierarchical SVG")
+    assert '<rect data-label="text" x="0" y="0" width="100" height="100">' in svg
+    assert '  <rect data-label="caption" x="10" y="10" width="10" height="10" />' in svg

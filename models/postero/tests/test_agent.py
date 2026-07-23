@@ -74,6 +74,40 @@ def test_agent_retries_invalid_svg_and_can_return_dict() -> None:
     assert calls["count"] == 2
 
 
+def test_agent_returns_partial_valid_outputs_after_attempt_budget() -> None:
+    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart(content=VALID_RESPONSE)])
+
+    query, candidates = fixture_records()
+    agent = PosterOAgent(
+        model=FunctionModel(respond),
+        config=PosterOConfig(sample_size=1, n_valid_layouts=2, num_return=1),
+    )
+    output = agent(
+        query_record=query,
+        candidate_records=candidates,
+        labels=torch.tensor([[1, 2]]),
+        return_intermediates=True,
+    )
+
+    assert isinstance(output, LayoutGenerationOutput)
+    assert output.labels.tolist() == [[1]]
+
+
+def test_agent_raises_after_unparseable_attempt_budget() -> None:
+    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart(content='{"text":"not svg"}')])
+
+    query, candidates = fixture_records()
+    agent = PosterOAgent(
+        model=FunctionModel(respond),
+        config=PosterOConfig(sample_size=1, num_return=1),
+    )
+
+    with pytest.raises(RuntimeError, match="could not parse"):
+        agent(query_record=query, candidate_records=candidates)
+
+
 def test_agent_rejects_unsupported_public_arguments() -> None:
     query, candidates = fixture_records()
     agent = PosterOAgent(

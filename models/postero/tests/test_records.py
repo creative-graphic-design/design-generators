@@ -34,3 +34,20 @@ def test_record_from_mapping_rejects_unknown_label_id() -> None:
             },
             id2label=PosterOConfig().id2label or {},
         )
+
+
+def test_record_from_mapping_validates_shapes_and_types() -> None:
+    with pytest.raises(ValueError, match="bbox values"):
+        record_from_mapping(
+            {
+                "id": "bad-box",
+                "dataset": "pku",
+                "elements": [{"label": 1, "bbox_ltrb": [0, 1, 2]}],
+            },
+            id2label=PosterOConfig().id2label or {},
+        )
+    with pytest.raises(TypeError, match="Expected a mapping"):
+        record_from_mapping(
+            {"id": "bad-region", "dataset": "pku", "available_regions": ["bad"]},
+            id2label=PosterOConfig().id2label or {},
+        )
