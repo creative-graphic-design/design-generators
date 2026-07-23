@@ -37,7 +37,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports LayoutDETR, the ECCV 2024 content-image ad-banner layout generator, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
