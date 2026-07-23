@@ -9,9 +9,17 @@ from .config import (
     LayoutFlowTrainingScheduler,
     LayoutFlowTrainingSplit,
 )
-from .datamodule import LayoutFlowDataModule
 from .dataset import LayoutFlowH5Dataset, collate_layout_flow_batch
-from .lightning_module import LayoutFlowTrainingModule
+
+_LIGHTNING_EXPORTS: tuple[type[object], ...] = ()
+try:
+    from .datamodule import LayoutFlowDataModule
+    from .lightning_module import LayoutFlowTrainingModule
+
+    _LIGHTNING_EXPORTS = (LayoutFlowDataModule, LayoutFlowTrainingModule)
+except ModuleNotFoundError as exc:
+    if exc.name != "lightning":
+        raise
 
 
 __all__ = [
@@ -20,8 +28,8 @@ __all__ = [
     "LayoutFlowH5Dataset",
     "LayoutFlowSeedMode",
     "LayoutFlowTrainingDatasetName",
-    "LayoutFlowTrainingModule",
     "LayoutFlowTrainingScheduler",
     "LayoutFlowTrainingSplit",
     "collate_layout_flow_batch",
 ]
+__all__.extend(symbol.__name__ for symbol in _LIGHTNING_EXPORTS)
