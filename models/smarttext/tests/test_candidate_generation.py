@@ -3,8 +3,8 @@ from PIL import Image, ImageFont
 import pytest
 
 from smarttext.candidate_generation import (
-    candidate_from_vendor_json,
-    candidate_to_vendor_json,
+    candidate_from_reference_json,
+    candidate_to_reference_json,
     generate_candidates,
     prepare_scorer_batch,
     split_prompt_lines,
@@ -33,7 +33,7 @@ def test_split_prompt_lines_rejects_empty_prompt():
         split_prompt_lines("\n ", (1.0,))
 
 
-def test_candidate_generation_and_vendor_json_round_trip():
+def test_candidate_generation_and_reference_json_round_trip():
     config = SmartTextConfig(
         grid_num=16,
         min_font_size=10,
@@ -54,7 +54,7 @@ def test_candidate_generation_and_vendor_json_round_trip():
     )
 
     assert candidates
-    restored = candidate_from_vendor_json(candidate_to_vendor_json(candidates[0]))
+    restored = candidate_from_reference_json(candidate_to_reference_json(candidates[0]))
     assert restored == candidates[0]
 
 

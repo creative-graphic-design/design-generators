@@ -1,7 +1,7 @@
 """Configuration objects for SmartText text placement.
 
-The defaults mirror ``vendor/smarttext/test_opt.yml`` and the scorer settings
-used by ``vendor/smarttext/smtModel.py::build_smt_model``.
+The defaults mirror the original ``test_opt.yml`` and the scorer settings
+used by the original ``smtModel.py::build_smt_model``.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class SmartTextConfig(PretrainedConfig):
         scorer_subfolder: Pipeline scorer subfolder.
         saliency_subfolder: Pipeline saliency-model subfolder.
         processor_subfolder: Pipeline processor subfolder.
-        original_options: Raw vendor option values preserved for audit.
+        original_options: Raw reference option values preserved for audit.
         conversion_report: Conversion metadata persisted in configs.
         kwargs: Extra ``PretrainedConfig`` fields.
 

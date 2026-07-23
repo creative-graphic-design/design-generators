@@ -237,7 +237,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
             saliency_pfpnet: Optional PFPNet saliency map.
             saliency_basnet: Optional BASNet saliency map.
             pixel_values: Preprocessed ``(B, 4, H, W)`` tensor.
-            initial_layout: Optional vendor layout ``(B, max_elem, 2, 4)``.
+            initial_layout: Optional internal layout ``(B, max_elem, 2, 4)``.
 
         Returns:
             Shared layout-generation output.

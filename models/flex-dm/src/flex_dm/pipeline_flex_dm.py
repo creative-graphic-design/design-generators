@@ -139,7 +139,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
             generator: Common API compatibility argument. When supplied, it
                 takes precedence over ``seed``; the deterministic Flex-DM
                 inference path does not currently consume it.
-            condition_type: Canonical condition or local vendor task alias.
+            condition_type: Canonical condition or local task alias.
             labels: Public element labels.
             bbox: Public element boxes.
             mask: Public valid-element mask.

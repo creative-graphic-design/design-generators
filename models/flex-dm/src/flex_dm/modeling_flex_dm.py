@@ -113,7 +113,7 @@ class FlexDmInputEncoder(nn.Module):
 
         Args:
             inputs: Per-column tensors.
-            task_ids: Optional vendor task ids.
+            task_ids: Optional task ids.
 
         Returns:
             Hidden sequence and valid-element mask.
@@ -179,7 +179,7 @@ class FlexDmInputEncoder(nn.Module):
 
 
 class FlexDmMultiHeadSelfAttention(nn.Module):
-    """Vendor-style explicit multi-head self-attention."""
+    """Explicit explicit multi-head self-attention."""
 
     def __init__(self, hidden_size: int, num_heads: int = 8) -> None:
         """Create attention projections."""
@@ -249,7 +249,7 @@ class FlexDmDeepSvgBlock(nn.Module):
 
 
 class FlexDmDecoder(nn.Module):
-    """Decode hidden states into one head per vendor column."""
+    """Decode hidden states into one head per model column."""
 
     def __init__(self, config: FlexDmConfig) -> None:
         """Create per-column output heads."""
@@ -314,7 +314,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
             inputs: Per-column model input tensors.
             masks: Optional hidden-field masks for diagnostics.
             labels: Optional per-column reconstruction targets.
-            task_ids: Optional vendor task ids.
+            task_ids: Optional task ids.
             output_hidden_states: Whether to include final hidden states.
             return_dict: Whether to return a ``ModelOutput``.
 

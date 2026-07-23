@@ -18,7 +18,7 @@ def test_convert_checkpoint_smoke(tmp_path) -> None:
         diffusion_steps=2,
     )
     config_path = tmp_path / "config.json"
-    config_path.write_text(json.dumps(cfg.to_vendor_dict()))
+    config_path.write_text(json.dumps(cfg.to_reference_dict()))
     model = LayouSynDiTModel(
         model_name="DiT-D1-H32-N1",
         concept_in_channels=4,
