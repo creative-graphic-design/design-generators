@@ -1,5 +1,16 @@
 {
   "cases": 4,
+  "config": {
+    "injection": "top",
+    "n_valid_layouts": 1,
+    "num_return": 2,
+    "pool_strategy": "all",
+    "rank_strategy": "rank_by_label",
+    "sample_size": 1,
+    "structure": "plain"
+  },
+  "implementation_prompt_sha256": "92f5e5f568f98a5da54cf0db2eed1028cf50fa3e37c5354e99bc23dba8e1a2c4",
+  "implementation_retry_generate_calls": 2,
   "parser_bbox_ltrb": [
     [
       10.0,
@@ -8,12 +19,13 @@
       60.0
     ]
   ],
+  "parser_comparison_count": 1,
   "parser_labels": [
     1
   ],
-  "prompt_sha256": "9e436edf59d7260c1780c674abd28082d71803ee4f0b13a5ee70aafd9020a0be",
-  "retry_attempts": 2,
+  "prompt_sha256": "92f5e5f568f98a5da54cf0db2eed1028cf50fa3e37c5354e99bc23dba8e1a2c4",
   "selected_exemplar_ids": [
     "candidate-a"
-  ]
+  ],
+  "vendor_retry_generate_calls": 2
 }

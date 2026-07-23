@@ -10,8 +10,16 @@ from postero.records import PosterORecord, labels_for_record
 from postero.serialization import build_final_svg_prompt, serialize_record
 
 PROMPT_PREAMBLE: Final[str] = (
-    "You are PosterO. Allocate requested poster elements as SVG <rect> nodes. "
-    "Use pixel x/y/width/height attributes and data-label names."
+    "The following are some scalable vector graphics (svg) allocating elements on the canvas.\n"
+)
+PROMPT_RAG_OPENING: Final[str] = "Example {}: "
+PROMPT_RULE: Final[str] = (
+    "First, learn from the examples and understand how this template works.\n"
+    "Then, create a new one while following the rules:\n"
+    "1. The svg must be meaningful, which implies that empty, all-zero, or symbolic attributes are not allowed.\n"
+    "2. <rect> is the only legal svg tag, and the inner <rect> must be within the outer <svg>.\n"
+    "3. The id of <rect> must be unique and picked from {}.\n"
+    "4. The position of <rect> should be clustered neatly in avaliable areas while avoiding intersection. If intersected, <rect> should be resized or moved.\n"
 )
 
 
@@ -33,13 +41,17 @@ def build_prompt(
     Returns:
         Full prompt bytes as a Python string.
     """
-    exemplar_blocks = [serialize_record(record, config)[0] for record in exemplars]
-    final_labels = list(labels) if labels is not None else labels_for_record(query)
-    parts = [
-        PROMPT_PREAMBLE,
-        "Examples:",
-        *exemplar_blocks,
-        build_final_svg_prompt(final_labels, query, config),
-        "Return only one <svg>...</svg> block.",
+    exemplar_blocks = [
+        PROMPT_RAG_OPENING.format(index) + head + svg
+        for index, record in enumerate(exemplars)
+        for head, svg in [serialize_record(record, config)]
     ]
-    return "\n\n".join(parts)
+    final_labels = list(labels) if labels is not None else labels_for_record(query)
+    return "\n".join(
+        [
+            PROMPT_PREAMBLE,
+            "\n".join(exemplar_blocks),
+            PROMPT_RULE,
+            build_final_svg_prompt(final_labels, query, config),
+        ]
+    )

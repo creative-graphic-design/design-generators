@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
+import sys
 
-from postero.config import PosterOConfig
-from postero.exemplars import select_exemplars
-from postero.parser import parse_svg_response
-from postero.vendor_parity import golden_prompt, fixture_records
+from postero.vendor_parity import (
+    implementation_reference,
+    implementation_retry_calls,
+    parity_config,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,6 +23,12 @@ def parse_args() -> argparse.Namespace:
         default=Path("tests/vendor_parity/golden_metadata.json"),
         help="Path to write JSON metadata, relative to models/postero if not absolute.",
     )
+    parser.add_argument(
+        "--vendor-root",
+        type=Path,
+        default=None,
+        help="Original PosterO repository path. Defaults to the checked-out vendor/postero path.",
+    )
     return parser.parse_args()
 
 
@@ -29,22 +36,32 @@ def main() -> None:
     """Write parity metadata."""
     args = parse_args()
     package_root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(package_root / "tests" / "vendor_parity"))
+    from vendor_reference import vendor_reference
+
     output = args.output if args.output.is_absolute() else package_root / args.output
-    config = PosterOConfig(sample_size=1, n_valid_layouts=1, num_return=2)
-    query, candidates = fixture_records()
-    prompt = golden_prompt()
-    selected = select_exemplars(query, candidates, config=config)
-    elements, _diagnostics = parse_svg_response(
-        '<svg><rect data-label="text_1" x="10" y="20" width="30" height="40"/></svg>',
-        config=config,
-    )
+    config = parity_config()
+    vendor = vendor_reference(args.vendor_root)
+    implementation = implementation_reference()
     metadata = {
         "cases": 4,
-        "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
-        "selected_exemplar_ids": [record.id for record in selected],
-        "parser_labels": [element.label for element in elements],
-        "parser_bbox_ltrb": [list(element.bbox_ltrb) for element in elements],
-        "retry_attempts": 2,
+        "config": {
+            "structure": str(config.structure),
+            "injection": str(config.injection),
+            "pool_strategy": str(config.pool_strategy),
+            "rank_strategy": str(config.rank_strategy),
+            "sample_size": config.sample_size,
+            "n_valid_layouts": config.n_valid_layouts,
+            "num_return": config.num_return,
+        },
+        "prompt_sha256": vendor["prompt_sha256"],
+        "implementation_prompt_sha256": implementation["prompt_sha256"],
+        "selected_exemplar_ids": vendor["selected_exemplar_ids"],
+        "parser_labels": vendor["parser_labels"],
+        "parser_bbox_ltrb": vendor["parser_bbox_ltrb"],
+        "parser_comparison_count": len(vendor["parser_labels"]),
+        "vendor_retry_generate_calls": vendor["retry_generate_calls"],
+        "implementation_retry_generate_calls": implementation_retry_calls(),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

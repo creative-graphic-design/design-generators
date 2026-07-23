@@ -37,7 +37,7 @@ def select_exemplars(
         ValueError: If no candidates survive filtering.
     """
     pool_strategy = cast(PosterOPoolStrategy, config.pool_strategy)
-    pool = _pool(candidates, pool_strategy)[: config.sample_size]
+    pool = _pool(candidates, pool_strategy)
     if not pool:
         msg = "PosterO exemplar selection requires at least one candidate"
         raise ValueError(msg)
@@ -104,20 +104,35 @@ def _rank(
 
 
 def _label_score(query: PosterORecord, candidate: PosterORecord) -> float:
-    left = set(labels_for_record(query))
-    right = set(labels_for_record(candidate))
-    if not left and not right:
-        return 1.0
-    return len(left & right) / max(1, len(left | right))
+    left = sorted(str(label) for label in labels_for_record(query))
+    right = sorted(str(label) for label in labels_for_record(candidate))
+    score = 0.0
+    left_index = 0
+    right_index = 0
+    penalty = 0.2
+    while left_index < len(left) and right_index < len(right):
+        if left[left_index] == right[right_index]:
+            score += 1
+            left_index += 1
+            right_index += 1
+        elif left[left_index] < right[right_index]:
+            left_index += 1
+            score -= penalty
+        else:
+            right_index += 1
+            score -= penalty
+    return score
 
 
 def _denbox_score(query: PosterORecord, candidate: PosterORecord) -> float:
     if not query.available_regions or not candidate.available_regions:
         return 0.0
-    q = _center(query.available_regions[0].bbox_ltrb)
-    c = _center(candidate.available_regions[0].bbox_ltrb)
-    distance = ((q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2) ** 0.5
-    return -distance
+    overlaps = [
+        _box_iou(left.bbox_ltrb, right.bbox_ltrb)
+        for left in query.available_regions
+        for right in candidate.available_regions
+    ]
+    return sum(overlaps) / len(overlaps)
 
 
 def _feature_score(query: PosterORecord, candidate: PosterORecord) -> float:
@@ -131,5 +146,15 @@ def _feature_score(query: PosterORecord, candidate: PosterORecord) -> float:
     return float(torch.dot(q, c) / denominator)
 
 
-def _center(bbox: tuple[float, float, float, float]) -> tuple[float, float]:
-    return ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
+def _box_iou(
+    left: tuple[float, float, float, float], right: tuple[float, float, float, float]
+) -> float:
+    x0 = max(left[0], right[0])
+    y0 = max(left[1], right[1])
+    x1 = min(left[2], right[2])
+    y1 = min(left[3], right[3])
+    intersection = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    left_area = max(0.0, left[2] - left[0]) * max(0.0, left[3] - left[1])
+    right_area = max(0.0, right[2] - right[0]) * max(0.0, right[3] - right[1])
+    union = left_area + right_area - intersection
+    return intersection / union if union else 0.0

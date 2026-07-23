@@ -82,6 +82,8 @@ def parse_svg_response(
             continue
         raw_label = _label_from_node(node.attrib)
         normalized_label = normalize_generated_label(raw_label, config=config)
+        if normalized_label == "canvas":
+            continue
         try:
             label_id = label2id[normalized_label]
         except KeyError as exc:

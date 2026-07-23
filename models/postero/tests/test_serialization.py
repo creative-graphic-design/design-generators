@@ -21,23 +21,40 @@ def _record() -> PosterORecord:
 
 def test_available_area_and_final_prompt_bytes_are_stable() -> None:
     config = PosterOConfig()
-    assert build_available_area_polygons(_record().available_regions) == "(1, 2, 3, 4)"
+    assert build_available_area_polygons(_record().available_regions) == (
+        "(1.0, 2.0, 3.0, 4.0)"
+    )
     assert build_final_svg_prompt([1, 2], _record(), config) == (
         "Final: This svg uses canvas_0 of size (513, 750) "
-        "with available areas (1, 2, 3, 4) "
+        "with available areas (1.0, 2.0, 3.0, 4.0) "
         "to allocate { text_1, logo_2 }.\n"
     )
 
 
 def test_record_serialization_and_prompt_include_exemplars() -> None:
-    config = PosterOConfig(structure="plain")
+    config = PosterOConfig(structure="plain", injection="top")
     description, svg = serialize_record(_record(), config)
-    assert 'data-label="text"' in svg
-    assert description.startswith("Example r1 plain SVG")
+    assert (
+        '<polygon id="available_area" points="1.0,2.0 3.0,2.0 3.0,4.0 1.0,4.0" />'
+        in svg
+    )
+    assert '<rect id="canvas_0" x="0" y="0" width="513" height="750" />' in svg
+    assert '<rect id="text_1" x="10.0" y="20.0" width="20.0" height="20.0" />' in svg
+    assert description == (
+        "This svg uses canvas_0 of size (513, 750) "
+        "with available areas (1.0, 2.0, 3.0, 4.0) "
+        "to allocate { text_1 }.\n"
+    )
 
     prompt = build_prompt(_record(), [_record()], config=config)
-    assert "Examples:" in prompt
-    assert "Return only one <svg>...</svg> block." in prompt
+    assert prompt.startswith(
+        "The following are some scalable vector graphics (svg) allocating elements on the canvas.\n"
+    )
+    assert "Example 0: This svg uses canvas_0" in prompt
+    assert (
+        "First, learn from the examples and understand how this template works."
+        in prompt
+    )
 
 
 def test_hierarchical_serialization_nests_contained_elements() -> None:
@@ -53,6 +70,11 @@ def test_hierarchical_serialization_nests_contained_elements() -> None:
 
     description, svg = serialize_record(record, config)
 
-    assert description.startswith("Example r2 hierarchical SVG")
-    assert '<rect data-label="text" x="0" y="0" width="100" height="100">' in svg
-    assert '  <rect data-label="caption" x="10" y="10" width="10" height="10" />' in svg
+    assert description == (
+        "This svg uses canvas_0 of size (513, 750) to allocate { text_1, caption_2 }.\n"
+    )
+    assert '<rect id="text_1" x="0.0" y="0.0" width="100.0" height="100.0">' in svg
+    assert (
+        '\t\t<rect id="caption_2" x="10.0" y="10.0" width="10.0" height="10.0" />'
+        in svg
+    )
