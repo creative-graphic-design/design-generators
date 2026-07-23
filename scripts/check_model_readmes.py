@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git"
 ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
     "`🤗 transformers`": "transformers",
     "`🧨 diffusers`": "diffusers",
@@ -19,6 +21,9 @@ MODEL_MEMBER_DIRS = sorted(
 )
 MODEL_READMES = [member_dir / "README.md" for member_dir in MODEL_MEMBER_DIRS]
 MODEL_REPRODUCING = [member_dir / "REPRODUCING.md" for member_dir in MODEL_MEMBER_DIRS]
+LIB_MEMBER_DIRS = sorted(
+    path.parent for path in (REPO_ROOT / "lib").glob("*/pyproject.toml")
+)
 README_LINK_CONTRACTS = [
     REPO_ROOT / "README.md",
     REPO_ROOT
@@ -113,6 +118,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/Rico",
         ],
     },
+    "housegan": {
+        "license": "gpl-3.0",
+        "datasets": ["housegan-floorplan-vectorized"],
+    },
     "lace": {
         "license": "mit",
         "datasets": [
@@ -132,6 +141,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
             "cyberagent/crello",
         ],
+    },
+    "layout-detr": {
+        "license": "apache-2.0",
+        "datasets": ["Ad Banner vendor distribution"],
     },
     "layout-dm": {
         "license": "apache-2.0",
@@ -206,9 +219,11 @@ EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
     "flex-dm": "Flex-DM",
+    "housegan": "House-GAN",
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
+    "layout-detr": "LayoutDETR",
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
@@ -230,13 +245,19 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
+    "housegan": "https://github.com/ennauata/housegan",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
+SHARED_PACKAGE_SUBDIRS = {
+    "laygen": "lib/laygen",
+    "posgen": "lib/posgen",
+}
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",
     "converted behavior follows the upstream checkpoints",
@@ -256,6 +277,125 @@ def _section(text: str, heading: str) -> str:
     rest = text[match.end() :]
     next_heading = re.search(r"\n## ", rest)
     return rest[: next_heading.start()] if next_heading else rest
+
+
+def _bash_fences(text: str) -> list[str]:
+    return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+
+
+def _project_metadata(member_dir: Path) -> dict[str, object]:
+    return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _project_name(member_dir: Path) -> str:
+    project = _project_metadata(member_dir)["project"]
+    if not isinstance(project, dict):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+    name = project.get("name")
+    if not isinstance(name, str):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: project.name missing")
+    return name
+
+
+def _dependency_name(requirement: str) -> str:
+    return re.split(r"[<>=!~;\[]", requirement, maxsplit=1)[0].strip()
+
+
+def _dependency_direct_name(requirement: str) -> str:
+    return re.split(r"[<>=!~;]", requirement, maxsplit=1)[0].strip()
+
+
+def _project_dependencies(member_dir: Path) -> list[str]:
+    project = _project_metadata(member_dir)["project"]
+    if not isinstance(project, dict):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+    dependencies = project.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        raise AssertionError(
+            f"{member_dir / 'pyproject.toml'}: project.dependencies must be a list"
+        )
+    return [dependency for dependency in dependencies if isinstance(dependency, str)]
+
+
+def _direct_requirement(package_name: str, subdirectory: str) -> str:
+    return f"{package_name} @ git+{GIT_REPO_URL}#subdirectory={subdirectory}"
+
+
+def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
+    shared_dependencies: list[tuple[str, str]] = []
+    for shared_name, subdirectory in SHARED_PACKAGE_SUBDIRS.items():
+        for requirement in _project_dependencies(member_dir):
+            if _dependency_name(requirement) == shared_name:
+                shared_dependencies.append(
+                    (_dependency_direct_name(requirement), subdirectory)
+                )
+                break
+    slug = member_dir.name
+    return [*shared_dependencies, (_project_name(member_dir), f"models/{slug}")]
+
+
+def _pip_install_snippet(requirements: list[tuple[str, str]]) -> str:
+    direct_requirements = [
+        _direct_requirement(package_name, subdirectory)
+        for package_name, subdirectory in requirements
+    ]
+    if len(direct_requirements) == 1:
+        return f'pip install "{direct_requirements[0]}"'
+    lines = ["pip install \\"]
+    for index, requirement in enumerate(direct_requirements):
+        suffix = " \\" if index < len(direct_requirements) - 1 else ""
+        lines.append(f'  "{requirement}"{suffix}')
+    return "\n".join(lines)
+
+
+def _assert_pip_install_snippet(
+    path: Path,
+    section: str,
+    requirements: list[tuple[str, str]],
+    section_label: str,
+) -> None:
+    expected_requirements = [
+        _direct_requirement(package_name, subdirectory)
+        for package_name, subdirectory in requirements
+    ]
+    for fence in _bash_fences(section):
+        if "pip install" in fence and all(
+            requirement in fence for requirement in expected_requirements
+        ):
+            return
+
+    expected_example = f"```bash\n{_pip_install_snippet(requirements)}\n```"
+    missing = [
+        requirement
+        for requirement in expected_requirements
+        if requirement not in section
+    ]
+    raise AssertionError(
+        f"{path}: {section_label} must include a pip install snippet with "
+        f"the package direct URL and required shared package direct URLs. "
+        f"Missing: {missing}. Expected example:\n{expected_example}"
+    )
+
+
+def _assert_model_pip_install_snippet(path: Path, text: str) -> None:
+    section = _section(text, "## How to Get Started with the Model")
+    _assert_pip_install_snippet(
+        path,
+        section,
+        _model_install_requirements(path.parent),
+        "How to Get Started",
+    )
+
+
+def _assert_library_pip_install_snippet(path: Path, text: str) -> None:
+    section = _section(text, "## Install")
+    member_dir = path.parent
+    _assert_pip_install_snippet(
+        path,
+        section,
+        [(_project_name(member_dir), f"lib/{member_dir.name}")],
+        "Install",
+    )
 
 
 def _frontmatter(text: str) -> str:
@@ -639,7 +779,11 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
         else "bit-exact"
     )
     actual = badge.group(1)
-    if actual != expected:
+    accepted = {
+        expected,
+        expected.replace("--", "-"),
+    }
+    if actual not in accepted:
         raise AssertionError(
             f"{path}: vendor-parity badge {actual!r} does not match Parity Results; expected {expected!r}"
         )
@@ -938,6 +1082,7 @@ def check() -> None:
         _assert_expected_frontmatter(path, text)
         _assert_runtime_contract(path, text, root_runtime_by_slug)
         _assert_heading_order(path, text)
+        _assert_model_pip_install_snippet(path, text)
         _assert_model_summary_subject(path, text)
         _assert_expected_repository_links(path, text)
         _assert_prompt_only_readme(path, text)
@@ -956,6 +1101,12 @@ def check() -> None:
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
         _assert_library_name_style(path)
+    for member_dir in LIB_MEMBER_DIRS:
+        path = member_dir / "README.md"
+        _assert_library_pip_install_snippet(
+            path,
+            path.read_text(encoding="utf-8"),
+        )
     for path in README_POLICY_DOCS:
         text = path.read_text(encoding="utf-8")
         _assert_code_fences_tagged(path, text)

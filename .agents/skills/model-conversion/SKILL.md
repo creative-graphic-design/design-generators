@@ -68,6 +68,16 @@ Use the literature method name for `<slug>` and `<package>`. Put original
 implementation dependencies in a `vendor` optional extra and keep `vendor/`
 submodules read-only.
 
+Name direct package modules under `models/<slug>/src/<package>/` with
+Hugging Face-style core filenames when they implement package surface or core
+runtime behavior: `configuration_<package>.py`, `modeling_<package>.py`,
+`pipeline_<package>.py`, `scheduling_<package>.py`,
+`processing_<package>.py`, `tokenization_<package>.py`,
+`image_processing_<package>.py`, or `generation_<package>.py`. Keep
+repository convention files such as `conversion.py` and narrowly scoped domain
+helpers only when they are covered by `scripts/check_module_naming.py`; extend
+that checker deliberately before adding a new direct helper filename.
+
 Use shared libraries by import:
 
 ```python
@@ -230,6 +240,23 @@ details. Keep the final README in model-card style. Include:
 - reproducibility summary with vendor-parity numbers
 - license status and citation
 - `Reproducibility` link to `models/<slug>/REPRODUCING.md`
+
+The user-facing install snippet must use pip direct references to this
+repository's package subdirectories. Include workspace libraries that are not
+published on PyPI, such as `laygen` or `posgen`, in the same command as the
+model package. Preserve clone + uv commands only for development or
+`REPRODUCING.md` workflows.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "<package-name> @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/<slug>"
+```
+
+Omit `posgen` when the model does not depend on it, and keep extras on the
+shared package requirement when the model depends on one, for example
+`laygen[agents]`.
 
 Every model README must include a `### Parity Results` section under `## Evaluation`. Put
 the vendor-parity summary in a numeric table that states what was compared, the

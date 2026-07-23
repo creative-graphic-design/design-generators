@@ -43,6 +43,12 @@ tags:
   - Documentation
 ---
 """
+API_INDEX_ICON = "lucide/code-xml"
+API_GROUP_ICON = "lucide/folder-code"
+API_MODULE_ICON = "lucide/file-code"
+API_PACKAGE_ICON = "lucide/package"
+MODELS_OVERVIEW_ICON = "lucide/table-properties"
+REPRODUCING_ICON = "lucide/refresh-cw"
 DESIGN_METADATA_TOOL_KEY = "design-generators"
 DESIGN_METADATA_REQUIRED_KEYS = ("framework", "task", "conditions", "datasets")
 DESIGN_METADATA_EXAMPLE = (
@@ -631,7 +637,11 @@ def discover_api_packages() -> list[ApiPackage]:
 
 def write_api_index(packages: list[ApiPackage]) -> None:
     """Write the API reference landing page."""
-    lines = ["# API Reference", ""]
+    lines = render_page_frontmatter(
+        API_INDEX_ICON,
+        ("API Reference", "Documentation"),
+    )
+    lines.extend(["# API Reference", ""])
     if not packages:
         lines.extend(
             [
@@ -667,12 +677,15 @@ def write_group_indexes(packages: list[ApiPackage]) -> None:
         group_packages = [package for package in packages if package.group == group]
         if not group_packages:
             continue
-        lines = [
-            f"# {group}",
-            "",
-            f"{group} generated from workspace members.",
-            "",
-        ]
+        lines = render_page_frontmatter(API_GROUP_ICON, (group, "API Reference"))
+        lines.extend(
+            [
+                f"# {group}",
+                "",
+                f"{group} generated from workspace members.",
+                "",
+            ]
+        )
         for package in group_packages:
             lines.append(
                 f"- [{package.display_name}]({relative_docs_route(package.index_path, source=Path('api', group.lower(), 'index.md'))})"
@@ -689,11 +702,11 @@ def strip_markdown_frontmatter(markdown: str) -> str:
     return markdown[frontmatter_match.end() :].lstrip("\n")
 
 
-def render_tags_frontmatter(tags: tuple[str, ...]) -> list[str]:
-    """Render YAML front matter for docs page tags."""
+def render_page_frontmatter(icon: str, tags: tuple[str, ...]) -> list[str]:
+    """Render YAML frontmatter for docs pages."""
     if not tags:
-        return []
-    lines = ["---", "tags:"]
+        raise ValueError("Docs page frontmatter must include at least one tag")
+    lines = ["---", f"icon: {icon}", "tags:"]
     lines.extend(f"  - {tag}" for tag in tags)
     lines.extend(["---", ""])
     return lines
@@ -734,7 +747,12 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
     for package in packages:
         readme_path = package.member_dir / "README.md"
         metadata = package.design_metadata
-        lines = render_tags_frontmatter(metadata.tags if metadata is not None else ())
+        tags = (
+            ("Models", "API Reference", *metadata.tags)
+            if metadata is not None
+            else (package.group, "API Reference")
+        )
+        lines = render_page_frontmatter(API_PACKAGE_ICON, tags)
         if readme_path.is_file():
             readme = strip_markdown_frontmatter(
                 readme_path.read_text(encoding="utf-8")
@@ -764,21 +782,21 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
 def write_models_overview(packages: list[ApiPackage]) -> None:
     """Write the generated model comparison table."""
     model_packages = [package for package in packages if package.group == "Models"]
-    lines = [
-        "---",
-        "tags:",
-        "  - Models",
-        "  - Documentation",
-        "---",
-        "",
-        "# Models",
-        "",
-        "This generated table summarizes model package metadata declared in each "
-        "`models/*/pyproject.toml`.",
-        "",
-        "| Package | Framework | Task | Conditions | Datasets |",
-        "| --- | --- | --- | --- | --- |",
-    ]
+    lines = render_page_frontmatter(
+        MODELS_OVERVIEW_ICON,
+        ("Models", "Documentation"),
+    )
+    lines.extend(
+        [
+            "# Models",
+            "",
+            "This generated table summarizes model package metadata declared in each "
+            "`models/*/pyproject.toml`.",
+            "",
+            "| Package | Framework | Task | Conditions | Datasets |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+    )
     for package in model_packages:
         metadata = package.design_metadata
         if metadata is None:
@@ -853,9 +871,19 @@ def write_reproducing_pages(packages: list[ApiPackage]) -> None:
         if package.reproducing_path is None:
             continue
         reproducing_path = package.member_dir / "REPRODUCING.md"
+        frontmatter = render_page_frontmatter(
+            REPRODUCING_ICON,
+            ("Reproducibility", package.group),
+        )
         write_text_file(
             package.reproducing_path,
-            f"{reproducing_path.read_text(encoding='utf-8').rstrip()}\n",
+            "\n".join(
+                [
+                    *frontmatter,
+                    reproducing_path.read_text(encoding="utf-8").rstrip(),
+                    "",
+                ]
+            ),
         )
 
 
@@ -863,9 +891,21 @@ def write_api_pages(packages: list[ApiPackage]) -> None:
     """Write one mkdocstrings page per discovered module."""
     for package in packages:
         for page in package.pages:
+            frontmatter = render_page_frontmatter(
+                API_MODULE_ICON,
+                ("API Reference", package.group),
+            )
             write_text_file(
                 page.page_path,
-                f"# `{page.module}`\n\n::: {page.module}\n",
+                "\n".join(
+                    [
+                        *frontmatter,
+                        f"# `{page.module}`",
+                        "",
+                        f"::: {page.module}",
+                        "",
+                    ]
+                ),
             )
 
 
