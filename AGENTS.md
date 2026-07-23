@@ -117,6 +117,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - `labels` are dataset-local integer ids unless a model explicitly documents
   request-local open-vocabulary ids.
 - Persist `id2label` in config/model cards and return it with outputs.
+- Public constructors must not synthesize default configs; require explicit
+  config or derive it from a loaded artifact such as `model.config`.
 - `generator` is the exact reproducibility API and takes precedence over
   `seed`.
 - Canonical `condition_type` names are v1 `unconditional`, `label`,

@@ -72,7 +72,7 @@ class LayoutActionPipeline(LayoutGenerationPipeline):
         >>> config = LayoutActionConfig(n_layer=1, n_head=2, n_embd=16, max_elements=1)
         >>> pipe = LayoutActionPipeline(
         ...     model=LayoutActionForCausalLM(config),
-        ...     processor=LayoutActionProcessor(),
+        ...     processor=LayoutActionProcessor(LayoutActionTokenizer(config)),
         ...     config=config,
         ... )
         >>> pipe.config.model_type
