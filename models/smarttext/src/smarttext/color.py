@@ -19,7 +19,7 @@ Color = np.ndarray | list[float] | list[int]
 
 
 def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
-    """Return vendor-sorted KMeans dominant colors.
+    """Return reference-sorted KMeans dominant colors.
 
     Args:
         image: RGB image array.
@@ -27,7 +27,7 @@ def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
 
     Returns:
         Cluster centers sorted by RGB tuple, matching
-        ``vendor/smarttext/cal_color.py::cal_domcolor``.
+        the original ``cal_color.py::cal_domcolor``.
     """
     pixels = image.reshape((image.shape[0] * image.shape[1], image.shape[2]))
     estimator = KMeans(n_clusters=clusters, max_iter=300, n_init=2)
@@ -37,12 +37,12 @@ def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
 
 
 def rgb_distance(rgb: Color) -> float:
-    """Return the vendor channel-spread distance."""
+    """Return the channel-spread distance."""
     return abs(rgb[0] - rgb[1]) + abs(rgb[0] - rgb[2]) + abs(rgb[2] - rgb[1])
 
 
 def rgb_to_hex(rgb: Color) -> str:
-    """Convert an RGB row to the vendor uppercase hex form."""
+    """Convert an RGB row to the uppercase hex form."""
     color = "#"
     for channel in rgb:
         color += str(hex(int(channel)))[-2:].replace("x", "0").upper()
@@ -50,7 +50,7 @@ def rgb_to_hex(rgb: Color) -> str:
 
 
 def luminance(rgb: list[float]) -> float:
-    """Return WCAG relative luminance using the vendor formula."""
+    """Return WCAG relative luminance using the reference formula."""
     values = list(rgb)
     for index in range(len(values)):
         if values[index] <= 0.03928:
@@ -64,7 +64,7 @@ def contrast_rate(
     rgb_a: Color,
     rgb_b: Color,
 ) -> float:
-    """Return vendor-rounded contrast ratio between two RGB colors."""
+    """Return reference-rounded contrast ratio between two RGB colors."""
     l1 = luminance([rgb_a[0] / 255, rgb_a[1] / 255, rgb_a[2] / 255])
     l2 = luminance([rgb_b[0] / 255, rgb_b[1] / 255, rgb_b[2] / 255])
     if l1 >= l2:
@@ -81,13 +81,13 @@ def best_color_candidates(
     contrast_threshold: float,
     random_seed: int | None = 0,
 ) -> list[dict[str, object]]:
-    """Return vendor-ordered color candidates for a text region.
+    """Return reference-ordered color candidates for a text region.
 
     Args:
         image: Source RGB image.
         crop: Candidate crop from ``image``.
         contrast_threshold: Minimum contrast ratio accepted before fallback.
-        random_seed: Seed used to make the vendor KMeans path deterministic.
+        random_seed: Seed used to make the reference KMeans path deterministic.
 
     Returns:
         Candidate dictionaries with ``color`` and ``contrast_rate`` keys.
@@ -148,7 +148,7 @@ def choose_text_color(
     *,
     contrast_threshold: float,
 ) -> str:
-    """Choose the vendor SmartText foreground for a candidate region.
+    """Choose the SmartText foreground for a candidate region.
 
     Args:
         image: Source RGB image.
@@ -156,7 +156,7 @@ def choose_text_color(
         contrast_threshold: Threshold above which white text is preferred.
 
     Returns:
-        Hex foreground color in the vendor uppercase form.
+        Hex foreground color in the uppercase form.
 
     Examples:
         >>> choose_text_color(Image.new("RGB", (8, 8), "black"), (0, 0, 8, 8), contrast_threshold=5)
