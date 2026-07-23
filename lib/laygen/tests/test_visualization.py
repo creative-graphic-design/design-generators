@@ -145,6 +145,44 @@ def test_render_trajectory_gif_writes_expected_frames(tmp_path: Path) -> None:
         assert durations == [200, 1200]
 
 
+def _gif_frame(path: Path, frame_index: int) -> np.ndarray:
+    with Image.open(path) as image:
+        image.seek(frame_index)
+        return np.asarray(image.convert("RGB"))
+
+
+def test_render_trajectory_gif_overlays_counter_and_lines(tmp_path: Path) -> None:
+    output = _toy_output()
+    plain_path = tmp_path / "plain.gif"
+    counter_path = tmp_path / "counter.gif"
+    lines_path = tmp_path / "lines.gif"
+
+    render_trajectory_gif(
+        output,
+        plain_path,
+        canvas_size=(96, 96),
+        show_step_counter=False,
+        show_trajectory_lines=False,
+    )
+    render_trajectory_gif(
+        output,
+        counter_path,
+        canvas_size=(96, 96),
+        show_step_counter=True,
+        show_trajectory_lines=False,
+    )
+    render_trajectory_gif(
+        output,
+        lines_path,
+        canvas_size=(96, 96),
+        show_step_counter=False,
+        show_trajectory_lines=True,
+    )
+
+    assert not np.array_equal(_gif_frame(plain_path, 0), _gif_frame(counter_path, 0))
+    assert not np.array_equal(_gif_frame(plain_path, 1), _gif_frame(lines_path, 1))
+
+
 def test_save_layout_gif_alias_writes_final_hold_metadata(tmp_path: Path) -> None:
     path = save_layout_gif(
         _toy_output(),

@@ -108,6 +108,8 @@ def _write_metadata(
     call_kwargs: dict[str, object],
     duration_ms: int,
     final_hold_ms: int,
+    show_step_counter: bool,
+    show_trajectory_lines: bool,
 ) -> None:
     metadata = {
         "model_package": model_package,
@@ -121,6 +123,8 @@ def _write_metadata(
         else None,
         "duration_ms": duration_ms,
         "final_hold_ms": final_hold_ms,
+        "show_step_counter": show_step_counter,
+        "show_trajectory_lines": show_trajectory_lines,
         "call_kwargs": call_kwargs,
         "generated_at": datetime.now(UTC).isoformat(),
     }
@@ -179,6 +183,16 @@ def parse_args() -> argparse.Namespace:
         default=1500,
         help="Final GIF frame duration in milliseconds without duplicating frames.",
     )
+    parser.add_argument(
+        "--hide-step-counter",
+        action="store_true",
+        help="Disable the trajectory GIF step counter overlay.",
+    )
+    parser.add_argument(
+        "--hide-trajectory-lines",
+        action="store_true",
+        help="Disable cumulative trajectory lines in trajectory GIFs.",
+    )
     return parser.parse_args()
 
 
@@ -214,6 +228,8 @@ def main() -> None:
             canvas_size=tuple(args.canvas_size),
             duration_ms=args.duration_ms,
             final_hold_ms=args.final_hold_ms,
+            show_step_counter=not args.hide_step_counter,
+            show_trajectory_lines=not args.hide_trajectory_lines,
         )
     metadata_path = args.output_dir / f"{slug}.json"
     _write_metadata(
@@ -228,6 +244,8 @@ def main() -> None:
         call_kwargs=args.call_kwargs_json,
         duration_ms=args.duration_ms,
         final_hold_ms=args.final_hold_ms,
+        show_step_counter=not args.hide_step_counter,
+        show_trajectory_lines=not args.hide_trajectory_lines,
     )
 
 
