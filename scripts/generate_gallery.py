@@ -108,8 +108,11 @@ def _write_metadata(
     call_kwargs: dict[str, object],
     duration_ms: int,
     final_hold_ms: int,
+    max_frames: int,
     show_step_counter: bool,
     show_trajectory_lines: bool,
+    counter_band_height: int,
+    trajectory_total_steps: int | None,
 ) -> None:
     metadata = {
         "model_package": model_package,
@@ -123,8 +126,11 @@ def _write_metadata(
         else None,
         "duration_ms": duration_ms,
         "final_hold_ms": final_hold_ms,
+        "max_frames": max_frames,
         "show_step_counter": show_step_counter,
         "show_trajectory_lines": show_trajectory_lines,
+        "counter_band_height": counter_band_height,
+        "trajectory_total_steps": trajectory_total_steps,
         "call_kwargs": call_kwargs,
         "generated_at": datetime.now(UTC).isoformat(),
     }
@@ -180,8 +186,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--final-hold-ms",
         type=int,
-        default=1500,
+        default=3000,
         help="Final GIF frame duration in milliseconds without duplicating frames.",
+    )
+    parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=24,
+        help="Maximum trajectory GIF frames after even subsampling.",
     )
     parser.add_argument(
         "--hide-step-counter",
@@ -192,6 +204,17 @@ def parse_args() -> argparse.Namespace:
         "--hide-trajectory-lines",
         action="store_true",
         help="Disable cumulative trajectory lines in trajectory GIFs.",
+    )
+    parser.add_argument(
+        "--counter-band-height",
+        type=int,
+        default=24,
+        help="Pixel height of the external step-counter band.",
+    )
+    parser.add_argument(
+        "--trajectory-total-steps",
+        type=int,
+        help="Step counter denominator, usually the model inference step count.",
     )
     return parser.parse_args()
 
@@ -228,8 +251,11 @@ def main() -> None:
             canvas_size=tuple(args.canvas_size),
             duration_ms=args.duration_ms,
             final_hold_ms=args.final_hold_ms,
+            max_frames=args.max_frames,
             show_step_counter=not args.hide_step_counter,
             show_trajectory_lines=not args.hide_trajectory_lines,
+            counter_band_height=args.counter_band_height,
+            trajectory_total_steps=args.trajectory_total_steps,
         )
     metadata_path = args.output_dir / f"{slug}.json"
     _write_metadata(
@@ -244,8 +270,11 @@ def main() -> None:
         call_kwargs=args.call_kwargs_json,
         duration_ms=args.duration_ms,
         final_hold_ms=args.final_hold_ms,
+        max_frames=args.max_frames,
         show_step_counter=not args.hide_step_counter,
         show_trajectory_lines=not args.hide_trajectory_lines,
+        counter_band_height=args.counter_band_height,
+        trajectory_total_steps=args.trajectory_total_steps,
     )
 
 
