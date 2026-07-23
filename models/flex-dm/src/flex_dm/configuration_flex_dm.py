@@ -23,7 +23,7 @@ class FlexDmColumnType(StrEnum):
 
 
 class FlexDmLossCondition(TypedDict):
-    """Vendor loss-condition filter for conditionally valid fields."""
+    """Conditional loss filter for conditionally valid fields."""
 
     key: str
     mask: tuple[bool, ...]
@@ -76,25 +76,25 @@ class FlexDmConfig(PretrainedConfig):
     """Configuration for a converted Flex-DM MFP model.
 
     Args:
-        dataset_name: Vendor dataset name.
+        dataset_name: Released dataset name.
         checkpoint_variant: Released checkpoint variant name.
         id2label: Public dataset-local label mapping.
-        input_columns: Heterogeneous vendor column specs.
-        attribute_groups: Vendor feature groups used for infilling.
+        input_columns: Heterogeneous model column specs.
+        attribute_groups: Model feature groups used for infilling.
         max_seq_length: Maximum document elements.
         latent_dim: Transformer hidden dimension.
         num_blocks: Number of DeepSVG-style transformer blocks.
-        block_type: Vendor block type. Only ``deepsvg`` is implemented.
-        masking_method: Vendor masking task selector.
-        seq_type: Vendor sequence model type. ``default`` is the released path.
-        arch_type: Vendor architecture type. ``oneshot`` is the released path.
-        context: Optional vendor context embedding mode.
-        input_dtype: Vendor input ordering mode.
+        block_type: Released block type. Only ``deepsvg`` is implemented.
+        masking_method: Released masking task selector.
+        seq_type: Released sequence model type. ``default`` is the released path.
+        arch_type: Released architecture type. ``oneshot`` is the released path.
+        context: Optional reference context embedding mode.
+        input_dtype: Released input ordering mode.
         use_elemwise_noise: Whether element-wise noise was enabled.
         dropout: Dropout probability.
         layer_norm_epsilon: LayerNorm epsilon matching Keras defaults.
         l2: Original L2 setting, stored for provenance.
-        original_args: Raw vendor ``args.json`` values.
+        original_args: Raw reference ``args.json`` values.
         conversion_report: Checkpoint conversion diagnostics.
         kwargs: Extra ``PretrainedConfig`` fields.
     """
@@ -160,7 +160,7 @@ class FlexDmConfig(PretrainedConfig):
 
     @property
     def max_seq_length_with_length_lookup(self) -> int:
-        """Return the max length used by the vendor zero-based length lookup."""
+        """Return the max length used by the zero-based length lookup."""
         return self.max_seq_length
 
     @property
@@ -190,7 +190,7 @@ class FlexDmConfig(PretrainedConfig):
 
     @property
     def task_names(self) -> tuple[str, ...]:
-        """Return vendor task names in sampler order."""
+        """Return task names in sampler order."""
         return ("random", "elem", *self.attribute_groups.keys())
 
     def mask_token_id_for(self, key: str) -> int:

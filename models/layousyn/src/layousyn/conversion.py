@@ -8,7 +8,7 @@ import json
 import torch
 
 from .configuration_layousyn import LayouSynConfig
-from .modeling_layousyn import LayouSynDiTModel, convert_vendor_state_dict
+from .modeling_layousyn import LayouSynDiTModel, convert_reference_state_dict
 from .pipeline_layousyn import LayouSynPipeline
 from .processing_layousyn import LayouSynProcessor
 from .scheduling_layousyn import LayouSynScheduler
@@ -43,7 +43,7 @@ def convert_checkpoint(
     if push_to_hub:
         raise ValueError("Hub push is disabled for implementation PR conversion")
     del hub_repo_id
-    config = LayouSynConfig.from_vendor_json(config_path)
+    config = LayouSynConfig.from_reference_json(config_path)
     model = LayouSynDiTModel(
         in_channels=config.in_channels,
         max_in_len=config.max_in_len,
@@ -58,7 +58,7 @@ def convert_checkpoint(
     raw = torch.load(checkpoint_path, map_location="cpu")
     state_dict = raw["ema"] if isinstance(raw, dict) and "ema" in raw else raw
     missing, unexpected = model.load_state_dict(
-        convert_vendor_state_dict(state_dict), strict=False
+        convert_reference_state_dict(state_dict), strict=False
     )
     if unexpected:
         raise ValueError(
