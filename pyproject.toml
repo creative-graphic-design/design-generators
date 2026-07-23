@@ -18,6 +18,7 @@ dependencies = [
     "flex-dm",
     "housegan",
     "layout-corrector",
+    "layout-detr",
     "layoutdiffusion",
     "layout-flow",
     "layout-gpt",
@@ -34,6 +35,8 @@ dependencies = [
     "posgen",
     "ralf",
     "smarttext",
+    "traingen",
+    "traingen-parity",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -48,7 +51,8 @@ llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
 training = [
-    "lightning>=2.0.0",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
 ]
 
 [dependency-groups]
@@ -115,6 +119,14 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "ds-gan" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
+    [
+        { package = "ds-gan", extra = "download" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
+    [
         { package = "housegan", extra = "vendor" },
         { package = "smarttext", extra = "vendor" },
     ],
@@ -138,6 +150,7 @@ ds-gan = { workspace = true }
 flex-dm = { workspace = true }
 housegan = { workspace = true }
 layout-corrector = { workspace = true }
+layout-detr = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
@@ -154,6 +167,8 @@ parse-then-place = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
@@ -218,8 +233,13 @@ branch = true
 omit = [
     "tests/*",
     "tests/**/*",
+    "models/*/tests/vendor_parity/*",
+    "models/*/tests/vendor_parity/**/*",
+    "models/layout-flow/src/layout_flow/training/*",
     "scripts/*",
     "scripts/**/*",
+    "vendor/*",
+    "vendor/**/*",
 ]
 
 [tool.coverage.report]

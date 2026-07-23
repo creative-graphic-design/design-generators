@@ -38,13 +38,13 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
+This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024 flow-matching model for layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
 
 ## Model Details
 
 ### Model Description
 
-LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting layout coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.
@@ -70,7 +70,7 @@ LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and parity validation of generated layouts.
 
 The original method models layouts as continuous flow-matching trajectories over normalized boxes and analog-bit category labels, then solves the generation path with an increasing-time ODE from `t=0` to `t=1`.
 
@@ -135,15 +135,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
-
-#### Preprocessing
-
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
-
-#### Training Hyperparameters
-
-- **Training regime:** original upstream training; not rerun in this repository.
+This package includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged parity reruns, and trained-checkpoint conversion.
 
 #### Speeds, Sizes, Times
 
@@ -171,6 +163,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | --- | --- | ---: | --- |
 | PubLayNet | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
 | RICO25 | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
+| Training parity stages | LightningCLI training wrapper vs. vendor training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
 
 Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed parity test compares an Euler trajectory against the vendor.
 
@@ -187,7 +180,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts vendor coordinate conventions to normalized center `xywh` outputs.
+LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts layout coordinate conventions to normalized center `xywh` outputs.
 
 ### Compute Infrastructure
 

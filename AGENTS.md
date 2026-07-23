@@ -37,6 +37,10 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   on that member's extras, dependency source mapping, or package metadata.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
+- Main package code (`models/*/src`, `lib/*/src`) and configs must not reference
+  the vendor/original implementation in identifiers, docstrings, comments, or
+  config names; vendor references belong only in conversion modules,
+  `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
 
 ## Repo-Local Skills
 
@@ -54,6 +58,13 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   as `creative-graphic-design/layoutganpp-rico`.
 - Shared packages are `laygen.common` for layout-generation utilities and
   `posgen.common` for poster/content-aware utilities.
+- Core model-package modules under `models/*/src/<pkg>/` must follow Hugging
+  Face-style filenames with the package suffix, such as
+  `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`,
+  `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`,
+  `image_processing_<pkg>.py`, and `generation_<pkg>.py`. Repository convention
+  files and domain helpers must be explicitly allowed by
+  `scripts/check_module_naming.py`; do not add new ad hoc core names.
 
 ## Tracking
 
@@ -110,12 +121,16 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - `labels` are dataset-local integer ids unless a model explicitly documents
   request-local open-vocabulary ids.
 - Persist `id2label` in config/model cards and return it with outputs.
+- Public constructors must not synthesize default configs; require explicit
+  config or derive it from a loaded artifact such as `model.config`.
 - `generator` is the exact reproducibility API and takes precedence over
   `seed`.
 - Canonical `condition_type` names are v1 `unconditional`, `label`,
   `label_size`, `completion`, `refinement`; v2 adds `text`, `content_image`,
   `relation`, `hierarchical`, `retrieval`. Normalize vendor aliases and raise
   explicit errors for unsupported modes.
+- Constrained string options in public APIs use `Literal` aliases or `StrEnum`
+  classes rather than bare `str` annotations.
 - Discrete-vocabulary layout tokenizers subclass
   `transformers.PreTrainedTokenizer`; serialize auxiliary data with tokenizer
   files. Use a custom class only when the base class truly conflicts and document
@@ -190,6 +205,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   tests, conversion, and `from_pretrained` smoke tests.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
+- Docs and READMEs link the first mention of external projects and repositories.
+  Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
+  unless that page defines them in place or links directly to the definition.
 - Hub model cards are generated through `laygen.common.model_card` using the
   official Hugging Face model-card template.
 

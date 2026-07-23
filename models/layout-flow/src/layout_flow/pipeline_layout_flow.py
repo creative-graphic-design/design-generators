@@ -13,7 +13,6 @@ from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
 
 from laygen.common.bbox import BoxFormat
-from laygen.common.labels import DatasetName
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
@@ -45,7 +44,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
         self,
         model: LayoutFlowTransformerModel,
         scheduler: LayoutFlowEulerScheduler,
-        config: LayoutFlowConfig | None = None,
+        config: LayoutFlowConfig,
         processor: LayoutFlowProcessor | None = None,
     ) -> None:
         """Create a LayoutFlow pipeline.
@@ -53,17 +52,12 @@ class LayoutFlowPipeline(DiffusionPipeline):
         Args:
             model: Converted LayoutFlow transformer model.
             scheduler: Increasing-time Euler scheduler.
-            config: Optional pipeline configuration.
+            config: Pipeline configuration.
             processor: Optional input/output processor.
         """
         super().__init__()
         self.register_modules(model=model, scheduler=scheduler)
-        dataset_name = (
-            DatasetName.rico25
-            if model.config.num_labels == 26
-            else DatasetName.publaynet
-        )
-        self.layout_flow_config = config or LayoutFlowConfig(dataset_name=dataset_name)
+        self.layout_flow_config = config
         self.processor = processor or LayoutFlowProcessor(self.layout_flow_config)
         self.model.eval()
 
@@ -102,7 +96,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             batch_size: Number of layouts to generate.
             seed: Optional seed used when ``generator`` is omitted.
             generator: Optional torch random generator.
-            condition_type: Public condition name or vendor alias.
+            condition_type: Public condition name or supported alias.
             labels: Optional condition labels.
             bbox: Optional condition boxes.
             mask: Optional valid-element mask.
@@ -245,7 +239,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             return_unused_kwargs=True,
         )
         config = cast(LayoutFlowConfig, LayoutFlowConfig.from_config(config_dict))
-        pipe = super().from_pretrained(pretrained_model_name_or_path)
+        pipe = super().from_pretrained(pretrained_model_name_or_path, config=config)
         pipe.layout_flow_config = config
         pipe.processor = LayoutFlowProcessor(config)
         return pipe

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
@@ -11,6 +12,7 @@ from ralf import (
     RalfPipeline,
     RalfProcessor,
 )
+from ralf.modeling_ralf import RalfTaskPreprocessor
 
 
 def _pipeline() -> RalfPipeline:
@@ -22,10 +24,23 @@ def _pipeline() -> RalfPipeline:
         num_attention_heads=4,
         d_model=16,
     )
-    return RalfPipeline(
-        model=RalfForConditionalLayoutGeneration(config),
-        processor=RalfProcessor.from_config(config),
-    )
+    model = RalfForConditionalLayoutGeneration(config)
+
+    def encode(
+        inputs: Mapping[str, torch.Tensor | Mapping[str, torch.Tensor]],
+    ) -> dict[str, torch.Tensor]:
+        image = cast(torch.Tensor, inputs["image"])
+        return {
+            "memory": torch.zeros(
+                image.size(0),
+                1,
+                config.decoder_d_model,
+                device=image.device,
+            )
+        }
+
+    model._encode_into_memory = encode  # ty: ignore[invalid-assignment]
+    return RalfPipeline(model=model, processor=RalfProcessor.from_config(config))
 
 
 def test_pipeline_smoke_and_schema() -> None:
@@ -70,14 +85,14 @@ def test_pipeline_save_pretrained_round_trip(tmp_path: Path) -> None:
     assert loaded.processor.config.max_seq_length == 2
 
 
-def test_pipeline_retrieval_table_intermediates_and_unsupported_condition() -> None:
+def test_pipeline_retrieval_table_intermediates_and_retrieval_condition() -> None:
     from ralf import RalfRetrievalTable
 
     pipe = _pipeline()
     table = RalfRetrievalTable({"q": [1, 2]}, top_k=2)
 
     output = pipe(
-        condition_type="unconditional",
+        condition_type="retrieval",
         retrieval_table=table,
         query_ids=["q"],
         return_intermediates=True,
@@ -89,12 +104,6 @@ def test_pipeline_retrieval_table_intermediates_and_unsupported_condition() -> N
     intermediates = cast(dict[str, object], output.intermediates)
     retrieval = cast(dict[str, torch.Tensor], intermediates["retrieval"])
     assert retrieval["indexes"].tolist() == [[1, 2]]
-    try:
-        pipe(condition_type="retrieval")
-    except NotImplementedError as exc:
-        assert "unconditional" in str(exc)
-    else:
-        raise AssertionError("expected NotImplementedError")
 
 
 def test_pipeline_explicit_retrieval_indexes_are_returned() -> None:
@@ -127,3 +136,39 @@ def test_pipeline_explicit_retrieval_indexes_are_returned() -> None:
         assert "text" in str(exc)
     else:
         raise AssertionError("expected NotImplementedError")
+
+
+def test_pipeline_passes_relation_constraints_to_model_runtime() -> None:
+    pipe = _pipeline()
+    relation = [
+        pipe.model.tokenizer.names[0],
+        "A",
+        "left",
+        pipe.model.tokenizer.names[1],
+        "B",
+    ]
+    encoded = pipe.processor(
+        condition_type="relation",
+        labels=torch.tensor([[0, 1]]),
+        bbox=torch.full((1, 2, 4), 0.5),
+        mask=torch.tensor([[True, True]]),
+    )
+    prepared = pipe.model._prepare_conditional_inputs(
+        pixel_values=cast(torch.Tensor, encoded["pixel_values"]),
+        saliency=cast(torch.Tensor, encoded["saliency"]),
+        retrieved=None,
+        batch_size=1,
+        condition_type="relation",
+        constraint_input_ids=cast(torch.Tensor, encoded["input_ids"]),
+        constraint_mask=cast(torch.Tensor, encoded["attention_mask"]),
+        constraint_element_mask=cast(torch.Tensor, encoded["constraint_mask"]),
+        relationship_table={"sample": [relation]},
+        sample_ids=["sample"],
+    )
+
+    relation_sep = RalfTaskPreprocessor(
+        pipe.model.tokenizer,
+        task="relation",
+    ).name_to_id("relation_sep")
+    seq_layout_const = cast(torch.Tensor, prepared["seq_layout_const"])
+    assert relation_sep in seq_layout_const[0].tolist()
