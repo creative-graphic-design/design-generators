@@ -30,14 +30,32 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pyt
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
-4. Convert both checkpoints to local [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
+4. Run the staged training-parity hooks. See `models/layout-flow/TRAINING.md` for the training config list, seed modes, and the full training-parity rerun notes.
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
+  uv run --package layout-flow --extra training --extra vendor pytest \
+  models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py \
+  -m "vendor_parity and training" -rs
+```
+
+5. Convert both checkpoints to local [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
 
 ```bash
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset publaynet
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset rico25
 ```
 
-5. Smoke-test local `from_pretrained` loading.
+6. Convert a newly trained Lightning checkpoint after training. The converter accepts both original vendor `model.*` keys and package-local training `model.backbone.*` keys. See `models/layout-flow/TRAINING.md` for the training launch commands.
+
+```bash
+uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py \
+  --dataset rico25 \
+  --checkpoint .cache/layout-flow/training-runs/rico25/checkpoints/<ckpt>.ckpt \
+  --output-dir .cache/layout-flow/converted-trained/rico25
+```
+
+7. Smoke-test local `from_pretrained` loading.
 
 ```bash
 uv run --package layout-flow python models/layout-flow/scripts/smoke_from_pretrained.py \
@@ -51,4 +69,5 @@ Each script supports `--help` with defaults documented:
 uv run --package layout-flow python models/layout-flow/scripts/download_original.py --help
 uv run --package layout-flow python models/layout-flow/scripts/generate_reference_outputs.py --help
 uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py --help
+uv run --package layout-flow --extra training python -m traingen.lightning.cli --help
 ```

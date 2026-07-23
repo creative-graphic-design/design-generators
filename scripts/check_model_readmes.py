@@ -40,6 +40,7 @@ README_POLICY_DOCS = [
     REPO_ROOT / "README.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
 ]
+LIB_READMES = sorted((REPO_ROOT / "lib").glob("*/README.md"))
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -726,6 +727,22 @@ def _assert_code_fences_tagged(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: unterminated code fence")
 
 
+def _assert_lib_readme_install_contract(path: Path, text: str) -> None:
+    package = path.parent.name
+    install = _section(text, "## Install")
+    direct_reference = (
+        f'pip install "{package} @ '
+        "git+https://github.com/creative-graphic-design/design-generators.git"
+        f'#subdirectory=lib/{package}"'
+    )
+    if direct_reference not in install:
+        raise AssertionError(
+            f"{path}: Install must include pip direct-reference subdirectory form"
+        )
+    if f"uv sync --package {package}" not in install:
+        raise AssertionError(f"{path}: Install must include workspace uv sync form")
+
+
 def _assert_parity_table(path: Path, text: str) -> None:
     section = _section(text, "### Parity Results")
     if "| ---" not in section:
@@ -1111,6 +1128,8 @@ def check() -> None:
         text = path.read_text(encoding="utf-8")
         _assert_code_fences_tagged(path, text)
         _assert_banned_patterns(path, text)
+    for path in LIB_READMES:
+        _assert_lib_readme_install_contract(path, path.read_text(encoding="utf-8"))
 
 
 def main() -> int:

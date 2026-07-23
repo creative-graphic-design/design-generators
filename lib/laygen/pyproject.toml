@@ -23,8 +23,3 @@ diffusion = [
 torch = [
     "torch>=2.1",
 ]
-
-[dependency-groups]
-dev = [
-    "pytest>=6.0.0",
-]

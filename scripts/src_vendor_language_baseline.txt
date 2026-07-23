@@ -1,0 +1,29 @@
+lib/laygen/src/laygen/common/vendor.py	1	"""Resolve an initialized vendor submodule checkout.
+lib/laygen/src/laygen/common/vendor.py	1	"""Vendor repository path helpers shared by parity scripts."""
+lib/laygen/src/laygen/common/vendor.py	1	Resolved path to the vendor checkout.
+lib/laygen/src/laygen/common/vendor.py	1	f"Could not find initialized vendor/{repo}. {hint}\nSearched:\n{searched}"
+lib/laygen/src/laygen/common/vendor.py	1	f"Found vendor/{repo}, but required marker `{marker_path}` is missing. "
+lib/laygen/src/laygen/common/vendor.py	1	hint = f"Run `git submodule update --init vendor/{repo}` from the repository root."
+lib/laygen/src/laygen/common/vendor.py	1	marker: Optional file that must exist inside the vendor checkout.
+lib/laygen/src/laygen/common/vendor.py	1	path: Optional user-supplied path. Defaults to `vendor/<repo>`.
+lib/laygen/src/laygen/common/vendor.py	1	repo: Repository directory name under `vendor/`.
+lib/laygen/src/laygen/common/vendor.py	1	repo_dir = Path("vendor") / repo
+lib/laygen/src/laygen/nn/blocks.py	1	Layout-Corrector vendor code.
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	1	"""Return the vendor bbox-label count."""
+models/layout-detr/src/layout_detr/datasets.py	1	"""Iterate a local vendor Ad Banner directory without downloading assets.
+models/layout-detr/src/layout_detr/datasets.py	1	"""Normalize one vendor annotation row to public normalized center ``xywh``.
+models/layout-detr/src/layout_detr/datasets.py	1	if source != "vendor":
+models/layout-detr/src/layout_detr/datasets.py	1	raise ValueError("LayoutDETR currently supports only source='vendor'")
+models/layout-detr/src/layout_detr/datasets.py	1	sample: Vendor element with ``xyxy_word_fit``, ``label``, ``str``,
+models/layout-detr/src/layout_detr/datasets.py	1	source: Literal["vendor"] = "vendor",
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	background_preprocessing: Vendor-compatible lightweight mode.
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self._is_vendor_architecture = config.architecture == "vendor"
+models/layout-detr/src/layout_detr/postprocessing.py	1	"""Apply vendor-style multiplicative jitter to generated boxes."""
+models/layout-detr/src/layout_detr/postprocessing.py	1	"""Reduce vertical overlaps with the deterministic vendor arithmetic."""
+models/layout-detr/src/layout_detr/postprocessing.py	1	# Vendor generate.py contains a random-postprocessing assignment typo; the
+models/layout-dm/src/layout_dm/pipeline.py	1	condition_type: Canonical condition type or supported vendor alias.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Build the vendor sampling start template.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert token ids to vendor text lines."""
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert vendor text lines into padded token ids."""
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Encode public layout tensors into vendor token ids.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Split a vendor layout token string on whitespace."""

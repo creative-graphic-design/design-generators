@@ -171,18 +171,18 @@ class LayoutFlowConfig(ConfigMixin):
             dataset_name: Dataset variant or alias.
             id2label: Optional explicit id-to-label mapping.
             max_length: Maximum number of layout elements.
-            latent_dim: Vendor latent dimension.
+            latent_dim: Latent dimension.
             d_model: Transformer hidden size.
             nhead: Number of attention heads.
             dim_feedforward: Feed-forward hidden size.
             num_layers: Number of transformer layers.
             dropout: Dropout probability.
             use_pos_enc: Whether to add sinusoidal position encodings.
-            tr_enc_only: Whether to use the encoder-only vendor path.
-            attr_encoding: Attribute encoding used by the vendor checkpoint.
-            seq_type: Vendor sequence layout type.
+            tr_enc_only: Whether to use the encoder-only path.
+            attr_encoding: Attribute encoding used by the checkpoint.
+            seq_type: Sequence layout type.
             distribution: Initial sampling distribution.
-            sample_padding: Whether vendor sampling includes padded elements.
+            sample_padding: Whether sampling includes padded elements.
             inference_steps: Default Euler inference steps.
             ode_solver: ODE solver name.
             bbox_format: Public bounding-box format.
