@@ -348,6 +348,8 @@ def render_trajectory_gif(
     colors: Iterable[str] | None = None,
     duration_ms: int = 240,
     final_hold_ms: int = 1500,
+    show_step_counter: bool = True,
+    show_trajectory_lines: bool = True,
     dpi: int = 100,
 ) -> Path:
     """Render trajectory steps as an animated GIF.
@@ -361,6 +363,9 @@ def render_trajectory_gif(
         duration_ms: Frame duration in milliseconds.
         final_hold_ms: Final-frame duration in milliseconds. The final hold is
             encoded as GIF frame metadata instead of duplicated frames.
+        show_step_counter: Whether to overlay a compact ``step k/n`` counter.
+        show_trajectory_lines: Whether to draw cumulative element-center
+            trajectories up to the current frame.
         dpi: Matplotlib output DPI.
 
     Returns:
@@ -397,8 +402,53 @@ def render_trajectory_gif(
         dpi=dpi,
     )
 
+    def draw_trajectory_lines(frame_index: int) -> None:
+        if not show_trajectory_lines or frame_index <= 0:
+            return
+        width, height = canvas_size
+        element_count = min(labels.shape[0], *(step.shape[0] for step in steps))
+        for element_index in range(element_count):
+            if not bool(mask[element_index]):
+                continue
+            xy = torch.stack(
+                [step[element_index, :2] for step in steps[: frame_index + 1]]
+            )
+            label_id = int(labels[element_index])
+            ax.plot(
+                (xy[:, 0] * width).tolist(),
+                (xy[:, 1] * height).tolist(),
+                color=_color_for_label(label_id, palette),
+                linewidth=1.0,
+                alpha=0.5,
+                marker="o",
+                markersize=1.8,
+                zorder=2,
+            )
+
+    def draw_step_counter(frame_index: int) -> None:
+        if not show_step_counter:
+            return
+        width, height = canvas_size
+        ax.text(
+            width - 6,
+            height - 6,
+            f"step {frame_index + 1}/{len(steps)}",
+            color="#57606a",
+            fontsize=7,
+            ha="right",
+            va="bottom",
+            zorder=8,
+            bbox={
+                "facecolor": "#ffffff",
+                "edgecolor": "none",
+                "alpha": 0.75,
+                "pad": 1.5,
+            },
+        )
+
     def update(frame_index: int) -> list[Artist]:
         ax.clear()
+        draw_trajectory_lines(frame_index)
         render_layout(
             steps[frame_index],
             labels,
@@ -409,7 +459,7 @@ def render_trajectory_gif(
             colors=palette,
             show_legend=frame_index == 0,
         )
-        ax.set_title(f"step {frame_index + 1}/{len(steps)}", fontsize=8)
+        draw_step_counter(frame_index)
         return [*ax.patches, *ax.lines, *ax.texts]
 
     frames: list[Image.Image] = []
@@ -443,6 +493,8 @@ def save_layout_gif(
     colors: Iterable[str] | None = None,
     duration_ms: int = 240,
     final_hold_ms: int = 1500,
+    show_step_counter: bool = True,
+    show_trajectory_lines: bool = True,
     dpi: int = 100,
 ) -> Path:
     """Save a layout trajectory GIF with gallery-friendly timing metadata.
@@ -458,6 +510,8 @@ def save_layout_gif(
         colors=colors,
         duration_ms=duration_ms,
         final_hold_ms=final_hold_ms,
+        show_step_counter=show_step_counter,
+        show_trajectory_lines=show_trajectory_lines,
         dpi=dpi,
     )
 
