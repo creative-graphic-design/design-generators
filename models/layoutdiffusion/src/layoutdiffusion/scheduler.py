@@ -191,16 +191,15 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         timestep: torch.Tensor,
         sample: torch.Tensor,
         *,
-        sampling: LayoutDiffusionSamplingConfig | None = None,
+        sampling: LayoutDiffusionSamplingConfig,
         condition: LayoutDiffusionCondition | None = None,
         generator: torch.Generator | None = None,
     ) -> LayoutDiffusionSchedulerOutput:
         """Run one reverse diffusion step."""
         _ = condition
-        config = sampling or LayoutDiffusionSamplingConfig()
         log_x_recon = self.predict_start(logits, sample.shape[0], sample.shape[-1])
         model_log_prob = self.q_posterior(log_x_recon, sample, timestep)
-        if str(config.name) == str(LayoutDiffusionSamplingName.argmax):
+        if str(sampling.name) == str(LayoutDiffusionSamplingName.argmax):
             ids = model_log_prob.argmax(dim=1)
             prev = index_to_log_onehot(ids, self.vocab_size)
         else:

@@ -33,17 +33,23 @@ class LayoutDetrProcessor(ProcessorMixin):
 
     def __init__(
         self,
+        *,
         image_processor: LayoutDetrImageProcessor | None = None,
-        config: LayoutDetrConfig | None = None,
+        config: LayoutDetrConfig,
         id2label: Mapping[int | str, str] | None = None,
     ) -> None:
         """Initialize the processor."""
-        self.config = config or LayoutDetrConfig(id2label=id2label)
+        self.config = config
         self.image_processor = image_processor or LayoutDetrImageProcessor.from_config(
             self.config
         )
+        label_source = (
+            id2label
+            if id2label is not None
+            else cast(dict[int, str], self.config.id2label)
+        )
         self.id2label = {
-            int(k): v for k, v in cast(dict[int, str], self.config.id2label).items()
+            int(k): v for k, v in cast(Mapping[int | str, str], label_source).items()
         }
         self.label2id = {v: k for k, v in self.id2label.items()}
         self.chat_template = None

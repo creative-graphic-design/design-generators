@@ -9,6 +9,7 @@ import torch
 from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from layoutdiffusion import LayoutDiffusionPipeline
+from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
 
 
 REFERENCE_ROOT = Path(".cache/layoutdiffusion/references")
@@ -118,7 +119,12 @@ def test_full_sample_matches_vendor(dataset: str) -> None:
     num_elements = _num_elements_from_sequence(full_sample)
     output = cast(
         LayoutGenerationOutput,
-        pipe(batch_size=1, return_intermediates=True, num_elements=num_elements),
+        pipe(
+            batch_size=1,
+            return_intermediates=True,
+            num_elements=num_elements,
+            sampling=LayoutDiffusionSamplingConfig(),
+        ),
     )
     assert output.sequences is not None
     torch.testing.assert_close(

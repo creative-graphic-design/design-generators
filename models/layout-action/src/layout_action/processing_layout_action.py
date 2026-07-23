@@ -44,9 +44,9 @@ class LayoutActionProcessor(ProcessorMixin):
     attributes = ["tokenizer"]
     tokenizer_class = "LayoutActionTokenizer"
 
-    def __init__(self, tokenizer: LayoutActionTokenizer | None = None) -> None:
+    def __init__(self, tokenizer: LayoutActionTokenizer) -> None:
         """Initialize the processor."""
-        self.tokenizer = tokenizer or LayoutActionTokenizer(LayoutActionConfig())
+        self.tokenizer = tokenizer
         self.chat_template = None
 
     @property

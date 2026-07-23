@@ -45,12 +45,13 @@ class SmartTextProcessor(ProcessorMixin):
 
     def __init__(
         self,
+        *,
         image_processor: SmartTextImageProcessor | None = None,
-        config: SmartTextConfig | None = None,
+        config: SmartTextConfig,
         id2label: Mapping[int | str, str] | None = None,
     ) -> None:
         """Initialize processor."""
-        self.config = config or SmartTextConfig(id2label=id2label)
+        self.config = config
         self.image_processor = image_processor or SmartTextImageProcessor.from_config(
             self.config
         )

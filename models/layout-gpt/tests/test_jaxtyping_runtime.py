@@ -27,8 +27,9 @@ def test_agent_hook_liveness_rejects_label_dtype_mismatch() -> None:
 
         with install_import_hook(["layout_gpt.agent"], "beartype.beartype"):
             from layout_gpt import LayoutGPTAgent
+            from layout_gpt.schema import LayoutGPTConfig
 
-        LayoutGPTAgent()(
+        LayoutGPTAgent(config=LayoutGPTConfig())(
             prompt="make a layout",
             train_examples=[],
             labels=torch.zeros(1, 2),
@@ -46,8 +47,9 @@ def test_agent_hook_liveness_rejects_bbox_rank_mismatch() -> None:
 
         with install_import_hook(["layout_gpt.agent"], "beartype.beartype"):
             from layout_gpt import LayoutGPTAgent
+            from layout_gpt.schema import LayoutGPTConfig
 
-        LayoutGPTAgent()(
+        LayoutGPTAgent(config=LayoutGPTConfig())(
             prompt="make a layout",
             train_examples=[],
             bbox=torch.zeros(1, 2),
