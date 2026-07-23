@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Pydantic AI implementation of LayoutPrompter."
 requires-python = ">=3.11"
 dependencies = [
+    "jaxtyping>=0.3",
     "laygen",
     "pydantic>=2.0.0",
     "pydantic-ai>=2.7.0",

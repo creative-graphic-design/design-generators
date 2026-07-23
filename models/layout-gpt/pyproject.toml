@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Provider-agnostic Pydantic AI agent for LayoutGPT."
 requires-python = ">=3.11"
 dependencies = [
+    "jaxtyping>=0.3",
     "laygen[agents]",
     "pydantic>=2.0.0",
     "pydantic-ai>=2.7.0",
