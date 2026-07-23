@@ -37,7 +37,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
+This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
 ## Model Details
 

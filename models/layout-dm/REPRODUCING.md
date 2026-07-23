@@ -62,7 +62,7 @@ Expected result with the fixtures above:
 
 ### 4. Convert Checkpoints And Smoke Test from_pretrained
 
-The conversion step writes 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a Hub-style `README.md` model card.
+The conversion step writes [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories under `.cache/layout-dm/converted/`. Each output includes model weights, tokenizer files, scheduler/processor config, and a Hub-style `README.md` model card.
 
 Expected local output roots:
 

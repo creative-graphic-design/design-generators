@@ -40,7 +40,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
+This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV 2023 discrete layout diffusion model, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package for RICO25 and PubLayNet.
 
 ## Model Details
 

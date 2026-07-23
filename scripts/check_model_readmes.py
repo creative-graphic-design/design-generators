@@ -10,9 +10,9 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
-    "🤗 transformers": "transformers",
-    "🧨 diffusers": "diffusers",
-    "🤖 pydantic-ai": "pydantic-ai",
+    "`🤗 transformers`": "transformers",
+    "`🧨 diffusers`": "diffusers",
+    "`🤖 pydantic-ai`": "pydantic-ai",
 }
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
@@ -295,6 +295,13 @@ def _markdown_link_spans(text: str) -> list[range]:
 
 def _in_any_span(position: int, spans: list[range]) -> bool:
     return any(position in span for span in spans)
+
+
+def _inline_code_span_at(text: str, position: int) -> str | None:
+    for match in re.finditer(r"`[^`\n]+`", text):
+        if position in range(match.start(), match.end()):
+            return match.group(0)
+    return None
 
 
 def _frontmatter_scalar(frontmatter: str, key: str) -> str | None:
@@ -878,9 +885,9 @@ def _assert_linked_first_reference_policy(path: Path) -> None:
 def _assert_library_name_style(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     banned_names = {
-        "Transformers": "🤗 `transformers`",
-        "Diffusers": "🧨 `diffusers`",
-        "Pydantic AI": "`pydantic-ai`",
+        "Transformers": "`🤗 transformers`",
+        "Diffusers": "`🧨 diffusers`",
+        "Pydantic AI": "`🤖 pydantic-ai`",
     }
     for name, replacement in banned_names.items():
         match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
@@ -888,38 +895,34 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
-    huggingface_mentions = re.findall(
-        r"🤗\s+(?:\[`transformers`\]\([^)]*\)|`transformers`|transformers)",
-        text,
-    )
+    huggingface_mentions = re.findall(r"`🤗 transformers`", text)
     if text.count("🤗") != len(huggingface_mentions):
         raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
-    diffusers_mentions = re.findall(
-        r"🧨\s+(?:\[`diffusers`\]\([^)]*\)|`diffusers`|diffusers)",
-        text,
-    )
+    diffusers_mentions = re.findall(r"`🧨 diffusers`", text)
     if text.count("🧨") != len(diffusers_mentions):
         raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
+    pydantic_ai_mentions = re.findall(r"`🤖 pydantic-ai`", text)
+    if text.count("🤖") != len(pydantic_ai_mentions):
+        raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
     if re.search(r"🤗\s+pydantic-ai", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-    spans = _markdown_link_spans(text)
+    required_code_spans = {
+        "transformers": "`🤗 transformers`",
+        "diffusers": "`🧨 diffusers`",
+        "pydantic-ai": "`🤖 pydantic-ai`",
+    }
     for library in ("transformers", "diffusers", "pydantic-ai"):
-        for match in re.finditer(
-            rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w-])", text
-        ):
-            prefix = text[max(0, match.start() - 4) : match.start()]
-            if library == "transformers" and prefix.endswith("🤗 "):
+        for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
+            if (
+                _inline_code_span_at(text, match.start())
+                == required_code_spans[library]
+            ):
                 continue
-            if library == "diffusers" and prefix.endswith("🧨 "):
-                continue
-            if library == "pydantic-ai" and prefix.endswith("🤖 "):
-                continue
-            if not _in_any_span(match.start(), spans):
-                raise AssertionError(
-                    f"{path}: use code-form `{library}` for library names"
-                )
+            raise AssertionError(
+                f"{path}: use code-form {required_code_spans[library]} for library names"
+            )
 
 
 def check() -> None:

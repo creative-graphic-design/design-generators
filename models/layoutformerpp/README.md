@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style pipeline.
+This package ports [LayoutFormer++](https://arxiv.org/abs/2208.08037), the autoregressive layout transformer method, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style pipeline.
 
 ## Model Details
 

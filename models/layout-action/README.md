@@ -39,7 +39,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutAction](https://ojs.aaai.org/index.php/AAAI/article/view/26277), the AAAI 2023 action-sequence layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [LayoutAction](https://ojs.aaai.org/index.php/AAAI/article/view/26277), the AAAI 2023 action-sequence layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
