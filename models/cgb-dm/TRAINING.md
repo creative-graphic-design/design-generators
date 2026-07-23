@@ -23,6 +23,15 @@ checks. Full 500-epoch PKU/CGL training is intentionally outside the first PR.
 | S1 | Training-step tensor trace through timestep sampling, masking, and noise addition. |
 | S2 | Epsilon prediction and loss comparison against generated reference metadata. |
 
+## S0 Data Order Deviation
+
+The original training loader iterates `os.listdir(train/inpaint)`, so its row
+order depends on filesystem state. The package default remains sorted for
+deterministic training data access. Parity captures the original loader's
+observed filename order into a regenerated `.cache` manifest and replays that
+manifest explicitly for vendor-compatible S0 checks. The manifest is
+regeneration metadata and is not committed.
+
 The first PR wires these stages behind gated parity tests. Full
 [PKU PosterLayout](https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023) and
 CGL asset runs are deferred until the original assets are available locally.
