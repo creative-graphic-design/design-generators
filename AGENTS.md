@@ -138,6 +138,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Do not commit golden tensors, images, weights, or large downloaded artifacts.
   Commit only metadata needed to regenerate them: seeds, conditions, environment
   notes, config hashes, and script arguments.
+- Curated gallery assets are documentation artifacts, not parity fixtures. Small
+  generated PNG/GIF files may be committed under `docs/assets/gallery/` when
+  they are intentionally selected for README/docs display, include adjacent
+  regeneration metadata, and stay within the documented size budget. The initial
+  budget is 300 KB per PNG/GIF unless a PR explicitly justifies an exception.
 - Run parity generation on one explicitly selected GPU with fixed seeds.
 - Coordinator parity reruns must set `PARITY_REQUIRE=1` so missing local
   assets fail loudly instead of turning an all-skip run into an apparent
