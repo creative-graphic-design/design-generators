@@ -261,7 +261,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
             text_spacing: Optional text-spacing override.
             candi_res: Optional top-k override.
             saliency: Optional saliency map bypassing BASNet.
-            candidate_boxes: Optional vendor-style candidates.
+            candidate_boxes: Optional reference-style candidates.
             return_text_lines: Return per-line boxes for top candidate.
             score_normalization: ``mos`` or ``raw``.
 

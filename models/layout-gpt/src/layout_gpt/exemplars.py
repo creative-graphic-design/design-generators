@@ -65,7 +65,7 @@ class LayoutExample:
 def load_nsr_examples(
     path: str | Path, *, setting: str | LayoutGPTSetting
 ) -> list[LayoutExample]:
-    """Load LayoutGPT NSR-1K examples from a vendor-style JSON file."""
+    """Load LayoutGPT NSR-1K examples from a reference-style JSON file."""
     records = cast(Sequence[Mapping[str, object]], json.loads(Path(path).read_text()))
     return [
         LayoutExample.from_vendor_record(record, setting=setting) for record in records
@@ -78,7 +78,7 @@ def select_fixed_random(
     k: int,
     seed: int = DEFAULT_FIXED_RANDOM_SEED,
 ) -> list[LayoutExample]:
-    """Select exemplars with the vendor's fixed ``random.seed(42)`` strategy."""
+    """Select exemplars with the reference fixed ``random.seed(42)`` strategy."""
     shuffled = list(examples)
     rng = random.Random(seed)
     rng.shuffle(shuffled)

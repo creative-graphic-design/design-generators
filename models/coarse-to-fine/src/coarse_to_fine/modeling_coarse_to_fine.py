@@ -25,7 +25,7 @@ def make_batch_first(arg: torch.Tensor) -> torch.Tensor:
 
 
 def get_key_padding_mask(mask: torch.Tensor) -> torch.Tensor:
-    """Match the vendor cumulative padding-mask convention."""
+    """Match the checkpoint cumulative padding-mask convention."""
     return (mask == 0).cumsum(dim=0) > 0
 
 
@@ -57,7 +57,7 @@ def unpack_group_batch(
 
 
 def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
-    """Create the causal decoder mask used by the vendor model."""
+    """Create the causal decoder mask used by the checkpoint model."""
     mask = (torch.triu(torch.ones(size, size, device=device)) == 1).transpose(0, 1)
     return (
         mask.float().masked_fill(mask == 0, float("-inf")).masked_fill(mask == 1, 0.0)
@@ -65,7 +65,7 @@ def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Te
 
 
 class LayoutEmbedding(nn.Module):
-    """Vendor-compatible label, box, and group-label embeddings."""
+    """Checkpoint-compatible label, box, and group-label embeddings."""
 
     def __init__(self, config: CoarseToFineConfig) -> None:
         """Initialize embedding tables."""
@@ -104,7 +104,7 @@ class LayoutEmbedding(nn.Module):
 
 
 class Encoder(nn.Module):
-    """Vendor-compatible layout encoder."""
+    """Checkpoint-compatible layout encoder."""
 
     def __init__(
         self, config: CoarseToFineConfig, layout_embd: LayoutEmbedding
@@ -138,7 +138,7 @@ class Encoder(nn.Module):
 
 
 class VAE(nn.Module):
-    """Vendor-compatible latent sampler."""
+    """Checkpoint-compatible latent sampler."""
 
     def __init__(self, config: CoarseToFineConfig) -> None:
         """Initialize latent projections."""
@@ -404,7 +404,7 @@ class ElementDecoder(nn.Module):
 
 
 class CoarseToFineForLayoutGeneration(PreTrainedModel):
-    """Transformers ``PreTrainedModel`` with vendor-compatible module names."""
+    """Transformers ``PreTrainedModel`` with checkpoint-compatible module names."""
 
     config_class = CoarseToFineConfig
     base_model_prefix = "coarse_to_fine"
@@ -443,7 +443,7 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
     }
 
     def __init__(self, config: CoarseToFineConfig) -> None:
-        """Initialize vendor-compatible modules."""
+        """Initialize checkpoint-compatible modules."""
         super().__init__(config)
         self.layout_embd = LayoutEmbedding(config)
         self.encoder = Encoder(config, self.layout_embd)
@@ -492,14 +492,14 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         """Run teacher-forced or greedy hierarchical decoding.
 
         Args:
-            labels: Batch-first vendor label ids.
+            labels: Batch-first internal label ids.
             bbox: Batch-first discrete ``ltwh`` ids.
             mask: Batch-first valid element mask.
             group_bounding_box: Batch-first group discrete ``ltwh`` ids.
             label_in_one_group: Batch-first group label histograms.
             group_mask: Batch-first valid group mask.
             grouped_bbox: Batch-first group-relative discrete ``ltwh`` ids.
-            grouped_labels: Batch-first group-relative vendor labels.
+            grouped_labels: Batch-first group-relative internal labels.
             grouped_mask: Batch-first valid grouped-element mask.
             latent_z: Optional latent tensor to bypass stochastic sampling.
             use_teacher_forcing: Whether to use provided hierarchy tensors.

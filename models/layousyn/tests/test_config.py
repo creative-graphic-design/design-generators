@@ -22,11 +22,11 @@ def test_vendor_json_roundtrip(tmp_path) -> None:
             }
         )
     )
-    cfg = LayouSynConfig.from_vendor_json(path)
+    cfg = LayouSynConfig.from_reference_json(path)
     assert cfg.hidden_size == 64
     assert cfg.depth == 2
     assert cfg.num_heads == 4
-    assert cfg.to_vendor_dict()["layout_type"] == "cxcywh"
+    assert cfg.to_reference_dict()["layout_type"] == "cxcywh"
 
 
 def test_named_model_shape_resolution() -> None:

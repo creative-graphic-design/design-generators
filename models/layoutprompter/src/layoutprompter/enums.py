@@ -27,7 +27,7 @@ class OutputType(StrEnum):
 
 
 class LayoutPrompterTask(StrEnum):
-    """Vendor task keys supported by LayoutPrompter."""
+    """Released task keys supported by LayoutPrompter."""
 
     gent = auto()
     gents = auto()
@@ -41,7 +41,7 @@ class LayoutPrompterTask(StrEnum):
 def normalize_layoutprompter_task(
     task: LayoutPrompterTask | str,
 ) -> LayoutPrompterTask:
-    """Return a LayoutPrompter task enum from a public or vendor string."""
+    """Return a LayoutPrompter task enum from a public or release string."""
     try:
         return LayoutPrompterTask(task)
     except ValueError as exc:

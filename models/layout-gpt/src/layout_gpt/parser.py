@@ -11,7 +11,7 @@ from layout_gpt.schema import LayoutItem2D, LayoutItem3D
 
 
 class CSSProperty(StrEnum):
-    """CSS declaration keys emitted by the vendor LayoutGPT prompts."""
+    """CSS declaration keys emitted by the reference LayoutGPT prompts."""
 
     depth = auto()
     height = auto()
@@ -54,7 +54,7 @@ def parse_layout_line(
     canvas_size: int = DEFAULT_CANVAS_SIZE,
     no_integer: bool = False,
 ) -> LayoutItem2D | None:
-    """Parse one 2D CSS line using the vendor clamp/reject behavior."""
+    """Parse one 2D CSS line using the reference clamp/reject behavior."""
     match = _RULE_RE.match(line)
     if match is None:
         return None
@@ -97,7 +97,7 @@ def parse_layout_text(
 def parse_3d_layout_line(
     line: str, *, unit: str = DEFAULT_3D_UNIT
 ) -> LayoutItem3D | None:
-    """Parse one 3D CSS line from the vendor scene-layout script."""
+    """Parse one 3D CSS line from the reference scene-layout script."""
     match = _RULE_RE.match(line)
     if match is None:
         return None

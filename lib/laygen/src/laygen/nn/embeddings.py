@@ -1,7 +1,7 @@
 """Embedding modules shared by layout-generation models.
 
 ``SinusoidalPosEmb`` follows the VQ-Diffusion-derived timestep embedding used
-by the LayoutDM and LACE vendor backbones. ``ElementPositionalEmbedding`` is a
+by the LayoutDM and LACE checkpoint backbones. ``ElementPositionalEmbedding`` is a
 LayoutDM-specific element/attribute position embedding.
 """
 
@@ -21,7 +21,7 @@ class TimestepEmbeddingType(StrEnum):
 
     Origin:
         These names come from VQ-Diffusion-derived adaptive normalization modes
-        used by the LayoutDM and LACE vendor backbones.
+        used by the LayoutDM and LACE checkpoint backbones.
     """
 
     adalayernorm = auto()
@@ -63,14 +63,14 @@ class SinusoidalPosEmb(nn.Module):
 
     Origin:
         This is the VQ-Diffusion-style sinusoidal timestep embedding carried by
-        LayoutDM and LACE. The vendor operation order is preserved exactly
+        LayoutDM and LACE. The checkpoint operation order is preserved exactly
         because LACE denoiser parity is bit-sensitive at ``rescale_steps=4000``.
 
     Args:
         num_steps: Maximum number of positions or timesteps.
-        dim: Embedding dimension. Odd dimensions keep the vendor truncation
+        dim: Embedding dimension. Odd dimensions keep the checkpoint truncation
             behavior and return ``2 * floor(dim / 2)`` channels.
-        rescale_steps: Vendor rescaling constant.
+        rescale_steps: Rescaling constant used by the released checkpoints.
     """
 
     def __init__(self, num_steps: int, dim: int, rescale_steps: int = 4000) -> None:

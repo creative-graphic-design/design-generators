@@ -22,7 +22,7 @@ class _MutableLogitsOutput(Protocol):
 
 
 def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Tensor:
-    """Return the vendor zero-based valid-element mask.
+    """Return the zero-based valid-element mask.
 
     Args:
         length: Zero-based document length tensor shaped ``(batch,)`` or
@@ -47,7 +47,7 @@ def get_initial_masks(
     input_columns: Mapping[str, FlexDmColumnSpec],
     seq_mask: torch.Tensor,
 ) -> dict[str, torch.Tensor]:
-    """Return vendor-style initial masks with no sequence fields hidden."""
+    """Return initial initial masks with no sequence fields hidden."""
     masks: dict[str, torch.Tensor] = {}
     for key, column in input_columns.items():
         masks[key] = (
@@ -66,7 +66,7 @@ def apply_token(
     *,
     generator: torch.Generator | None = None,
 ) -> torch.Tensor:
-    """Apply a masked, unused, or random vendor token to selected elements."""
+    """Apply a masked, unused, or random model token to selected elements."""
     mask_expanded = mask.to(device=input_.device).unsqueeze(-1)
     if column["type"] == "categorical":
         input_dim = column["input_dim"]
@@ -107,7 +107,7 @@ def filter_padding(
     input_columns: Mapping[str, FlexDmColumnSpec],
     mask: torch.Tensor,
 ) -> dict[str, torch.Tensor]:
-    """Replace padded and conditionally invalid fields with vendor unused tokens."""
+    """Replace padded and conditionally invalid fields with model unused tokens."""
     modified: dict[str, torch.Tensor] = {}
     unused_mask = ~mask
     for key, column in input_columns.items():
@@ -184,7 +184,7 @@ def iterative_decode(
         inputs: Current model inputs.
         masks: Per-column masks where ``True`` means hidden.
         num_iter: Number of decode iterations.
-        input_columns: Vendor column definitions.
+        input_columns: Model column definitions.
         source_inputs: Unmasked source inputs used for confidence-commit updates.
 
     Returns:

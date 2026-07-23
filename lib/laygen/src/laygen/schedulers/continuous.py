@@ -1,7 +1,7 @@
 """Continuous diffusion scheduler adapters backed by Diffusers.
 
 The beta/DDIM helper names follow CompVis latent-diffusion
-``ldm/modules/diffusionmodules/util.py`` utilities as carried by LACE vendor
+``ldm/modules/diffusionmodules/util.py`` utilities as used by the LACE
 ``diffusion_utils.py``. Common schedules are delegated to Diffusers schedulers.
 """
 
@@ -24,7 +24,7 @@ class BetaSchedule(StrEnum):
 
     Origin:
         These schedule names mirror CompVis latent-diffusion
-        ``make_beta_schedule`` aliases used by the LACE vendor scheduler.
+        ``make_beta_schedule`` aliases used by the LACE scheduler.
     """
 
     linear = auto()
@@ -38,7 +38,7 @@ class BetaSchedule(StrEnum):
 
 
 class LayoutDiffusionBetaSchedule(StrEnum):
-    """LayoutDiffusion vendor-only beta schedules."""
+    """LayoutDiffusion-specific beta schedules."""
 
     sqrt = auto()
     mix_sqrt = auto()
@@ -52,7 +52,7 @@ class DDIMDiscretization(StrEnum):
 
     Origin:
         These discretization names mirror CompVis latent-diffusion
-        ``make_ddim_timesteps`` modes used by the LACE vendor scheduler.
+        ``make_ddim_timesteps`` modes used by the LACE scheduler.
     """
 
     uniform = auto()
@@ -65,7 +65,7 @@ def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
 
     Origin:
         This preserves the CompVis latent-diffusion schedule aliases exposed by
-        the LACE vendor configuration.
+        the LACE checkpoint configuration.
 
     Args:
         schedule: Schedule enum or string value.
@@ -105,7 +105,7 @@ def normalize_ddim_discretization(
 
     Origin:
         This preserves the CompVis latent-diffusion DDIM discretization aliases
-        exposed by the LACE vendor configuration.
+        exposed by the LACE checkpoint configuration.
 
     Args:
         method: Method enum or string value.
@@ -162,7 +162,7 @@ def get_layoutdiffusion_beta_schedule(
     schedule: LayoutDiffusionBetaSchedule | str,
     num_timesteps: int,
 ) -> Float[torch.Tensor, "timesteps"]:
-    """Create LayoutDiffusion vendor-only beta schedules.
+    """Create LayoutDiffusion-specific beta schedules.
 
     Origin:
         These formulas are copied narrowly from LayoutDiffusion's vendored
@@ -174,7 +174,7 @@ def get_layoutdiffusion_beta_schedule(
         num_timesteps: Number of diffusion timesteps.
 
     Returns:
-        Float64 beta tensor matching the vendor NumPy formula.
+        Float64 beta tensor matching the reference NumPy formula.
 
     Raises:
         ValueError: If ``schedule`` is not a LayoutDiffusion-only schedule.
@@ -292,15 +292,15 @@ def get_layousyn_beta_schedule(
     """Create LayouSyn/OpenAI-style beta schedules.
 
     Origin:
-        This preserves `vendor/lay-your-scene/layousyn/diffusion/
-        gaussian_diffusion.py` exactly, including the LayYourScene-specific
+        This preserves the LayouSyn ``gaussian_diffusion.py`` formula exactly,
+        including the LayYourScene-specific
         ``alpha_scale`` transform for both the linear and squared-cosine
         schedules.
 
     Args:
-        schedule: Vendor schedule name.
+        schedule: Schedule name.
         num_timesteps: Number of diffusion timesteps.
-        alpha_scale: Vendor alpha-bar scaling factor.
+        alpha_scale: Alpha-bar scaling factor.
 
     Returns:
         One-dimensional beta tensor in float64 precision.
@@ -350,12 +350,12 @@ def get_ddim_timesteps(
     *,
     steps_offset: int = 1,
 ) -> Int[np.ndarray, "ddim_timesteps"]:
-    """Create ascending vendor-order DDIM timesteps.
+    """Create ascending reference-order DDIM timesteps.
 
     Origin:
         The public API follows CompVis latent-diffusion ``make_ddim_timesteps``.
         The uniform branch adapts Diffusers ``DDIMScheduler`` back to LACE's
-        ascending one-indexed vendor order.
+        ascending one-indexed reference order.
 
     Args:
         method: Discretization enum or string value.
@@ -365,7 +365,7 @@ def get_ddim_timesteps(
             timesteps, so the default is ``1``.
 
     Returns:
-        NumPy array of timesteps in ascending vendor order.
+        NumPy array of timesteps in ascending reference order.
 
     Raises:
         ValueError: If the method is unsupported.

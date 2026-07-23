@@ -157,7 +157,7 @@ class CoarseToFineProcessor(ProcessorMixin):
             return_tensors: Only ``"pt"`` is supported.
 
         Returns:
-            BatchEncoding with vendor labels, discrete boxes, and masks.
+            BatchEncoding with internal labels, discrete boxes, and masks.
 
         Raises:
             ValueError: If labels or boxes are missing.

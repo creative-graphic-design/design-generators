@@ -16,7 +16,7 @@ def default_token_counter(text: str) -> int:
 
 
 def system_prompt_2d(*, canvas_size: int) -> str:
-    """Return the vendor 2D instruction prompt."""
+    """Return the reference 2D instruction prompt."""
     return (
         "Instruction: Given a sentence prompt that will be used to generate an image, "
         "plan the layout of the image."
@@ -36,7 +36,7 @@ def create_exemplar_prompt(
     canvas_size: int,
     is_chat: bool = False,
 ) -> str:
-    """Serialize one exemplar using vendor CSS property order."""
+    """Serialize one exemplar using reference CSS property order."""
     prompt = "" if is_chat else f"\nPrompt: {example.prompt}\nLayout:\n"
     for category, bbox in example.objects:
         x, y, width, height = [int(value * canvas_size) for value in bbox]
@@ -55,7 +55,7 @@ def form_prompt_for_chatgpt(
     token_counter: TokenCounter = default_token_counter,
     input_length_limit: int = DEFAULT_INPUT_LENGTH_LIMIT,
 ) -> list[ChatMessage]:
-    """Build chat messages with vendor exemplar ordering and token truncation."""
+    """Build chat messages with reference exemplar ordering and token truncation."""
     system_prompt = system_prompt_2d(canvas_size=canvas_size)
     final_prompt = f"Prompt: {text_input}\nLayout:"
     total_length = token_counter(system_prompt + final_prompt)
@@ -86,7 +86,7 @@ def form_prompt_for_gpt3(
     token_counter: TokenCounter = default_token_counter,
     input_length_limit: int = DEFAULT_INPUT_LENGTH_LIMIT,
 ) -> str:
-    """Build completion prompt with vendor exemplar ordering and truncation."""
+    """Build completion prompt with reference exemplar ordering and truncation."""
     prompt = system_prompt_2d(canvas_size=canvas_size)
     last_example = f"\nPrompt: {text_input}\nLayout:"
     total_length = token_counter(prompt + last_example)

@@ -28,7 +28,7 @@ else:
 
 
 def parity_require_enabled() -> bool:
-    """Return whether vendor parity skips should fail.
+    """Return whether parity skips should fail.
 
     Returns:
         ``True`` when ``PARITY_REQUIRE`` is exactly ``"1"``; otherwise
@@ -50,7 +50,7 @@ def skip_or_fail_vendor_parity(
     missing_paths: Sequence[str | PathLike[str]] = (),
     regeneration_hint: str | None = None,
 ) -> NoReturn:
-    """Skip or fail a vendor-parity test when required assets are absent.
+    """Skip or fail a parity test when required assets are absent.
 
     Args:
         reason: Human-readable reason the parity assertion cannot run.
@@ -197,7 +197,7 @@ def load_torch_checkpoint_state_dict(
         state_dict_key: Optional key used by Lightning-style checkpoints.
         map_location: Device mapping passed to :func:`torch.load`.
         weights_only: Optional ``torch.load`` safety flag. ``None`` preserves
-            PyTorch's default for compatibility with older vendor checkpoints.
+            PyTorch's default for compatibility with older checkpoints.
 
     Returns:
         Mapping of checkpoint parameter names to tensors.
@@ -223,7 +223,7 @@ def strip_torch_state_dict_prefix(
     strip_prefix: str,
     include_prefix: str | None = None,
 ) -> "OrderedDict[str, torch.Tensor]":
-    """Return a state dict with a vendor wrapper prefix removed.
+    """Return a state dict with a wrapper prefix removed.
 
     Args:
         state_dict: Source state dictionary.
@@ -248,16 +248,16 @@ def vendor_backbone_kwargs(
     aliases: Mapping[str, str] | None = None,
     overrides: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
-    """Build vendor backbone constructor kwargs from a config object.
+    """Build checkpoint-backbone constructor kwargs from a config object.
 
     Args:
         config: Object or mapping that stores canonical package configuration.
-        fields: Vendor constructor argument names to read in order.
-        aliases: Optional mapping from vendor argument name to config field name.
+        fields: Constructor argument names to read in order.
+        aliases: Optional mapping from constructor argument name to config field name.
         overrides: Optional explicit values that take precedence over ``config``.
 
     Returns:
-        Ordered keyword arguments suitable for a vendor backbone constructor.
+        Ordered keyword arguments suitable for a checkpoint-backbone constructor.
     """
     aliases = aliases or {}
     overrides = overrides or {}

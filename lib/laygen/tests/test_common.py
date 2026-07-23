@@ -298,6 +298,7 @@ def test_label_registry_aliases_and_errors():
         "coco-grounded",
         "web",
         "webui",
+        "housegan-floorplan-vectorized",
     }
     assert normalize_dataset_name(DatasetName.rico25) is DatasetName.rico25
     assert normalize_dataset_name("rico25-max25") is DatasetName.rico25
@@ -307,6 +308,10 @@ def test_label_registry_aliases_and_errors():
     assert normalize_dataset_name("vg-msdn") is DatasetName.vg_msdn
     assert normalize_dataset_name("COCO-grounded") is DatasetName.coco_grounded
     assert normalize_dataset_name("webui") is DatasetName.webui
+    assert (
+        normalize_dataset_name("housegan-floorplan-vectorized")
+        is DatasetName.housegan_floorplan_vectorized
+    )
     assert labels_for_dataset("rico13")[:3] == ("Text", "Image", "Icon")
     assert labels_for_dataset("publaynet") == (
         "text",

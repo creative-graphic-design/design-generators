@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/s
   --run-vendor
 ```
 
-Step 3 converts the CGL and PKU unconditional checkpoints to local [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style directories.
+Step 3 converts the CGL and PKU checkpoints to local [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style directories. The PKU original wrapper calls the label-size task `chw`; the converter normalizes both `chw` and `cwh` to canonical `label_size`.
 
 ```bash
 uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
@@ -51,16 +51,57 @@ uv run --package ralf --extra vendor python models/ralf/scripts/convert_original
   --output-dir .cache/ralf/converted/ralf-pku-unconditional-strict
 ```
 
+Convert the remaining task checkpoints with the same strict-load converter.
+
+```bash
+declare -A RALF_CGL_TASKS=(
+  [label]=c
+  [label_size]=chw
+  [completion]=partial
+  [refinement]=refinement
+  [relation]=relation
+)
+
+for task in label label_size completion refinement relation; do
+  job="ralf_${RALF_CGL_TASKS[$task]}_cgl"
+  uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+    --job-dir ".cache/ralf/cache/training_logs/${job}" \
+    --checkpoint ".cache/ralf/cache/training_logs/${job}/gen_final_model.pt" \
+    --dataset cgl \
+    --task "${task}" \
+    --vocabulary-json .cache/ralf/cache/dataset/cgl/vocabulary.json \
+    --output-dir ".cache/ralf/converted/ralf-cgl-${task//_/-}-strict"
+done
+
+declare -A RALF_PKU_TASKS=(
+  [label]=c
+  [label_size]=chw
+  [completion]=partial
+  [refinement]=refinement
+  [relation]=relation
+)
+
+for task in label label_size completion refinement relation; do
+  job="ralf_${RALF_PKU_TASKS[$task]}_pku10"
+  uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \
+    --job-dir ".cache/ralf/cache/training_logs/${job}" \
+    --checkpoint ".cache/ralf/cache/training_logs/${job}/gen_final_model.pt" \
+    --dataset pku \
+    --task "${task}" \
+    --output-dir ".cache/ralf/converted/ralf-pku-${task//_/-}-strict"
+done
+```
+
 Step 4 runs the gated parity tests against the generated references and converted checkpoints.
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor pytest models/ralf/tests/vendor_parity -m vendor_parity -q
 ```
 
-Expected parity result:
+Expected unconditional parity result from the existing reference set:
 
 ```text
-4 passed
+6 passed
 ```
 
 Step 5 runs a `from_pretrained` smoke check for a converted checkpoint.

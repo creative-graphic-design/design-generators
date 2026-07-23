@@ -89,7 +89,7 @@ def test_postprocess_cxcywh_dict_and_intermediates() -> None:
     )
     assert cast(torch.Tensor, output["bbox"]).shape == (1, 1, 4)
     intermediates = cast(dict[str, object], output["intermediates"])
-    assert intermediates["vendor_layout_type"] == "cxcywh"
+    assert intermediates["reference_layout_type"] == "cxcywh"
 
 
 def test_postprocess_rejects_bad_output_type() -> None:

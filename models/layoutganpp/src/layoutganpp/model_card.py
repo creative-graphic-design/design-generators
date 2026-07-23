@@ -131,7 +131,7 @@ print(out.bbox, out.labels, out.mask)
             "Transformers-style conversion of the LayoutGAN++ generator from "
             "`Constrained Graphic Layout Generation via Latent Optimization` "
             f"for `{dataset_key}`. The model generates normalized center `xywh` "
-            "layout boxes from category-label conditions. Vendor parity compares "
+            "layout boxes from category-label conditions. Reference parity compares "
             f"bbox tensors with shape {_parity_metric(metrics, ParityMetricKey.shape)} "
             "against local const-layout fixtures with "
             "`torch.testing.assert_close(atol=1e-6, rtol=1e-5)`."

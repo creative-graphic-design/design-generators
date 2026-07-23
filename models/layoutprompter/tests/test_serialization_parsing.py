@@ -172,7 +172,7 @@ def test_parser_handles_structured_many_and_vendor_compatible_paths() -> None:
     assert np.allclose(html_bbox[0], np.asarray([0.1, 0.1, 0.2, 0.2]))
     with pytest.raises(ValueError, match="Unsupported output format"):
         Parser("publaynet", "json").parse_vendor_compatible("text 12 16 24 32")
-    with pytest.raises(RuntimeError, match="No vendor seq"):
+    with pytest.raises(RuntimeError, match="No seq"):
         parser.parse_vendor_compatible("not a layout")
 
 

@@ -99,7 +99,7 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
             segment_label: Relation segment ids.
             token_type: Token type ids ``0/1/2/3``.
             src_mask: Valid-token mask shaped ``(batch, 1, sequence)``.
-            global_mask: Optional vendor global-feature mask.
+            global_mask: Optional reference global-feature mask.
             bbox: Optional teacher-forced boxes for training/parity paths.
             bbox_mask: Optional box validity mask, reserved for parity paths.
             inference: Compatibility flag; greedy decoding is pipeline-owned.

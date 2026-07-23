@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-the
   uv run --package parse-then-place pytest models/parse-then-place/tests/vendor_parity -m vendor_parity
 ```
 
-4. Convert the RICO finetune checkpoint into local [`🤗 transformers`](https://huggingface.co/docs/transformers/index) pipeline format.
+4. Convert the RICO finetune checkpoint into local [`🤗transformers`](https://huggingface.co/docs/transformers/index) pipeline format.
 
 ```bash
 uv run --package parse-then-place python models/parse-then-place/scripts/convert_original_checkpoint.py \

@@ -84,10 +84,10 @@ class RalfRetrievalTable:
         return torch.tensor(rows, dtype=torch.long)
 
 
-def retrieved_batch_to_vendor_dict(
+def retrieved_batch_to_model_inputs(
     batch: RalfRetrievedBatch,
 ) -> dict[str, torch.Tensor]:
-    """Convert explicit retrieved examples to vendor-style field names."""
+    """Convert explicit retrieved examples to model input field names."""
     x, y, w, h = batch.bbox.unbind(dim=-1)
     output = {
         "image": batch.image,
@@ -104,10 +104,10 @@ def retrieved_batch_to_vendor_dict(
     return output
 
 
-def vendor_dict_to_retrieved_batch(
+def model_inputs_to_retrieved_batch(
     data: Mapping[str, torch.Tensor],
 ) -> RalfRetrievedBatch:
-    """Convert vendor retrieved fields to `RalfRetrievedBatch`."""
+    """Convert model input fields to `RalfRetrievedBatch`."""
     bbox = torch.stack(
         (
             data["center_x"],

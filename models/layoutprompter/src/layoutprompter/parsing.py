@@ -76,7 +76,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
     def parse_vendor_compatible(
         self, prediction: str
     ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
-        """Parse string output as vendor-compatible normalized top-left ``xywh``."""
+        """Parse string output as checkpoint-compatible normalized top-left ``xywh``."""
         if self.output_format is PromptFormat.SEQ:
             labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
         elif self.output_format is PromptFormat.HTML:
@@ -166,7 +166,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         )
         matches = re.findall(pattern, prediction.lower())
         if not matches:
-            raise RuntimeError("No vendor seq layout elements parsed")
+            raise RuntimeError("No seq layout elements parsed")
         label_array = np.asarray(
             [self.label2id[item[0]] for item in matches], dtype=np.int64
         )

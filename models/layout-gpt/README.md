@@ -75,6 +75,14 @@ Re-run the vendor parity suite before publishing prompt configurations or compar
 
 ## How to Get Started with the Model
 
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen[agents] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-gpt @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-gpt"
+```
+
 Clone this repository and install the prompt-only workspace member. LayoutGPT has no learned checkpoints; the example uses saved prompt configuration and a parsed output object, so it runs without provider credentials.
 
 ```bash

@@ -24,7 +24,7 @@ class LayoutDiffusionTransformerOutput(BaseOutput):
 
 
 class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
-    """BERT-encoder denoiser ported from the vendor DiscreteTransformerModel.
+    """BERT-encoder denoiser for LayoutDiffusion token sequences.
 
     Args:
         vocab_size: Full tokenizer vocabulary size including mask.
@@ -35,7 +35,7 @@ class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
         intermediate_size: BERT feed-forward size.
         dropout: Hidden dropout probability.
         max_position_embeddings: Position embedding count.
-        constrained: Optional vendor constraint mode.
+        constrained: Optional reference constraint mode.
 
     Examples:
         >>> model = LayoutDiffusionTransformer(
@@ -125,7 +125,7 @@ class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
         Args:
             input_ids: Current token ids shaped ``(B, L)``.
             timesteps: Diffusion timestep per batch item.
-            condition_ids: Optional vendor condition token ids.
+            condition_ids: Optional internal condition token ids.
             condition_type: Optional condition mode.
             return_dict: Whether to return a dataclass output.
 

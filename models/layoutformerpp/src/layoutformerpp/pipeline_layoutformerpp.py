@@ -165,7 +165,7 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             return_intermediates: Reserved output detail flag.
             max_length: Optional token decode length override.
             do_sample: Optional sampling override.
-            top_k: Top-k value used by the vendor sampling loop.
+            top_k: Top-k value used by the reference sampling loop.
             temperature: Sampling temperature.
 
         Returns:

@@ -51,7 +51,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         if config is None and tokenizer_config_file is not None:
             with Path(tokenizer_config_file).open(encoding="utf-8") as f:
                 config = LayoutActionConfig(**json.load(f)["config"])
-        self.config = config or LayoutActionConfig()
+        if config is None:
+            raise ValueError("LayoutActionTokenizer requires an explicit config")
+        self.config = config
         self._token2id = self._build_vocab()
         self._id2token = {idx: token for token, idx in self._token2id.items()}
         kwargs.setdefault("bos_token", "[BOS]")
@@ -170,7 +172,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         return cls(config=config)
 
     def quantize_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
-        """Quantize normalized center ``xywh`` boxes with vendor binning."""
+        """Quantize normalized center ``xywh`` boxes with checkpoint binning."""
         return (
             bbox.clamp(0.0, 1.0)
             .mul(self.config.size - 1)
@@ -248,7 +250,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
     def _encode_action_triples(
         self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
     ) -> list[tuple[int, int, int]]:
-        """Encode one quantized box with vendor copy/margin/generate precedence."""
+        """Encode one quantized box with checkpoint copy/margin/generate precedence."""
         if not previous_boxes:
             return [
                 (

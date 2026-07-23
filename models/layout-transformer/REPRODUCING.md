@@ -100,7 +100,7 @@ CUDA_VISIBLE_DEVICES=2 uv run --package layout-transformer --extra vendor \
 
 ### 4. Convert Checkpoints
 
-The conversion step writes [`🤗 transformers`](https://huggingface.co/docs/transformers/index) checkpoint directories under `.cache/layout-transformer/converted/`.
+The conversion step writes [`🤗transformers`](https://huggingface.co/docs/transformers/index) checkpoint directories under `.cache/layout-transformer/converted/`.
 
 ```bash
 uv run --package layout-transformer python models/layout-transformer/scripts/convert_original_checkpoint.py \

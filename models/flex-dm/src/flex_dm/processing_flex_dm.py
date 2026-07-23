@@ -29,7 +29,7 @@ from .modeling_flex_dm import FlexDmModelOutput
 
 
 class FlexDmDiscretizerSpec(TypedDict):
-    """Linear discretizer metadata for one numeric vendor field."""
+    """Linear discretizer metadata for one numeric model field."""
 
     min: float
     max: float
@@ -144,7 +144,7 @@ class FlexDmProcessor(ProcessorMixin):
         vocabulary: dict[str, object],
         checkpoint_variant: str = "ours-exp-ft",
     ) -> "FlexDmProcessor":
-        """Build config and processor metadata from vendor vocabulary."""
+        """Build config and processor metadata from vocabulary."""
         id2label = cast(
             dict[int | str, str], id2label_from_vocabulary(dataset_name, vocabulary)
         )

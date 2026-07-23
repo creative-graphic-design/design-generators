@@ -65,7 +65,7 @@ class LayoutActionSamplingConfig:
 
 
 def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
-    """Mask logits outside the top ``k`` values exactly like the vendor helper.
+    """Mask logits outside the top ``k`` values exactly like the reference helper.
 
     Args:
         logits: Logits shaped ``(batch, vocab)``.

@@ -17,8 +17,8 @@ from .configuration_smarttext import SmartTextConfig
 _INF: Final[float] = 1_000_000_007.0
 
 
-class VendorBoxRow(TypedDict, total=False):
-    """JSON-compatible vendor candidate row."""
+class CandidateBoxRow(TypedDict, total=False):
+    """JSON-compatible candidate row."""
 
     idx: int
     xl: int
@@ -226,10 +226,10 @@ def prepare_scorer_batch(
     return pixel_values, boxes, list(candidates)
 
 
-def candidate_to_vendor_json(candidate: SmartTextCandidate) -> list[VendorBoxRow]:
-    """Convert a candidate to the vendor JSON row format."""
+def candidate_to_reference_json(candidate: SmartTextCandidate) -> list[CandidateBoxRow]:
+    """Convert a candidate to the reference JSON row format."""
     left, top, right, bottom = candidate.bbox_ltrb_px
-    rows: list[VendorBoxRow] = [
+    rows: list[CandidateBoxRow] = [
         {
             "idx": candidate.index,
             "xl": top,
@@ -254,10 +254,10 @@ def candidate_to_vendor_json(candidate: SmartTextCandidate) -> list[VendorBoxRow
     return rows
 
 
-def candidate_from_vendor_json(
+def candidate_from_reference_json(
     row: Sequence[Mapping[str, object]],
 ) -> SmartTextCandidate:
-    """Convert one vendor JSON candidate row to typed metadata."""
+    """Convert one reference JSON candidate row to typed metadata."""
     head = row[0]
     lines = []
     for line in row[1:]:

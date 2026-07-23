@@ -40,10 +40,10 @@ def resolve_model_shape(
     depth: int | None = None,
     num_heads: int | None = None,
 ) -> LayouSynModelShape:
-    """Resolve a vendor DiT name to concrete architecture dimensions.
+    """Resolve a reference DiT name to concrete architecture dimensions.
 
     Args:
-        model_name: Vendor model key such as ``DiT-S`` or
+        model_name: Reference model key such as ``DiT-S`` or
             ``DiT-D28-H1152-N16``.
         hidden_size: Optional explicit override.
         depth: Optional explicit override.
@@ -79,16 +79,16 @@ class LayouSynConfig(ConfigMixin):
     """Serializable LayouSyn configuration.
 
     Args:
-        model_name: Vendor DiT architecture key.
+        model_name: Reference DiT architecture key.
         in_channels: Layout coordinate channels.
         concept_in_channels: Concept embedding width.
         y_in_channels: Caption embedding width.
         max_in_len: Maximum number of object slots.
         max_y_len: Maximum number of caption tokens.
-        layout_type: Vendor layout coordinate type.
-        t5_size: Vendor T5 size suffix.
+        layout_type: Reference layout coordinate type.
+        t5_size: Reference T5 size suffix.
         scale: Default classifier-free guidance scale.
-        noise_schedule: Vendor diffusion beta schedule.
+        noise_schedule: Reference diffusion beta schedule.
         diffusion_steps: Number of diffusion training timesteps.
         hidden_size: Optional resolved hidden width override.
         depth: Optional resolved transformer depth override.
@@ -142,8 +142,8 @@ class LayouSynConfig(ConfigMixin):
         self.license = license
 
     @classmethod
-    def from_vendor_json(cls, path: str | Path) -> "LayouSynConfig":
-        """Load a vendor JSON config.
+    def from_reference_json(cls, path: str | Path) -> "LayouSynConfig":
+        """Load a reference JSON config.
 
         Args:
             path: Path to a Lay-Your-Scene JSON config.
@@ -169,7 +169,7 @@ class LayouSynConfig(ConfigMixin):
             diffusion_steps=data.get("diffusion_steps", 1000),
         )
 
-    def to_vendor_dict(self) -> dict[str, object]:
+    def to_reference_dict(self) -> dict[str, object]:
         """Return the config keys expected by the original repository."""
         return {
             "model": self.model_name,

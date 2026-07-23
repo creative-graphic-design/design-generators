@@ -17,7 +17,7 @@ from .configuration_layoutformerpp import LayoutFormerPPConfig
 
 
 def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
-    """Create the causal decoder mask used by the vendor model."""
+    """Create the causal decoder mask used by the checkpoint model."""
     mask = (torch.triu(torch.ones(size, size, device=device)) == 1).transpose(0, 1)
     return mask.float().masked_fill(mask == 0, -math.inf).masked_fill(mask == 1, 0.0)
 
@@ -49,7 +49,7 @@ class PositionalEncoding(nn.Module):
 
 
 class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
-    """Transformers `PreTrainedModel` with vendor-compatible module names."""
+    """Transformers `PreTrainedModel` with checkpoint-compatible module names."""
 
     config_class = LayoutFormerPPConfig
     base_model_prefix = "layoutformerpp"
@@ -60,7 +60,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
     }
 
     def __init__(self, config: LayoutFormerPPConfig) -> None:
-        """Initialize vendor-compatible encoder/decoder modules."""
+        """Initialize checkpoint-compatible encoder/decoder modules."""
         super().__init__(config)
         self.d_model = config.d_model
         self.vocab_size = config.vocab_size
@@ -219,7 +219,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         task_ids: Int[torch.Tensor, "batch"] | None = None,
         generator: torch.Generator | None = None,
     ) -> Int[torch.Tensor, "batch tokens"]:
-        """Run the vendor greedy/top-k autoregressive loop."""
+        """Run the reference greedy/top-k autoregressive loop."""
         if attention_mask is None:
             attention_mask = input_ids.ne(self.pad_token_id)
         padding_mask = ~attention_mask.bool()

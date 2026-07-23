@@ -79,7 +79,7 @@ class _InvertedResidual(nn.Module):
             assert_never(self.benchmodel)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run one vendor ShuffleNetV2 residual block."""
+        """Run one SmartText ShuffleNetV2 residual block."""
         if self.benchmodel == 1:
             x1 = x[:, : (x.shape[1] // 2), :, :]
             x2 = x[:, (x.shape[1] // 2) :, :, :]
@@ -128,7 +128,7 @@ class _ShuffleNetV2Base(nn.Module):
     def forward(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return vendor feature stages f3, f4, and f5."""
+        """Return SmartText feature stages f3, f4, and f5."""
         f3 = self.feature3(x)
         f4 = self.feature4(f3)
         f5 = self.feature5(f4)
@@ -227,7 +227,7 @@ class _AlignBase(nn.Module):
 
 
 class SmartTextRoIAlignAvg(_AlignBase):
-    """PyTorch port of the vendor ``RoIAlignAvg`` forward kernel."""
+    """PyTorch port of the reference ``RoIAlignAvg`` forward kernel."""
 
     def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """Align RoI features and average adjacent samples."""
@@ -236,7 +236,7 @@ class SmartTextRoIAlignAvg(_AlignBase):
 
 
 class SmartTextRoDAlignAvg(_AlignBase):
-    """PyTorch port of the vendor ``RoDAlignAvg`` forward kernel."""
+    """PyTorch port of the reference ``RoDAlignAvg`` forward kernel."""
 
     def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """Align outside-region features and average adjacent samples."""
@@ -245,9 +245,9 @@ class SmartTextRoDAlignAvg(_AlignBase):
 
 
 class SmartTextScorer(PreTrainedModel):
-    """Vendor-compatible SMT candidate scorer.
+    """Reference-compatible SMT candidate scorer.
 
-    The module names match ``vendor/smarttext/smtModel.py`` for
+    The module names match the original ``smtModel.py`` for
     ``build_smt_model(scale="multi", alignsize=9, reddim=8,
     model="shufflenetv2", downsample=4)`` so ``SMT.pth`` loads directly.
 
@@ -266,7 +266,7 @@ class SmartTextScorer(PreTrainedModel):
     _tied_weights_keys: list[str] = []
 
     def __init__(self, config: SmartTextConfig) -> None:
-        """Initialize vendor SMT scorer modules."""
+        """Initialize scorer scorer modules."""
         super().__init__(config)
         self.all_tied_weights_keys: dict[str, str] = {}
         if config.scorer_scale != "multi" or config.scorer_backbone != "shufflenetv2":

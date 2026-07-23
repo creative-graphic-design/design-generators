@@ -38,7 +38,7 @@ class Mlp(nn.Module):
 
 
 class ScalarEmbedder(nn.Module):
-    """Vendor sinusoidal scalar embedding plus MLP projection."""
+    """Reference sinusoidal scalar embedding plus MLP projection."""
 
     def __init__(self, hidden_size: int, frequency_embedding_size: int = 256) -> None:
         """Initialize the embedder."""
@@ -254,7 +254,7 @@ class DiTBlock(nn.Module):
         return x, x_enc
 
     def initialize_weights(self) -> None:
-        """Zero vendor adaLN and cross-attention output projections."""
+        """Zero reference adaLN and cross-attention output projections."""
         modulation = cast(nn.Linear, self.adaLN_modulation[-1])
         nn.init.constant_(self.cross_attn.out_proj.weight, 0)
         nn.init.constant_(self.cross_attn.out_proj.bias, 0)
@@ -308,14 +308,14 @@ class DiTUCBlock(nn.Module):
         )
 
     def initialize_weights(self) -> None:
-        """Zero vendor adaLN projection."""
+        """Zero reference adaLN projection."""
         modulation = cast(nn.Linear, self.adaLN_modulation[-1])
         nn.init.constant_(modulation.weight, 0)
         nn.init.constant_(modulation.bias, 0)
 
 
 class FinalLayer(nn.Module):
-    """Vendor final adaLN projection."""
+    """Reference final adaLN projection."""
 
     def __init__(self, hidden_size: int, out_channels: int) -> None:
         """Initialize final layer."""
@@ -333,13 +333,13 @@ class FinalLayer(nn.Module):
 
 
 def get_1d_sincos_pos_embed(embed_dim: int, max_len: int) -> np.ndarray:
-    """Create vendor sine/cosine positional embeddings."""
+    """Create reference sine/cosine positional embeddings."""
     grid = np.arange(max_len, dtype=np.float32)
     return get_1d_sincos_pos_embed_from_grid(embed_dim, grid)
 
 
 def get_1d_sincos_pos_embed_from_grid(embed_dim: int, pos: np.ndarray) -> np.ndarray:
-    """Create vendor sine/cosine positional embeddings from positions."""
+    """Create reference sine/cosine positional embeddings from positions."""
     omega = np.arange(embed_dim // 2, dtype=np.float64)
     omega /= embed_dim / 2.0
     omega = 1.0 / 10000**omega
@@ -417,7 +417,7 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         self.initialize_weights()
 
     def initialize_weights(self) -> None:
-        """Initialize weights with the vendor policy."""
+        """Initialize weights with the reference policy."""
 
         def _basic_init(module: nn.Module) -> None:
             if isinstance(module, nn.Linear):
@@ -495,7 +495,7 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         caption_padding_mask: Bool[torch.Tensor, "batch tokens"],
         guidance_scale: float,
     ) -> Float[torch.Tensor, "batch seq channels"]:
-        """Run vendor classifier-free guidance batching."""
+        """Run reference classifier-free guidance batching."""
         half = sample[: len(sample) // 2]
         combined = torch.cat([half, half], dim=0)
         model_out = self.forward(
@@ -514,8 +514,8 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         return torch.cat([eps, rest], dim=1)
 
 
-def convert_vendor_state_dict(
+def convert_reference_state_dict(
     state_dict: dict[str, torch.Tensor],
 ) -> dict[str, torch.Tensor]:
-    """Convert a vendor DiT state dict to the wrapped model key space."""
+    """Convert a reference DiT state dict to the wrapped model key space."""
     return dict(state_dict)

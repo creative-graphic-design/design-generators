@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from ralf import RalfConfig
 
 
@@ -14,6 +16,7 @@ def test_config_derives_token_ids_and_round_trips(tmp_path: Path) -> None:
     assert config.num_labels == 5
     assert config.vocab_size == 5 + 128 * 4 + 3
     assert config.pad_token_id == 5 + 128 * 4
+    assert config.bbox_token_offset("label") == 0
     assert config.bbox_token_offset("center_x") == 5
     assert config.bbox_token_offset("width") == 5 + 128 * 2
 
@@ -29,3 +32,12 @@ def test_pku_config_keeps_invalid_label_for_source_vocabulary() -> None:
 
     assert cast(dict[int, str], config.id2label)[3] == "INVALID"
     assert cast(dict[str, int], config.label2id)["text"] == 0
+
+
+def test_config_shared_location_vocab_and_invalid_special_token() -> None:
+    config = RalfConfig(num_bin=8, is_loc_vocab_shared=True)
+
+    assert config.num_bbox_tokens == 8
+    assert config.bbox_token_offset("height") == config.num_labels
+    with pytest.raises(ValueError, match="Unknown special token"):
+        config.special_token_id("missing")

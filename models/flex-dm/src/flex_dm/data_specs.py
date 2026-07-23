@@ -13,7 +13,7 @@ from .configuration_flex_dm import FlexDmColumnSpec, FlexDmDatasetName
 
 
 class FlexDmFeatureGroup(StrEnum):
-    """Vendor Flex-DM feature groups."""
+    """Flex-DM feature groups."""
 
     random = auto()
     elem = auto()
@@ -54,7 +54,7 @@ def _normalize_dataset(dataset_name: FlexDmDatasetName | str) -> FlexDmDatasetNa
 
 
 def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> dict[str, object]:
-    """Return a lightweight copy of the vendor column schema.
+    """Return a lightweight copy of the Flex-DM column schema.
 
     Args:
         dataset_name: ``crello`` or ``rico``.
@@ -139,7 +139,7 @@ def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> dict[str, object
 def attribute_groups_for_dataset(
     dataset_name: FlexDmDatasetName | str,
 ) -> dict[str, tuple[str, ...]]:
-    """Return vendor attribute groups for a dataset."""
+    """Return attribute groups for a dataset."""
     dataset = _normalize_dataset(dataset_name)
     if dataset is FlexDmDatasetName.crello:
         return {
@@ -211,7 +211,7 @@ def build_column_specs(
     dataset_name: FlexDmDatasetName | str,
     vocabulary: Mapping[str, object],
 ) -> dict[str, FlexDmColumnSpec]:
-    """Build Flex-DM model column specs from vendor vocabulary metadata."""
+    """Build Flex-DM model column specs from vocabulary metadata."""
     dataset = _normalize_dataset(dataset_name)
     spec = load_builtin_spec(dataset)
     columns = cast(Mapping[str, Mapping[str, object]], spec["columns"])
@@ -276,7 +276,7 @@ def id2label_from_vocabulary(
     dataset_name: FlexDmDatasetName | str,
     vocabulary: Mapping[str, object],
 ) -> dict[int, str]:
-    """Resolve the public type-label mapping from vendor vocabulary data."""
+    """Resolve the public type-label mapping from vocabulary data."""
     dataset = _normalize_dataset(dataset_name)
     raw = vocabulary.get("type")
     if isinstance(raw, Mapping):

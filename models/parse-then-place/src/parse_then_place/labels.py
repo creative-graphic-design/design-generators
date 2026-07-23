@@ -70,7 +70,7 @@ def normalize_dataset_name(
     """Normalize Parse-Then-Place dataset names.
 
     Args:
-        dataset_name: Dataset enum value or public/vendor string.
+        dataset_name: Dataset enum value or public/release string.
 
     Returns:
         Canonical Parse-Then-Place dataset name.
@@ -127,5 +127,5 @@ def label2id_for_dataset(
 def canvas_size_for_dataset(
     dataset_name: ParseThenPlaceDatasetName | str,
 ) -> tuple[int, int]:
-    """Return the vendor canvas size as ``(width, height)``."""
+    """Return the dataset canvas size as ``(width, height)``."""
     return dataset_metadata(dataset_name)["canvas_size"]

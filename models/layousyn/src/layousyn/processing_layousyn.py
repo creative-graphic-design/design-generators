@@ -50,7 +50,7 @@ class LayouSynProcessor(ProcessorMixin):
     """Encode prompts and open-vocabulary concepts for LayouSyn.
 
     Args:
-        layout_type: Vendor layout type used by generated coordinates.
+        layout_type: Reference layout type used by generated coordinates.
         max_in_len: Maximum number of concept slots.
         caption_model_name: Text encoder identifier used for captions.
         concept_model_name: Sentence-transformers model id for concept labels.
@@ -233,7 +233,7 @@ class LayouSynProcessor(ProcessorMixin):
         return_intermediates: bool = False,
         intermediates: object | None = None,
     ) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
-        """Convert generated vendor coordinates into the public schema."""
+        """Convert generated reference coordinates into the public schema."""
         sample = ((sample.clamp(-1, 1) + 1.0) / 2.0).float()
         if self.layout_type == "xyxy":
             left, top, right, bottom = sample.unbind(dim=-1)
@@ -262,7 +262,7 @@ class LayouSynProcessor(ProcessorMixin):
             payload = {
                 "label_texts": labels,
                 "id2label_per_example": id2label_per_example,
-                "vendor_layout_type": self.layout_type,
+                "reference_layout_type": self.layout_type,
                 "intermediates": intermediates,
             }
         output = LayoutGenerationOutput(
