@@ -1,4 +1,4 @@
-"""Small deterministic records shared by vendor parity scripts and tests."""
+"""Small deterministic records shared by reference parity scripts and tests."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ K = LayoutRecordKey
 
 
 def fixture_records() -> tuple[list[LayoutRecord], LayoutRecord]:
-    """Return fixed train/test records shared by vendor and port tests."""
+    """Return fixed train/test records shared by reference and local tests."""
     train_data = [
         _record("candidate-a", [0, 0], [[4, 5, 20, 10], [40, 50, 15, 20]]),
         _record("candidate-filtered", [0, 2], [[4, 5, 0, 10], [40, 50, 15, 20]]),
