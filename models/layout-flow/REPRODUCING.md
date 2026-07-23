@@ -69,5 +69,5 @@ Each script supports `--help` with defaults documented:
 uv run --package layout-flow python models/layout-flow/scripts/download_original.py --help
 uv run --package layout-flow python models/layout-flow/scripts/generate_reference_outputs.py --help
 uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py --help
-uv run --package layout-flow --extra training python -m layout_flow.training.cli --help
+uv run --package layout-flow --extra training python -m traingen.lightning.cli --help
 ```

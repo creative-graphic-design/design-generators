@@ -38,7 +38,7 @@ The package configs point at those directories by default. If the files live els
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
   --data.init_args.data_path /path/to/rico25
 ```
@@ -74,7 +74,7 @@ Start a regular RICO25 training run. Until package-local FID validation is imple
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
   --model.init_args.scheduler=null \
   --model.init_args.fid_calc_every_n=0 \
@@ -86,7 +86,7 @@ Start a regular PubLayNet training run.
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_publaynet.yaml \
   --model.init_args.scheduler=null \
   --model.init_args.fid_calc_every_n=0 \
@@ -98,7 +98,7 @@ Use CLI overrides for short checks, smaller GPUs, or full-run scheduling changes
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
   --trainer.max_epochs=1000 \
   --data.init_args.batch_size=256 \
@@ -142,7 +142,7 @@ model:
 YAML
 CUDA_VISIBLE_DEVICES=<gpu-index> \
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
   --config .cache/layout-flow/training-runs/rico25/runtime.yaml
 ```
@@ -152,7 +152,7 @@ Start a deterministic short run on one selected GPU. Set `CUBLAS_WORKSPACE_CONFI
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> CUBLAS_WORKSPACE_CONFIG=:4096:8 \
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25_deterministic.yaml \
   --trainer.limit_train_batches=2
 ```
@@ -161,7 +161,7 @@ Run the CPU smoke config when checking CLI wiring without training data coverage
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/smoke.yaml
 ```
 
@@ -190,7 +190,7 @@ Resume from the latest checkpoint with `--ckpt_path`:
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
+  python -m traingen.lightning.cli fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
   --ckpt_path .cache/layout-flow/training-runs/rico25/checkpoints/last.ckpt
 ```

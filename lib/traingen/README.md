@@ -27,7 +27,17 @@ pip install "traingen[lightning] @ git+https://github.com/creative-graphic-desig
 
 ## API Entry Points
 
-Create package-local LightningCLI subclasses without importing Lightning at top-level package import time.
+Run a model-agnostic LightningCLI from a training YAML that declares
+`model.class_path` and `data.class_path`.
+
+```bash
+uv run --package layout-flow --extra training \
+  python -m traingen.lightning.cli fit \
+  --config models/layout-flow/configs/training/smoke.yaml
+```
+
+Create package-local LightningCLI subclasses only when a model package needs
+custom CLI arguments or defaults that cannot live in YAML.
 
 ```bash
 uv run --package traingen python

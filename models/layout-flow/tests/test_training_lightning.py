@@ -7,7 +7,7 @@ pytest.importorskip("lightning")
 pytest.importorskip("traingen_parity")
 
 from layout_flow import LayoutFlowConfig
-from layout_flow.training.cli import LayoutFlowLightningCLI, main
+from layout_flow.training.cli import main
 from layout_flow.training.config import (
     LayoutFlowConditionPolicy,
     LayoutFlowSeedMode,
@@ -128,6 +128,5 @@ def test_training_public_string_options_are_constrained() -> None:
 
 
 def test_lightning_cli_help_entrypoint() -> None:
-    assert LayoutFlowLightningCLI.__name__ == "LayoutFlowLightningCLI"
     with pytest.raises(SystemExit):
         main(["--help"])
