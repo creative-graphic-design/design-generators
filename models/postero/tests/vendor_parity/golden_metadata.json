@@ -1,0 +1,19 @@
+{
+  "cases": 4,
+  "parser_bbox_ltrb": [
+    [
+      10.0,
+      20.0,
+      40.0,
+      60.0
+    ]
+  ],
+  "parser_labels": [
+    1
+  ],
+  "prompt_sha256": "9e436edf59d7260c1780c674abd28082d71803ee4f0b13a5ee70aafd9020a0be",
+  "retry_attempts": 2,
+  "selected_exemplar_ids": [
+    "candidate-a"
+  ]
+}
