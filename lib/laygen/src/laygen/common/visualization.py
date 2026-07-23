@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Literal, Protocol, cast
@@ -10,12 +11,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from jaxtyping import Bool, Float, Int
-from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from PIL import Image
 
 from .bbox import xywh_to_ltrb
 
@@ -346,6 +347,7 @@ def render_trajectory_gif(
     canvas_size: tuple[int, int] = (512, 512),
     colors: Iterable[str] | None = None,
     duration_ms: int = 240,
+    final_hold_ms: int = 1500,
     dpi: int = 100,
 ) -> Path:
     """Render trajectory steps as an animated GIF.
@@ -357,6 +359,8 @@ def render_trajectory_gif(
         canvas_size: Canvas size as ``(width, height)``.
         colors: Optional stable label color palette.
         duration_ms: Frame duration in milliseconds.
+        final_hold_ms: Final-frame duration in milliseconds. The final hold is
+            encoded as GIF frame metadata instead of duplicated frames.
         dpi: Matplotlib output DPI.
 
     Returns:
@@ -408,11 +412,54 @@ def render_trajectory_gif(
         ax.set_title(f"step {frame_index + 1}/{len(steps)}", fontsize=8)
         return [*ax.patches, *ax.lines, *ax.texts]
 
-    animation = FuncAnimation(fig, update, frames=len(steps), repeat=False)
-    fps = max(1, round(1000 / duration_ms))
-    animation.save(path, writer=PillowWriter(fps=fps), dpi=dpi)
+    frames: list[Image.Image] = []
+    for frame_index in range(len(steps)):
+        update(frame_index)
+        buffer = BytesIO()
+        fig.savefig(buffer, format="png", dpi=dpi)
+        buffer.seek(0)
+        with Image.open(buffer) as image:
+            frames.append(image.convert("P", palette=Image.Palette.ADAPTIVE).copy())
+    durations = [duration_ms] * len(frames)
+    durations[-1] = final_hold_ms
+    frames[0].save(
+        path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
+        disposal=2,
+    )
     plt.close(fig)
     return path
+
+
+def save_layout_gif(
+    output: object,
+    output_path: str | Path,
+    *,
+    sample_index: int = 0,
+    canvas_size: tuple[int, int] = (512, 512),
+    colors: Iterable[str] | None = None,
+    duration_ms: int = 240,
+    final_hold_ms: int = 1500,
+    dpi: int = 100,
+) -> Path:
+    """Save a layout trajectory GIF with gallery-friendly timing metadata.
+
+    This is the public GIF writer name used by gallery generation scripts.
+    ``render_trajectory_gif`` is kept as a compatibility alias.
+    """
+    return render_trajectory_gif(
+        output,
+        output_path,
+        sample_index=sample_index,
+        canvas_size=canvas_size,
+        colors=colors,
+        duration_ms=duration_ms,
+        final_hold_ms=final_hold_ms,
+        dpi=dpi,
+    )
 
 
 def make_gallery_grid(
@@ -502,4 +549,5 @@ __all__ = [
     "render_layout",
     "render_trajectory",
     "render_trajectory_gif",
+    "save_layout_gif",
 ]

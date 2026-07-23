@@ -15,7 +15,7 @@ from typing import Protocol, cast
 
 import torch
 
-from laygen.common.visualization import make_gallery_grid, render_trajectory_gif
+from laygen.common.visualization import make_gallery_grid, save_layout_gif
 
 
 class _PipelineClass(Protocol):
@@ -106,6 +106,8 @@ def _write_metadata(
     grid_path: Path,
     trajectory_gif_path: Path | None,
     call_kwargs: dict[str, object],
+    duration_ms: int,
+    final_hold_ms: int,
 ) -> None:
     metadata = {
         "model_package": model_package,
@@ -117,6 +119,8 @@ def _write_metadata(
         "trajectory_gif_path": str(trajectory_gif_path)
         if trajectory_gif_path is not None
         else None,
+        "duration_ms": duration_ms,
+        "final_hold_ms": final_hold_ms,
         "call_kwargs": call_kwargs,
         "generated_at": datetime.now(UTC).isoformat(),
     }
@@ -163,6 +167,18 @@ def parse_args() -> argparse.Namespace:
         "--device",
         help="Optional device passed to pipeline.to(device) when available.",
     )
+    parser.add_argument(
+        "--duration-ms",
+        type=int,
+        default=125,
+        help="GIF frame duration in milliseconds. The README preset uses 125ms.",
+    )
+    parser.add_argument(
+        "--final-hold-ms",
+        type=int,
+        default=1500,
+        help="Final GIF frame duration in milliseconds without duplicating frames.",
+    )
     return parser.parse_args()
 
 
@@ -192,10 +208,12 @@ def main() -> None:
     )
     if first_with_trajectory is not None:
         trajectory_path = args.output_dir / f"{slug}-trajectory.gif"
-        render_trajectory_gif(
+        save_layout_gif(
             first_with_trajectory,
             trajectory_path,
             canvas_size=tuple(args.canvas_size),
+            duration_ms=args.duration_ms,
+            final_hold_ms=args.final_hold_ms,
         )
     metadata_path = args.output_dir / f"{slug}.json"
     _write_metadata(
@@ -208,6 +226,8 @@ def main() -> None:
         grid_path=grid_path,
         trajectory_gif_path=trajectory_path,
         call_kwargs=args.call_kwargs_json,
+        duration_ms=args.duration_ms,
+        final_hold_ms=args.final_hold_ms,
     )
 
 
