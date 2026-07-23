@@ -16,7 +16,7 @@ from layout_dm.conditioning import (
     build_condition,
     normalize_condition_type,
 )
-from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
 from laygen.common.bbox import BoxFormat
