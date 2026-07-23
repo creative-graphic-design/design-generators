@@ -20,6 +20,7 @@ class DatasetName(StrEnum):
     coco_grounded = "coco-grounded"
     web = auto()
     webui = auto()
+    housegan_floorplan_vectorized = "housegan-floorplan-vectorized"
 
 
 class Rico25Label(StrEnum):
@@ -146,6 +147,7 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "coco_grounded": DatasetName.coco_grounded,
     "web": DatasetName.web,
     "webui": DatasetName.webui,
+    "housegan_floorplan_vectorized": DatasetName.housegan_floorplan_vectorized,
 }
 
 DATASET_METADATA: Final[dict[DatasetName, DatasetMetadata]] = {
