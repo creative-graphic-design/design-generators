@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import numpy as np
 import pytest
 import torch
@@ -25,6 +27,6 @@ def test_image_processor_default_image_and_error_paths() -> None:
 
     assert tuple(output["pixel_values"].shape) == (1, 3, 64, 64)
     with pytest.raises(ValueError, match="return_tensors='pt'"):
-        processor.preprocess(None, return_tensors="np")
+        processor.preprocess(None, return_tensors=cast(Literal["pt"], "np"))
     with pytest.raises(TypeError):
         processor.preprocess([object()])  # ty: ignore[invalid-argument-type]

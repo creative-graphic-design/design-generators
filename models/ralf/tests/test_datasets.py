@@ -1,6 +1,6 @@
 import sys
 import types
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 import torch
@@ -157,7 +157,7 @@ def test_build_retrieved_batch_handles_empty_pku_labels() -> None:
 
 def test_load_ralf_dataset_rejects_unknown_source() -> None:
     try:
-        load_ralf_dataset("cgl", "train", source="cache")
+        load_ralf_dataset("cgl", "train", source=cast(Literal["hf_org"], "cache"))
     except ValueError as exc:
         assert "source='hf_org'" in str(exc)
     else:

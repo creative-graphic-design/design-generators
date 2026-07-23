@@ -15,6 +15,12 @@ import torch
 from laygen.common.conditions import normalize_condition_type
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration, RalfProcessor
+from ralf.configuration_ralf import (
+    RalfConfigTaskName,
+    RalfDatasetName,
+    RalfLayoutVariable,
+    RalfTaskName,
+)
 from ralf.modeling_ralf import TASK_BY_CONDITION
 
 
@@ -30,6 +36,17 @@ def _str_sequence(value: object, default: list[str]) -> list[str]:
     return [str(item) for item in cast(list[object], value)]
 
 
+def _layout_variable_sequence(
+    value: object, default: list[RalfLayoutVariable]
+) -> list[RalfLayoutVariable]:
+    variables = _str_sequence(value, list(default))
+    allowed = {"label", "width", "height", "center_x", "center_y"}
+    invalid = sorted(set(variables) - allowed)
+    if invalid:
+        raise ValueError(f"Unsupported RALF layout variables: {invalid}")
+    return cast(list[RalfLayoutVariable], variables)
+
+
 def _int_or_str(value: object, default: int | str) -> int | str:
     if value is None:
         return default
@@ -38,12 +55,24 @@ def _int_or_str(value: object, default: int | str) -> int | str:
     return str(value)
 
 
-def _canonical_task(value: str) -> str:
-    return str(normalize_condition_type(value))
+def _dataset_name(value: str) -> RalfDatasetName:
+    if value not in {"cgl", "cgl_v2", "pku", "pku_posterlayout"}:
+        raise ValueError(f"Unsupported RALF dataset: {value}")
+    return cast(RalfDatasetName, value)
 
 
-def _task_name(value: str) -> str:
-    return TASK_BY_CONDITION.get(value, value)
+def _config_task_name(value: str) -> RalfConfigTaskName:
+    if value not in TASK_BY_CONDITION:
+        raise ValueError(f"Unsupported RALF task or condition: {value}")
+    return cast(RalfConfigTaskName, value)
+
+
+def _canonical_task(value: str) -> RalfConfigTaskName:
+    return _config_task_name(str(normalize_condition_type(value)))
+
+
+def _task_name(value: str) -> RalfTaskName:
+    return TASK_BY_CONDITION[_config_task_name(value)]
 
 
 def parse_args() -> argparse.Namespace:
@@ -132,7 +161,7 @@ def _labels_from_vocabulary(
 def _config_from_original(
     *,
     original_config: dict[str, object],
-    dataset: str,
+    dataset: RalfDatasetName,
     task: str,
     id2label: dict[int, str],
 ) -> RalfConfig:
@@ -153,7 +182,7 @@ def _config_from_original(
         id2label=cast(dict[int | str, str], id2label),
         max_seq_length=_int_value(dataset_cfg.get("max_seq_length"), 10),
         num_bin=_int_value(tokenizer_cfg.get("num_bin"), 128),
-        var_order=_str_sequence(
+        var_order=_layout_variable_sequence(
             tokenizer_cfg.get("var_order"),
             ["label", "width", "height", "center_x", "center_y"],
         ),
@@ -227,7 +256,7 @@ def main() -> None:
     id2label = _labels_from_vocabulary(vocabulary_path, args.dataset, label_count)
     config = _config_from_original(
         original_config=original_config,
-        dataset=args.dataset,
+        dataset=_dataset_name(args.dataset),
         task=args.task,
         id2label=id2label,
     )

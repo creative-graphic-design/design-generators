@@ -14,7 +14,7 @@ from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
-from .configuration_ralf import RalfConfig
+from .configuration_ralf import RalfConfig, RalfConfigTaskName
 from .modeling_ralf import RalfForConditionalLayoutGeneration
 from .processing_ralf import RalfProcessor
 from .retrieval import RalfRetrievalTable
@@ -236,7 +236,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             generator=generation_generator,
             token_mask=self.processor.layout_tokenizer.token_mask(model_device),
             retrieved=encoded.get("retrieval"),
-            condition_type=str(condition),
+            condition_type=cast(RalfConfigTaskName, str(condition)),
             constraint_input_ids=encoded["input_ids"].to(model_device),
             constraint_mask=encoded["attention_mask"].to(model_device),
             constraint_element_mask=encoded["constraint_mask"].to(model_device),

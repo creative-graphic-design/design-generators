@@ -8,7 +8,7 @@ import math
 import random
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Final, cast
+from typing import Final, Literal, cast
 
 import timm
 import torch
@@ -21,7 +21,12 @@ from torchvision.models.feature_extraction import create_feature_extractor
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput
 
-from .configuration_ralf import RalfConfig
+from .configuration_ralf import (
+    RalfConfig,
+    RalfConfigTaskName,
+    RalfLayoutVariable,
+    RalfTaskName,
+)
 from .retrieval import RalfRetrievedBatch, retrieved_batch_to_model_inputs
 
 GEO_KEYS: tuple[str, ...] = ("width", "height", "center_x", "center_y")
@@ -51,7 +56,16 @@ RELATIONSHIP_SIZE_TOKENS: tuple[str, ...] = (
     "equal",
     "larger",
 )
-TASK_BY_CONDITION: Final[dict[str, str]] = {
+RalfTaskTokenName = Literal[
+    "uncondition",
+    "label",
+    "label_size",
+    "relationship",
+    "refinement",
+    "completion",
+]
+
+TASK_BY_CONDITION: Final[dict[RalfConfigTaskName, RalfTaskName]] = {
     "unconditional": "uncond",
     "retrieval": "uncond",
     "content_image": "uncond",
@@ -66,7 +80,15 @@ TASK_BY_CONDITION: Final[dict[str, str]] = {
     "chw": "cwh",
     "partial": "partial",
 }
-PREPROCESSOR_VAR_BY_TASK: Final[dict[str, tuple[str, ...]]] = {
+TASK_TOKEN_BY_TASK: Final[dict[RalfTaskName, RalfTaskTokenName]] = {
+    "uncond": "uncondition",
+    "c": "label",
+    "cwh": "label_size",
+    "partial": "completion",
+    "refinement": "refinement",
+    "relation": "relationship",
+}
+PREPROCESSOR_VAR_BY_TASK: Final[dict[RalfTaskName, tuple[RalfLayoutVariable, ...]]] = {
     "c": ("label",),
     "cwh": ("label", "width", "height"),
     "partial": ("label", "width", "height", "center_x", "center_y"),
@@ -531,7 +553,7 @@ class RalfTaskPreprocessor:
         self,
         tokenizer: RalfTokenizerView,
         *,
-        task: str,
+        task: RalfTaskName,
         global_task_embedding: bool = False,
         relationship_table: Mapping[str, list[object]] | None = None,
         relation_size: int = 10,
@@ -548,14 +570,7 @@ class RalfTaskPreprocessor:
             else None
         )
         self.relation_size = int(relation_size)
-        self._TASK = {
-            "uncond": "uncondition",
-            "c": "label",
-            "cwh": "label_size",
-            "partial": "completion",
-            "refinement": "refinement",
-            "relation": "relationship",
-        }[task]
+        self._TASK = TASK_TOKEN_BY_TASK[task]
         self._VAR = PREPROCESSOR_VAR_BY_TASK.get(task, ())
         self.device = torch.device("cpu")
         tokens = (
@@ -578,7 +593,7 @@ class RalfTaskPreprocessor:
         }
 
     @property
-    def TASK(self) -> str:
+    def TASK(self) -> RalfTaskTokenName:
         return self._TASK
 
     @property
@@ -778,7 +793,7 @@ class RalfConditionalInputs:
     seq: Tensor | None = None
     mask: Tensor | None = None
     element_mask: Tensor | None = None
-    task: str | None = "uncond"
+    task: RalfTaskName | None = "uncond"
     id: object = None
 
 
@@ -867,7 +882,7 @@ def _restrict_only_category(
 
 def _apply_decode_space_restriction(
     *,
-    task: str,
+    task: RalfTaskName,
     step: int,
     condition: Tensor | None,
     logits: Tensor,
@@ -993,8 +1008,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
-    def _canonical_to_task_name(task: str) -> str:
-        return TASK_BY_CONDITION.get(task, task)
+    def _canonical_to_task_name(task: RalfConfigTaskName | str) -> RalfTaskName:
+        if task not in TASK_BY_CONDITION:
+            raise ValueError(f"Unsupported RALF task or condition: {task}")
+        return TASK_BY_CONDITION[cast(RalfConfigTaskName, task)]
 
     def _default_retrieved(
         self, batch_size: int, device: torch.device, dtype: torch.dtype
@@ -1063,7 +1080,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         saliency: Tensor | None,
         retrieved: RalfRetrievedBatch | None,
         batch_size: int,
-        condition_type: str | None = None,
+        condition_type: RalfConfigTaskName | None = None,
         constraint_input_ids: Tensor | None = None,
         constraint_mask: Tensor | None = None,
         constraint_element_mask: Tensor | None = None,
@@ -1165,7 +1182,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         labels: Int[torch.Tensor, "batch tokens"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
-        condition_type: str | None = None,
+        condition_type: RalfConfigTaskName | None = None,
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
         **kwargs: object,
@@ -1225,7 +1242,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         generator: torch.Generator | None = None,
         token_mask: Bool[torch.Tensor, "tokens vocab"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
-        condition_type: str | None = None,
+        condition_type: RalfConfigTaskName | None = None,
         constraint_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
         constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,

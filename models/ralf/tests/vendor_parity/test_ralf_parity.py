@@ -18,6 +18,7 @@ from ralf import (
     RalfPipeline,
     RalfProcessor,
 )
+from ralf.configuration_ralf import RalfConfigTaskName
 from ralf.datasets import _IndexableDataset, build_retrieved_batch
 from ralf.modeling_ralf import TASK_BY_CONDITION
 
@@ -502,7 +503,7 @@ def _local_condition_tokens(
         saliency=image[:, 3:4],
         retrieved=None,
         batch_size=image.size(0),
-        condition_type=task_name,
+        condition_type=cast(RalfConfigTaskName, task_name),
         constraint_input_ids=cast(torch.Tensor | None, getattr(condition, "seq")),
         constraint_mask=cast(torch.Tensor | None, getattr(condition, "mask")),
         relationship_table=relationship_table if task_name == "relation" else None,
@@ -703,7 +704,7 @@ def test_condition_runtime_path_matches_vendor_tokens_and_retrieval_indexes(
         )
 
     config = RalfConfig.from_pretrained(converted, local_files_only=True)
-    task_name = TASK_BY_CONDITION[condition_type]
+    task_name = TASK_BY_CONDITION[cast(RalfConfigTaskName, condition_type)]
     sample_id, labels, bbox, mask = _runtime_fixture(dataset_name)
 
     retrieval_table = torch.load(retrieval_path, map_location="cpu", weights_only=False)

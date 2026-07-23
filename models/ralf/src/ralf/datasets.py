@@ -11,6 +11,7 @@ import torch
 from laygen.common.bbox import ltwh_to_xywh, ltrb_to_xywh
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
+from .configuration_ralf import RalfDatasetName
 from .retrieval import RalfRetrievedBatch
 
 
@@ -121,7 +122,7 @@ def load_ralf_dataset(
     dataset_name: Literal["cgl", "cgl_v2", "pku_posterlayout"],
     split: str,
     *,
-    source: str = "hf_org",
+    source: Literal["hf_org"] = "hf_org",
 ) -> object:
     """Load a RALF-compatible dataset lazily.
 
@@ -165,7 +166,7 @@ def build_retrieved_batch(
     indexes: torch.Tensor,
     *,
     max_seq_length: int,
-    dataset_name: Literal["cgl", "cgl_v2", "pku", "pku_posterlayout"] = "cgl",
+    dataset_name: RalfDatasetName = "cgl",
 ) -> RalfRetrievedBatch:
     """Build explicit retrieved layout tensors from dataset indexes.
 

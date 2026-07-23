@@ -15,7 +15,7 @@ from laygen.common.bbox import BoxFormat, normalize_boxes, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
-from .configuration_ralf import RalfConfig
+from .configuration_ralf import RalfConfig, RalfReturnTensor
 from .image_processing_ralf import RalfImageProcessor
 from .retrieval import RalfRetrievedBatch
 from .tokenization_ralf import RalfLayoutTokenizer
@@ -256,7 +256,7 @@ class RalfProcessor(ProcessorMixin):
         retrieval: Mapping[str, object] | None = None,
         relations: object = None,
         batch_size: int = 1,
-        return_tensors: str = "pt",
+        return_tensors: RalfReturnTensor = "pt",
     ) -> BatchEncoding:
         """Encode public RALF inputs into tensors.
 
