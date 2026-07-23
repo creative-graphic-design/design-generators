@@ -46,7 +46,7 @@ This package ports [RALF](https://arxiv.org/abs/2311.13602), the CVPR 2024 retri
 
 ### Model Description
 
-RALF combines retrieved layout examples with content images and saliency maps for poster layout generation. This port exposes a `PreTrainedModel`, processor, tokenizer, retrieval helper, and `laygen.pipelines.LayoutGenerationPipeline` subclass for the CGL and PKU checkpoints. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+RALF combines retrieved layout examples with content images and saliency maps for poster layout generation on the CGL and PKU checkpoints. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
