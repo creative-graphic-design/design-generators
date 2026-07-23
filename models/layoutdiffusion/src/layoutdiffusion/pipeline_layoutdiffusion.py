@@ -16,11 +16,11 @@ from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .conditioning import build_condition
+from .modeling_layoutdiffusion import LayoutDiffusionTransformer
 from .processing_layoutdiffusion import LayoutDiffusionProcessor
 from .sampling import LayoutDiffusionSamplingConfig
-from .scheduler import LayoutDiffusionScheduler
+from .scheduling_layoutdiffusion import LayoutDiffusionScheduler
 from .tokenization_layoutdiffusion import LayoutDiffusionTokenizer
-from .transformer import LayoutDiffusionTransformer
 
 
 class LayoutDiffusionPipeline(DiffusionPipeline):
