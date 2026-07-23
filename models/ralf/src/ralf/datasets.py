@@ -11,6 +11,7 @@ import torch
 from laygen.common.bbox import ltwh_to_xywh, ltrb_to_xywh
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
+from .configuration_ralf import RalfDatasetName
 from .retrieval import RalfRetrievedBatch
 
 
@@ -21,7 +22,7 @@ class _IndexableDataset(Protocol):
         """Return one dataset row."""
 
 
-PKU_ORG_TO_VENDOR_LABEL_ID = torch.tensor([1, 0, 2], dtype=torch.long)
+PKU_ORG_TO_CHECKPOINT_LABEL_ID = torch.tensor([1, 0, 2], dtype=torch.long)
 RALF_STYLE_LABEL2ID = {
     DatasetName.cgl: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
     DatasetName.cgl_v2: {"embellishment": 0, "logo": 1, "text": 2, "underlay": 3},
@@ -34,7 +35,7 @@ def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch
         return labels
     if labels.numel() == 0:
         return labels
-    return PKU_ORG_TO_VENDOR_LABEL_ID[labels.clamp(0, 2)]
+    return PKU_ORG_TO_CHECKPOINT_LABEL_ID[labels.clamp(0, 2)]
 
 
 def _labels_to_tensor(labels: object, dataset: DatasetName) -> torch.Tensor:
@@ -83,6 +84,8 @@ def normalize_org_sample(
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("bbox", []), dtype=torch.float32)
+        if bbox.numel() == 0:
+            bbox = bbox.reshape(0, 4)
         labels = torch.as_tensor(annotations.get("category", []), dtype=torch.long)
         width_obj = sample.get("width", 1)
         height_obj = sample.get("height", 1)
@@ -99,6 +102,8 @@ def normalize_org_sample(
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("box_elem", []), dtype=torch.float32)
+        if bbox.numel() == 0:
+            bbox = bbox.reshape(0, 4)
         labels = torch.as_tensor(annotations.get("cls_elem", []), dtype=torch.long)
         valid = labels.ne(3)
         size = sample.get("poster") or sample.get("canvas") or sample.get("image")
@@ -117,7 +122,7 @@ def load_ralf_dataset(
     dataset_name: Literal["cgl", "cgl_v2", "pku_posterlayout"],
     split: str,
     *,
-    source: str = "hf_org",
+    source: Literal["hf_org"] = "hf_org",
 ) -> object:
     """Load a RALF-compatible dataset lazily.
 
@@ -137,7 +142,9 @@ def load_ralf_dataset(
     try:
         from datasets import load_dataset
     except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError("Install ralf[vendor] to load org datasets") from exc
+        raise ImportError(
+            "Install the optional reference dependencies to load org datasets"
+        ) from exc
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.cgl:
         return load_dataset(
@@ -159,7 +166,7 @@ def build_retrieved_batch(
     indexes: torch.Tensor,
     *,
     max_seq_length: int,
-    dataset_name: Literal["cgl", "cgl_v2", "pku", "pku_posterlayout"] = "cgl",
+    dataset_name: RalfDatasetName = "cgl",
 ) -> RalfRetrievedBatch:
     """Build explicit retrieved layout tensors from dataset indexes.
 
@@ -168,8 +175,8 @@ def build_retrieved_batch(
         indexes: Tensor of retrieved row indexes with shape `(batch, candidates)`.
         max_seq_length: Maximum elements retained per layout.
         dataset_name: Dataset key used for row normalization. PKU labels are remapped
-            from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the vendor
-            checkpoint ids (`logo=0`, `text=1`, `underlay=2`) used by converted RALF.
+            from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the checkpoint
+            ids (`logo=0`, `text=1`, `underlay=2`) used by converted RALF.
 
     Returns:
         Retrieved batch with layout fields filled and image tensors as zeros.

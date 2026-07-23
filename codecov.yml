@@ -32,6 +32,8 @@ flags:
     carryforward: true
   layout-dm:
     carryforward: true
+  layout-detr:
+    carryforward: true
   layout-flow:
     carryforward: true
   layout-gpt:
