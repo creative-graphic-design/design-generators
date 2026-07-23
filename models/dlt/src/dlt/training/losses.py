@@ -10,19 +10,17 @@ def masked_l2(
     target: torch.Tensor, pred: torch.Tensor, mask: torch.Tensor
 ) -> torch.Tensor:
     """Return per-example masked squared error."""
-    loss = (target - pred).pow(2) * mask
-    denom = mask.sum(dim=(1, 2)).clamp_min(1)
-    return loss.sum(dim=(1, 2)) / denom
+    loss = F.mse_loss(target, pred, reduction="none")
+    denom = mask.sum(dim=(1, 2))
+    return (denom > 0) * ((loss * mask.float()).sum(dim=(1, 2)) / (denom + 1e-8))
 
 
 def masked_cross_entropy(
     pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor
 ) -> torch.Tensor:
     """Return per-example masked category cross entropy."""
-    flat_loss = F.cross_entropy(
-        pred.reshape(-1, pred.shape[-1]),
-        target.reshape(-1).long(),
-        reduction="none",
-    ).reshape(target.shape)
-    denom = mask.sum(dim=1).clamp_min(1)
-    return (flat_loss * mask).sum(dim=1) / denom
+    one_hot = F.one_hot(target.long(), num_classes=pred.shape[-1])
+    log_probs = F.log_softmax(pred, dim=2)
+    loss = (-log_probs * one_hot).sum(dim=2)
+    denom = mask.sum(dim=1)
+    return (loss * mask.float()).sum(dim=1) / (denom + 0.0001)
