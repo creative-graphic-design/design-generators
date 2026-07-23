@@ -9,11 +9,6 @@
 
 design-generators ports layout, poster, and graphic-design generation research repositories into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-, 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index)-, and 🤖 [`pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
-## Extension Policy
-
-> [!WARNING]
-> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) / 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
-
 ## Models
 
 | Method | Venue | Runtime | Datasets | Reproduction |
@@ -46,13 +41,13 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Quick Start
 
-Install the shared layout library directly from this repository.
+Install the shared layout library directly from this repository:
 
 ```bash
 pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
 ```
 
-Install a model package by listing its shared workspace dependencies in the same command.
+Install a model package by listing its shared workspace dependencies in the same command. Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` alongside the model package.
 
 ```bash
 pip install \
@@ -60,15 +55,15 @@ pip install \
   "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
+If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
+
 ```python
 from layout_dm import LayoutDMPipeline
 
 print(LayoutDMPipeline.__name__)
 ```
 
-Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` in the same install command. If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
-
-For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
+For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -76,13 +71,20 @@ cd design-generators
 uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
 ```
 
-## Documentation
+## Extension Policy
 
-The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/).
+> [!WARNING]
+> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) / 🧨 [`diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
 
 ## Reproducibility Policy
 
 Each model package links from `## Reproducibility` to `REPRODUCING.md`, which provides copy-pasteable commands for vendor asset download, vendor reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+
+Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+
+## Documentation
+
+The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/).
 
 ## License
 

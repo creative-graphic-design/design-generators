@@ -1,3 +1,10 @@
+---
+icon: lucide/git-branch
+tags:
+  - Conventions
+  - Contributors
+---
+
 # Extending
 
 This guide defines how downstream projects, model ports, and AI coding agents should extend `design-generators` and the framework packages it builds on. The goal is to keep changes small enough to review, test, upgrade, and attribute.
