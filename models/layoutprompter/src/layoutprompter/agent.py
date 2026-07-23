@@ -10,6 +10,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, assert_never
 
+import numpy as np
+from jaxtyping import Bool, Float, Int
 from laygen.agents import BaseLayoutAgent, ModelLike
 from laygen.common import (
     BoxFormat,
@@ -279,10 +281,10 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         seed: int | None = None,
         generator: object | None = None,
         condition_type: ConditionType | str | None = None,
-        labels: object | None = None,
-        bbox: object | None = None,
-        mask: object | None = None,
-        num_elements: int | list[int] | object | None = None,
+        labels: Int[np.ndarray, "batch elements"] | object | None = None,
+        bbox: Float[np.ndarray, "batch elements 4"] | object | None = None,
+        mask: Bool[np.ndarray, "batch elements"] | object | None = None,
+        num_elements: int | list[int] | Int[np.ndarray, "batch"] | object | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
