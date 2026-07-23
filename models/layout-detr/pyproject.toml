@@ -1,0 +1,55 @@
+[project]
+name = "layout-detr"
+version = "0.1.0"
+description = "Transformers-style LayoutDETR content-image layout generator."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "posgen",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = ["gdown>=6.1.0"]
+convert = [
+    "click",
+    "fairscale",
+    "gdown>=6.1.0",
+    "setuptools<81",
+    "timm>=0.5.4",
+]
+vendor = [
+    "click",
+    "fairscale",
+    "gdown>=6.1.0",
+    "seaborn",
+    "selenium",
+    "setuptools<81",
+    "timm>=0.5.4",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.pytest.ini_options]
+addopts = ["--cov=layout_detr", "--cov-report=term-missing", "--cov-fail-under=90"]
+markers = [
+    "vendor_parity: requires original LayoutDETR assets and vendor dependencies",
+    "integration: may require Chrome/Selenium rendering or heavyweight assets",
+]
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware-layout-generation"
+conditions = ["content_image"]
+datasets = ["ad_banner"]
+checkpoint_repos = ["creative-graphic-design/layout-detr-ad-banner"]
+requires_vendor_assets = true
