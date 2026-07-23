@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from typing import Final, Literal, TypedDict, cast
 
 import torch
+from jaxtyping import Int
 from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
 
 from laygen.common.bbox import normalize_boxes
@@ -172,7 +173,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
 
     def postprocess_ir(
         self,
-        generated_ids: torch.Tensor | Sequence[str],
+        generated_ids: Int[torch.Tensor, "batch tokens"] | Sequence[str],
         *,
         value_maps: list[dict[str, str] | None] | None = None,
     ) -> list[str]:

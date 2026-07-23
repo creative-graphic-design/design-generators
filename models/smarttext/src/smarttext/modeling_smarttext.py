@@ -8,6 +8,7 @@ from typing import Literal, assert_never
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from jaxtyping import Float
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
@@ -18,7 +19,7 @@ from .configuration_smarttext import SmartTextConfig
 class SmartTextScorerOutput(ModelOutput):
     """Output of ``SmartTextScorer.forward``."""
 
-    scores: torch.Tensor
+    scores: Float[torch.Tensor, "candidates"]
 
 
 def _conv_bn(inp: int, oup: int, stride: int) -> nn.Sequential:
@@ -287,10 +288,10 @@ class SmartTextScorer(PreTrainedModel):
 
     def forward(
         self,
-        pixel_values: torch.Tensor,
-        boxes: torch.Tensor,
+        pixel_values: Float[torch.Tensor, "batch channels height width"],
+        boxes: Float[torch.Tensor, "candidates 5"],
         return_dict: bool | None = None,
-    ) -> SmartTextScorerOutput | tuple[torch.Tensor]:
+    ) -> SmartTextScorerOutput | tuple[Float[torch.Tensor, "candidates"]]:
         """Score candidate text regions.
 
         Args:
