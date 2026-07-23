@@ -1,0 +1,17 @@
+model:
+  class_path: dlt.training.lightning_module.DLTTrainingModule
+  init_args:
+    config:
+      class_path: dlt.configuration_dlt.DLTConfig
+      init_args:
+        dataset_name: magazine
+        max_num_comp: 33
+        categories_num: 7
+    optimizer_config:
+      class_path: dlt.training.config.DLTOptimizerConfig
+data:
+  class_path: dlt.training.datamodule.DLTDataModule
+  init_args:
+    batch_size: 64
+    max_num_comp: 33
+    categories_num: 7

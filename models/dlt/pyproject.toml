@@ -1,0 +1,44 @@
+[project]
+name = "dlt"
+version = "0.1.0"
+description = "Diffusers-style DLT layout generation package."
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "einops>=0.8",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+training = [
+    "lightning>=2.0.0",
+]
+vendor = [
+    "accelerate>=0.30",
+    "ml-collections>=0.1",
+    "path>=16",
+    "tqdm>=4.66",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.design-generators]
+framework = "diffusers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional", "label", "label_size"]
+datasets = ["publaynet", "rico13", "magazine"]
+
+[tool.pytest.ini_options]
+markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
+    "vendor_parity: requires original DLT weights and vendor dependencies",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
