@@ -170,6 +170,10 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "# Reproducing Fake Project\n\nRun parity checks.\n",
         encoding="utf-8",
     )
+    (member_dir / "TRAINING.md").write_text(
+        "# Training Fake Project\n\nRun training.\n",
+        encoding="utf-8",
+    )
     (tmp_path / "mkdocs.yml").write_text(
         "\n".join(
             [
@@ -255,10 +259,14 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         "**Reproducing parity:** [Open the model reproducing guide](reproducing/)."
         in package_index
     )
+    assert "**Training:** [Open the model training guide](training/)." in package_index
     assert "## Reproducing Guide" not in package_index
     assert (tmp_path / "docs/api/models/fake-project/reproducing.md").read_text(
         encoding="utf-8"
     ) == "# Reproducing Fake Project\n\nRun parity checks.\n"
+    assert (tmp_path / "docs/api/models/fake-project/training.md").read_text(
+        encoding="utf-8"
+    ) == "# Training Fake Project\n\nRun training.\n"
     assert (tmp_path / "docs/api/models/fake-project/package.md").read_text(
         encoding="utf-8"
     ) == "# `fake_pkg`\n\n::: fake_pkg\n"
@@ -284,11 +292,27 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     )
     assert "  - Getting Started: getting-started.md" in generated_config
     assert "  - Models: models.md" in generated_config
+    assert "          - FakeProject:" in generated_config
     assert (
-        "          - FakeProject: api/models/fake-project/index.md" in generated_config
+        "              - Overview: api/models/fake-project/index.md" in generated_config
     )
-    assert "api/models/fake-project/reproducing.md" not in generated_config
-    assert "api/models/fake-project/public.md" not in generated_config
+    assert (
+        "              - Reproducing: api/models/fake-project/reproducing.md"
+        in generated_config
+    )
+    assert (
+        "              - Training: api/models/fake-project/training.md"
+        in generated_config
+    )
+    assert "              - API Modules:" in generated_config
+    assert (
+        "                  - fake_pkg: api/models/fake-project/package.md"
+        in generated_config
+    )
+    assert (
+        "                  - fake_pkg.public: api/models/fake-project/public.md"
+        in generated_config
+    )
 
 
 def test_gen_ref_pages_requires_reproducing_for_model_packages(

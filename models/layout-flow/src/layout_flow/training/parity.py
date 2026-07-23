@@ -42,22 +42,22 @@ def trace_layout_flow_step(
 
 
 def compare_layout_flow_step(
-    vendor: StepTrace,
+    reference: StepTrace,
     target: StepTrace,
     *,
     tolerance: TensorTolerance | None = None,
 ) -> StepReport:
     """Compare S1 LayoutFlow pre-optimizer traces."""
     tolerances = {name: tolerance or TensorTolerance() for name in TRACE_POINTS}
-    return compare_step_trace(vendor, target, tolerances)
+    return compare_step_trace(reference, target, tolerances)
 
 
 def compare_layout_flow_optimizer_step(
-    vendor_state: dict[str, torch.Tensor],
+    reference_state: dict[str, torch.Tensor],
     target_state: dict[str, torch.Tensor],
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:
     """Compare S2 LayoutFlow post-optimizer parameters."""
-    tolerances = {name: tolerance or TensorTolerance() for name in vendor_state}
-    return compare_optimizer_step(vendor_state, target_state, tolerances)
+    tolerances = {name: tolerance or TensorTolerance() for name in reference_state}
+    return compare_optimizer_step(reference_state, target_state, tolerances)

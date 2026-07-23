@@ -14,10 +14,10 @@ def layout_flow_losses(
     geom_dim: int = 4,
     geom_l1_weight: float = 0.2,
 ) -> dict[str, torch.Tensor]:
-    """Compute the vendor LayoutFlow training losses.
+    """Compute the LayoutFlow training losses.
 
     Args:
-        cond_mask: Vendor mask where ``1`` marks generated fields.
+        cond_mask: Condition mask where ``1`` marks generated fields.
         ut: Target conditional vector field.
         vt: Predicted vector field.
         geom_dim: Number of geometry channels.

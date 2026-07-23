@@ -44,7 +44,7 @@ This package ports [LayoutFlow](https://arxiv.org/abs/2403.18187), the ECCV 2024
 
 ### Model Description
 
-LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting vendor coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector fields for RICO25 and PubLayNet. It supports unconditional and conditional generation through normalized condition aliases while converting layout coordinate conventions into the shared public schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.
@@ -70,7 +70,7 @@ LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and parity validation of generated layouts.
 
 The original method models layouts as continuous flow-matching trajectories over normalized boxes and analog-bit category labels, then solves the generation path with an increasing-time ODE from `t=0` to `t=1`.
 
@@ -127,18 +127,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package ports released behavior and now includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. Vendor-compatible configs preserve the original random seeding behavior; strict parity configs use deterministic settings for S0 static checks, S1 fixed-batch pre-optimizer traces, and S2 one-step optimizer comparisons. Shared training primitives come from `traingen`, while deterministic trace and comparison helpers come from the separate `traingen-parity` workspace member.
-
-#### Preprocessing
-
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
-
-#### Training Hyperparameters
-
-- **Training regime:** original upstream training for released checkpoints; package-local LightningCLI configs for retraining and S0-S2 step parity.
-- **Optimizer:** AdamW, `lr=0.0005`, `betas=(0.9, 0.98)`.
-- **Condition policy:** vendor `random4`.
-- **Loss:** flow MSE plus `0.2 * geom_l1_loss`.
+This package includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, S0-S2 parity reruns, and trained-checkpoint conversion.
 
 #### Speeds, Sizes, Times
 
@@ -183,7 +172,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts vendor coordinate conventions to normalized center `xywh` outputs.
+LayoutFlow models layouts as continuous vectors and predicts the flow field used to sample element boxes and labels. The processor accepts unconditional and conditional aliases such as `gen_t`, `cat_cond`, and `size_cond`, then converts layout coordinate conventions to normalized center `xywh` outputs.
 
 ### Compute Infrastructure
 

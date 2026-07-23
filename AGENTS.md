@@ -37,6 +37,10 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   on that member's extras, dependency source mapping, or package metadata.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
+- Main package code (`models/*/src`, `lib/*/src`) and configs must not reference
+  the vendor/original implementation in identifiers, docstrings, comments, or
+  config names; vendor references belong only in conversion modules,
+  `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
 
 ## Repo-Local Skills
 

@@ -105,15 +105,15 @@ def test_optimizer_scheduler_and_parity_helpers() -> None:
     assert compare_layout_flow_optimizer_step(
         {"x": torch.ones(1)}, {"x": torch.ones(1)}
     ).passed
-    empty_vendor = build_step_trace("vendor", {"x": torch.ones(1)})
+    empty_reference = build_step_trace("reference", {"x": torch.ones(1)})
     empty_target = build_step_trace("target", {"x": torch.zeros(1)})
-    assert not compare_layout_flow_step(empty_vendor, empty_target).passed
+    assert not compare_layout_flow_step(empty_reference, empty_target).passed
 
 
 def test_seed_modes_and_package_lazy_exports() -> None:
-    assert LayoutFlowSeedMode("vendor_compat") is LayoutFlowSeedMode.vendor_compat
-    apply_layout_flow_seed_mode("vendor_compat", seed=1)
-    apply_layout_flow_seed_mode("strict_deterministic", seed=1)
+    assert LayoutFlowSeedMode("default") is LayoutFlowSeedMode.default
+    apply_layout_flow_seed_mode("default", seed=1)
+    apply_layout_flow_seed_mode("deterministic", seed=1)
 
 
 def test_lightning_cli_help_entrypoint() -> None:

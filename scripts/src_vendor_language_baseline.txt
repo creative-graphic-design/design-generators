@@ -1,0 +1,286 @@
+lib/laygen/src/laygen/common/conditions.py	1	"""Supported public and vendor condition aliases."""
+lib/laygen/src/laygen/common/conditions.py	1	condition_type: Canonical condition enum or a vendor/public alias.
+lib/laygen/src/laygen/common/labels.py	1	dataset_name: User-facing dataset name or vendor alias.
+lib/laygen/src/laygen/common/model_card.py	1	"""Vendor-parity metric row included in generated model cards.
+lib/laygen/src/laygen/common/model_card.py	1	"CUDA may be required for heavyweight vendor parity depending on the "
+lib/laygen/src/laygen/common/model_card.py	1	"LayoutDM vendor dependencies declared by the `layout-dm` package."
+lib/laygen/src/laygen/common/model_card.py	1	"The converted checkpoint matches the generated vendor reference "
+lib/laygen/src/laygen/common/model_card.py	1	"Vendor parity tests use deterministic samples and forward-pass "
+lib/laygen/src/laygen/common/model_card.py	1	"artifact. Vendor parity regeneration is documented for "
+lib/laygen/src/laygen/common/model_card.py	1	"checkpoint conversion, and vendor parity fixture generation."
+lib/laygen/src/laygen/common/model_card.py	1	"recommended for regenerating vendor parity references and running "
+lib/laygen/src/laygen/common/model_card.py	1	"vendor dependencies documented by the package."
+lib/laygen/src/laygen/common/model_card.py	1	or "Vendor parity tests use local reference outputs from the original "
+lib/laygen/src/laygen/common/testing.py	1	"""Build vendor backbone constructor kwargs from a config object.
+lib/laygen/src/laygen/common/testing.py	1	"""Return a state dict with a vendor wrapper prefix removed.
+lib/laygen/src/laygen/common/testing.py	1	"""Return whether vendor parity skips should fail.
+lib/laygen/src/laygen/common/testing.py	1	"""Skip or fail a vendor-parity test when required assets are absent.
+lib/laygen/src/laygen/common/testing.py	1	Ordered keyword arguments suitable for a vendor backbone constructor.
+lib/laygen/src/laygen/common/testing.py	1	PyTorch's default for compatibility with older vendor checkpoints.
+lib/laygen/src/laygen/common/testing.py	1	aliases: Optional mapping from vendor argument name to config field name.
+lib/laygen/src/laygen/common/testing.py	1	fields: Vendor constructor argument names to read in order.
+lib/laygen/src/laygen/common/vendor.py	1	"""Resolve an initialized vendor submodule checkout.
+lib/laygen/src/laygen/common/vendor.py	1	"""Vendor repository path helpers shared by parity scripts."""
+lib/laygen/src/laygen/common/vendor.py	1	Resolved path to the vendor checkout.
+lib/laygen/src/laygen/common/vendor.py	1	f"Could not find initialized vendor/{repo}. {hint}\nSearched:\n{searched}"
+lib/laygen/src/laygen/common/vendor.py	1	f"Found vendor/{repo}, but required marker `{marker_path}` is missing. "
+lib/laygen/src/laygen/common/vendor.py	1	hint = f"Run `git submodule update --init vendor/{repo}` from the repository root."
+lib/laygen/src/laygen/common/vendor.py	1	marker: Optional file that must exist inside the vendor checkout.
+lib/laygen/src/laygen/common/vendor.py	1	path: Optional user-supplied path. Defaults to `vendor/<repo>`.
+lib/laygen/src/laygen/common/vendor.py	1	repo: Repository directory name under `vendor/`.
+lib/laygen/src/laygen/common/vendor.py	1	repo_dir = Path("vendor") / repo
+lib/laygen/src/laygen/nn/activations.py	1	LayoutDM, LACE, and LayoutFlow vendor transformer utilities.
+lib/laygen/src/laygen/nn/activations.py	1	activation used by the LayoutDM, LACE, and LayoutFlow vendor backbones.
+lib/laygen/src/laygen/nn/blocks.py	1	Layout-Corrector vendor code.
+lib/laygen/src/laygen/nn/embeddings.py	1	LayoutDM and LACE. The vendor operation order is preserved exactly
+lib/laygen/src/laygen/nn/embeddings.py	1	by the LayoutDM and LACE vendor backbones. ``ElementPositionalEmbedding`` is a
+lib/laygen/src/laygen/nn/embeddings.py	1	dim: Embedding dimension. Odd dimensions keep the vendor truncation
+lib/laygen/src/laygen/nn/embeddings.py	1	rescale_steps: Vendor rescaling constant.
+lib/laygen/src/laygen/nn/embeddings.py	1	used by the LayoutDM and LACE vendor backbones.
+lib/laygen/src/laygen/nn/module_utils.py	1	LayoutDM/LACE transformer stacks and by the LayoutFlow vendor backbone.
+lib/laygen/src/laygen/nn/module_utils.py	1	VQ-Diffusion-derived LayoutDM/LACE blocks and the LayoutFlow vendor backbone.
+lib/laygen/src/laygen/nn/norms.py	1	This module follows VQ-Diffusion ``AdaLayerNorm`` and keeps the vendor
+lib/laygen/src/laygen/nn/norms.py	1	vendor backbone; Diffusers has no key-compatible AdaInstanceNorm path.
+lib/laygen/src/laygen/nn/norms.py	1	vendor backbones.
+lib/laygen/src/laygen/schedulers/continuous.py	1	"""Create LayoutDiffusion vendor-only beta schedules.
+lib/laygen/src/laygen/schedulers/continuous.py	1	"""Create ascending vendor-order DDIM timesteps.
+lib/laygen/src/laygen/schedulers/continuous.py	1	"""LayoutDiffusion vendor-only beta schedules."""
+lib/laygen/src/laygen/schedulers/continuous.py	1	Float64 beta tensor matching the vendor NumPy formula.
+lib/laygen/src/laygen/schedulers/continuous.py	1	NumPy array of timesteps in ascending vendor order.
+lib/laygen/src/laygen/schedulers/continuous.py	1	This preserves `vendor/lay-your-scene/layousyn/diffusion/
+lib/laygen/src/laygen/schedulers/continuous.py	1	``ldm/modules/diffusionmodules/util.py`` utilities as carried by LACE vendor
+lib/laygen/src/laygen/schedulers/continuous.py	1	``make_beta_schedule`` aliases used by the LACE vendor scheduler.
+lib/laygen/src/laygen/schedulers/continuous.py	1	``make_ddim_timesteps`` modes used by the LACE vendor scheduler.
+lib/laygen/src/laygen/schedulers/continuous.py	1	alpha_scale: Vendor alpha-bar scaling factor.
+lib/laygen/src/laygen/schedulers/continuous.py	1	ascending one-indexed vendor order.
+lib/laygen/src/laygen/schedulers/continuous.py	1	exposed by the LACE vendor configuration.
+lib/laygen/src/laygen/schedulers/continuous.py	1	schedule: Vendor schedule name.
+lib/laygen/src/laygen/schedulers/continuous.py	1	the LACE vendor configuration.
+lib/posgen/src/posgen/common/labels.py	1	dataset_name: Dataset enum or public/vendor alias.
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	internal_box_format: Vendor internal box format.
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	max_num_elements: Maximum flat element count used by the vendor model.
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	vendor_label_offset: Offset from public label ids to vendor ids.
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	1	"""Discretize normalized ``ltwh`` with the vendor ``floor(coord*(grid-1))`` rule.
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	"""Build the vendor bottom-two hierarchy for one layout.
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	labels_1based: Vendor one-based labels for valid elements.
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Create the causal decoder mask used by the vendor model."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Initialize vendor-compatible modules."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Match the vendor cumulative padding-mask convention."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Transformers ``PreTrainedModel`` with vendor-compatible module names."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Vendor-compatible label, box, and group-label embeddings."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Vendor-compatible latent sampler."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	"""Vendor-compatible layout encoder."""
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	grouped_labels: Batch-first group-relative vendor labels.
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	labels: Batch-first vendor label ids.
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	BatchEncoding with vendor labels, discrete boxes, and masks.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	"""Return DS-GAN vendor labels including the no-object class.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	"""Return the vendor-compatible DS-GAN default configuration.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	backbone: Timm ResNet backbone name used by the vendor checkpoint.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	backbone_feature_size: Flattened ResNet-FPN spatial size. The vendor
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	output_size: Combined class and box output width in the vendor model.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	vendor_canvas_size: Vendor normalization canvas as ``(width, height)``.
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	1	vendor_num_classes: Vendor class channels including ``0 = no object``.
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	"""Run the vendor CNN-LSTM over initial layout tensors."""
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	"""Sample the vendor DS-GAN initial layout tensor.
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	"""Vendor CNN-LSTM sequence model."""
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	"""Vendor ResNet-FPN encoder used to initialize the DS-GAN LSTM state."""
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	class_probs: Vendor class probabilities with shape
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	layout: Initial vendor layout shaped ``(B, max_elem, 2, 4)``.
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	mirror the vendor script's weighted class prior when ``seed`` is
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	weighted_classes: Whether to use the vendor inference class prior.
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	1	initial_layout: Optional vendor layout ``(B, max_elem, 2, 4)``.
+models/ds-gan/src/ds_gan/processing_ds_gan.py	1	"""Encode public boxes/labels into the vendor layout tensor.
+models/ds-gan/src/ds_gan/processing_ds_gan.py	1	Dictionary with vendor ``layout``, normalized ``bbox``, labels, and mask.
+models/ds-gan/src/ds_gan/processing_ds_gan.py	1	and applies the vendor ``designSeq.reorder`` ordering policy.
+models/ds-gan/src/ds_gan/processing_ds_gan.py	1	class_probs: Vendor class probabilities shaped ``(B, E, 4)``.
+models/ds-gan/src/ds_gan/processing_ds_gan.py	1	id2label: Public semantic labels excluding vendor ``no object``.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	"""Return the max length used by the vendor zero-based length lookup."""
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	"""Return vendor task names in sampler order."""
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	"""Vendor loss-condition filter for conditionally valid fields."""
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	arch_type: Vendor architecture type. ``oneshot`` is the released path.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	attribute_groups: Vendor feature groups used for infilling.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	block_type: Vendor block type. Only ``deepsvg`` is implemented.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	context: Optional vendor context embedding mode.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	dataset_name: Vendor dataset name.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	input_columns: Heterogeneous vendor column specs.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	input_dtype: Vendor input ordering mode.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	masking_method: Vendor masking task selector.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	original_args: Raw vendor ``args.json`` values.
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	1	seq_type: Vendor sequence model type. ``default`` is the released path.
+models/flex-dm/src/flex_dm/data_specs.py	1	"""Build Flex-DM model column specs from vendor vocabulary metadata."""
+models/flex-dm/src/flex_dm/data_specs.py	1	"""Resolve the public type-label mapping from vendor vocabulary data."""
+models/flex-dm/src/flex_dm/data_specs.py	1	"""Return a lightweight copy of the vendor column schema.
+models/flex-dm/src/flex_dm/data_specs.py	1	"""Return vendor attribute groups for a dataset."""
+models/flex-dm/src/flex_dm/data_specs.py	1	"""Vendor Flex-DM feature groups."""
+models/flex-dm/src/flex_dm/masking.py	1	"""Apply a masked, unused, or random vendor token to selected elements."""
+models/flex-dm/src/flex_dm/masking.py	1	"""Replace padded and conditionally invalid fields with vendor unused tokens."""
+models/flex-dm/src/flex_dm/masking.py	1	"""Return the vendor zero-based valid-element mask.
+models/flex-dm/src/flex_dm/masking.py	1	"""Return vendor-style initial masks with no sequence fields hidden."""
+models/flex-dm/src/flex_dm/masking.py	1	input_columns: Vendor column definitions.
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	"""Decode hidden states into one head per vendor column."""
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	"""Vendor-style explicit multi-head self-attention."""
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	task_ids: Optional vendor task ids.
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	2	task_ids: Optional vendor task ids.
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	1	condition_type: Canonical condition or local vendor task alias.
+models/flex-dm/src/flex_dm/processing_flex_dm.py	1	"""Build config and processor metadata from vendor vocabulary."""
+models/flex-dm/src/flex_dm/processing_flex_dm.py	1	"""Linear discretizer metadata for one numeric vendor field."""
+models/lace/src/lace/model_card.py	1	" The public vendor checkpoint archive used for local parity "
+models/lace/src/lace/processing_lace.py	1	"""Encode normalized boxes and labels into the vendor latent range.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	"""Load a vendor JSON config.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	"""Resolve a vendor DiT name to concrete architecture dimensions.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	layout_type: Vendor layout coordinate type.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	model_name: Vendor DiT architecture key.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	model_name: Vendor model key such as ``DiT-S`` or
+models/layousyn/src/layousyn/configuration_layousyn.py	1	noise_schedule: Vendor diffusion beta schedule.
+models/layousyn/src/layousyn/configuration_layousyn.py	1	t5_size: Vendor T5 size suffix.
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Convert a vendor DiT state dict to the wrapped model key space."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Create vendor sine/cosine positional embeddings from positions."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Create vendor sine/cosine positional embeddings."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Initialize weights with the vendor policy."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Run vendor classifier-free guidance batching."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Vendor final adaLN projection."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Vendor sinusoidal scalar embedding plus MLP projection."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Zero vendor adaLN and cross-attention output projections."""
+models/layousyn/src/layousyn/modeling_layousyn.py	1	"""Zero vendor adaLN projection."""
+models/layousyn/src/layousyn/processing_layousyn.py	1	"""Convert generated vendor coordinates into the public schema."""
+models/layousyn/src/layousyn/processing_layousyn.py	1	layout_type: Vendor layout type used by generated coordinates.
+models/layousyn/src/layousyn/scheduling_layousyn.py	1	"""Match vendor ``space_timesteps`` for one section count."""
+models/layousyn/src/layousyn/scheduling_layousyn.py	1	"""Set descending denoising timesteps with vendor respacing."""
+models/layout-action/src/layout_action/configuration_layout_action.py	1	block_size: GPT context length. Defaults to vendor max token length.
+models/layout-action/src/layout_action/configuration_layout_action.py	1	original_dataset_name: Original vendor dataset name.
+models/layout-action/src/layout_action/configuration_layout_action.py	1	precision: Coordinate precision; vendor defaults to 8 bits.
+models/layout-action/src/layout_action/configuration_layout_action.py	1	the vendor RICO13 label order.
+models/layout-action/src/layout_action/configuration_layout_action.py	1	vocab_size: Token vocabulary size. Defaults to the vendor formula.
+models/layout-action/src/layout_action/data.py	1	"""Normalize public and vendor dataset aliases.
+models/layout-action/src/layout_action/data.py	1	"""Placeholder for vendor-distribution-only InfoPPT loading."""
+models/layout-action/src/layout_action/data.py	1	"""Return the exact label order used by the LayoutAction vendor assets."""
+models/layout-action/src/layout_action/data.py	1	"""Return the vendor maximum element count for a LayoutAction dataset."""
+models/layout-action/src/layout_action/data.py	1	"use the vendor distribution until it is imported."
+models/layout-action/src/layout_action/generation_layout_action.py	1	"""Mask logits outside the top ``k`` values exactly like the vendor helper.
+models/layout-action/src/layout_action/modeling_layout_action.py	1	"""Generate token ids with the vendor sampling loop.
+models/layout-action/src/layout_action/modeling_layout_action.py	1	"""Initialize vendor-compatible GPT modules."""
+models/layout-action/src/layout_action/modeling_layout_action.py	1	"""Vendor-compatible GPT block."""
+models/layout-action/src/layout_action/modeling_layout_action.py	1	"""Vendor-compatible masked multi-head self-attention."""
+models/layout-action/src/layout_action/modeling_layout_action.py	1	masking follows the vendor implementation.
+models/layout-action/src/layout_action/modeling_layout_action.py	1	not materialized by the vendor-compatible blocks.
+models/layout-action/src/layout_action/processing_layout_action.py	1	condition_type: Canonical condition or supported vendor alias.
+models/layout-action/src/layout_action/tokenization_layout_action.py	1	"""Encode one quantized box with vendor copy/margin/generate precedence."""
+models/layout-action/src/layout_action/tokenization_layout_action.py	1	"""Quantize normalized center ``xywh`` boxes with vendor binning."""
+models/layout-corrector/src/layout_corrector/model_card.py	1	tokenizer_exact="checked in vendor parity",
+models/layout-dm/src/layout_dm/conditioning.py	1	cond_type: Canonical condition type or vendor alias.
+models/layout-dm/src/layout_dm/pipeline.py	1	condition_type: Canonical condition type or supported vendor alias.
+models/layout-gpt/src/layout_gpt/agent.py	1	"""High-level LayoutGPT runner that ports vendor prompt and parse strategy."""
+models/layout-gpt/src/layout_gpt/exemplars.py	1	"""Load LayoutGPT NSR-1K examples from a vendor-style JSON file."""
+models/layout-gpt/src/layout_gpt/exemplars.py	1	"""Select exemplars with the vendor's fixed ``random.seed(42)`` strategy."""
+models/layout-gpt/src/layout_gpt/parser.py	1	"""CSS declaration keys emitted by the vendor LayoutGPT prompts."""
+models/layout-gpt/src/layout_gpt/parser.py	1	"""Parse one 2D CSS line using the vendor clamp/reject behavior."""
+models/layout-gpt/src/layout_gpt/parser.py	1	"""Parse one 3D CSS line from the vendor scene-layout script."""
+models/layout-gpt/src/layout_gpt/prompts.py	1	"""Build chat messages with vendor exemplar ordering and token truncation."""
+models/layout-gpt/src/layout_gpt/prompts.py	1	"""Build completion prompt with vendor exemplar ordering and truncation."""
+models/layout-gpt/src/layout_gpt/prompts.py	1	"""Return the vendor 2D instruction prompt."""
+models/layout-gpt/src/layout_gpt/prompts.py	1	"""Serialize one exemplar using vendor CSS property order."""
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	1	global_mask: Optional vendor global-feature mask.
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	"""Return the number of vendor type classes."""
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	"""Return the vendor unconditional element-count prior."""
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	bert_config_name: Name of the BERT config used by the vendor.
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	noise_schedule: Vendor diffusion schedule name.
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	seq_length: Full vendor token sequence length.
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	training_mode: Vendor training mode.
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	1	type_start_step: Vendor type-conditioned start step.
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	"""Map a public dataset-local label id to a vendor label string."""
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	"""Map a vendor label string to a dataset-local public id."""
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	"""Normalize public spelling to the vendor vocabulary spelling.
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	"""Return LayoutDiffusion vendor label strings in checkpoint order.
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	LayoutDiffusion vendor spelling.
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	Ordered vendor label names.
+models/layoutdiffusion/src/layoutdiffusion/scheduler.py	1	noise_schedule: Vendor schedule name.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Build the vendor sampling start template.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert token ids to vendor text lines."""
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert vendor text lines into padded token ids."""
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Encode public layout tensors into vendor token ids.
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Split a vendor layout token string on whitespace."""
+models/layoutdiffusion/src/layoutdiffusion/transformer.py	1	"""BERT-encoder denoiser ported from the vendor DiscreteTransformerModel.
+models/layoutdiffusion/src/layoutdiffusion/transformer.py	1	condition_ids: Optional vendor condition token ids.
+models/layoutdiffusion/src/layoutdiffusion/transformer.py	1	constrained: Optional vendor constraint mode.
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	"""Create the causal decoder mask used by the vendor model."""
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	"""Initialize vendor-compatible encoder/decoder modules."""
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	"""Run the vendor greedy/top-k autoregressive loop."""
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	"""Transformers `PreTrainedModel` with vendor-compatible module names."""
+models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	1	top_k: Top-k value used by the vendor sampling loop.
+models/layoutformerpp/src/layoutformerpp/serialization.py	1	"""Construct a vendor-compatible vocabulary when no `vocab.json` is available."""
+models/layoutformerpp/src/layoutformerpp/tasks.py	1	"""Return the vendor/HF slug for a LayoutFormer++ dataset."""
+models/layoutformerpp/src/layoutformerpp/tokenization_layoutformerpp.py	1	"""Save `vocab.json` in vendor-compatible token-to-id format."""
+models/layoutformerpp/src/layoutformerpp/tokenization_layoutformerpp.py	1	"""Tokenize vendor-style text while matching the original EOS/BOS behavior."""
+models/layoutformerpp/src/layoutformerpp/tokenization_layoutformerpp.py	1	"""Whitespace tokenizer backed by the vendor `vocab.json` format."""
+models/layoutganpp/src/layoutganpp/model_card.py	1	"layout boxes from category-label conditions. Vendor parity compares "
+models/layoutprompter/src/layoutprompter/agent.py	1	"""Return the vendor task key."""
+models/layoutprompter/src/layoutprompter/agent.py	1	condition_type: Public condition name or vendor alias.
+models/layoutprompter/src/layoutprompter/enums.py	1	"""Return a LayoutPrompter task enum from a public or vendor string."""
+models/layoutprompter/src/layoutprompter/enums.py	1	"""Vendor task keys supported by LayoutPrompter."""
+models/layoutprompter/src/layoutprompter/parsing.py	1	"""Parse string output as vendor-compatible normalized top-left ``xywh``."""
+models/layoutprompter/src/layoutprompter/parsing.py	1	raise RuntimeError("No vendor seq layout elements parsed")
+models/layoutprompter/src/layoutprompter/selection.py	1	"""Exemplar selection strategies ported from the LayoutPrompter vendor code."""
+models/layoutprompter/src/layoutprompter/serialization.py	1	"""Serialize noisy layout constraints with the vendor prefix."""
+models/layoutprompter/src/layoutprompter/serialization.py	1	"""Serialize partial layout constraints with the vendor prefix."""
+models/layoutprompter/src/layoutprompter/serialization.py	1	"""Serialize text input with the vendor prefix."""
+models/layoutprompter/src/layoutprompter/serialization.py	1	"""Serialize type constraints with the vendor prefix."""
+models/layoutprompter/src/layoutprompter/similarity.py	1	"""Combine label and bbox similarities with vendor weights."""
+models/layoutprompter/src/layoutprompter/similarity.py	1	"""Compute the vendor multiset label overlap score."""
+models/layoutprompter/src/layoutprompter/vendor_parity.py	1	"""Return fixed train/test records shared by vendor and port tests."""
+models/layoutprompter/src/layoutprompter/vendor_parity.py	1	"""Small deterministic records shared by vendor parity scripts and tests."""
+models/parse-then-place/src/parse_then_place/labels.py	1	"""Return the vendor canvas size as ``(width, height)``."""
+models/parse-then-place/src/parse_then_place/labels.py	1	dataset_name: Dataset enum value or public/vendor string.
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	1	"""Apply the vendor text normalization used before stage-1 parsing.
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	1	# Keep vendor spellings as aliases because RICO uses lower-case labels.
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	1	files. The current parity scripts do not execute the vendor grammar
+models/ralf/src/ralf/configuration_ralf.py	1	freeze_layout_encoder: Whether the vendor layout encoder was frozen.
+models/ralf/src/ralf/configuration_ralf.py	1	layout_backbone: Vendor layout encoder name.
+models/ralf/src/ralf/configuration_ralf.py	1	retrieval_backbone: Vendor retrieval backbone name.
+models/ralf/src/ralf/configuration_ralf.py	1	task: Canonical condition type or vendor task alias for the checkpoint.
+models/ralf/src/ralf/configuration_ralf.py	1	var_order: Vendor token variable order.
+models/ralf/src/ralf/datasets.py	1	from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the vendor
+models/ralf/src/ralf/datasets.py	1	raise ImportError("Install ralf[vendor] to load org datasets") from exc
+models/ralf/src/ralf/modeling_ralf.py	1	"""Container preserving vendor checkpoint key prefix."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Small tokenizer view matching the vendor ids needed by the model."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible 2D sine positional encoding."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible MLP block."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible ResNet50 FPN feature extractor without external loads."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible autoregressive transformer decoder."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible cross-attention block."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible encoder for task/user constraint tokens."""
+models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible sine positional encoding for token sequences."""
+models/ralf/src/ralf/processing_ralf.py	1	"""Normalize a public or vendor condition string."""
+models/ralf/src/ralf/retrieval.py	1	"""Convert explicit retrieved examples to vendor-style field names."""
+models/ralf/src/ralf/retrieval.py	1	"""Convert vendor retrieved fields to `RalfRetrievedBatch`."""
+models/smarttext/src/smarttext/candidate_generation.py	1	"""Convert a candidate to the vendor JSON row format."""
+models/smarttext/src/smarttext/candidate_generation.py	1	"""Convert one vendor JSON candidate row to typed metadata."""
+models/smarttext/src/smarttext/candidate_generation.py	1	"""JSON-compatible vendor candidate row."""
+models/smarttext/src/smarttext/color.py	1	"""Choose the vendor SmartText foreground for a candidate region.
+models/smarttext/src/smarttext/color.py	1	"""Convert an RGB row to the vendor uppercase hex form."""
+models/smarttext/src/smarttext/color.py	1	"""Return WCAG relative luminance using the vendor formula."""
+models/smarttext/src/smarttext/color.py	1	"""Return the vendor channel-spread distance."""
+models/smarttext/src/smarttext/color.py	1	"""Return vendor-ordered color candidates for a text region.
+models/smarttext/src/smarttext/color.py	1	"""Return vendor-rounded contrast ratio between two RGB colors."""
+models/smarttext/src/smarttext/color.py	1	"""Return vendor-sorted KMeans dominant colors.
+models/smarttext/src/smarttext/color.py	1	Hex foreground color in the vendor uppercase form.
+models/smarttext/src/smarttext/color.py	1	``vendor/smarttext/cal_color.py::cal_domcolor``.
+models/smarttext/src/smarttext/color.py	1	random_seed: Seed used to make the vendor KMeans path deterministic.
+models/smarttext/src/smarttext/configuration_smarttext.py	1	The defaults mirror ``vendor/smarttext/test_opt.yml`` and the scorer settings
+models/smarttext/src/smarttext/configuration_smarttext.py	1	original_options: Raw vendor option values preserved for audit.
+models/smarttext/src/smarttext/configuration_smarttext.py	1	used by ``vendor/smarttext/smtModel.py::build_smt_model``.
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""BASNet saliency model ported from the SmartText vendor architecture."""
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""Initialize the vendor BASNet architecture without downloading weights."""
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""Predict saliency with the vendor BASNet forward path."""
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""Run one vendor BASNet residual block."""
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""Run the vendor RefUnet refinement module."""
+models/smarttext/src/smarttext/modeling_basnet.py	1	"""Vendor-compatible BASNet saliency predictor.
+models/smarttext/src/smarttext/modeling_basnet.py	1	Module names match ``vendor/smarttext/BASNet/model/BASNet.py::BASNet(3, 1)``
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""Initialize vendor SMT scorer modules."""
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""PyTorch port of the vendor ``RoDAlignAvg`` forward kernel."""
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""PyTorch port of the vendor ``RoIAlignAvg`` forward kernel."""
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""Return vendor feature stages f3, f4, and f5."""
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""Run one vendor ShuffleNetV2 residual block."""
+models/smarttext/src/smarttext/modeling_smarttext.py	1	"""Vendor-compatible SMT candidate scorer.
+models/smarttext/src/smarttext/modeling_smarttext.py	1	The module names match ``vendor/smarttext/smtModel.py`` for
+models/smarttext/src/smarttext/pipeline_smarttext.py	1	candidate_boxes: Optional vendor-style candidates.
+models/smarttext/src/smarttext/processing_smarttext.py	1	candidate_boxes: Optional vendor-style candidate rows.

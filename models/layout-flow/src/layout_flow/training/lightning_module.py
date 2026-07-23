@@ -28,7 +28,7 @@ class LayoutFlowTrainingModule(LightningModule):
         scheduler: str | None = "reduce_on_plateau",
         condition_policy: str = "random4",
         geom_l1_weight: float = 0.2,
-        seed_mode: LayoutFlowSeedMode | str = LayoutFlowSeedMode.vendor_compat,
+        seed_mode: LayoutFlowSeedMode | str = LayoutFlowSeedMode.default,
         fid_calc_every_n: int = 20,
     ) -> None:
         """Initialize LayoutFlow training state."""
@@ -59,7 +59,7 @@ class LayoutFlowTrainingModule(LightningModule):
         self.latest_step_trace: dict[str, torch.Tensor] = {}
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        """Return vendor-compatible AdamW and optional ReduceLROnPlateau."""
+        """Return AdamW and optional ReduceLROnPlateau."""
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=self.learning_rate, betas=(0.9, 0.98)
         )
@@ -87,7 +87,7 @@ class LayoutFlowTrainingModule(LightningModule):
     def training_step(
         self, batch: dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        """Run one vendor-compatible training step."""
+        """Run one LayoutFlow training step."""
         del batch_idx
         prepared = self._prepare_batch(batch)
         cond_mask = self.random4_condition_mask(
@@ -130,7 +130,7 @@ class LayoutFlowTrainingModule(LightningModule):
         Float[torch.Tensor, "batch elements channels"],
         Float[torch.Tensor, "batch elements channels"],
     ]:
-        """Return vendor ``x0`` and preprocessed data sample ``x1``."""
+        """Return sampled ``x0`` and preprocessed data sample ``x1``."""
         bbox = batch["bbox"]
         labels = batch["type"].long()
         conv_type = self.processor.encode_labels(labels)
@@ -153,7 +153,7 @@ class LayoutFlowTrainingModule(LightningModule):
     def sample_t(
         self, x0: Float[torch.Tensor, "batch elements channels"]
     ) -> Float[torch.Tensor, "batch"]:
-        """Sample vendor uniform training times."""
+        """Sample uniform training times."""
         return torch.rand(x0.shape[0]).type_as(x0)
 
     def sample_xt(
@@ -167,7 +167,7 @@ class LayoutFlowTrainingModule(LightningModule):
         Float[torch.Tensor, "batch elements channels"],
         Float[torch.Tensor, "batch elements channels"],
     ]:
-        """Return vendor linear ``x_t`` and vector field ``u_t``."""
+        """Return linear ``x_t`` and vector field ``u_t``."""
         del batch
         tpad = t.reshape(-1, *([1] * (x0.dim() - 1)))
         xt = (1 - tpad) * x0 + tpad * x1
@@ -181,7 +181,7 @@ class LayoutFlowTrainingModule(LightningModule):
         lengths: Int[torch.Tensor, "batch"],
         seq_len: int,
     ) -> Int[torch.Tensor, "batch elements channels"]:
-        """Return the vendor ``random4`` condition mask."""
+        """Return the ``random4`` condition mask."""
         batch = lengths.shape[0]
         device = lengths.device
         cond_mask = torch.ones(

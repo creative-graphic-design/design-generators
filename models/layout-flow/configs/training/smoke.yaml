@@ -16,7 +16,7 @@ model:
     scheduler: null
     condition_policy: random4
     geom_l1_weight: 0.2
-    seed_mode: strict_deterministic
+    seed_mode: deterministic
     fid_calc_every_n: 0
 data:
   class_path: layout_flow.training.datamodule.LayoutFlowDataModule

@@ -17,7 +17,7 @@ def apply_layout_flow_seed_mode(
     """Apply the selected LayoutFlow seed mode.
 
     Args:
-        seed_mode: Vendor-compatible or strict deterministic seed mode.
+        seed_mode: Regular or deterministic seed mode.
         seed: Seed used by both modes.
 
     Returns:
@@ -27,12 +27,12 @@ def apply_layout_flow_seed_mode(
         ValueError: If the seed mode is unsupported.
 
     Examples:
-        >>> apply_layout_flow_seed_mode("vendor_compat", seed=1)
+        >>> apply_layout_flow_seed_mode("default", seed=1)
     """
     mode = LayoutFlowSeedMode(seed_mode)
-    if mode is LayoutFlowSeedMode.vendor_compat:
+    if mode is LayoutFlowSeedMode.default:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
         torch.set_float32_matmul_precision("medium")
-    elif mode is LayoutFlowSeedMode.strict_deterministic:
+    elif mode is LayoutFlowSeedMode.deterministic:
         apply_determinism(DeterminismConfig(seed=seed))

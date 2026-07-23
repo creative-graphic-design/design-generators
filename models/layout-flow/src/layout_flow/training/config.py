@@ -6,7 +6,7 @@ from enum import StrEnum, auto
 
 
 class LayoutFlowSeedMode(StrEnum):
-    """Seed modes for vendor-compatible and strict parity training."""
+    """Seed modes for regular and deterministic LayoutFlow training."""
 
-    vendor_compat = auto()
-    strict_deterministic = auto()
+    default = auto()
+    deterministic = auto()

@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pyt
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
-4. Run the training-parity S0-S2 hooks. These tests instantiate the vendor training module from `vendor/layout-flow`, copy its synthetic initialized state into the package-local LightningModule, then compare S0 static state, S1 fixed-batch pre-optimizer traces, and S2 one optimizer step through `traingen-parity`.
+4. Run the training-parity S0-S2 hooks. See `models/layout-flow/TRAINING.md` for the training config list, seed modes, and the full training-parity rerun notes.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
@@ -39,30 +39,14 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   -m "vendor_parity and training" -rs
 ```
 
-5. Launch LightningCLI training with a vendor-compatible config or a strict parity config. Strict parity runs should set `CUBLAS_WORKSPACE_CONFIG` before process start and select one GPU.
-
-```bash
-uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
-  --config models/layout-flow/configs/training/layoutflow_rico25_vendor_compat.yaml
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> CUBLAS_WORKSPACE_CONFIG=:4096:8 \
-uv run --package layout-flow --extra training \
-  python -m layout_flow.training.cli fit \
-  --config models/layout-flow/configs/training/layoutflow_rico25_strict_parity.yaml \
-  --trainer.limit_train_batches=2
-```
-
-6. Convert both checkpoints to local [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
+5. Convert both checkpoints to local [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
 
 ```bash
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset publaynet
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset rico25
 ```
 
-7. Convert a newly trained Lightning checkpoint after training. The converter accepts both original vendor `model.*` keys and package-local training `model.backbone.*` keys.
+6. Convert a newly trained Lightning checkpoint after training. The converter accepts both original vendor `model.*` keys and package-local training `model.backbone.*` keys. See `models/layout-flow/TRAINING.md` for the training launch commands.
 
 ```bash
 uv run --package layout-flow python models/layout-flow/scripts/convert_original_checkpoint.py \
@@ -71,7 +55,7 @@ uv run --package layout-flow python models/layout-flow/scripts/convert_original_
   --output-dir .cache/layout-flow/converted-trained/rico25
 ```
 
-8. Smoke-test local `from_pretrained` loading.
+7. Smoke-test local `from_pretrained` loading.
 
 ```bash
 uv run --package layout-flow python models/layout-flow/scripts/smoke_from_pretrained.py \

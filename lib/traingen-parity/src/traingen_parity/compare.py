@@ -101,14 +101,14 @@ def compare_tensors(
 
 
 def compare_step_trace(
-    vendor: StepTrace,
+    reference: StepTrace,
     target: StepTrace,
     tolerances: Mapping[str, TensorTolerance] | None = None,
 ) -> StepReport:
     """Compare two named step traces.
 
     Args:
-        vendor: Reference trace.
+        reference: Reference trace.
         target: Converted implementation trace.
         tolerances: Per-tensor tolerance map.
 
@@ -125,13 +125,13 @@ def compare_step_trace(
         True
     """
     tol_map = tolerances or {}
-    names = tuple(vendor.tensors.keys())
+    names = tuple(reference.tensors.keys())
     missing = tuple(name for name in names if name not in target.tensors)
     comparisons = tuple(
         compare_tensors(
             name,
             target.tensors[name],
-            vendor.tensors[name],
+            reference.tensors[name],
             tol_map.get(name),
         )
         for name in names
@@ -145,16 +145,18 @@ def compare_step_trace(
 
 
 def compare_optimizer_step(
-    vendor_state: Mapping[str, torch.Tensor],
+    reference_state: Mapping[str, torch.Tensor],
     target_state: Mapping[str, torch.Tensor],
     tolerances: Mapping[str, TensorTolerance] | None = None,
 ) -> OptimizerStepReport:
     """Compare two state dictionaries after an optimizer step."""
     tol_map = tolerances or {}
-    missing = tuple(name for name in vendor_state if name not in target_state)
+    missing = tuple(name for name in reference_state if name not in target_state)
     comparisons = tuple(
-        compare_tensors(name, target_state[name], vendor_state[name], tol_map.get(name))
-        for name in vendor_state
+        compare_tensors(
+            name, target_state[name], reference_state[name], tol_map.get(name)
+        )
+        for name in reference_state
         if name not in missing
     )
     return OptimizerStepReport(
@@ -165,22 +167,22 @@ def compare_optimizer_step(
 
 
 def compare_batch_stream(
-    vendor_loader: Iterable[Mapping[str, torch.Tensor]],
+    reference_loader: Iterable[Mapping[str, torch.Tensor]],
     target_loader: Iterable[Mapping[str, torch.Tensor]],
     *,
     steps: int,
 ) -> BatchStreamReport:
     """Compare two dataloader streams for exact tensor equality."""
-    for step, (vendor_batch, target_batch) in enumerate(
-        zip(vendor_loader, target_loader, strict=False)
+    for step, (reference_batch, target_batch) in enumerate(
+        zip(reference_loader, target_loader, strict=False)
     ):
         if step >= steps:
             break
-        for key, vendor_value in vendor_batch.items():
+        for key, reference_value in reference_batch.items():
             target_value = target_batch.get(key)
-            if isinstance(vendor_value, torch.Tensor) and isinstance(
+            if isinstance(reference_value, torch.Tensor) and isinstance(
                 target_value, torch.Tensor
             ):
-                if not torch.equal(vendor_value, target_value):
+                if not torch.equal(reference_value, target_value):
                     return BatchStreamReport(False, step + 1, f"{step}:{key}")
     return BatchStreamReport(True, steps)

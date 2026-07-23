@@ -29,7 +29,7 @@ RawSample: TypeAlias = dict[str, torch.Tensor | str]
 
 
 class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
-    """Vendor-compatible HDF5 dataset for LayoutFlow training."""
+    """HDF5 dataset for LayoutFlow training."""
 
     def __init__(
         self,
@@ -44,10 +44,10 @@ class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
         """Open one LayoutFlow HDF5 split.
 
         Args:
-            data_path: Directory containing vendor HDF5 files.
+            data_path: Directory containing LayoutFlow HDF5 files.
             dataset_name: ``rico25`` or ``publaynet``.
             split: ``train``, ``validation``, or ``test``.
-            lex_order: Whether to use vendor lexical-order files.
+            lex_order: Whether to use lexical-order files.
             permute_elements: Whether to permute elements at access time.
             inoue_split: Whether PubLayNet uses Inoue split filenames.
 
@@ -114,12 +114,12 @@ def collate_layout_flow_batch(
     max_length: int | None = None,
     box_format: BoxFormat | str = BoxFormat.xywh,
 ) -> dict[str, torch.Tensor | list[str]]:
-    """Collate LayoutFlow samples with vendor-compatible padding.
+    """Collate LayoutFlow samples with fixed-length padding.
 
     Args:
         batch: Raw sample dictionaries.
         max_length: Optional fixed maximum sequence length.
-        box_format: Output box format. ``xywh`` converts vendor ``ltwh`` boxes to
+        box_format: Output box format. ``xywh`` converts source ``ltwh`` boxes to
             center coordinates.
 
     Returns:
