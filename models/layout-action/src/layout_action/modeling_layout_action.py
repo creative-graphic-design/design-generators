@@ -25,7 +25,7 @@ else:
 
 
 class LayoutActionCausalSelfAttention(nn.Module):
-    """Vendor-compatible masked multi-head self-attention."""
+    """Checkpoint-compatible masked multi-head self-attention."""
 
     def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
         """Initialize key, query, value, and output projections."""
@@ -61,7 +61,7 @@ class LayoutActionCausalSelfAttention(nn.Module):
 
 
 class LayoutActionBlock(nn.Module):
-    """Vendor-compatible GPT block."""
+    """Checkpoint-compatible GPT block."""
 
     def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
         """Initialize layer norms, self-attention, and MLP."""
@@ -102,7 +102,7 @@ class LayoutActionForCausalLM(PreTrainedModel):
     _tied_weights_keys: dict[str, str] = {}
 
     def __init__(self, config: LayoutActionConfig) -> None:
-        """Initialize vendor-compatible GPT modules."""
+        """Initialize checkpoint-compatible GPT modules."""
         super().__init__(config)
         self.tok_emb = nn.Embedding(config.vocab_size, config.n_embd)
         self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size, config.n_embd))
@@ -145,12 +145,12 @@ class LayoutActionForCausalLM(PreTrainedModel):
         Args:
             input_ids: Token ids shaped ``(batch, sequence)``.
             attention_mask: Accepted for Transformers compatibility; causal
-                masking follows the vendor implementation.
+                masking follows the checkpoint implementation.
             labels: Optional next-token labels.
             return_dict: Whether to return a dataclass output.
             output_hidden_states: Include final hidden states.
             output_attentions: Accepted for API compatibility; attentions are
-                not materialized by the vendor-compatible blocks.
+                not materialized by the checkpoint-compatible blocks.
 
         Returns:
             Causal LM output or tuple.
@@ -204,7 +204,7 @@ class LayoutActionForCausalLM(PreTrainedModel):
         forced_token_ids: LongTensor2D | None = None,
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
-        """Generate token ids with the vendor sampling loop.
+        """Generate token ids with the reference sampling loop.
 
         Args:
             input_ids: Prompt token ids.

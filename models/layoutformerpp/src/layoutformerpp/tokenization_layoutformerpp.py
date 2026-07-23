@@ -19,7 +19,7 @@ DEFAULT_MODEL_MAX_LENGTH: Final[int] = 1_000_000_000_000_000_019_884_624_838_656
 
 
 class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
-    """Whitespace tokenizer backed by the vendor `vocab.json` format."""
+    """Whitespace tokenizer backed by the released `vocab.json` format."""
 
     vocab_files_names = {"vocab_file": "vocab.json"}
     model_input_names = ["input_ids", "attention_mask"]
@@ -78,7 +78,7 @@ class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
     def save_vocabulary(
         self, save_directory: str, filename_prefix: str | None = None
     ) -> tuple[str]:
-        """Save `vocab.json` in vendor-compatible token-to-id format."""
+        """Save `vocab.json` in checkpoint-compatible token-to-id format."""
         return save_json_vocabulary(
             save_directory=save_directory,
             filename="vocab.json",
@@ -155,7 +155,7 @@ class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
     def encode_text(
         self, text: str | list[str], *, add_eos: bool = True, add_bos: bool = False
     ) -> BatchEncoding:
-        """Tokenize vendor-style text while matching the original EOS/BOS behavior."""
+        """Tokenize reference-style text while matching the original EOS/BOS behavior."""
         if isinstance(text, str):
             texts = [text]
         else:

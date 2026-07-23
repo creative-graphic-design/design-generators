@@ -30,7 +30,7 @@ class CoarseToFineConfig(PretrainedConfig):
             vocabulary length.
         id2label: Optional label id to display-label mapping.
         label2id: Optional display-label to id mapping.
-        max_num_elements: Maximum flat element count used by the vendor model.
+        max_num_elements: Maximum flat element count used by the checkpoint model.
         discrete_x_grid: Number of x-axis bins.
         discrete_y_grid: Number of y-axis bins.
         d_model: Transformer hidden dimension.
@@ -40,9 +40,9 @@ class CoarseToFineConfig(PretrainedConfig):
         n_heads: Number of attention heads.
         dim_feedforward: Transformer feed-forward dimension.
         dropout: Dropout probability.
-        internal_box_format: Vendor internal box format.
+        internal_box_format: Reference internal box format.
         public_box_format: Public output box format.
-        vendor_label_offset: Offset from public label ids to vendor ids.
+        vendor_label_offset: Offset from public label ids to internal ids.
         **kwargs: Additional ``PretrainedConfig`` fields.
 
     Examples:
