@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package coarse-to-fine --extra vendor 
   --output-dir .cache/coarse-to-fine/reference/publaynet
 ```
 
-3. Convert both public checkpoints into 🤗 [`transformers`](https://huggingface.co/docs/transformers/index) format.
+3. Convert both public checkpoints into [`🤗 transformers`](https://huggingface.co/docs/transformers/index) format.
 
 ```bash
 uv run --package coarse-to-fine python models/coarse-to-fine/scripts/convert_checkpoint.py \

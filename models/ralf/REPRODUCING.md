@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/s
   --run-vendor
 ```
 
-Step 3 converts the CGL and PKU unconditional checkpoints to local 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style directories.
+Step 3 converts the CGL and PKU unconditional checkpoints to local [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style directories.
 
 ```bash
 uv run --package ralf --extra vendor python models/ralf/scripts/convert_original_checkpoint.py \

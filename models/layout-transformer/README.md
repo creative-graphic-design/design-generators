@@ -36,11 +36,11 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=VG--MSDN&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=VG-MSDN&color=informational&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutTransformer](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html), also known as LT-Net, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package for scene-graph-conditioned layout generation.
+This package ports [LayoutTransformer](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html), also known as LT-Net, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package for scene-graph-conditioned layout generation.
 
 ## Model Details
 
