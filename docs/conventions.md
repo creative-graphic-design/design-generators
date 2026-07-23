@@ -86,6 +86,8 @@ Original implementations stay under `vendor/` and are treated as read-only refer
 
 Vendor parity fixtures are reference outputs regenerated from the original implementation with fixed seeds. Large tensors, images, model weights, and downloaded datasets are not committed; only metadata needed to regenerate them is committed.
 
+Curated gallery assets are documentation artifacts rather than parity fixtures. Small generated PNG/GIF files may be committed under `docs/assets/gallery/` when they are selected for README/docs display, include adjacent regeneration metadata, and stay within the documented size budget. The initial budget is 300 KB per PNG/GIF unless a PR explicitly justifies an exception.
+
 ### Documentation
 
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
