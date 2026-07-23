@@ -84,9 +84,14 @@ def test_render_trajectory_draws_one_line_per_valid_element() -> None:
 
     ax = render_trajectory(output, canvas_size=(100, 100))
 
-    assert len(ax.lines) == 2
+    trajectory_lines = [line for line in ax.lines if line.get_linestyle() == "--"]
+    start_markers = [line for line in ax.lines if line.get_marker() == "o"]
+    current_markers = [line for line in ax.lines if line.get_marker() == "^"]
+    assert len(trajectory_lines) == 2
+    assert len(start_markers) == 2
+    assert len(current_markers) == 2
     assert len(ax.patches) == 2
-    xdata = cast(list[float], ax.lines[0].get_xdata())
+    xdata = cast(list[float], trajectory_lines[0].get_xdata())
     assert xdata[0] == pytest.approx(25.0)
     plt.close("all")
 
@@ -112,7 +117,7 @@ def test_render_trajectory_reads_intermediates_and_skips_invalid_mask() -> None:
 
     ax = render_trajectory(output, canvas_size=(100, 100), show_legend=False)
 
-    assert len(ax.lines) == 1
+    assert len([line for line in ax.lines if line.get_linestyle() == "--"]) == 1
     assert ax.get_legend() is None
     plt.close("all")
 
@@ -124,12 +129,12 @@ def test_render_trajectory_accepts_tensor_trajectory_shapes() -> None:
 
     ax = render_trajectory(output, canvas_size=(100, 100))
 
-    assert len(ax.lines) == 2
+    assert len([line for line in ax.lines if line.get_linestyle() == "--"]) == 2
     plt.close("all")
 
     output.trajectory = stacked.squeeze(1)
     ax = render_trajectory(output, canvas_size=(100, 100))
-    assert len(ax.lines) == 2
+    assert len([line for line in ax.lines if line.get_linestyle() == "--"]) == 2
     plt.close("all")
 
 
@@ -197,6 +202,7 @@ def test_render_trajectory_gif_overlays_counter_and_lines(tmp_path: Path) -> Non
     plain_path = tmp_path / "plain.gif"
     counter_path = tmp_path / "counter.gif"
     lines_path = tmp_path / "lines.gif"
+    markers_path = tmp_path / "markers.gif"
 
     render_trajectory_gif(
         output,
@@ -204,6 +210,7 @@ def test_render_trajectory_gif_overlays_counter_and_lines(tmp_path: Path) -> Non
         canvas_size=(96, 96),
         show_step_counter=False,
         show_trajectory_lines=False,
+        show_trajectory_markers=False,
     )
     render_trajectory_gif(
         output,
@@ -211,6 +218,7 @@ def test_render_trajectory_gif_overlays_counter_and_lines(tmp_path: Path) -> Non
         canvas_size=(96, 96),
         show_step_counter=True,
         show_trajectory_lines=False,
+        show_trajectory_markers=False,
     )
     render_trajectory_gif(
         output,
@@ -218,10 +226,20 @@ def test_render_trajectory_gif_overlays_counter_and_lines(tmp_path: Path) -> Non
         canvas_size=(96, 96),
         show_step_counter=False,
         show_trajectory_lines=True,
+        show_trajectory_markers=False,
+    )
+    render_trajectory_gif(
+        output,
+        markers_path,
+        canvas_size=(96, 96),
+        show_step_counter=False,
+        show_trajectory_lines=False,
+        show_trajectory_markers=True,
     )
 
     assert not np.array_equal(_gif_frame(plain_path, 0), _gif_frame(counter_path, 0))
     assert not np.array_equal(_gif_frame(plain_path, 1), _gif_frame(lines_path, 1))
+    assert not np.array_equal(_gif_frame(plain_path, 1), _gif_frame(markers_path, 1))
 
 
 def test_save_layout_gif_alias_writes_final_hold_metadata(tmp_path: Path) -> None:
@@ -257,7 +275,9 @@ def test_make_gallery_grid_handles_blank_cells_and_trajectory_mode() -> None:
     )
 
     assert len(fig.axes) == 2
-    assert len(fig.axes[0].lines) == 2
+    assert (
+        len([line for line in fig.axes[0].lines if line.get_linestyle() == "--"]) == 2
+    )
     assert not fig.axes[1].axison
     plt.close(fig)
 

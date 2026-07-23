@@ -111,6 +111,7 @@ def _write_metadata(
     max_frames: int,
     show_step_counter: bool,
     show_trajectory_lines: bool,
+    show_trajectory_markers: bool,
     counter_band_height: int,
     trajectory_total_steps: int | None,
 ) -> None:
@@ -129,6 +130,7 @@ def _write_metadata(
         "max_frames": max_frames,
         "show_step_counter": show_step_counter,
         "show_trajectory_lines": show_trajectory_lines,
+        "show_trajectory_markers": show_trajectory_markers,
         "counter_band_height": counter_band_height,
         "trajectory_total_steps": trajectory_total_steps,
         "call_kwargs": call_kwargs,
@@ -206,6 +208,11 @@ def parse_args() -> argparse.Namespace:
         help="Disable cumulative trajectory lines in trajectory GIFs.",
     )
     parser.add_argument(
+        "--hide-trajectory-markers",
+        action="store_true",
+        help="Disable start/current markers in trajectory GIFs.",
+    )
+    parser.add_argument(
         "--counter-band-height",
         type=int,
         default=24,
@@ -254,6 +261,7 @@ def main() -> None:
             max_frames=args.max_frames,
             show_step_counter=not args.hide_step_counter,
             show_trajectory_lines=not args.hide_trajectory_lines,
+            show_trajectory_markers=not args.hide_trajectory_markers,
             counter_band_height=args.counter_band_height,
             trajectory_total_steps=args.trajectory_total_steps,
         )
@@ -273,6 +281,7 @@ def main() -> None:
         max_frames=args.max_frames,
         show_step_counter=not args.hide_step_counter,
         show_trajectory_lines=not args.hide_trajectory_lines,
+        show_trajectory_markers=not args.hide_trajectory_markers,
         counter_band_height=args.counter_band_height,
         trajectory_total_steps=args.trajectory_total_steps,
     )

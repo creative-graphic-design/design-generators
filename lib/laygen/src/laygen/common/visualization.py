@@ -265,6 +265,9 @@ def render_trajectory(
     show_legend: bool = True,
     linewidth: float = 1.4,
     alpha: float = 0.65,
+    show_markers: bool = True,
+    start_marker_size: float = 4.5,
+    current_marker_size: float = 5.5,
 ) -> Axes:
     """Render element-center trajectories and overlay the final layout.
 
@@ -279,6 +282,9 @@ def render_trajectory(
         show_legend: Whether to render the final-layout legend.
         linewidth: Trajectory line width.
         alpha: Trajectory line transparency.
+        show_markers: Whether to draw start and final-position markers.
+        start_marker_size: Filled circle size for each trajectory start.
+        current_marker_size: Triangle size for each trajectory endpoint.
 
     Returns:
         Axis containing trajectory polylines and final layout boxes.
@@ -323,10 +329,29 @@ def render_trajectory(
             color=_color_for_label(label_id, palette),
             linewidth=linewidth,
             alpha=alpha,
-            marker="o",
-            markersize=2.5,
+            linestyle="--",
             zorder=2,
         )
+        if show_markers:
+            color = _color_for_label(label_id, palette)
+            ax.plot(
+                [float(xy[0, 0] * width)],
+                [float(xy[0, 1] * height)],
+                color=color,
+                marker="o",
+                markersize=start_marker_size,
+                linestyle="None",
+                zorder=3,
+            )
+            ax.plot(
+                [float(xy[-1, 0] * width)],
+                [float(xy[-1, 1] * height)],
+                color=color,
+                marker="^",
+                markersize=current_marker_size,
+                linestyle="None",
+                zorder=4,
+            )
     return render_layout(
         final_bbox,
         labels,
@@ -351,6 +376,9 @@ def render_trajectory_gif(
     max_frames: int = 24,
     show_step_counter: bool = True,
     show_trajectory_lines: bool = True,
+    show_trajectory_markers: bool = True,
+    start_marker_size: float = 4.5,
+    current_marker_size: float = 5.5,
     counter_band_height: int = 24,
     trajectory_total_steps: int | None = None,
     dpi: int = 100,
@@ -371,6 +399,10 @@ def render_trajectory_gif(
         show_step_counter: Whether to overlay a compact ``step k/n`` counter.
         show_trajectory_lines: Whether to draw cumulative element-center
             trajectories up to the current frame.
+        show_trajectory_markers: Whether to draw a fixed start marker and a
+            current-position marker on trajectory GIF frames.
+        start_marker_size: Filled circle size for each trajectory start.
+        current_marker_size: Triangle size for each current position.
         counter_band_height: Pixel height of the external counter band below
             the layout canvas when the step counter is enabled.
         trajectory_total_steps: Optional denominator for step counter text. Use
@@ -443,8 +475,8 @@ def render_trajectory_gif(
             )
         )
 
-    def draw_trajectory_lines(frame_index: int) -> None:
-        if not show_trajectory_lines or frame_index <= 0:
+    def draw_trajectory_paths(frame_index: int) -> None:
+        if not show_trajectory_lines and not show_trajectory_markers:
             return
         width, height = canvas_size
         full_step_index = int(frame_indices[frame_index])
@@ -456,16 +488,37 @@ def render_trajectory_gif(
                 [step[element_index, :2] for step in full_steps[: full_step_index + 1]]
             )
             label_id = int(labels[element_index])
-            ax.plot(
-                (xy[:, 0] * width).tolist(),
-                (xy[:, 1] * height).tolist(),
-                color=_color_for_label(label_id, palette),
-                linewidth=1.0,
-                alpha=0.5,
-                marker="o",
-                markersize=1.8,
-                zorder=2,
-            )
+            color = _color_for_label(label_id, palette)
+            if show_trajectory_lines and frame_index > 0:
+                ax.plot(
+                    (xy[:, 0] * width).tolist(),
+                    (xy[:, 1] * height).tolist(),
+                    color=color,
+                    linewidth=1.0,
+                    alpha=0.5,
+                    linestyle="--",
+                    zorder=2,
+                )
+            if show_trajectory_markers:
+                start_xy = full_steps[0][element_index, :2]
+                ax.plot(
+                    [float(start_xy[0] * width)],
+                    [float(start_xy[1] * height)],
+                    color=color,
+                    marker="o",
+                    markersize=start_marker_size,
+                    linestyle="None",
+                    zorder=3,
+                )
+                ax.plot(
+                    [float(xy[-1, 0] * width)],
+                    [float(xy[-1, 1] * height)],
+                    color=color,
+                    marker="^",
+                    markersize=current_marker_size,
+                    linestyle="None",
+                    zorder=4,
+                )
 
     def draw_step_counter(frame_index: int) -> None:
         if not show_step_counter:
@@ -485,7 +538,7 @@ def render_trajectory_gif(
         ax.clear()
         for text in list(fig.texts):
             text.remove()
-        draw_trajectory_lines(frame_index)
+        draw_trajectory_paths(frame_index)
         render_layout(
             steps[frame_index],
             labels,
@@ -533,6 +586,9 @@ def save_layout_gif(
     max_frames: int = 24,
     show_step_counter: bool = True,
     show_trajectory_lines: bool = True,
+    show_trajectory_markers: bool = True,
+    start_marker_size: float = 4.5,
+    current_marker_size: float = 5.5,
     counter_band_height: int = 24,
     trajectory_total_steps: int | None = None,
     dpi: int = 100,
@@ -553,6 +609,9 @@ def save_layout_gif(
         max_frames=max_frames,
         show_step_counter=show_step_counter,
         show_trajectory_lines=show_trajectory_lines,
+        show_trajectory_markers=show_trajectory_markers,
+        start_marker_size=start_marker_size,
+        current_marker_size=current_marker_size,
         counter_band_height=counter_band_height,
         trajectory_total_steps=trajectory_total_steps,
         dpi=dpi,
