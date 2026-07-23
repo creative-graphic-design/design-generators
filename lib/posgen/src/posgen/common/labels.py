@@ -15,6 +15,7 @@ class DatasetName(StrEnum):
     posterlayout = "posterlayout"
     smarttext_demo = "smarttext-demo"
     crello = "crello"
+    ad_banner = "ad_banner"
 
 
 class CGLLabel(StrEnum):
@@ -46,11 +47,25 @@ class CrelloLabel(StrEnum):
     text_element = "textElement"
 
 
+class AdBannerLabel(StrEnum):
+    """Ad Banner label names in LayoutDETR dataset id order."""
+
+    header = "header"
+    pre_header = "pre-header"
+    post_header = "post-header"
+    body_text = "body text"
+    disclaimer_footnote = "disclaimer / footnote"
+    button = "button"
+    callout = "callout"
+    logo = "logo"
+
+
 CGL_LABELS: Final[tuple[CGLLabel, ...]] = tuple(CGLLabel)
 PKU_POSTERLAYOUT_LABELS: Final[tuple[PKUPosterLayoutLabel, ...]] = tuple(
     PKUPosterLayoutLabel
 )
 CRELLO_LABELS: Final[tuple[CrelloLabel, ...]] = tuple(CrelloLabel)
+AD_BANNER_LABELS: Final[tuple[AdBannerLabel, ...]] = tuple(AdBannerLabel)
 
 _ALIASES: Final[dict[str, DatasetName]] = {
     "cgl": DatasetName.cgl,
@@ -65,6 +80,8 @@ _ALIASES: Final[dict[str, DatasetName]] = {
     "smarttext_demo": DatasetName.smarttext_demo,
     "smarttext-demo": DatasetName.smarttext_demo,
     "crello": DatasetName.crello,
+    "ad_banner": DatasetName.ad_banner,
+    "ad-banner": DatasetName.ad_banner,
 }
 
 _LABELS: Final[dict[DatasetName, tuple[StrEnum, ...]]] = {
@@ -74,6 +91,7 @@ _LABELS: Final[dict[DatasetName, tuple[StrEnum, ...]]] = {
     DatasetName.posterlayout: PKU_POSTERLAYOUT_LABELS,
     DatasetName.smarttext_demo: (PKUPosterLayoutLabel.text,),
     DatasetName.crello: CRELLO_LABELS,
+    DatasetName.ad_banner: AD_BANNER_LABELS,
 }
 
 
@@ -86,7 +104,7 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """Normalize poster/content dataset aliases to canonical names.
 
     Args:
-        dataset_name: Dataset enum or public/vendor alias.
+        dataset_name: Dataset enum or public/release alias.
 
     Returns:
         Canonical posgen dataset enum.

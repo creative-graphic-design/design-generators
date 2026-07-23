@@ -146,12 +146,35 @@ def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) "
-        "and second `🤗 transformers`.",
+        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) "
+        "and second `🤗transformers`.",
         encoding="utf-8",
     )
 
     check_model_readmes._assert_library_name_style(readme)
+
+
+@pytest.mark.parametrize(
+    ("emoji", "library", "expected_message"),
+    [
+        ("🤗", "transformers", "🤗 must annotate"),
+        ("🧨", "diffusers", "🧨 must annotate"),
+        ("🤖", "pydantic-ai", "🤖 must annotate"),
+    ],
+)
+def test_runtime_emoji_contract_rejects_space_after_emoji(
+    tmp_path: Path,
+    emoji: str,
+    library: str,
+    expected_message: str,
+) -> None:
+    check_model_readmes = _load_check_model_readmes()
+    readme = tmp_path / "README.md"
+    runtime_label = f"`{emoji} {library}`"
+    readme.write_text(f"This package uses {runtime_label}.", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match=expected_message):
+        check_model_readmes._assert_library_name_style(readme)
 
 
 def test_hugging_face_emoji_contract_rejects_unattached_emoji(
@@ -160,7 +183,7 @@ def test_hugging_face_emoji_contract_rejects_unattached_emoji(
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) "
+        "First [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) "
         "and stray 🤗.",
         encoding="utf-8",
     )
@@ -189,7 +212,7 @@ def test_diffusers_emoji_contract_rejects_unattached_emoji(
     check_model_readmes = _load_check_model_readmes()
     readme = tmp_path / "README.md"
     readme.write_text(
-        "First [`🤗 transformers`](https://huggingface.co/docs/transformers/index) "
+        "First [`🤗transformers`](https://huggingface.co/docs/transformers/index) "
         "and stray 🧨.",
         encoding="utf-8",
     )
@@ -210,3 +233,45 @@ def test_diffusers_emoji_contract_rejects_emoji_outside_code_span(
 
     with pytest.raises(AssertionError, match="must annotate"):
         check_model_readmes._assert_library_name_style(readme)
+
+
+def test_pip_install_contract_reports_expected_direct_url_example() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    section = """Clone this repository first.
+
+```bash
+uv sync --package layout-dm
+```
+"""
+
+    with pytest.raises(AssertionError, match="Expected example") as exc_info:
+        check_model_readmes._assert_pip_install_snippet(
+            Path("models/layout-dm/README.md"),
+            section,
+            [
+                ("laygen", "lib/laygen"),
+                ("layout-dm", "models/layout-dm"),
+            ],
+            "How to Get Started",
+        )
+
+    message = str(exc_info.value)
+    assert "laygen @ git+https://github.com/creative-graphic-design" in message
+    assert "subdirectory=models/layout-dm" in message
+
+
+def test_library_pip_install_contract_accepts_direct_url() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    section = """Install directly from this repository.
+
+```bash
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+"""
+
+    check_model_readmes._assert_pip_install_snippet(
+        Path("lib/laygen/README.md"),
+        section,
+        [("laygen", "lib/laygen")],
+        "Install",
+    )

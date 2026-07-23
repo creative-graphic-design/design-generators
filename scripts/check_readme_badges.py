@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BADGE_RE = re.compile(
-    r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://img\.shields\.io/[^)]+)\)"
+    r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
 )
 BADGE_DOCS = [
@@ -21,7 +21,7 @@ BADGE_DOCS = [
     *sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md")),
 ]
 
-ROOT_ORDER = ["CI", "docs", "license", "python", "uv", "models"]
+ROOT_ORDER = ["CI", "codecov", "docs", "license", "python", "uv", "models"]
 LAYGEN_ORDER = ["package", "license", "python", "core", "extras", "docs"]
 POSGEN_ORDER = ["package", "license", "python", "runtime", "status", "docs"]
 MODEL_ORDER = [
@@ -51,6 +51,8 @@ VERIFIED_SIMPLE_ICON_SLUGS = {
 HF_DATASET_BADGE_MESSAGES = {"RICO25", "PubLayNet", "Crello", "Magazine", "CGL", "PKU"}
 
 DOCS_URL = "https://creative-graphic-design.github.io/design-generators/"
+CODECOV_URL = "https://codecov.io/gh/creative-graphic-design/design-generators"
+CODECOV_BADGE_URL = f"{CODECOV_URL}/graph/badge.svg?token=482TEUSZJ5"
 DATASET_LINKS = {
     "RICO25": "https://huggingface.co/datasets/creative-graphic-design/Rico",
     "RICO13": "https://huggingface.co/datasets/creative-graphic-design/Rico",
@@ -76,6 +78,7 @@ PAPER_LINKS = {
     ): "https://ojs.aaai.org/index.php/AAAI/article/view/26277",
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
+    ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
@@ -86,6 +89,7 @@ PAPER_LINKS = {
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
+    ("arXiv", "2003.06988"): "https://arxiv.org/abs/2003.06988",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",
     ("paper", "TMM 2021"): "https://ieeexplore.ieee.org/document/9520053",
 }
@@ -119,6 +123,8 @@ class Badge:
 def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     if label == "CI":
         return {"githubactions"}
+    if label == "coverage":
+        return {None}
     if label == "docs":
         return {"readthedocs"}
     if label == "license":
@@ -157,12 +163,14 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
 def _expected_color(label: str, message: str | None) -> str | None:
     if label == "CI":
         return None
+    if label == "coverage":
+        return None
     if label == "docs":
         return None
     if label == "license":
         if message in {"Apache-2.0", "MIT"}:
             return "green"
-        if message in {"AGPL-3.0", "CC-BY-NC-4.0"}:
+        if message in {"AGPL-3.0", "CC-BY-NC-4.0", "GPL-3.0"}:
             return "orange"
         if message == "review-needed":
             return "yellow"
@@ -192,6 +200,29 @@ def _iter_badges(path: Path) -> list[Badge]:
         url = match.group("url")
         line = text.count("\n", 0, match.start()) + 1
         parsed = urlparse(url)
+        if parsed.netloc == "codecov.io":
+            if url != CODECOV_BADGE_URL:
+                raise AssertionError(
+                    f"{path}:{line}: unexpected Codecov badge URL: {url}"
+                )
+            if match.group("alt") != "codecov":
+                raise AssertionError(
+                    f"{path}:{line}: Codecov badge alt must be codecov: {url}"
+                )
+            badges.append(
+                Badge(
+                    path=path,
+                    line=line,
+                    alt=match.group("alt"),
+                    url=url,
+                    link=match.group("link"),
+                    label="codecov",
+                    message=None,
+                    color=None,
+                    logo=None,
+                )
+            )
+            continue
         if parsed.netloc != "img.shields.io":
             raise AssertionError(f"{path}: non-static shields badge URL: {url}")
         if " " in url:
@@ -212,7 +243,8 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(f"{path}: unsupported shields badge path: {url}")
         if "label" not in query:
             raise AssertionError(f"{path}: badge missing label: {url}")
-        label = query["label"][0]
+        else:
+            label = query["label"][0]
         message = query.get("message", [None])[0]
         if parsed.path == "/static/v1":
             for key, value in (("label", label), ("message", message)):
@@ -260,6 +292,8 @@ def _badge_labels(path: Path) -> list[str]:
 
 
 def _expected_link(badge: Badge) -> str | None:
+    if badge.label == "codecov":
+        return CODECOV_URL
     if badge.label == "docs":
         return DOCS_URL
     if badge.label == "dataset":

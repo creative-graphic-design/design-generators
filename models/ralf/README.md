@@ -40,13 +40,13 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [RALF](https://arxiv.org/abs/2311.13602), the CVPR 2024 retrieval-augmented content-aware layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [RALF](https://arxiv.org/abs/2311.13602), the CVPR 2024 retrieval-augmented content-aware layout generator, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
 ### Model Description
 
-RALF combines retrieved layout examples with content images and saliency maps for poster layout generation. This port exposes a `PreTrainedModel`, processor, tokenizer, retrieval helper, and `laygen.pipelines.LayoutGenerationPipeline` subclass for the CGL and PKU unconditional checkpoints. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+RALF combines retrieved layout examples with content images and saliency maps for poster layout generation on the CGL and PKU checkpoints. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
@@ -65,7 +65,17 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
 | CGL unconditional | [`creative-graphic-design/ralf-cgl-unconditional`](https://huggingface.co/creative-graphic-design/ralf-cgl-unconditional) | not-published |
+| CGL label | [`creative-graphic-design/ralf-cgl-label`](https://huggingface.co/creative-graphic-design/ralf-cgl-label) | local conversion supported |
+| CGL label-size | [`creative-graphic-design/ralf-cgl-label-size`](https://huggingface.co/creative-graphic-design/ralf-cgl-label-size) | local conversion supported |
+| CGL completion | [`creative-graphic-design/ralf-cgl-completion`](https://huggingface.co/creative-graphic-design/ralf-cgl-completion) | local conversion supported |
+| CGL refinement | [`creative-graphic-design/ralf-cgl-refinement`](https://huggingface.co/creative-graphic-design/ralf-cgl-refinement) | local conversion supported |
+| CGL relation | [`creative-graphic-design/ralf-cgl-relation`](https://huggingface.co/creative-graphic-design/ralf-cgl-relation) | local conversion supported |
 | PKU unconditional | [`creative-graphic-design/ralf-pku-unconditional`](https://huggingface.co/creative-graphic-design/ralf-pku-unconditional) | not-published |
+| PKU label | [`creative-graphic-design/ralf-pku-label`](https://huggingface.co/creative-graphic-design/ralf-pku-label) | local conversion supported |
+| PKU label-size | [`creative-graphic-design/ralf-pku-label-size`](https://huggingface.co/creative-graphic-design/ralf-pku-label-size) | local conversion supported |
+| PKU completion | [`creative-graphic-design/ralf-pku-completion`](https://huggingface.co/creative-graphic-design/ralf-pku-completion) | local conversion supported |
+| PKU refinement | [`creative-graphic-design/ralf-pku-refinement`](https://huggingface.co/creative-graphic-design/ralf-pku-refinement) | local conversion supported |
+| PKU relation | [`creative-graphic-design/ralf-pku-relation`](https://huggingface.co/creative-graphic-design/ralf-pku-relation) | local conversion supported |
 
 ## Uses
 
@@ -73,7 +83,7 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 
 Use this package for research inference, conversion checks, and vendor-parity validation of content-aware generated layouts.
 
-Unconditional generation accepts optional content images, saliency maps, and explicit retrieval examples. Selected retrieval indexes are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
+Generation accepts optional content images, saliency maps, explicit retrieval examples, and task constraints through `condition_type="unconditional"`, `"label"`, `"label_size"`, `"completion"`, `"refinement"`, `"relation"`, `"retrieval"`, or `"content_image"`. Selected retrieval indexes are returned in `intermediates["retrieval"]` when `return_intermediates=True`.
 
 Calling `pipe()` without images or retrieval data is a smoke/debug path that uses a zero image and zero retrieval memory. Use real content images, saliency maps, and retrieved examples for paper-equivalent inference.
 
@@ -94,6 +104,15 @@ The converted behavior follows the upstream checkpoints and datasets. Dataset co
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "ralf @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/ralf"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md). Those steps create `.cache/ralf/converted/ralf-cgl-unconditional-strict`.
 
@@ -180,7 +199,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-RALF loads the released retrieval-augmented layout transformer checkpoints and predicts poster elements from content-aware inputs plus retrieved examples. The current runtime surface covers unconditional CGL and PKU checkpoint inference; label, label-size, completion, refinement, relation, and other content-image variants raise explicit unsupported-condition errors.
+RALF loads the released retrieval-augmented layout transformer checkpoints and predicts poster elements from content-aware inputs plus retrieved examples. The runtime surface covers unconditional, label, label-size, completion, refinement, relation, retrieval, and content-image condition modes; relation uses the relation task-token and category restriction path, while vendor backtracking parity must be checked with the gated parity suite before publishing relation checkpoints.
 
 ### Compute Infrastructure
 

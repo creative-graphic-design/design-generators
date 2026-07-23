@@ -94,7 +94,7 @@ print(out.bbox, out.labels, out.mask)
     )
     if dataset_key is DatasetName.rico13:
         details += (
-            " The public vendor checkpoint archive used for local parity "
+            " The public checkpoint archive used for local parity "
             "verification does not include `rico13_best.pt`; Rico13 parity "
             "metrics are therefore not reported here."
         )

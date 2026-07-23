@@ -56,13 +56,13 @@ def build_agent(model: ModelLike = None) -> object:
 
 
 class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
-    """High-level LayoutGPT runner that ports vendor prompt and parse strategy."""
+    """High-level LayoutGPT runner that ports released prompt and parse strategy."""
 
     def __init__(
         self,
         *,
         model: ModelLike = None,
-        config: LayoutGPTConfig | None = None,
+        config: LayoutGPTConfig,
         token_counter: TokenCounter = default_token_counter,
     ) -> None:
         """Initialize the runner with provider and prompt configuration."""
@@ -72,7 +72,7 @@ class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
             raw_response_type=RawLayoutResponse,
             instructions=INSTRUCTIONS,
         )
-        self.config = config or LayoutGPTConfig()
+        self.config = config
         self.token_counter = token_counter
 
     def build_prompt(

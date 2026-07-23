@@ -79,7 +79,7 @@ class LayoutPrompterConfig:
     Args:
         dataset: Dataset vocabulary to use. Public strings are normalized to
             `LayoutPrompterDataset`.
-        condition_type: Public condition name or vendor alias.
+        condition_type: Public condition name or release alias.
         input_format: Prompt input format, either `seq` or `html`.
         output_format: Model output format, either `seq` or `html`.
         candidate_size: Number of training candidates to keep before retrieval.
@@ -134,7 +134,7 @@ class LayoutPrompterConfig:
 
     @property
     def task(self) -> LayoutPrompterTask:
-        """Return the vendor task key."""
+        """Return the released task key."""
         condition_type = normalize_condition_type(self.condition_type)
         try:
             return TASK_ALIASES[condition_type]
@@ -148,8 +148,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
     """High-level LayoutPrompter Pydantic AI agent.
 
     Args:
-        config: Runtime prompt, retrieval, parser, and model settings. Defaults
-            to `LayoutPrompterConfig()`.
+        config: Runtime prompt, retrieval, parser, and model settings.
 
     Raises:
         ValueError: If the config contains an unsupported mode.
@@ -163,16 +162,16 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         True
     """
 
-    def __init__(self, config: LayoutPrompterConfig | None = None) -> None:
+    def __init__(self, config: LayoutPrompterConfig) -> None:
         """Create a LayoutPrompter runner from runtime config.
 
         Args:
-            config: Optional agent configuration.
+            config: Agent configuration.
 
         Raises:
             ValueError: If a config mode cannot be normalized.
         """
-        self.config = config or LayoutPrompterConfig()
+        self.config = config
         super().__init__(
             model=self.config.model,
             model_env_var=DEFAULT_MODEL_ENV_VAR,

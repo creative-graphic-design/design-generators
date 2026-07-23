@@ -51,7 +51,7 @@ def layout_corrector_model_card(
     metrics = parity_metrics or [
         ParityMetric(
             dataset=str(dataset_name),
-            tokenizer_exact="checked in vendor parity",
+            tokenizer_exact="checked in reference parity",
             deterministic_exact="not applicable",
             logits_max_abs=0.0,
             logits_max_rel=0.0,

@@ -35,6 +35,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
     Examples:
         >>> from layoutdiffusion import LayoutDiffusionConfig, LayoutDiffusionTokenizer
         >>> from layoutdiffusion import LayoutDiffusionScheduler, LayoutDiffusionTransformer
+        >>> from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
         >>> cfg = LayoutDiffusionConfig(dataset_name="publaynet", hidden_size=32, num_hidden_layers=1, num_attention_heads=4, intermediate_size=64, num_channels=8)
         >>> tok = LayoutDiffusionTokenizer(cfg)
         >>> pipe = LayoutDiffusionPipeline(
@@ -42,7 +43,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         ...     LayoutDiffusionScheduler(vocab_size=cfg.vocab_size, mask_token_id=cfg.mask_token_id, type_classes=cfg.type_classes, num_train_timesteps=2),
         ...     tok,
         ... )
-        >>> pipe(batch_size=1, seed=0, num_inference_steps=1).bbox.shape[-1]
+        >>> pipe(batch_size=1, seed=0, sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1)).bbox.shape[-1]
         4
     """
 
@@ -93,9 +94,9 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         num_inference_steps: int | None = None,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        sampling: LayoutDiffusionSamplingConfig | None = None,
+        sampling: LayoutDiffusionSamplingConfig,
         **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Run LayoutDiffusion generation.
 
         Args:
@@ -113,7 +114,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
             num_inference_steps: Optional shortened inference steps.
             output_type: ``"dataclass"`` or ``"dict"``.
             return_intermediates: Whether to include trajectories.
-            sampling: Optional sampling config.
+            sampling: Sampling config.
             **model_kwargs: Reserved compatibility kwargs.
 
         Returns:
@@ -162,11 +163,8 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
             )
         sample = index_to_log_onehot(start_ids, self.scheduler.config.vocab_size)
         start_step = None if condition is None else condition.start_step
-        sample_config = sampling or LayoutDiffusionSamplingConfig(
-            num_inference_steps=num_inference_steps
-        )
         self.scheduler.set_timesteps(
-            sample_config.num_inference_steps or num_inference_steps,
+            sampling.num_inference_steps or num_inference_steps,
             start_step=start_step,
             device=self.device,
         )
@@ -191,26 +189,50 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
                 logits,
                 timestep_batch,
                 sample,
-                sampling=sample_config,
+                sampling=sampling,
                 condition=condition,
                 generator=generator,
             )
             sample = out.prev_sample
             if trajectory is not None:
                 trajectory.append(log_onehot_to_index(sample).detach().cpu())
+        output = self._decode_final_sample(
+            sample=sample,
+            trajectory=trajectory,
+            condition_type=str(canonical),
+            return_intermediates=return_intermediates,
+        )
+        return self._coerce_output(output=output, output_type=output_type)
+
+    def _decode_final_sample(
+        self,
+        *,
+        sample: torch.Tensor,
+        trajectory: list[torch.Tensor] | None,
+        condition_type: str,
+        return_intermediates: bool,
+    ) -> LayoutGenerationOutput:
+        """Decode final token logits into the public layout output schema."""
         sequences = log_onehot_to_index(sample).detach().cpu()
-        decoded = self.tokenizer.decode_layout(sequences)
-        output = LayoutGenerationOutput(
-            bbox=decoded["bbox"],
-            labels=decoded["labels"],
-            mask=decoded["mask"],
+        layout = self.tokenizer.decode_layout(sequences)
+        metadata = {"condition_type": condition_type} if return_intermediates else None
+        return LayoutGenerationOutput(
+            bbox=layout["bbox"],
+            labels=layout["labels"],
+            mask=layout["mask"],
             id2label=self.tokenizer.config.id2label,
             sequences=sequences if return_intermediates else None,
             trajectory=trajectory,
-            intermediates={"condition_type": str(canonical)}
-            if return_intermediates
-            else None,
+            intermediates=metadata,
         )
+
+    @staticmethod
+    def _coerce_output(
+        *,
+        output: LayoutGenerationOutput,
+        output_type: Literal["dataclass", "dict"],
+    ) -> LayoutGenerationOutput | dict[str, object]:
+        """Return the requested output container."""
         if output_type == "dict":
             return dict(output)
         if output_type != "dataclass":
@@ -228,10 +250,15 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         cls, pretrained_model_name_or_path: str | Path, **kwargs: object
     ) -> "LayoutDiffusionPipeline":
         """Load a LayoutDiffusion pipeline and rebuild its processor."""
-        tokenizer = LayoutDiffusionTokenizer.from_pretrained(
-            pretrained_model_name_or_path
+        tokenizer = kwargs.pop("tokenizer", None)
+        if tokenizer is None:
+            tokenizer = LayoutDiffusionTokenizer.from_pretrained(
+                pretrained_model_name_or_path
+            )
+        pipe = super().from_pretrained(
+            pretrained_model_name_or_path,
+            tokenizer=tokenizer,
+            **kwargs,
         )
-        kwargs.setdefault("tokenizer", tokenizer)
-        pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
         pipe.processor = LayoutDiffusionProcessor(pipe.tokenizer)
         return pipe

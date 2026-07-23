@@ -183,7 +183,7 @@ class GenTypeSerializer(Serializer):
 
     @override
     def build_input(self, data: LayoutRecord) -> str:
-        """Serialize type constraints with the vendor prefix."""
+        """Serialize type constraints with the task prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
 
@@ -323,7 +323,7 @@ class CompletionSerializer(Serializer):
 
     @override
     def build_input(self, data: LayoutRecord) -> str:
-        """Serialize partial layout constraints with the vendor prefix."""
+        """Serialize partial layout constraints with the task prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
 
@@ -343,7 +343,7 @@ class RefinementSerializer(Serializer):
 
     @override
     def build_input(self, data: LayoutRecord) -> str:
-        """Serialize noisy layout constraints with the vendor prefix."""
+        """Serialize noisy layout constraints with the task prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
 
@@ -368,7 +368,7 @@ class TextToLayoutSerializer(Serializer):
 
     @override
     def build_input(self, data: LayoutRecord) -> str:
-        """Serialize text input with the vendor prefix."""
+        """Serialize text input with the task prefix."""
         return self.constraint_type[0] + super().build_input(data)
 
 

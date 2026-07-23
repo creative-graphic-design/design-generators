@@ -10,6 +10,7 @@ from layoutdiffusion import (
     LayoutDiffusionTokenizer,
     LayoutDiffusionTransformer,
 )
+from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
 from laygen.common.testing import assert_layout_output_schema
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -48,7 +49,12 @@ def test_pipeline_schema_and_aliases() -> None:
     pipe = _pipe()
     out = cast(
         LayoutGenerationOutput,
-        pipe(batch_size=1, condition_type="ugen", seed=0, num_inference_steps=1),
+        pipe(
+            batch_size=1,
+            condition_type="ugen",
+            seed=0,
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+        ),
     )
     assert_layout_output_schema(out, batch_size=1)
     assert out.sequences is None
@@ -62,7 +68,7 @@ def test_pipeline_generator_precedence_over_seed() -> None:
             batch_size=1,
             seed=999,
             generator=torch.Generator().manual_seed(0),
-            num_inference_steps=1,
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
         ),
     )
     out2 = cast(
@@ -71,7 +77,7 @@ def test_pipeline_generator_precedence_over_seed() -> None:
             batch_size=1,
             seed=123,
             generator=torch.Generator().manual_seed(0),
-            num_inference_steps=1,
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
         ),
     )
     assert torch.equal(out1.labels, out2.labels)
@@ -83,21 +89,31 @@ def test_pipeline_save_and_load_roundtrip(tmp_path) -> None:
     pipe.save_pretrained(tmp_path)
     loaded = LayoutDiffusionPipeline.from_pretrained(tmp_path)
     out = cast(
-        LayoutGenerationOutput, loaded(batch_size=1, seed=0, num_inference_steps=1)
+        LayoutGenerationOutput,
+        loaded(
+            batch_size=1,
+            seed=0,
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+        ),
     )
     assert_layout_output_schema(out, batch_size=1)
 
 
 def test_pipeline_output_type_dict_and_invalid() -> None:
     pipe = _pipe()
-    out = pipe(batch_size=1, seed=0, num_inference_steps=1, output_type="dict")
+    out = pipe(
+        batch_size=1,
+        seed=0,
+        sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+        output_type="dict",
+    )
     assert isinstance(out, dict)
     assert set(out) >= {"bbox", "labels", "mask", "id2label"}
     with pytest.raises(ValueError):
         pipe(
             batch_size=1,
             seed=0,
-            num_inference_steps=1,
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
             output_type=cast(Literal["dataclass", "dict"], "bad"),
         )
 
@@ -105,4 +121,7 @@ def test_pipeline_output_type_dict_and_invalid() -> None:
 def test_pipeline_rejects_unsupported_condition() -> None:
     pipe = _pipe()
     with pytest.raises(NotImplementedError):
-        pipe(condition_type="label_size", num_inference_steps=1)
+        pipe(
+            condition_type="label_size",
+            sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+        )
