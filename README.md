@@ -38,6 +38,8 @@ design-generators ports layout, poster, and graphic-design generation research r
 | --- | --- |
 | [laygen](lib/laygen/README.md) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. |
 | [posgen](lib/posgen/README.md) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
+| [traingen](lib/traingen/README.md) | Training utilities for package-local PyTorch Lightning CLI integration in train-ourselves packages. |
+| [traingen-parity](lib/traingen-parity/README.md) | Deterministic trace capture and comparison helpers for training-parity checks. |
 
 ## Quick Start
 
