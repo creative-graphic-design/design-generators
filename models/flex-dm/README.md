@@ -37,7 +37,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports Flex-DM, the MFP masked multi-field document model from [arXiv 2303.18248](https://arxiv.org/abs/2303.18248), to a `🤗 transformers`-style package for document layout completion, refinement, and Crello image/text feature infilling.
+This package ports Flex-DM, the MFP masked multi-field document model from [arXiv 2303.18248](https://arxiv.org/abs/2303.18248), to a `🤗transformers`-style package for document layout completion, refinement, and Crello image/text feature infilling.
 
 ## Model Details
 
@@ -86,6 +86,15 @@ The released checkpoints reflect the visual and structural distributions of thei
 Validate outputs against the target dataset schema before using generated layouts in downstream evaluation. Run the original-implementation agreement checks before relying on converted checkpoints.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "flex-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/flex-dm"
+```
 
 The Hub repos are not published yet. Until then, create a local converted checkpoint and load it from `.cache/flex-dm/converted`.
 

@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [Parse-Then-Place](https://arxiv.org/abs/2308.12700), the ICCV 2023 two-stage parsed-scene and placement method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -93,6 +93,14 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "parse-then-place @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/parse-then-place"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md). Those steps create `.cache/parse-then-place/converted/rico-finetune`.
 

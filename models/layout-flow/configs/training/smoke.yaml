@@ -11,7 +11,10 @@ trainer:
 model:
   class_path: layout_flow.training.LayoutFlowTrainingModule
   init_args:
-    dataset_name: publaynet
+    config:
+      class_path: layout_flow.LayoutFlowConfig
+      init_args:
+        dataset_name: publaynet
     learning_rate: 0.0005
     scheduler: null
     condition_policy: random4

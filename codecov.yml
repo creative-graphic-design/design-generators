@@ -1,0 +1,64 @@
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+flags:
+  root:
+    carryforward: true
+  laygen:
+    carryforward: true
+  posgen:
+    carryforward: true
+  coarse-to-fine:
+    carryforward: true
+  ds-gan:
+    carryforward: true
+  flex-dm:
+    carryforward: true
+  housegan:
+    carryforward: true
+  lace:
+    carryforward: true
+  layousyn:
+    carryforward: true
+  layout-action:
+    carryforward: true
+  layout-corrector:
+    carryforward: true
+  layout-dm:
+    carryforward: true
+  layout-detr:
+    carryforward: true
+  layout-flow:
+    carryforward: true
+  layout-gpt:
+    carryforward: true
+  layout-transformer:
+    carryforward: true
+  layoutdiffusion:
+    carryforward: true
+  layoutformerpp:
+    carryforward: true
+  layoutganpp:
+    carryforward: true
+  layoutprompter:
+    carryforward: true
+  parse-then-place:
+    carryforward: true
+  ralf:
+    carryforward: true
+  smarttext:
+    carryforward: true
+
+ignore:
+  - "vendor/**"
+  - "scripts/**"
+  - "tests/**"
+  - "docs/**"
+  - "site/**"
+  - ".cache/**"

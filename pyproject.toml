@@ -15,7 +15,9 @@ dependencies = [
     "coarse-to-fine",
     "ds-gan",
     "flex-dm",
+    "housegan",
     "layout-corrector",
+    "layout-detr",
     "layoutdiffusion",
     "layout-flow",
     "layout-gpt",
@@ -115,6 +117,26 @@ conflicts = [
         { package = "layoutprompter" },
         { package = "flex-dm", extra = "convert" },
     ],
+    [
+        { package = "ds-gan" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
+    [
+        { package = "ds-gan", extra = "download" },
+        { package = "layout-detr", extra = "vendor" },
+    ],
+    [
+        { package = "housegan", extra = "vendor" },
+        { package = "smarttext", extra = "vendor" },
+    ],
+    [
+        { package = "housegan", extra = "vendor" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "housegan", extra = "vendor" },
+        { package = "flex-dm", extra = "convert" },
+    ],
 ]
 
 [tool.uv.workspace]
@@ -124,7 +146,9 @@ members = ["lib/*", "models/*"]
 coarse-to-fine = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
+housegan = { workspace = true }
 layout-corrector = { workspace = true }
+layout-detr = { workspace = true }
 layoutdiffusion = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }

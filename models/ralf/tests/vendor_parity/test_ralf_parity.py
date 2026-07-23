@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 import os
+import pickle
+import random
 import sys
 from typing import cast
 
@@ -14,8 +16,11 @@ from ralf import (
     RalfForConditionalLayoutGeneration,
     RalfLayoutTokenizer,
     RalfPipeline,
+    RalfProcessor,
 )
+from ralf.configuration_ralf import RalfConfigTaskName
 from ralf.datasets import _IndexableDataset, build_retrieved_batch
+from ralf.modeling_ralf import TASK_BY_CONDITION
 
 
 def _reference_dir() -> Path:
@@ -38,6 +43,35 @@ def _vendor_root() -> Path:  # pragma: no cover
     return _repo_root() / "vendor" / "ralf"
 
 
+CHECKPOINT_CASES = [
+    ("cgl", "unconditional", "ralf_uncond_cgl", "ralf-cgl-unconditional-strict"),
+    ("cgl", "label", "ralf_c_cgl", "ralf-cgl-label-strict"),
+    ("cgl", "label_size", "ralf_cwh_cgl", "ralf-cgl-label-size-strict"),
+    ("cgl", "completion", "ralf_partial_cgl", "ralf-cgl-completion-strict"),
+    ("cgl", "refinement", "ralf_refinement_cgl", "ralf-cgl-refinement-strict"),
+    ("cgl", "relation", "ralf_relation_cgl", "ralf-cgl-relation-strict"),
+    ("pku", "unconditional", "ralf_uncond_pku10", "ralf-pku-unconditional-strict"),
+    ("pku", "label", "ralf_c_pku10", "ralf-pku-label-strict"),
+    ("pku", "label_size", "ralf_cwh_pku10", "ralf-pku-label-size-strict"),
+    ("pku", "completion", "ralf_partial_pku10", "ralf-pku-completion-strict"),
+    ("pku", "refinement", "ralf_refinement_pku10", "ralf-pku-refinement-strict"),
+    ("pku", "relation", "ralf_relation_pku10", "ralf-pku-relation-strict"),
+]
+
+RUNTIME_PARITY_TASKS = [
+    ("cgl", "label"),
+    ("cgl", "label_size"),
+    ("cgl", "completion"),
+    ("cgl", "refinement"),
+    ("cgl", "relation"),
+    ("pku", "label"),
+    ("pku", "label_size"),
+    ("pku", "completion"),
+    ("pku", "refinement"),
+    ("pku", "relation"),
+]
+
+
 def _ensure_vendor_path() -> None:  # pragma: no cover
     vendor_root = _vendor_root()
     if not (vendor_root / "image2layout").exists():
@@ -50,9 +84,22 @@ def _ensure_vendor_path() -> None:  # pragma: no cover
         sys.path.insert(0, str(vendor_root))
 
 
+def _skip_missing_vendor_dependency(
+    exc: ModuleNotFoundError,
+) -> None:  # pragma: no cover
+    skip_or_fail_vendor_parity(
+        f"RALF vendor dependency is required: {exc.name}",
+        regeneration_hint="install the RALF vendor optional dependencies before running vendor parity",
+    )
+
+
 def _vendor_label_features(config: RalfConfig):  # pragma: no cover
     _ensure_vendor_path()
-    from datasets import ClassLabel, Features, Sequence
+    try:
+        from datasets import ClassLabel, Features, Sequence
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
 
     id2label = cast(dict[int | str, str], config.id2label)
     label_names = [
@@ -63,7 +110,11 @@ def _vendor_label_features(config: RalfConfig):  # pragma: no cover
 
 def _build_vendor_tokenizer(config: RalfConfig):  # pragma: no cover
     _ensure_vendor_path()
-    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    try:
+        from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
 
     features = _vendor_label_features(config)
     return LayoutSequenceTokenizer(
@@ -89,7 +140,9 @@ def test_vendor_reference_metadata_exists() -> None:
         )
     data = json.loads(metadata.read_text())
     assert data["status"] == "vendor-run"
-    assert data["gpu"] == "0"
+    expected_gpu = os.environ.get("RALF_EXPECTED_REFERENCE_GPU")
+    if expected_gpu is not None:
+        assert data["gpu"] == expected_gpu
     assert data["torch_force_no_weights_only_load"] is True
 
 
@@ -269,7 +322,7 @@ def _build_vendor_reference_model(
         ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg,
     )
 
-    precomputed_dir = _cache_dir() / "PRECOMPUTED_WEIGHT_DIR"
+    precomputed_dir = (_cache_dir() / "PRECOMPUTED_WEIGHT_DIR").resolve()
     if not precomputed_dir.exists():
         skip_or_fail_vendor_parity(
             "RALF PRECOMPUTED_WEIGHT_DIR cache is required",
@@ -284,27 +337,182 @@ def _build_vendor_reference_model(
     features = _vendor_label_features(config)
     tokenizer = _build_vendor_tokenizer(config)
     dataset_name = "pku" if config.dataset_name.startswith("pku") else "cgl"
-    return ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg(
-        features=features,
-        tokenizer=tokenizer,
-        dataset_name=dataset_name,
-        max_seq_length=config.max_seq_length,
-        db_dataset=Dataset.from_dict({"id": []}),
-        d_model=config.d_model,
-        decoder_d_model=config.decoder_d_model,
-        top_k=config.top_k,
-        layout_backbone=config.layout_backbone,
-        use_reference_image=config.use_reference_image,
-        freeze_layout_encoder=config.freeze_layout_encoder,
-        retrieval_backbone=config.retrieval_backbone,
-        random_retrieval=False,
-        saliency_k="None",
-        auxilary_task="uncond",
-        use_flag_embedding=config.use_flag_embedding,
-        use_multitask=config.use_multitask,
-        RELATION_SIZE=config.relation_size,
-        global_task_embedding=config.global_task_embedding,
+    task_name = str(config.retrieval_metadata.get("task_name", "uncond"))
+    previous_cwd = Path.cwd()
+    if task_name == "relation":
+        os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+        os.chdir(_cache_dir().parent.resolve())
+    try:
+        return ConcateAuxilaryTaskConcateCrossAttnRetrievalAugmentedAutoreg(
+            features=features,
+            tokenizer=tokenizer,
+            dataset_name=dataset_name,
+            max_seq_length=config.max_seq_length,
+            db_dataset=Dataset.from_dict({"id": []}),
+            d_model=config.d_model,
+            decoder_d_model=config.decoder_d_model,
+            top_k=config.top_k,
+            layout_backbone=config.layout_backbone,
+            use_reference_image=config.use_reference_image,
+            freeze_layout_encoder=config.freeze_layout_encoder,
+            retrieval_backbone=config.retrieval_backbone,
+            random_retrieval=False,
+            saliency_k="None",
+            auxilary_task=task_name,
+            use_flag_embedding=config.use_flag_embedding,
+            use_multitask=config.use_multitask,
+            RELATION_SIZE=config.relation_size,
+            global_task_embedding=config.global_task_embedding,
+        )
+    finally:
+        if task_name == "relation":
+            os.chdir(previous_cwd)
+
+
+def _retrieval_index_path(dataset_name: str) -> Path:
+    return (
+        _cache_dir()
+        / "PRECOMPUTED_WEIGHT_DIR"
+        / "retrieval_indexes"
+        / f"{dataset_name}_test_dreamsim_wo_head_table_between_dataset_indexes_top_k32.pt"
     )
+
+
+def _load_relationship_table() -> dict[str, list[object]]:  # pragma: no cover
+    _ensure_vendor_path()
+    relationship_path = (
+        _cache_dir() / "pku_cgl_relationships_dic_using_canvas_sort_label_lexico.pt"
+    )
+    if not relationship_path.exists():
+        skip_or_fail_vendor_parity(
+            "RALF relationship table is required for relation parity",
+            missing_paths=[relationship_path],
+            regeneration_hint="populate pku_cgl_relationships_dic_using_canvas_sort_label_lexico.pt under RALF_CACHE_DIR",
+        )
+    return cast(
+        dict[str, list[object]],
+        torch.load(relationship_path, map_location="cpu", weights_only=False),
+    )
+
+
+def _runtime_fixture(
+    dataset_name: str,
+) -> tuple[str | int, torch.Tensor, torch.Tensor, torch.Tensor]:
+    if dataset_name == "cgl":
+        from datasets import load_dataset
+        from ralf.datasets import normalize_org_sample
+
+        dataset_path = _cache_dir() / "dataset" / "cgl"
+        if not dataset_path.exists():
+            skip_or_fail_vendor_parity(
+                "CGL cache dataset is required for runtime parity",
+                missing_paths=[dataset_path],
+                regeneration_hint="unpack the RALF cache dataset/cgl directory",
+            )
+        sample = load_dataset(str(dataset_path), split="test")[0]
+        normalized = normalize_org_sample(sample, "cgl")
+        return (
+            cast(str, sample["id"]),
+            cast(torch.Tensor, normalized["labels"]).unsqueeze(0),
+            cast(torch.Tensor, normalized["bbox"]).unsqueeze(0),
+            cast(torch.Tensor, normalized["mask"]).unsqueeze(0),
+        )
+
+    generated = (
+        _cache_dir()
+        / "training_logs"
+        / "ralf_uncond_pku10"
+        / "generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16"
+        / "test_0.pkl"
+    )
+    if not generated.exists():
+        skip_or_fail_vendor_parity(
+            "PKU generated sample cache is required for runtime parity",
+            missing_paths=[generated],
+            regeneration_hint="unpack the RALF cache training_logs/ralf_uncond_pku10 generated samples",
+        )
+    with generated.open("rb") as f:
+        data = pickle.load(f)
+    first = data["results"][0]
+    labels = torch.tensor([first["label"]], dtype=torch.long)
+    bbox = torch.tensor(
+        [
+            [
+                [x, y, w, h]
+                for x, y, w, h in zip(
+                    first["center_x"],
+                    first["center_y"],
+                    first["width"],
+                    first["height"],
+                    strict=True,
+                )
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    mask = torch.ones_like(labels, dtype=torch.bool)
+    return int(first["id"]), labels, bbox, mask
+
+
+def _vendor_condition_inputs(
+    *,
+    config: RalfConfig,
+    task_name: str,
+    sample_id: str | int,
+    labels: torch.Tensor,
+    bbox: torch.Tensor,
+    mask: torch.Tensor,
+):
+    _ensure_vendor_path()
+    try:
+        from image2layout.train.helpers.task import get_condition
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
+
+    tokenizer = _build_vendor_tokenizer(config)
+    batch = {
+        "id": [sample_id],
+        "image": torch.zeros(1, 3, 64, 64),
+        "saliency": torch.zeros(1, 1, 64, 64),
+        "label": labels.clone(),
+        "center_x": bbox[..., 0].clone(),
+        "center_y": bbox[..., 1].clone(),
+        "width": bbox[..., 2].clone(),
+        "height": bbox[..., 3].clone(),
+        "mask": mask.clone(),
+    }
+    condition, _ = get_condition(batch, task_name, tokenizer)
+    return condition
+
+
+def _local_condition_tokens(
+    *,
+    config: RalfConfig,
+    task_name: str,
+    condition: object,
+    relationship_table: dict[str, list[object]],
+    seed: int,
+) -> dict[str, torch.Tensor]:
+    image = cast(torch.Tensor, getattr(condition, "image"))
+    model = RalfForConditionalLayoutGeneration(config)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    prepared = model._prepare_conditional_inputs(
+        pixel_values=image[:, :3],
+        saliency=image[:, 3:4],
+        retrieved=None,
+        batch_size=image.size(0),
+        condition_type=cast(RalfConfigTaskName, task_name),
+        constraint_input_ids=cast(torch.Tensor | None, getattr(condition, "seq")),
+        constraint_mask=cast(torch.Tensor | None, getattr(condition, "mask")),
+        relationship_table=relationship_table if task_name == "relation" else None,
+        sample_ids=getattr(condition, "id", None),
+    )
+    return {
+        "seq": cast(torch.Tensor, prepared["seq_layout_const"]),
+        "pad_mask": cast(torch.Tensor, prepared["seq_layout_const_pad_mask"]),
+    }
 
 
 def _local_logits(
@@ -409,30 +617,29 @@ def test_local_pipeline_matches_vendor_golden_cgl_e2e() -> None:  # pragma: no c
 
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize(
-    ("name", "job_name", "converted_name"),
-    [
-        ("cgl", "ralf_uncond_cgl", "ralf-cgl-unconditional-strict"),
-        ("pku", "ralf_uncond_pku10", "ralf-pku-unconditional-strict"),
-    ],
+    ("name", "condition_type", "job_name", "converted_name"),
+    CHECKPOINT_CASES,
 )
 def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
-    name: str, job_name: str, converted_name: str
+    name: str, condition_type: str, job_name: str, converted_name: str
 ) -> None:
     checkpoint = _cache_dir() / "training_logs" / job_name / "gen_final_model.pt"
     converted = _converted_dir() / converted_name
     if not checkpoint.exists() or not converted.exists():
         skip_or_fail_vendor_parity(
-            "Run strict RALF conversion for CGL and PKU before parity tests",
+            "Run strict RALF conversion for all RALF checkpoints before parity tests",
             missing_paths=[checkpoint, converted],
-            regeneration_hint="run the strict RALF conversion commands for CGL and PKU before vendor parity",
+            regeneration_hint="run the strict RALF conversion commands for all CGL and PKU tasks before vendor parity",
         )
 
     report = json.loads((converted / "conversion_report.json").read_text())
+    assert report["task"] == condition_type
     assert report["source_key_count"] == 664
     assert report["target_key_count"] == 664
     assert len(report["matched_keys"]) == 664
     assert report["missing_keys"] == []
     assert report["unexpected_keys"] == []
+    assert report["skipped_shape_mismatch_keys"] == {}
     assert report["weight_parity_ready"] is True
 
     source = torch.load(checkpoint, map_location="cpu")
@@ -464,3 +671,110 @@ def test_converted_checkpoint_matches_local_weights_and_vendor_logits(
         reference_logits = reference_model(_clone_inputs(inputs))["logits"]
         converted_logits = _local_logits(converted_model, _clone_inputs(inputs))
     assert torch.equal(reference_logits, converted_logits)
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize(("dataset_name", "condition_type"), RUNTIME_PARITY_TASKS)
+def test_condition_runtime_path_matches_vendor_tokens_and_retrieval_indexes(
+    dataset_name: str,
+    condition_type: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    converted = (
+        _converted_dir()
+        / f"ralf-{dataset_name}-{condition_type.replace('_', '-')}-strict"
+    )
+    if condition_type == "label_size":
+        converted = _converted_dir() / f"ralf-{dataset_name}-label-size-strict"
+    if condition_type == "completion":
+        converted = _converted_dir() / f"ralf-{dataset_name}-completion-strict"
+    converted = converted.resolve()
+    if not converted.exists():
+        skip_or_fail_vendor_parity(
+            "Run strict RALF conversion before runtime parity",
+            missing_paths=[converted],
+            regeneration_hint="run the strict conversion commands for all conditional checkpoints",
+        )
+    retrieval_path = _retrieval_index_path(dataset_name).resolve()
+    if not retrieval_path.exists():
+        skip_or_fail_vendor_parity(
+            "RALF retrieval index table is required for runtime parity",
+            missing_paths=[retrieval_path],
+            regeneration_hint="populate PRECOMPUTED_WEIGHT_DIR/retrieval_indexes under RALF_CACHE_DIR",
+        )
+
+    config = RalfConfig.from_pretrained(converted, local_files_only=True)
+    task_name = TASK_BY_CONDITION[cast(RalfConfigTaskName, condition_type)]
+    sample_id, labels, bbox, mask = _runtime_fixture(dataset_name)
+
+    retrieval_table = torch.load(retrieval_path, map_location="cpu", weights_only=False)
+    retrieval_key = int(sample_id) if dataset_name == "pku" else str(sample_id)
+    assert retrieval_key in retrieval_table
+    retrieved_indexes = torch.tensor([retrieval_table[retrieval_key][: config.top_k]])
+    assert retrieved_indexes.shape == (1, config.top_k)
+
+    relationship_table = _load_relationship_table()
+    monkeypatch.chdir(_cache_dir().resolve().parent)
+    monkeypatch.setenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+
+    torch.manual_seed(1234)
+    condition = _vendor_condition_inputs(
+        config=config,
+        task_name=task_name,
+        sample_id=sample_id,
+        labels=labels,
+        bbox=bbox,
+        mask=mask,
+    )
+
+    try:
+        import image2layout.train.models.layoutformerpp.task_preprocessor as task_preprocessor
+    except ModuleNotFoundError as exc:
+        _skip_missing_vendor_dependency(exc)
+        raise
+
+    random.seed(777)
+    torch.manual_seed(777)
+    vendor_preprocessor = task_preprocessor.PREPROCESSOR[task_name](
+        tokenizer=_build_vendor_tokenizer(config),
+        global_task_embedding=config.global_task_embedding,
+    )
+    vendor_tokens = vendor_preprocessor(condition)
+
+    random.seed(777)
+    torch.manual_seed(777)
+    local_tokens = _local_condition_tokens(
+        config=config,
+        task_name=task_name,
+        condition=condition,
+        relationship_table=relationship_table,
+        seed=777,
+    )
+
+    assert torch.equal(local_tokens["seq"].cpu(), vendor_tokens["seq"].cpu())
+    assert torch.equal(local_tokens["pad_mask"].cpu(), vendor_tokens["pad_mask"].cpu())
+
+    processor = RalfProcessor.from_pretrained(converted, local_files_only=True)
+    output = processor.post_process_layouts(
+        cast(torch.Tensor, condition.seq).clone().cpu(),
+        output_type="dataclass",
+        intermediates={
+            "runtime_parity": {
+                "dataset": dataset_name,
+                "condition_type": condition_type,
+                "task_name": task_name,
+                "sample_id": str(sample_id),
+                "retrieved_indexes": retrieved_indexes,
+                "generation_sequence_parity": "not-deterministic-top-k-sampling; condition path exact, decoded schema/range asserted",
+            }
+        },
+    )
+    assert isinstance(output, LayoutGenerationOutput)
+    output_bbox = cast(torch.Tensor, output.bbox)
+    output_labels = cast(torch.Tensor, output.labels)
+    output_mask = cast(torch.Tensor, output.mask)
+    assert output_bbox.ndim == 3
+    assert output_labels.ndim == 2
+    assert output_mask.ndim == 2
+    assert output_bbox.shape[:2] == output_labels.shape == output_mask.shape
+    assert bool(torch.all((0.0 <= output_bbox) & (output_bbox <= 1.0)).item())

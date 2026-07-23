@@ -50,3 +50,15 @@ repos:
         entry: uv run --package design-generators python scripts/check_src_vendor_language.py
         language: system
         pass_filenames: false
+
+      - id: config-defaults
+        name: config defaults
+        entry: uv run --package design-generators python scripts/check_config_defaults.py
+        language: system
+        pass_filenames: false
+
+      - id: module-naming
+        name: model module naming
+        entry: uv run --package design-generators python scripts/check_module_naming.py
+        language: system
+        pass_filenames: false

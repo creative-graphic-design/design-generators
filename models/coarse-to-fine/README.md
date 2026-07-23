@@ -38,7 +38,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
+This package ports [Coarse-to-Fine](https://ojs.aaai.org/index.php/AAAI/article/view/19994), an AAAI 2022 hierarchy-first layout generator, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package that returns the shared layout schema.
 
 ## Model Details
 
@@ -94,6 +94,14 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "coarse-to-fine @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/coarse-to-fine"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md). Those steps create `.cache/coarse-to-fine/converted/rico25`.
 

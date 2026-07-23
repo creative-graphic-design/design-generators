@@ -9,7 +9,10 @@ trainer:
 model:
   class_path: layout_flow.training.LayoutFlowTrainingModule
   init_args:
-    dataset_name: rico25
+    config:
+      class_path: layout_flow.LayoutFlowConfig
+      init_args:
+        dataset_name: rico25
     learning_rate: 0.0005
     scheduler: reduce_on_plateau
     condition_policy: random4

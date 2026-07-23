@@ -14,7 +14,6 @@ from layout_flow.processing_layout_flow import LayoutFlowProcessor
 from .config import (
     LayoutFlowConditionPolicy,
     LayoutFlowSeedMode,
-    LayoutFlowTrainingDatasetName,
     LayoutFlowTrainingScheduler,
 )
 from .losses import layout_flow_losses
@@ -26,9 +25,8 @@ class LayoutFlowTrainingModule(LightningModule):
     def __init__(
         self,
         *,
-        config: LayoutFlowConfig | None = None,
+        config: LayoutFlowConfig,
         model: LayoutFlowTransformerModel | None = None,
-        dataset_name: LayoutFlowTrainingDatasetName = "publaynet",
         learning_rate: float = 0.0005,
         scheduler: LayoutFlowTrainingScheduler | None = "reduce_on_plateau",
         condition_policy: LayoutFlowConditionPolicy = "random4",
@@ -38,7 +36,7 @@ class LayoutFlowTrainingModule(LightningModule):
     ) -> None:
         """Initialize LayoutFlow training state."""
         super().__init__()
-        self.layout_flow_config = config or LayoutFlowConfig(dataset_name=dataset_name)
+        self.layout_flow_config = config
         self.model = model or LayoutFlowTransformerModel(
             num_labels=self.layout_flow_config.num_labels,
             latent_dim=self.layout_flow_config.latent_dim,

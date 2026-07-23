@@ -9,28 +9,21 @@ lib/laygen/src/laygen/common/vendor.py	1	path: Optional user-supplied path. Defa
 lib/laygen/src/laygen/common/vendor.py	1	repo: Repository directory name under `vendor/`.
 lib/laygen/src/laygen/common/vendor.py	1	repo_dir = Path("vendor") / repo
 lib/laygen/src/laygen/nn/blocks.py	1	Layout-Corrector vendor code.
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	1	"""Return the vendor bbox-label count."""
+models/layout-detr/src/layout_detr/datasets.py	1	"""Iterate a local vendor Ad Banner directory without downloading assets.
+models/layout-detr/src/layout_detr/datasets.py	1	"""Normalize one vendor annotation row to public normalized center ``xywh``.
+models/layout-detr/src/layout_detr/datasets.py	1	if source != "vendor":
+models/layout-detr/src/layout_detr/datasets.py	1	raise ValueError("LayoutDETR currently supports only source='vendor'")
+models/layout-detr/src/layout_detr/datasets.py	1	sample: Vendor element with ``xyxy_word_fit``, ``label``, ``str``,
+models/layout-detr/src/layout_detr/datasets.py	1	source: Literal["vendor"] = "vendor",
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	background_preprocessing: Vendor-compatible lightweight mode.
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self._is_vendor_architecture = config.architecture == "vendor"
+models/layout-detr/src/layout_detr/postprocessing.py	1	"""Apply vendor-style multiplicative jitter to generated boxes."""
+models/layout-detr/src/layout_detr/postprocessing.py	1	"""Reduce vertical overlaps with the deterministic vendor arithmetic."""
+models/layout-detr/src/layout_detr/postprocessing.py	1	# Vendor generate.py contains a random-postprocessing assignment typo; the
 models/layout-dm/src/layout_dm/pipeline.py	1	condition_type: Canonical condition type or supported vendor alias.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Build the vendor sampling start template.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert token ids to vendor text lines."""
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert vendor text lines into padded token ids."""
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Encode public layout tensors into vendor token ids.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Split a vendor layout token string on whitespace."""
-models/ralf/src/ralf/configuration_ralf.py	1	freeze_layout_encoder: Whether the vendor layout encoder was frozen.
-models/ralf/src/ralf/configuration_ralf.py	1	layout_backbone: Vendor layout encoder name.
-models/ralf/src/ralf/configuration_ralf.py	1	retrieval_backbone: Vendor retrieval backbone name.
-models/ralf/src/ralf/configuration_ralf.py	1	task: Canonical condition type or vendor task alias for the checkpoint.
-models/ralf/src/ralf/configuration_ralf.py	1	var_order: Vendor token variable order.
-models/ralf/src/ralf/datasets.py	1	from org dataset ids (`text=0`, `logo=1`, `underlay=2`) to the vendor
-models/ralf/src/ralf/datasets.py	1	raise ImportError("Install ralf[vendor] to load org datasets") from exc
-models/ralf/src/ralf/modeling_ralf.py	1	"""Container preserving vendor checkpoint key prefix."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Small tokenizer view matching the vendor ids needed by the model."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible 2D sine positional encoding."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible MLP block."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible ResNet50 FPN feature extractor without external loads."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible autoregressive transformer decoder."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible cross-attention block."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible encoder for task/user constraint tokens."""
-models/ralf/src/ralf/modeling_ralf.py	1	"""Vendor-compatible sine positional encoding for token sequences."""
-models/ralf/src/ralf/processing_ralf.py	1	"""Normalize a public or vendor condition string."""
-models/ralf/src/ralf/retrieval.py	1	"""Convert explicit retrieved examples to vendor-style field names."""
-models/ralf/src/ralf/retrieval.py	1	"""Convert vendor retrieved fields to `RalfRetrievedBatch`."""

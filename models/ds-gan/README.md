@@ -39,7 +39,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [DS-GAN](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html), the content-aware poster layout generator from PosterLayout, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [DS-GAN](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html), the content-aware poster layout generator from PosterLayout, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -116,6 +116,15 @@ The converted behavior follows the upstream checkpoint, saliency preprocessing p
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation. Review generated layouts before downstream use and evaluate separately for each target poster domain.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "ds-gan @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/ds-gan"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md). Those steps create `.cache/ds-gan/converted/ds-gan-pku-posterlayout`.
 

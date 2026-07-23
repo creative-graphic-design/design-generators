@@ -14,10 +14,21 @@ from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
-from .configuration_ralf import RalfConfig
+from .configuration_ralf import RalfConfig, RalfConfigTaskName
 from .modeling_ralf import RalfForConditionalLayoutGeneration
 from .processing_ralf import RalfProcessor
 from .retrieval import RalfRetrievalTable
+
+SUPPORTED_GENERATION_CONDITIONS = {
+    ConditionType.unconditional,
+    ConditionType.label,
+    ConditionType.label_size,
+    ConditionType.completion,
+    ConditionType.refinement,
+    ConditionType.relation,
+    ConditionType.retrieval,
+    ConditionType.content_image,
+}
 
 
 def _load_model_component(
@@ -177,10 +188,12 @@ class RalfPipeline(LayoutGenerationPipeline):
         """
         _ = (num_elements, relations, num_inference_steps)
         condition = normalize_condition_type(condition_type)
-        if condition is not ConditionType.unconditional:
+        if condition not in SUPPORTED_GENERATION_CONDITIONS:
             raise NotImplementedError(
-                "This RALF port currently supports condition_type='unconditional' "
-                f"only; got {condition}"
+                "This RALF port currently supports unconditional, label, "
+                "label_size, completion, refinement, relation, retrieval, and "
+                "content_image; "
+                f"got {condition}"
             )
         encoded = self.processor(
             images=images,
@@ -223,6 +236,15 @@ class RalfPipeline(LayoutGenerationPipeline):
             generator=generation_generator,
             token_mask=self.processor.layout_tokenizer.token_mask(model_device),
             retrieved=encoded.get("retrieval"),
+            condition_type=cast(RalfConfigTaskName, str(condition)),
+            constraint_input_ids=encoded["input_ids"].to(model_device),
+            constraint_mask=encoded["attention_mask"].to(model_device),
+            constraint_element_mask=encoded["constraint_mask"].to(model_device),
+            relationship_table=cast(
+                Mapping[str, list[object]] | None,
+                relations if isinstance(relations, Mapping) else None,
+            ),
+            sample_ids=query_ids,
         )
         return self.processor.post_process_layouts(
             sequences.cpu(),

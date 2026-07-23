@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   -m "vendor_parity and training" -rs
 ```
 
-5. Convert both checkpoints to local [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
+5. Convert both checkpoints to local [`🧨diffusers`](https://huggingface.co/docs/diffusers/index) pipeline directories. These commands write `.cache/layout-flow/converted/publaynet` and `.cache/layout-flow/converted/rico25`, each with a `README.md`.
 
 ```bash
 uv run --package layout-flow --extra vendor python models/layout-flow/scripts/convert_original_checkpoint.py --dataset publaynet
