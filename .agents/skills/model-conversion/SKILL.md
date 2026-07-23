@@ -36,6 +36,20 @@ conversion.
    work around it; make the small in-scope fix or propose a focused `meta`
    follow-up.
 
+## Source Language
+
+Main package code under `models/*/src` and `lib/*/src` must read as this
+repository's own implementation. Do not describe runtime modules, public
+arguments, comments, or docstrings as vendor wrappers, vendor-compatible
+surfaces, or ports of vendor code. Use repository-owned wording such as
+`released`, `checkpoint`, `reference`, `source`, or `original-code dependency`
+when the distinction is needed.
+
+Vendor-language references are limited to conversion-responsibility modules,
+`tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs
+to compare against an original implementation, keep that detail in conversion,
+reference-generation, or parity-test paths rather than the public runtime API.
+
 ## Package Shape
 
 Create one uv workspace member under `models/<slug>/`:

@@ -1,7 +1,7 @@
 """Activation helpers shared by layout-generation transformer modules.
 
 The ``gelu2`` alias follows Microsoft VQ-Diffusion's GELU2/QuickGELU
-activation used by the LayoutDM, LACE, and LayoutFlow vendor backbones.
+activation used by the LayoutDM, LACE, and LayoutFlow checkpoint backbones.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ class ActivationName(StrEnum):
     """Supported feed-forward activation names.
 
     Origin:
-        ``gelu2`` is the VQ-Diffusion GELU2/QuickGELU branch carried through the
-        LayoutDM, LACE, and LayoutFlow vendor transformer utilities.
+        ``gelu2`` is the VQ-Diffusion GELU2/QuickGELU branch used by the
+        LayoutDM, LACE, and LayoutFlow transformer utilities.
     """
 
     relu = auto()

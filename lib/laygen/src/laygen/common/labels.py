@@ -160,7 +160,7 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """Normalize common dataset aliases to canonical registry names.
 
     Args:
-        dataset_name: User-facing dataset name or vendor alias.
+        dataset_name: User-facing dataset name or release alias.
 
     Returns:
         Canonical dataset name used by the shared label registry.
