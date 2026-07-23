@@ -10,6 +10,7 @@ from typing import Self, TypeAlias, assert_never, cast
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
+from jaxtyping import Bool, Float, Int
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
@@ -74,10 +75,19 @@ class LayoutFlowPipeline(DiffusionPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: TensorInput = None,
-        bbox: TensorInput = None,
-        mask: TensorInput = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[object]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

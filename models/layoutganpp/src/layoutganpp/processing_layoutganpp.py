@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import torch
+from jaxtyping import Int
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
@@ -53,7 +54,9 @@ class LayoutGANPPProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        labels: list[list[str | int]] | list[str | int] | torch.Tensor,
+        labels: list[list[str | int]]
+        | list[str | int]
+        | Int[torch.Tensor, "batch elements"],
         *,
         padding: bool = True,
         return_tensors: Literal["pt"] = "pt",

@@ -10,6 +10,7 @@ from diffusers.models.embeddings import get_timestep_embedding
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
 from einops import rearrange
+from jaxtyping import Float, Int
 from torch import nn
 from transformers import BertConfig
 from transformers.models.bert.modeling_bert import BertEncoder
@@ -19,7 +20,7 @@ from transformers.models.bert.modeling_bert import BertEncoder
 class LayoutDiffusionTransformerOutput(BaseOutput):
     """Output returned by ``LayoutDiffusionTransformer``."""
 
-    logits: torch.Tensor
+    logits: Float[torch.Tensor, "batch vocab tokens"]
 
 
 class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
@@ -110,12 +111,15 @@ class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
-        timesteps: torch.Tensor,
-        condition_ids: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timesteps: Int[torch.Tensor, "batch"],
+        condition_ids: Int[torch.Tensor, "batch tokens"] | None = None,
         condition_type: str | None = None,
         return_dict: bool = True,
-    ) -> LayoutDiffusionTransformerOutput | tuple[torch.Tensor]:
+    ) -> (
+        LayoutDiffusionTransformerOutput
+        | tuple[Float[torch.Tensor, "batch vocab tokens"]]
+    ):
         """Predict start-token logits for a reverse diffusion step.
 
         Args:

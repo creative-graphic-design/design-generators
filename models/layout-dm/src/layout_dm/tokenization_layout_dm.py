@@ -8,6 +8,7 @@ from os import PathLike
 from pathlib import Path
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedTokenizer
 
 from .configuration_layout_dm import LayoutDMConfig
@@ -107,9 +108,9 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def __call__(
         self,
         *,
-        bbox: torch.Tensor | list[object],
-        labels: torch.Tensor | list[object],
-        mask: torch.Tensor | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
+        labels: Int[torch.Tensor, "batch elements"] | list[object],
+        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
     ) -> dict[str, torch.Tensor]:
         """Encode structured layout tensors.
 

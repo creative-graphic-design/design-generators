@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Callable, Literal, TypeAlias
 
 import torch
+from jaxtyping import Int
 from torch import nn
 
 from laygen.nn import (
@@ -85,7 +86,9 @@ class CategoricalTransformer(nn.Module):
         )
 
     def forward(
-        self, input_ids: torch.Tensor, timestep: torch.Tensor | None = None
+        self,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        timestep: Int[torch.Tensor, "batch"] | None = None,
     ) -> dict[str, torch.Tensor]:
         """Predict logits for flattened LayoutDM token ids."""
         hidden = self.cat_emb(input_ids)

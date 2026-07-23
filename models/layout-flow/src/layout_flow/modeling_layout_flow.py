@@ -13,6 +13,7 @@ from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
+from jaxtyping import Bool, Float, Int
 from torch import nn
 
 from laygen.nn import clone_module_list, get_activation
@@ -55,7 +56,9 @@ class PositionalEncoding(nn.Module):
         self.pe: torch.Tensor
         self.register_buffer("pe", pe)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch tokens channels"]
+    ) -> Float[torch.Tensor, "1 tokens channels"]:
         """Return positional encodings matching the sequence length of ``x``."""
         return self.dropout(self.pe[:, : x.shape[1]])
 
@@ -76,7 +79,11 @@ class AdaLayerNorm(nn.Module):
         self.linear = nn.Linear(n_embd, n_embd * 2)
         self.layernorm = nn.LayerNorm(n_embd, elementwise_affine=False)
 
-    def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch tokens channels"],
+        timestep: Float[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Normalize ``x`` with scale and shift predicted from ``timestep``."""
         emb = self.linear(self.silu(self.emb(timestep))).unsqueeze(1)
         scale, shift = torch.chunk(emb, 2, dim=2)
@@ -115,11 +122,11 @@ class LayoutFlowBlock(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        timestep: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        src: Float[torch.Tensor, "batch tokens channels"],
+        src_mask: Bool[torch.Tensor, "..."] | None = None,
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        timestep: Float[torch.Tensor, "batch"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Apply self-attention and feed-forward layers."""
         if timestep is None:
             raise ValueError("timestep is required")
@@ -258,11 +265,11 @@ class LayoutDMBackbone(nn.Module):
 
     def forward(
         self,
-        geom: torch.Tensor,
-        attr: torch.Tensor,
-        cond_flags: torch.Tensor,
-        t: torch.Tensor,
-    ) -> torch.Tensor:
+        geom: Float[torch.Tensor, "batch elements 4"],
+        attr: Float[torch.Tensor, "batch elements bits"],
+        cond_flags: Int[torch.Tensor, "batch elements channels"],
+        t: Float[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Predict vector-field values for geometry and attribute inputs."""
         ps = None
         if self.attr_encoding is AttrEncoding.discrete:
@@ -313,7 +320,7 @@ class LayoutDMBackbone(nn.Module):
 class LayoutFlowModelOutput(BaseOutput):
     """Output of ``LayoutFlowTransformerModel``."""
 
-    sample: torch.Tensor
+    sample: Float[torch.Tensor, "batch elements channels"]
 
 
 class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
@@ -375,11 +382,11 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
-        cond_mask: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Float[torch.Tensor, ""],
+        cond_mask: Bool[torch.Tensor, "batch elements channels"],
         return_dict: bool = True,
-    ) -> LayoutFlowModelOutput | tuple[torch.Tensor]:
+    ) -> LayoutFlowModelOutput | tuple[Float[torch.Tensor, "batch elements channels"]]:
         """Predict the vector field for a model state.
 
         Args:
