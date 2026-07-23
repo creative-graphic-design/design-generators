@@ -42,6 +42,7 @@ ALLOWLIST_CATEGORIES = {
     },
     "layout-domain": {
         "bbox.py",
+        "conditioning.py",
         "constraints.py",
         "data_specs.py",
         "geometry.py",
@@ -51,6 +52,7 @@ ALLOWLIST_CATEGORIES = {
         "masking.py",
         "relation_schema.py",
         "retrieval.py",
+        "sampling.py",
         "serialization.py",
         "tasks.py",
         "types.py",

@@ -21,7 +21,6 @@ models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self._is_vendor_arc
 models/layout-detr/src/layout_detr/postprocessing.py	1	"""Apply vendor-style multiplicative jitter to generated boxes."""
 models/layout-detr/src/layout_detr/postprocessing.py	1	"""Reduce vertical overlaps with the deterministic vendor arithmetic."""
 models/layout-detr/src/layout_detr/postprocessing.py	1	# Vendor generate.py contains a random-postprocessing assignment typo; the
-models/layout-dm/src/layout_dm/pipeline.py	1	condition_type: Canonical condition type or supported vendor alias.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Build the vendor sampling start template.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert token ids to vendor text lines."""
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert vendor text lines into padded token ids."""
