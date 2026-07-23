@@ -88,6 +88,10 @@ Converted checkpoint directories and vendor fixtures are generated under `.cache
 
 The documentation site is published at [design-generators documentation](https://creative-graphic-design.github.io/design-generators/).
 
+## Training Policy
+
+Train-ourselves model packages use PyTorch Lightning with LightningCLI YAML configs and no Hydra dependency in the package-local training path. Each trainable model keeps its `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package; package-specific launch, resume, conversion, and smoke-test commands live in that package's `TRAINING.md`. Training validation is staged from static config parity to fixed-batch traces, one optimizer step, and full-run statistical comparison; deterministic mode is the equivalence gate for S0-S2 parity, while regular full runs use the package default seed mode. Shared infrastructure belongs in `lib/traingen` and comparison helpers in `lib/traingen-parity`.
+
 ## License
 
 Repository code is licensed under Apache-2.0; see [LICENSE](LICENSE). Converted weights, datasets, and vendored upstream code carry their original licenses.
