@@ -30,14 +30,14 @@ model-index:
 # Model Card for LayouSyn
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2505.04718&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2505.04718)
-![license](https://img.shields.io/static/v1?label=license&message=CC--BY--NC--4.0&color=orange&style=flat-square&logo=creativecommons&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=CC-BY-NC-4.0&color=orange&style=flat-square&logo=creativecommons&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=GRIT&color=informational&style=flat-square)
-![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO--grounded&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![dataset](https://img.shields.io/static/v1?label=dataset&message=COCO-grounded&color=informational&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
+This package wraps [LayouSyn](https://arxiv.org/abs/2505.04718), the [Lay-Your-Scene](https://github.com/mlpc-ucsd/Lay-Your-Scene) natural-scene layout method, in a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style pipeline with normalized public layout outputs.
 
 ## Model Details
 
@@ -94,6 +94,14 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layousyn @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layousyn"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md). Those steps create `.cache/layousyn/converted`.
 

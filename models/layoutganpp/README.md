@@ -32,15 +32,15 @@ model-index:
 
 [![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)](https://doi.org/10.1145/3474085.3475497)
 ![venue](https://img.shields.io/static/v1?label=venue&message=ACM+MM+2021&color=purple&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=AGPL--3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=AGPL-3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/magazine)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=tolerance--verified&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
+This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
 
 ## Model Details
 
@@ -118,6 +118,14 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layoutganpp @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layoutganpp"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md). Those steps create `.cache/layoutganpp/converted/layoutganpp-rico`.
 

@@ -23,7 +23,7 @@ datasets:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
 This package exposes [LayoutPrompter](https://arxiv.org/abs/2311.06495) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for few-shot layout generation from prompt exemplars and structured parser output.
@@ -80,6 +80,14 @@ The packaged behavior follows the upstream prompt fixtures, parser rules, and da
 Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layoutprompter @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layoutprompter"
+```
 
 Clone this repository and install the prompt-only workspace member. LayoutPrompter has no learned checkpoints; the example uses `pydantic-ai`'s `TestModel` so it runs without provider credentials.
 

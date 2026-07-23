@@ -73,6 +73,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Every PR must carry the same lane/topic labels as its implementation issue,
   such as `ready-heavy`, `documentation`, or `meta`; status labels stay on
   issues only and must not be added to PRs.
+- PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do
+  not replace the template when creating PRs with `gh pr create --body`.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue
@@ -173,6 +175,7 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   ```
 - The API reference is generated from workspace members under `lib/*` and
   `models/*`, using Python packages found below each member's `src/` directory.
+- Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags`.
 - Public API docstrings are the source text for the API reference. Use
   google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples`
   sections for public pipelines, tokenizers, processors, configs,
@@ -183,6 +186,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   snippet, supported checkpoints/Hub ids, datasets, reproducibility summary
   with vendor-parity numbers, license, citation, and original implementation
   link.
+- Each package README's install snippet uses
+  `pip install "pkg @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=<path>"`,
+  co-specifying required workspace libraries such as `laygen` and `posgen` in
+  the same command; clone + uv flows are for development and `REPRODUCING`
+  docs.
 - Each README includes `Reproducibility`, opening with one sentence that states
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity

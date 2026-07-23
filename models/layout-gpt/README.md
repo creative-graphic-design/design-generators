@@ -19,7 +19,7 @@ datasets:
 ![license](https://img.shields.io/static/v1?label=license&message=MIT&color=green&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=pydantic-ai&color=blue&style=flat-square&logo=pydantic&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=NSR-1K&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
 This package exposes [LayoutGPT](https://arxiv.org/abs/2305.15393) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for prompt-based text-to-layout generation, including the original prompt format, exemplar-selection modes, and output parser.
@@ -74,6 +74,14 @@ The packaged behavior follows the upstream prompt fixtures, exemplar metadata, p
 Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen[agents] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-gpt @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-gpt"
+```
 
 Clone this repository and install the prompt-only workspace member. LayoutGPT has no learned checkpoints; the example uses saved prompt configuration and a parsed output object, so it runs without provider credentials.
 

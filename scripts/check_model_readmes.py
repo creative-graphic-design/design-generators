@@ -4,16 +4,26 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git"
+ROOT_RUNTIME_DISPLAY_TO_LIBRARY = {
+    "`🤗 transformers`": "transformers",
+    "`🧨 diffusers`": "diffusers",
+    "`🤖 pydantic-ai`": "pydantic-ai",
+}
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )
 MODEL_READMES = [member_dir / "README.md" for member_dir in MODEL_MEMBER_DIRS]
 MODEL_REPRODUCING = [member_dir / "REPRODUCING.md" for member_dir in MODEL_MEMBER_DIRS]
+LIB_MEMBER_DIRS = sorted(
+    path.parent for path in (REPO_ROOT / "lib").glob("*/pyproject.toml")
+)
 README_LINK_CONTRACTS = [
     REPO_ROOT / "README.md",
     REPO_ROOT
@@ -108,6 +118,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/Rico",
         ],
     },
+    "housegan": {
+        "license": "gpl-3.0",
+        "datasets": ["housegan-floorplan-vectorized"],
+    },
     "lace": {
         "license": "mit",
         "datasets": [
@@ -201,6 +215,7 @@ EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
     "flex-dm": "Flex-DM",
+    "housegan": "House-GAN",
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
@@ -229,9 +244,14 @@ EXPECTED_REPOSITORY_LINKS = {
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
+    "housegan": "https://github.com/ennauata/housegan",
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
+SHARED_PACKAGE_SUBDIRS = {
+    "laygen": "lib/laygen",
+    "posgen": "lib/posgen",
+}
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",
     "converted behavior follows the upstream checkpoints",
@@ -251,6 +271,125 @@ def _section(text: str, heading: str) -> str:
     rest = text[match.end() :]
     next_heading = re.search(r"\n## ", rest)
     return rest[: next_heading.start()] if next_heading else rest
+
+
+def _bash_fences(text: str) -> list[str]:
+    return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+
+
+def _project_metadata(member_dir: Path) -> dict[str, object]:
+    return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _project_name(member_dir: Path) -> str:
+    project = _project_metadata(member_dir)["project"]
+    if not isinstance(project, dict):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+    name = project.get("name")
+    if not isinstance(name, str):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: project.name missing")
+    return name
+
+
+def _dependency_name(requirement: str) -> str:
+    return re.split(r"[<>=!~;\[]", requirement, maxsplit=1)[0].strip()
+
+
+def _dependency_direct_name(requirement: str) -> str:
+    return re.split(r"[<>=!~;]", requirement, maxsplit=1)[0].strip()
+
+
+def _project_dependencies(member_dir: Path) -> list[str]:
+    project = _project_metadata(member_dir)["project"]
+    if not isinstance(project, dict):
+        raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+    dependencies = project.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        raise AssertionError(
+            f"{member_dir / 'pyproject.toml'}: project.dependencies must be a list"
+        )
+    return [dependency for dependency in dependencies if isinstance(dependency, str)]
+
+
+def _direct_requirement(package_name: str, subdirectory: str) -> str:
+    return f"{package_name} @ git+{GIT_REPO_URL}#subdirectory={subdirectory}"
+
+
+def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
+    shared_dependencies: list[tuple[str, str]] = []
+    for shared_name, subdirectory in SHARED_PACKAGE_SUBDIRS.items():
+        for requirement in _project_dependencies(member_dir):
+            if _dependency_name(requirement) == shared_name:
+                shared_dependencies.append(
+                    (_dependency_direct_name(requirement), subdirectory)
+                )
+                break
+    slug = member_dir.name
+    return [*shared_dependencies, (_project_name(member_dir), f"models/{slug}")]
+
+
+def _pip_install_snippet(requirements: list[tuple[str, str]]) -> str:
+    direct_requirements = [
+        _direct_requirement(package_name, subdirectory)
+        for package_name, subdirectory in requirements
+    ]
+    if len(direct_requirements) == 1:
+        return f'pip install "{direct_requirements[0]}"'
+    lines = ["pip install \\"]
+    for index, requirement in enumerate(direct_requirements):
+        suffix = " \\" if index < len(direct_requirements) - 1 else ""
+        lines.append(f'  "{requirement}"{suffix}')
+    return "\n".join(lines)
+
+
+def _assert_pip_install_snippet(
+    path: Path,
+    section: str,
+    requirements: list[tuple[str, str]],
+    section_label: str,
+) -> None:
+    expected_requirements = [
+        _direct_requirement(package_name, subdirectory)
+        for package_name, subdirectory in requirements
+    ]
+    for fence in _bash_fences(section):
+        if "pip install" in fence and all(
+            requirement in fence for requirement in expected_requirements
+        ):
+            return
+
+    expected_example = f"```bash\n{_pip_install_snippet(requirements)}\n```"
+    missing = [
+        requirement
+        for requirement in expected_requirements
+        if requirement not in section
+    ]
+    raise AssertionError(
+        f"{path}: {section_label} must include a pip install snippet with "
+        f"the package direct URL and required shared package direct URLs. "
+        f"Missing: {missing}. Expected example:\n{expected_example}"
+    )
+
+
+def _assert_model_pip_install_snippet(path: Path, text: str) -> None:
+    section = _section(text, "## How to Get Started with the Model")
+    _assert_pip_install_snippet(
+        path,
+        section,
+        _model_install_requirements(path.parent),
+        "How to Get Started",
+    )
+
+
+def _assert_library_pip_install_snippet(path: Path, text: str) -> None:
+    section = _section(text, "## Install")
+    member_dir = path.parent
+    _assert_pip_install_snippet(
+        path,
+        section,
+        [(_project_name(member_dir), f"lib/{member_dir.name}")],
+        "Install",
+    )
 
 
 def _frontmatter(text: str) -> str:
@@ -290,6 +429,13 @@ def _markdown_link_spans(text: str) -> list[range]:
 
 def _in_any_span(position: int, spans: list[range]) -> bool:
     return any(position in span for span in spans)
+
+
+def _inline_code_span_at(text: str, position: int) -> str | None:
+    for match in re.finditer(r"`[^`\n]+`", text):
+        if position in range(match.start(), match.end()):
+            return match.group(0)
+    return None
 
 
 def _frontmatter_scalar(frontmatter: str, key: str) -> str | None:
@@ -338,6 +484,13 @@ def _badge_messages(text: str, label: str) -> list[str]:
 
 def _model_member_slugs() -> set[str]:
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
+
+
+def _library_member_slugs() -> set[str]:
+    return {
+        path.parent.name
+        for path in sorted((REPO_ROOT / "lib").glob("*/pyproject.toml"))
+    }
 
 
 def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
@@ -609,15 +762,15 @@ def _parity_requires_tolerance(section: str) -> bool:
 
 def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     section = _section(text, "### Parity Results")
-    badge = re.search(r"!\[vendor--parity\]\([^)]*[?&]message=([^&)]*)", text)
+    badge = re.search(r"!\[vendor-parity\]\([^)]*[?&]message=([^&)]*)", text)
     if badge is None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
     expected = (
-        "not--run"
+        "not-run"
         if "not run" in section
-        else "tolerance--verified"
+        else "tolerance-verified"
         if _parity_requires_tolerance(section)
-        else "bit--exact"
+        else "bit-exact"
     )
     actual = badge.group(1)
     if actual != expected:
@@ -698,6 +851,13 @@ def _root_packages_table_lines(text: str) -> list[str]:
     return text[start:end].splitlines()
 
 
+def _root_libraries_table_lines(text: str) -> list[str]:
+    marker = "## Libraries\n\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n\n", start)
+    return text[start:end].splitlines()
+
+
 def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
     text = path.read_text(encoding="utf-8")
     messages = _badge_messages(text, "models")
@@ -710,40 +870,75 @@ def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
 def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
-    expected_header = "| Model | Method | Runtime | Primary datasets | Weights |"
+    expected_header = "| Method | Venue | Runtime | Datasets | Reproduction |"
     if table_lines[:2] != [expected_header, "| --- | --- | --- | --- | --- |"]:
-        raise AssertionError(f"{path}: Models table must use a Weights column")
+        raise AssertionError(
+            f"{path}: Models table must use Method, Venue, Runtime, Datasets, Reproduction"
+        )
     runtime_by_slug: dict[str, str] = {}
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) != 5:
-            raise AssertionError(f"{path}: malformed Packages table row: {line}")
-        package_cell, _method_cell, runtime_cell, _datasets_cell, weights_cell = cells
-        slug_match = re.search(r"`models/([^`]+)`", package_cell)
+            raise AssertionError(f"{path}: malformed Models table row: {line}")
+        method_cell, venue_cell, runtime_cell, _datasets_cell, reproduction_cell = cells
+        slug_match = re.search(r"\]\(models/([^/)]+)/README\.md\)", method_cell)
         if slug_match is None:
-            raise AssertionError(f"{path}: package row missing models/<slug>: {line}")
+            raise AssertionError(
+                f"{path}: Method cell must link models/<slug>/README.md: {line}"
+            )
         slug = slug_match.group(1)
-        if runtime_cell not in {"`transformers`", "`diffusers`", "`pydantic-ai`"}:
+        if not venue_cell:
+            raise AssertionError(f"{path}: Models table Venue cell is empty: {line}")
+        root_library = ROOT_RUNTIME_DISPLAY_TO_LIBRARY.get(runtime_cell)
+        if root_library is None:
             raise AssertionError(
-                f"{path}: Models table Runtime cell must use code-form library name"
+                f"{path}: Models table Runtime cell must use emoji-form library name"
             )
-        runtime_by_slug[slug] = runtime_cell.strip("`")
-        if "documented" in weights_cell.lower():
+        runtime_by_slug[slug] = root_library
+        if "documented" in reproduction_cell.lower():
             raise AssertionError(
-                f"{path}: Packages table Weights column must not use status wording"
+                f"{path}: Models table Reproduction column must not use status wording"
             )
-        if slug in PROMPT_ONLY_SLUGS:
-            if weights_cell != "none (prompt-based)":
-                raise AssertionError(
-                    f"{path}: prompt-only package {slug} must state no weights"
-                )
-            continue
         expected_link = f"[REPRODUCING.md](models/{slug}/REPRODUCING.md)"
-        if weights_cell != f"convert locally ({expected_link})":
-            raise AssertionError(
-                f"{path}: weight-backed package {slug} must link conversion steps"
-            )
+        if reproduction_cell != expected_link:
+            raise AssertionError(f"{path}: package {slug} must link reproduction steps")
     return runtime_by_slug
+
+
+def _assert_root_libraries_table_matches_members(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    table_lines = _root_libraries_table_lines(text)
+    expected_header = "| Library | Description |"
+    if table_lines[:2] != [expected_header, "| --- | --- |"]:
+        raise AssertionError(
+            f"{path}: Libraries table must use Library and Description"
+        )
+    root_slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) != 2:
+            raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+        library_cell, description_cell = cells
+        slug_match = re.fullmatch(
+            r"\[([^]]+)\]\(lib/([^/)]+)/README\.md\)", library_cell
+        )
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Library cell must link lib/<slug>/README.md: {line}"
+            )
+        label, slug = slug_match.groups()
+        if label != slug:
+            raise AssertionError(f"{path}: Library label {label!r} must match {slug!r}")
+        if not description_cell:
+            raise AssertionError(f"{path}: Library {slug} must have a description")
+        root_slugs.add(slug)
+    member_slugs = _library_member_slugs()
+    missing = sorted(member_slugs - root_slugs)
+    extra = sorted(root_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"root README Libraries table mismatch: missing={missing}, extra={extra}"
+        )
 
 
 def _assert_model_doc_sets() -> None:
@@ -824,9 +1019,9 @@ def _assert_linked_first_reference_policy(path: Path) -> None:
 def _assert_library_name_style(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     banned_names = {
-        "Transformers": "🤗 `transformers`",
-        "Diffusers": "🤗 `diffusers`",
-        "Pydantic AI": "`pydantic-ai`",
+        "Transformers": "`🤗 transformers`",
+        "Diffusers": "`🧨 diffusers`",
+        "Pydantic AI": "`🤖 pydantic-ai`",
     }
     for name, replacement in banned_names.items():
         match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
@@ -834,29 +1029,34 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
-    emoji_mentions = re.findall(
-        r"🤗\s+(?:\[`(?:transformers|diffusers)`\]\([^)]*\)|`(?:transformers|diffusers)`)",
-        text,
-    )
-    if text.count("🤗") != len(emoji_mentions):
-        raise AssertionError(
-            f"{path}: 🤗 must annotate a transformers/diffusers library mention"
-        )
-    if len(emoji_mentions) > 1:
-        raise AssertionError(
-            f"{path}: 🤗 may appear only on the first Hugging Face library mention"
-        )
+    huggingface_mentions = re.findall(r"`🤗 transformers`", text)
+    if text.count("🤗") != len(huggingface_mentions):
+        raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
+    diffusers_mentions = re.findall(r"`🧨 diffusers`", text)
+    if text.count("🧨") != len(diffusers_mentions):
+        raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
+    pydantic_ai_mentions = re.findall(r"`🤖 pydantic-ai`", text)
+    if text.count("🤖") != len(pydantic_ai_mentions):
+        raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
-    spans = _markdown_link_spans(text)
+    if re.search(r"🤗\s+pydantic-ai", text):
+        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+    required_code_spans = {
+        "transformers": "`🤗 transformers`",
+        "diffusers": "`🧨 diffusers`",
+        "pydantic-ai": "`🤖 pydantic-ai`",
+    }
     for library in ("transformers", "diffusers", "pydantic-ai"):
-        for match in re.finditer(
-            rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w-])", text
-        ):
-            if not _in_any_span(match.start(), spans):
-                raise AssertionError(
-                    f"{path}: use code-form `{library}` for library names"
-                )
+        for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
+            if (
+                _inline_code_span_at(text, match.start())
+                == required_code_spans[library]
+            ):
+                continue
+            raise AssertionError(
+                f"{path}: use code-form {required_code_spans[library]} for library names"
+            )
 
 
 def check() -> None:
@@ -864,6 +1064,7 @@ def check() -> None:
     root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
     _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
     _assert_root_models_table_matches_members(root_runtime_by_slug)
+    _assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
     _assert_generated_docs_targets_match_members()
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
@@ -871,6 +1072,7 @@ def check() -> None:
         _assert_expected_frontmatter(path, text)
         _assert_runtime_contract(path, text, root_runtime_by_slug)
         _assert_heading_order(path, text)
+        _assert_model_pip_install_snippet(path, text)
         _assert_model_summary_subject(path, text)
         _assert_expected_repository_links(path, text)
         _assert_prompt_only_readme(path, text)
@@ -889,6 +1091,12 @@ def check() -> None:
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
         _assert_library_name_style(path)
+    for member_dir in LIB_MEMBER_DIRS:
+        path = member_dir / "README.md"
+        _assert_library_pip_install_snippet(
+            path,
+            path.read_text(encoding="utf-8"),
+        )
     for path in README_POLICY_DOCS:
         text = path.read_text(encoding="utf-8")
         _assert_code_fences_tagged(path, text)

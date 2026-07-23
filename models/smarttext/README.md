@@ -36,10 +36,10 @@ model-index:
 ![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=SmartText+demo&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports SmartText, the TMM 2021 content-aware text placement method, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package with vendor-compatible `PreTrainedModel` components and a `laygen.pipelines.LayoutGenerationPipeline` subclass.
+This package ports SmartText, the TMM 2021 content-aware text placement method, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package for content-aware text placement.
 
 ## Model Details
 
@@ -107,6 +107,14 @@ The shim follows the vendor CUDA kernel formulas directly: RoIAlign samples the 
 Use the parity commands before comparing research results, and inspect generated boxes visually when moving beyond the vendor demo images.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "smarttext @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/smarttext"
+```
 
 The Hub checkpoint is not published yet. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md) to convert the released weights locally and load the converted directory:
 

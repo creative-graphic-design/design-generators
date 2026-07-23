@@ -37,10 +37,10 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a 🤗 [`diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
+This package ports [LACE](https://openreview.net/forum?id=kJ0qp9Xdsh), an ICLR 2024 layout diffusion editor, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package for PubLayNet and RICO checkpoints.
 
 ## Model Details
 
@@ -109,6 +109,14 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "lace @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/lace"
+```
 
 Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md). Those steps create `.cache/lace/converted/lace-publaynet`.
 

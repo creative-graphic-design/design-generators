@@ -1,7 +1,7 @@
 # posgen
 
 ![package](https://img.shields.io/static/v1?label=package&message=posgen&color=blue&style=flat-square)
-![license](https://img.shields.io/static/v1?label=license&message=Apache--2.0&color=green&style=flat-square&logo=apache&logoColor=white)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![runtime](https://img.shields.io/static/v1?label=runtime&message=torch&color=informational&style=flat-square)
 ![status](https://img.shields.io/static/v1?label=status&message=skeleton&color=lightgrey&style=flat-square)
@@ -12,6 +12,14 @@
 Use `posgen` for poster or content-aware placement concerns such as Crello-style element categories and position-content summaries. Use [`laygen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/laygen) for general layout-generation schemas, bbox conversion, scheduler adapters, and model-card helpers. The package is still a skeleton until more poster models need shared behavior, so model-specific saliency, retrieval, ranking, and rendering logic should stay in model packages.
 
 ## Install
+
+Install directly from this repository.
+
+```bash
+pip install "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen"
+```
+
+For local development in a checkout, use uv workspace commands.
 
 ```bash
 uv sync --package posgen

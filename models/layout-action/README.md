@@ -36,10 +36,10 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=InfoPPT&color=informational&style=flat-square)
-![vendor--parity](https://img.shields.io/static/v1?label=vendor--parity&message=bit--exact&color=success&style=flat-square)
-![hub](https://img.shields.io/static/v1?label=hub&message=not--published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutAction](https://ojs.aaai.org/index.php/AAAI/article/view/26277), the AAAI 2023 action-sequence layout generator, into a 🤗 [`transformers`](https://huggingface.co/docs/transformers/index)-style package.
+This package ports [LayoutAction](https://ojs.aaai.org/index.php/AAAI/article/view/26277), the AAAI 2023 action-sequence layout generator, into a [`🤗 transformers`](https://huggingface.co/docs/transformers/index)-style package.
 
 ## Model Details
 
@@ -100,6 +100,14 @@ Layout quality follows the original checkpoints and datasets. RICO uses the vend
 Use local converted checkpoints only after validating the original asset provenance and license. Treat stochastic top-k parity as device- and RNG-order-sensitive until exact reference artifacts are regenerated.
 
 ## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-action @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-action"
+```
 
 Install the workspace member and load a converted checkpoint directory.
 

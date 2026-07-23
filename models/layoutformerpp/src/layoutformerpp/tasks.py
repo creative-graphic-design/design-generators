@@ -59,7 +59,7 @@ def normalize_layoutformerpp_dataset(dataset: DatasetName | str) -> DatasetName:
 
 
 def layoutformerpp_dataset_slug(dataset: DatasetName | str) -> str:
-    """Return the vendor/HF slug for a LayoutFormer++ dataset."""
+    """Return the dataset slug for a LayoutFormer++ dataset."""
     return DATASET_TO_VENDOR_SLUG[normalize_layoutformerpp_dataset(dataset)]
 
 
