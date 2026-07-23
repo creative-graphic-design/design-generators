@@ -17,6 +17,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn.utils import spectral_norm
 
+from housegan.configuration_housegan import HouseGanConfig
 from housegan.graph_schema import relation_from_bboxes
 from housegan.processing_housegan import HouseGanProcessor
 
@@ -61,7 +62,9 @@ def main() -> None:
             .detach()
             .cpu()
         )
-    decoded = HouseGanProcessor().post_process_masks(
+    decoded = HouseGanProcessor(
+        config=HouseGanConfig(target_set=args.target_set)
+    ).post_process_masks(
         forward_masks,
         labels=cast(torch.LongTensor, labels),
         edges=cast(torch.LongTensor, edges),

@@ -2,13 +2,13 @@ import pytest
 import torch
 from typing import cast
 
-from housegan import HouseGanProcessor
+from housegan import HouseGanConfig, HouseGanProcessor
 from laygen.modeling_outputs import LayoutGenerationOutput
 from housegan.processing_housegan import mask_to_ltrb
 
 
 def test_processor_relation_payload_and_mask_postprocess():
-    processor = HouseGanProcessor()
+    processor = HouseGanProcessor(config=HouseGanConfig())
     encoded = processor(
         condition_type="graph",
         scene_graph={
@@ -35,7 +35,9 @@ def test_processor_relation_payload_and_mask_postprocess():
 
 def test_unsupported_condition_raises():
     with pytest.raises(NotImplementedError):
-        HouseGanProcessor()(condition_type="unconditional", labels=[0])
+        HouseGanProcessor(config=HouseGanConfig())(
+            condition_type="unconditional", labels=[0]
+        )
 
 
 def test_mask_to_ltrb_vendor_inclusive_behavior():
@@ -45,7 +47,9 @@ def test_mask_to_ltrb_vendor_inclusive_behavior():
 
 
 def test_processor_bbox_relations_and_save_load(tmp_path):
-    processor = HouseGanProcessor(default_missing_relation="error")
+    processor = HouseGanProcessor(
+        config=HouseGanConfig(), default_missing_relation="error"
+    )
     with pytest.raises(ValueError):
         processor(labels=[0, 1])
     encoded = processor(
