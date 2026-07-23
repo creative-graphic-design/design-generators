@@ -38,7 +38,7 @@ def build_condition(
 
     Args:
         tokenizer: LayoutDM tokenizer used to encode structured layouts.
-        cond_type: Canonical condition type or vendor alias.
+        cond_type: Canonical condition type or release alias.
         bbox: Normalized center ``xywh`` boxes.
         labels: Dataset-local labels.
         mask: Valid-element mask.

@@ -1,4 +1,4 @@
-"""Exemplar selection strategies ported from the LayoutPrompter vendor code."""
+"""Exemplar selection strategies for LayoutPrompter prompt construction."""
 
 from __future__ import annotations
 
