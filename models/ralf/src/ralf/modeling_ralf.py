@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import cast
+from typing import Final, Literal, cast
 
 import timm
 import torch
@@ -20,8 +21,13 @@ from torchvision.models.feature_extraction import create_feature_extractor
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput
 
-from .configuration_ralf import RalfConfig
-from .retrieval import RalfRetrievedBatch, retrieved_batch_to_vendor_dict
+from .configuration_ralf import (
+    RalfConfig,
+    RalfConfigTaskName,
+    RalfLayoutVariable,
+    RalfTaskName,
+)
+from .retrieval import RalfRetrievedBatch, retrieved_batch_to_model_inputs
 
 GEO_KEYS: tuple[str, ...] = ("width", "height", "center_x", "center_y")
 FID_BBOX_KEYS: tuple[str, ...] = ("center_x", "center_y", "width", "height")
@@ -39,17 +45,56 @@ RELATIONSHIP_TOKENS: tuple[str, ...] = tuple(chr(ord("A") + idx) for idx in rang
 RELATIONSHIP_POSITION_TOKENS: tuple[str, ...] = (
     "unknown_loc",
     "left",
-    "right",
     "top",
+    "right",
     "bottom",
     "center",
 )
 RELATIONSHIP_SIZE_TOKENS: tuple[str, ...] = (
     "unknown_size",
     "smaller",
-    "larger",
     "equal",
+    "larger",
 )
+RalfTaskTokenName = Literal[
+    "uncondition",
+    "label",
+    "label_size",
+    "relationship",
+    "refinement",
+    "completion",
+]
+
+TASK_BY_CONDITION: Final[dict[RalfConfigTaskName, RalfTaskName]] = {
+    "unconditional": "uncond",
+    "retrieval": "uncond",
+    "content_image": "uncond",
+    "label": "c",
+    "label_size": "cwh",
+    "completion": "partial",
+    "refinement": "refinement",
+    "relation": "relation",
+    "uncond": "uncond",
+    "c": "c",
+    "cwh": "cwh",
+    "chw": "cwh",
+    "partial": "partial",
+}
+TASK_TOKEN_BY_TASK: Final[dict[RalfTaskName, RalfTaskTokenName]] = {
+    "uncond": "uncondition",
+    "c": "label",
+    "cwh": "label_size",
+    "partial": "completion",
+    "refinement": "refinement",
+    "relation": "relationship",
+}
+PREPROCESSOR_VAR_BY_TASK: Final[dict[RalfTaskName, tuple[RalfLayoutVariable, ...]]] = {
+    "c": ("label",),
+    "cwh": ("label", "width", "height"),
+    "partial": ("label", "width", "height", "center_x", "center_y"),
+    "refinement": ("label", "width", "height", "center_x", "center_y"),
+    "relation": ("label",),
+}
 
 
 class ImageReshaper(nn.Module):
@@ -66,7 +111,7 @@ class ImageReshaper(nn.Module):
 
 
 class PositionalEncoding1d(nn.Module):
-    """Vendor-compatible sine positional encoding for token sequences."""
+    """RALF sine positional encoding for token sequences."""
 
     def __init__(
         self,
@@ -106,7 +151,7 @@ class PositionalEncoding1d(nn.Module):
 
 
 class PositionEmbeddingSine(nn.Module):
-    """Vendor-compatible 2D sine positional encoding."""
+    """RALF 2D sine positional encoding."""
 
     def __init__(
         self,
@@ -153,7 +198,7 @@ class PositionEmbeddingSine(nn.Module):
 
 
 class FeedForward(nn.Module):
-    """Vendor-compatible MLP block."""
+    """RALF MLP block."""
 
     def __init__(
         self,
@@ -178,7 +223,7 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    """Vendor-compatible cross-attention block."""
+    """RALF cross-attention block."""
 
     def __init__(
         self,
@@ -218,7 +263,7 @@ class Attention(nn.Module):
 
 
 class ResnetBackbone(nn.Module):
-    """Vendor-compatible ResNet50 FPN feature extractor without external loads."""
+    """RALF ResNet50 FPN feature extractor without external loads."""
 
     def __init__(
         self, backbone: str = "resnet50", d_model: int = 256, head: str = "transformer"
@@ -262,7 +307,7 @@ class ResnetBackbone(nn.Module):
 
 
 class ResnetFeatureExtractor(nn.Module):
-    """Container preserving vendor checkpoint key prefix."""
+    """Container preserving checkpoint key prefix."""
 
     def __init__(
         self,
@@ -340,7 +385,7 @@ class FIDNetFeatureExtractor(nn.Module):
 
 
 class BaseDecoder(nn.Module):
-    """Vendor-compatible autoregressive transformer decoder."""
+    """RALF autoregressive transformer decoder."""
 
     def __init__(
         self,
@@ -409,7 +454,7 @@ class BaseDecoder(nn.Module):
 
 
 class UserConstraintTransformerEncoder(nn.Module):
-    """Vendor-compatible encoder for task/user constraint tokens."""
+    """RALF encoder for task/user constraint tokens."""
 
     def __init__(
         self,
@@ -450,8 +495,8 @@ class UserConstraintTransformerEncoder(nn.Module):
         return h
 
 
-class RalfVendorTokenizerView:
-    """Small tokenizer view matching the vendor ids needed by the model."""
+class RalfTokenizerView:
+    """Small tokenizer view matching the token ids needed by the model."""
 
     def __init__(self, config: RalfConfig) -> None:
         self.config = config
@@ -501,15 +546,32 @@ class RalfVendorTokenizerView:
         return self.config.special_token_id(name)
 
 
-class UnconditionalPreprocessor:
-    """Unconditional RALF task token preprocessor."""
+class RalfTaskPreprocessor:
+    """RALF task token preprocessor."""
 
     def __init__(
-        self, tokenizer: RalfVendorTokenizerView, global_task_embedding: bool = False
+        self,
+        tokenizer: RalfTokenizerView,
+        *,
+        task: RalfTaskName,
+        global_task_embedding: bool = False,
+        relationship_table: Mapping[str, list[object]] | None = None,
+        relation_size: int = 10,
     ) -> None:
         self.tokenizer = tokenizer
         self.global_task_embedding = global_task_embedding
-        self._TASK = "uncondition"
+        self.task_name = task
+        self.relationship_table = (
+            {
+                str(key): random.sample(values, len(values))
+                for key, values in relationship_table.items()
+            }
+            if relationship_table is not None
+            else None
+        )
+        self.relation_size = int(relation_size)
+        self._TASK = TASK_TOKEN_BY_TASK[task]
+        self._VAR = PREPROCESSOR_VAR_BY_TASK.get(task, ())
         self.device = torch.device("cpu")
         tokens = (
             TASK_TOKEN_VOCABULARIES
@@ -531,7 +593,7 @@ class UnconditionalPreprocessor:
         }
 
     @property
-    def TASK(self) -> str:
+    def TASK(self) -> RalfTaskTokenName:
         return self._TASK
 
     @property
@@ -540,6 +602,28 @@ class UnconditionalPreprocessor:
 
     def name_to_id(self, name: str) -> int:
         return self._token_to_name_to_id[name]
+
+    def _relation_item_to_name(self, item: object) -> str:
+        name = getattr(item, "name", item)
+        class_name = item.__class__.__name__
+        if not isinstance(name, str):
+            return str(name)
+        if name == "UNKNOWN":
+            return "unknown_size" if class_name == "RelSize" else "unknown_loc"
+        relation_names = {
+            "LEFT": "left",
+            "TOP": "top",
+            "RIGHT": "right",
+            "BOTTOM": "bottom",
+            "CENTER": "center",
+            "SMALLER": "smaller",
+            "EQUAL": "equal",
+            "LARGER": "larger",
+        }
+        return relation_names.get(name, name)
+
+    def _relation_item_to_id(self, item: object) -> int:
+        return self.name_to_id(self._relation_item_to_name(item))
 
     def get_token(self, name: str, batch_size: int) -> Tensor:
         return torch.full((batch_size, 1), self.name_to_id(name), device=self.device)
@@ -556,15 +640,147 @@ class UnconditionalPreprocessor:
     def create_pad_mask(self, seq: Tensor) -> Tensor:
         return seq == self.name_to_id("pad")
 
+    def _parse_seq_into_vars(self, seq: Tensor) -> dict[str, Tensor]:
+        seq = seq.clone()
+        seq[seq == self.name_to_id("eos")] = self.name_to_id("pad")
+        seq = seq[:, 1:]
+        seq = seq.reshape(seq.size(0), -1, len(self.tokenizer.var_order))
+        return {key: seq[..., idx] for idx, key in enumerate(self.tokenizer.var_order)}
+
+    def _shuffle_seq_vars(self, seq_vars: dict[str, Tensor]) -> dict[str, Tensor]:
+        label = seq_vars["label"]
+        non_padding_counts = (label != self.name_to_id("pad")).sum(dim=1)
+        shuffled = {key: value.clone() for key, value in seq_vars.items()}
+        for batch_idx, count in enumerate(non_padding_counts.tolist()):
+            if count <= 1:
+                continue
+            indexes = torch.randperm(count, device=label.device)
+            for key, value in seq_vars.items():
+                shuffled[key][batch_idx, :count] = value[batch_idx, indexes]
+        return shuffled
+
+    def _valid_element_mask(self, seq_vars: Mapping[str, Tensor]) -> Tensor:
+        label = seq_vars["label"]
+        return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
+
+    def _geo_sequence(self, inputs: "RalfConditionalInputs") -> Tensor:
+        if inputs.seq is None:
+            raise ValueError(f"condition_type={self.task_name!r} requires labels")
+        seq = inputs.seq
+        if self.task_name == "partial" and inputs.mask is not None:
+            seq = seq.clone()
+            seq[~inputs.mask.bool()] = self.name_to_id("pad")
+        seq_vars = self._parse_seq_into_vars(seq)
+        if self.task_name == "relation":
+            _ = self._shuffle_seq_vars(seq_vars)
+            seq_vars = self._shuffle_seq_vars(seq_vars)
+        elif self.task_name == "c":
+            seq_vars = self._shuffle_seq_vars(seq_vars)
+        valid = (
+            self._valid_element_mask(seq_vars)
+            if inputs.element_mask is None
+            else inputs.element_mask[:, : seq_vars["label"].size(1)].bool()
+        )
+        if self.task_name == "partial":
+            valid = torch.zeros_like(valid)
+            if valid.size(1) > 0:
+                valid[:, 0] = True
+        max_valid = int(valid.sum(dim=1).max().item()) if valid.numel() else 0
+        if max_valid == 0:
+            return self.get_token("pad", inputs.image.size(0))
+        pieces: list[Tensor] = []
+        sep = self.get_token("sep", inputs.image.size(0))
+        for element_idx in range(max_valid):
+            for key in self._VAR:
+                values = seq_vars[key][:, element_idx : element_idx + 1]
+                values = torch.where(
+                    valid[:, element_idx : element_idx + 1],
+                    values,
+                    self.get_token("pad", inputs.image.size(0)),
+                )
+                pieces.append(values)
+            if element_idx != max_valid - 1:
+                pieces.append(sep)
+        return torch.cat(pieces, dim=1)
+
+    def _relation_ids(self, ids: object, batch_size: int) -> list[str]:
+        if ids is None:
+            return [""] * batch_size
+        if isinstance(ids, Tensor):
+            return [str(item) for item in ids.detach().cpu().tolist()]
+        if isinstance(ids, (list, tuple)):
+            return [str(item) for item in ids]
+        return [str(ids)] * batch_size
+
+    def _relation_sequence(
+        self, inputs: "RalfConditionalInputs", label_sequence: Tensor
+    ) -> Tensor:
+        if self.relationship_table is None:
+            return label_sequence
+        batch = label_sequence.size(0)
+        label_mask = self.create_pad_mask(label_sequence)
+        label_sequence = label_sequence.clone()
+        if not self.global_task_embedding:
+            label_sequence[:, 1] = self.get_token(self.TASK, batch)[:, 0]
+        label_sequence[label_sequence == self.name_to_id("eos")] = self.name_to_id(
+            "relation_sep"
+        )
+
+        outputs = []
+        max_length = 0
+        for batch_idx, item_id in enumerate(self._relation_ids(inputs.id, batch)):
+            seq = label_sequence[batch_idx][~label_mask[batch_idx]]
+            relations = self.relationship_table.get(item_id, [])
+            if not relations:
+                seq = torch.cat([seq, self.get_token("eos", 1)[0]], dim=0)
+                outputs.append(seq)
+                max_length = max(max_length, seq.size(0))
+                continue
+            sample_size = max(len(relations) * self.relation_size // 100, 1)
+            sampled = random.sample(relations, sample_size)
+            relation_tokenized = torch.tensor(
+                [
+                    [
+                        self._relation_item_to_id(element)
+                        for element in cast(list[object], relation)
+                    ]
+                    for relation in sampled
+                ],
+                dtype=torch.long,
+                device=self.device,
+            )
+            sep = self.get_token("sep", relation_tokenized.size(0))
+            relation_with_sep = torch.cat([relation_tokenized, sep], dim=1).view(-1)
+            relation_with_sep[-1] = self.name_to_id("eos")
+            seq = torch.cat([seq, relation_with_sep], dim=0)
+            outputs.append(seq)
+            max_length = max(max_length, seq.size(0))
+        out = torch.full(
+            (batch, max_length),
+            fill_value=self.name_to_id("pad"),
+            dtype=torch.long,
+            device=self.device,
+        )
+        for batch_idx, seq in enumerate(outputs):
+            out[batch_idx, : seq.size(0)] = seq
+        return out
+
     def __call__(self, inputs: "RalfConditionalInputs") -> dict[str, Tensor]:
         batch = inputs.image.size(0)
         self.device = inputs.image.device
         bos = self.get_token("bos", batch)
         eos = self.get_token("eos", batch)
+        body = (
+            torch.empty(batch, 0, dtype=torch.long, device=self.device)
+            if self.task_name == "uncond"
+            else self._geo_sequence(inputs)
+        )
         if self.global_task_embedding:
-            seq = torch.cat([bos, eos], dim=-1)
+            seq = torch.cat([bos, body, eos], dim=-1)
         else:
-            seq = torch.cat([bos, self.create_task_token(batch), eos], dim=-1)
+            seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
+        if self.task_name == "relation":
+            seq = self._relation_sequence(inputs, seq)
         return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
 
 
@@ -576,7 +792,9 @@ class RalfConditionalInputs:
     retrieved: dict[str, Tensor]
     seq: Tensor | None = None
     mask: Tensor | None = None
-    task: str | None = "uncond"
+    element_mask: Tensor | None = None
+    task: RalfTaskName | None = "uncond"
+    id: object = None
 
 
 def _get_ref_layout_input(
@@ -610,6 +828,89 @@ def _extract_retrieved_features(
     return pos_emb_1d(stacked)
 
 
+def _restrict_reliable_label_or_size(
+    *,
+    sampling_idx: int,
+    condition: Tensor | None,
+    logits: Tensor,
+    pad_id: int,
+    eos_id: int,
+    max_length: int,
+) -> Tensor:
+    if condition is None:
+        return logits
+    batch = condition.size(0)
+    for batch_idx in range(batch):
+        given = int(condition[batch_idx, sampling_idx].item())
+        first_pad = torch.argmax(condition[batch_idx].eq(pad_id).float())
+        first_pad_idx = (
+            int(first_pad.item())
+            if condition[batch_idx, first_pad].eq(pad_id).item()
+            else max_length + 1
+        )
+        mask = torch.ones(logits.size(-1), dtype=torch.bool, device=logits.device)
+        if sampling_idx < first_pad_idx:
+            if given in (pad_id, -1):
+                continue
+            mask[given] = False
+        else:
+            mask[eos_id] = False
+        logits[batch_idx, mask] = -math.inf
+    return logits
+
+
+def _restrict_only_category(
+    *,
+    sampling_idx: int,
+    condition: Tensor | None,
+    logits: Tensor,
+    pad_id: int,
+    eos_id: int,
+    max_length: int,
+) -> Tensor:
+    if (sampling_idx - 1) % 5 != 0:
+        return logits
+    return _restrict_reliable_label_or_size(
+        sampling_idx=sampling_idx,
+        condition=condition,
+        logits=logits,
+        pad_id=pad_id,
+        eos_id=eos_id,
+        max_length=max_length,
+    )
+
+
+def _apply_decode_space_restriction(
+    *,
+    task: RalfTaskName,
+    step: int,
+    condition: Tensor | None,
+    logits: Tensor,
+    pad_id: int,
+    eos_id: int,
+    max_length: int,
+) -> Tensor:
+    if task in {"c", "cwh"}:
+        return _restrict_reliable_label_or_size(
+            sampling_idx=step + 1,
+            condition=condition,
+            logits=logits,
+            pad_id=pad_id,
+            eos_id=eos_id,
+            max_length=max_length,
+        )
+    if task in {"refinement", "relation"}:
+        return _restrict_only_category(
+            sampling_idx=step + 1,
+            condition=condition,
+            logits=logits,
+            pad_id=pad_id,
+            eos_id=eos_id,
+            max_length=max_length,
+        )
+    return logits
+
+
 class RalfForConditionalLayoutGeneration(PreTrainedModel):
     """Standalone `PreTrainedModel` for RALF autoregressive decoding."""
 
@@ -621,7 +922,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     def __init__(self, config: RalfConfig) -> None:
         """Initialize a local module tree matching original RALF checkpoint keys."""
         super().__init__(config)
-        self.tokenizer = RalfVendorTokenizerView(config)
+        self.tokenizer = RalfTokenizerView(config)
         self.dataset_name = config.dataset_name
         self.d_model = config.d_model
         self.max_seq_length = config.max_seq_length
@@ -680,13 +981,12 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             dim=256, hidden_dim=4 * config.d_model, output_dim=config.d_model
         )
         self.head = FeedForward(dim=config.d_model, hidden_dim=4 * config.d_model)
-        self.auxilary_task = self._canonical_to_vendor_task(config.task)
-        if self.auxilary_task != "uncond":
-            raise NotImplementedError("This RALF port currently supports uncond only")
+        self.auxilary_task = self._canonical_to_task_name(config.task)
         self.use_multitask = config.use_multitask
         self.global_task_embedding = config.global_task_embedding
-        self.preprocessor = UnconditionalPreprocessor(
+        self.preprocessor = RalfTaskPreprocessor(
             tokenizer=self.tokenizer,
+            task=self.auxilary_task,
             global_task_embedding=config.global_task_embedding,
         )
         self.user_const_encoder = UserConstraintTransformerEncoder(
@@ -708,13 +1008,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
-    def _canonical_to_vendor_task(task: str) -> str:
-        return {
-            "unconditional": "uncond",
-            "label": "c",
-            "label_size": "cwh",
-            "completion": "partial",
-        }.get(task, task)
+    def _canonical_to_task_name(task: RalfConfigTaskName | str) -> RalfTaskName:
+        if task not in TASK_BY_CONDITION:
+            raise ValueError(f"Unsupported RALF task or condition: {task}")
+        return TASK_BY_CONDITION[cast(RalfConfigTaskName, task)]
 
     def _default_retrieved(
         self, batch_size: int, device: torch.device, dtype: torch.dtype
@@ -776,13 +1073,19 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             )
         }
 
-    def _prepare_unconditional_inputs(
+    def _prepare_conditional_inputs(
         self,
         *,
         pixel_values: Tensor | None,
         saliency: Tensor | None,
         retrieved: RalfRetrievedBatch | None,
         batch_size: int,
+        condition_type: RalfConfigTaskName | None = None,
+        constraint_input_ids: Tensor | None = None,
+        constraint_mask: Tensor | None = None,
+        constraint_element_mask: Tensor | None = None,
+        relationship_table: Mapping[str, list[object]] | None = None,
+        sample_ids: object = None,
     ) -> dict[str, Tensor | Mapping[str, Tensor]]:
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
@@ -819,21 +1122,57 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 key: value.to(device=device, dtype=dtype)
                 if value.is_floating_point()
                 else value.to(device=device)
-                for key, value in retrieved_batch_to_vendor_dict(retrieved).items()
+                for key, value in retrieved_batch_to_model_inputs(retrieved).items()
             }
         )
         if retrieved_dict["image"].size(2) == 3:
             retrieved_dict["image"] = torch.cat(
                 [retrieved_dict["image"], retrieved_dict["saliency"]], dim=2
             )
-        cond = RalfConditionalInputs(image=image, retrieved=retrieved_dict)
-        seq_constraints = self.preprocessor(cond)
+        task = self._canonical_to_task_name(condition_type or self.auxilary_task)
+        preprocessor = (
+            self.preprocessor
+            if task == self.auxilary_task and relationship_table is None
+            else RalfTaskPreprocessor(
+                tokenizer=self.tokenizer,
+                task=task,
+                global_task_embedding=self.global_task_embedding,
+                relationship_table=relationship_table if task == "relation" else None,
+                relation_size=self.config.relation_size,
+            )
+        )
+        cond = RalfConditionalInputs(
+            image=image,
+            retrieved=retrieved_dict,
+            seq=constraint_input_ids,
+            mask=constraint_mask,
+            element_mask=constraint_element_mask,
+            task=task,
+            id=sample_ids,
+        )
+        seq_constraints = preprocessor(cond)
         return {
             "image": image,
             "retrieved": retrieved_dict,
             "seq_layout_const": seq_constraints["seq"],
             "seq_layout_const_pad_mask": seq_constraints["pad_mask"],
         }
+
+    def _prepare_unconditional_inputs(
+        self,
+        *,
+        pixel_values: Tensor | None,
+        saliency: Tensor | None,
+        retrieved: RalfRetrievedBatch | None,
+        batch_size: int,
+    ) -> dict[str, Tensor | Mapping[str, Tensor]]:
+        return self._prepare_conditional_inputs(
+            pixel_values=pixel_values,
+            saliency=saliency,
+            retrieved=retrieved,
+            batch_size=batch_size,
+            condition_type="uncond",
+        )
 
     def forward(
         self,
@@ -843,18 +1182,29 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         labels: Int[torch.Tensor, "batch tokens"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
+        condition_type: RalfConfigTaskName | None = None,
+        constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
         **kwargs: object,
     ) -> CausalLMOutput | tuple[torch.Tensor, ...]:
         """Run teacher-forced token prediction using the local RALF port."""
-        _ = kwargs
+        relationship_table = cast(
+            Mapping[str, list[object]] | None, kwargs.get("relationship_table")
+        )
+        sample_ids = kwargs.get("sample_ids")
         if input_ids is None:
             raise ValueError("input_ids is required")
-        encoder_inputs = self._prepare_unconditional_inputs(
+        encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,
             retrieved=retrieved,
             batch_size=input_ids.size(0),
+            condition_type=condition_type,
+            constraint_input_ids=input_ids,
+            constraint_mask=attention_mask,
+            constraint_element_mask=constraint_element_mask,
+            relationship_table=relationship_table,
+            sample_ids=sample_ids,
         )
         encoded_feat = self._encode_into_memory(encoder_inputs)
         logits = self.decoder(
@@ -892,22 +1242,43 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         generator: torch.Generator | None = None,
         token_mask: Bool[torch.Tensor, "tokens vocab"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
+        condition_type: RalfConfigTaskName | None = None,
+        constraint_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
+        relationship_table: Mapping[str, list[object]] | None = None,
+        sample_ids: object = None,
     ) -> Int[torch.Tensor, "batch tokens"]:
         """Run the RALF autoregressive token loop used by `RalfPipeline`."""
         _ = attention_mask
         was_training = self.training
         self.eval()
+        task = self._canonical_to_task_name(condition_type or self.auxilary_task)
         generated = input_ids[:, :1].clone()
+        start_step = 0
+        if task == "partial":
+            condition_seq = (
+                constraint_input_ids if constraint_input_ids is not None else input_ids
+            )
+            prefix = condition_seq[:, 1 : 1 + len(self.config.var_order)]
+            generated = torch.cat([generated, prefix.to(generated.device)], dim=1)
+            start_step = len(self.config.var_order)
         max_length = max_length or self.config.max_token_length
-        encoder_inputs = self._prepare_unconditional_inputs(
+        encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,
             retrieved=retrieved,
             batch_size=input_ids.size(0),
+            condition_type=task,
+            constraint_input_ids=constraint_input_ids,
+            constraint_mask=constraint_mask,
+            constraint_element_mask=constraint_element_mask,
+            relationship_table=relationship_table,
+            sample_ids=sample_ids,
         )
         encoded_feat = self._encode_into_memory(encoder_inputs)
         try:
-            for step in range(max_length):
+            for step in range(start_step, max_length):
                 logits = self.decoder(
                     tgt=generated,
                     tgt_key_padding_mask=generated.eq(self.config.pad_token_id),
@@ -920,6 +1291,15 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                     next_logits = next_logits.masked_fill(
                         ~token_mask[step].to(next_logits.device), -math.inf
                     )
+                next_logits = _apply_decode_space_restriction(
+                    task=task,
+                    step=step,
+                    condition=constraint_input_ids,
+                    logits=next_logits,
+                    pad_id=self.config.pad_token_id,
+                    eos_id=self.config.eos_token_id,
+                    max_length=self.config.max_token_length,
+                )
                 if top_k is not None and top_k > 0 and top_k < next_logits.size(-1):
                     values = torch.topk(next_logits, top_k).values
                     next_logits = next_logits.masked_fill(

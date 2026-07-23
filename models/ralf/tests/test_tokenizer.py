@@ -43,9 +43,13 @@ def test_tokenizer_save_pretrained_round_trip(tmp_path: Path) -> None:
 
     tokenizer.save_pretrained(tmp_path)
     loaded = RalfLayoutTokenizer.from_pretrained(tmp_path)
+    loaded_from_file = RalfLayoutTokenizer(
+        tokenizer_config_file=str(tmp_path / "ralf_tokenizer_config.json")
+    )
 
     assert loaded.config.max_seq_length == 3
     assert loaded.config.num_bin == 16
+    assert loaded_from_file.config.max_seq_length == 3
 
 
 def test_tokenizer_text_token_methods() -> None:

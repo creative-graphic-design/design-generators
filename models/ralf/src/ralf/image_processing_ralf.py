@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import torch
@@ -70,7 +71,7 @@ class RalfImageProcessor(BaseImageProcessor):
         self,
         images: ImageInput | Sequence[ImageInput] | None,
         saliency: ImageInput | Sequence[ImageInput] | None = None,
-        return_tensors: str = "pt",
+        return_tensors: Literal["pt"] = "pt",
         **kwargs: object,
     ) -> BatchFeature:
         """Convert images and saliency maps to tensors.

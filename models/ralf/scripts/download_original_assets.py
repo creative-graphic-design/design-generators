@@ -60,7 +60,7 @@ def main() -> None:
             raise ImportError(
                 "Install the root download extra or gdown to use --download"
             ) from exc
-        gdown.download(GOOGLE_DRIVE_ID, output=str(args.zip_path), quiet=False)
+        gdown.download(id=GOOGLE_DRIVE_ID, output=str(args.zip_path), quiet=False)
     if args.unzip:
         with zipfile.ZipFile(args.zip_path) as archive:
             archive.extractall(args.cache_dir.parent)

@@ -3,13 +3,34 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Final
+from typing import Final, Literal
 
 from transformers import PretrainedConfig
 
 from posgen.common.labels import id2label_for_dataset
 
-DEFAULT_VAR_ORDER: Final[tuple[str, ...]] = (
+RalfDatasetName = Literal["cgl", "cgl_v2", "pku", "pku_posterlayout"]
+RalfConfigTaskName = Literal[
+    "unconditional",
+    "retrieval",
+    "content_image",
+    "label",
+    "label_size",
+    "completion",
+    "refinement",
+    "relation",
+    "uncond",
+    "c",
+    "cwh",
+    "chw",
+    "partial",
+]
+RalfTaskName = Literal["uncond", "c", "cwh", "partial", "refinement", "relation"]
+RalfLayoutVariable = Literal["label", "width", "height", "center_x", "center_y"]
+RalfGeometryKey = Literal["center_x", "center_y", "width", "height"]
+RalfReturnTensor = Literal["pt"]
+
+DEFAULT_VAR_ORDER: Final[tuple[RalfLayoutVariable, ...]] = (
     "label",
     "width",
     "height",
@@ -17,7 +38,7 @@ DEFAULT_VAR_ORDER: Final[tuple[str, ...]] = (
     "center_y",
 )
 DEFAULT_SPECIAL_TOKENS: Final[tuple[str, ...]] = ("pad", "bos", "eos")
-VENDOR_GEO_KEYS: Final[tuple[str, ...]] = (
+GEOMETRY_KEYS: Final[tuple[RalfGeometryKey, ...]] = (
     "center_x",
     "center_y",
     "width",
@@ -30,11 +51,11 @@ class RalfConfig(PretrainedConfig):
 
     Args:
         dataset_name: Poster dataset key, usually `cgl` or `pku_posterlayout`.
-        task: Canonical condition type or vendor task alias for the checkpoint.
+        task: Canonical condition type or checkpoint task alias.
         id2label: Dataset-local label vocabulary persisted with the checkpoint.
         max_seq_length: Maximum number of layout elements.
         num_bin: Number of linear geometry bins per variable.
-        var_order: Vendor token variable order.
+        var_order: Token variable order.
         special_tokens: Special tokens stored after label and geometry tokens.
         geo_quantization: Geometry quantizer name. The converted package supports
             `linear`; conversion records other values for audit.
@@ -45,11 +66,11 @@ class RalfConfig(PretrainedConfig):
         decoder_layers: Number of decoder layers.
         num_attention_heads: Number of attention heads.
         dropout: Dropout probability.
-        retrieval_backbone: Vendor retrieval backbone name.
+        retrieval_backbone: Retrieval backbone name.
         top_k: Number of retrieved examples expected by the checkpoint.
         use_reference_image: Whether retrieved reference images participate in fusion.
-        layout_backbone: Vendor layout encoder name.
-        freeze_layout_encoder: Whether the vendor layout encoder was frozen.
+        layout_backbone: Layout encoder name.
+        freeze_layout_encoder: Whether the layout encoder was frozen.
         fusion: Retrieval fusion variant.
         use_flag_embedding: Whether task flag embeddings are enabled.
         use_multitask: Whether checkpoint was trained as multitask.
@@ -67,12 +88,12 @@ class RalfConfig(PretrainedConfig):
 
     def __init__(
         self,
-        dataset_name: str = "cgl",
-        task: str = "unconditional",
+        dataset_name: RalfDatasetName = "cgl",
+        task: RalfConfigTaskName = "unconditional",
         id2label: Mapping[int | str, str] | None = None,
         max_seq_length: int = 10,
         num_bin: int = 128,
-        var_order: Sequence[str] = DEFAULT_VAR_ORDER,
+        var_order: Sequence[RalfLayoutVariable] = DEFAULT_VAR_ORDER,
         special_tokens: Sequence[str] = DEFAULT_SPECIAL_TOKENS,
         geo_quantization: str = "linear",
         is_loc_vocab_shared: bool = False,
@@ -189,10 +210,10 @@ class RalfConfig(PretrainedConfig):
             raise ValueError(f"Unknown special token: {name}")
         return self.num_labels + self.num_bbox_tokens + self.special_tokens.index(name)
 
-    def bbox_token_offset(self, key: str) -> int:
+    def bbox_token_offset(self, key: RalfLayoutVariable) -> int:
         """Return the first token id for a geometry variable."""
         if key == "label":
             return 0
         if self.is_loc_vocab_shared:
             return self.num_labels
-        return self.num_labels + VENDOR_GEO_KEYS.index(key) * self.num_bin
+        return self.num_labels + GEOMETRY_KEYS.index(key) * self.num_bin
