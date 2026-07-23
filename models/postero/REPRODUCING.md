@@ -10,20 +10,22 @@ uv sync --package postero
 
 ## Download
 
-No external download is required for the first prompt-config checks. Real provider outputs and large assets should stay outside git.
+The parity helper defaults to `vendor/postero` under the repository root. If this worktree has an empty vendor checkout or an uninitialized submodule, point `POSTERO_VENDOR_ROOT` at an initialized PosterO checkout outside this repository. Real provider outputs and large assets should stay outside git.
 
 ## Reference Metadata
 
 Regenerate the prompt golden metadata from deterministic in-memory records.
 
 ```bash
-uv run --package postero python models/postero/scripts/generate_vendor_golden.py
+POSTERO_VENDOR_ROOT=vendor/postero \
+  uv run --package postero --extra vendor python models/postero/scripts/generate_vendor_golden.py
 ```
 
 ## Parity
 
 ```bash
-PARITY_REQUIRE=1 uv run --package postero pytest models/postero/tests/vendor_parity -m vendor_parity
+POSTERO_VENDOR_ROOT=vendor/postero \
+  PARITY_REQUIRE=1 uv run --package postero --extra vendor pytest models/postero/tests/vendor_parity -m vendor_parity
 ```
 
 ## Prompt Configuration

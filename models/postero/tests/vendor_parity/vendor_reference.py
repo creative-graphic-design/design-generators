@@ -21,9 +21,9 @@ from postero.vendor_parity import (
     parity_config,
 )
 
-DEFAULT_VENDOR_ROOT = Path(
-    "/root/ghq/github.com/creative-graphic-design/design-generators/vendor/postero"
-)
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_VENDOR_ROOT = REPO_ROOT / "vendor" / "postero"
+VENDOR_ROOT_ENV_VAR = "POSTERO_VENDOR_ROOT"
 
 
 class LayoutPlanterProtocol(Protocol):
@@ -38,13 +38,16 @@ class LayoutPlanterProtocol(Protocol):
 
 def vendor_reference(vendor_root: Path | None = None) -> dict[str, object]:
     """Run original PosterO code and return deterministic parity metadata."""
-    root = vendor_root or DEFAULT_VENDOR_ROOT
+    root = vendor_root or Path(os.getenv(VENDOR_ROOT_ENV_VAR, DEFAULT_VENDOR_ROOT))
     require = os.getenv("PARITY_REQUIRE") == "1"
-    if not root.exists():
+    if not (root / "layout_generate").is_dir():
         if require:
-            msg = f"PosterO vendor root does not exist: {root}"
+            msg = (
+                "PosterO vendor root is not initialized or does not contain "
+                f"layout_generate: {root}"
+            )
             raise FileNotFoundError(msg)
-        pytest.skip(f"PosterO vendor root does not exist: {root}")
+        pytest.skip(f"PosterO vendor root is not initialized: {root}")
 
     layout_planter_mod, sample_ranker_mod, postero_mod = _vendor_modules(root)
     config = parity_config()

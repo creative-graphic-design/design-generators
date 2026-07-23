@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         "--vendor-root",
         type=Path,
         default=None,
-        help="Original PosterO repository path. Defaults to the checked-out vendor/postero path.",
+        help="Original PosterO repository path. Overrides POSTERO_VENDOR_ROOT and vendor/postero.",
     )
     return parser.parse_args()
 
