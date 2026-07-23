@@ -1,0 +1,28 @@
+model:
+  class_path: cgb_dm.training.lightning_module.CGBDMTrainingModule
+  init_args:
+    config:
+      dataset_name: pku_posterlayout
+      num_labels: 4
+      max_seq_length: 16
+      image_size: [384, 256]
+    learning_rate: 0.0001
+    gradient_clipping: 1.0
+    condition_type: content_image
+    seed_mode: deterministic
+data:
+  class_path: cgb_dm.training.datamodule.CGBDMDataModule
+  init_args:
+    config:
+      dataset_name: pku_posterlayout
+      num_labels: 4
+      max_seq_length: 16
+      image_size: [384, 256]
+    source: original_zip
+    data_root: .cache/cgb-dm/datasets/pku/split
+    batch_size: 32
+    num_workers: 0
+trainer:
+  max_epochs: 500
+  gradient_clip_val: 1.0
+  deterministic: true
