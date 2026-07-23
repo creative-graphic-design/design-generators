@@ -13,8 +13,3 @@ lightning = [
     "jsonargparse[signatures]>=4.27",
     "torchmetrics>=1.4",
 ]
-
-[dependency-groups]
-dev = [
-    "pytest>=6.0.0",
-]

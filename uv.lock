@@ -3082,11 +3082,6 @@ torch = [
     { name = "torch" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "diffusers", extras = ["torch"], marker = "extra == 'diffusion'", specifier = ">=0.36.0" },
@@ -3101,9 +3096,6 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.0.0" },
 ]
 provides-extras = ["agents", "diffusion", "torch"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "layousyn"
@@ -3433,11 +3425,6 @@ vendor = [
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest-cov" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "cssutils", marker = "extra == 'vendor'", specifier = ">=2.9.0" },
@@ -3450,9 +3437,6 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
 provides-extras = ["vendor"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest-cov", specifier = ">=7.0.0" }]
 
 [[package]]
 name = "layout-transformer"
@@ -5461,13 +5445,6 @@ vendor = [
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version >= '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version >= '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.24" },
@@ -5484,13 +5461,6 @@ requires-dist = [
     { name = "transformers", specifier = ">=5.0.0" },
 ]
 provides-extras = ["download", "vendor"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=6.0.0" },
-    { name = "ruff", specifier = ">=0.1.5" },
-    { name = "ty", specifier = ">=0.0.10" },
-]
 
 [[package]]
 name = "parso"
@@ -5655,16 +5625,8 @@ dependencies = [
     { name = "torch" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
 [package.metadata]
 requires-dist = [{ name = "torch", specifier = ">=2.1" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "pot"
@@ -8714,11 +8676,6 @@ lightning = [
     { name = "torchmetrics" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "jsonargparse", extras = ["signatures"], marker = "extra == 'lightning'", specifier = ">=4.27" },
@@ -8727,9 +8684,6 @@ requires-dist = [
     { name = "torchmetrics", marker = "extra == 'lightning'", specifier = ">=1.4" },
 ]
 provides-extras = ["lightning"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "traingen-parity"
@@ -8748,11 +8702,6 @@ lightning = [
     { name = "traingen", extra = ["lightning"] },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "jaxtyping", specifier = ">=0.3.11,<0.4" },
@@ -8761,9 +8710,6 @@ requires-dist = [
     { name = "traingen", extras = ["lightning"], marker = "extra == 'lightning'", editable = "lib/traingen" },
 ]
 provides-extras = ["lightning"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=6.0.0" }]
 
 [[package]]
 name = "traitlets"

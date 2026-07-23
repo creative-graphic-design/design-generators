@@ -7,7 +7,7 @@ trainer:
   check_val_every_n_epoch: 20
   num_sanity_val_steps: 2
 model:
-  class_path: layout_flow.training.lightning_module.LayoutFlowTrainingModule
+  class_path: layout_flow.training.LayoutFlowTrainingModule
   init_args:
     dataset_name: rico25
     learning_rate: 0.0005
@@ -17,7 +17,7 @@ model:
     seed_mode: default
     fid_calc_every_n: 20
 data:
-  class_path: layout_flow.training.datamodule.LayoutFlowDataModule
+  class_path: layout_flow.training.LayoutFlowDataModule
   init_args:
     dataset_name: rico25
     data_path: .cache/layout-flow/data/rico25

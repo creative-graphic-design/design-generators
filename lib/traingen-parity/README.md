@@ -7,7 +7,7 @@
 ![extras](https://img.shields.io/static/v1?label=extras&message=lightning&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`traingen-parity` contains deterministic training-parity primitives for comparing two training implementations. It records named tensors from one training step, captures and restores RNG state, applies deterministic runtime settings, and reports tensor differences for step traces, optimizer states, and dataloader streams.
+`traingen-parity` contains deterministic training-parity primitives for comparing two training implementations in [design-generators](https://github.com/creative-graphic-design/design-generators). It records named tensors from one training step, captures and restores RNG state, applies deterministic runtime settings, and reports tensor differences for step traces, optimizer states, and dataloader streams.
 
 Keep package-specific trace-point selection in the model package. Use this library for shared comparison mechanics and reproducibility controls.
 
@@ -16,6 +16,14 @@ Keep package-specific trace-point selection in the model package. Use this libra
 ```bash
 uv sync --package traingen-parity
 uv sync --package traingen-parity --extra lightning
+```
+
+Install from outside the workspace with pip's direct-reference subdirectory form. Install [`traingen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/traingen) first when using the `lightning` extra, because `traingen-parity[lightning]` depends on `traingen[lightning]`.
+
+```bash
+pip install "traingen[lightning] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/traingen"
+pip install "traingen-parity @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/traingen-parity"
+pip install "traingen-parity[lightning] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/traingen-parity"
 ```
 
 ## API Entry Points

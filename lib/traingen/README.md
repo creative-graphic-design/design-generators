@@ -7,9 +7,9 @@
 ![extras](https://img.shields.io/static/v1?label=extras&message=lightning&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`traingen` contains shared training utilities for design-generator packages in the train-ourselves lane. It keeps reusable Lightning inspection helpers and CLI integration points out of individual model packages while leaving model-specific data modules, losses, and training loops in `models/*`.
+`traingen` contains shared training utilities for [design-generators](https://github.com/creative-graphic-design/design-generators) packages in the train-ourselves lane. It keeps reusable [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) CLI integration points out of individual model packages while leaving model-specific data modules, losses, and training loops in `models/*`.
 
-Use `traingen` for generic training infrastructure such as optimizer diagnostics and optional LightningCLI helpers. Use `traingen-parity` for deterministic trace capture and reference/target comparison reports.
+Use `traingen` for generic training infrastructure such as optional [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) helpers. Use [`traingen-parity`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/traingen-parity) for deterministic trace capture and reference/target comparison reports.
 
 ## Install
 
@@ -18,28 +18,20 @@ uv sync --package traingen
 uv sync --package traingen --extra lightning
 ```
 
+Install from outside the workspace with pip's direct-reference subdirectory form:
+
+```bash
+pip install "traingen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/traingen"
+pip install "traingen[lightning] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/traingen"
+```
+
 ## API Entry Points
 
-Inspect optimizer learning rates and parameter gradient norms from a Lightning module or plain PyTorch module.
+Create package-local LightningCLI subclasses without importing Lightning at top-level package import time.
 
 ```bash
 uv run --package traingen python
 ```
-
-```python
-import torch
-from traingen.lightning import grad_norms, learning_rates
-
-model = torch.nn.Linear(2, 1)
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.0005)
-loss = model(torch.ones(1, 2)).sum()
-loss.backward()
-
-print(learning_rates(optimizer))
-print(sorted(grad_norms(model)))
-```
-
-Create package-local LightningCLI subclasses without importing Lightning at top-level package import time.
 
 ```python
 from traingen.lightning.cli import lightning_cli_class

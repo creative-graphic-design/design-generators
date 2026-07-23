@@ -8,6 +8,9 @@ from pathlib import Path
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader
 
+from laygen.common.bbox import BoxFormat
+
+from .config import LayoutFlowTrainingDatasetName, LayoutFlowTrainingSplit
 from .dataset import LayoutFlowH5Dataset, collate_layout_flow_batch
 
 
@@ -18,11 +21,11 @@ class LayoutFlowDataModule(LightningDataModule):
         self,
         *,
         data_path: str | Path,
-        dataset_name: str = "publaynet",
+        dataset_name: LayoutFlowTrainingDatasetName = "publaynet",
         batch_size: int = 256,
         max_length: int = 20,
         num_workers: int = 4,
-        box_format: str = "xywh",
+        box_format: BoxFormat | str = BoxFormat.xywh,
         lex_order: bool = False,
         permute_elements: bool = False,
         inoue_split: bool = False,
@@ -68,7 +71,7 @@ class LayoutFlowDataModule(LightningDataModule):
             self.setup("test")
         return self._loader(self.test_dataset, shuffle=False)
 
-    def _dataset(self, split: str) -> LayoutFlowH5Dataset:
+    def _dataset(self, split: LayoutFlowTrainingSplit) -> LayoutFlowH5Dataset:
         return LayoutFlowH5Dataset(
             data_path=self.data_path,
             dataset_name=self.dataset_name,

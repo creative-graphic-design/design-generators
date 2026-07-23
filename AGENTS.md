@@ -120,6 +120,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   `label_size`, `completion`, `refinement`; v2 adds `text`, `content_image`,
   `relation`, `hierarchical`, `retrieval`. Normalize vendor aliases and raise
   explicit errors for unsupported modes.
+- Constrained string options in public APIs use `Literal` aliases or `StrEnum`
+  classes rather than bare `str` annotations.
 - Discrete-vocabulary layout tokenizers subclass
   `transformers.PreTrainedTokenizer`; serialize auxiliary data with tokenizer
   files. Use a custom class only when the base class truly conflicts and document
@@ -188,6 +190,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   tests, conversion, and `from_pretrained` smoke tests.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
+- Docs and READMEs link the first mention of external projects and repositories.
+  Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
+  unless that page defines them in place or links directly to the definition.
 - Hub model cards are generated through `laygen.common.model_card` using the
   official Hugging Face model-card template.
 

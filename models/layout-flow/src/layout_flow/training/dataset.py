@@ -13,6 +13,8 @@ from torch.utils.data import Dataset, default_collate
 
 from laygen.common.bbox import BoxFormat
 
+from .config import LayoutFlowTrainingDatasetName, LayoutFlowTrainingSplit
+
 _SPLIT_FILES: Final[dict[str, dict[str, str]]] = {
     "rico25": {
         "train": "ldm_rico_train.h5",
@@ -35,8 +37,8 @@ class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
         self,
         *,
         data_path: str | Path,
-        dataset_name: str,
-        split: str = "train",
+        dataset_name: LayoutFlowTrainingDatasetName,
+        split: LayoutFlowTrainingSplit = "train",
         lex_order: bool = False,
         permute_elements: bool = False,
         inoue_split: bool = False,
@@ -90,8 +92,8 @@ class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
 
     @staticmethod
     def _file_name(
-        dataset_name: str,
-        split: str,
+        dataset_name: LayoutFlowTrainingDatasetName,
+        split: LayoutFlowTrainingSplit,
         lex_order: bool,
         inoue_split: bool,
     ) -> str:

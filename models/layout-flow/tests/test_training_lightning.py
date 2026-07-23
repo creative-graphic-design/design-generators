@@ -8,7 +8,12 @@ pytest.importorskip("traingen_parity")
 
 from layout_flow import LayoutFlowConfig
 from layout_flow.training.cli import LayoutFlowLightningCLI, main
-from layout_flow.training.config import LayoutFlowSeedMode
+from layout_flow.training.config import (
+    LayoutFlowConditionPolicy,
+    LayoutFlowSeedMode,
+    LayoutFlowTrainingDatasetName,
+    LayoutFlowTrainingScheduler,
+)
 from layout_flow.training.lightning_module import LayoutFlowTrainingModule
 from layout_flow.training.parity import (
     compare_layout_flow_optimizer_step,
@@ -114,6 +119,12 @@ def test_seed_modes_and_package_lazy_exports() -> None:
     assert LayoutFlowSeedMode("default") is LayoutFlowSeedMode.default
     apply_layout_flow_seed_mode("default", seed=1)
     apply_layout_flow_seed_mode("deterministic", seed=1)
+
+
+def test_training_public_string_options_are_constrained() -> None:
+    assert LayoutFlowTrainingDatasetName.__args__ == ("rico25", "publaynet")
+    assert LayoutFlowTrainingScheduler.__args__ == ("reduce_on_plateau",)
+    assert LayoutFlowConditionPolicy.__args__ == ("random4",)
 
 
 def test_lightning_cli_help_entrypoint() -> None:

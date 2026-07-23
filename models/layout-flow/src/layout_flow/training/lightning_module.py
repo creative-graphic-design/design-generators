@@ -11,7 +11,12 @@ from layout_flow.configuration_layout_flow import LayoutFlowConfig
 from layout_flow.modeling_layout_flow import LayoutFlowTransformerModel
 from layout_flow.processing_layout_flow import LayoutFlowProcessor
 
-from .config import LayoutFlowSeedMode
+from .config import (
+    LayoutFlowConditionPolicy,
+    LayoutFlowSeedMode,
+    LayoutFlowTrainingDatasetName,
+    LayoutFlowTrainingScheduler,
+)
 from .losses import layout_flow_losses
 
 
@@ -23,10 +28,10 @@ class LayoutFlowTrainingModule(LightningModule):
         *,
         config: LayoutFlowConfig | None = None,
         model: LayoutFlowTransformerModel | None = None,
-        dataset_name: str = "publaynet",
+        dataset_name: LayoutFlowTrainingDatasetName = "publaynet",
         learning_rate: float = 0.0005,
-        scheduler: str | None = "reduce_on_plateau",
-        condition_policy: str = "random4",
+        scheduler: LayoutFlowTrainingScheduler | None = "reduce_on_plateau",
+        condition_policy: LayoutFlowConditionPolicy = "random4",
         geom_l1_weight: float = 0.2,
         seed_mode: LayoutFlowSeedMode | str = LayoutFlowSeedMode.default,
         fid_calc_every_n: int = 20,

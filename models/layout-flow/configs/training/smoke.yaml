@@ -9,7 +9,7 @@ trainer:
   limit_val_batches: 0
   num_sanity_val_steps: 0
 model:
-  class_path: layout_flow.training.lightning_module.LayoutFlowTrainingModule
+  class_path: layout_flow.training.LayoutFlowTrainingModule
   init_args:
     dataset_name: publaynet
     learning_rate: 0.0005
@@ -19,7 +19,7 @@ model:
     seed_mode: deterministic
     fid_calc_every_n: 0
 data:
-  class_path: layout_flow.training.datamodule.LayoutFlowDataModule
+  class_path: layout_flow.training.LayoutFlowDataModule
   init_args:
     dataset_name: publaynet
     data_path: .cache/layout-flow/data/publaynet

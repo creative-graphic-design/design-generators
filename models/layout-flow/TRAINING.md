@@ -1,6 +1,6 @@
 # LayoutFlow Training
 
-This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the S0-S2 training-parity rerun for LayoutFlow.
+This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity rerun for LayoutFlow.
 
 Run commands from the repository root. Training data, generated checkpoints, CSV logs, and converted local pipelines stay under `.cache/layout-flow`.
 
@@ -10,13 +10,13 @@ Run commands from the repository root. Training data, generated checkpoints, CSV
 uv sync --package layout-flow --extra training
 ```
 
-Install the `vendor` extra only when rerunning S0-S2 parity against `vendor/layout-flow`.
+Install the `vendor` extra only when rerunning staged parity against `vendor/layout-flow`.
 
 ```bash
 uv sync --package layout-flow --extra training --extra vendor
 ```
 
-Full RICO25 and PubLayNet runs fit on one 80 GB A100 with the default batch size of 512 used by the LayoutFlow reference setup. For smaller GPUs, lower `data.init_args.batch_size` and increase gradient accumulation only after rerunning the deterministic S0-S2 checks, because batch shape and optimizer order are part of the parity surface.
+Full RICO25 and PubLayNet runs fit on one 80 GB A100 with the default batch size of 512 used by the LayoutFlow reference setup. For smaller GPUs, lower `data.init_args.batch_size` and increase gradient accumulation only after rerunning the deterministic parity checks, because batch shape and optimizer order are part of the parity surface.
 
 ## Data
 
@@ -56,6 +56,17 @@ Training configs live under `models/layout-flow/configs/training`.
 | `smoke.yaml` | PubLayNet | `deterministic` | CPU smoke config for CLI wiring. |
 
 `default` preserves the LayoutFlow training seed policy used by regular runs. `deterministic` applies the `traingen-parity` determinism controls for fixed-batch trace and optimizer-step checks.
+
+## Validation Stages
+
+| Stage | Scope | Purpose |
+| --- | --- | --- |
+| S0 | Static config and initialized state parity | Confirms the package-local Lightning module starts from the same state as the vendor training module. |
+| S1 | Fixed-batch pre-optimizer trace parity | Confirms batch preparation, condition masking, flow sampling, forward output, and loss tensors before optimizer mutation. |
+| S2 | One optimizer-step parity | Confirms one update produces matching parameter state. |
+| S3 | Scheduler-enabled short run | Confirms the scheduler-enabled training path is wired before validation metrics are available. |
+| S4 | Validation and scheduler behavior | Confirms package-local validation metrics can drive scheduler behavior when those metrics are implemented. |
+| S5 | Full-run statistical comparison | Compares full RICO25 and PubLayNet learning behavior against the vendor training setup. |
 
 ## Launch Training
 
@@ -199,7 +210,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   -m "vendor_parity and training" -rs
 ```
 
-Use `deterministic` configs when rerunning S0-S2 or debugging equivalence failures. Use the default configs for full learning runs after deterministic parity is green.
+Use `deterministic` configs when rerunning S0-S2 or debugging equivalence failures. Use the default configs for full learning runs after deterministic parity is green. Scheduler-enabled equivalence belongs to the S3 and S4 checks above, while the current full-run commands disable the plateau scheduler until package-local validation metrics are implemented.
 
 ## Convert A Trained Checkpoint
 

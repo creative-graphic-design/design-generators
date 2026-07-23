@@ -14,10 +14,5 @@ lightning = [
     "traingen[lightning]",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=6.0.0",
-]
-
 [tool.uv.sources]
 traingen = { workspace = true }

@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pyt
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
-4. Run the training-parity S0-S2 hooks. See `models/layout-flow/TRAINING.md` for the training config list, seed modes, and the full training-parity rerun notes.
+4. Run the staged training-parity hooks. See `models/layout-flow/TRAINING.md` for the training config list, seed modes, and the full training-parity rerun notes.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \

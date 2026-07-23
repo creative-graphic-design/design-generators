@@ -127,7 +127,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, S0-S2 parity reruns, and trained-checkpoint conversion.
+This package includes package-local LightningCLI configs for rerunning LayoutFlow training in the train-ourselves lane. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged parity reruns, and trained-checkpoint conversion.
 
 #### Speeds, Sizes, Times
 
@@ -155,7 +155,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | --- | --- | ---: | --- |
 | PubLayNet | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
 | RICO25 | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
-| Training S0-S2 | LightningCLI training wrapper vs. vendor training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | S0 state exact, S1 trace exact, S2 one optimizer step exact |
+| Training parity stages | LightningCLI training wrapper vs. vendor training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
 
 Parity is tested against the original vendor `LayoutDMBackbone` vector-field path using the released checkpoints. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed parity test compares an Euler trajectory against the vendor.
 

@@ -22,6 +22,13 @@ uv sync --package laygen --extra diffusion
 uv sync --package laygen --extra agents
 ```
 
+Install from outside the workspace with pip's direct-reference subdirectory form:
+
+```bash
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+pip install "laygen[diffusion] @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+
 ## Core APIs
 
 Use schema and normalization helpers without importing [PyTorch](https://pytorch.org/docs/stable/index.html) or `diffusers`.
