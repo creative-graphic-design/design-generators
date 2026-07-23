@@ -806,6 +806,7 @@ version = "0.1.0"
 source = { editable = "models/coarse-to-fine" }
 dependencies = [
     { name = "huggingface-hub" },
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
@@ -830,6 +831,7 @@ vendor = [
 requires-dist = [
     { name = "huggingface-hub", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pycocotools", marker = "extra == 'vendor'", specifier = ">=2.0" },
@@ -1782,6 +1784,7 @@ source = { editable = "models/flex-dm" }
 dependencies = [
     { name = "einops" },
     { name = "huggingface-hub" },
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
@@ -1823,6 +1826,7 @@ requires-dist = [
     { name = "fsspec", marker = "extra == 'vendor-tf'" },
     { name = "httplib2", marker = "extra == 'vendor-tf'", specifier = "==0.19.0" },
     { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "omegaconf", marker = "extra == 'vendor-tf'" },
@@ -2957,6 +2961,7 @@ source = { editable = "models/lace" }
 dependencies = [
     { name = "diffusers", extra = ["torch"] },
     { name = "einops" },
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
@@ -2990,6 +2995,7 @@ requires-dist = [
     { name = "einops", specifier = ">=0.8.0" },
     { name = "fsspec", marker = "extra == 'vendor'", specifier = ">=2024.0" },
     { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "matplotlib", marker = "extra == 'vendor'", specifier = ">=3.7" },
     { name = "numpy", specifier = ">=1.24" },
@@ -3071,6 +3077,7 @@ source = { editable = "models/layousyn" }
 dependencies = [
     { name = "diffusers", extra = ["torch"] },
     { name = "huggingface-hub" },
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and extra == 'extra-17-design-generators-llm-agent') or (python_full_version < '3.12' and extra == 'extra-6-laygen-agents') or (python_full_version < '3.12' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-17-design-generators-llm-agent' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert') or (extra == 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators')" },
@@ -3106,6 +3113,7 @@ requires-dist = [
     { name = "ftfy", marker = "extra == 'vendor'" },
     { name = "gdown", marker = "extra == 'vendor'", specifier = ">=6.1.0" },
     { name = "huggingface-hub", specifier = ">=0.24" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pandas", marker = "extra == 'vendor'" },
@@ -3183,6 +3191,7 @@ source = { editable = "models/layout-corrector" }
 dependencies = [
     { name = "diffusers", extra = ["torch"] },
     { name = "einops" },
+    { name = "jaxtyping" },
     { name = "laygen" },
     { name = "layout-dm" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-7-flex-dm-convert' or extra == 'extra-7-flex-dm-vendor-tf'" },
@@ -3220,6 +3229,7 @@ requires-dist = [
     { name = "gdown", marker = "extra == 'download'", specifier = ">=6.1.0" },
     { name = "huggingface-hub", marker = "extra == 'convert'", specifier = ">=0.24" },
     { name = "hydra-core", marker = "extra == 'vendor'", specifier = "~=1.3" },
+    { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "layout-dm", editable = "models/layout-dm" },
     { name = "numpy", specifier = ">=1.24" },
