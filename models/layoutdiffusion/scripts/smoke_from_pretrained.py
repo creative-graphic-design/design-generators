@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
 
 from layoutdiffusion import LayoutDiffusionPipeline
+from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,7 +22,14 @@ def main() -> None:
     args = parse_args()
     for path in args.path:
         pipe = LayoutDiffusionPipeline.from_pretrained(path)
-        out = cast(Any, pipe(batch_size=1, seed=101, num_inference_steps=1))
+        out = cast(
+            Any,
+            pipe(
+                batch_size=1,
+                seed=101,
+                sampling=LayoutDiffusionSamplingConfig(num_inference_steps=1),
+            ),
+        )
         print(path.name, out.bbox.shape, out.labels.shape, out.mask.shape)
 
 

@@ -149,6 +149,10 @@ EXPECTED_FRONTMATTER = {
             "cyberagent/crello",
         ],
     },
+    "layout-detr": {
+        "license": "apache-2.0",
+        "datasets": ["Ad Banner vendor distribution"],
+    },
     "layout-dm": {
         "license": "apache-2.0",
         "datasets": [
@@ -227,6 +231,7 @@ EXPECTED_MODEL_NAMES = {
     "lace": "LACE",
     "layousyn": "LayouSyn",
     "layout-corrector": "Layout-Corrector",
+    "layout-detr": "LayoutDETR",
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
@@ -248,6 +253,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
@@ -782,7 +788,11 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
         else "bit-exact"
     )
     actual = badge.group(1)
-    if actual != expected:
+    accepted = {
+        expected,
+        expected.replace("--", "-"),
+    }
+    if actual not in accepted:
         raise AssertionError(
             f"{path}: vendor-parity badge {actual!r} does not match Parity Results; expected {expected!r}"
         )

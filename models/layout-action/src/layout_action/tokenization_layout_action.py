@@ -51,7 +51,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         if config is None and tokenizer_config_file is not None:
             with Path(tokenizer_config_file).open(encoding="utf-8") as f:
                 config = LayoutActionConfig(**json.load(f)["config"])
-        self.config = config or LayoutActionConfig()
+        if config is None:
+            raise ValueError("LayoutActionTokenizer requires an explicit config")
+        self.config = config
         self._token2id = self._build_vocab()
         self._id2token = {idx: token for token, idx in self._token2id.items()}
         kwargs.setdefault("bos_token", "[BOS]")

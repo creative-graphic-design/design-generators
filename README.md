@@ -21,6 +21,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 | [LACE](models/lace/README.md) | ICLR 2024 | `🧨 diffusers` | RICO25, RICO13, PubLayNet | [REPRODUCING.md](models/lace/REPRODUCING.md) |
 | [LayouSyn](models/layousyn/README.md) | ICCV 2025 | `🧨 diffusers` | GRIT, COCO grounded | [REPRODUCING.md](models/layousyn/REPRODUCING.md) |
 | [Layout-Corrector](models/layout-corrector/README.md) | ECCV 2024 | `🧨 diffusers` | RICO25, PubLayNet, Crello | [REPRODUCING.md](models/layout-corrector/REPRODUCING.md) |
+| [LayoutDETR](models/layout-detr/README.md) | ECCV 2024 | `🤗 transformers` | Ad Banner | [REPRODUCING.md](models/layout-detr/REPRODUCING.md) |
 | [LayoutDM](models/layout-dm/README.md) | CVPR 2023 | `🧨 diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layout-dm/REPRODUCING.md) |
 | [LayoutAction](models/layout-action/README.md) | AAAI 2023 | `🤗 transformers` | RICO13, PubLayNet, InfoPPT | [REPRODUCING.md](models/layout-action/REPRODUCING.md) |
 | [LayoutFlow](models/layout-flow/README.md) | ECCV 2024 | `🧨 diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layout-flow/REPRODUCING.md) |

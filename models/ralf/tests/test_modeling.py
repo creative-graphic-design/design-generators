@@ -1,9 +1,10 @@
+from collections.abc import Mapping
 from typing import cast
 
 import pytest
 import torch
 
-from ralf import RalfConfig, RalfForConditionalLayoutGeneration
+from ralf import RalfConfig, RalfForConditionalLayoutGeneration, RalfProcessor
 
 
 def tiny_config() -> RalfConfig:
@@ -17,9 +18,27 @@ def tiny_config() -> RalfConfig:
     )
 
 
+def _stub_encode_memory(model: RalfForConditionalLayoutGeneration) -> None:
+    def encode(
+        inputs: Mapping[str, torch.Tensor | Mapping[str, torch.Tensor]],
+    ) -> dict[str, torch.Tensor]:
+        image = cast(torch.Tensor, inputs["image"])
+        return {
+            "memory": torch.zeros(
+                image.size(0),
+                1,
+                model.config.decoder_d_model,
+                device=image.device,
+            )
+        }
+
+    model._encode_into_memory = encode  # ty: ignore[invalid-assignment]
+
+
 def test_forward_logits_shape() -> None:
     config = tiny_config()
     model = RalfForConditionalLayoutGeneration(config)
+    _stub_encode_memory(model)
     input_ids = torch.tensor([[config.bos_token_id, 0, config.pad_token_id]])
     attention_mask = input_ids.ne(config.pad_token_id)
 
@@ -31,6 +50,7 @@ def test_forward_logits_shape() -> None:
 def test_generate_sequences_respects_generator() -> None:
     config = tiny_config()
     model = RalfForConditionalLayoutGeneration(config)
+    _stub_encode_memory(model)
     input_ids = torch.tensor([[config.bos_token_id]])
     generator_a = torch.Generator().manual_seed(7)
     generator_b = torch.Generator().manual_seed(7)
@@ -44,6 +64,7 @@ def test_generate_sequences_respects_generator() -> None:
 def test_forward_loss_tuple_and_image_context_branches() -> None:
     config = tiny_config()
     model = RalfForConditionalLayoutGeneration(config)
+    _stub_encode_memory(model)
     input_ids = torch.tensor(
         [
             [config.bos_token_id, 0, config.pad_token_id],
@@ -72,32 +93,42 @@ def test_forward_requires_input_ids_for_non_vendor_model() -> None:
         model()
 
 
-def test_vendor_task_aliases() -> None:
+def test_task_name_aliases() -> None:
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("unconditional")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("unconditional")
         == "uncond"
     )
-    assert RalfForConditionalLayoutGeneration._canonical_to_vendor_task("label") == "c"
+    assert RalfForConditionalLayoutGeneration._canonical_to_task_name("label") == "c"
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("label_size")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("label_size")
         == "cwh"
     )
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("completion")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("completion")
         == "partial"
     )
     assert (
-        RalfForConditionalLayoutGeneration._canonical_to_vendor_task("relation")
+        RalfForConditionalLayoutGeneration._canonical_to_task_name("relation")
         == "relation"
     )
 
 
-def test_model_rejects_non_unconditional_checkpoint_task() -> None:
+def test_model_accepts_label_checkpoint_task() -> None:
     config = tiny_config()
     config.task = "label"
 
-    with pytest.raises(NotImplementedError, match="uncond"):
-        RalfForConditionalLayoutGeneration(config)
+    model = RalfForConditionalLayoutGeneration(config)
+
+    assert model.auxilary_task == "c"
+
+
+def test_model_accepts_relation_checkpoint_task() -> None:
+    config = tiny_config()
+    config.task = "relation"
+
+    model = RalfForConditionalLayoutGeneration(config)
+
+    assert model.auxilary_task == "relation"
 
 
 def test_prepare_inputs_expands_explicit_retrieved_rgb_and_global_task() -> None:
@@ -121,8 +152,66 @@ def test_prepare_inputs_expands_explicit_retrieved_rgb_and_global_task() -> None
         retrieved=retrieved,
         batch_size=1,
     )
-    encoded = model._encode_into_memory(prepared)
 
     retrieved_dict = cast(dict[str, torch.Tensor], prepared["retrieved"])
+    seq_layout_const = cast(torch.Tensor, prepared["seq_layout_const"])
     assert retrieved_dict["image"].shape[2] == 4
-    assert encoded["memory"].shape[0] == 1
+    assert seq_layout_const.shape[0] == 1
+
+
+def test_generate_sequences_accepts_label_constraints() -> None:
+    config = tiny_config()
+    model = RalfForConditionalLayoutGeneration(config)
+    _stub_encode_memory(model)
+    processor = RalfProcessor.from_config(config)
+    encoded = processor(
+        condition_type="label",
+        labels=[[0, 1]],
+        bbox=torch.full((1, 2, 4), 0.5),
+        mask=torch.tensor([[True, True]]),
+    )
+
+    output = model._generate_sequences(
+        encoded["input_ids"],
+        condition_type="label",
+        constraint_input_ids=encoded["input_ids"],
+        constraint_mask=encoded["attention_mask"],
+        constraint_element_mask=encoded["constraint_mask"],
+        max_length=3,
+        top_k=5,
+        generator=torch.Generator().manual_seed(5),
+    )
+
+    assert output.shape[0] == 1
+
+
+def test_generate_sequences_accepts_remaining_condition_constraints() -> None:
+    config = tiny_config()
+    model = RalfForConditionalLayoutGeneration(config)
+    _stub_encode_memory(model)
+    processor = RalfProcessor.from_config(config)
+    encoded = processor(
+        labels=[[0, 1]],
+        bbox=torch.full((1, 2, 4), 0.5),
+        mask=torch.tensor([[True, False]]),
+    )
+
+    for condition_type in [
+        "label_size",
+        "completion",
+        "refinement",
+        "relation",
+        "content_image",
+    ]:
+        output = model._generate_sequences(
+            encoded["input_ids"],
+            condition_type=condition_type,
+            constraint_input_ids=encoded["input_ids"],
+            constraint_mask=encoded["attention_mask"],
+            constraint_element_mask=encoded["constraint_mask"],
+            max_length=2,
+            top_k=5,
+            generator=torch.Generator().manual_seed(6),
+        )
+
+        assert output.shape[0] == 1

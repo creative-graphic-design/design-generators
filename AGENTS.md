@@ -54,6 +54,13 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   as `creative-graphic-design/layoutganpp-rico`.
 - Shared packages are `laygen.common` for layout-generation utilities and
   `posgen.common` for poster/content-aware utilities.
+- Core model-package modules under `models/*/src/<pkg>/` must follow Hugging
+  Face-style filenames with the package suffix, such as
+  `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`,
+  `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`,
+  `image_processing_<pkg>.py`, and `generation_<pkg>.py`. Repository convention
+  files and domain helpers must be explicitly allowed by
+  `scripts/check_module_naming.py`; do not add new ad hoc core names.
 
 ## Tracking
 
@@ -110,6 +117,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - `labels` are dataset-local integer ids unless a model explicitly documents
   request-local open-vocabulary ids.
 - Persist `id2label` in config/model cards and return it with outputs.
+- Public constructors must not synthesize default configs; require explicit
+  config or derive it from a loaded artifact such as `model.config`.
 - `generator` is the exact reproducibility API and takes precedence over
   `seed`.
 - Canonical `condition_type` names are v1 `unconditional`, `label`,
