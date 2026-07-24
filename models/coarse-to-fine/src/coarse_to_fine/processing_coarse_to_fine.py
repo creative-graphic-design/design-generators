@@ -126,7 +126,9 @@ class CoarseToFineProcessor(ProcessorMixin):
             id2label={int(key): str(value) for key, value in data["id2label"].items()},
         )
 
-    def _labels_to_vendor(self, labels: torch.Tensor) -> torch.LongTensor:
+    def _labels_to_vendor(
+        self, labels: Int[torch.Tensor, "..."]
+    ) -> Int[torch.Tensor, "..."]:
         return cast(torch.LongTensor, labels.long() + 1)
 
     def __call__(
@@ -183,8 +185,11 @@ class CoarseToFineProcessor(ProcessorMixin):
         )
 
     def _coerce_labels(
-        self, labels: list[list[int | str]] | torch.Tensor | np.ndarray
-    ) -> torch.LongTensor:
+        self,
+        labels: list[list[int | str]]
+        | Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"],
+    ) -> Int[torch.Tensor, "batch elements"]:
         if isinstance(labels, torch.Tensor | np.ndarray):
             return cast(torch.LongTensor, torch.as_tensor(labels, dtype=torch.long))
         rows: list[list[int]] = []
