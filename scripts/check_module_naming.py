@@ -30,6 +30,8 @@ ALLOWLIST_CATEGORIES = {
         "conversion.py",
         "data.py",
         "datasets.py",
+        "evaluation.py",
+        "metrics.py",
         "model_card.py",
         "postprocessing.py",
         "testing.py",
