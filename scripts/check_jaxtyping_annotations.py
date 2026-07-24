@@ -6,7 +6,6 @@ import argparse
 import ast
 import subprocess
 import sys
-from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,11 +59,49 @@ class AnnotationViolation:
 
     path: str
     annotation: str
-    occurrence: int
+    line: str
 
     def as_baseline_entry(self) -> str:
         """Return a stable baseline entry for this violation."""
-        return f"{self.path}\t{self.occurrence}\t{self.annotation}"
+        return f"{self.path}\t{self.annotation}\t{self.line}"
+
+
+@dataclass(frozen=True)
+class AnnotationRecord:
+    """An annotation expression and its source line."""
+
+    node: ast.AST
+    line: str
+
+
+@dataclass(frozen=True)
+class ImportResolver:
+    """Resolve imported aliases in annotation expressions."""
+
+    aliases: dict[str, str]
+
+    @classmethod
+    def from_tree(cls, tree: ast.Module) -> ImportResolver:
+        """Return import aliases declared in a module."""
+        aliases: dict[str, str] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    local = alias.asname or alias.name.split(".", 1)[0]
+                    aliases[local] = alias.name
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    local = alias.asname or alias.name
+                    aliases[local] = f"{node.module}.{alias.name}"
+        return cls(aliases)
+
+    def resolve(self, name: str) -> str:
+        """Resolve the first segment of a dotted name through imports."""
+        head, dot, tail = name.partition(".")
+        resolved = self.aliases.get(head, head)
+        return f"{resolved}{dot}{tail}" if dot else resolved
 
 
 def source_files(root: Path) -> list[Path]:
@@ -87,41 +124,82 @@ def dotted_name(node: ast.AST) -> str | None:
     return None
 
 
-def is_jaxtyping_shaped_type(node: ast.AST) -> bool:
+def is_jaxtyping_shaped_type(node: ast.AST, resolver: ImportResolver) -> bool:
     """Return whether a subscript value is a jaxtyping shaped annotation."""
     name = dotted_name(node)
     if name is None:
         return False
+    resolved = resolver.resolve(name)
+    if resolved.startswith("jaxtyping."):
+        return resolved.rsplit(".", 1)[-1] in JAXTYPING_SHAPED_TYPES
     return name.rsplit(".", 1)[-1] in JAXTYPING_SHAPED_TYPES
 
 
-def is_raw_tensor_type(node: ast.AST) -> bool:
+def is_raw_tensor_type(node: ast.AST, resolver: ImportResolver) -> bool:
     """Return whether a node is a raw torch tensor or numpy ndarray type."""
     name = dotted_name(node)
     if name is None:
         return False
-    if name in {"np.ndarray", "numpy.ndarray"}:
+    resolved = resolver.resolve(name)
+    if resolved in {
+        "numpy.ndarray",
+        "numpy.typing.NDArray",
+        "numpy.typing.NDArray[Any]",
+    }:
         return True
-    if name.startswith("torch.") and name.rsplit(".", 1)[-1] in TORCH_TENSOR_TYPES:
+    if (
+        resolved.startswith("torch.")
+        and resolved.rsplit(".", 1)[-1] in TORCH_TENSOR_TYPES
+    ):
         return True
     return False
 
 
-def contains_raw_annotation(node: ast.AST, *, inside_shaped_type: bool = False) -> bool:
+def parse_string_annotation(node: ast.Constant) -> ast.AST | None:
+    """Return an AST expression for a string annotation, when parseable."""
+    if not isinstance(node.value, str):
+        return None
+    try:
+        return ast.parse(node.value, mode="eval").body
+    except SyntaxError:
+        return None
+
+
+def contains_raw_annotation(node: ast.AST, resolver: ImportResolver) -> bool:
     """Return whether an annotation contains a disallowed raw tensor reference."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return False
-    if inside_shaped_type:
-        return False
-    if is_raw_tensor_type(node):
+        parsed = parse_string_annotation(node)
+        if parsed is None:
+            return False
+        return contains_raw_annotation(parsed, resolver)
+    if is_raw_tensor_type(node, resolver):
         return True
     if isinstance(node, ast.Subscript):
-        if is_jaxtyping_shaped_type(node.value):
+        if is_jaxtyping_shaped_type(node.value, resolver):
             return False
-        return contains_raw_annotation(node.value) or contains_raw_annotation(
-            node.slice
+        return contains_raw_annotation(node.value, resolver) or contains_raw_annotation(
+            node.slice, resolver
         )
-    return any(contains_raw_annotation(child) for child in ast.iter_child_nodes(node))
+    return any(
+        contains_raw_annotation(child, resolver) for child in ast.iter_child_nodes(node)
+    )
+
+
+def rendered_annotation(node: ast.AST) -> ast.AST:
+    """Return a parseable annotation expression for display and matching."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        parsed = parse_string_annotation(node)
+        if parsed is not None:
+            return parsed
+    return node
+
+
+def line_for_node(lines: list[str], node: ast.AST) -> str:
+    """Return the normalized physical source line for an AST node."""
+    lineno = getattr(node, "lineno", None)
+    if lineno is None or not 1 <= lineno <= len(lines):
+        return normalize_annotation(node)
+    return " ".join(lines[lineno - 1].strip().split())
 
 
 def is_type_alias_annotation(node: ast.AST | None) -> bool:
@@ -129,66 +207,84 @@ def is_type_alias_annotation(node: ast.AST | None) -> bool:
     return node is not None and dotted_name(node) in {"TypeAlias", "typing.TypeAlias"}
 
 
+def is_type_alias_target(node: ast.AST) -> bool:
+    """Return whether an assignment target is a conventional type alias name."""
+    if isinstance(node, ast.Name):
+        return node.id.endswith("Tensor") or node.id.endswith("Array")
+    return dotted_name(node) == "TypeAlias"
+
+
 def normalize_annotation(node: ast.AST) -> str:
     """Return a stable one-line representation for an annotation."""
-    return " ".join(ast.unparse(node).strip().split())
+    return " ".join(ast.unparse(rendered_annotation(node)).strip().split())
 
 
 class AnnotationVisitor(ast.NodeVisitor):
     """Collect annotation expressions from a Python module AST."""
 
-    def __init__(self) -> None:
-        self.annotations: list[ast.AST] = []
+    def __init__(self, lines: list[str]) -> None:
+        self.lines = lines
+        self.annotations: list[AnnotationRecord] = []
+
+    def append_annotation(self, node: ast.AST) -> None:
+        """Append an annotation with the source line that introduced it."""
+        self.annotations.append(AnnotationRecord(node, line_for_node(self.lines, node)))
 
     def visit_arg(self, node: ast.arg) -> None:
         """Collect function argument annotations."""
         if node.annotation is not None:
-            self.annotations.append(node.annotation)
+            self.append_annotation(node.annotation)
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Collect function return annotations."""
         if node.returns is not None:
-            self.annotations.append(node.returns)
+            self.append_annotation(node.returns)
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         """Collect async function return annotations."""
         if node.returns is not None:
-            self.annotations.append(node.returns)
+            self.append_annotation(node.returns)
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         """Collect variable annotations and typed aliases."""
-        self.annotations.append(node.annotation)
+        self.append_annotation(node.annotation)
         if is_type_alias_annotation(node.annotation) and node.value is not None:
-            self.annotations.append(node.value)
+            self.annotations.append(
+                AnnotationRecord(node.value, line_for_node(self.lines, node))
+            )
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        """Collect unannotated TypeAlias values."""
-        if any(dotted_name(target) == "TypeAlias" for target in node.targets):
-            self.annotations.append(node.value)
+        """Collect unannotated type alias values."""
+        if any(is_type_alias_target(target) for target in node.targets):
+            self.annotations.append(
+                AnnotationRecord(node.value, line_for_node(self.lines, node))
+            )
         self.generic_visit(node)
 
 
 def raw_annotation_violations(root: Path) -> list[AnnotationViolation]:
     """Return raw tensor annotation violations under package source roots."""
     violations: list[AnnotationViolation] = []
-    occurrences: dict[tuple[str, str], int] = defaultdict(int)
     for path in source_files(root):
         rel_path = path.relative_to(root).as_posix()
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
-        visitor = AnnotationVisitor()
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=rel_path)
+        resolver = ImportResolver.from_tree(tree)
+        visitor = AnnotationVisitor(text.splitlines())
         visitor.visit(tree)
-        for annotation in visitor.annotations:
-            if not contains_raw_annotation(annotation):
+        for record in visitor.annotations:
+            if not contains_raw_annotation(record.node, resolver):
                 continue
-            normalized = normalize_annotation(annotation)
-            key = (rel_path, normalized)
-            occurrences[key] += 1
             violations.append(
-                AnnotationViolation(rel_path, normalized, occurrences[key])
+                AnnotationViolation(
+                    rel_path,
+                    normalize_annotation(record.node),
+                    record.line,
+                )
             )
     return violations
 

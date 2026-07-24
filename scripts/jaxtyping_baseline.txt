@@ -1,1083 +1,820 @@
-lib/laygen/src/laygen/common/bbox.py	1	torch.Tensor
-lib/laygen/src/laygen/common/bbox.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-lib/laygen/src/laygen/common/bbox.py	2	torch.Tensor
-lib/laygen/src/laygen/common/bbox.py	3	torch.Tensor
-lib/laygen/src/laygen/common/bbox.py	4	torch.Tensor
-lib/laygen/src/laygen/common/bbox.py	5	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	1	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	2	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	3	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	4	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	5	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	6	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	7	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	8	torch.Tensor
-lib/laygen/src/laygen/common/discrete.py	9	torch.Tensor
-lib/laygen/src/laygen/common/testing.py	1	np.ndarray | torch.Tensor
-lib/laygen/src/laygen/common/visualization.py	1	torch.Tensor
-lib/laygen/src/laygen/common/visualization.py	2	torch.Tensor
-lib/laygen/src/laygen/common/visualization.py	3	torch.Tensor
-lib/posgen/src/posgen/common/content.py	1	torch.Tensor
-lib/posgen/src/posgen/common/content.py	2	torch.Tensor
-lib/traingen-parity/src/traingen_parity/compare.py	1	Iterable[Mapping[str, torch.Tensor]]
-lib/traingen-parity/src/traingen_parity/compare.py	1	Mapping[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/compare.py	1	torch.Tensor
-lib/traingen-parity/src/traingen_parity/compare.py	2	Iterable[Mapping[str, torch.Tensor]]
-lib/traingen-parity/src/traingen_parity/compare.py	2	Mapping[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/compare.py	2	torch.Tensor
-lib/traingen-parity/src/traingen_parity/determinism.py	1	torch.Tensor
-lib/traingen-parity/src/traingen_parity/determinism.py	1	tuple[torch.Tensor, ...]
-lib/traingen-parity/src/traingen_parity/trace.py	1	dict[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/trace.py	1	torch.Tensor
-lib/traingen-parity/src/traingen_parity/trace.py	2	dict[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/trace.py	2	torch.Tensor
-lib/traingen-parity/src/traingen_parity/trace.py	3	dict[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/trace.py	3	torch.Tensor
-lib/traingen-parity/src/traingen_parity/trace.py	4	dict[str, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/conversion.py	1	dict[str, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/conversion.py	2	dict[str, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	1	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	1	torch.LongTensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	1	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	10	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	11	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	12	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	13	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	14	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	15	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	2	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	3	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	4	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	5	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	6	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	7	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	8	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/geometry.py	9	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	list[torch.LongTensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	list[tuple[torch.Tensor, int]]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	torch.BoolTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	torch.LongTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	torch.LongTensor | None
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	1	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	list[torch.LongTensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	list[tuple[torch.Tensor, int]]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	torch.BoolTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	torch.LongTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	torch.LongTensor | None
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	2	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	3	list[torch.LongTensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	3	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	3	list[tuple[torch.Tensor, int]]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	3	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	3	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	4	list[torch.LongTensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	4	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	4	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	4	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	5	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	5	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	6	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	6	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	7	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	7	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	8	list[torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	8	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	9	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	dict[str, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	dict[str, torch.Tensor] | tuple[torch.Tensor, ...]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	tuple[torch.Tensor, ...]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	1	tuple[torch.Tensor, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	10	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	11	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	12	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	13	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	14	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	15	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	16	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	17	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	18	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	19	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	2	torch.FloatTensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	2	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	2	tuple[torch.Tensor, ...]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	2	tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	2	tuple[torch.Tensor, torch.Tensor]
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	20	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	21	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	22	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	23	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	24	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	25	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	26	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	27	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	28	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	29	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	3	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	30	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	31	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	32	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	33	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	34	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	35	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	36	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	37	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	38	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	4	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	5	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	6	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	7	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	8	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	9	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	1	int | list[int] | torch.Tensor | None
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	list[list[int | str]] | torch.Tensor | np.ndarray
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	torch.LongTensor
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	torch.Tensor
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	2	torch.LongTensor
-models/ds-gan/src/ds_gan/conversion.py	1	Mapping[str, torch.Tensor]
-models/ds-gan/src/ds_gan/conversion.py	1	dict[str, torch.Tensor]
-models/ds-gan/src/ds_gan/conversion.py	2	dict[str, torch.Tensor]
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	1	DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	1	ImageInput | list[ImageInput] | torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	1	int | list[int] | torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	1	torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	1	torch.Tensor | list[object] | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	2	ImageInput | list[ImageInput] | torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	2	torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	2	torch.Tensor | list[object] | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	3	ImageInput | list[ImageInput] | torch.Tensor | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	3	torch.Tensor | list[object] | None
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	4	ImageInput | list[ImageInput] | torch.Tensor | None
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	dict[str, torch.Tensor | tuple[int, int]]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	dict[str, torch.Tensor]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	list[torch.Tensor]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	torch.Tensor | None
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	torch.Tensor | np.ndarray | list[object]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	torch.Tensor | np.ndarray | list[object] | None
-models/ds-gan/src/ds_gan/processing_ds_gan.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	10	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	11	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	2	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	2	torch.Tensor | np.ndarray | list[object]
-models/ds-gan/src/ds_gan/processing_ds_gan.py	3	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	4	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	5	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	6	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	7	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	8	torch.Tensor
-models/ds-gan/src/ds_gan/processing_ds_gan.py	9	torch.Tensor
-models/flex-dm/src/flex_dm/conversion.py	1	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/conversion.py	1	np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	1	torch.Tensor
-models/flex-dm/src/flex_dm/conversion.py	1	tuple[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/conversion.py	1	tuple[torch.Tensor, torch.Tensor]
-models/flex-dm/src/flex_dm/conversion.py	2	np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	2	torch.Tensor
-models/flex-dm/src/flex_dm/conversion.py	3	np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	3	torch.Tensor
-models/flex-dm/src/flex_dm/conversion.py	4	np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	5	np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	6	np.ndarray
-models/flex-dm/src/flex_dm/masking.py	1	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	1	Mapping[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/masking.py	1	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	1	dict[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/masking.py	1	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	1	torch.Tensor | None
-models/flex-dm/src/flex_dm/masking.py	2	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	2	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	3	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	3	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	4	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	4	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	5	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	5	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	6	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	6	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	7	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	7	torch.Tensor
-models/flex-dm/src/flex_dm/masking.py	8	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	8	torch.Tensor
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	Mapping[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	dict[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	list[torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	torch.Tensor
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	1	torch.Tensor | None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	2	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	2	Mapping[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	2	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	2	torch.Tensor | None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	3	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	3	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	4	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	1	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	1	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	2	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	1	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	1	Mapping[str, torch.Tensor] | None
-models/flex-dm/src/flex_dm/processing_flex_dm.py	1	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	1	int | list[int] | torch.Tensor | None
-models/flex-dm/src/flex_dm/processing_flex_dm.py	1	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	10	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	2	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	2	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	2	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	3	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	3	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	3	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	4	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	4	dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	4	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	5	Mapping[str, torch.Tensor]
-models/flex-dm/src/flex_dm/processing_flex_dm.py	5	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	6	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	7	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	8	torch.Tensor
-models/flex-dm/src/flex_dm/processing_flex_dm.py	9	torch.Tensor
-models/flex-dm/src/flex_dm/tf_checkpoint.py	1	dict[str, np.ndarray]
-models/housegan/src/housegan/datasets.py	1	np.ndarray
-models/housegan/src/housegan/datasets.py	2	np.ndarray
-models/housegan/src/housegan/graph_schema.py	1	torch.FloatTensor
-models/housegan/src/housegan/graph_schema.py	1	torch.LongTensor
-models/housegan/src/housegan/modeling_housegan.py	1	HouseGanModelOutput | tuple[torch.Tensor]
-models/housegan/src/housegan/pipeline_housegan.py	1	int | list[int] | torch.Tensor | None
-models/housegan/src/housegan/pipeline_housegan.py	1	list[torch.Tensor]
-models/housegan/src/housegan/pipeline_housegan.py	1	torch.Tensor | np.ndarray | list[object] | None
-models/housegan/src/housegan/pipeline_housegan.py	2	list[torch.Tensor]
-models/housegan/src/housegan/pipeline_housegan.py	2	torch.Tensor | np.ndarray | list[object] | None
-models/housegan/src/housegan/pipeline_housegan.py	3	list[torch.Tensor]
-models/housegan/src/housegan/pipeline_housegan.py	3	torch.Tensor | np.ndarray | list[object] | None
-models/housegan/src/housegan/processing_housegan.py	1	torch.LongTensor
-models/housegan/src/housegan/processing_housegan.py	1	torch.LongTensor | None
-models/housegan/src/housegan/processing_housegan.py	1	torch.Tensor
-models/housegan/src/housegan/processing_housegan.py	1	torch.Tensor | None
-models/housegan/src/housegan/processing_housegan.py	2	torch.Tensor
-models/housegan/src/housegan/processing_housegan.py	3	torch.Tensor
-models/housegan/src/housegan/processing_housegan.py	4	torch.Tensor
-models/housegan/src/housegan/vendor_state_dict.py	1	Mapping[str, torch.Tensor]
-models/housegan/src/housegan/vendor_state_dict.py	1	OrderedDict[str, torch.Tensor]
-models/housegan/src/housegan/vendor_state_dict.py	1	tuple[OrderedDict[str, torch.Tensor], ConversionReport]
-models/housegan/src/housegan/visualization.py	1	torch.Tensor
-models/housegan/src/housegan/visualization.py	2	torch.Tensor
-models/lace/src/lace/constraints.py	1	torch.Tensor
-models/lace/src/lace/constraints.py	1	tuple[torch.Tensor, torch.Tensor]
-models/lace/src/lace/constraints.py	2	torch.Tensor
-models/lace/src/lace/constraints.py	3	torch.Tensor
-models/lace/src/lace/constraints.py	4	torch.Tensor
-models/lace/src/lace/constraints.py	5	torch.Tensor
-models/lace/src/lace/constraints.py	6	torch.Tensor
-models/lace/src/lace/constraints.py	7	torch.Tensor
-models/lace/src/lace/constraints.py	8	torch.Tensor
-models/lace/src/lace/conversion.py	1	Mapping[str, torch.Tensor]
-models/lace/src/lace/conversion.py	1	dict[str, torch.Tensor]
-models/lace/src/lace/conversion.py	2	dict[str, torch.Tensor]
-models/lace/src/lace/modeling_lace.py	1	torch.Tensor
-models/lace/src/lace/modeling_lace.py	2	torch.Tensor
-models/lace/src/lace/pipeline_lace.py	1	LayoutGenerationOutput | dict[str, torch.Tensor]
-models/lace/src/lace/pipeline_lace.py	1	torch.Tensor | None
-models/lace/src/lace/pipeline_lace.py	2	torch.Tensor | None
-models/lace/src/lace/processing_lace.py	1	dict[str, torch.Tensor]
-models/lace/src/lace/processing_lace.py	1	torch.Tensor
-models/lace/src/lace/processing_lace.py	1	torch.Tensor | None
-models/lace/src/lace/processing_lace.py	2	torch.Tensor
-models/lace/src/lace/processing_lace.py	3	torch.Tensor
-models/lace/src/lace/processing_lace.py	4	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	1	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	10	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	2	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	3	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	4	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	5	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	6	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	7	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	8	torch.Tensor
-models/lace/src/lace/scheduling_lace.py	9	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	1	dict[str, torch.Tensor]
-models/layousyn/src/layousyn/modeling_layousyn.py	1	np.ndarray
-models/layousyn/src/layousyn/modeling_layousyn.py	1	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	1	torch.Tensor | None
-models/layousyn/src/layousyn/modeling_layousyn.py	1	tuple[torch.Tensor | None, torch.Tensor | None]
-models/layousyn/src/layousyn/modeling_layousyn.py	1	tuple[torch.Tensor, torch.Tensor]
-models/layousyn/src/layousyn/modeling_layousyn.py	10	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	11	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	12	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	13	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	14	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	15	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	16	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	17	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	18	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	19	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	2	dict[str, torch.Tensor]
-models/layousyn/src/layousyn/modeling_layousyn.py	2	np.ndarray
-models/layousyn/src/layousyn/modeling_layousyn.py	2	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	2	torch.Tensor | None
-models/layousyn/src/layousyn/modeling_layousyn.py	2	tuple[torch.Tensor, torch.Tensor]
-models/layousyn/src/layousyn/modeling_layousyn.py	20	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	21	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	22	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	23	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	24	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	25	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	26	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	27	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	28	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	29	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	3	np.ndarray
-models/layousyn/src/layousyn/modeling_layousyn.py	3	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	3	torch.Tensor | None
-models/layousyn/src/layousyn/modeling_layousyn.py	3	tuple[torch.Tensor, torch.Tensor]
-models/layousyn/src/layousyn/modeling_layousyn.py	30	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	31	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	32	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	4	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	4	torch.Tensor | None
-models/layousyn/src/layousyn/modeling_layousyn.py	5	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	5	torch.Tensor | None
-models/layousyn/src/layousyn/modeling_layousyn.py	6	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	7	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	8	torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	9	torch.Tensor
-models/layousyn/src/layousyn/pipeline_layousyn.py	1	LayoutGenerationOutput | dict[str, torch.Tensor | object]
-models/layousyn/src/layousyn/pipeline_layousyn.py	1	dict[str, torch.Tensor]
-models/layousyn/src/layousyn/pipeline_layousyn.py	1	int | list[int] | torch.Tensor | None
-models/layousyn/src/layousyn/pipeline_layousyn.py	2	dict[str, torch.Tensor]
-models/layousyn/src/layousyn/processing_layousyn.py	1	LayoutGenerationOutput | dict[str, torch.Tensor | object]
-models/layousyn/src/layousyn/processing_layousyn.py	1	Sequence[str] | Sequence[Sequence[str]] | torch.Tensor | np.ndarray | None
-models/layousyn/src/layousyn/processing_layousyn.py	1	float | Sequence[float] | torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	1	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	1	torch.Tensor | np.ndarray | list[object]
-models/layousyn/src/layousyn/processing_layousyn.py	1	torch.Tensor | np.ndarray | list[object] | None
-models/layousyn/src/layousyn/processing_layousyn.py	1	tuple[torch.Tensor, torch.Tensor]
-models/layousyn/src/layousyn/processing_layousyn.py	10	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	11	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	12	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	2	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	3	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	4	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	5	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	6	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	7	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	8	torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	9	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	1	LayouSynSchedulerOutput | tuple[torch.Tensor]
-models/layousyn/src/layousyn/scheduling_layousyn.py	1	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	10	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	11	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	12	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	13	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	14	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	15	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	16	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	17	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	18	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	19	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	2	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	20	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	21	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	22	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	23	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	24	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	25	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	26	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	27	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	28	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	29	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	3	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	30	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	31	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	4	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	5	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	6	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	7	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	8	torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	9	torch.Tensor
-models/layout-action/src/layout_action/conversion.py	1	dict[str, torch.Tensor]
-models/layout-action/src/layout_action/conversion.py	1	tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]
-models/layout-action/src/layout_action/conversion.py	2	dict[str, torch.Tensor]
-models/layout-action/src/layout_action/generation_layout_action.py	1	torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	1	torch.Tensor | None
-models/layout-action/src/layout_action/generation_layout_action.py	2	torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	3	torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	4	torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	5	torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	6	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	1	CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]
-models/layout-action/src/layout_action/modeling_layout_action.py	1	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	1	torch.Tensor | None
-models/layout-action/src/layout_action/modeling_layout_action.py	1	tuple[torch.Tensor, ...]
-models/layout-action/src/layout_action/modeling_layout_action.py	2	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	3	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	4	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	5	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	6	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	7	torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	8	torch.Tensor
-models/layout-action/src/layout_action/pipeline_layout_action.py	1	int | list[int] | torch.Tensor | None
-models/layout-action/src/layout_action/pipeline_layout_action.py	1	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/pipeline_layout_action.py	2	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/pipeline_layout_action.py	3	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/processing_layout_action.py	1	int | list[int] | torch.Tensor | None
-models/layout-action/src/layout_action/processing_layout_action.py	1	torch.Tensor
-models/layout-action/src/layout_action/processing_layout_action.py	1	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/processing_layout_action.py	2	int | list[int] | torch.Tensor | None
-models/layout-action/src/layout_action/processing_layout_action.py	2	torch.Tensor
-models/layout-action/src/layout_action/processing_layout_action.py	2	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/processing_layout_action.py	3	torch.Tensor
-models/layout-action/src/layout_action/processing_layout_action.py	3	torch.Tensor | np.ndarray | list[object] | None
-models/layout-action/src/layout_action/tokenization_layout_action.py	1	dict[str, torch.Tensor | dict[str, torch.Tensor]]
-models/layout-action/src/layout_action/tokenization_layout_action.py	1	dict[str, torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	1	list[torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	1	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	10	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	11	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	12	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	13	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	14	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	15	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	16	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	17	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	18	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	19	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	2	dict[str, torch.Tensor | dict[str, torch.Tensor]]
-models/layout-action/src/layout_action/tokenization_layout_action.py	2	list[torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	2	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	20	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	21	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	3	list[torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	3	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	4	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	5	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	6	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	7	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	8	torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	9	torch.Tensor
-models/layout-corrector/src/layout_corrector/conversion.py	1	dict[str, torch.Tensor]
-models/layout-corrector/src/layout_corrector/conversion.py	2	dict[str, torch.Tensor]
-models/layout-corrector/src/layout_corrector/conversion.py	3	dict[str, torch.Tensor]
-models/layout-corrector/src/layout_corrector/conversion.py	4	dict[str, torch.Tensor]
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	1	LayoutGenerationOutput | dict[str, torch.Tensor]
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	1	torch.Tensor
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	1	tuple[torch.Tensor, torch.Tensor | None]
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	2	torch.Tensor
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	3	torch.Tensor
-models/layout-corrector/src/layout_corrector/sampling.py	1	torch.Tensor
-models/layout-corrector/src/layout_corrector/sampling.py	2	torch.Tensor
-models/layout-corrector/src/layout_corrector/sampling.py	3	torch.Tensor
-models/layout-corrector/src/layout_corrector/sampling.py	4	torch.Tensor
-models/layout-corrector/src/layout_corrector/sampling.py	5	torch.Tensor
-models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	list[torch.Tensor]
-models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	np.ndarray
-models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	LayoutDetrModelOutput | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	_VendorBertOutput | tuple[torch.Tensor]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	tuple[list[_NestedTensor], list[torch.Tensor]]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	tuple[torch.Tensor, torch.Tensor]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	10	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	10	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	11	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	11	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	12	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	12	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	13	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	13	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	14	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	14	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	15	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	15	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	16	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	16	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	17	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	17	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	18	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	18	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	19	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	2	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	2	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	2	tuple[torch.Tensor, torch.Tensor]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	20	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	21	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	22	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	23	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	24	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	25	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	26	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	27	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	28	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	29	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	3	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	3	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	3	tuple[torch.Tensor, torch.Tensor]
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	30	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	31	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	32	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	33	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	34	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	35	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	36	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	37	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	38	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	39	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	4	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	4	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	40	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	41	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	42	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	43	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	44	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	45	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	46	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	47	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	48	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	49	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	5	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	5	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	50	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	51	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	52	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	53	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	54	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	55	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	56	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	57	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	58	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	59	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	6	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	6	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	60	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	61	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	62	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	63	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	64	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	65	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	66	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	67	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	68	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	69	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	7	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	7	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	70	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	71	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	8	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	8	torch.Tensor | None
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	9	torch.Tensor
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	9	torch.Tensor | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	1	ImageInput | Sequence[ImageInput] | torch.Tensor | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	1	int | Sequence[int] | torch.Tensor | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	1	torch.Tensor | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	1	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	1	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	2	torch.Tensor | None
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	ImageInput | Sequence[ImageInput] | torch.Tensor | None
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	torch.Tensor
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	tuple[torch.Tensor, torch.Tensor, list[list[str]]]
-models/layout-detr/src/layout_detr/processing_layout_detr.py	1	tuple[torch.Tensor, torch.Tensor]
-models/layout-detr/src/layout_detr/processing_layout_detr.py	2	torch.Tensor
-models/layout-detr/src/layout_detr/processing_layout_detr.py	2	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None
-models/layout-detr/src/layout_detr/processing_layout_detr.py	3	torch.Tensor
-models/layout-detr/src/layout_detr/processing_layout_detr.py	4	torch.Tensor
-models/layout-detr/src/layout_detr/vendor_state.py	1	Mapping[str, torch.Tensor]
-models/layout-detr/src/layout_detr/vendor_state.py	1	tuple[dict[str, torch.Tensor], LayoutDetrConfig, LayoutDetrConversionReport]
-models/layout-detr/src/layout_detr/vendor_state.py	1	tuple[set[int], torch.Tensor]
-models/layout-detr/src/layout_detr/vendor_state.py	2	Mapping[str, torch.Tensor]
-models/layout-detr/src/layout_detr/vendor_state.py	3	Mapping[str, torch.Tensor]
-models/layout-detr/src/layout_detr/vendor_state.py	4	Mapping[str, torch.Tensor]
-models/layout-detr/src/layout_detr/vendor_state.py	5	Mapping[str, torch.Tensor]
-models/layout-dm/src/layout_dm/conditioning.py	1	torch.Tensor
-models/layout-dm/src/layout_dm/conditioning.py	1	torch.Tensor | None
-models/layout-dm/src/layout_dm/conditioning.py	2	torch.Tensor
-models/layout-dm/src/layout_dm/conditioning.py	2	torch.Tensor | None
-models/layout-dm/src/layout_dm/conditioning.py	3	torch.Tensor
-models/layout-dm/src/layout_dm/conditioning.py	3	torch.Tensor | None
-models/layout-dm/src/layout_dm/conditioning.py	4	torch.Tensor
-models/layout-dm/src/layout_dm/conditioning.py	4	torch.Tensor | None
-models/layout-dm/src/layout_dm/conditioning.py	5	torch.Tensor
-models/layout-dm/src/layout_dm/conditioning.py	5	torch.Tensor | None
-models/layout-dm/src/layout_dm/conversion.py	1	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/conversion.py	2	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/conversion.py	3	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/modeling_layout_dm.py	1	Callable[[torch.Tensor], torch.Tensor]
-models/layout-dm/src/layout_dm/modeling_layout_dm.py	1	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/modeling_layout_dm.py	1	str | Callable[[torch.Tensor], torch.Tensor]
-models/layout-dm/src/layout_dm/modeling_layout_dm.py	1	torch.Tensor
-models/layout-dm/src/layout_dm/modeling_layout_dm.py	2	torch.Tensor
-models/layout-dm/src/layout_dm/pipeline_layout_dm.py	1	LayoutGenerationOutput | dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/processing_layout_dm.py	1	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	1	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	1	torch.Tensor | None
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	1	tuple[torch.Tensor, ...]
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	10	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	11	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	12	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	13	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	14	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	15	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	16	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	17	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	18	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	19	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	2	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	2	torch.Tensor | None
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	20	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	21	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	22	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	23	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	24	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	25	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	26	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	27	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	28	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	29	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	3	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	30	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	31	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	4	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	5	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	6	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	7	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	8	torch.Tensor
-models/layout-dm/src/layout_dm/scheduling_layout_dm.py	9	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	1	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	1	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	1	torch.Tensor | None
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	10	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	11	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	12	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	13	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	14	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	15	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	16	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	17	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	18	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	19	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	2	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	2	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	20	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	21	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	3	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	3	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	4	dict[str, torch.Tensor]
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	4	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	5	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	6	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	7	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	8	torch.Tensor
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	9	torch.Tensor
-models/layout-flow/src/layout_flow/conversion.py	1	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/conversion.py	2	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/conversion.py	3	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	1	Callable[[torch.Tensor], torch.Tensor]
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	1	str | Callable[[torch.Tensor], torch.Tensor]
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	1	torch.Tensor | None
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	2	str | Callable[[torch.Tensor], torch.Tensor]
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	2	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	2	torch.Tensor | None
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	3	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	3	torch.Tensor | None
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	4	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	4	torch.Tensor | None
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	5	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	5	torch.Tensor | None
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	6	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	7	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	8	torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	9	torch.Tensor
-models/layout-flow/src/layout_flow/pipeline_layout_flow.py	1	LayoutGenerationOutput | dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/pipeline_layout_flow.py	1	torch.Tensor | np.ndarray | Sequence[object] | None
-models/layout-flow/src/layout_flow/processing_layout_flow.py	1	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/processing_layout_flow.py	1	int | list[int] | torch.Tensor | None
-models/layout-flow/src/layout_flow/processing_layout_flow.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	1	torch.Tensor | np.ndarray | Sequence[object] | None
-models/layout-flow/src/layout_flow/processing_layout_flow.py	10	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	11	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	12	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	13	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	14	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	15	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	16	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	17	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	18	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	19	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	2	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/processing_layout_flow.py	2	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	3	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	4	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	5	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	6	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	7	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	8	torch.Tensor
-models/layout-flow/src/layout_flow/processing_layout_flow.py	9	torch.Tensor
-models/layout-flow/src/layout_flow/sampling.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/sampling.py	2	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	1	LayoutFlowSchedulerOutput | tuple[torch.Tensor]
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	1	torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	1	torch.Tensor | float | None
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	1	tuple[torch.Tensor]
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	2	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	2	torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	2	torch.Tensor | float | None
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	3	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	3	torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	3	torch.Tensor | float | None
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	4	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	4	torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	5	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	6	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	7	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	8	torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	9	torch.Tensor
-models/layout-flow/src/layout_flow/training/dataset.py	1	dict[str, torch.Tensor | list[str]]
-models/layout-flow/src/layout_flow/training/dataset.py	1	dict[str, torch.Tensor | str]
-models/layout-flow/src/layout_flow/training/dataset.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/training/dataset.py	2	dict[str, torch.Tensor | str]
-models/layout-flow/src/layout_flow/training/dataset.py	2	torch.Tensor
-models/layout-flow/src/layout_flow/training/dataset.py	3	dict[str, torch.Tensor | str]
-models/layout-flow/src/layout_flow/training/lightning_module.py	1	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	1	torch.Tensor
-models/layout-flow/src/layout_flow/training/lightning_module.py	2	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	3	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	4	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	5	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	6	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/losses.py	1	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/parity.py	1	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/parity.py	2	dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/parity.py	3	dict[str, torch.Tensor]
-models/layout-gpt/src/layout_gpt/types.py	1	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	1	LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	1	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	1	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	2	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	2	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	3	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	3	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	4	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	4	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	5	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor | None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor, None, None, None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	1	tuple[torch.Tensor, torch.Tensor]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	10	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	10	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	100	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	101	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	102	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	103	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	104	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	11	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	11	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	12	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	12	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	13	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	13	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	14	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	14	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	15	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	15	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	16	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	16	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	17	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	17	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	18	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	19	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	tuple[torch.Tensor, torch.Tensor, None, None, None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	2	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	20	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	21	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	22	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	23	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	24	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	25	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	26	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	27	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	28	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	29	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	3	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	3	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	30	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	31	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	32	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	33	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	34	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	35	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	36	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	37	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	38	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	39	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	4	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	4	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	40	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	41	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	42	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	43	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	44	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	45	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	46	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	47	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	48	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	49	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	5	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	5	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	50	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	51	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	52	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	53	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	54	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	55	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	56	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	57	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	58	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	59	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	6	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	6	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	60	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	61	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	62	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	63	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	64	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	65	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	66	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	67	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	68	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	69	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	7	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	7	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	70	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	71	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	72	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	73	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	74	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	75	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	76	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	77	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	78	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	79	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	8	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	8	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	80	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	81	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	82	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	83	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	84	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	85	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	86	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	87	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	88	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	89	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	9	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	9	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	90	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	91	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	92	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	93	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	94	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	95	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	96	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	97	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	98	torch.Tensor
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	99	torch.Tensor
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	1	int | list[int] | torch.Tensor | None
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	1	torch.Tensor | list[object] | None
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	2	torch.Tensor | list[object] | None
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	3	torch.Tensor | list[object] | None
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	1	list[torch.Tensor]
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	1	torch.Tensor
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	1	torch.Tensor | None
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	2	list[torch.Tensor]
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	2	torch.Tensor
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	3	list[torch.Tensor]
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	4	list[torch.Tensor]
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	5	list[torch.Tensor]
-models/layout-transformer/src/layout_transformer/vendor_state_dict.py	1	Mapping[str, torch.Tensor]
-models/layout-transformer/src/layout_transformer/vendor_state_dict.py	1	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	1	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	2	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	3	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	4	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	5	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	6	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	1	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	2	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	3	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/modeling_layoutdiffusion.py	1	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/modeling_layoutdiffusion.py	2	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	1	list[torch.Tensor] | None
-models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	1	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	1	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	1	np.ndarray
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	1	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	1	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	1	tuple[np.ndarray, ...]
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	10	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	11	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	12	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	13	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	14	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	15	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	16	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	17	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	18	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	19	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	2	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	2	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	20	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	21	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	22	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	23	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	24	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	25	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	26	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	3	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	4	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	5	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	6	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	7	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	8	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	9	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	torch.Tensor | None
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	torch.Tensor | list[int] | int | None
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	2	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	2	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	3	dict[str, torch.Tensor]
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	3	torch.Tensor
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	4	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/conversion.py	1	dict[str, torch.Tensor]
-models/layoutformerpp/src/layoutformerpp/geometry.py	1	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	2	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	3	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	4	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	5	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	6	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	7	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/geometry.py	8	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	Callable[[int, int, torch.Tensor], tuple[list[int], int | None]] | None
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	Seq2SeqLMOutput | tuple[torch.Tensor, ...]
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	list[torch.Tensor]
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	1	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	2	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	3	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	4	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	5	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	1	list[torch.Tensor]
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	1	torch.Tensor
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	1	torch.Tensor | list[list[bool]] | list[bool] | None
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	2	list[torch.Tensor]
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	3	list[torch.Tensor]
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	1	torch.Tensor
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	1	list[list[str | int]] | list[str | int] | torch.Tensor
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	1	torch.Tensor
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	1	torch.Tensor | None
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	2	torch.Tensor
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	1	torch.Tensor
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	1	torch.Tensor | None
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	2	torch.Tensor
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	1	list[torch.Tensor]
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	1	torch.Tensor | Sequence[str]
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	2	list[torch.Tensor]
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	3	list[torch.Tensor]
-models/ralf/src/ralf/datasets.py	1	torch.Tensor
-models/ralf/src/ralf/datasets.py	2	torch.Tensor
-models/ralf/src/ralf/datasets.py	3	torch.Tensor
-models/ralf/src/ralf/datasets.py	4	torch.Tensor
-models/ralf/src/ralf/image_processing_ralf.py	1	torch.Tensor
-models/ralf/src/ralf/modeling_ralf.py	1	CausalLMOutput | tuple[torch.Tensor, ...]
-models/ralf/src/ralf/pipeline_ralf.py	1	int | Sequence[int] | torch.Tensor | None
-models/ralf/src/ralf/pipeline_ralf.py	1	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None
-models/ralf/src/ralf/pipeline_ralf.py	1	torch.Tensor | Sequence[Sequence[int]] | None
-models/ralf/src/ralf/pipeline_ralf.py	1	torch.Tensor | Sequence[object] | None
-models/ralf/src/ralf/pipeline_ralf.py	2	torch.Tensor | Sequence[object] | None
-models/ralf/src/ralf/processing_ralf.py	1	int | Sequence[int] | torch.Tensor | None
-models/ralf/src/ralf/processing_ralf.py	1	torch.Tensor
-models/ralf/src/ralf/processing_ralf.py	1	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None
-models/ralf/src/ralf/processing_ralf.py	1	torch.Tensor | Sequence[Sequence[int]] | None
-models/ralf/src/ralf/processing_ralf.py	1	torch.Tensor | Sequence[object] | None
-models/ralf/src/ralf/processing_ralf.py	2	torch.Tensor
-models/ralf/src/ralf/processing_ralf.py	2	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None
-models/ralf/src/ralf/processing_ralf.py	2	torch.Tensor | Sequence[object] | None
-models/ralf/src/ralf/processing_ralf.py	3	torch.Tensor
-models/ralf/src/ralf/processing_ralf.py	3	torch.Tensor | Sequence[object] | None
-models/ralf/src/ralf/processing_ralf.py	4	torch.Tensor
-models/ralf/src/ralf/retrieval.py	1	Mapping[str, torch.Tensor]
-models/ralf/src/ralf/retrieval.py	1	dict[str, torch.Tensor]
-models/ralf/src/ralf/tokenization_ralf.py	1	dict[str, torch.Tensor]
-models/ralf/src/ralf/tokenization_ralf.py	1	list[torch.Tensor]
-models/smarttext/src/smarttext/candidate_generation.py	1	list[np.ndarray]
-models/smarttext/src/smarttext/candidate_generation.py	1	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	1	np.ndarray | torch.Tensor
-models/smarttext/src/smarttext/candidate_generation.py	1	torch.Tensor
-models/smarttext/src/smarttext/candidate_generation.py	1	tuple[np.ndarray, int, int]
-models/smarttext/src/smarttext/candidate_generation.py	1	tuple[np.ndarray, tuple[int, int, int, int]]
-models/smarttext/src/smarttext/candidate_generation.py	1	tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]
-models/smarttext/src/smarttext/candidate_generation.py	10	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	2	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	2	np.ndarray | torch.Tensor
-models/smarttext/src/smarttext/candidate_generation.py	2	tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]
-models/smarttext/src/smarttext/candidate_generation.py	3	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	4	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	5	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	6	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	7	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	8	np.ndarray
-models/smarttext/src/smarttext/candidate_generation.py	9	np.ndarray
-models/smarttext/src/smarttext/color.py	1	Image.Image | np.ndarray
-models/smarttext/src/smarttext/color.py	1	list[np.ndarray]
-models/smarttext/src/smarttext/color.py	1	np.ndarray
-models/smarttext/src/smarttext/color.py	2	Image.Image | np.ndarray
-models/smarttext/src/smarttext/color.py	2	np.ndarray
-models/smarttext/src/smarttext/color.py	3	Image.Image | np.ndarray
-models/smarttext/src/smarttext/color.py	3	np.ndarray
-models/smarttext/src/smarttext/conversion.py	1	Mapping[str, torch.Tensor]
-models/smarttext/src/smarttext/conversion.py	1	dict[str, torch.Tensor]
-models/smarttext/src/smarttext/image_processing_smarttext.py	1	np.ndarray
-models/smarttext/src/smarttext/modeling_basnet.py	1	SmartTextSaliencyOutput | tuple[torch.Tensor, ...]
-models/smarttext/src/smarttext/modeling_basnet.py	1	torch.Tensor
-models/smarttext/src/smarttext/modeling_basnet.py	1	tuple[torch.Tensor, ...]
-models/smarttext/src/smarttext/modeling_basnet.py	1	tuple[torch.Tensor, ...] | None
-models/smarttext/src/smarttext/modeling_basnet.py	2	torch.Tensor
-models/smarttext/src/smarttext/modeling_basnet.py	3	torch.Tensor
-models/smarttext/src/smarttext/modeling_basnet.py	4	torch.Tensor
-models/smarttext/src/smarttext/modeling_basnet.py	5	torch.Tensor
-models/smarttext/src/smarttext/modeling_basnet.py	6	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	1	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	1	tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-models/smarttext/src/smarttext/modeling_smarttext.py	10	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	11	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	12	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	13	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	14	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	2	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	3	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	4	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	5	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	6	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	7	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	8	torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	9	torch.Tensor
-models/smarttext/src/smarttext/processing_smarttext.py	1	torch.Tensor
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	def linear_continuize(ids: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	) -> torch.Tensor:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	x: torch.Tensor,
+lib/laygen/src/laygen/common/testing.py	Mapping[str, 'torch.Tensor']	state_dict: Mapping[str, "torch.Tensor"],
+lib/laygen/src/laygen/common/testing.py	OrderedDict[str, torch.Tensor]	) -> "OrderedDict[str, torch.Tensor]":
+lib/laygen/src/laygen/common/testing.py	dict[str, 'torch.Tensor']	) -> dict[str, "torch.Tensor"]:
+lib/laygen/src/laygen/common/testing.py	np.ndarray | torch.Tensor	ArrayLike: TypeAlias = np.ndarray | torch.Tensor
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	bbox: torch.Tensor,
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	labels: torch.Tensor,
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	mask: torch.Tensor,
+lib/posgen/src/posgen/common/content.py	torch.Tensor	mask: torch.Tensor
+lib/posgen/src/posgen/common/content.py	torch.Tensor	positions: torch.Tensor
+lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	reference_loader: Iterable[Mapping[str, torch.Tensor]],
+lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	target_loader: Iterable[Mapping[str, torch.Tensor]],
+lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	reference_state: Mapping[str, torch.Tensor],
+lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	target_state: Mapping[str, torch.Tensor],
+lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	actual: torch.Tensor,
+lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	expected: torch.Tensor,
+lib/traingen-parity/src/traingen_parity/determinism.py	torch.Tensor	torch_cpu: torch.Tensor
+lib/traingen-parity/src/traingen_parity/determinism.py	tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object]	NumpyRandomState: TypeAlias = (
+lib/traingen-parity/src/traingen_parity/determinism.py	tuple[torch.Tensor, ...]	torch_cuda: tuple[torch.Tensor, ...]
+lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
+lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor], batch_idx: int
+lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor]
+lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor],
+lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	) -> torch.Tensor:
+lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
+lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def tensor_sha256(tensor: torch.Tensor) -> str:
+models/coarse-to-fine/src/coarse_to_fine/conversion.py	dict[str, torch.Tensor]	def strip_module_prefix(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.FloatTensor	) -> torch.FloatTensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.LongTensor	) -> torch.LongTensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	bbox: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	bbox: torch.Tensor, *, box_format: BoxFormat | str = BoxFormat.xywh
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	bbox: torch.Tensor, *, num_x_grid: int, num_y_grid: int
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	def ltrb_to_ltwh(bbox: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	def ltwh_to_ltrb(bbox: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	def ltwh_to_public_xywh(bbox: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	ids: torch.Tensor, *, num_x_grid: int, num_y_grid: int
+models/coarse-to-fine/src/coarse_to_fine/geometry.py	torch.Tensor	relative_bbox: torch.Tensor, group_bbox: torch.Tensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.LongTensor]	grouped_bbox: list[torch.LongTensor]
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.LongTensor]	grouped_bbox: list[torch.LongTensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.LongTensor]	grouped_labels: list[torch.LongTensor]
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.LongTensor]	grouped_labels: list[torch.LongTensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	bbox_values: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	group_boxes: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	label_histogram: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	label_values: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	rows_bbox: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	rows_group_index: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	rows_labels: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[torch.Tensor]	rows_mask: list[torch.Tensor] = []
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[tuple[torch.Tensor, int]]	) -> list[tuple[torch.Tensor, int]]:
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[tuple[torch.Tensor, int]]	sorted_bbox_with_idx: list[tuple[torch.Tensor, int]], *, direction: str
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[tuple[torch.Tensor, int]]	structure: list[list[int]], sorted_boxes: list[tuple[torch.Tensor, int]]
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.BoolTensor	group_mask: torch.BoolTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.BoolTensor	relative_mask: torch.BoolTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.FloatTensor	group_bbox: torch.FloatTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.FloatTensor	label_histogram: torch.FloatTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.FloatTensor	label_in_one_group: torch.FloatTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.FloatTensor	relative_bbox: torch.FloatTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.LongTensor	element_group_index: torch.LongTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.LongTensor	group_bounding_box: torch.LongTensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.LongTensor | None	discrete_group_bbox: torch.LongTensor | None = None
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.LongTensor | None	discrete_relative_bbox: torch.LongTensor | None = None
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	bbox_ltwh: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	boxes: torch.Tensor, labels: torch.Tensor
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	group_bbox_logits: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	group_label_logits: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	grouped_bbox_logits: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	grouped_label_logits: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	torch.Tensor	labels_1based: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	dict[str, torch.Tensor]	def _decode_hierarchy(self, latent_z: torch.FloatTensor) -> dict[str, torch.Tensor]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	dict[str, torch.Tensor] | tuple[torch.Tensor, ...]	) -> dict[str, torch.Tensor] | tuple[torch.Tensor, ...]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.FloatTensor	) -> torch.FloatTensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.FloatTensor	def _decode_hierarchy(self, latent_z: torch.FloatTensor) -> dict[str, torch.Tensor]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	batch_size: int, *args: torch.Tensor
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	box: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def forward(self, label: torch.Tensor, box: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def get_box_embedding(self, box: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def get_group_label_embedding(self, label: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def get_key_padding_mask(mask: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def get_label_embedding(self, label: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def get_padding_mask(mask: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def make_batch_first(arg: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def make_group_first(arg: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def make_seq_first(arg: torch.Tensor) -> torch.Tensor:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	def pack_group_batch(*args: torch.Tensor) -> tuple[torch.Tensor, ...]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	label: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	mask: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	memory: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	self, labels: torch.Tensor, bboxes: torch.Tensor, masks: torch.Tensor
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	self, z: torch.Tensor, *, max_group_num: int, device: torch.device
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	torch.Tensor	z: torch.Tensor,
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	tuple[torch.Tensor, ...]	) -> tuple[torch.Tensor, ...]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	tuple[torch.Tensor, ...]	def pack_group_batch(*args: torch.Tensor) -> tuple[torch.Tensor, ...]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+models/coarse-to-fine/src/coarse_to_fine/modeling_coarse_to_fine.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	list[list[int | str]] | torch.Tensor | np.ndarray	self, labels: list[list[int | str]] | torch.Tensor | np.ndarray
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.LongTensor	) -> torch.LongTensor:
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.LongTensor	def _labels_to_vendor(self, labels: torch.Tensor) -> torch.LongTensor:
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.Tensor	def _labels_to_vendor(self, labels: torch.Tensor) -> torch.LongTensor:
+models/ds-gan/src/ds_gan/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
+models/ds-gan/src/ds_gan/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/ds-gan/src/ds_gan/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor] = {}
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]	) -> DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]:
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	images: ImageInput | list[ImageInput] | torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency: ImageInput | list[ImageInput] | torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency_basnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency_pfpnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | None	initial_layout: torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | None	pixel_values: torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	bbox: torch.Tensor | list[object] | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	labels: torch.Tensor | list[object] | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	mask: torch.Tensor | list[object] | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, torch.Tensor | tuple[int, int]]	) -> dict[str, torch.Tensor | tuple[int, int]]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	list[torch.Tensor]	merged: list[torch.Tensor] = []
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	) -> torch.Tensor:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	bbox: torch.Tensor,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	boxes: torch.Tensor,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	class_probs: torch.Tensor,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	def _to_l_tensor(image: object | None, image_size: tuple[int, int]) -> torch.Tensor:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	def _to_rgb_tensor(image: object, image_size: tuple[int, int]) -> torch.Tensor:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	labels: torch.Tensor,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	mask: torch.Tensor,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | None	scores: torch.Tensor | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object]	bbox: torch.Tensor | np.ndarray | list[object],
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object]	labels: torch.Tensor | np.ndarray | list[object],
+models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+models/flex-dm/src/flex_dm/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor],
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	beta: np.ndarray,
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_dense_kernel(tf_kernel: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_embedding(tf_embedding: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	gamma: np.ndarray,
+models/flex-dm/src/flex_dm/conversion.py	np.ndarray	source_name: str, value: np.ndarray
+models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_dense_kernel(tf_kernel: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_embedding(tf_embedding: np.ndarray) -> torch.Tensor:
+models/flex-dm/src/flex_dm/conversion.py	tuple[str, torch.Tensor] | None	) -> tuple[str, torch.Tensor] | None:
+models/flex-dm/src/flex_dm/conversion.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/flex-dm/src/flex_dm/masking.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/masking.py	Mapping[str, torch.Tensor] | None	source_inputs: Mapping[str, torch.Tensor] | None = None,
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	inputs: dict[str, torch.Tensor],
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	logits: dict[str, torch.Tensor]
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	masks: dict[str, torch.Tensor] = {}
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	masks: dict[str, torch.Tensor],
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	modified: dict[str, torch.Tensor] = {}
+models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor] | None	final_logits: dict[str, torch.Tensor] | None = None
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor	) -> torch.Tensor:
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor	def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Tensor:
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor	input_: torch.Tensor,
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor	mask: torch.Tensor,
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor	seq_mask: torch.Tensor,
+models/flex-dm/src/flex_dm/masking.py	torch.Tensor | None	target_indices: torch.Tensor | None = None,
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]	) -> FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]:
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	labels: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	logits: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor] | None	labels: Mapping[str, torch.Tensor] | None = None,
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor] | None	masks: Mapping[str, torch.Tensor] | None = None,
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	logits: dict[str, torch.Tensor]
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	outputs: dict[str, torch.Tensor] = {}
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor] | None	masks: dict[str, torch.Tensor] | None = None
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	list[torch.Tensor]	losses: list[torch.Tensor] = []
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor	) -> torch.Tensor:
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor | None	hidden_states: torch.Tensor | None = None
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor | None	loss: torch.Tensor | None = None
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, torch.Tensor]	masks: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	logits: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	masks: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	original_inputs: Mapping[str, torch.Tensor],
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor] | None	refinement_input: Mapping[str, torch.Tensor] | None = None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	decoded: dict[str, torch.Tensor] = {}
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	inputs: dict[str, torch.Tensor] = {}
+models/flex-dm/src/flex_dm/processing_flex_dm.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	) -> torch.Tensor:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	bbox: torch.Tensor,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	def _continuize(self, key: str, value: torch.Tensor) -> torch.Tensor:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	def _discretize(self, key: str, value: torch.Tensor) -> torch.Tensor:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	labels: torch.Tensor,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	mask: torch.Tensor,
+models/flex-dm/src/flex_dm/tf_checkpoint.py	dict[str, np.ndarray]	) -> dict[str, np.ndarray]:
+models/housegan/src/housegan/datasets.py	np.ndarray	bbox_ltrb: np.ndarray,
+models/housegan/src/housegan/datasets.py	np.ndarray	def load_housegan_numpy(path: str | Path) -> np.ndarray:
+models/housegan/src/housegan/graph_schema.py	torch.FloatTensor	) -> torch.FloatTensor:
+models/housegan/src/housegan/graph_schema.py	torch.LongTensor	) -> torch.LongTensor:
+models/housegan/src/housegan/modeling_housegan.py	HouseGanModelOutput | tuple[torch.Tensor]	) -> HouseGanModelOutput | tuple[torch.Tensor]:
+models/housegan/src/housegan/pipeline_housegan.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/processing_housegan.py	torch.LongTensor	labels: torch.LongTensor,
+models/housegan/src/housegan/processing_housegan.py	torch.LongTensor | None	edges: torch.LongTensor | None = None,
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def _xywh_to_ltrb_list(bbox: torch.Tensor) -> list[list[float]]:
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	masks: torch.Tensor,
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor | None	node_features: torch.Tensor | None = None,
+models/housegan/src/housegan/vendor_state_dict.py	Mapping[str, torch.Tensor]	source: Mapping[str, torch.Tensor],
+models/housegan/src/housegan/vendor_state_dict.py	OrderedDict[str, torch.Tensor]	converted: OrderedDict[str, torch.Tensor] = OrderedDict()
+models/housegan/src/housegan/vendor_state_dict.py	tuple[OrderedDict[str, torch.Tensor], ConversionReport]	) -> tuple[OrderedDict[str, torch.Tensor], ConversionReport]:
+models/housegan/src/housegan/visualization.py	torch.Tensor	bbox: torch.Tensor,
+models/housegan/src/housegan/visualization.py	torch.Tensor	labels: torch.Tensor,
+models/lace/src/lace/constraints.py	torch.Tensor	bbox: torch.Tensor,
+models/lace/src/lace/constraints.py	torch.Tensor	def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+models/lace/src/lace/constraints.py	torch.Tensor	def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+models/lace/src/lace/constraints.py	torch.Tensor	mask: torch.Tensor,
+models/lace/src/lace/constraints.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/lace/src/lace/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
+models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	def load_vendor_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+models/lace/src/lace/modeling_lace.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
+models/lace/src/lace/pipeline_lace.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	) -> torch.Tensor | None:
+models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	real_layout: torch.Tensor | None,
+models/lace/src/lace/processing_lace.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/lace/src/lace/processing_lace.py	torch.Tensor	) -> torch.Tensor:
+models/lace/src/lace/processing_lace.py	torch.Tensor	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
+models/lace/src/lace/processing_lace.py	torch.Tensor	self, layout: torch.Tensor, clamp: bool = True
+models/lace/src/lace/processing_lace.py	torch.Tensor | None	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	) -> torch.Tensor:
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	model_output: torch.Tensor,
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	noise: torch.Tensor,
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	original_samples: torch.Tensor,
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	pred_original_sample: torch.Tensor
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	prev_sample: torch.Tensor
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	sample: torch.Tensor,
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	timestep: torch.Tensor,
+models/lace/src/lace/scheduling_lace.py	torch.Tensor	timesteps: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layousyn/src/layousyn/modeling_layousyn.py	np.ndarray	def get_1d_sincos_pos_embed(embed_dim: int, max_len: int) -> np.ndarray:
+models/layousyn/src/layousyn/modeling_layousyn.py	np.ndarray	def get_1d_sincos_pos_embed_from_grid(embed_dim: int, pos: np.ndarray) -> np.ndarray:
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	) -> torch.Tensor:
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	c: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	caption: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	caption_padding_mask: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def modulate(x: torch.Tensor, shift: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	pos_embed: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	self.y_embedding: torch.Tensor
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	self.y_padding_mask: torch.Tensor
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x_enc: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x_padding_mask: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_null_embedding: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_null_embedding_mask: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_padding_mask: torch.Tensor,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	caption: torch.Tensor | None,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	caption_padding_mask: torch.Tensor | None,
+models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	force_drop_ids: torch.Tensor | None = None,
+models/layousyn/src/layousyn/modeling_layousyn.py	tuple[torch.Tensor | None, torch.Tensor | None]	) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+models/layousyn/src/layousyn/modeling_layousyn.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/layousyn/src/layousyn/pipeline_layousyn.py	LayoutGenerationOutput | dict[str, torch.Tensor | object]	) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
+models/layousyn/src/layousyn/pipeline_layousyn.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layousyn/src/layousyn/pipeline_layousyn.py	dict[str, torch.Tensor]	self, model_kwargs: dict[str, torch.Tensor], batch_size: int
+models/layousyn/src/layousyn/pipeline_layousyn.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None, labels: list[list[str]]
+models/layousyn/src/layousyn/processing_layousyn.py	LayoutGenerationOutput | dict[str, torch.Tensor | object]	) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
+models/layousyn/src/layousyn/processing_layousyn.py	Sequence[str] | Sequence[Sequence[str]] | torch.Tensor | np.ndarray | None	labels: Sequence[str]
+models/layousyn/src/layousyn/processing_layousyn.py	float | Sequence[float] | torch.Tensor	self, aspect_ratio: float | Sequence[float] | torch.Tensor, batch_size: int
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	) -> torch.Tensor:
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	aspect_ratio: torch.Tensor
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	caption_embeds: torch.Tensor
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	caption_padding_mask: torch.Tensor
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	concept_embeds: torch.Tensor
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	concept_padding_mask: torch.Tensor
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	def _encode_concepts(self, labels: list[list[str]]) -> torch.Tensor:
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	sample: torch.Tensor,
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	self, embeds: torch.Tensor, batch_size: int
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor | np.ndarray | list[object]	bbox: torch.Tensor | np.ndarray | list[object],
+models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None,
+models/layousyn/src/layousyn/processing_layousyn.py	tuple[torch.Tensor, torch.Tensor]	def _encode_captions(self, prompts: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
+models/layousyn/src/layousyn/scheduling_layousyn.py	LayouSynSchedulerOutput | tuple[torch.Tensor]	) -> LayouSynSchedulerOutput | tuple[torch.Tensor]:
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	) -> torch.Tensor:
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	def _set_betas(self, betas: torch.Tensor) -> None:
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	model_output: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	model_var_values: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	noise: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	original_samples: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	pred_original_sample: torch.Tensor
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	pred_xstart: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	prev_sample: torch.Tensor
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	sample: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor, eps: torch.Tensor
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor, pred_xstart: torch.Tensor
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	timestep: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	timesteps: torch.Tensor,
+models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
+models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	remapped: dict[str, torch.Tensor] = {}
+models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layout-action/src/layout_action/conversion.py	tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]	) -> tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]:
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	) -> torch.Tensor:
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	def __call__(self, input_ids: torch.Tensor) -> TokenModelOutput:
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	input_ids: torch.Tensor,
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	logits: torch.Tensor
+models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor | None	forced_token_ids: torch.Tensor | None = None,
+models/layout-action/src/layout_action/modeling_layout_action.py	CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]	) -> CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]:
+models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	) -> torch.Tensor:
+models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	LongTensor2D: TypeAlias = torch.Tensor
+models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
+models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/layout-action/src/layout_action/modeling_layout_action.py	tuple[torch.Tensor, ...]	values: tuple[torch.Tensor, ...]
+models/layout-action/src/layout_action/pipeline_layout_action.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/processing_layout_action.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/layout-action/src/layout_action/processing_layout_action.py	int | list[int] | torch.Tensor | None	self, num_elements: int | list[int] | torch.Tensor | None, mask: torch.Tensor
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	def _labels_to_ids(self, labels: object) -> torch.Tensor:
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	self, num_elements: int | list[int] | torch.Tensor | None, mask: torch.Tensor
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	sequences: torch.Tensor,
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor | dict[str, torch.Tensor]]	) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor | dict[str, torch.Tensor]]	result: dict[str, torch.Tensor | dict[str, torch.Tensor]] = {
+models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor]	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	boxes: list[torch.Tensor] = []
+models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	encoded_boxes: list[torch.Tensor] = []
+models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	) -> torch.Tensor:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	bbox: torch.Tensor,
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def _latest_back_reference(self, hits: torch.Tensor) -> int:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def _trim_special_tokens(self, input_ids: torch.Tensor) -> torch.Tensor:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def continuize_bbox(self, quantized_bbox: torch.Tensor) -> torch.Tensor:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def quantize_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	input_ids: torch.Tensor,
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	labels: torch.Tensor,
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	mask: torch.Tensor,
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	object: torch.Tensor
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	option: torch.Tensor
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	quantized_bbox: torch.Tensor,
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
+models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	value: torch.Tensor
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	def _mask_ratio(self, timestep_batch: torch.Tensor) -> float:
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	sample: torch.Tensor,
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	timestep_batch: torch.Tensor,
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	tuple[torch.Tensor, torch.Tensor | None]	) -> tuple[torch.Tensor, torch.Tensor | None]:
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	) -> torch.Tensor:
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	confidence_logits: torch.Tensor,
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	timestep: torch.Tensor,
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	list[torch.Tensor]	tensors: list[torch.Tensor] = []
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	np.ndarray	def _array_to_rgb_image(image: np.ndarray) -> Image.Image:
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	torch.Tensor	def _tensor_to_pil_batch(images: torch.Tensor) -> list[Image.Image]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	LayoutDetrModelOutput | tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> LayoutDetrModelOutput | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	_VendorBertOutput | tuple[torch.Tensor]	) -> _VendorBertOutput | tuple[torch.Tensor]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	) -> torch.Tensor: # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	attention_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def __init__(self, tensors: torch.Tensor, mask: torch.Tensor) -> None:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def _invert_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def forward(self, tensor_list: _NestedTensor) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	hidden_states: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	input_ids: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	input_tensor: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	labels: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	last_hidden_state: torch.Tensor
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	latents: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	layout_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	memory: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	memory_key_padding_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	pixel_values: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	pos: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	pos_embed: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	src: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	src_key_padding_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	text_attention_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	tgt: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	tgt_key_padding_mask: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor	x: torch.Tensor,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	attention_mask: torch.Tensor | None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None) -> torch.Tensor:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	encoder_attention_mask: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	encoder_attention_mask: torch.Tensor | None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	encoder_hidden_states: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	encoder_hidden_states: torch.Tensor | None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	input_ids: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	inputs_embeds: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	position_ids: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	text_lengths: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	torch.Tensor | None	token_type_ids: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	tuple[list[_NestedTensor], list[torch.Tensor]]	) -> tuple[list[_NestedTensor], list[torch.Tensor]]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	tuple[torch.Tensor, torch.Tensor]	def decompose(self) -> tuple[torch.Tensor, torch.Tensor]:
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	ImageInput | Sequence[ImageInput] | torch.Tensor | None	images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	int | Sequence[int] | torch.Tensor | None	num_elements: int | Sequence[int] | torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	torch.Tensor | None	bbox: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	torch.Tensor | None	latents: torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None	mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None	labels: torch.Tensor
+models/layout-detr/src/layout_detr/processing_layout_detr.py	ImageInput | Sequence[ImageInput] | torch.Tensor | None	images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor	) -> torch.Tensor:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor	bbox: torch.Tensor,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor	labels: torch.Tensor,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor	mask: torch.Tensor,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None	mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None = None,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None	mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None	labels: torch.Tensor
+models/layout-detr/src/layout_detr/processing_layout_detr.py	tuple[torch.Tensor, torch.Tensor, list[list[str]]]	) -> tuple[torch.Tensor, torch.Tensor, list[list[str]]]:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/layout-detr/src/layout_detr/vendor_state.py	Mapping[str, torch.Tensor]	def state_dict(self) -> Mapping[str, torch.Tensor]: ...
+models/layout-detr/src/layout_detr/vendor_state.py	Mapping[str, torch.Tensor]	remapped_state: Mapping[str, torch.Tensor],
+models/layout-detr/src/layout_detr/vendor_state.py	Mapping[str, torch.Tensor]	source_state: Mapping[str, torch.Tensor],
+models/layout-detr/src/layout_detr/vendor_state.py	Mapping[str, torch.Tensor]	state: Mapping[str, torch.Tensor],
+models/layout-detr/src/layout_detr/vendor_state.py	Mapping[str, torch.Tensor]	target_state: Mapping[str, torch.Tensor],
+models/layout-detr/src/layout_detr/vendor_state.py	tuple[dict[str, torch.Tensor], LayoutDetrConfig, LayoutDetrConversionReport]	) -> tuple[
+models/layout-detr/src/layout_detr/vendor_state.py	tuple[set[int], torch.Tensor]	) -> tuple[set[int], torch.Tensor]: # pragma: no cover
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor	bbox: torch.Tensor,
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor	input_ids: torch.Tensor
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor	labels: torch.Tensor,
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor	mask: torch.Tensor
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor	mask: torch.Tensor,
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor | None	noisy_bbox: torch.Tensor | None = None,
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor | None	num_element: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor | None	original_input_ids: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor | None	weak_logits: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/conditioning.py	torch.Tensor | None	weak_mask: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/conversion.py	dict[str, torch.Tensor]	denoiser: dict[str, torch.Tensor] = {}
+models/layout-dm/src/layout_dm/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layout-dm/src/layout_dm/modeling_layout_dm.py	Callable[[torch.Tensor], torch.Tensor]	) -> Callable[[torch.Tensor], torch.Tensor]:
+models/layout-dm/src/layout_dm/modeling_layout_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/modeling_layout_dm.py	str | Callable[[torch.Tensor], torch.Tensor]	name: str | Callable[[torch.Tensor], torch.Tensor],
+models/layout-dm/src/layout_dm/modeling_layout_dm.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
+models/layout-dm/src/layout_dm/pipeline_layout_dm.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/processing_layout_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	def _full_ids(self, key: str, device: torch.device) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	def _full_to_partial_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	def _log_1_min_a(a: torch.Tensor) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	def _partial_to_full_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	def predict_start(self, denoiser_output: torch.Tensor) -> torch.Tensor:
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	denoiser_output: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	log_x_start_full: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	log_x_t_full: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	prev_sample: torch.Tensor
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	sample: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	self, log_x_start: torch.Tensor, log_x_t: torch.Tensor, t: torch.Tensor
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	self, log_x_start: torch.Tensor, t: torch.Tensor, key: str
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	self, log_x_t: torch.Tensor, t: torch.Tensor, key: str
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	t: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	timestep: torch.Tensor,
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor	values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor | None	model_log_prob: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	torch.Tensor | None	pred_original_sample: torch.Tensor | None = None
+models/layout-dm/src/layout_dm/scheduling_layout_dm.py	tuple[torch.Tensor, ...]	) -> tuple[torch.Tensor, ...]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	dict[str, torch.Tensor]	def _mapping(self, key: str) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	dict[str, torch.Tensor]	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	bbox: torch.Tensor,
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def _centers(self, key: str, device: torch.device) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def _decode_bbox(self, bbox_ids: torch.Tensor) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def _encode_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def full_to_partial_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def partial_to_full_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	def token_mask(self) -> torch.Tensor:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	inputs: torch.Tensor, from_ids: torch.Tensor, to_ids: torch.Tensor
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	labels: torch.Tensor,
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	self, log_probs: torch.Tensor, key: str
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor | None	mask: torch.Tensor | None = None,
+models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor] = {}
+models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	Callable[[torch.Tensor], torch.Tensor]	) -> Callable[[torch.Tensor], torch.Tensor]:
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	str | Callable[[torch.Tensor], torch.Tensor]	activation: str | Callable[[torch.Tensor], torch.Tensor] = F.relu,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	str | Callable[[torch.Tensor], torch.Tensor]	activation: str | Callable[[torch.Tensor], torch.Tensor],
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	) -> torch.Tensor:
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	self.pe: torch.Tensor
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	src: torch.Tensor,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	x: torch.Tensor,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	attn_mask: torch.Tensor | None,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	key_padding_mask: torch.Tensor | None,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	mask: torch.Tensor | None = None,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	src_key_padding_mask: torch.Tensor | None = None,
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	timestep: torch.Tensor | None = None,
+models/layout-flow/src/layout_flow/pipeline_layout_flow.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+models/layout-flow/src/layout_flow/pipeline_layout_flow.py	torch.Tensor | np.ndarray | Sequence[object] | None	TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
+models/layout-flow/src/layout_flow/processing_layout_flow.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-flow/src/layout_flow/processing_layout_flow.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None,
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	) -> torch.Tensor:
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	cond_mask: torch.Tensor,
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def decode_labels(self, bits: torch.Tensor) -> torch.Tensor:
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def encode_labels(self, labels: torch.Tensor) -> torch.Tensor:
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def model_state(self, bbox: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	mask: torch.Tensor,
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	self, state: torch.Tensor, *, reverse: bool = False
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	state: torch.Tensor,
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	tensor: torch.Tensor, max_length: int, value: float | int | bool
+models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor | np.ndarray | Sequence[object] | None	TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
+models/layout-flow/src/layout_flow/sampling.py	torch.Tensor	) -> torch.Tensor:
+models/layout-flow/src/layout_flow/sampling.py	torch.Tensor	lengths: torch.Tensor,
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	LayoutFlowSchedulerOutput | tuple[torch.Tensor]	) -> LayoutFlowSchedulerOutput | tuple[torch.Tensor]:
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	) -> torch.Tensor:
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	model_output: torch.Tensor,
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	prev_sample: torch.Tensor
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	sample: torch.Tensor,
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor | float
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float	self, sample: torch.Tensor, timestep: torch.Tensor | float
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float	timestep: torch.Tensor | float,
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float | None	next_timestep: torch.Tensor | float | None = None,
+models/layout-flow/src/layout_flow/scheduling_layout_flow.py	tuple[torch.Tensor]	) -> tuple[torch.Tensor]: ...
+models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | list[str]]	) -> dict[str, torch.Tensor | list[str]]:
+models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	RawSample: TypeAlias = dict[str, torch.Tensor | str]
+models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
+models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	sample_dict: dict[str, torch.Tensor | str] = {"id": str(key)}
+models/layout-flow/src/layout_flow/training/dataset.py	torch.Tensor	tensor: torch.Tensor, max_length: int, dtype: torch.dtype
+models/layout-flow/src/layout_flow/training/dataset.py	torch.Tensor	tensor: torch.Tensor, total: int, max_length: int
+models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
+models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	def _prepare_batch(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor]
+models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor], batch_idx: int
+models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self.latest_step_trace: dict[str, torch.Tensor] = {}
+models/layout-flow/src/layout_flow/training/lightning_module.py	torch.Tensor	) -> torch.Tensor:
+models/layout-flow/src/layout_flow/training/losses.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
+models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	reference_state: dict[str, torch.Tensor],
+models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	target_state: dict[str, torch.Tensor],
+models/layout-gpt/src/layout_gpt/types.py	torch.Tensor | None	sequences: torch.Tensor | None
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]	) -> LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]:
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor	BBoxTensor: TypeAlias = torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor	BoolTensor3D: TypeAlias = torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor	FloatTensor3D: TypeAlias = torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor	LongTensor2D: TypeAlias = torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor | None	bbox_mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor | None	coarse_gmm: torch.Tensor | None = None
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor | None	global_mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor | None	refine_gmm: torch.Tensor | None = None
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	box: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	class_embeds: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	context: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	def adjust_temp(pi_pdf: torch.Tensor, temperature: float) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	def forward(self, embed_src: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	def subsequent_mask(size: int) -> torch.Tensor:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	encoder_output: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	global_mask: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	input_box: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	input_obj_id: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	input_token: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	k: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	mask: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	memory: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	output_box: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	output_context: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	pi: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	pi_xy: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	q: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	rho_xy: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	segment_label: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	self, gmm_params: torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	self, output_box: torch.Tensor, pred_box: torch.Tensor, sample_num: int
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	self, x: torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	self, x: torch.Tensor, box: torch.Tensor
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	self, x: torch.Tensor, generator: torch.Generator | None = None
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	semantic_x: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	sigma_x: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	sigma_y: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	spatial_x: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	src: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	src_mask: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	token_type: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	trg_embed_0: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	trg_embed_1: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	trg_mask: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	u_x: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	u_y: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	v: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	x: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor	y: torch.Tensor,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	encoder_hidden: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	encoder_hidden: torch.Tensor | None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	global_mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	hidden: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	src_mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	trg_mask: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	xy_pdf_score: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	xy_pdf_score: torch.Tensor | None,
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	ys_wh_gmm: torch.Tensor | None = encoder_output.new_full(
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	ys_xy_gmm: torch.Tensor | None = encoder_output.new_full(
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	torch.Tensor | None	ys_xy_pdf: torch.Tensor | None = encoder_output.new_full(
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]	) -> tuple[
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor | None]	) -> tuple[
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor, None, None, None]	) -> tuple[torch.Tensor, torch.Tensor, None, None, None]:
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]	) -> tuple[
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	torch.Tensor | list[object] | None	bbox: torch.Tensor | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	torch.Tensor | list[object] | None	labels: torch.Tensor | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	torch.Tensor | list[object] | None	mask: torch.Tensor | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	list[torch.Tensor]	batch_boxes: list[torch.Tensor] = []
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	list[torch.Tensor]	batch_labels: list[torch.Tensor] = []
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	list[torch.Tensor]	batch_masks: list[torch.Tensor] = []
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	list[torch.Tensor]	reduced_boxes: list[torch.Tensor] = []
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	list[torch.Tensor]	reduced_labels: list[torch.Tensor] = []
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	torch.Tensor	input_obj_id: torch.Tensor,
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	torch.Tensor	token_type: torch.Tensor,
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	torch.Tensor | None	input_token: torch.Tensor | None = None,
+models/layout-transformer/src/layout_transformer/vendor_state_dict.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
+models/layout-transformer/src/layout_transformer/vendor_state_dict.py	dict[str, torch.Tensor]	def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Tensor]:
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	input_ids: torch.Tensor | None = None
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	input_ids: torch.Tensor | None = None,
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	labels: torch.Tensor | None = None,
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	mask: torch.Tensor | None = None
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	num_elements: torch.Tensor | None = None
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	torch.Tensor | None	num_elements: torch.Tensor | None = None,
+models/layoutdiffusion/src/layoutdiffusion/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layoutdiffusion/src/layoutdiffusion/conversion.py	dict[str, torch.Tensor]	def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Tensor]:
+models/layoutdiffusion/src/layoutdiffusion/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layoutdiffusion/src/layoutdiffusion/modeling_layoutdiffusion.py	torch.Tensor	def get_embeds(self, input_ids: torch.Tensor) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	list[torch.Tensor] | None	trajectory: list[torch.Tensor] | None,
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	torch.Tensor	sample: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	np.ndarray	def _gaussian_matrix2(t: int, *, bt: torch.Tensor) -> np.ndarray:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	def _gaussian_matrix2(t: int, *, bt: torch.Tensor) -> np.ndarray:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	def _log_1_min_a(a: torch.Tensor) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	def q_pred(self, log_x_start: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	log_x_start: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	log_x_t: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	logits: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	prev_sample: torch.Tensor
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	sample: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	self, log_x_t: torch.Tensor, t: torch.Tensor
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	self, t: torch.Tensor, *, cumulative: bool, device: torch.device
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	t: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	timestep: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	timesteps: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor	values: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor | None	model_log_prob: torch.Tensor | None = None
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	torch.Tensor | None	pred_original_sample: torch.Tensor | None = None
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	tuple[np.ndarray, ...]	def _alpha_schedule(time_step: int, *, type_classes: int) -> tuple[np.ndarray, ...]:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor	) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor	def text_to_token_ids(self, lines: list[str]) -> torch.Tensor:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor	def token_ids_to_text(self, input_ids: torch.Tensor) -> list[str]:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor	input_ids: torch.Tensor,
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor | None	labels: torch.Tensor | None = None,
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	torch.Tensor | list[int] | int | None	num_elements: torch.Tensor | list[int] | int | None = None,
+models/layoutformerpp/src/layoutformerpp/conversion.py	dict[str, torch.Tensor]	def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
+models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	) -> torch.Tensor:
+models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor,
+models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
+models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor,
+models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Callable[[int, int, torch.Tensor], tuple[list[int], int | None]] | None	generation_constraint_fn: Callable[
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Seq2SeqLMOutput | tuple[torch.Tensor, ...]	) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	list[torch.Tensor]	outs: list[torch.Tensor] = []
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	) -> torch.Tensor:
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	self, labels: torch.Tensor
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor	sequences: torch.Tensor,
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor | list[list[bool]] | list[bool] | None	mask: torch.Tensor | list[list[bool]] | list[bool] | None,
+models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	labels: torch.Tensor,
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	) -> NDArray[np.float32]:
+models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	pixel_ltwh: NDArray[np.float32], *, canvas_size: tuple[int, int]
+models/layoutprompter/src/layoutprompter/parsing.py	tuple[NDArray[np.int64], NDArray[np.float32]]	) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+models/layoutprompter/src/layoutprompter/records.py	NDArray[np.int64] | NDArray[np.int32] | NDArray[np.float32] | NDArray[np.float64]	NumericArray: TypeAlias = (
+models/layoutprompter/src/layoutprompter/records.py	NDArray[np.int64] | Sequence[int]	labels: NDArray[np.int64] | Sequence[int]
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.float32]	bboxes_1: NDArray[np.float32],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.float32]	bboxes_2: NDArray[np.float32],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_2: NDArray[np.int64],
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	) -> torch.Tensor:
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	input_ids: torch.Tensor,
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	torch.Tensor | Sequence[str]	generated_ids: torch.Tensor | Sequence[str],
+models/ralf/src/ralf/datasets.py	torch.Tensor	def _labels_to_tensor(labels: object, dataset: DatasetName) -> torch.Tensor:
+models/ralf/src/ralf/datasets.py	torch.Tensor	def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch.Tensor:
+models/ralf/src/ralf/datasets.py	torch.Tensor	indexes: torch.Tensor,
+models/ralf/src/ralf/image_processing_ralf.py	torch.Tensor	def _image_to_tensor(image: ImageInput, *, channels: int) -> torch.Tensor:
+models/ralf/src/ralf/modeling_ralf.py	CausalLMOutput | tuple[torch.Tensor, ...]	) -> CausalLMOutput | tuple[torch.Tensor, ...]:
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, Tensor | Mapping[str, Tensor]]	self, inputs: Mapping[str, Tensor | Mapping[str, Tensor]]
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, Tensor]	def _valid_element_mask(self, seq_vars: Mapping[str, Tensor]) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, Tensor]	def extract_features(self, inputs: Mapping[str, Tensor]) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, Tensor]	retrieved_samples: Mapping[str, Tensor],
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, Tensor]	retrieved_samples: Mapping[str, Tensor], kdx: int
+models/ralf/src/ralf/modeling_ralf.py	Tensor	) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def _geo_sequence(self, inputs: "RalfConditionalInputs") -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def _parse_seq_into_vars(self, seq: Tensor) -> dict[str, Tensor]:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def _valid_element_mask(self, seq_vars: Mapping[str, Tensor]) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def create_pad_mask(self, seq: Tensor) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def create_task_token(self, batch_size: int) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def extract_features(self, inputs: Mapping[str, Tensor]) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def forward(self, *args: object) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def forward(self, img: Tensor) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def forward(self, input: Tensor) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def forward(self, x: Tensor) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def forward(self, x: Tensor, src_key_padding_mask: Tensor) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	def get_token(self, name: str, batch_size: int) -> Tensor:
+models/ralf/src/ralf/modeling_ralf.py	Tensor	image: Tensor
+models/ralf/src/ralf/modeling_ralf.py	Tensor	logits: Tensor,
+models/ralf/src/ralf/modeling_ralf.py	Tensor	memory: Tensor,
+models/ralf/src/ralf/modeling_ralf.py	Tensor	self, inputs: "RalfConditionalInputs", label_sequence: Tensor
+models/ralf/src/ralf/modeling_ralf.py	Tensor	self, src: Tensor, src_key_padding_mask: Tensor, task_token: Tensor | None
+models/ralf/src/ralf/modeling_ralf.py	Tensor	self, x: Tensor, context: Tensor | None = None, kv_include_self: bool = False
+models/ralf/src/ralf/modeling_ralf.py	Tensor	tgt: Tensor,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	condition: Tensor | None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	constraint_element_mask: Tensor | None = None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	constraint_input_ids: Tensor | None = None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	constraint_mask: Tensor | None = None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	element_mask: Tensor | None = None
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	mask: Tensor | None = None
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	pixel_values: Tensor | None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	saliency: Tensor | None,
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	self, src: Tensor, src_key_padding_mask: Tensor, task_token: Tensor | None
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	self, x: Tensor, context: Tensor | None = None, kv_include_self: bool = False
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	seq: Tensor | None = None
+models/ralf/src/ralf/modeling_ralf.py	Tensor | None	tgt_key_padding_mask: Tensor | None = None,
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor | Mapping[str, Tensor]]	) -> dict[str, Tensor | Mapping[str, Tensor]]:
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor]	) -> dict[str, Tensor]:
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor]	def __call__(self, inputs: "RalfConditionalInputs") -> dict[str, Tensor]:
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor]	def _parse_seq_into_vars(self, seq: Tensor) -> dict[str, Tensor]:
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor]	def _shuffle_seq_vars(self, seq_vars: dict[str, Tensor]) -> dict[str, Tensor]:
+models/ralf/src/ralf/modeling_ralf.py	dict[str, Tensor]	retrieved: dict[str, Tensor]
+models/ralf/src/ralf/modeling_ralf.py	list[Tensor]	pieces: list[Tensor] = []
+models/ralf/src/ralf/pipeline_ralf.py	int | Sequence[int] | torch.Tensor | None	num_elements: int | Sequence[int] | torch.Tensor | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None	labels: torch.Tensor
+models/ralf/src/ralf/pipeline_ralf.py	torch.Tensor | Sequence[Sequence[int]] | None	retrieved_indexes: torch.Tensor | Sequence[Sequence[int]] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	torch.Tensor | Sequence[object] | None	bbox: torch.Tensor | Sequence[object] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	torch.Tensor | Sequence[object] | None	mask: torch.Tensor | Sequence[object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	int | Sequence[int] | torch.Tensor | None	num_elements: int | Sequence[int] | torch.Tensor | None = None,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor	) -> torch.Tensor:
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor	labels: torch.Tensor,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor	sequences: torch.Tensor,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor | Sequence[Sequence[int | str]] | Sequence[int | str] | None	labels: torch.Tensor
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor | Sequence[Sequence[int]] | None	retrieved_indexes: torch.Tensor | Sequence[Sequence[int]] | None = None,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor | Sequence[object] | None	bbox: torch.Tensor | Sequence[object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor | Sequence[object] | None	bbox: torch.Tensor | Sequence[object] | None,
+models/ralf/src/ralf/processing_ralf.py	torch.Tensor | Sequence[object] | None	mask: torch.Tensor | Sequence[object] | None = None,
+models/ralf/src/ralf/retrieval.py	Mapping[str, torch.Tensor]	data: Mapping[str, torch.Tensor],
+models/ralf/src/ralf/retrieval.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/ralf/src/ralf/tokenization_ralf.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/ralf/src/ralf/tokenization_ralf.py	list[torch.Tensor]	masks: list[torch.Tensor] = []
+models/smarttext/src/smarttext/candidate_generation.py	list[np.ndarray]	resized_images: list[np.ndarray] = []
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	) -> np.ndarray:
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	def _resize_for_scorer(array: np.ndarray, config: SmartTextConfig) -> np.ndarray:
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	image: np.ndarray,
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix1d: np.ndarray,
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix: np.ndarray,
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix_cal: np.ndarray,
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	saliency: np.ndarray,
+models/smarttext/src/smarttext/candidate_generation.py	np.ndarray | torch.Tensor	saliency: np.ndarray | torch.Tensor,
+models/smarttext/src/smarttext/candidate_generation.py	torch.Tensor	) -> torch.Tensor:
+models/smarttext/src/smarttext/candidate_generation.py	tuple[np.ndarray, int, int]	) -> tuple[np.ndarray, int, int]:
+models/smarttext/src/smarttext/candidate_generation.py	tuple[np.ndarray, tuple[int, int, int, int]]	) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+models/smarttext/src/smarttext/candidate_generation.py	tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]	) -> tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]:
+models/smarttext/src/smarttext/color.py	Image.Image | np.ndarray	image: Image.Image | np.ndarray,
+models/smarttext/src/smarttext/color.py	list[np.ndarray]	def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
+models/smarttext/src/smarttext/color.py	np.ndarray	crop: np.ndarray,
+models/smarttext/src/smarttext/color.py	np.ndarray	def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
+models/smarttext/src/smarttext/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
+models/smarttext/src/smarttext/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/smarttext/src/smarttext/image_processing_smarttext.py	np.ndarray	def _resize_basnet_rgb(image: Image.Image) -> np.ndarray:
+models/smarttext/src/smarttext/modeling_basnet.py	SmartTextSaliencyOutput | tuple[torch.Tensor, ...]	) -> SmartTextSaliencyOutput | tuple[torch.Tensor, ...]:
+models/smarttext/src/smarttext/modeling_basnet.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_basnet.py	torch.Tensor	def normalize_saliency(pred: torch.Tensor) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_basnet.py	tuple[torch.Tensor, ...]	) -> tuple[torch.Tensor, ...]:
+models/smarttext/src/smarttext/modeling_basnet.py	tuple[torch.Tensor, ...] | None	side_outputs: tuple[torch.Tensor, ...] | None = None
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def _channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	self, features: torch.Tensor, rois: torch.Tensor, mode: Literal["roi", "rod"]
+models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	self, x: torch.Tensor
+models/smarttext/src/smarttext/modeling_smarttext.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+models/smarttext/src/smarttext/processing_smarttext.py	torch.Tensor	scores: torch.Tensor,

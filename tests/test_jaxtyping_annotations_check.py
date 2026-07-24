@@ -43,8 +43,12 @@ def test_current_entries_detects_raw_annotations_only(tmp_path: Path) -> None:
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 import torch
+import torch as t
 from jaxtyping import Float
+from numpy.typing import NDArray
+from torch import Tensor
 
 "docstring mentions torch.Tensor"
 # comment mentions np.ndarray
@@ -55,8 +59,14 @@ def ok(x: Float[torch.Tensor, "batch channels"]) -> None:
 
 def bad(
     x: torch.Tensor,
+    imported: Tensor,
+    alias: t.Tensor,
     y: torch.Tensor | None,
     z: Optional[np.ndarray],
+    arr: npt.NDArray,
+    direct_arr: numpy.typing.NDArray,
+    imported_arr: NDArray,
+    quoted: "torch.Tensor",
 ) -> tuple[torch.Tensor, np.ndarray]:
     literal: "torch.Tensor" = "ignored"
     local: np.ndarray
@@ -67,11 +77,18 @@ def bad(
     entries = check_jaxtyping_annotations.current_entries(tmp_path)
 
     assert entries == {
-        "models/layout-dm/src/layout_dm/example.py\t1\tOptional[np.ndarray]",
-        "models/layout-dm/src/layout_dm/example.py\t1\tnp.ndarray",
-        "models/layout-dm/src/layout_dm/example.py\t1\ttorch.Tensor",
-        "models/layout-dm/src/layout_dm/example.py\t1\ttorch.Tensor | None",
-        "models/layout-dm/src/layout_dm/example.py\t1\ttuple[torch.Tensor, np.ndarray]",
+        "models/layout-dm/src/layout_dm/example.py\tOptional[np.ndarray]\tz: Optional[np.ndarray],",
+        "models/layout-dm/src/layout_dm/example.py\tTensor\timported: Tensor,",
+        "models/layout-dm/src/layout_dm/example.py\tNDArray\timported_arr: NDArray,",
+        "models/layout-dm/src/layout_dm/example.py\tnumpy.typing.NDArray\tdirect_arr: numpy.typing.NDArray,",
+        "models/layout-dm/src/layout_dm/example.py\tnp.ndarray\tlocal: np.ndarray",
+        "models/layout-dm/src/layout_dm/example.py\tnpt.NDArray\tarr: npt.NDArray,",
+        "models/layout-dm/src/layout_dm/example.py\tt.Tensor\talias: t.Tensor,",
+        'models/layout-dm/src/layout_dm/example.py\ttorch.Tensor\tliteral: "torch.Tensor" = "ignored"',
+        'models/layout-dm/src/layout_dm/example.py\ttorch.Tensor\tquoted: "torch.Tensor",',
+        "models/layout-dm/src/layout_dm/example.py\ttorch.Tensor\tx: torch.Tensor,",
+        "models/layout-dm/src/layout_dm/example.py\ttorch.Tensor | None\ty: torch.Tensor | None,",
+        "models/layout-dm/src/layout_dm/example.py\ttuple[torch.Tensor, np.ndarray]\t) -> tuple[torch.Tensor, np.ndarray]:",
     }
 
 
@@ -123,8 +140,84 @@ def bad(x: torch.Tensor) -> None:
     )
     baseline = tmp_path / "baseline.txt"
     baseline.write_text(
-        "models/layout-dm/src/layout_dm/example.py\t1\ttorch.Tensor\n",
+        "models/layout-dm/src/layout_dm/example.py\ttorch.Tensor\tdef bad(x: torch.Tensor) -> None:\n",
         encoding="utf-8",
+    )
+
+    assert (
+        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
+    )
+
+    stderr = capsys.readouterr().err
+    assert "New jaxtyping baseline entries" in stderr
+
+
+def test_line_based_baseline_rejects_same_annotation_swap(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+import torch
+
+def old(x: torch.Tensor) -> None:
+    pass
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    check_jaxtyping_annotations.write_baseline(
+        baseline,
+        check_jaxtyping_annotations.current_entries(tmp_path),
+    )
+    base_entries = check_jaxtyping_annotations.baseline_entries(baseline)
+    monkeypatch.setattr(
+        check_jaxtyping_annotations,
+        "baseline_reference_entries",
+        lambda *_: base_entries,
+    )
+
+    write_source(
+        tmp_path,
+        """
+import torch
+
+def new_unrelated_api(y: torch.Tensor) -> None:
+    pass
+""",
+    )
+
+    assert (
+        check_jaxtyping_annotations.check_jaxtyping_annotations(tmp_path, baseline) == 1
+    )
+
+    stderr = capsys.readouterr().err
+    assert "New raw tensor/ndarray annotations" in stderr
+    assert "new_unrelated_api" in stderr
+
+
+def test_existing_baseline_rejects_new_annotation_and_baseline_entry(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+import torch
+
+def added_in_pr(x: torch.Tensor) -> None:
+    pass
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    check_jaxtyping_annotations.write_baseline(
+        baseline,
+        check_jaxtyping_annotations.current_entries(tmp_path),
+    )
+    monkeypatch.setattr(
+        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
     )
 
     assert (
