@@ -92,6 +92,43 @@ def bad(
     }
 
 
+def test_current_alias_entries_detects_module_level_jaxtyping_aliases_only(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+from __future__ import annotations
+
+from typing import Literal, TypeAlias
+import typing as typ
+
+import torch
+from jaxtyping import Float, Int
+import jaxtyping as jt
+
+Mode: TypeAlias = Literal["x"]
+PublicBbox = Float[torch.Tensor, "batch 4"]
+PublicLabels: TypeAlias = Int[torch.Tensor, "batch"]
+Qualified: typ.TypeAlias = jt.Float[torch.Tensor, "batch"]
+
+class Output:
+    bbox: Float[torch.Tensor, "batch 4"]
+
+def make_alias() -> None:
+    LocalBbox = Float[torch.Tensor, "batch 4"]
+""",
+    )
+
+    entries = check_jaxtyping_annotations.current_alias_entries(tmp_path)
+
+    assert entries == {
+        "models/layout-dm/src/layout_dm/example.py\tPublicBbox\tFloat[torch.Tensor, 'batch 4']\tPublicBbox = Float[torch.Tensor, \"batch 4\"]",
+        "models/layout-dm/src/layout_dm/example.py\tPublicLabels\tInt[torch.Tensor, 'batch']\tPublicLabels: TypeAlias = Int[torch.Tensor, \"batch\"]",
+        "models/layout-dm/src/layout_dm/example.py\tQualified\tjt.Float[torch.Tensor, 'batch']\tQualified: typ.TypeAlias = jt.Float[torch.Tensor, \"batch\"]",
+    }
+
+
 def test_check_fails_on_new_raw_annotation(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -226,6 +263,64 @@ def added_in_pr(x: torch.Tensor) -> None:
 
     stderr = capsys.readouterr().err
     assert "New jaxtyping baseline entries" in stderr
+
+
+def test_check_fails_on_new_jaxtyping_alias(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
+    )
+    write_source(
+        tmp_path,
+        """
+from typing import TypeAlias
+
+import torch
+from jaxtyping import Float
+
+PublicBbox: TypeAlias = Float[torch.Tensor, "batch 4"]
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("", encoding="utf-8")
+
+    assert check_jaxtyping_annotations.check_jaxtyping_aliases(tmp_path, baseline) == 1
+
+    stderr = capsys.readouterr().err
+    assert "New jaxtyping shaped-type aliases" in stderr
+    assert "PublicBbox" in stderr
+
+
+def test_check_rejects_baseline_growth_for_new_jaxtyping_alias(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: set()
+    )
+    write_source(
+        tmp_path,
+        """
+import torch
+from jaxtyping import Float
+
+PublicBbox = Float[torch.Tensor, "batch 4"]
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    check_jaxtyping_annotations.write_baseline(
+        baseline,
+        check_jaxtyping_annotations.current_alias_entries(tmp_path),
+    )
+
+    assert check_jaxtyping_annotations.check_jaxtyping_aliases(tmp_path, baseline) == 1
+
+    stderr = capsys.readouterr().err
+    assert "New jaxtyping alias baseline entries" in stderr
 
 
 def test_check_passes_when_baseline_matches_or_shrinks(

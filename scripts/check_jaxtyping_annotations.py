@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
+ALIAS_BASELINE_PATH = ROOT / "scripts" / "jaxtyping_alias_baseline.txt"
 SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
 
 JAXTYPING_SHAPED_TYPES = {
@@ -64,6 +65,20 @@ class AnnotationViolation:
     def as_baseline_entry(self) -> str:
         """Return a stable baseline entry for this violation."""
         return f"{self.path}\t{self.annotation}\t{self.line}"
+
+
+@dataclass(frozen=True)
+class AliasViolation:
+    """A jaxtyping shaped-type alias violation."""
+
+    path: str
+    alias: str
+    annotation: str
+    line: str
+
+    def as_baseline_entry(self) -> str:
+        """Return a stable baseline entry for this violation."""
+        return f"{self.path}\t{self.alias}\t{self.annotation}\t{self.line}"
 
 
 @dataclass(frozen=True)
@@ -135,6 +150,25 @@ def is_jaxtyping_shaped_type(node: ast.AST, resolver: ImportResolver) -> bool:
     return name.rsplit(".", 1)[-1] in JAXTYPING_SHAPED_TYPES
 
 
+def contains_jaxtyping_shaped_subscript(
+    node: ast.AST, resolver: ImportResolver
+) -> bool:
+    """Return whether an expression contains a jaxtyping shaped subscript."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        parsed = parse_string_annotation(node)
+        if parsed is None:
+            return False
+        return contains_jaxtyping_shaped_subscript(parsed, resolver)
+    if isinstance(node, ast.Subscript) and is_jaxtyping_shaped_type(
+        node.value, resolver
+    ):
+        return True
+    return any(
+        contains_jaxtyping_shaped_subscript(child, resolver)
+        for child in ast.iter_child_nodes(node)
+    )
+
+
 def is_raw_tensor_type(node: ast.AST, resolver: ImportResolver) -> bool:
     """Return whether a node is a raw torch tensor or numpy ndarray type."""
     name = dotted_name(node)
@@ -202,9 +236,25 @@ def line_for_node(lines: list[str], node: ast.AST) -> str:
     return " ".join(lines[lineno - 1].strip().split())
 
 
-def is_type_alias_annotation(node: ast.AST | None) -> bool:
+def is_type_alias_annotation(
+    node: ast.AST | None, resolver: ImportResolver | None = None
+) -> bool:
     """Return whether an annotation declares a TypeAlias assignment."""
-    return node is not None and dotted_name(node) in {"TypeAlias", "typing.TypeAlias"}
+    if node is None:
+        return False
+    name = dotted_name(node)
+    if name is None:
+        return False
+    if resolver is not None:
+        name = resolver.resolve(name)
+    return name in {"TypeAlias", "typing.TypeAlias"}
+
+
+def alias_target_name(node: ast.AST) -> str | None:
+    """Return a module-level alias target name when the target is simple."""
+    if isinstance(node, ast.Name):
+        return node.id
+    return None
 
 
 def is_type_alias_target(node: ast.AST) -> bool:
@@ -289,10 +339,62 @@ def raw_annotation_violations(root: Path) -> list[AnnotationViolation]:
     return violations
 
 
+def jaxtyping_alias_violations(root: Path) -> list[AliasViolation]:
+    """Return module-level jaxtyping shaped-type alias violations."""
+    violations: list[AliasViolation] = []
+    for path in source_files(root):
+        rel_path = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        tree = ast.parse(text, filename=rel_path)
+        resolver = ImportResolver.from_tree(tree)
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and contains_jaxtyping_shaped_subscript(
+                node.value, resolver
+            ):
+                for target in node.targets:
+                    alias = alias_target_name(target)
+                    if alias is None:
+                        continue
+                    violations.append(
+                        AliasViolation(
+                            rel_path,
+                            alias,
+                            normalize_annotation(node.value),
+                            line_for_node(lines, node),
+                        )
+                    )
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and node.value is not None
+                and is_type_alias_annotation(node.annotation, resolver)
+                and contains_jaxtyping_shaped_subscript(node.value, resolver)
+            ):
+                alias = alias_target_name(node.target)
+                if alias is None:
+                    continue
+                violations.append(
+                    AliasViolation(
+                        rel_path,
+                        alias,
+                        normalize_annotation(node.value),
+                        line_for_node(lines, node),
+                    )
+                )
+    return violations
+
+
 def current_entries(root: Path) -> set[str]:
     """Return current raw annotation entries."""
     return {
         violation.as_baseline_entry() for violation in raw_annotation_violations(root)
+    }
+
+
+def current_alias_entries(root: Path) -> set[str]:
+    """Return current jaxtyping alias entries."""
+    return {
+        violation.as_baseline_entry() for violation in jaxtyping_alias_violations(root)
     }
 
 
@@ -360,6 +462,26 @@ def check_jaxtyping_annotations(root: Path, baseline_path: Path) -> int:
     return 1
 
 
+def check_jaxtyping_aliases(root: Path, baseline_path: Path) -> int:
+    """Check current jaxtyping aliases against the shrink-only baseline."""
+    current = current_alias_entries(root)
+    baseline = baseline_entries(baseline_path)
+    reference = baseline_reference_entries(root, baseline_path)
+    baseline_additions = sorted(baseline - reference) if reference is not None else []
+    unexpected = sorted(current - baseline)
+    if not baseline_additions and not unexpected:
+        return 0
+    if baseline_additions:
+        print("New jaxtyping alias baseline entries:", file=sys.stderr)
+        for entry in baseline_additions:
+            print(f"  + {entry}", file=sys.stderr)
+    if unexpected:
+        print("New jaxtyping shaped-type aliases in package source:", file=sys.stderr)
+        for entry in unexpected:
+            print(f"  + {entry}", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the jaxtyping annotation checker."""
     parser = argparse.ArgumentParser()
@@ -371,8 +493,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.write_baseline:
         write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_baseline(ALIAS_BASELINE_PATH, current_alias_entries(ROOT))
         return 0
-    return check_jaxtyping_annotations(ROOT, BASELINE_PATH)
+    raw_status = check_jaxtyping_annotations(ROOT, BASELINE_PATH)
+    alias_status = check_jaxtyping_aliases(ROOT, ALIAS_BASELINE_PATH)
+    return raw_status or alias_status
 
 
 if __name__ == "__main__":
