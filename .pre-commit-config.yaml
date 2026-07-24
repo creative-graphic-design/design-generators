@@ -57,6 +57,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: jaxtyping-annotations
+        name: jaxtyping annotations
+        entry: uv run --package design-generators python scripts/check_jaxtyping_annotations.py
+        language: system
+        pass_filenames: false
+
       - id: config-defaults
         name: config defaults
         entry: uv run --package design-generators python scripts/check_config_defaults.py
