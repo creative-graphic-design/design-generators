@@ -129,7 +129,7 @@ class RADMConfig(ConfigMixin):
         scheduler_subfolder: str = "scheduler",
         processor_subfolder: str = "processor",
         conversion_report: Mapping[str, object] | None = None,
-        checkpoint_status: str = "no released RADM checkpoint confirmed",
+        checkpoint_status: str = "RADM README confirms datasets only; no released checkpoint is published",
         license_status: str = "checked original source has no license file",
     ) -> None:
         """Initialize RADM settings."""

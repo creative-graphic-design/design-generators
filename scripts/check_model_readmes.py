@@ -276,7 +276,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
-    "radm": "https://github.com/DUY-Semantics/RADM",
+    "radm": "https://github.com/JD-GenX/RADM",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
@@ -837,13 +837,22 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
 
 def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
     section = _section(text, "## Reproducibility")
-    expected = (
+    main_absolute = (
         "https://github.com/creative-graphic-design/design-generators/blob/main/"
         f"models/{path.parent.name}/REPRODUCING.md"
     )
-    if expected not in section:
+    branch_absolute = re.compile(
+        "https://github\\.com/creative-graphic-design/design-generators/blob/"
+        rf"[^/\s)]+/models/{re.escape(path.parent.name)}/REPRODUCING\.md"
+    )
+    relative = "[REPRODUCING.md](REPRODUCING.md)"
+    if (
+        main_absolute not in section
+        and branch_absolute.search(section) is None
+        and relative not in section
+    ):
         raise AssertionError(
-            f"{path}: Reproducibility must link absolute REPRODUCING.md URL {expected}"
+            f"{path}: Reproducibility must link REPRODUCING.md with {main_absolute}, a branch blob URL, or {relative}"
         )
     if "uv run --package " in section or "```" in section:
         raise AssertionError(

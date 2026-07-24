@@ -6,8 +6,27 @@ Workflow order: download or otherwise obtain local assets, generate references, 
 
 - A local RADM checkpoint supplied by the user or maintainer.
 - A local CGL dataset root and matching text-feature root.
-- A local original RADM source checkout with `train_net.py` for gated parity.
+- A local original RADM source checkout from
+  [JD-GenX/RADM](https://github.com/JD-GenX/RADM) with `train_net.py` for gated
+  parity.
 - One explicitly selected GPU for the original Detectron2 reference path.
+
+The checked RADM README publishes dataset and testing-feature assets only; no
+released checkpoint is published. Use a locally trained or otherwise
+user-supplied checkpoint for conversion and heavyweight parity.
+
+Detectron2 is required for original-code RADM instantiation and is included in
+the `vendor` extra. The RADM extra pins the upstream `v0.6` source tag; install
+the vendor extra in the original-code reference environment before running
+denoiser architecture parity:
+
+```bash
+uv sync --package radm --extra vendor
+```
+
+If the local CUDA toolkit does not match the installed PyTorch CUDA build, use
+`CUDA_VISIBLE_DEVICES="" uv sync --package radm --extra vendor` to build
+Detectron2 without CUDA extensions for the architecture-parity check.
 
 ## Inspect Local Assets
 

@@ -677,6 +677,15 @@ wheels = [
 ]
 
 [[package]]
+name = "appdirs"
+version = "1.4.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/d8/05696357e0311f5b5c316d7b95f46c669dd9c15aaeecbb48c7d0aeb88c40/appdirs-1.4.4.tar.gz", hash = "sha256:7d5d0167b2b1ba821647616af46a749d1c653740dd0d2415100fe26e27afdf41", size = 13470, upload-time = "2020-05-11T07:59:51.037Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/00/2344469e2084fb287c2e0b57b72910309874c3245463acd6cf5e3db69324/appdirs-1.4.4-py2.py3-none-any.whl", hash = "sha256:a841dacd6b99318a741b166adb07e19ee71a274450e68237b4650ca1055ab128", size = 9566, upload-time = "2020-05-11T07:59:49.499Z" },
+]
+
+[[package]]
 name = "appnope"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -776,6 +785,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/65/318323f98dbee45d42dff61d8f047181bc6f2268a9068cfad035a46be5af/beautifulsoup4-4.15.0.tar.gz", hash = "sha256:288e3ca7d54b06f2ac191970bc275c1939cb46d450b255bf6718b04aa37ab4f7", size = 632571, upload-time = "2026-06-07T16:44:20.453Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/c6/92fcd42f1ba33e1184263f25bfabf3d27c383410470f169e4b8163bf9c17/beautifulsoup4-4.15.0-py3-none-any.whl", hash = "sha256:d6f88de62e1d4e38ecb1077eb9724cd0eff29d2a08ca16a401e9b9e93f117cf9", size = 109924, upload-time = "2026-06-07T16:44:21.566Z" },
+]
+
+[[package]]
+name = "black"
+version = "21.4b2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "appdirs" },
+    { name = "click" },
+    { name = "mypy-extensions" },
+    { name = "pathspec" },
+    { name = "regex" },
+    { name = "toml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/75/69fabe4a2d578b315a3b90e485b1671b9872d192028944e9af726bb8c452/black-21.4b2.tar.gz", hash = "sha256:fc9bcf3b482b05c1f35f6a882c079dc01b9c7795827532f4cc43c0ec88067bbc", size = 1151620, upload-time = "2021-04-28T15:33:13.158Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/c3/848edbd902fa908e941eaf72dc142b4a5c86e903c1e0129cf7cd098a485b/black-21.4b2-py3-none-any.whl", hash = "sha256:bff7067d8bc25eb21dcfdbc8c72f2baafd9ec6de4663241a52fb904b304d391f", size = 130959, upload-time = "2021-04-28T15:33:10.622Z" },
 ]
 
 [[package]]
@@ -1750,6 +1776,30 @@ docs = [
 ]
 
 [[package]]
+name = "detectron2"
+version = "0.6"
+source = { git = "https://github.com/facebookresearch/detectron2.git?rev=v0.6#d1e04565d3bec8719335b88be9e9b961bf3ec464" }
+dependencies = [
+    { name = "black" },
+    { name = "cloudpickle" },
+    { name = "future" },
+    { name = "fvcore" },
+    { name = "hydra-core" },
+    { name = "iopath" },
+    { name = "matplotlib" },
+    { name = "omegaconf" },
+    { name = "pillow" },
+    { name = "pycocotools" },
+    { name = "pydot" },
+    { name = "tabulate" },
+    { name = "tensorboard", version = "2.15.2", source = { registry = "https://pypi.org/simple" }, marker = "(extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-14-layoutprompter-vendor' and extra == 'extra-17-design-generators-evaluation') or (extra == 'extra-17-design-generators-evaluation' and extra == 'extra-4-ralf-vendor') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-4-ralf-vendor' and extra == 'extra-6-ds-gan-download') or (extra == 'extra-17-design-generators-evaluation' and extra != 'extra-6-ds-gan-download' and extra == 'extra-8-housegan-vendor') or (extra == 'extra-17-design-generators-evaluation' and extra != 'extra-6-ds-gan-download' and extra == 'extra-9-smarttext-vendor') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra == 'extra-6-ds-gan-download') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-4-ralf-vendor' and extra == 'extra-7-flex-dm-convert') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-4-ralf-vendor' and extra == 'extra-7-flex-dm-vendor-tf') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra == 'extra-7-flex-dm-convert') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra == 'extra-7-flex-dm-vendor-tf') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-6-ds-gan-download' and extra == 'extra-8-housegan-vendor' and extra == 'project-6-ds-gan') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-17-design-generators-evaluation' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-17-design-generators-evaluation' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra == 'extra-9-smarttext-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor' and extra == 'extra-9-smarttext-vendor') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra != 'extra-8-housegan-vendor' and extra == 'project-6-ds-gan') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-17-design-generators-evaluation' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor' and extra != 'extra-9-smarttext-vendor' and extra == 'project-6-ds-gan') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-4-ralf-vendor' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf' and extra != 'extra-8-housegan-vendor' and extra != 'extra-9-smarttext-vendor' and extra == 'project-6-ds-gan')" },
+    { name = "tensorboard", version = "2.21.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-17-design-generators-evaluation' or extra == 'extra-17-design-generators-llm-agent' or (extra == 'extra-11-layout-detr-vendor' and extra == 'extra-6-ds-gan-download') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-6-laygen-agents') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-6-laygen-agents') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-6-ds-gan-download' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'extra-8-housegan-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'project-10-layout-gpt') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'project-14-layoutprompter') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'project-17-design-generators') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-convert' and extra == 'project-7-postero') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'extra-8-housegan-vendor') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-10-layout-gpt') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-14-layoutprompter') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-17-design-generators') or (extra != 'extra-11-layout-detr-vendor' and extra == 'extra-7-flex-dm-vendor-tf' and extra == 'project-7-postero') or (extra != 'extra-11-layout-detr-vendor' and extra != 'extra-7-flex-dm-convert' and extra != 'extra-7-flex-dm-vendor-tf') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-convert' and extra != 'project-6-ds-gan' and extra == 'project-7-postero') or (extra != 'extra-6-ds-gan-download' and extra == 'extra-7-flex-dm-vendor-tf' and extra != 'project-6-ds-gan' and extra == 'project-7-postero') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-convert' and extra != 'extra-8-housegan-vendor' and extra != 'project-10-layout-gpt' and extra != 'project-14-layoutprompter' and extra != 'project-17-design-generators' and extra == 'project-6-ds-gan') or (extra == 'extra-11-layout-detr-vendor' and extra != 'extra-6-laygen-agents' and extra == 'extra-7-flex-dm-vendor-tf' and extra != 'extra-8-housegan-vendor' and extra != 'project-10-layout-gpt' and extra != 'project-14-layoutprompter' and extra != 'project-17-design-generators' and extra == 'project-6-ds-gan')" },
+    { name = "termcolor" },
+    { name = "tqdm" },
+    { name = "yacs" },
+]
+
+[[package]]
 name = "diffusers"
 version = "0.39.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2400,6 +2450,15 @@ wheels = [
 ]
 
 [[package]]
+name = "future"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/b2/4140c69c6a66432916b26158687e821ba631a4c9273c474343badf84d3ba/future-1.0.0.tar.gz", hash = "sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05", size = 1228490, upload-time = "2024-02-21T11:52:38.461Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/71/ae30dadffc90b9006d77af76b393cb9dfbfc9629f339fc1574a1c52e6806/future-1.0.0-py3-none-any.whl", hash = "sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216", size = 491326, upload-time = "2024-02-21T11:52:35.956Z" },
+]
+
+[[package]]
 name = "fvcore"
 version = "0.1.5.post20221221"
 source = { registry = "https://pypi.org/simple" }
@@ -2944,14 +3003,15 @@ wheels = [
 
 [[package]]
 name = "iopath"
-version = "0.1.10"
+version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "portalocker" },
     { name = "tqdm" },
-    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/73/b3d451dfc523756cf177d3ebb0af76dc7751b341c60e2a21871be400ae29/iopath-0.1.10.tar.gz", hash = "sha256:3311c16a4d9137223e20f141655759933e1eda24f8bff166af834af3c645ef01", size = 42226, upload-time = "2022-07-09T19:00:50.866Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/20/65dd9bd25a1eb7fa35b5ae38d289126af065f8a0c1f6a90564f4bff0f89d/iopath-0.1.9-py3-none-any.whl", hash = "sha256:9058ac24f0328decdf8dbe209b33074b8702a3c4d9ba2f7801d46cb61a880b6e", size = 27367, upload-time = "2021-06-25T07:10:15.198Z" },
+]
 
 [[package]]
 name = "ipykernel"
@@ -5013,6 +5073,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/74/d2c27e03cb84251dfe7249b8e82923643c6d48fa4883b9476b025e7dc7eb/multiprocess-0.70.19-py313-none-any.whl", hash = "sha256:8d5eb4ec5017ba2fab4e34a747c6d2c2b6fecfe9e7236e77988db91580ada952", size = 156414, upload-time = "2026-01-19T06:47:35.915Z" },
     { url = "https://files.pythonhosted.org/packages/a0/61/af9115673a5870fd885247e2f1b68c4f1197737da315b520a91c757a861a/multiprocess-0.70.19-py314-none-any.whl", hash = "sha256:e8cc7fbdff15c0613f0a1f1f8744bef961b0a164c0ca29bdff53e9d2d93c5e5f", size = 160318, upload-time = "2026-01-19T06:47:37.497Z" },
     { url = "https://files.pythonhosted.org/packages/7e/82/69e539c4c2027f1e1697e09aaa2449243085a0edf81ae2c6341e84d769b6/multiprocess-0.70.19-py39-none-any.whl", hash = "sha256:0d4b4397ed669d371c81dcd1ef33fd384a44d6c3de1bd0ca7ac06d837720d3c5", size = 133477, upload-time = "2026-01-19T06:47:38.619Z" },
+]
+
+[[package]]
+name = "mypy-extensions"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
 ]
 
 [[package]]
@@ -7295,11 +7364,11 @@ wheels = [
 
 [[package]]
 name = "pathspec"
-version = "1.1.1"
+version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/bc/f35b8446f4531a7cb215605d100cd88b7ac6f44ab3fc94870c120ab3adbf/pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712", size = 51043, upload-time = "2023-12-10T22:30:45Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08", size = 31191, upload-time = "2023-12-10T22:30:43.14Z" },
 ]
 
 [[package]]
@@ -8363,6 +8432,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pydot"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/13/6e/916cdf94f9b38ae0777b254c75c3bdddee49a54cc4014aac1460a7a172b3/pydot-1.4.2.tar.gz", hash = "sha256:248081a39bcb56784deb018977e428605c1c758f10897a339fce1dd728ff007d", size = 137681, upload-time = "2021-02-15T15:43:08.87Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/76/75b1bb82e9bad3e3d656556eaa353d8cd17c4254393b08ec9786ac8ed273/pydot-1.4.2-py2.py3-none-any.whl", hash = "sha256:66c98190c65b8d2e2382a441b4c0edfdb4f4c025ef9cb9874de478fb0793a451", size = 21868, upload-time = "2021-02-15T15:43:06.74Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -8866,17 +8947,19 @@ hub = [
     { name = "huggingface-hub" },
 ]
 vendor = [
+    { name = "detectron2" },
     { name = "fvcore" },
     { name = "iopath" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "detectron2", marker = "extra == 'vendor'", git = "https://github.com/facebookresearch/detectron2.git?rev=v0.6" },
     { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
     { name = "fvcore", marker = "extra == 'vendor'", specifier = ">=0.1.5" },
     { name = "huggingface-hub", marker = "extra == 'download'", specifier = ">=0.24" },
     { name = "huggingface-hub", marker = "extra == 'hub'", specifier = ">=0.24" },
-    { name = "iopath", marker = "extra == 'vendor'", specifier = ">=0.1.10" },
+    { name = "iopath", marker = "extra == 'vendor'", specifier = ">=0.1.7,<0.1.10" },
     { name = "jaxtyping", specifier = ">=0.3" },
     { name = "laygen", editable = "lib/laygen" },
     { name = "numpy", specifier = ">=1.24" },
@@ -11226,6 +11309,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/18/a545c4ea42af3df6effd7d13d250ba77a0a86fb20393143bbb9a92e434d4/tokenizers-0.22.2-cp39-abi3-win32.whl", hash = "sha256:a6bf3f88c554a2b653af81f3204491c818ae2ac6fbc09e76ef4773351292bc92", size = 2502363, upload-time = "2026-01-05T10:45:20.593Z" },
     { url = "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl", hash = "sha256:c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48", size = 2747786, upload-time = "2026-01-05T10:45:18.411Z" },
     { url = "https://files.pythonhosted.org/packages/72/f4/0de46cfa12cdcbcd464cc59fde36912af405696f687e53a091fb432f694c/tokenizers-0.22.2-cp39-abi3-win_arm64.whl", hash = "sha256:9ce725d22864a1e965217204946f830c37876eee3b2ba6fc6255e8e903d5fcbc", size = 2612133, upload-time = "2026-01-05T10:45:17.232Z" },
+]
+
+[[package]]
+name = "toml"
+version = "0.10.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/ba/1f744cdc819428fc6b5084ec34d9b30660f6f9daaf70eead706e3203ec3c/toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f", size = 22253, upload-time = "2020-11-01T01:40:22.204Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b", size = 16588, upload-time = "2020-11-01T01:40:20.672Z" },
 ]
 
 [[package]]
