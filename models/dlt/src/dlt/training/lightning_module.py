@@ -42,7 +42,7 @@ class DLTTrainingModule(LightningModule):
     ) -> torch.Tensor:
         """Run one DLT denoising step and return the scalar loss."""
         del batch_idx
-        device = batch["box"].device
+        device = self.device
         noise = torch.randn(batch["box"].shape, device=device)
         timesteps = torch.randint(
             0, self.scheduler.num_cont_steps, (batch["box"].shape[0],), device=device
