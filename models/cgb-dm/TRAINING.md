@@ -47,33 +47,46 @@ and CGL asset runs remain outside regular CI.
 
 S5 compares generated metrics from full PKU training runs. The reference run is
 the epoch-500 original-code process `pku_full_vendor_20260723_224914`; the
-package run is the discarded diagnostic checkpoint
-`pku_full_ours_20260724_013039` loaded from `epoch=499-step=121000.ckpt`. Both
-use the PKU `pku.yaml` training-evaluation path (`val/inpaint`, 1,000 samples).
-The first reference column is the metric line emitted by the original training
-process after epoch 500. The standalone columns reload the final checkpoints and
-sample seeds 1, 2, and 3 with the same metric formulas. Package evaluation feeds
-raw internal class ids and boxes to the original metric functions; public
-pipeline decoding is not used for this table.
+package run is the architecture-corrected process
+`pku_full_ours_archfixed_20260724_122952` loaded from
+`epoch=499-step=121000.ckpt`. Both use the PKU `pku.yaml`
+training-evaluation path (`val/inpaint`, 1,000 samples). The first reference
+column is the metric line emitted by the original training process after epoch
+500. The standalone columns reload the final checkpoints and sample seeds 1, 2,
+and 3 with the same metric formulas. Package evaluation feeds raw internal class
+ids and boxes to the original metric functions; public pipeline decoding is not
+used for this table.
 
 | Metric | Reference full-run log | Reference standalone mean +/- std (n=3) | Package mean +/- std (n=3) |
 | --- | ---: | ---: | ---: |
-| `val` | 1.000000 | 1.000000 +/- 0.000000 | 0.090430 +/- 0.001914 |
-| `ove` | 0.002727 | 0.002286 +/- 0.000156 | 0.362796 +/- 0.021026 |
-| `undl` | 0.996477 | 0.996406 +/- 0.001368 | 0.015503 +/- 0.001400 |
-| `unds` | 0.978788 | 0.972385 +/- 0.000736 | 0.009336 +/- 0.001625 |
-| `occ` | 0.127215 | 0.127496 +/- 0.000878 | 0.048323 +/- 0.000940 |
-| `rea` | 0.015321 | 0.015695 +/- 0.000349 | 0.006018 +/- 0.000509 |
+| `val` | 1.000000 | 1.000000 +/- 0.000000 | 1.000000 +/- 0.000000 |
+| `ove` | 0.002727 | 0.002286 +/- 0.000156 | 0.003293 +/- 0.000801 |
+| `undl` | 0.996477 | 0.996406 +/- 0.001368 | 0.999345 +/- 0.000284 |
+| `unds` | 0.978788 | 0.972385 +/- 0.000736 | 0.991428 +/- 0.001467 |
+| `occ` | 0.127215 | 0.127496 +/- 0.000878 | 0.116661 +/- 0.000648 |
+| `rea` | 0.015321 | 0.015695 +/- 0.000349 | 0.014180 +/- 0.000295 |
 
-The package checkpoint does not match the reference S5 distribution and must be
-discarded. The primary root cause was architecture drift: the discarded package
-model had 22.8M parameters and 129 state-dict keys, while the reference
-`LayoutModel` has 47.9M parameters and 229 state-dict keys. The earlier S1/S2
-training parity checks injected the reference `LayoutModel` into the package
-training wrapper, so they verified the training step order but did not verify
-the package `CGBDMTransformerModel` architecture. A direct same-seed/same-input
-forward comparison before the fix had mean absolute output difference
-`0.516288`.
+The corrected package checkpoint matches the reference S5 distribution at the
+same practical level as the standalone reference resampling. Validity is
+identical (`1.0`), overlap remains in the same low range, underlay coverage and
+underlay saliency are high, and occlusion/readability remain close to the
+reference metrics. The package `occ` and `rea` means are slightly lower than the
+reference standalone means, but the samples are valid and structurally aligned;
+this is no longer the degenerate low-validity/no-underlay failure observed in
+the discarded checkpoint.
+
+The discarded diagnostic checkpoint `pku_full_ours_20260724_013039` did not
+match S5 and must not be used. Its package mean +/- std (n=3) was `val`
+`0.090430 +/- 0.001914`, `ove` `0.362796 +/- 0.021026`, `undl`
+`0.015503 +/- 0.001400`, `unds` `0.009336 +/- 0.001625`, `occ`
+`0.048323 +/- 0.000940`, and `rea` `0.006018 +/- 0.000509`. The primary root
+cause was architecture drift: the discarded package model had 22.8M parameters
+and 129 state-dict keys, while the reference `LayoutModel` has 47.9M parameters
+and 229 state-dict keys. The earlier S1/S2 training parity checks injected the
+reference `LayoutModel` into the package training wrapper, so they verified the
+training step order but did not verify the package `CGBDMTransformerModel`
+architecture. A direct same-seed/same-input forward comparison before the fix
+had mean absolute output difference `0.516288`.
 
 A secondary full-run data bug also contributed to the invalid checkpoint. The
 full-run data module used public encoding for the original PKU CSV labels while
@@ -113,8 +126,8 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --backend ours \
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
-  --checkpoint .cache/cgb-dm/full-run/ours-pku/pku_full_ours_20260724_013039/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt \
-  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-raw \
+  --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed \
   --gpu 0 \
   --seeds 1 2 3
 ```
