@@ -8,7 +8,7 @@ import os
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -24,10 +24,10 @@ from .configuration_layout_fid import LayoutFIDConfig
 class LayoutFIDBatch:
     """Model-ready layout FID batch."""
 
-    bbox: torch.Tensor
-    labels: torch.Tensor
-    padding_mask: torch.Tensor
-    mask: torch.Tensor
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    padding_mask: Bool[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
     id2label: dict[int, str] | None
 
 
@@ -201,8 +201,10 @@ class LayoutFIDProcessor(ProcessorMixin):
 
     @staticmethod
     def _pad_tensor(
-        tensor: torch.Tensor, max_length: int, value: float | int | bool
-    ) -> torch.Tensor:
+        tensor: Shaped[torch.Tensor, "batch elements ..."],
+        max_length: int,
+        value: float | int | bool,
+    ) -> Shaped[torch.Tensor, "batch max_elements ..."]:
         if tensor.shape[1] > max_length:
             return tensor[:, :max_length]
         if tensor.shape[1] == max_length:

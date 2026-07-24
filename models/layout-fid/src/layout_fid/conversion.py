@@ -9,6 +9,7 @@ from typing import Final, TypedDict
 
 import numpy as np
 import torch
+from jaxtyping import Shaped
 
 from laygen.common.labels import id2label_for_dataset
 
@@ -142,7 +143,7 @@ def load_checkpoint_state_dict(
     path: str | PathLike[str],
     *,
     state_dict_key: str | None = None,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load a torch checkpoint state dict."""
     checkpoint = torch.load(path, map_location="cpu", weights_only=False)
     if state_dict_key is not None:
@@ -151,14 +152,14 @@ def load_checkpoint_state_dict(
 
 
 def strip_module_prefix(
-    state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Strip optional ``module.`` prefixes from checkpoint keys."""
     return {key.removeprefix("module."): value for key, value in state_dict.items()}
 
 
 def validate_state_dict_shapes(
-    state_dict: Mapping[str, torch.Tensor], config: LayoutFIDConfig
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]], config: LayoutFIDConfig
 ) -> None:
     """Validate checkpoint tensor shapes before writing artifacts."""
     expected = {

@@ -9,6 +9,7 @@ from typing import cast
 
 import numpy as np
 import torch
+from jaxtyping import Float
 
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -74,7 +75,7 @@ class LayoutFIDEvaluator:
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         batch_size: int = 512,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch channels"]:
         """Extract features from public layout tensors."""
         layout_kwargs = self._layout_kwargs(
             layouts=layouts,
@@ -87,7 +88,7 @@ class LayoutFIDEvaluator:
             canvas_size=canvas_size,
         )
         batch = self.processor(**layout_kwargs, device=self.device)  # ty: ignore[invalid-argument-type]
-        outputs: list[torch.Tensor] = []
+        outputs: list[Float[torch.Tensor, "batch channels"]] = []
         for start in range(0, batch.bbox.shape[0], batch_size):
             end = start + batch_size
             with torch.no_grad():
@@ -104,7 +105,9 @@ class LayoutFIDEvaluator:
         self,
         *,
         layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
-        features: torch.Tensor | np.ndarray | None = None,
+        features: Float[torch.Tensor, "batch channels"]
+        | Float[np.ndarray, "batch channels"]
+        | None = None,
         **layout_kwargs: object,
     ) -> LayoutFIDStatistics:
         """Compute candidate feature statistics."""
@@ -122,7 +125,9 @@ class LayoutFIDEvaluator:
         self,
         *,
         layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
-        features: torch.Tensor | np.ndarray | None = None,
+        features: Float[torch.Tensor, "batch channels"]
+        | Float[np.ndarray, "batch channels"]
+        | None = None,
         statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
         reference_statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
         reference_split: LayoutFIDStatsSplit | str = "test",

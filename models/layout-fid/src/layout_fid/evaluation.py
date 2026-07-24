@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 class LayoutFIDStatistics:
     """Feature distribution statistics used by layout FID."""
 
-    mu: np.ndarray
-    sigma: np.ndarray
+    mu: Float[np.ndarray, "channels"]
+    sigma: Float[np.ndarray, "channels channels"]
     split: str
     dataset_name: str
     source: str
@@ -51,7 +51,8 @@ class LayoutFIDStatistics:
 
 
 def compute_feature_statistics(
-    features: Float[torch.Tensor, "batch channels"] | np.ndarray,
+    features: Float[torch.Tensor, "batch channels"]
+    | Float[np.ndarray, "batch channels"],
     *,
     split: str = "candidate",
     dataset_name: str = "",
@@ -94,10 +95,10 @@ def compute_feature_statistics(
 
 
 def calculate_frechet_distance(
-    mu1: np.ndarray,
-    sigma1: np.ndarray,
-    mu2: np.ndarray,
-    sigma2: np.ndarray,
+    mu1: Float[np.ndarray, "channels"],
+    sigma1: Float[np.ndarray, "channels channels"],
+    mu2: Float[np.ndarray, "channels"],
+    sigma2: Float[np.ndarray, "channels channels"],
     *,
     eps: float = 1e-6,
 ) -> float:
@@ -213,7 +214,7 @@ def compute_layout_fid(
     **layout_kwargs: object,
 ) -> float:
     """Compute layout FID directly from model, processor, and layout tensors."""
-    features: list[torch.Tensor] = []
+    features: list[Float[torch.Tensor, "batch channels"]] = []
     batch = processor(**layout_kwargs)  # ty: ignore[invalid-argument-type]
     for start in range(0, batch.bbox.shape[0], batch_size):
         end = start + batch_size
@@ -233,7 +234,10 @@ def compute_layout_fid(
     return compute_layout_fid_from_statistics(candidate, reference_statistics)
 
 
-def _as_numpy(features: torch.Tensor | np.ndarray) -> np.ndarray:
+def _as_numpy(
+    features: Float[torch.Tensor, "batch channels"]
+    | Float[np.ndarray, "batch channels"],
+) -> Float[np.ndarray, "batch channels"]:
     if isinstance(features, torch.Tensor):
         return features.detach().cpu().numpy()
     return np.asarray(features)

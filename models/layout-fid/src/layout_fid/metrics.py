@@ -6,13 +6,13 @@ from collections.abc import Sequence
 
 import numpy as np
 import torch
-
-Layout = tuple[np.ndarray, np.ndarray]
+from jaxtyping import Bool, Float, Int, Shaped
 
 
 def compute_overlap(
-    bbox: torch.Tensor, mask: torch.Tensor | None = None
-) -> dict[str, torch.Tensor]:
+    bbox: Float[torch.Tensor, "... elements 4"],
+    mask: Bool[torch.Tensor, "... elements"] | None = None,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Compute LayoutDM-compatible overlap metrics for normalized ``xywh`` boxes."""
     bbox, mask = _batched_bbox_and_mask(bbox, mask)
     batch_size, sequence_length = mask.size()
@@ -65,8 +65,9 @@ def compute_overlap(
 
 
 def compute_alignment(
-    bbox: torch.Tensor, mask: torch.Tensor | None = None
-) -> dict[str, torch.Tensor]:
+    bbox: Float[torch.Tensor, "... elements 4"],
+    mask: Bool[torch.Tensor, "... elements"] | None = None,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Compute LayoutDM-compatible alignment metrics for normalized ``xywh`` boxes."""
     bbox, mask = _batched_bbox_and_mask(bbox, mask)
     _, sequence_length = mask.size()
@@ -104,8 +105,12 @@ def compute_alignment(
 
 
 def compute_average_iou(
-    bbox: torch.Tensor | np.ndarray | Sequence[Layout],
-    mask: torch.Tensor | np.ndarray | None = None,
+    bbox: Float[torch.Tensor, "... elements 4"]
+    | Float[np.ndarray, "... elements 4"]
+    | Sequence[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+    mask: Bool[torch.Tensor, "... elements"]
+    | Bool[np.ndarray, "... elements"]
+    | None = None,
 ) -> dict[str, float]:
     """Compute LayoutDM-compatible average IoU metrics.
 
@@ -128,15 +133,15 @@ def compute_average_iou(
 
 
 def compute_maximum_iou(
-    candidate_bbox: torch.Tensor,
-    reference_bbox: torch.Tensor,
-    candidate_mask: torch.Tensor | None = None,
-    reference_mask: torch.Tensor | None = None,
-) -> torch.Tensor:
+    candidate_bbox: Float[torch.Tensor, "batch elements 4"],
+    reference_bbox: Float[torch.Tensor, "batch elements 4"],
+    candidate_mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    reference_mask: Bool[torch.Tensor, "batch elements"] | None = None,
+) -> Float[torch.Tensor, ""]:
     """Compute maximum pairwise IoU between two layout batches."""
     cand, cand_valid = _valid_ltrb(candidate_bbox, candidate_mask)
     ref, ref_valid = _valid_ltrb(reference_bbox, reference_mask)
-    values: list[torch.Tensor] = []
+    values: list[Float[torch.Tensor, ""]] = []
     for cand_item, ref_item, c_valid, r_valid in zip(
         cand, ref, cand_valid, ref_valid, strict=True
     ):
@@ -154,8 +159,11 @@ def compute_maximum_iou(
 
 
 def _batched_bbox_and_mask(
-    bbox: torch.Tensor, mask: torch.Tensor | None
-) -> tuple[torch.Tensor, torch.Tensor]:
+    bbox: Float[torch.Tensor, "... elements 4"],
+    mask: Bool[torch.Tensor, "... elements"] | None,
+) -> tuple[
+    Float[torch.Tensor, "batch elements 4"], Bool[torch.Tensor, "batch elements"]
+]:
     if bbox.ndim == 2:
         bbox = bbox.unsqueeze(0)
     if mask is None:
@@ -166,27 +174,39 @@ def _batched_bbox_and_mask(
 
 
 def _valid_ltrb(
-    bbox: torch.Tensor, mask: torch.Tensor | None
-) -> tuple[torch.Tensor, torch.Tensor]:
+    bbox: Float[torch.Tensor, "... elements 4"],
+    mask: Bool[torch.Tensor, "... elements"] | None,
+) -> tuple[
+    Float[torch.Tensor, "batch elements 4"], Bool[torch.Tensor, "batch elements"]
+]:
     bbox, mask = _batched_bbox_and_mask(bbox, mask)
     return torch.stack(_torch_xywh_to_ltrb_components(bbox), dim=-1), mask
 
 
 def _torch_xywh_to_ltrb_components(
-    bbox: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    bbox: Float[torch.Tensor, "... 4"],
+) -> tuple[
+    Float[torch.Tensor, "..."],
+    Float[torch.Tensor, "..."],
+    Float[torch.Tensor, "..."],
+    Float[torch.Tensor, "..."],
+]:
     x, y, w, h = bbox.unbind(dim=-1)
     return x - w / 2, y - h / 2, x + w / 2, y + h / 2
 
 
-def _pairwise_intersection(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def _pairwise_intersection(
+    a: Float[torch.Tensor, "candidate 4"], b: Float[torch.Tensor, "reference 4"]
+) -> Float[torch.Tensor, "candidate reference"]:
     left_top = torch.maximum(a[:, None, :2], b[None, :, :2])
     right_bottom = torch.minimum(a[:, None, 2:], b[None, :, 2:])
     wh = (right_bottom - left_top).clamp_min(0)
     return wh[..., 0] * wh[..., 1]
 
 
-def _pairwise_iou(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def _pairwise_iou(
+    a: Float[torch.Tensor, "candidate 4"], b: Float[torch.Tensor, "reference 4"]
+) -> Float[torch.Tensor, "candidate reference"]:
     inter = _pairwise_intersection(a, b)
     area_a = (a[:, 2] - a[:, 0]).clamp_min(0) * (a[:, 3] - a[:, 1]).clamp_min(0)
     area_b = (b[:, 2] - b[:, 0]).clamp_min(0) * (b[:, 3] - b[:, 1]).clamp_min(0)
@@ -195,9 +215,11 @@ def _pairwise_iou(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 def _as_layouts(
-    bbox: torch.Tensor | np.ndarray | Sequence[Layout],
-    mask: torch.Tensor | np.ndarray | None,
-) -> list[Layout]:
+    bbox: Float[torch.Tensor, "... elements 4"]
+    | Float[np.ndarray, "... elements 4"]
+    | Sequence[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+    mask: Bool[torch.Tensor, "... elements"] | Bool[np.ndarray, "... elements"] | None,
+) -> list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]]:
     if isinstance(bbox, Sequence) and not isinstance(bbox, np.ndarray):
         return [(np.asarray(boxes), np.asarray(labels)) for boxes, labels in bbox]
     array = bbox.detach().cpu().numpy() if isinstance(bbox, torch.Tensor) else bbox
@@ -217,7 +239,11 @@ def _as_layouts(
     ]
 
 
-def _average_iou_for_layout(layout: Layout, *, perceptual: bool) -> float:
+def _average_iou_for_layout(
+    layout: tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]],
+    *,
+    perceptual: bool,
+) -> float:
     bbox, _ = layout
     num_boxes = bbox.shape[0]
     if num_boxes in {0, 1}:
@@ -236,7 +262,9 @@ def _average_iou_for_layout(layout: Layout, *, perceptual: bool) -> float:
     return 0.0
 
 
-def _numpy_iou(box_1: np.ndarray, box_2: np.ndarray) -> np.ndarray:
+def _numpy_iou(
+    box_1: Float[np.ndarray, "pairs 4"], box_2: Float[np.ndarray, "pairs 4"]
+) -> Float[np.ndarray, "pairs"]:
     l1, t1, r1, b1 = _numpy_xywh_to_ltrb(box_1.T)
     l2, t2, r2, b2 = _numpy_xywh_to_ltrb(box_2.T)
     area_1, area_2 = (r1 - l1) * (b1 - t1), (r2 - l2) * (b2 - t2)
@@ -251,7 +279,9 @@ def _numpy_iou(box_1: np.ndarray, box_2: np.ndarray) -> np.ndarray:
     return intersection / (area_1 + area_2 - intersection)
 
 
-def _perceptual_iou(box_1: np.ndarray, box_2: np.ndarray) -> np.ndarray:
+def _perceptual_iou(
+    box_1: Float[np.ndarray, "pairs 4"], box_2: Float[np.ndarray, "pairs 4"]
+) -> Float[np.ndarray, "pairs"]:
     l1, t1, r1, b1 = _numpy_xywh_to_ltrb(box_1.T)
     l2, t2, r2, b2 = _numpy_xywh_to_ltrb(box_2.T)
     left = np.maximum(l1, l2)
@@ -277,7 +307,12 @@ def _perceptual_iou(box_1: np.ndarray, box_2: np.ndarray) -> np.ndarray:
 
 
 def _numpy_xywh_to_ltrb(
-    bbox: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    bbox: Float[np.ndarray, "4 ..."],
+) -> tuple[
+    Float[np.ndarray, "..."],
+    Float[np.ndarray, "..."],
+    Float[np.ndarray, "..."],
+    Float[np.ndarray, "..."],
+]:
     x, y, w, h = bbox
     return x - w / 2, y - h / 2, x + w / 2, y + h / 2

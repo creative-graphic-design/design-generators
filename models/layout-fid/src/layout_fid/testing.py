@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+from jaxtyping import Float
 
 
 def assert_feature_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: Float[torch.Tensor, "batch channels"],
+    expected: Float[torch.Tensor, "batch channels"],
     *,
     atol: float = 1e-6,
     rtol: float = 1e-5,
@@ -17,7 +18,10 @@ def assert_feature_close(
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
 
-def assert_statistics_shape(mu: np.ndarray, sigma: np.ndarray) -> None:
+def assert_statistics_shape(
+    mu: Float[np.ndarray, "channels"],
+    sigma: Float[np.ndarray, "channels channels"],
+) -> None:
     """Assert reference statistics have compatible shapes."""
     if mu.ndim != 1:
         raise AssertionError("mu must be one-dimensional")

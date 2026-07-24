@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
@@ -27,7 +27,7 @@ class TransformerWithToken(nn.Module):
         """Initialize the token encoder."""
         super().__init__()
         self.token = nn.Parameter(torch.randn(1, 1, d_model))
-        self.token_mask: torch.Tensor
+        self.token_mask: Bool[torch.Tensor, "1 1"]
         self.register_buffer("token_mask", torch.zeros(1, 1, dtype=torch.bool))
         layer = nn.TransformerEncoderLayer(
             d_model=d_model,
@@ -62,10 +62,10 @@ class LayoutFIDOutput(ModelOutput):
         intermediates: Optional diagnostic tensors.
     """
 
-    features: torch.Tensor
-    discriminator_logits: torch.Tensor | None = None
-    class_logits: torch.Tensor | None = None
-    bbox_pred: torch.Tensor | None = None
+    features: Float[torch.Tensor, "batch channels"]
+    discriminator_logits: Float[torch.Tensor, "batch"] | None = None
+    class_logits: Float[torch.Tensor, "... labels"] | None = None
+    bbox_pred: Float[torch.Tensor, "... 4"] | None = None
     intermediates: dict[str, object] | None = None
 
 
@@ -158,7 +158,7 @@ class LayoutFIDModel(PreTrainedModel):
         padding_mask: Bool[torch.Tensor, "batch elements"],
         output_reconstruction: bool = False,
         return_dict: bool = True,
-    ) -> LayoutFIDOutput | tuple[torch.Tensor, ...]:
+    ) -> LayoutFIDOutput | tuple[Shaped[torch.Tensor, "..."], ...]:
         """Run feature extraction and optional reconstruction heads.
 
         Args:
@@ -178,8 +178,8 @@ class LayoutFIDModel(PreTrainedModel):
             bbox=bbox, labels=labels, padding_mask=padding_mask
         )
         discriminator_logits = self.fc_out_disc(features).squeeze(-1)
-        class_logits: torch.Tensor | None = None
-        bbox_pred: torch.Tensor | None = None
+        class_logits: Float[torch.Tensor, "... labels"] | None = None
+        bbox_pred: Float[torch.Tensor, "... 4"] | None = None
         if output_reconstruction:
             class_logits, bbox_pred = self._decode(features, padding_mask)
         if not return_dict:
@@ -196,7 +196,7 @@ class LayoutFIDModel(PreTrainedModel):
         self,
         features: Float[torch.Tensor, "batch channels"],
         padding_mask: Bool[torch.Tensor, "batch elements"],
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[Float[torch.Tensor, "... labels"], Float[torch.Tensor, "... 4"]]:
         batch_size, elements = padding_mask.shape
         hidden = features.unsqueeze(0).expand(elements, -1, -1)
         positions = self.pos_token[:elements].expand(-1, batch_size, -1)
@@ -213,7 +213,9 @@ class LayoutFIDModel(PreTrainedModel):
 
     @staticmethod
     def _validate_inputs(
-        bbox: torch.Tensor, labels: torch.Tensor, padding_mask: torch.Tensor
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        padding_mask: Bool[torch.Tensor, "batch elements"],
     ) -> None:
         if bbox.ndim != 3 or bbox.shape[-1] != 4:
             raise ValueError("bbox must have shape (batch, elements, 4)")
