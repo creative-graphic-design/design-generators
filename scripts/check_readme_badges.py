@@ -79,6 +79,7 @@ PAPER_LINKS = {
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
+    ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
