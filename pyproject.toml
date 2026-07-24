@@ -48,6 +48,9 @@ download = [
 ]
 evaluation = [
     "evaluate",
+    "opencv-python",
+    "prdc",
+    "pytorch-fid",
 ]
 llm-agent = [
     "pydantic-ai>=2.7.0",
