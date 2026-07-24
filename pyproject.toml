@@ -49,6 +49,12 @@ diffusion = [
 download = [
     "gdown>=6.1.0",
 ]
+evaluation = [
+    "evaluate",
+    "opencv-python",
+    "prdc",
+    "pytorch-fid",
+]
 llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
@@ -87,6 +93,30 @@ conflicts = [
     [
         { package = "design-generators", extra = "llm-agent" },
         { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "housegan", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "layoutprompter", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "ralf", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "smarttext", extra = "vendor" },
     ],
     [
         { package = "design-generators" },
