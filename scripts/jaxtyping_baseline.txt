@@ -220,32 +220,6 @@ models/housegan/src/housegan/vendor_state_dict.py	OrderedDict[str, torch.Tensor]
 models/housegan/src/housegan/vendor_state_dict.py	tuple[OrderedDict[str, torch.Tensor], ConversionReport]	) -> tuple[OrderedDict[str, torch.Tensor], ConversionReport]:
 models/housegan/src/housegan/visualization.py	torch.Tensor	bbox: torch.Tensor,
 models/housegan/src/housegan/visualization.py	torch.Tensor	labels: torch.Tensor,
-models/lace/src/lace/constraints.py	torch.Tensor	bbox: torch.Tensor,
-models/lace/src/lace/constraints.py	torch.Tensor	def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/constraints.py	torch.Tensor	def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/constraints.py	torch.Tensor	mask: torch.Tensor,
-models/lace/src/lace/constraints.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
-models/lace/src/lace/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
-models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	def load_vendor_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
-models/lace/src/lace/modeling_lace.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/pipeline_lace.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
-models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	) -> torch.Tensor | None:
-models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	real_layout: torch.Tensor | None,
-models/lace/src/lace/processing_lace.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/lace/src/lace/processing_lace.py	torch.Tensor	) -> torch.Tensor:
-models/lace/src/lace/processing_lace.py	torch.Tensor	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
-models/lace/src/lace/processing_lace.py	torch.Tensor	self, layout: torch.Tensor, clamp: bool = True
-models/lace/src/lace/processing_lace.py	torch.Tensor | None	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	) -> torch.Tensor:
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	model_output: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	noise: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	original_samples: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	pred_original_sample: torch.Tensor
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	prev_sample: torch.Tensor
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	sample: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	timestep: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	timesteps: torch.Tensor,
 models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
 models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
 models/layousyn/src/layousyn/modeling_layousyn.py	np.ndarray	def get_1d_sincos_pos_embed(embed_dim: int, max_len: int) -> np.ndarray:
