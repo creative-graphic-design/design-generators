@@ -69,7 +69,7 @@ dev = [
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.1.5",
-    "ty>=0.0.10,<0.0.59",
+    "ty>=0.0.10",
     "vulture>=2.16",
 ]
 docs = [
@@ -91,6 +91,30 @@ conflicts = [
     [
         { package = "design-generators", extra = "llm-agent" },
         { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "housegan", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "layoutprompter", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "ralf", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "smarttext", extra = "vendor" },
     ],
     [
         { package = "design-generators" },
@@ -213,7 +237,6 @@ convention = "google"
 
 [tool.ty.rules]
 all = "error"
-missing-type-argument = "ignore"
 missing-override-decorator = "ignore"
 unsupported-base = "ignore"
 unresolved-import = "ignore"
