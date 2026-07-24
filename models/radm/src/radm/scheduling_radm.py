@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal, overload
 
 import torch
+import torch.nn.functional as F
 from diffusers import ConfigMixin, SchedulerMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
@@ -47,7 +48,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         num_train_timesteps: int = 1000,
         num_inference_steps: int = 50,
         beta_schedule: Literal["cosine"] = "cosine",
-        eta: float = 0.0,
+        eta: float = 1.0,
         prediction_type: Literal["sample"] = "sample",
     ) -> None:
         """Initialize RADM scheduler metadata."""
@@ -60,8 +61,32 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         self.eta = float(eta)
         betas = cosine_beta_schedule(self.num_train_timesteps)
         alphas = 1.0 - betas
+        alphas_cumprod_prev = F.pad(
+            torch.cumprod(alphas, dim=0)[:-1], (1, 0), value=1.0
+        )
+        self.betas = betas
         self.alphas_cumprod = torch.cumprod(alphas, dim=0)
-        self.final_alpha_cumprod = torch.tensor(1.0)
+        self.alphas_cumprod_prev = alphas_cumprod_prev
+        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
+        self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - self.alphas_cumprod)
+        self.log_one_minus_alphas_cumprod = torch.log(1.0 - self.alphas_cumprod)
+        self.sqrt_recip_alphas_cumprod = torch.sqrt(1.0 / self.alphas_cumprod)
+        self.sqrt_recipm1_alphas_cumprod = torch.sqrt(1.0 / self.alphas_cumprod - 1.0)
+        posterior_variance = (
+            betas * (1.0 - alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
+        )
+        self.posterior_variance = posterior_variance
+        self.posterior_log_variance_clipped = torch.log(
+            posterior_variance.clamp(min=1e-20)
+        )
+        self.posterior_mean_coef1 = (
+            betas * torch.sqrt(alphas_cumprod_prev) / (1.0 - self.alphas_cumprod)
+        )
+        self.posterior_mean_coef2 = (
+            (1.0 - alphas_cumprod_prev)
+            * torch.sqrt(alphas)
+            / (1.0 - self.alphas_cumprod)
+        )
         self.timesteps = torch.arange(self.num_train_timesteps - 1, -1, -1)
 
     def set_timesteps(
@@ -122,6 +147,58 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         del timestep
         return sample
 
+    def predict_noise_from_start(
+        self,
+        sample: Float[torch.Tensor, "batch proposals 4"],
+        timestep: Int[torch.Tensor, "batch"] | Int[torch.Tensor, ""] | int,
+        pred_original_sample: Float[torch.Tensor, "batch proposals 4"],
+    ) -> Float[torch.Tensor, "batch proposals 4"]:
+        """Return the noise implied by ``x_t`` and predicted ``x_0``.
+
+        Args:
+            sample: Current latent sample.
+            timestep: Training timestep indices.
+            pred_original_sample: Predicted denoised sample.
+
+        Returns:
+            Predicted noise tensor.
+        """
+        t = _as_batch_timesteps(timestep, sample.shape[0], sample.device)
+        sqrt_recip = _extract(self.sqrt_recip_alphas_cumprod, t, sample.shape).to(
+            device=sample.device, dtype=sample.dtype
+        )
+        sqrt_recipm1 = _extract(self.sqrt_recipm1_alphas_cumprod, t, sample.shape).to(
+            device=sample.device, dtype=sample.dtype
+        )
+        return (sqrt_recip * sample - pred_original_sample) / sqrt_recipm1
+
+    def q_sample(
+        self,
+        x_start: Float[torch.Tensor, "batch proposals 4"],
+        timestep: Int[torch.Tensor, "batch"] | Int[torch.Tensor, ""] | int,
+        noise: Float[torch.Tensor, "batch proposals 4"] | None = None,
+    ) -> Float[torch.Tensor, "batch proposals 4"]:
+        """Diffuse ``x_start`` to ``x_t`` with the RADM forward process.
+
+        Args:
+            x_start: Initial clean sample.
+            timestep: Training timestep indices.
+            noise: Optional fixed noise tensor.
+
+        Returns:
+            Noised sample at ``timestep``.
+        """
+        if noise is None:
+            noise = torch.randn_like(x_start)
+        t = _as_batch_timesteps(timestep, x_start.shape[0], x_start.device)
+        sqrt_alpha = _extract(self.sqrt_alphas_cumprod, t, x_start.shape).to(
+            device=x_start.device, dtype=x_start.dtype
+        )
+        sqrt_one_minus = _extract(
+            self.sqrt_one_minus_alphas_cumprod, t, x_start.shape
+        ).to(device=x_start.device, dtype=x_start.dtype)
+        return sqrt_alpha * x_start + sqrt_one_minus * noise
+
     @overload
     def step(
         self,
@@ -174,33 +251,38 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         Returns:
             Scheduler output dataclass or tuple.
         """
-        del sample
         timestep_i = int(torch.as_tensor(timestep).item())
         prev_timestep = _previous_timestep(self.timesteps, timestep_i)
-        alpha_prod_t = self.alphas_cumprod[timestep_i].to(
-            device=model_output.device, dtype=model_output.dtype
-        )
-        if prev_timestep >= 0:
+        if prev_timestep < 0:
+            prev_sample = model_output
+            noise = None
+        else:
+            alpha_prod_t = self.alphas_cumprod[timestep_i].to(
+                device=model_output.device, dtype=model_output.dtype
+            )
             alpha_prod_t_prev = self.alphas_cumprod[prev_timestep].to(
                 device=model_output.device, dtype=model_output.dtype
             )
-        else:
-            alpha_prod_t_prev = self.final_alpha_cumprod.to(
-                device=model_output.device, dtype=model_output.dtype
+            pred_noise = self.predict_noise_from_start(sample, timestep_i, model_output)
+            sigma = (
+                float(self.config.eta)
+                * (
+                    (1.0 - alpha_prod_t / alpha_prod_t_prev)
+                    * (1.0 - alpha_prod_t_prev)
+                    / (1.0 - alpha_prod_t)
+                ).sqrt()
             )
-        prev_sample = (
-            alpha_prod_t_prev.sqrt() * model_output
-            + (1.0 - alpha_prod_t_prev).sqrt() * (1.0 - alpha_prod_t).sqrt()
-        )
-        noise = None
-        if self.config.eta:
-            noise = torch.randn(
-                model_output.shape,
-                generator=generator,
-                device=model_output.device,
-                dtype=model_output.dtype,
-            )
-            prev_sample = prev_sample + float(self.config.eta) * noise
+            direction = (1.0 - alpha_prod_t_prev - sigma**2).sqrt() * pred_noise
+            noise = None
+            prev_sample = alpha_prod_t_prev.sqrt() * model_output + direction
+            if float(self.config.eta):
+                noise = torch.randn(
+                    model_output.shape,
+                    generator=generator,
+                    device=model_output.device,
+                    dtype=model_output.dtype,
+                )
+                prev_sample = prev_sample + sigma * noise
         prev_sample = prev_sample.clamp(0.0, 1.0)
         if not return_dict:
             return (prev_sample, model_output)
@@ -209,6 +291,59 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
             pred_original_sample=model_output,
             noise=noise,
         )
+
+    def posterior_mean_variance(
+        self,
+        x_start: Float[torch.Tensor, "batch proposals 4"],
+        sample: Float[torch.Tensor, "batch proposals 4"],
+        timestep: Int[torch.Tensor, "batch"] | Int[torch.Tensor, ""] | int,
+    ) -> tuple[
+        Float[torch.Tensor, "batch proposals 4"],
+        Float[torch.Tensor, "batch proposals 4"],
+        Float[torch.Tensor, "batch proposals 4"],
+    ]:
+        """Return RADM posterior mean, variance, and clipped log variance."""
+        t = _as_batch_timesteps(timestep, sample.shape[0], sample.device)
+        mean = (
+            _extract(self.posterior_mean_coef1, t, sample.shape).to(
+                device=sample.device, dtype=sample.dtype
+            )
+            * x_start
+            + _extract(self.posterior_mean_coef2, t, sample.shape).to(
+                device=sample.device, dtype=sample.dtype
+            )
+            * sample
+        )
+        variance = _extract(self.posterior_variance, t, sample.shape).to(
+            device=sample.device, dtype=sample.dtype
+        )
+        log_variance = _extract(
+            self.posterior_log_variance_clipped, t, sample.shape
+        ).to(device=sample.device, dtype=sample.dtype)
+        return mean, variance, log_variance
+
+
+def _as_batch_timesteps(
+    timestep: Int[torch.Tensor, "batch"] | Int[torch.Tensor, ""] | int,
+    batch_size: int,
+    device: torch.device,
+) -> Int[torch.Tensor, "batch"]:
+    t = torch.as_tensor(timestep, device=device, dtype=torch.long)
+    if t.ndim == 0:
+        t = t.repeat(batch_size)
+    return t
+
+
+def _extract(
+    values: Float[torch.Tensor, "steps"],
+    timesteps: Int[torch.Tensor, "batch"],
+    sample_shape: torch.Size,
+) -> Float[torch.Tensor, "batch ..."]:
+    out = values.to(device=timesteps.device).gather(-1, timesteps)
+    return out.reshape(
+        timesteps.shape[0],
+        *((1,) * (len(sample_shape) - 1)),
+    )
 
 
 def cosine_beta_schedule(
@@ -224,11 +359,11 @@ def cosine_beta_schedule(
         One-dimensional beta tensor.
     """
     steps = timesteps + 1
-    x = torch.linspace(0, timesteps, steps)
+    x = torch.linspace(0, timesteps, steps, dtype=torch.float64)
     alphas_cumprod = torch.cos(((x / timesteps) + s) / (1 + s) * torch.pi * 0.5) ** 2
     alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
     betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-    return betas.clamp(0.0001, 0.9999)
+    return betas.clamp(0.0, 0.999)
 
 
 def _previous_timestep(timesteps: Int[torch.Tensor, "steps"], timestep: int) -> int:
