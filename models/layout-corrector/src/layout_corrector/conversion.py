@@ -11,7 +11,7 @@ import yaml
 from laygen.common.labels import normalize_dataset_name
 
 from .configuration_layout_corrector import CRELLO_BBOX_DATASET, LayoutCorrectorConfig
-from .corrector import LayoutCorrectorModel
+from .modeling_layout_corrector import LayoutCorrectorModel
 
 _ORIGINAL_KEY_PREFIXES: Final[tuple[str, ...]] = (
     "model.module.model.",
