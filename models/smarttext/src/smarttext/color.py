@@ -10,15 +10,16 @@ for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THRE
     os.environ.setdefault(_thread_env_var, "1")
 
 import numpy as np
+from jaxtyping import Shaped
 from PIL import Image
 from sklearn.cluster import KMeans
 from threadpoolctl import threadpool_limits
 from typing import cast
 
-Color = np.ndarray | list[float] | list[int]
 
-
-def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
+def dominant_colors(
+    image: Shaped[np.ndarray, "height width channels"], clusters: int
+) -> list[Shaped[np.ndarray, "channels"]]:
     """Return reference-sorted KMeans dominant colors.
 
     Args:
@@ -36,12 +37,14 @@ def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
     return sorted(estimator.cluster_centers_, key=lambda row: (row[0], row[1], row[2]))
 
 
-def rgb_distance(rgb: Color) -> float:
+def rgb_distance(
+    rgb: Shaped[np.ndarray, "channels"] | list[float] | list[int],
+) -> float:
     """Return the channel-spread distance."""
     return abs(rgb[0] - rgb[1]) + abs(rgb[0] - rgb[2]) + abs(rgb[2] - rgb[1])
 
 
-def rgb_to_hex(rgb: Color) -> str:
+def rgb_to_hex(rgb: Shaped[np.ndarray, "channels"] | list[float] | list[int]) -> str:
     """Convert an RGB row to the uppercase hex form."""
     color = "#"
     for channel in rgb:
@@ -61,8 +64,8 @@ def luminance(rgb: list[float]) -> float:
 
 
 def contrast_rate(
-    rgb_a: Color,
-    rgb_b: Color,
+    rgb_a: Shaped[np.ndarray, "channels"] | list[float] | list[int],
+    rgb_b: Shaped[np.ndarray, "channels"] | list[float] | list[int],
 ) -> float:
     """Return reference-rounded contrast ratio between two RGB colors."""
     l1 = luminance([rgb_a[0] / 255, rgb_a[1] / 255, rgb_a[2] / 255])
@@ -75,8 +78,8 @@ def contrast_rate(
 
 
 def best_color_candidates(
-    image: Image.Image | np.ndarray,
-    crop: np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
+    crop: Shaped[np.ndarray, "crop_height crop_width channels"],
     *,
     contrast_threshold: float,
     random_seed: int | None = 0,
@@ -105,8 +108,8 @@ def best_color_candidates(
 
 
 def _best_color_candidates_unseeded(
-    image: Image.Image | np.ndarray,
-    crop: np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
+    crop: Shaped[np.ndarray, "crop_height crop_width channels"],
     *,
     contrast_threshold: float,
 ) -> list[dict[str, object]]:
@@ -143,7 +146,7 @@ def _best_color_candidates_unseeded(
 
 
 def choose_text_color(
-    image: Image.Image | np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
     crop_bbox_ltrb_px: tuple[int, int, int, int],
     *,
     contrast_threshold: float,
@@ -170,7 +173,7 @@ def choose_text_color(
     if crop.size == 0:
         return "#000000"
     color = cast(
-        Color,
+        Shaped[np.ndarray, "channels"] | list[float] | list[int],
         best_color_candidates(array, crop, contrast_threshold=contrast_threshold)[0][
             "color"
         ],
