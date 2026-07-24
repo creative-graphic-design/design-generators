@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Final, cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import BatchEncoding, PreTrainedTokenizer
 
 from .configuration_ralf import RalfConfig, GEOMETRY_KEYS, RalfGeometryKey
@@ -255,7 +255,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
 
     def decode_layout(
         self, sequences: Int[torch.Tensor, "batch tokens"]
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Decode RALF token ids to normalized layout tensors.
 
         Args:
@@ -315,7 +315,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         self, device: torch.device | None = None
     ) -> Bool[torch.Tensor, "tokens vocab"]:
         """Return valid-token masks by sequence position."""
-        masks: list[torch.Tensor] = []
+        masks: list[Bool[torch.Tensor, "vocab"]] = []
         for _ in range(self.config.max_seq_length):
             for key in self.config.var_order:
                 mask = torch.zeros(
