@@ -24,6 +24,7 @@ from .configuration_layout_corrector import (
     CorrectorReconType,
     CorrectorTarget,
     CorrectorTransformerType,
+    normalize_corrector_core_options,
 )
 from .sampling import CorrectorMaskMode, normalize_corrector_mask_mode
 
@@ -230,22 +231,14 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
                 unsupported.
         """
         super().__init__()
-        try:
-            recon_type = CorrectorReconType(recon_type)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
-        try:
-            target = CorrectorTarget(target)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported target: {target}") from exc
-        try:
-            transformer_type = CorrectorTransformerType(transformer_type)
-        except ValueError as exc:
-            raise ValueError("Only transformer_type='aggregated' is supported") from exc
-        try:
-            pos_emb = CorrectorPositionEmbedding(pos_emb)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
+        recon_type, target, transformer_type, pos_emb = (
+            normalize_corrector_core_options(
+                recon_type,
+                target,
+                transformer_type,
+                pos_emb,
+            )
+        )
         try:
             corrector_mask_mode = normalize_corrector_mask_mode(corrector_mask_mode)
         except ValueError as exc:

@@ -25,8 +25,10 @@ def test_corrector_hook_liveness_rejects_output_dtype_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_corrector.corrector"], "beartype.beartype"):
-            from layout_corrector.corrector import LayoutCorrectorOutput
+        with install_import_hook(
+            ["layout_corrector.modeling_layout_corrector"], "beartype.beartype"
+        ):
+            from layout_corrector.modeling_layout_corrector import LayoutCorrectorOutput
 
         LayoutCorrectorOutput(logits=torch.zeros(1, 2, dtype=torch.long))
         """,
@@ -40,8 +42,10 @@ def test_corrector_hook_liveness_rejects_output_rank_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_corrector.corrector"], "beartype.beartype"):
-            from layout_corrector.corrector import LayoutCorrectorOutput
+        with install_import_hook(
+            ["layout_corrector.modeling_layout_corrector"], "beartype.beartype"
+        ):
+            from layout_corrector.modeling_layout_corrector import LayoutCorrectorOutput
 
         LayoutCorrectorOutput(logits=torch.zeros(1, 2, 1))
         """,
@@ -55,8 +59,10 @@ def test_corrector_hook_liveness_rejects_padding_shape_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layout_corrector.corrector"], "beartype.beartype"):
-            from layout_corrector.corrector import LayoutCorrectorModel
+        with install_import_hook(
+            ["layout_corrector.modeling_layout_corrector"], "beartype.beartype"
+        ):
+            from layout_corrector.modeling_layout_corrector import LayoutCorrectorModel
 
         model = LayoutCorrectorModel(
             dataset_name="publaynet",
@@ -83,7 +89,7 @@ def test_corrector_without_hook_accepts_output_annotation_mismatches() -> None:
         """
         import torch
 
-        from layout_corrector.corrector import LayoutCorrectorOutput
+        from layout_corrector.modeling_layout_corrector import LayoutCorrectorOutput
 
         assert LayoutCorrectorOutput(logits=torch.zeros(1, 2, dtype=torch.long)).logits.shape == (1, 2)
         assert LayoutCorrectorOutput(logits=torch.zeros(1, 2, 1)).logits.shape == (1, 2, 1)

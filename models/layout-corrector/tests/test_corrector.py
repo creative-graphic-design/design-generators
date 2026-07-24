@@ -3,7 +3,7 @@ import yaml
 import pytest
 
 from layout_corrector import LayoutCorrectorModel
-from layout_corrector.corrector import AggregatedCategoricalTransformer
+from layout_corrector.modeling_layout_corrector import AggregatedCategoricalTransformer
 
 
 def tiny_model(**kwargs):
