@@ -175,11 +175,12 @@ class CGBDMProcessor(ProcessorMixin):
     ) -> torch.Tensor:
         """Encode normalized boxes and public labels into internal tensors."""
         bbox, labels, mask = self.pad(bbox, labels, mask)
-        internal_labels = labels.clone().clamp_min(0)
-        internal_labels[~mask] = 0
         if self.dataset_name == str(DatasetName.pku_posterlayout):
-            invalid_id = 3
-            internal_labels = torch.where(mask, internal_labels, invalid_id)
+            internal_labels = labels.clone().clamp_min(0) + 1
+            internal_labels[~mask] = 0
+        else:
+            internal_labels = labels.clone().clamp_min(0)
+            internal_labels[~mask] = 0
         one_hot = torch.nn.functional.one_hot(
             internal_labels.clamp(0, self.num_labels - 1),
             num_classes=self.num_labels,
@@ -199,13 +200,11 @@ class CGBDMProcessor(ProcessorMixin):
         bbox = (layout[:, :, self.num_labels :].clamp(-1.0, 1.0) / 2 + 0.5).cpu()
         class_logits = layout[:, :, : self.num_labels]
         class_ids = class_logits.argmax(dim=-1).long().cpu()
-        invalid_ids = {0}
+        mask = class_ids != 0
         if self.dataset_name == str(DatasetName.pku_posterlayout):
-            invalid_ids.add(3)
-        mask = torch.ones_like(class_ids, dtype=torch.bool)
-        for invalid_id in invalid_ids:
-            mask &= class_ids != invalid_id
-        labels = class_ids.clamp(0, max(self.id2label)).cpu()
+            labels = (class_ids - 1).clamp(0, max(self.id2label)).cpu()
+        else:
+            labels = class_ids.clamp(0, max(self.id2label)).cpu()
         resolved_scores = (
             scores
             if scores is not None

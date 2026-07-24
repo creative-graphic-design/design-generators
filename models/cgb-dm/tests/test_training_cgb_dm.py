@@ -173,3 +173,55 @@ def test_vendor_order_manifest_helpers(tmp_path):
     assert load_source_order_manifest(manifest) == ["sample.png"]
     dataset = build_reference_encoded_dataset(root, manifest=manifest)
     assert dataset[0]["layout"].shape == (16, 8)
+
+
+def test_original_zip_datamodule_uses_reference_encoding_and_manifest(tmp_path):
+    root = tmp_path / "split"
+    for rel in [
+        "train/inpaint",
+        "train/saliency",
+        "train/saliency_sub",
+        "val/inpaint",
+        "val/saliency",
+        "val/saliency_sub",
+        "csv",
+    ]:
+        (root / rel).mkdir(parents=True, exist_ok=True)
+    for split in ["train", "val"]:
+        for name in ["b.png", "a.png"]:
+            Image.new("RGB", (20, 20)).save(root / split / "inpaint" / name)
+            Image.new("L", (20, 20)).save(root / split / "saliency" / name)
+            Image.new("L", (20, 20)).save(root / split / "saliency_sub" / name)
+        (root / "csv" / f"{split}.csv").write_text(
+            "poster_path,box_elem,cls_elem\n"
+            'a.png,"[0, 0, 10, 10]",1\n'
+            'b.png,"[0, 0, 12, 12]",3\n',
+            encoding="utf-8",
+        )
+        (root / "csv" / f"{split}_sal.csv").write_text(
+            'poster_path,box_elem\na.png,"[0, 0, 20, 20]"\nb.png,"[0, 0, 20, 20]"\n',
+            encoding="utf-8",
+        )
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text('{"names": ["b.png", "a.png"]}', encoding="utf-8")
+
+    datamodule = CGBDMDataModule(
+        config={
+            "dataset_name": "pku_posterlayout",
+            "max_seq_length": 16,
+            "image_size": (32, 32),
+            "dim_model": 16,
+            "n_head": 2,
+            "feature_dim": 32,
+            "num_layers": 1,
+        },
+        source="original_zip",
+        data_root=str(root),
+        source_order_manifest=str(manifest),
+        batch_size=1,
+    )
+    datamodule.setup()
+
+    assert datamodule.train_dataset.names == ["b.png", "a.png"]
+    row = datamodule.train_dataset[0]
+    assert row["layout"][:, :4].argmax(dim=-1).tolist()[:2] == [3, 0]

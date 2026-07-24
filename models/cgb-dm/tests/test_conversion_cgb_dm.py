@@ -39,7 +39,7 @@ def test_build_pipeline_from_checkpoint_and_rejects_unmatched(tmp_path):
 
     bad = tmp_path / "bad.pt"
     torch.save({"state_dict": {"other.weight": torch.zeros(1)}}, bad)
-    with pytest.raises(ValueError, match="unexpected"):
+    with pytest.raises(ValueError, match="missing=.*unexpected"):
         build_pipeline_from_checkpoint(bad, config=config)
 
     malformed = tmp_path / "malformed.pt"

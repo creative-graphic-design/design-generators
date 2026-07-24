@@ -22,15 +22,17 @@ def test_layout_encode_decode_filters_invalid():
     processor = CGBDMProcessor(max_seq_length=3)
     encoded = processor.encode_layout(
         bbox=[[[0.5, 0.5, 0.2, 0.2], [0.2, 0.2, 0.1, 0.1]]],
-        labels=[[0, 3]],
+        labels=[[0, 2]],
         mask=[[True, True]],
     )
     assert encoded["layout"].shape == (1, 3, 8)
+    assert encoded["layout"][0, :, :4].argmax(dim=-1).tolist() == [1, 3, 0]
 
     output = processor.decode(encoded["layout"])
     assert isinstance(output, LayoutGenerationOutput)
     assert output.bbox.shape == (1, 3, 4)
-    assert output.mask.tolist() == [[False, False, False]]
+    assert output.labels.tolist() == [[0, 2, 0]]
+    assert output.mask.tolist() == [[True, True, False]]
 
 
 def test_processor_error_and_path_inputs(tmp_path):

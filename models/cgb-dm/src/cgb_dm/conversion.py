@@ -84,10 +84,10 @@ def build_pipeline_from_checkpoint(
     model = build_model_from_config(config)
     converted = convert_state_dict(load_state_dict(checkpoint_path))
     missing, unexpected = model.load_state_dict(converted, strict=False)
-    if unexpected:
-        raise ValueError(f"State dict mismatch: unexpected={unexpected}")
-    if len(missing) == len(model.state_dict()):
-        raise ValueError("State dict mismatch: no CGB-DM model keys matched")
+    if missing or unexpected:
+        raise ValueError(
+            f"State dict mismatch: missing={missing}, unexpected={unexpected}"
+        )
     return CGBDMPipeline(
         model=model,
         scheduler=CGBDMScheduler(

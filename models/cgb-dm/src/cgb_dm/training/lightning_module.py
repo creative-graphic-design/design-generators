@@ -119,6 +119,13 @@ class CGBDMTrainingModule(LightningModule):
         }
         if hasattr(self, "log"):
             self.log("train_loss", loss)
+            self.log(
+                "Loss/train",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                batch_size=layout.shape[0],
+            )
         return loss
 
     def configure_optimizers(self) -> OptimizerLRScheduler:

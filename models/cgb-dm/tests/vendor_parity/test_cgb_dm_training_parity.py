@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from cgb_dm.modeling_cgb_dm import CGBDMModelOutput
+from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
 from cgb_dm.training import CGBDMTrainingModule
 from cgb_dm.training.parity import (
     CGBDMStepTraceAdapter,
@@ -63,6 +64,66 @@ def test_s0_real_vendor_loader_matches_manifest_replay():
         torch.testing.assert_close(
             row["saliency_box"], saliency_box, rtol=0.0, atol=0.0
         )
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.training
+def test_s1_package_model_matches_real_vendor_forward():
+    if os.environ.get("PARITY_REQUIRE") != "1":
+        pytest.skip("set PARITY_REQUIRE=1 with local CGB-DM assets to run parity")
+
+    vendor_root = Path(os.environ.get("CGB_DM_VENDOR_ROOT", "vendor/layout-dit"))
+    if not vendor_root.exists():
+        raise AssertionError(f"CGB-DM vendor root is missing: {vendor_root}")
+
+    _set_deterministic_cuda()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    sys.path.insert(0, str(vendor_root.resolve()))
+    try:
+        from cgbdm.diffusion import Diffusion
+
+        torch.manual_seed(31)
+        if device.type == "cuda":
+            torch.cuda.manual_seed_all(31)
+        vendor_model = Diffusion(
+            num_timesteps=1000,
+            ddim_num_steps=100,
+            n_head=8,
+            dim_model=512,
+            feature_dim=1024,
+            seq_dim=8,
+            num_layers=4,
+            device=str(device),
+            max_elem=16,
+        ).model
+    finally:
+        sys.path = [entry for entry in sys.path if entry != str(vendor_root.resolve())]
+
+    package_model = CGBDMTransformerModel(
+        num_labels=4,
+        max_seq_length=16,
+        image_size=(384, 256),
+        dim_model=512,
+        n_head=8,
+        feature_dim=1024,
+        num_layers=4,
+        num_train_timesteps=1000,
+    )
+    cast(Any, package_model).to(device)
+    package_model.load_state_dict(vendor_model.state_dict(), strict=True)
+    vendor_model.eval()
+    package_model.eval()
+
+    generator = torch.Generator(device=device).manual_seed(37)
+    sample = torch.randn(2, 16, 8, device=device, generator=generator)
+    image = torch.randn(2, 4, 384, 256, device=device, generator=generator)
+    saliency_box = torch.randn(2, 1, 4, device=device, generator=generator)
+    timestep = torch.randint(0, 999, (2,), device=device, generator=generator)
+
+    with torch.no_grad():
+        vendor_output = vendor_model(sample, image, saliency_box, timestep)
+        package_output = package_model(sample, image, saliency_box, timestep).sample
+    torch.testing.assert_close(package_output, vendor_output, rtol=0.0, atol=0.0)
 
 
 @pytest.mark.vendor_parity
