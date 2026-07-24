@@ -8,7 +8,7 @@ from typing import ClassVar, Literal, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -187,11 +187,15 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         self._validate_condition(canonical, feature)
         inputs = {
             key: value.to(model_device)
-            for key, value in cast(dict[str, torch.Tensor], encoded["inputs"]).items()
+            for key, value in cast(
+                dict[str, Shaped[torch.Tensor, "..."]], encoded["inputs"]
+            ).items()
         }
         masks = {
             key: value.to(model_device)
-            for key, value in cast(dict[str, torch.Tensor], encoded["masks"]).items()
+            for key, value in cast(
+                dict[str, Bool[torch.Tensor, "..."]], encoded["masks"]
+            ).items()
         }
         masked_inputs = self._apply_masks(inputs, masks, generator=generator)
         was_training = self.model.training
@@ -228,11 +232,11 @@ class FlexDmPipeline(LayoutGenerationPipeline):
 
     def _apply_masks(
         self,
-        inputs: Mapping[str, torch.Tensor],
-        masks: Mapping[str, torch.Tensor],
+        inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
+        masks: Mapping[str, Bool[torch.Tensor, "..."]],
         *,
         generator: torch.Generator | None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         modified = dict(inputs)
         for key, mask in masks.items():
             if key not in self.config.input_columns:

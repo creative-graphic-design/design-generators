@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 
 
 @dataclass
@@ -86,7 +86,7 @@ class RalfRetrievalTable:
 
 def retrieved_batch_to_model_inputs(
     batch: RalfRetrievedBatch,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Convert explicit retrieved examples to model input field names."""
     x, y, w, h = batch.bbox.unbind(dim=-1)
     output = {
@@ -105,7 +105,7 @@ def retrieved_batch_to_model_inputs(
 
 
 def model_inputs_to_retrieved_batch(
-    data: Mapping[str, torch.Tensor],
+    data: Mapping[str, Shaped[torch.Tensor, "..."]],
 ) -> RalfRetrievedBatch:
     """Convert model input fields to `RalfRetrievedBatch`."""
     bbox = torch.stack(
