@@ -108,36 +108,6 @@ models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	list[list[
 models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.LongTensor	) -> torch.LongTensor:
 models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.LongTensor	def _labels_to_vendor(self, labels: torch.Tensor) -> torch.LongTensor:
 models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	torch.Tensor	def _labels_to_vendor(self, labels: torch.Tensor) -> torch.LongTensor:
-models/ds-gan/src/ds_gan/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
-models/ds-gan/src/ds_gan/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/ds-gan/src/ds_gan/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor] = {}
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]	) -> DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]:
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	images: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency_basnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	ImageInput | list[ImageInput] | torch.Tensor | None	saliency_pfpnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | None	initial_layout: torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | None	pixel_values: torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	bbox: torch.Tensor | list[object] | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	labels: torch.Tensor | list[object] | None = None,
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	torch.Tensor | list[object] | None	mask: torch.Tensor | list[object] | None = None,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, torch.Tensor | tuple[int, int]]	) -> dict[str, torch.Tensor | tuple[int, int]]:
-models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/ds-gan/src/ds_gan/processing_ds_gan.py	list[torch.Tensor]	merged: list[torch.Tensor] = []
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	) -> torch.Tensor:
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	bbox: torch.Tensor,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	boxes: torch.Tensor,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	class_probs: torch.Tensor,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	def _to_l_tensor(image: object | None, image_size: tuple[int, int]) -> torch.Tensor:
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	def _to_rgb_tensor(image: object, image_size: tuple[int, int]) -> torch.Tensor:
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	labels: torch.Tensor,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor	mask: torch.Tensor,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | None	scores: torch.Tensor | None = None,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object]	bbox: torch.Tensor | np.ndarray | list[object],
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object]	labels: torch.Tensor | np.ndarray | list[object],
-models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
-models/ds-gan/src/ds_gan/processing_ds_gan.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 models/flex-dm/src/flex_dm/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor],
 models/flex-dm/src/flex_dm/conversion.py	np.ndarray	beta: np.ndarray,
 models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
