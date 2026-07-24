@@ -1,0 +1,44 @@
+[project]
+name = "radm"
+version = "0.1.0"
+description = "Diffusers-style RADM poster layout diffusion package."
+requires-python = ">=3.11"
+dependencies = [
+    "diffusers[torch]>=0.36.0",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10.0",
+    "posgen",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "fvcore>=0.1.5",
+    "iopath>=0.1.10",
+]
+download = [
+    "huggingface-hub>=0.24",
+]
+hub = [
+    "huggingface-hub>=0.24",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.design-generators]
+framework = "diffusers"
+task = "content-aware-layout-generation"
+conditions = ["content_image"]
+datasets = ["cgl", "cgl_v2"]
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original RADM weights, generated references, and vendor dependencies",
+]

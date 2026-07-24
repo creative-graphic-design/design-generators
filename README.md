@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=23&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=24&color=purple&style=flat-square)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into [`🤗transformers`](https://huggingface.co/docs/transformers/index)-, [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`🤖pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -35,6 +35,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 | [LayoutPrompter](models/layoutprompter/README.md) | NeurIPS 2023 | `🤖pydantic-ai` | PubLayNet, RICO25, PosterLayout | [REPRODUCING.md](models/layoutprompter/REPRODUCING.md) |
 | [Parse-Then-Place](models/parse-then-place/README.md) | ICCV 2023 | `🤗transformers` | RICO25, Web | [REPRODUCING.md](models/parse-then-place/REPRODUCING.md) |
 | [PosterO](models/postero/README.md) | CVPR 2025 | `🤖pydantic-ai` | PKU-PosterLayout, CGL | [REPRODUCING.md](models/postero/REPRODUCING.md) |
+| [RADM](models/radm/README.md) | CIKM 2023 | `🧨diffusers` | CGL, CGL-v2 | [REPRODUCING.md](models/radm/REPRODUCING.md) |
 | [RALF](models/ralf/README.md) | CVPR 2024 | `🤗transformers` | CGL, PKU | [REPRODUCING.md](models/ralf/REPRODUCING.md) |
 | [SmartText](models/smarttext/README.md) | TMM 2021 | `🤗transformers` | SmartText demo assets | [REPRODUCING.md](models/smarttext/REPRODUCING.md) |
 

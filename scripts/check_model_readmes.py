@@ -223,6 +223,10 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/CGL-Dataset",
         ],
     },
+    "radm": {
+        "license": "other",
+        "datasets": ["creative-graphic-design/CGL-Dataset"],
+    },
     "ralf": {
         "license": "apache-2.0",
         "datasets": [
@@ -256,6 +260,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
     "postero": "PosterO",
+    "radm": "RADM",
     "ralf": "RALF",
     "smarttext": "SmartText",
 }
@@ -271,6 +276,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
+    "radm": "https://github.com/DUY-Semantics/RADM",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
