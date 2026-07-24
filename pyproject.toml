@@ -223,9 +223,7 @@ convention = "google"
 
 [tool.ty.rules]
 all = "error"
-missing-type-argument = "ignore"
 missing-override-decorator = "ignore"
-possibly-missing-submodule = "ignore"
 unsupported-base = "ignore"
 unresolved-import = "ignore"
 

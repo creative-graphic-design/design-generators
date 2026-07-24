@@ -24,7 +24,7 @@ datasets:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n%2Fa&color=lightgrey&style=flat-square)
 
-This package builds PosterO-style SVG prompts for content-aware poster layout generation, runs a `pydantic-ai` provider, and parses generated rectangles into the shared layout schema.
+This package exposes [PosterO](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html) as a [`pydantic-ai`](https://ai.pydantic.dev/) agent for content-aware poster layout generation with language models and SVG layout representations. It provides the prompt configuration, exemplar selection, provider runner, and SVG parser needed to return generated poster elements through the shared layout schema.
 
 ## Model Details
 
