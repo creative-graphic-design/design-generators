@@ -17,6 +17,10 @@ from dlt.training.lightning_module import DLTTrainingModule
 from dlt.training.parity import DLTSyntheticStepTraceAdapter
 
 
+def _parameter_count(model: torch.nn.Module) -> int:
+    return sum(parameter.numel() for parameter in model.parameters())
+
+
 def tiny_training_module() -> DLTTrainingModule:
     config = DLTConfig(
         dataset_name="publaynet",
@@ -53,6 +57,64 @@ def _load_vendor_modules():
         importlib.import_module("models.dlt"),
         importlib.import_module("utils"),
     )
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.training
+def test_dlt_package_model_topology_matches_vendor() -> None:
+    _, vendor_modeling, _ = _load_vendor_modules()
+    cases = [
+        (
+            "tiny-test",
+            {
+                "categories_num": 7,
+                "latent_dim": 32,
+                "num_layers": 1,
+                "num_heads": 4,
+                "dropout_r": 0.0,
+                "activation": "gelu",
+                "cond_emb_size": 12,
+                "cat_emb_size": 8,
+            },
+            11_187,
+            29,
+        ),
+        (
+            "full-publaynet",
+            {
+                "categories_num": 7,
+                "latent_dim": 512,
+                "num_layers": 4,
+                "num_heads": 8,
+                "dropout_r": 0.0,
+                "activation": "gelu",
+                "cond_emb_size": 224,
+                "cat_emb_size": 64,
+            },
+            8_944_459,
+            65,
+        ),
+    ]
+    for name, kwargs, expected_params, expected_state_keys in cases:
+        torch.manual_seed(17)
+        module = DLTTrainingModule(
+            config=DLTConfig(dataset_name="publaynet", **kwargs),
+            optimizer=partial(torch.optim.AdamW, lr=0.0001),
+        )
+        torch.manual_seed(17)
+        vendor_model = vendor_modeling.DLT(**kwargs)
+        package_state = module.model.state_dict()
+        vendor_state = vendor_model.state_dict()
+
+        assert _parameter_count(module.model) == expected_params, name
+        assert _parameter_count(vendor_model) == expected_params, name
+        assert len(package_state) == expected_state_keys, name
+        assert len(vendor_state) == expected_state_keys, name
+        assert set(package_state) == set(vendor_state), name
+        for key in package_state:
+            torch.testing.assert_close(
+                package_state[key], vendor_state[key], rtol=0, atol=0
+            )
 
 
 @pytest.mark.vendor_parity
