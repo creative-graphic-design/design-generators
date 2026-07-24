@@ -86,6 +86,27 @@ PROMPT_AGENT_MODULES = {
         "similarity.py",
         "vendor_parity.py",
     },
+    "postero": {
+        "agent.py",
+        "config.py",
+        "enums.py",
+        "exemplars.py",
+        "parser.py",
+        "prompts.py",
+        "records.py",
+        "schemas.py",
+        "serialization.py",
+        "vendor_parity.py",
+    },
+}
+
+PACKAGE_SPECIFIC_ALLOWED_MODULES = {
+    "layout_transformer": {
+        "modeling_lt_compatible.py",
+    },
+    "smarttext": {
+        "modeling_basnet.py",
+    },
 }
 
 
@@ -142,6 +163,11 @@ def allowlist_category(name: str) -> str | None:
     return None
 
 
+def is_package_specific_allowed(package: str, name: str) -> bool:
+    """Return whether a module is an explicit package-specific exception."""
+    return name in PACKAGE_SPECIFIC_ALLOWED_MODULES.get(package, set())
+
+
 def has_hf_core_prefix(name: str) -> bool:
     """Return whether a filename looks like an HF-style core module."""
     stem = name.removesuffix(".py")
@@ -155,6 +181,8 @@ def violation_for_module(module: ModuleRecord) -> NamingViolation | None:
     name = module.path.name
     expected = expected_core_names(module.package)
     if name in expected:
+        return None
+    if is_package_specific_allowed(module.package, name):
         return None
     if has_hf_core_prefix(name):
         expected_names = ", ".join(sorted(expected))

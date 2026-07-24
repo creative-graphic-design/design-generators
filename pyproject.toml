@@ -31,6 +31,7 @@ dependencies = [
     "laygen",
     "layoutformerpp",
     "parse-then-place",
+    "postero",
     "posgen",
     "ralf",
     "smarttext",
@@ -68,7 +69,7 @@ dev = [
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
     "ruff>=0.1.5",
-    "ty>=0.0.10",
+    "ty>=0.0.10,<0.0.59",
     "vulture>=2.16",
 ]
 docs = [
@@ -124,6 +125,14 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "postero" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "postero" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
         { package = "ds-gan" },
         { package = "layout-detr", extra = "vendor" },
     ],
@@ -168,6 +177,7 @@ layousyn = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
+postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
@@ -203,6 +213,7 @@ convention = "google"
 
 [tool.ty.rules]
 all = "error"
+missing-type-argument = "ignore"
 missing-override-decorator = "ignore"
 unsupported-base = "ignore"
 unresolved-import = "ignore"
