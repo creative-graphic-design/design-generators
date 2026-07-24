@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import BoxFormat, normalize_boxes, normalize_box_format
@@ -169,12 +170,12 @@ class RalfProcessor(ProcessorMixin):
 
     def _coerce_labels(
         self,
-        labels: torch.Tensor
+        labels: Int[torch.Tensor, "..."]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None,
         batch_size: int,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch elements"]:
         if labels is None:
             return torch.zeros((batch_size, 0), dtype=torch.long)
         if isinstance(labels, torch.Tensor):
@@ -204,13 +205,13 @@ class RalfProcessor(ProcessorMixin):
 
     def _coerce_bbox(
         self,
-        bbox: torch.Tensor | Sequence[object] | None,
+        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None,
         *,
-        labels: torch.Tensor,
+        labels: Int[torch.Tensor, "batch elements"],
         box_format: BoxFormat | str,
         normalized: bool,
         canvas_size: tuple[int, int] | None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements 4"]:
         if bbox is None:
             return torch.zeros((labels.size(0), labels.size(1), 4), dtype=torch.float32)
         tensor = torch.as_tensor(bbox, dtype=torch.float32)
@@ -239,20 +240,22 @@ class RalfProcessor(ProcessorMixin):
         images: object = None,
         saliency: object = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: torch.Tensor
+        labels: Int[torch.Tensor, "..."]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: torch.Tensor | Sequence[object] | None = None,
-        mask: torch.Tensor | Sequence[object] | None = None,
-        num_elements: int | Sequence[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
+        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         retrieved_layouts: Mapping[str, object] | None = None,
         retrieved_images: object = None,
         retrieved_saliency: object = None,
-        retrieved_indexes: torch.Tensor | Sequence[Sequence[int]] | None = None,
+        retrieved_indexes: Int[torch.Tensor, "batch candidates"]
+        | Sequence[Sequence[int]]
+        | None = None,
         retrieval: Mapping[str, object] | None = None,
         relations: object = None,
         batch_size: int = 1,
@@ -382,7 +385,7 @@ class RalfProcessor(ProcessorMixin):
 
     def post_process_layouts(
         self,
-        sequences: torch.Tensor,
+        sequences: Int[torch.Tensor, "batch tokens"],
         *,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         intermediates: dict[str, object] | None = None,

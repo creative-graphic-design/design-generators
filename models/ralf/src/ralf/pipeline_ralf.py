@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -125,20 +126,22 @@ class RalfPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: torch.Tensor
+        labels: Int[torch.Tensor, "..."]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: torch.Tensor | Sequence[object] | None = None,
-        mask: torch.Tensor | Sequence[object] | None = None,
-        num_elements: int | Sequence[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
+        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         retrieved_layouts: Mapping[str, object] | None = None,
         retrieved_images: object = None,
         retrieved_saliency: object = None,
-        retrieved_indexes: torch.Tensor | Sequence[Sequence[int]] | None = None,
+        retrieved_indexes: Int[torch.Tensor, "batch candidates"]
+        | Sequence[Sequence[int]]
+        | None = None,
         retrieval: Mapping[str, object] | None = None,
         retrieval_table: RalfRetrievalTable | None = None,
         query_ids: Sequence[int | str] | None = None,
