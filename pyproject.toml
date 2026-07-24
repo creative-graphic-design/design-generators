@@ -181,6 +181,9 @@ conflicts = [
     ],
 ]
 
+[tool.uv.extra-build-dependencies]
+detectron2 = ["torch"]
+
 [tool.uv.workspace]
 members = ["lib/*", "models/*"]
 

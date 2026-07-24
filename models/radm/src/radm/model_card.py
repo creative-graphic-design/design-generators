@@ -43,7 +43,7 @@ def write_local_model_card(
                 "",
                 f"# RADM local converted artifact ({dataset_name})",
                 "",
-                "Converted weights are local-only until checkpoint and license status are confirmed.",
+                "Converted weights are local-only; the RADM README publishes dataset/test-feature assets but no checkpoint.",
             ]
         ),
         encoding="utf-8",
