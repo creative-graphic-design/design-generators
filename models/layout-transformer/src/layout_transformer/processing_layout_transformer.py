@@ -6,9 +6,10 @@ import json
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, TypeAlias, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
@@ -25,6 +26,13 @@ from .tokenization_layout_transformer import LayoutTransformerRelationTokenizer
 
 
 OutputType = Literal["dataclass", "dict"]
+InputTensor: TypeAlias = Int[torch.Tensor, "batch sequence"]
+BoxBatchTensor: TypeAlias = Float[torch.Tensor, "batch elements 4"]
+LabelBatchTensor: TypeAlias = Int[torch.Tensor, "batch elements"]
+MaskBatchTensor: TypeAlias = Bool[torch.Tensor, "batch elements"]
+RowBoxTensor: TypeAlias = Float[torch.Tensor, "elements 4"]
+RowLabelTensor: TypeAlias = Int[torch.Tensor, "elements"]
+RowMaskTensor: TypeAlias = Bool[torch.Tensor, "elements"]
 
 
 class LayoutTransformerProcessor(ProcessorMixin):
@@ -309,9 +317,9 @@ class LayoutTransformerProcessor(ProcessorMixin):
         self,
         model_outputs: LayoutTransformerModelOutput,
         *,
-        input_token: torch.Tensor | None = None,
-        input_obj_id: torch.Tensor,
-        token_type: torch.Tensor,
+        input_token: InputTensor | None = None,
+        input_obj_id: InputTensor,
+        token_type: InputTensor,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -327,9 +335,9 @@ class LayoutTransformerProcessor(ProcessorMixin):
             raw_box = model_outputs.coarse_box
         if raw_box is None:
             raise ValueError("model_outputs must contain coarse_box or refine_box")
-        batch_boxes: list[torch.Tensor] = []
-        batch_labels: list[torch.Tensor] = []
-        batch_masks: list[torch.Tensor] = []
+        batch_boxes: list[RowBoxTensor] = []
+        batch_labels: list[RowLabelTensor] = []
+        batch_masks: list[RowMaskTensor] = []
         token_rows = (
             [None] * raw_box.size(0)
             if input_token is None
@@ -350,8 +358,8 @@ class LayoutTransformerProcessor(ProcessorMixin):
             boxes = boxes[valid]
             labels = labels[valid]
             object_ids = object_ids[valid]
-            reduced_boxes: list[torch.Tensor] = []
-            reduced_labels: list[torch.Tensor] = []
+            reduced_boxes: list[RowBoxTensor] = []
+            reduced_labels: list[RowLabelTensor] = []
             for object_id in object_ids.unique(sorted=True):
                 positions = object_ids.eq(object_id).nonzero().flatten()
                 if self.object_reduce == "mean":
