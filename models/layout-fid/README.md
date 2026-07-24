@@ -68,10 +68,10 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 | --- | --- | --- |
 | RICO25 LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-rico25-layoutflow` | not-published |
 | PubLayNet LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-publaynet-layoutflow` | not-published |
-| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | follow-up slice 2; see issue #165 amendment |
-| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | follow-up slice 2; see issue #165 amendment |
-| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | follow-up slice 2; see issue #165 amendment |
-| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | follow-up slice 2; see issue #165 amendment |
+| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | planned follow-up slice 2 |
+| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | planned follow-up slice 2 |
+| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | planned follow-up slice 2 |
+| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | planned follow-up slice 2 |
 
 ### Checkpoint Families
 
@@ -113,7 +113,7 @@ Do not compare scores across checkpoint families unless feature-level equivalenc
 
 ## Bias, Risks, and Limitations
 
-Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until publication; LayoutDM and RALF FIDNetV3 variants are handled in the follow-up slice 2 described by the issue #165 amendment.
+Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until publication; LayoutDM and RALF FIDNetV3 variants are planned for follow-up slice 2.
 
 ### Recommendations
 
