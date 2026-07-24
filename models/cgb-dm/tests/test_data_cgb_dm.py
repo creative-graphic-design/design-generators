@@ -40,6 +40,7 @@ def test_original_dataset_reads_tiny_extract(tmp_path):
     row = dataset[0]
     assert row["pixel_values"].shape[0] == 4
     assert row["layout"].shape == (16, 8)
+    assert row["layout"][:2, :4].argmax(dim=-1).tolist() == [1, 0]
     assert row["saliency_box"].shape == (1, 4)
 
 

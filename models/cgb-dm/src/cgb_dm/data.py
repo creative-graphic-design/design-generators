@@ -116,9 +116,14 @@ class CGBDMOriginalDataset(Dataset[dict[str, torch.Tensor]]):
             saliency_box=_normalize_ltrb(self.saliency_boxes[name][0], width, height),
         )
         boxes, labels = zip(*self.annotations[name], strict=False)
+        public_labels = (
+            [label - 1 for label in labels]
+            if self.processor.dataset_name == "pku_posterlayout"
+            else list(labels)
+        )
         layout = self.processor.encode_layout(
             bbox=[[_normalize_ltrb(box, width, height).tolist() for box in boxes]],
-            labels=[list(labels)],
+            labels=[public_labels],
         )["layout"][0]
         return {
             "pixel_values": content["pixel_values"][0],

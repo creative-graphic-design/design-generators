@@ -148,15 +148,36 @@ def _generate_samples(
             image = image.to(device)
             sal_box = sal_box.to(device)
             if backend == "ours":
-                output = pipe(
-                    pixel_values=image,
-                    saliency_box=(sal_box + 1.0) / 2.0,
-                    condition_type="content_image",
+                pipe.scheduler.set_timesteps(None, device=device)
+                sample = pipe.scheduler.initial_sample(
+                    image.shape[0],
+                    pipe.processor.max_seq_length,
+                    pipe.processor.seq_dim,
+                    device=device,
                     generator=generator,
-                    output_type="dataclass",
                 )
-                labels = output.labels.to(torch.float32).unsqueeze(-1)
-                boxes = output.bbox.to(torch.float32)
+                for index, timestep in enumerate(pipe.scheduler.timesteps):
+                    timestep_batch = torch.full(
+                        (image.shape[0],),
+                        int(timestep.item()),
+                        device=device,
+                        dtype=torch.long,
+                    )
+                    model_out = pipe.model(sample, image, sal_box, timestep_batch)
+                    step = pipe.scheduler.step(
+                        model_out.sample,
+                        timestep_batch,
+                        sample,
+                        len(pipe.scheduler.timesteps) - index - 1,
+                        generator=generator,
+                    )
+                    sample = step.prev_sample
+                labels = sample[:, :, : pipe.processor.num_labels].argmax(
+                    dim=-1, keepdim=True
+                )
+                boxes = (
+                    sample[:, :, pipe.processor.num_labels :].clamp(-1.0, 1.0) / 2 + 0.5
+                )
                 sample_output.append(torch.cat([labels, boxes], dim=2).cpu())
             else:
                 bbox, cls, _ = diffusion_model.reverse_ddim(

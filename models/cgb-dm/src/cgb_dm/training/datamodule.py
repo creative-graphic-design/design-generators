@@ -5,6 +5,7 @@ from __future__ import annotations
 from torch.utils.data import DataLoader
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
+from cgb_dm.processing_cgb_dm import CGBDMProcessor
 
 from .dataset import CGBDMOriginalDataset, CGBDMSyntheticDataset
 
@@ -27,6 +28,8 @@ class CGBDMDataModule(LightningDataModule):
         data_root: str | None = None,
         batch_size: int = 2,
         num_workers: int = 0,
+        source_order_manifest: str | None = None,
+        original_encoding: str = "reference",
     ) -> None:
         """Initialize data module options."""
         super().__init__()
@@ -37,6 +40,8 @@ class CGBDMDataModule(LightningDataModule):
         self.data_root = data_root
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.source_order_manifest = source_order_manifest
+        self.original_encoding = original_encoding
 
     def setup(self, stage: str | None = None) -> None:
         """Create train and validation datasets."""
@@ -44,8 +49,26 @@ class CGBDMDataModule(LightningDataModule):
         if self.source == "original_zip":
             if self.data_root is None:
                 raise ValueError("data_root is required for source='original_zip'")
-            self.train_dataset = CGBDMOriginalDataset(self.data_root, split="train")
-            self.val_dataset = CGBDMOriginalDataset(self.data_root, split="val")
+            processor = CGBDMProcessor(
+                dataset_name=self.config.dataset_name,
+                id2label=self.config.id2label,
+                num_labels=self.config.num_labels,
+                max_seq_length=self.config.max_seq_length,
+                image_size=self.config.image_size,
+            )
+            self.train_dataset = CGBDMOriginalDataset(
+                self.data_root,
+                split="train",
+                processor=processor,
+                name_manifest=self.source_order_manifest,
+                encoding=self.original_encoding,
+            )
+            self.val_dataset = CGBDMOriginalDataset(
+                self.data_root,
+                split="val",
+                processor=processor,
+                encoding=self.original_encoding,
+            )
             return
         if self.source != "synthetic":
             raise ValueError(f"Unsupported CGB-DM data source: {self.source}")

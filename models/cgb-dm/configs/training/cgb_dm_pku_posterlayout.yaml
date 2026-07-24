@@ -34,6 +34,8 @@ data:
       image_size: [384, 256]
     source: original_zip
     data_root: .cache/cgb-dm/datasets/pku/split
+    source_order_manifest: .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
+    original_encoding: reference
     batch_size: 32
     num_workers: 16
 trainer:
