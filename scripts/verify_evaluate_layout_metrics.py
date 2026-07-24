@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -20,9 +21,9 @@ from PIL import Image
 import torch
 
 
-DEFAULT_VENDOR_ROOT = Path(
-    "/root/ghq/github.com/creative-graphic-design/design-generators/vendor"
-)
+VENDOR_ROOT_ENV = "DESIGN_GENERATORS_VENDOR_ROOT"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_VENDOR_ROOT = Path(os.environ.get(VENDOR_ROOT_ENV, REPO_ROOT / "vendor"))
 LAYOUT_DM_METRIC = Path("layout-dm/src/trainer/trainer/helpers/metric.py")
 POSTERLLAMA_EVAL = Path("posterllama/eval.py")
 TOLERANCE = 1e-12
@@ -702,7 +703,10 @@ def _parse_args() -> argparse.Namespace:
         "--vendor-root",
         type=Path,
         default=DEFAULT_VENDOR_ROOT,
-        help="Read-only vendor root containing layout-dm.",
+        help=(
+            "Read-only vendor root containing layout-dm and posterllama. "
+            f"Defaults to ${VENDOR_ROOT_ENV} or the repository's vendor directory."
+        ),
     )
     parser.add_argument(
         "--format",
