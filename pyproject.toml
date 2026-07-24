@@ -13,6 +13,7 @@ classifiers = [
 ]
 dependencies = [
     "coarse-to-fine",
+    "cgb-dm",
     "ds-gan",
     "flex-dm",
     "housegan",
@@ -144,6 +145,7 @@ members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
 coarse-to-fine = { workspace = true }
+cgb-dm = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
 housegan = { workspace = true }
