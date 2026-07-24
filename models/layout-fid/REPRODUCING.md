@@ -4,7 +4,23 @@ This guide reproduces the original-implementation agreement checks for the Layou
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
-This first package PR reproduces the LayoutFlow-sourced RICO25 and PubLayNet LayoutNet/FIDNet assets. The issue #165 amendment assigns the LayoutDM and RALF FIDNetV3 variants (`layout-fid-rico25-layoutdm`, `layout-fid-publaynet-layoutdm`, `layout-fid-pku10-ralf`, and `layout-fid-cgl-ralf`) to follow-up slice 2 after this PR merges. Slice 2 prefers original vendor artifacts as the weight source and uses the 2024 `creative-graphic-design/layout-fidnet-v3-*` Hub repositories as secondary sources and tensor-for-tensor cross-check targets.
+This first package PR reproduces the LayoutFlow-sourced RICO25 and PubLayNet LayoutNet/FIDNet assets. Here `LayoutFlow-sourced` means the evaluator checkpoints and real-distribution statistics are hosted with the LayoutFlow assets; the converted model is still a FIDNet/LayoutNet evaluator, not a LayoutFlow generator.
+
+The issue #165 amendment assigns the LayoutDM and RALF FIDNetV3 variants (`layout-fid-rico25-layoutdm`, `layout-fid-publaynet-layoutdm`, `layout-fid-pku10-ralf`, and `layout-fid-cgl-ralf`) to follow-up slice 2 after this PR merges. Slice 2 differs from this PR in three ways: it uses the `fidnet_v3` architecture instead of LayoutFlow `layoutnet`, targets LayoutDM RICO25/PubLayNet and RALF PKU10/CGL checkpoint families, and prefers original vendor artifacts as the weight source while using the 2024 `creative-graphic-design/layout-fidnet-v3-*` Hub repositories only as secondary tensor-for-tensor cross-check targets.
+
+The `--source` argument in conversion commands is therefore checkpoint provenance, not the generation method being scored. In this PR, `--source layoutflow` selects LayoutFlow-hosted LayoutNet assets; `--source layoutdm` is reserved for the follow-up FIDNetV3 conversion path; RALF is not a selectable conversion source until slice 2 lands.
+
+### Artifact Provenance
+
+The commands below do not download or commit large assets. They assume the following external artifacts have been placed under `vendor/` locally:
+
+| Source family | Download or source location | Local path used by commands |
+| --- | --- | --- |
+| `layoutflow` | [JulianGuerreiro/LayoutFlow source repository](https://github.com/julianguerreiro/LayoutFlow) and [JulianGuerreiro/LayoutFlow checkpoint host](https://huggingface.co/JulianGuerreiro/LayoutFlow) | `vendor/layout-flow/pretrained/fid_rico.pth.tar`, `vendor/layout-flow/pretrained/fid_publaynet.pth.tar`, and `vendor/layout-flow/pretrained/FIDNet_musig_{val,test}_{rico,publaynet}.pt` |
+| `layoutdm` | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), asset `layoutdm_starter.zip` | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the archive; not converted in this PR |
+| `layoutdm` cross-check | 2024 Hub repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors`; secondary tensor-for-tensor check in slice 2 |
+| `ralf` | Vendored source path `vendor/ralf/image2layout/train/fid/model.py`; slice 2 records the exact original weight release before conversion | PKU10 and CGL FIDNetV3 weights selected in slice 2 |
+| `ralf` cross-check | 2024 Hub repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl) | `model.safetensors`; secondary tensor-for-tensor check in slice 2 |
 
 ### Prerequisites
 

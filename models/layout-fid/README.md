@@ -72,6 +72,30 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 | PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | follow-up slice 2; see issue #165 amendment |
 | CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | follow-up slice 2; see issue #165 amendment |
 
+### Checkpoint Families
+
+`LayoutFIDConfig.architecture` records the encoder topology, while `LayoutFIDConfig.source` records the checkpoint family and provenance. The source suffix is not the generation method being evaluated; it identifies which released evaluator weights, label convention, bbox convention, sequence length, and reference-statistics path the artifact follows.
+
+| Source family | Architecture | Datasets | Internal boxes | Max length | Status |
+| --- | --- | --- | --- | ---: | --- |
+| `layoutflow` | `layoutnet` | RICO25, PubLayNet | `ltrb` | 20 | This PR converts LayoutFlow-hosted LayoutNet/FIDNet assets and released `FIDNet_musig_{val,test}_*.pt` statistics. |
+| `layoutdm` | `fidnet_v3` | RICO25, PubLayNet | `xywh` | 25 | Follow-up slice 2 rebuilds the LayoutDM FIDNetV3 variants from original assets, using the 2024 Hub repos only as secondary tensor-for-tensor cross-checks. |
+| `ralf` | `fidnet_v3` | PKU10, CGL | `xywh` | checkpoint-specific | Follow-up slice 2 rebuilds the RALF FIDNetV3 variants from the vendored RALF FID model and corresponding weights. |
+
+The conversion CLI in this PR accepts `--source layoutflow` for the converted slice and keeps `--source layoutdm` for the planned FIDNetV3 path. RALF is documented as a planned checkpoint family but is not a selectable conversion source until the slice 2 implementation lands.
+
+### Artifact Provenance
+
+No checkpoint, statistics, generated tensor, or downloaded archive is committed in this PR. Each row records where a family is expected to come from before conversion.
+
+| Source family | Primary source | Expected local files | This PR uses |
+| --- | --- | --- | --- |
+| `layoutflow` | [JulianGuerreiro/LayoutFlow source repository](https://github.com/julianguerreiro/LayoutFlow) and [JulianGuerreiro/LayoutFlow checkpoint host](https://huggingface.co/JulianGuerreiro/LayoutFlow) | `vendor/layout-flow/pretrained/fid_rico.pth.tar`, `fid_publaynet.pth.tar`, and `FIDNet_musig_{val,test}_{rico,publaynet}.pt` | Yes, for local conversion and parity only. |
+| `layoutdm` | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), archive `layoutdm_starter.zip` | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the release archive | No; planned for slice 2. |
+| `layoutdm` cross-check | 2024 repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check in slice 2, not the primary source. |
+| `ralf` | Vendored RALF FIDNetV3 source at `vendor/ralf/image2layout/train/fid/model.py`; slice 2 must record the exact original weight release before conversion | PKU10 and CGL FIDNetV3 weights selected in slice 2 | No; planned for slice 2. |
+| `ralf` cross-check | 2024 repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check in slice 2, not the primary source. |
+
 ## Uses
 
 ### Direct Use

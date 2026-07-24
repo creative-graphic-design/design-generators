@@ -14,7 +14,16 @@ from layout_fid.conversion import (
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", choices=["layoutflow", "layoutdm"], required=True)
+    parser.add_argument(
+        "--source",
+        choices=["layoutflow", "layoutdm"],
+        required=True,
+        help=(
+            "Checkpoint family/provenance, not the generation method: "
+            "layoutflow selects LayoutFlow-hosted LayoutNet assets; "
+            "layoutdm selects LayoutDM FIDNetV3 assets."
+        ),
+    )
     parser.add_argument("--dataset", choices=["rico25", "publaynet"], required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--stats-val", type=Path)
