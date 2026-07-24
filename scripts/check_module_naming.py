@@ -86,6 +86,18 @@ PROMPT_AGENT_MODULES = {
         "similarity.py",
         "vendor_parity.py",
     },
+    "postero": {
+        "agent.py",
+        "config.py",
+        "enums.py",
+        "exemplars.py",
+        "parser.py",
+        "prompts.py",
+        "records.py",
+        "schemas.py",
+        "serialization.py",
+        "vendor_parity.py",
+    },
 }
 
 PACKAGE_SPECIFIC_ALLOWED_MODULES = {

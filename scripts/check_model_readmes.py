@@ -205,6 +205,13 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": ["creative-graphic-design/Rico", "Web"],
     },
+    "postero": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PKU-PosterLayout",
+            "creative-graphic-design/CGL-Dataset",
+        ],
+    },
     "ralf": {
         "license": "apache-2.0",
         "datasets": [
@@ -235,6 +242,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "postero": "PosterO",
     "ralf": "RALF",
     "smarttext": "SmartText",
 }
@@ -248,13 +256,14 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
+    "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
 }
 
-PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
+PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
 SHARED_PACKAGE_SUBDIRS = {
     "laygen": "lib/laygen",
     "posgen": "lib/posgen",
