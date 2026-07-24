@@ -109,11 +109,6 @@ models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch
 models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
 models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor	sequences: torch.Tensor,
 models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor | list[list[bool]] | list[bool] | None	mask: torch.Tensor | list[list[bool]] | list[bool] | None,
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	labels: torch.Tensor,
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
 models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	) -> NDArray[np.float32]:
 models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	pixel_ltwh: NDArray[np.float32], *, canvas_size: tuple[int, int]
 models/layoutprompter/src/layoutprompter/parsing.py	tuple[NDArray[np.int64], NDArray[np.float32]]	) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
@@ -127,10 +122,3 @@ models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_
 models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	bbox_state_dict: dict[str, torch.Tensor],
 models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	count_state_dict: dict[str, torch.Tensor],
 models/layoutvae/src/layoutvae/conversion.py	tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]	) -> tuple[
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	) -> torch.Tensor:
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	input_ids: torch.Tensor,
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	torch.Tensor | Sequence[str]	generated_ids: torch.Tensor | Sequence[str],
