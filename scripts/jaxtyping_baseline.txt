@@ -138,65 +138,6 @@ models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[o
 models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object]	labels: torch.Tensor | np.ndarray | list[object],
 models/ds-gan/src/ds_gan/processing_ds_gan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
 models/ds-gan/src/ds_gan/processing_ds_gan.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-models/flex-dm/src/flex_dm/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor],
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	beta: np.ndarray,
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_dense_kernel(tf_kernel: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	def convert_embedding(tf_embedding: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	gamma: np.ndarray,
-models/flex-dm/src/flex_dm/conversion.py	np.ndarray	source_name: str, value: np.ndarray
-models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_dense_kernel(tf_kernel: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	torch.Tensor	def convert_embedding(tf_embedding: np.ndarray) -> torch.Tensor:
-models/flex-dm/src/flex_dm/conversion.py	tuple[str, torch.Tensor] | None	) -> tuple[str, torch.Tensor] | None:
-models/flex-dm/src/flex_dm/conversion.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
-models/flex-dm/src/flex_dm/masking.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/masking.py	Mapping[str, torch.Tensor] | None	source_inputs: Mapping[str, torch.Tensor] | None = None,
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	inputs: dict[str, torch.Tensor],
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	logits: dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	masks: dict[str, torch.Tensor] = {}
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	masks: dict[str, torch.Tensor],
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor]	modified: dict[str, torch.Tensor] = {}
-models/flex-dm/src/flex_dm/masking.py	dict[str, torch.Tensor] | None	final_logits: dict[str, torch.Tensor] | None = None
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor	) -> torch.Tensor:
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor	def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Tensor:
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor	input_: torch.Tensor,
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor	mask: torch.Tensor,
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor	seq_mask: torch.Tensor,
-models/flex-dm/src/flex_dm/masking.py	torch.Tensor | None	target_indices: torch.Tensor | None = None,
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]	) -> FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]:
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	labels: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor]	logits: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor] | None	labels: Mapping[str, torch.Tensor] | None = None,
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	Mapping[str, torch.Tensor] | None	masks: Mapping[str, torch.Tensor] | None = None,
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	logits: dict[str, torch.Tensor]
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor]	outputs: dict[str, torch.Tensor] = {}
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	dict[str, torch.Tensor] | None	masks: dict[str, torch.Tensor] | None = None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	list[torch.Tensor]	losses: list[torch.Tensor] = []
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor	) -> torch.Tensor:
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor | None	hidden_states: torch.Tensor | None = None
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	torch.Tensor | None	loss: torch.Tensor | None = None
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, torch.Tensor]	inputs: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, torch.Tensor]	masks: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	logits: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	masks: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor]	original_inputs: Mapping[str, torch.Tensor],
-models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, torch.Tensor] | None	refinement_input: Mapping[str, torch.Tensor] | None = None,
-models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	decoded: dict[str, torch.Tensor] = {}
-models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, torch.Tensor]	inputs: dict[str, torch.Tensor] = {}
-models/flex-dm/src/flex_dm/processing_flex_dm.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None,
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	) -> torch.Tensor:
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	bbox: torch.Tensor,
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	def _continuize(self, key: str, value: torch.Tensor) -> torch.Tensor:
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	def _discretize(self, key: str, value: torch.Tensor) -> torch.Tensor:
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	labels: torch.Tensor,
-models/flex-dm/src/flex_dm/processing_flex_dm.py	torch.Tensor	mask: torch.Tensor,
-models/flex-dm/src/flex_dm/tf_checkpoint.py	dict[str, np.ndarray]	) -> dict[str, np.ndarray]:
 models/housegan/src/housegan/datasets.py	np.ndarray	bbox_ltrb: np.ndarray,
 models/housegan/src/housegan/datasets.py	np.ndarray	def load_housegan_numpy(path: str | Path) -> np.ndarray:
 models/housegan/src/housegan/graph_schema.py	torch.FloatTensor	) -> torch.FloatTensor:

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 from torch.nn import functional as F
 from transformers import PreTrainedModel
@@ -27,10 +27,10 @@ class FlexDmModelOutput(ModelOutput):
         masks: Optional per-column hidden-field masks.
     """
 
-    logits: dict[str, torch.Tensor]
-    loss: torch.Tensor | None = None
-    hidden_states: torch.Tensor | None = None
-    masks: dict[str, torch.Tensor] | None = None
+    logits: dict[str, Shaped[torch.Tensor, "..."]]
+    loss: Float[torch.Tensor, ""] | None = None
+    hidden_states: Float[torch.Tensor, "batch seq channels"] | None = None
+    masks: dict[str, Bool[torch.Tensor, "..."]] | None = None
 
     def __post_init__(self) -> None:
         """Keep the logits dictionary as one ModelOutput field."""
@@ -102,7 +102,7 @@ class FlexDmInputEncoder(nn.Module):
 
     def forward(
         self,
-        inputs: Mapping[str, torch.Tensor],
+        inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
         *,
         task_ids: Int[torch.Tensor, "batch"] | None = None,
     ) -> tuple[
@@ -265,9 +265,9 @@ class FlexDmDecoder(nn.Module):
 
     def forward(
         self, hidden_states: Float[torch.Tensor, "batch seq channels"]
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Return per-column logits and predictions."""
-        outputs: dict[str, torch.Tensor] = {}
+        outputs: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for key in self.config.valid_sequence_keys:
             head = self.heads[_module_key(key)]
             column = self.config.input_columns[key]
@@ -301,13 +301,16 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
     def forward(
         self,
         *,
-        inputs: Mapping[str, torch.Tensor],
-        masks: Mapping[str, torch.Tensor] | None = None,
-        labels: Mapping[str, torch.Tensor] | None = None,
+        inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
+        masks: Mapping[str, Bool[torch.Tensor, "..."]] | None = None,
+        labels: Mapping[str, Shaped[torch.Tensor, "..."]] | None = None,
         task_ids: Int[torch.Tensor, "batch"] | None = None,
         output_hidden_states: bool = False,
         return_dict: bool | None = None,
-    ) -> FlexDmModelOutput | tuple[dict[str, torch.Tensor], torch.Tensor | None]:
+    ) -> (
+        FlexDmModelOutput
+        | tuple[dict[str, Shaped[torch.Tensor, "..."]], Float[torch.Tensor, ""] | None]
+    ):
         """Run a Flex-DM forward pass.
 
         Args:
@@ -338,10 +341,10 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
 
     def _compute_loss(
         self,
-        logits: Mapping[str, torch.Tensor],
-        labels: Mapping[str, torch.Tensor],
-    ) -> torch.Tensor:
-        losses: list[torch.Tensor] = []
+        logits: Mapping[str, Shaped[torch.Tensor, "..."]],
+        labels: Mapping[str, Shaped[torch.Tensor, "..."]],
+    ) -> Float[torch.Tensor, ""]:
+        losses: list[Float[torch.Tensor, ""]] = []
         for key, target in labels.items():
             if key not in logits:
                 continue
