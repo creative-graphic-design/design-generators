@@ -1,0 +1,46 @@
+[project]
+name = "postero"
+version = "0.1.0"
+description = "Pydantic AI implementation of PosterO."
+requires-python = ">=3.11"
+dependencies = [
+    "jaxtyping>=0.3",
+    "laygen[agents]",
+    "numpy>=1.26",
+    "pydantic>=2.0.0",
+    "pydantic-ai>=2.7.0",
+    "posgen",
+    "torch>=2.0.0",
+    "typing-extensions>=4.0.0",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=7.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "pandas>=2.0",
+    "torchvision>=0.19",
+]
+[tool.design-generators]
+framework = "pydantic-ai"
+task = "content-aware-layout-generation"
+conditions = ["content_image", "retrieval"]
+datasets = ["pku_posterlayout", "cgl"]
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "vendor_parity: deterministic prompt/parser parity checks",
+]
