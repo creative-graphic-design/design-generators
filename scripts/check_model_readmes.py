@@ -230,6 +230,10 @@ EXPECTED_FRONTMATTER = {
         "license": "other",
         "datasets": ["creative-graphic-design/CGL-Dataset"],
     },
+    "posterllava": {
+        "license": "other",
+        "datasets": ["Ad Banner", "CGL", "PosterLayout", "QB-Poster"],
+    },
     "postero": {
         "license": "apache-2.0",
         "datasets": [
@@ -271,6 +275,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
     "posterllama": "PosterLlama",
+    "posterllava": "PosterLLaVA",
     "postero": "PosterO",
     "ralf": "RALF",
     "smarttext": "SmartText",
@@ -289,6 +294,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "posterllama": "https://github.com/jaepoong/PosterLlama",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
+    "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",
