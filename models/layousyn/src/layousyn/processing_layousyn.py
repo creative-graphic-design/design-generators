@@ -10,7 +10,7 @@ from typing import Final, Literal, TypedDict
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -36,11 +36,11 @@ LAYOUSYN_PER_EXAMPLE_ID2LABEL_KEY: Final[str] = "id2label_per_example"
 class LayouSynBatch(TypedDict):
     """Encoded LayouSyn processor batch."""
 
-    concept_embeds: torch.Tensor
-    concept_padding_mask: torch.Tensor
-    caption_embeds: torch.Tensor
-    caption_padding_mask: torch.Tensor
-    aspect_ratio: torch.Tensor
+    concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"]
+    concept_padding_mask: Bool[torch.Tensor, "batch elements"]
+    caption_embeds: Float[torch.Tensor, "batch tokens embedding_dim"]
+    caption_padding_mask: Bool[torch.Tensor, "batch tokens"]
+    aspect_ratio: Float[torch.Tensor, "batch"]
     label_texts: list[list[str]]
     id2label: dict[int, str]
     id2label_per_example: list[dict[int, str]]
@@ -224,7 +224,7 @@ class LayouSynProcessor(ProcessorMixin):
 
     def postprocess(
         self,
-        sample: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements 4"],
         *,
         labels: list[list[str]],
         id2label: dict[int, str],
@@ -232,7 +232,7 @@ class LayouSynProcessor(ProcessorMixin):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         intermediates: object | None = None,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
         """Convert generated reference coordinates into the public schema."""
         sample = ((sample.clamp(-1, 1) + 1.0) / 2.0).float()
         if self.layout_type == "xyxy":
@@ -289,8 +289,8 @@ class LayouSynProcessor(ProcessorMixin):
         self,
         labels: Sequence[str]
         | Sequence[Sequence[str]]
-        | torch.Tensor
-        | np.ndarray
+        | Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
         | None,
         *,
         id2label: dict[int, str] | None,
@@ -340,8 +340,8 @@ class LayouSynProcessor(ProcessorMixin):
         self,
         labels: list[list[str]],
         *,
-        mask: torch.Tensor | np.ndarray | list[object] | None,
-    ) -> torch.Tensor:
+        mask: Bool[torch.Tensor, "..."] | Bool[np.ndarray, "..."] | list[object] | None,
+    ) -> Bool[torch.Tensor, "batch elements"]:
         if mask is not None:
             mask_t = torch.as_tensor(mask, dtype=torch.bool)
             if mask_t.ndim == 1:
@@ -357,8 +357,10 @@ class LayouSynProcessor(ProcessorMixin):
         return padding
 
     def _pad_concept_embeds(
-        self, embeds: torch.Tensor, batch_size: int
-    ) -> torch.Tensor:
+        self,
+        embeds: Float[torch.Tensor, "batch elements embedding_dim"],
+        batch_size: int,
+    ) -> Float[torch.Tensor, "batch elements embedding_dim"]:
         if embeds.ndim != 3:
             raise ValueError("concept_embeds must have shape (batch, seq, dim)")
         if embeds.shape[0] != batch_size:
@@ -376,7 +378,9 @@ class LayouSynProcessor(ProcessorMixin):
         )
         return torch.cat((embeds, pad), dim=1)
 
-    def _encode_concepts(self, labels: list[list[str]]) -> torch.Tensor:
+    def _encode_concepts(
+        self, labels: list[list[str]]
+    ) -> Float[torch.Tensor, "batch elements embedding_dim"]:
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:
@@ -395,7 +399,12 @@ class LayouSynProcessor(ProcessorMixin):
             offset += len(row)
         return torch.nested.as_nested_tensor(rows).to_padded_tensor(0.0)
 
-    def _encode_captions(self, prompts: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _encode_captions(
+        self, prompts: list[str]
+    ) -> tuple[
+        Float[torch.Tensor, "batch tokens embedding_dim"],
+        Bool[torch.Tensor, "batch tokens"],
+    ]:
         if any(prompts):
             raise ValueError(
                 "caption_embeds are required for prompt-conditioned tests/offline use"
@@ -406,8 +415,10 @@ class LayouSynProcessor(ProcessorMixin):
         )
 
     def _aspect_ratio_tensor(
-        self, aspect_ratio: float | Sequence[float] | torch.Tensor, batch_size: int
-    ) -> torch.Tensor:
+        self,
+        aspect_ratio: float | Sequence[float] | Float[torch.Tensor, "batch"],
+        batch_size: int,
+    ) -> Float[torch.Tensor, "batch"]:
         if isinstance(aspect_ratio, torch.Tensor):
             out = aspect_ratio.float()
         elif isinstance(aspect_ratio, float | int):
@@ -422,12 +433,12 @@ class LayouSynProcessor(ProcessorMixin):
 
     def _normalize_optional_bbox(
         self,
-        bbox: torch.Tensor | np.ndarray | list[object],
+        bbox: Float[torch.Tensor, "... 4"] | Float[np.ndarray, "... 4"] | list[object],
         *,
         box_format: BoxFormat | str,
         normalized: bool,
         canvas_size: tuple[int, int] | None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "... 4"]:
         bbox_t = torch.as_tensor(bbox, dtype=torch.float32)
         if not normalized:
             if canvas_size is None:
