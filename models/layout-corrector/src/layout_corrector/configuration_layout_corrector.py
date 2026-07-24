@@ -48,6 +48,42 @@ class CorrectorTransformerType(StrEnum):
     aggregated = auto()
 
 
+def normalize_corrector_core_options(
+    recon_type: CorrectorReconType | str,
+    target: CorrectorTarget | str,
+    transformer_type: CorrectorTransformerType | str,
+    pos_emb: CorrectorPositionEmbedding | str,
+) -> tuple[
+    CorrectorReconType,
+    CorrectorTarget,
+    CorrectorTransformerType,
+    CorrectorPositionEmbedding,
+]:
+    """Normalize shared Layout-Corrector enum options."""
+    try:
+        normalized_recon_type = CorrectorReconType(recon_type)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
+    try:
+        normalized_target = CorrectorTarget(target)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported target: {target}") from exc
+    try:
+        normalized_transformer_type = CorrectorTransformerType(transformer_type)
+    except ValueError as exc:
+        raise ValueError("Only transformer_type='aggregated' is supported") from exc
+    try:
+        normalized_pos_emb = CorrectorPositionEmbedding(pos_emb)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
+    return (
+        normalized_recon_type,
+        normalized_target,
+        normalized_transformer_type,
+        normalized_pos_emb,
+    )
+
+
 class LayoutCorrectorConfig(ConfigMixin):
     """Configuration for the Layout-Corrector transformer.
 
@@ -182,22 +218,14 @@ class LayoutCorrectorConfig(ConfigMixin):
             raise ValueError("Layout-Corrector supports 5 attributes per element")
         if num_timesteps <= 0:
             raise ValueError("num_timesteps must be positive")
-        try:
-            recon_type = CorrectorReconType(recon_type)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
-        try:
-            target = CorrectorTarget(target)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported target: {target}") from exc
-        try:
-            transformer_type = CorrectorTransformerType(transformer_type)
-        except ValueError as exc:
-            raise ValueError("Only transformer_type='aggregated' is supported") from exc
-        try:
-            pos_emb = CorrectorPositionEmbedding(pos_emb)
-        except ValueError as exc:
-            raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
+        recon_type, target, transformer_type, pos_emb = (
+            normalize_corrector_core_options(
+                recon_type,
+                target,
+                transformer_type,
+                pos_emb,
+            )
+        )
         if len(attr_loss_weights) != num_attributes_per_element:
             raise ValueError("attr_loss_weights must match num_attributes_per_element")
         if corrector_steps <= 0:
