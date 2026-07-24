@@ -9,13 +9,17 @@ import numpy as np
 import torch
 from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 
 from .configuration_layousyn import resolve_model_shape
 
 
-def modulate(x: torch.Tensor, shift: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
+def modulate(
+    x: Float[torch.Tensor, "batch tokens channels"],
+    shift: Float[torch.Tensor, "batch channels"],
+    scale: Float[torch.Tensor, "batch channels"],
+) -> Float[torch.Tensor, "batch tokens channels"]:
     """Apply adaLN shift and scale."""
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
@@ -32,7 +36,9 @@ class Mlp(nn.Module):
         self.act = nn.GELU(approximate="tanh")
         self.fc2 = nn.Linear(hidden_features, out_features)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "... in_features"]
+    ) -> Float[torch.Tensor, "... out_features"]:
         """Apply the MLP."""
         return self.fc2(self.act(self.fc1(x)))
 
@@ -86,7 +92,9 @@ class InputEmbedder(nn.Module):
         super().__init__()
         self.proj = nn.Linear(input_dim, hidden_dim)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch elements channels"]
+    ) -> Float[torch.Tensor, "batch elements hidden"]:
         """Project layout coordinates."""
         return self.proj(x)
 
@@ -99,7 +107,9 @@ class ConceptEmbedder(nn.Module):
         super().__init__()
         self.proj = Mlp(in_channels, hidden_size, hidden_size)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch elements channels"]
+    ) -> Float[torch.Tensor, "batch elements hidden"]:
         """Project concept embeddings."""
         return self.proj(x)
 
@@ -109,11 +119,16 @@ class CaptionEmbedderIdentity(nn.Module):
 
     def forward(
         self,
-        caption: torch.Tensor | None,
-        caption_padding_mask: torch.Tensor | None,
+        caption: Float[torch.Tensor, "batch tokens embedding_dim"] | None,
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None,
         train: bool,
-        force_drop_ids: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        force_drop_ids: Int[torch.Tensor, "batch"]
+        | Bool[torch.Tensor, "batch"]
+        | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch tokens embedding_dim"] | None,
+        Bool[torch.Tensor, "batch tokens"] | None,
+    ]:
         """Return caption inputs unchanged."""
         del train, force_drop_ids
         return caption, caption_padding_mask
@@ -127,24 +142,29 @@ class CaptionEmbedder(nn.Module):
         in_channels: int,
         hidden_size: int,
         uncond_prob: float,
-        y_null_embedding: torch.Tensor,
-        y_null_embedding_mask: torch.Tensor,
+        y_null_embedding: Float[torch.Tensor, "tokens embedding_dim"],
+        y_null_embedding_mask: Bool[torch.Tensor, "tokens"],
     ) -> None:
         """Initialize caption projection and null caption buffers."""
         super().__init__()
         self.proj = Mlp(in_channels, hidden_size, hidden_size)
-        self.y_embedding: torch.Tensor
-        self.y_padding_mask: torch.Tensor
+        self.y_embedding: Float[torch.Tensor, "tokens embedding_dim"]
+        self.y_padding_mask: Bool[torch.Tensor, "tokens"]
         self.register_buffer("y_embedding", y_null_embedding.float())
         self.register_buffer("y_padding_mask", y_null_embedding_mask.bool())
         self.uncond_prob = uncond_prob
 
     def token_drop(
         self,
-        caption: torch.Tensor,
-        caption_padding_mask: torch.Tensor,
-        force_drop_ids: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        caption: Float[torch.Tensor, "batch tokens embedding_dim"],
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"],
+        force_drop_ids: Int[torch.Tensor, "batch"]
+        | Bool[torch.Tensor, "batch"]
+        | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch tokens embedding_dim"],
+        Bool[torch.Tensor, "batch tokens"],
+    ]:
         """Replace selected captions with the learned null caption."""
         if force_drop_ids is None:
             drop_ids = (
@@ -168,11 +188,16 @@ class CaptionEmbedder(nn.Module):
 
     def forward(
         self,
-        caption: torch.Tensor,
-        caption_padding_mask: torch.Tensor,
+        caption: Float[torch.Tensor, "batch tokens embedding_dim"],
+        caption_padding_mask: Bool[torch.Tensor, "batch tokens"],
         train: bool,
-        force_drop_ids: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        force_drop_ids: Int[torch.Tensor, "batch"]
+        | Bool[torch.Tensor, "batch"]
+        | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch tokens hidden"],
+        Bool[torch.Tensor, "batch tokens"],
+    ]:
         """Project caption embeddings."""
         if (train and self.uncond_prob > 0) or force_drop_ids is not None:
             caption, caption_padding_mask = self.token_drop(
@@ -208,14 +233,17 @@ class DiTBlock(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        x_enc: torch.Tensor,
-        x_padding_mask: torch.Tensor,
-        c: torch.Tensor,
-        y: torch.Tensor,
-        y_padding_mask: torch.Tensor,
-        pos_embed: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x: Float[torch.Tensor, "batch elements hidden"],
+        x_enc: Float[torch.Tensor, "batch elements hidden"],
+        x_padding_mask: Bool[torch.Tensor, "batch elements"],
+        c: Float[torch.Tensor, "batch hidden"],
+        y: Float[torch.Tensor, "batch tokens hidden"],
+        y_padding_mask: Bool[torch.Tensor, "batch tokens"],
+        pos_embed: Float[torch.Tensor, "1 elements hidden"],
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements hidden"],
+        Float[torch.Tensor, "batch elements hidden"],
+    ]:
         """Apply one conditional block."""
         (
             shift_msa,
@@ -282,11 +310,11 @@ class DiTUCBlock(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        x_padding_mask: torch.Tensor,
-        c: torch.Tensor,
+        x: Float[torch.Tensor, "batch elements hidden"],
+        x_padding_mask: Bool[torch.Tensor, "batch elements"],
+        c: Float[torch.Tensor, "batch hidden"],
         **kwargs: object,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements hidden"]:
         """Apply one unconditional block."""
         del kwargs
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
@@ -326,19 +354,27 @@ class FinalLayer(nn.Module):
             nn.SiLU(), nn.Linear(hidden_size, 2 * hidden_size)
         )
 
-    def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch elements hidden"],
+        c: Float[torch.Tensor, "batch hidden"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Project hidden states to epsilon and variance channels."""
         shift, scale = self.adaLN_modulation(c).chunk(2, dim=1)
         return self.linear(modulate(self.norm_final(x), shift, scale))
 
 
-def get_1d_sincos_pos_embed(embed_dim: int, max_len: int) -> np.ndarray:
+def get_1d_sincos_pos_embed(
+    embed_dim: int, max_len: int
+) -> Float[np.ndarray, "positions embed_dim"]:
     """Create reference sine/cosine positional embeddings."""
     grid = np.arange(max_len, dtype=np.float32)
     return get_1d_sincos_pos_embed_from_grid(embed_dim, grid)
 
 
-def get_1d_sincos_pos_embed_from_grid(embed_dim: int, pos: np.ndarray) -> np.ndarray:
+def get_1d_sincos_pos_embed_from_grid(
+    embed_dim: int, pos: Float[np.ndarray, "positions"]
+) -> Float[np.ndarray, "positions embed_dim"]:
     """Create reference sine/cosine positional embeddings from positions."""
     omega = np.arange(embed_dim // 2, dtype=np.float64)
     omega /= embed_dim / 2.0
@@ -515,7 +551,7 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
 
 
 def convert_reference_state_dict(
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Convert a reference DiT state dict to the wrapped model key space."""
     return dict(state_dict)

@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import assert_never
 
 import torch
+from jaxtyping import Float, Int
 
 
 class InitialDistribution(StrEnum):
@@ -19,13 +20,13 @@ def sample_initial_state(
     *,
     batch_size: int,
     max_length: int,
-    lengths: torch.Tensor,
+    lengths: Int[torch.Tensor, "batch"],
     dim: int,
     distribution: InitialDistribution | str = "gaussian",
     generator: torch.Generator | None = None,
     device: torch.device | str | None = None,
     dtype: torch.dtype = torch.float32,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "batch elements channels"]:
     """Sample a padded initial LayoutFlow state.
 
     Args:

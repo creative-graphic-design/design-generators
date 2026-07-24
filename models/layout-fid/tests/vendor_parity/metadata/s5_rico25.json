@@ -1,0 +1,19 @@
+{
+  "issue": 149,
+  "dataset": "rico25",
+  "source": "layoutflow",
+  "single_seed": {
+    "vendor": {
+      "fid": 6.5372,
+      "alignment": 0.2084,
+      "overlap": 0.6070,
+      "miou": 0.5755
+    },
+    "converted": {
+      "fid": 5.0896,
+      "alignment": 0.2259,
+      "overlap": 0.5988,
+      "miou": 0.5161
+    }
+  }
+}
