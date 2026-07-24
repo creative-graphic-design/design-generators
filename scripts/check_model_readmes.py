@@ -176,6 +176,10 @@ EXPECTED_FRONTMATTER = {
             "InfoPPT",
         ],
     },
+    "layoutvae": {
+        "license": "mit",
+        "datasets": ["creative-graphic-design/PubLayNet"],
+    },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
     "layout-transformer": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
     "layoutdiffusion": {
@@ -243,6 +247,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-fid": "Layout FID",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
+    "layoutvae": "LayoutVAE",
     "layout-gpt": "LayoutGPT",
     "layout-transformer": "LayoutTransformer",
     "layoutdiffusion": "LayoutDiffusion",
@@ -262,6 +267,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "layoutvae": "https://github.com/Layout-Generation/layout-generation",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",

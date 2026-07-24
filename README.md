@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=22&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=23&color=purple&style=flat-square)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into [`🤗transformers`](https://huggingface.co/docs/transformers/index)-, [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-, and [`🤖pydantic-ai`](https://ai.pydantic.dev/)-style packages that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -31,6 +31,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 | [LayoutDiffusion](models/layoutdiffusion/README.md) | ICCV 2023 | `🧨diffusers` | RICO25, PubLayNet | [REPRODUCING.md](models/layoutdiffusion/REPRODUCING.md) |
 | [LayoutFormer++](models/layoutformerpp/README.md) | CVPR 2023 | `🤗transformers` | RICO25, PubLayNet | [REPRODUCING.md](models/layoutformerpp/REPRODUCING.md) |
 | [LayoutGAN++](models/layoutganpp/README.md) | ACM MM 2021 | `🤗transformers` | RICO25, PubLayNet, Magazine | [REPRODUCING.md](models/layoutganpp/REPRODUCING.md) |
+| [LayoutVAE](models/layoutvae/README.md) | ICCV 2019 | `🤗transformers` | PubLayNet | [REPRODUCING.md](models/layoutvae/REPRODUCING.md) |
 | [LayoutPrompter](models/layoutprompter/README.md) | NeurIPS 2023 | `🤖pydantic-ai` | PubLayNet, RICO25, PosterLayout | [REPRODUCING.md](models/layoutprompter/REPRODUCING.md) |
 | [Parse-Then-Place](models/parse-then-place/README.md) | ICCV 2023 | `🤗transformers` | RICO25, Web | [REPRODUCING.md](models/parse-then-place/REPRODUCING.md) |
 | [PosterO](models/postero/README.md) | CVPR 2025 | `🤖pydantic-ai` | PKU-PosterLayout, CGL | [REPRODUCING.md](models/postero/REPRODUCING.md) |

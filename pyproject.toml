@@ -24,6 +24,7 @@ dependencies = [
     "layout-gpt",
     "layout-transformer",
     "layout-action",
+    "layoutvae",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -165,6 +166,7 @@ layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
 layout-transformer = { workspace = true }
 layout-action = { workspace = true }
+layoutvae = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
