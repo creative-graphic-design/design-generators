@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias, cast
 
 import torch
+from jaxtyping import Shaped
 
 
-def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Tensor]:
+StateTensor: TypeAlias = Shaped[torch.Tensor, "..."]
+
+
+def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, StateTensor]:
     """Load a vendor checkpoint and return model weights only.
 
     Args:
@@ -33,7 +37,7 @@ def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Ten
         if isinstance(checkpoint, Mapping)
         else checkpoint
     )
-    tensor_state = cast(dict[str, torch.Tensor], state)
+    tensor_state = cast(dict[str, StateTensor], state)
     if any(key.startswith("module.") for key in tensor_state):
         return {
             key.removeprefix("module."): value for key, value in tensor_state.items()
@@ -43,7 +47,7 @@ def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Ten
 
 def load_strict_mapped_state_dict(
     model: torch.nn.Module,
-    state_dict: Mapping[str, torch.Tensor],
+    state_dict: Mapping[str, StateTensor],
 ) -> None:
     """Load a mapped state dict and fail on any key mismatch.
 

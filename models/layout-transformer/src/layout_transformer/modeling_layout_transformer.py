@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -13,16 +13,16 @@ from transformers.utils import ModelOutput
 from .configuration_layout_transformer import LayoutTransformerConfig
 from .modeling_lt_compatible import BBoxHead, RelEncoder
 
-if TYPE_CHECKING:
-    LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
-    BoolTensor3D: TypeAlias = Bool[torch.Tensor, "batch 1 sequence"]
-    FloatTensor3D: TypeAlias = Float[torch.Tensor, "batch sequence hidden"]
-    BBoxTensor: TypeAlias = Float[torch.Tensor, "batch sequence 4"]
-else:
-    LongTensor2D: TypeAlias = torch.Tensor
-    BoolTensor3D: TypeAlias = torch.Tensor
-    FloatTensor3D: TypeAlias = torch.Tensor
-    BBoxTensor: TypeAlias = torch.Tensor
+LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
+BoolTensor2D: TypeAlias = Bool[torch.Tensor, "batch sequence"]
+BoolTensor3D: TypeAlias = Bool[torch.Tensor, "batch 1 sequence"]
+FloatTensor3D: TypeAlias = Float[torch.Tensor, "batch sequence hidden"]
+VocabLogitsTensor: TypeAlias = Float[torch.Tensor, "batch sequence vocab"]
+ObjectLogitsTensor: TypeAlias = Float[torch.Tensor, "batch sequence object_classes"]
+TokenTypeLogitsTensor: TypeAlias = Float[torch.Tensor, "batch sequence token_types"]
+BBoxTensor: TypeAlias = Float[torch.Tensor, "batch sequence 4"]
+GMMTensor: TypeAlias = Float[torch.Tensor, "batch sequence gmm_params"]
+ModelTupleTensor: TypeAlias = Float[torch.Tensor, "batch sequence feature"]
 
 
 @dataclass
@@ -51,13 +51,13 @@ class LayoutTransformerModelOutput(ModelOutput):
         torch.Size([1, 2, 4])
     """
 
-    vocab_logits: FloatTensor3D | None = None
-    obj_id_logits: FloatTensor3D | None = None
-    token_type_logits: FloatTensor3D | None = None
+    vocab_logits: VocabLogitsTensor | None = None
+    obj_id_logits: ObjectLogitsTensor | None = None
+    token_type_logits: TokenTypeLogitsTensor | None = None
     coarse_box: BBoxTensor | None = None
-    coarse_gmm: torch.Tensor | None = None
+    coarse_gmm: GMMTensor | None = None
     refine_box: BBoxTensor | None = None
-    refine_gmm: torch.Tensor | None = None
+    refine_gmm: GMMTensor | None = None
     hidden_states: FloatTensor3D | None = None
 
 
@@ -83,14 +83,14 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
         segment_label: LongTensor2D,
         token_type: LongTensor2D,
         src_mask: BoolTensor3D | None = None,
-        global_mask: torch.Tensor | None = None,
+        global_mask: BoolTensor2D | None = None,
         bbox: BBoxTensor | None = None,
-        bbox_mask: torch.Tensor | None = None,
+        bbox_mask: BoolTensor2D | None = None,
         inference: bool = False,
         generator: torch.Generator | None = None,
         output_hidden_states: bool = False,
         return_dict: bool = True,
-    ) -> LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]:
+    ) -> LayoutTransformerModelOutput | tuple[ModelTupleTensor | None, ...]:
         """Run LT-Net relation encoding and bbox prediction.
 
         Args:
@@ -191,7 +191,7 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
         segment_label: LongTensor2D,
         token_type: LongTensor2D,
         src_mask: BoolTensor3D | None = None,
-        global_mask: torch.Tensor | None = None,
+        global_mask: BoolTensor2D | None = None,
         generator: torch.Generator | None = None,
     ) -> LayoutTransformerModelOutput:
         """Private pipeline helper for layout-level generation."""

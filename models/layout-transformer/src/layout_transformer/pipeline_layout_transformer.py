@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import ClassVar, TypeAlias, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -18,6 +19,11 @@ from .configuration_layout_transformer import LayoutTransformerConfig
 from .modeling_layout_transformer import LayoutTransformerForLayoutGeneration
 from .processing_layout_transformer import LayoutTransformerProcessor, OutputType
 from .relation_schema import LayoutObject, LayoutRelation, SceneGraphInput
+
+BoxBatchTensor: TypeAlias = Float[torch.Tensor, "batch elements 4"]
+LabelBatchTensor: TypeAlias = Int[torch.Tensor, "batch elements"]
+MaskBatchTensor: TypeAlias = Bool[torch.Tensor, "batch elements"]
+CountTensor: TypeAlias = Int[torch.Tensor, "batch"]
 
 
 def _load_model_component(
@@ -133,10 +139,10 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.relation,
-        labels: torch.Tensor | list[object] | None = None,
-        bbox: torch.Tensor | list[object] | None = None,
-        mask: torch.Tensor | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: LabelBatchTensor | list[object] | None = None,
+        bbox: BoxBatchTensor | list[object] | None = None,
+        mask: MaskBatchTensor | list[object] | None = None,
+        num_elements: int | list[int] | CountTensor | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
