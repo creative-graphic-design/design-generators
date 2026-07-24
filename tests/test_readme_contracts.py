@@ -165,8 +165,10 @@ def test_root_readme_badge_policy_enforces_task_colored_dataset_badges() -> None
 
     assert {(badge.message, badge.color, badge.logo) for badge in dataset_badges} == {
         ("RICO25", "2f80ed", None),
+        ("RICO25", "6b7280", None),
         ("RICO25", "9b51e0", None),
         ("PubLayNet", "2f80ed", None),
+        ("PubLayNet", "6b7280", None),
         ("PubLayNet", "9b51e0", None),
     }
 
@@ -182,6 +184,7 @@ def test_root_readme_badge_policy_enforces_task_legend_badges() -> None:
     assert {(badge.message, badge.color, badge.logo) for badge in task_badges} == {
         ("content-agnostic", "2f80ed", None),
         ("content-aware", "eb5757", None),
+        ("layout-evaluation", "6b7280", None),
         ("mixed", "9b51e0", None),
     }
 

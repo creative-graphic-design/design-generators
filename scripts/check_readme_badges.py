@@ -92,6 +92,7 @@ ROOT_VENUE_BADGE_COLORS = {
 ROOT_TASK_LEGEND_BADGE_COLORS = {
     "content-agnostic": "2f80ed",
     "content-aware": "eb5757",
+    "layout-evaluation": "6b7280",
     "mixed": "9b51e0",
 }
 ROOT_LIBRARY_BADGE_COLORS = {
@@ -133,6 +134,7 @@ PAPER_LINKS = {
         "AAAI 2023",
     ): "https://ojs.aaai.org/index.php/AAAI/article/view/26277",
     ("OpenReview", "kJ0qp9Xdsh"): "https://openreview.net/forum?id=kJ0qp9Xdsh",
+    ("arXiv", "2108.00871"): "https://arxiv.org/abs/2108.00871",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",

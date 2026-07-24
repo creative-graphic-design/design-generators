@@ -22,6 +22,7 @@ ROOT_RUNTIME_BADGE_TO_LIBRARY = {
 ROOT_TASK_BADGE_COLORS = {
     frozenset({"content-agnostic-layout-generation"}): "2f80ed",
     frozenset({"content-aware-layout-generation"}): "eb5757",
+    frozenset({"layout-evaluation"}): "6b7280",
     frozenset(
         {"content-agnostic-layout-generation", "content-aware-layout-generation"}
     ): "9b51e0",
@@ -178,6 +179,13 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "layout-fid": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/Rico",
+            "creative-graphic-design/PubLayNet",
+        ],
+    },
     "layout-flow": {
         "license": "mit",
         "datasets": [
@@ -261,6 +269,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-corrector": "Layout-Corrector",
     "layout-detr": "LayoutDETR",
     "layout-dm": "LayoutDM",
+    "layout-fid": "Layout FID",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
     "layoutvae": "LayoutVAE",

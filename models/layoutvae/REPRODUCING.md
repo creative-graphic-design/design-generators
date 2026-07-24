@@ -10,7 +10,7 @@ uv sync --package layoutvae --extra vendor
 
 ## Download
 
-The LayoutVAE files are supplied by the repository submodule. Initialize it before running the conversion workflow. If this worktree has an empty submodule checkout, point `--source-root` and `LAYOUTVAE_SOURCE_ROOT` at a read-only initialized checkout such as `/root/ghq/github.com/creative-graphic-design/design-generators/vendor/layout-generation-baselines/LayoutVAE`.
+The LayoutVAE files are supplied by the repository submodule. Initialize it before running the conversion workflow. If this worktree has an empty submodule checkout, point `--source-root` and `LAYOUTVAE_SOURCE_ROOT` at a read-only initialized checkout, such as `vendor/layout-generation-baselines/LayoutVAE` inside another prepared clone or `<path-to-initialized-checkout>/vendor/layout-generation-baselines/LayoutVAE`.
 
 ```bash
 git submodule update --init vendor/layout-generation-baselines

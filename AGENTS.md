@@ -35,12 +35,23 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends
   on that member's extras, dependency source mapping, or package metadata.
+- Do not commit host-specific absolute filesystem paths. Pass runtime absolute
+  paths through environment variables or CLI arguments; repository defaults must
+  be repo-root-relative.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
 - Main package code (`models/*/src`, `lib/*/src`) and configs must not reference
   the vendor/original implementation in identifiers, docstrings, comments, or
   config names; vendor references belong only in conversion modules,
   `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- Tensor and array annotations in package source (`models/*/src`, `lib/*/src`)
+  must use fully qualified jaxtyping shaped types such as
+  `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
+  are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Write jaxtyping shaped types inline at the annotation site. Do not introduce
+  module-level aliases such as `FooTensor = Float[...]` or
+  `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
+  `scripts/jaxtyping_alias_baseline.txt`.
 
 ## Repo-Local Skills
 
