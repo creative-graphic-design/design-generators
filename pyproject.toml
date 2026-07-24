@@ -127,22 +127,6 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
-        { package = "postero", extra = "detector" },
-        { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "postero", extra = "detector" },
-        { package = "flex-dm", extra = "convert" },
-    ],
-    [
-        { package = "postero", extra = "vllm" },
-        { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "postero", extra = "vllm" },
-        { package = "flex-dm", extra = "convert" },
-    ],
-    [
         { package = "ds-gan" },
         { package = "layout-detr", extra = "vendor" },
     ],

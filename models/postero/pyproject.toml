@@ -29,16 +29,6 @@ vendor = [
     "pandas>=2.0",
     "torchvision>=0.19",
 ]
-detector = [
-    "opencv-python>=4.8",
-    "pillow>=10",
-    "segmentation-models-pytorch>=0.3.4",
-    "timm>=0.9.7",
-]
-vllm = [
-    "vllm>=0.5.5",
-]
-
 [tool.design-generators]
 framework = "pydantic-ai"
 task = "content-aware-layout-generation"
