@@ -12,24 +12,6 @@ lib/laygen/src/laygen/common/testing.py	np.ndarray | torch.Tensor	ArrayLike: Typ
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	bbox: torch.Tensor,
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	labels: torch.Tensor,
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	mask: torch.Tensor,
-lib/posgen/src/posgen/common/content.py	torch.Tensor	mask: torch.Tensor
-lib/posgen/src/posgen/common/content.py	torch.Tensor	positions: torch.Tensor
-lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	reference_loader: Iterable[Mapping[str, torch.Tensor]],
-lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	target_loader: Iterable[Mapping[str, torch.Tensor]],
-lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	reference_state: Mapping[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	target_state: Mapping[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	actual: torch.Tensor,
-lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	expected: torch.Tensor,
-lib/traingen-parity/src/traingen_parity/determinism.py	torch.Tensor	torch_cpu: torch.Tensor
-lib/traingen-parity/src/traingen_parity/determinism.py	tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object]	NumpyRandomState: TypeAlias = (
-lib/traingen-parity/src/traingen_parity/determinism.py	tuple[torch.Tensor, ...]	torch_cuda: tuple[torch.Tensor, ...]
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor], batch_idx: int
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	) -> torch.Tensor:
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def tensor_sha256(tensor: torch.Tensor) -> str:
 models/housegan/src/housegan/datasets.py	np.ndarray	bbox_ltrb: np.ndarray,
 models/housegan/src/housegan/datasets.py	np.ndarray	def load_housegan_numpy(path: str | Path) -> np.ndarray:
 models/housegan/src/housegan/graph_schema.py	torch.FloatTensor	) -> torch.FloatTensor:

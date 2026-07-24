@@ -10,11 +10,10 @@ from typing import TypeAlias, cast
 import numpy as np
 import numpy.typing as npt
 import torch
+from jaxtyping import Shaped
 
 PythonRandomState: TypeAlias = tuple[object, ...]
-NumpyRandomState: TypeAlias = (
-    tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object]
-)
+NumpyRandomState: TypeAlias = tuple[str, object, int, int, float] | dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -54,8 +53,8 @@ class RNGState:
 
     python: PythonRandomState
     numpy: NumpyRandomState
-    torch_cpu: torch.Tensor
-    torch_cuda: tuple[torch.Tensor, ...]
+    torch_cpu: Shaped[torch.Tensor, "..."]
+    torch_cuda: tuple[Shaped[torch.Tensor, "..."], ...]
 
 
 def apply_determinism(config: DeterminismConfig) -> None:
@@ -131,7 +130,12 @@ def restore_rng_state(state: RNGState) -> None:
         >>> restore_rng_state(state)
     """
     random.setstate(state.python)
-    np.random.set_state(state.numpy)
+    np.random.set_state(
+        cast(
+            tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object],
+            state.numpy,
+        )
+    )
     torch.random.set_rng_state(state.torch_cpu)
     if torch.cuda.is_available() and state.torch_cuda:
         torch.cuda.set_rng_state_all(list(state.torch_cuda))
