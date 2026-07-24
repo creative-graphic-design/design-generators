@@ -67,6 +67,10 @@ PAPER_LINKS = {
         "paper",
         "CVPR 2023",
     ): "https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html",
+    (
+        "paper",
+        "CVPR 2025",
+    ): "https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html",
     ("paper", "AAAI"): "https://ojs.aaai.org/index.php/AAAI/article/view/19994",
     (
         "paper",
@@ -89,6 +93,7 @@ PAPER_LINKS = {
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
+    ("arXiv", "1907.10719"): "https://arxiv.org/abs/1907.10719",
     ("arXiv", "2003.06988"): "https://arxiv.org/abs/2003.06988",
     ("DOI", "10.1145/3474085.3475497"): "https://doi.org/10.1145/3474085.3475497",
     ("paper", "TMM 2021"): "https://ieeexplore.ieee.org/document/9520053",

@@ -169,6 +169,10 @@ EXPECTED_FRONTMATTER = {
             "InfoPPT",
         ],
     },
+    "layoutvae": {
+        "license": "mit",
+        "datasets": ["creative-graphic-design/PubLayNet"],
+    },
     "layout-gpt": {"license": "mit", "datasets": ["NSR-1K"]},
     "layout-transformer": {"license": "other", "datasets": ["COCO", "VG-MSDN"]},
     "layoutdiffusion": {
@@ -205,6 +209,13 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": ["creative-graphic-design/Rico", "Web"],
     },
+    "postero": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PKU-PosterLayout",
+            "creative-graphic-design/CGL-Dataset",
+        ],
+    },
     "ralf": {
         "license": "apache-2.0",
         "datasets": [
@@ -228,6 +239,7 @@ EXPECTED_MODEL_NAMES = {
     "layout-dm": "LayoutDM",
     "layout-flow": "LayoutFlow",
     "layout-action": "LayoutAction",
+    "layoutvae": "LayoutVAE",
     "layout-gpt": "LayoutGPT",
     "layout-transformer": "LayoutTransformer",
     "layoutdiffusion": "LayoutDiffusion",
@@ -235,6 +247,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "postero": "PosterO",
     "ralf": "RALF",
     "smarttext": "SmartText",
 }
@@ -246,15 +259,17 @@ EXPECTED_REPOSITORY_LINKS = {
     "layout-transformer": "https://github.com/davidhalladay/LayoutTransformer",
     "layout-action": "https://github.com/BERYLSHEEP/LayoutActionProject",
     "layoutganpp": "https://github.com/ktrk115/const_layout",
+    "layoutvae": "https://github.com/Layout-Generation/layout-generation",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
+    "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/chenqi008/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
 }
 
-PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter"}
+PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
 SHARED_PACKAGE_SUBDIRS = {
     "laygen": "lib/laygen",
     "posgen": "lib/posgen",
