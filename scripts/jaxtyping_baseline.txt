@@ -189,36 +189,3 @@ models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list
 models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
 models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
 models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	torch.Tensor | Sequence[str]	generated_ids: torch.Tensor | Sequence[str],
-models/smarttext/src/smarttext/candidate_generation.py	list[np.ndarray]	resized_images: list[np.ndarray] = []
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	) -> np.ndarray:
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	def _resize_for_scorer(array: np.ndarray, config: SmartTextConfig) -> np.ndarray:
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	image: np.ndarray,
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix1d: np.ndarray,
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix: np.ndarray,
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	matrix_cal: np.ndarray,
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray	saliency: np.ndarray,
-models/smarttext/src/smarttext/candidate_generation.py	np.ndarray | torch.Tensor	saliency: np.ndarray | torch.Tensor,
-models/smarttext/src/smarttext/candidate_generation.py	torch.Tensor	) -> torch.Tensor:
-models/smarttext/src/smarttext/candidate_generation.py	tuple[np.ndarray, int, int]	) -> tuple[np.ndarray, int, int]:
-models/smarttext/src/smarttext/candidate_generation.py	tuple[np.ndarray, tuple[int, int, int, int]]	) -> tuple[np.ndarray, tuple[int, int, int, int]]:
-models/smarttext/src/smarttext/candidate_generation.py	tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]	) -> tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]:
-models/smarttext/src/smarttext/color.py	Image.Image | np.ndarray	image: Image.Image | np.ndarray,
-models/smarttext/src/smarttext/color.py	list[np.ndarray]	def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
-models/smarttext/src/smarttext/color.py	np.ndarray	crop: np.ndarray,
-models/smarttext/src/smarttext/color.py	np.ndarray	def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
-models/smarttext/src/smarttext/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
-models/smarttext/src/smarttext/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/smarttext/src/smarttext/image_processing_smarttext.py	np.ndarray	def _resize_basnet_rgb(image: Image.Image) -> np.ndarray:
-models/smarttext/src/smarttext/modeling_basnet.py	SmartTextSaliencyOutput | tuple[torch.Tensor, ...]	) -> SmartTextSaliencyOutput | tuple[torch.Tensor, ...]:
-models/smarttext/src/smarttext/modeling_basnet.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_basnet.py	torch.Tensor	def normalize_saliency(pred: torch.Tensor) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_basnet.py	tuple[torch.Tensor, ...]	) -> tuple[torch.Tensor, ...]:
-models/smarttext/src/smarttext/modeling_basnet.py	tuple[torch.Tensor, ...] | None	side_outputs: tuple[torch.Tensor, ...] | None = None
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def _channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	self, features: torch.Tensor, rois: torch.Tensor, mode: Literal["roi", "rod"]
-models/smarttext/src/smarttext/modeling_smarttext.py	torch.Tensor	self, x: torch.Tensor
-models/smarttext/src/smarttext/modeling_smarttext.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-models/smarttext/src/smarttext/processing_smarttext.py	torch.Tensor	scores: torch.Tensor,
