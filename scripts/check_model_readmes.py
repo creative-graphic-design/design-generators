@@ -14,19 +14,6 @@ GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git
 ROOT_REPO_BLOB_URL = (
     "https://github.com/creative-graphic-design/design-generators/blob/main/"
 )
-ROOT_RUNTIME_BADGE_TO_LIBRARY = {
-    "transformers": "transformers",
-    "diffusers": "diffusers",
-    "pydantic-ai": "pydantic-ai",
-}
-ROOT_TASK_BADGE_COLORS = {
-    frozenset({"content-agnostic-layout-generation"}): "2f80ed",
-    frozenset({"content-aware-layout-generation"}): "eb5757",
-    frozenset({"layout-evaluation"}): "6b7280",
-    frozenset(
-        {"content-agnostic-layout-generation", "content-aware-layout-generation"}
-    ): "9b51e0",
-}
 ROOT_LIBRARY_BADGE_COLORS = {
     "laygen": "2f80ed",
     "posgen": "00a88f",
@@ -36,8 +23,6 @@ ROOT_LIBRARY_BADGE_COLORS = {
 ROOT_MODEL_TABLE_HEADER = [
     "Model",
     "Venue",
-    "Runtime",
-    "Datasets",
     "Ckpt",
     "Train",
 ]
@@ -344,39 +329,6 @@ def _project_name(member_dir: Path) -> str:
     if not isinstance(name, str):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: project.name missing")
     return name
-
-
-def _member_tasks(member_dir: Path) -> frozenset[str]:
-    tool = _project_metadata(member_dir).get("tool")
-    if not isinstance(tool, dict):
-        raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [tool]")
-    metadata = tool.get("design-generators")
-    if not isinstance(metadata, dict):
-        raise AssertionError(
-            f"{member_dir / 'pyproject.toml'}: missing [tool.design-generators]"
-        )
-    task = metadata.get("task")
-    if isinstance(task, str):
-        return frozenset({task})
-    if isinstance(task, list):
-        task_values: list[str] = []
-        for value in task:
-            if not isinstance(value, str):
-                break
-            task_values.append(value)
-        else:
-            return frozenset(task_values)
-    raise AssertionError(f"{member_dir / 'pyproject.toml'}: invalid task metadata")
-
-
-def _root_task_badge_color(slug: str) -> str:
-    tasks = _member_tasks(REPO_ROOT / "models" / slug)
-    try:
-        return ROOT_TASK_BADGE_COLORS[tasks]
-    except KeyError as exc:
-        raise AssertionError(
-            f"models/{slug}: no root badge color for tasks {tasks}"
-        ) from exc
 
 
 def _normalize_root_repo_link(link: str) -> str:
@@ -715,28 +667,35 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
         )
 
 
-def _assert_runtime_contract(
-    path: Path, text: str, root_runtime_by_slug: dict[str, str]
-) -> None:
+def _assert_runtime_contract(path: Path, text: str) -> None:
     slug = path.parent.name
     frontmatter_library = _frontmatter_scalar(_frontmatter(text), "library_name")
+    metadata = _project_metadata(REPO_ROOT / "models" / slug)
+    tool = metadata.get("tool")
+    if not isinstance(tool, dict):
+        raise AssertionError(f"{path}: missing [tool]")
+    design_generators = tool.get("design-generators")
+    if not isinstance(design_generators, dict):
+        raise AssertionError(f"{path}: missing [tool.design-generators]")
+    pyproject_library = design_generators.get("framework")
+    if not isinstance(pyproject_library, str):
+        raise AssertionError(
+            f"{path}: tool.design-generators.framework must be a string"
+        )
     base_badges = _badge_messages(text, "base")
     if len(base_badges) != 1:
         raise AssertionError(
             f"{path}: expected exactly one base badge, found {base_badges}"
         )
     base_library = base_badges[0]
-    root_library = root_runtime_by_slug.get(slug)
-    if root_library is None:
-        raise AssertionError(f"{path}: root Models table missing {slug}")
     values = {
         "frontmatter library_name": frontmatter_library,
         "base badge": base_library,
-        "root Models Runtime": root_library,
+        "pyproject framework": pyproject_library,
     }
     if len(set(values.values())) != 1:
         raise AssertionError(
-            f"{path}: runtime mismatch across README surfaces {values}"
+            f"{path}: runtime mismatch across package metadata surfaces {values}"
         )
 
 
@@ -1134,7 +1093,7 @@ def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
         )
 
 
-def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
+def _root_model_slugs(path: Path) -> set[str]:
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
     if _split_markdown_table_row(
@@ -1145,7 +1104,7 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
         raise AssertionError(
             f"{path}: Models table must use {', '.join(ROOT_MODEL_TABLE_HEADER)}"
         )
-    runtime_by_slug: dict[str, str] = {}
+    slugs: set[str] = set()
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
         if len(cells) != len(ROOT_MODEL_TABLE_HEADER):
@@ -1153,8 +1112,6 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
         (
             method_cell,
             venue_cell,
-            runtime_cell,
-            datasets_cell,
             checkpoint_cell,
             training_cell,
         ) = cells
@@ -1176,31 +1133,10 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
             raise AssertionError(
                 f"{path}: model link text {model_name!r} != {expected_name!r}"
             )
-        expected_task_color = _root_task_badge_color(slug)
         if len(_static_badge_messages(venue_cell, "venue")) != 1:
             raise AssertionError(
                 f"{path}: Models table Venue cell must contain exactly one venue badge: {line}"
             )
-        runtime_messages = _badge_messages(runtime_cell, "framework")
-        if len(runtime_messages) != 1:
-            raise AssertionError(
-                f"{path}: Models table Runtime cell must contain exactly one framework badge: {line}"
-            )
-        root_library = ROOT_RUNTIME_BADGE_TO_LIBRARY.get(runtime_messages[0])
-        if root_library is None:
-            raise AssertionError(
-                f"{path}: Models table Runtime cell must use a supported base badge"
-            )
-        if not _badge_messages(datasets_cell, "dataset"):
-            raise AssertionError(
-                f"{path}: Models table Datasets cell must contain dataset badges: {line}"
-            )
-        dataset_colors = _static_badge_colors(datasets_cell, "dataset")
-        if any(color != expected_task_color for color in dataset_colors):
-            raise AssertionError(
-                f"{path}: package {slug} dataset badge colors {dataset_colors} must all be {expected_task_color!r}"
-            )
-        runtime_by_slug[slug] = root_library
         if (
             "documented" in checkpoint_cell.lower()
             or "documented" in training_cell.lower()
@@ -1209,7 +1145,8 @@ def _root_packages_runtime_by_slug(path: Path) -> dict[str, str]:
                 f"{path}: Models table reproduction cells must not use status wording"
             )
         _assert_root_reproduction_cells(path, slug, checkpoint_cell, training_cell)
-    return runtime_by_slug
+        slugs.add(slug)
+    return slugs
 
 
 def _assert_root_libraries_table_matches_members(path: Path) -> None:
@@ -1286,11 +1223,8 @@ def _assert_model_doc_sets() -> None:
             )
 
 
-def _assert_root_models_table_matches_members(
-    root_runtime_by_slug: dict[str, str],
-) -> None:
+def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
     member_slugs = _model_member_slugs()
-    root_slugs = set(root_runtime_by_slug)
     missing = sorted(member_slugs - root_slugs)
     extra = sorted(root_slugs - member_slugs)
     if missing or extra:
@@ -1387,16 +1321,16 @@ def _assert_library_name_style(path: Path) -> None:
 
 def check() -> None:
     _assert_model_doc_sets()
-    root_runtime_by_slug = _root_packages_runtime_by_slug(REPO_ROOT / "README.md")
+    root_slugs = _root_model_slugs(REPO_ROOT / "README.md")
     _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
-    _assert_root_models_table_matches_members(root_runtime_by_slug)
+    _assert_root_models_table_matches_members(root_slugs)
     _assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
     _assert_generated_docs_targets_match_members()
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
         _assert_expected_frontmatter(path, text)
-        _assert_runtime_contract(path, text, root_runtime_by_slug)
+        _assert_runtime_contract(path, text)
         _assert_heading_order(path, text)
         _assert_model_pip_install_snippet(path, text)
         _assert_model_summary_subject(path, text)

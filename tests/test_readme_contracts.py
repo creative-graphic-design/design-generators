@@ -75,7 +75,7 @@ def test_static_v1_badges_reject_double_hyphen_query_values(tmp_path: Path) -> N
         check_readme_badges._iter_badges(readme)
 
 
-def test_root_models_table_accepts_linked_model_names_and_framework_badges(
+def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:
     check_model_readmes = _load_check_model_readmes()
@@ -85,21 +85,19 @@ def test_root_models_table_accepts_linked_model_names_and_framework_badges(
 
 ## Models
 
-| Model | Venue | Runtime | Datasets | Ckpt | Train |
-| :--- | :---: | --- | --- | --- | --- |
-| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | ![framework: transformers](https://img.shields.io/static/v1?label=.&message=transformers&color=yellow&logo=huggingface&logoColor=white) | [![dataset: RICO25](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=RICO25&color=2f80ed)](https://huggingface.co/datasets/creative-graphic-design/Rico) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+| Model | Venue | Ckpt | Train |
+| :--- | :---: | --- | --- |
+| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
 
 ## Libraries
 """,
         encoding="utf-8",
     )
 
-    assert check_model_readmes._root_packages_runtime_by_slug(readme) == {
-        "layoutformerpp": "transformers"
-    }
+    assert check_model_readmes._root_model_slugs(readme) == {"layoutformerpp"}
 
 
-def test_root_models_table_rejects_runtime_without_framework_badge(
+def test_root_models_table_rejects_metadata_columns(
     tmp_path: Path,
 ) -> None:
     check_model_readmes = _load_check_model_readmes()
@@ -118,8 +116,8 @@ def test_root_models_table_rejects_runtime_without_framework_badge(
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="exactly one framework badge"):
-        check_model_readmes._root_packages_runtime_by_slug(readme)
+    with pytest.raises(AssertionError, match="Model, Venue, Ckpt, Train"):
+        check_model_readmes._root_model_slugs(readme)
 
 
 def test_readme_badge_policy_derives_model_label_from_alt_prefix(
@@ -140,53 +138,15 @@ def test_readme_badge_policy_derives_model_label_from_alt_prefix(
     ] == [("model", "LayoutGAN++", "blue", None)]
 
 
-def test_root_readme_badge_policy_enforces_runtime_colors_and_logos() -> None:
+def test_root_readme_models_table_omits_generated_metadata_badges() -> None:
     check_readme_badges = _load_check_readme_badges()
-    runtime_badges = [
+    metadata_badges = [
         badge
         for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
-        if badge.label == "framework"
+        if badge.label in {"dataset", "framework", "task"}
     ]
 
-    assert {(badge.message, badge.color, badge.logo) for badge in runtime_badges} == {
-        ("transformers", "yellow", "huggingface"),
-        ("diffusers", "red", "huggingface"),
-        ("pydantic-ai", "violet", "pydantic"),
-    }
-
-
-def test_root_readme_badge_policy_enforces_task_colored_dataset_badges() -> None:
-    check_readme_badges = _load_check_readme_badges()
-    dataset_badges = [
-        badge
-        for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
-        if badge.label == "dataset" and badge.message in {"RICO25", "PubLayNet"}
-    ]
-
-    assert {(badge.message, badge.color, badge.logo) for badge in dataset_badges} == {
-        ("RICO25", "2f80ed", None),
-        ("RICO25", "6b7280", None),
-        ("RICO25", "9b51e0", None),
-        ("PubLayNet", "2f80ed", None),
-        ("PubLayNet", "6b7280", None),
-        ("PubLayNet", "9b51e0", None),
-    }
-
-
-def test_root_readme_badge_policy_enforces_task_legend_badges() -> None:
-    check_readme_badges = _load_check_readme_badges()
-    task_badges = [
-        badge
-        for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
-        if badge.label == "task"
-    ]
-
-    assert {(badge.message, badge.color, badge.logo) for badge in task_badges} == {
-        ("content-agnostic", "2f80ed", None),
-        ("content-aware", "eb5757", None),
-        ("layout-evaluation", "6b7280", None),
-        ("mixed", "9b51e0", None),
-    }
+    assert metadata_badges == []
 
 
 def test_root_readme_badge_policy_enforces_library_badges() -> None:
@@ -244,18 +204,16 @@ def test_root_models_table_requires_training_link_when_file_exists(
 
 ## Models
 
-| Model | Venue | Runtime | Datasets | Ckpt | Train |
-| --- | --- | --- | --- | --- | --- |
-| [`LayoutFlow`](models/layout-flow/README.md) | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | ![framework: diffusers](https://img.shields.io/static/v1?label=.&message=diffusers&color=red&logo=huggingface&logoColor=white) | [![dataset: PubLayNet](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=PubLayNet&color=2f80ed)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
+| Model | Venue | Ckpt | Train |
+| --- | --- | --- | --- |
+| [`LayoutFlow`](models/layout-flow/README.md) | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
 
 ## Libraries
 """,
         encoding="utf-8",
     )
 
-    assert check_model_readmes._root_packages_runtime_by_slug(readme) == {
-        "layout-flow": "diffusers"
-    }
+    assert check_model_readmes._root_model_slugs(readme) == {"layout-flow"}
 
 
 def _model_workspace_slugs() -> set[str]:
