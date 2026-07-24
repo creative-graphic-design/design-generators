@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import cast
 
 import torch
+from jaxtyping import Float, Int
 
 from laygen.common.bbox import (
     BoxFormat,
@@ -18,10 +19,10 @@ from laygen.common.bbox import (
 
 
 def public_to_ltwh(
-    bbox: torch.Tensor,
+    bbox: Float[torch.Tensor, "... 4"],
     *,
     box_format: BoxFormat | str = BoxFormat.xywh,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "... 4"]:
     """Convert normalized public boxes to normalized left-top ``ltwh``.
 
     Args:
@@ -50,14 +51,16 @@ def public_to_ltwh(
     raise ValueError(f"Unsupported box_format: {box_format}")
 
 
-def ltwh_to_public_xywh(bbox: torch.Tensor) -> torch.Tensor:
+def ltwh_to_public_xywh(
+    bbox: Float[torch.Tensor, "... 4"],
+) -> Float[torch.Tensor, "... 4"]:
     """Convert normalized ``ltwh`` boxes to public normalized center ``xywh``."""
     return clamp_boxes(ltwh_to_xywh(bbox.to(dtype=torch.float32)))
 
 
 def discretize_ltwh(
-    bbox: torch.Tensor, *, num_x_grid: int, num_y_grid: int
-) -> torch.LongTensor:
+    bbox: Float[torch.Tensor, "... 4"], *, num_x_grid: int, num_y_grid: int
+) -> Int[torch.Tensor, "... 4"]:
     """Discretize normalized ``ltwh`` with the reference ``floor(coord*(grid-1))`` rule.
 
     Args:
@@ -82,8 +85,8 @@ def discretize_ltwh(
 
 
 def continuize_ltwh(
-    ids: torch.Tensor, *, num_x_grid: int, num_y_grid: int
-) -> torch.FloatTensor:
+    ids: Int[torch.Tensor, "... 4"], *, num_x_grid: int, num_y_grid: int
+) -> Float[torch.Tensor, "... 4"]:
     """Convert discrete ``ltwh`` ids back to normalized coordinates.
 
     Args:
@@ -109,8 +112,9 @@ def continuize_ltwh(
 
 
 def relative_ltwh_to_absolute_ltwh(
-    relative_bbox: torch.Tensor, group_bbox: torch.Tensor
-) -> torch.Tensor:
+    relative_bbox: Float[torch.Tensor, "... 4"],
+    group_bbox: Float[torch.Tensor, "... 4"],
+) -> Float[torch.Tensor, "... 4"]:
     """Convert group-relative ``ltwh`` boxes to absolute normalized ``ltwh``.
 
     Args:
@@ -144,21 +148,21 @@ def relative_ltwh_to_absolute_ltwh(
     )
 
 
-def ltwh_to_ltrb(bbox: torch.Tensor) -> torch.Tensor:
+def ltwh_to_ltrb(bbox: Float[torch.Tensor, "... 4"]) -> Float[torch.Tensor, "... 4"]:
     """Convert ``ltwh`` boxes to ``ltrb`` boxes."""
     left, top, width, height = bbox.unbind(dim=-1)
     return torch.stack((left, top, left + width, top + height), dim=-1)
 
 
-def ltrb_to_ltwh(bbox: torch.Tensor) -> torch.Tensor:
+def ltrb_to_ltwh(bbox: Float[torch.Tensor, "... 4"]) -> Float[torch.Tensor, "... 4"]:
     """Convert ``ltrb`` boxes to ``ltwh`` boxes."""
     left, top, right, bottom = bbox.unbind(dim=-1)
     return torch.stack((left, top, right - left, bottom - top), dim=-1)
 
 
 def public_to_ltrb(
-    bbox: torch.Tensor, *, box_format: BoxFormat | str = BoxFormat.xywh
-) -> torch.Tensor:
+    bbox: Float[torch.Tensor, "... 4"], *, box_format: BoxFormat | str = BoxFormat.xywh
+) -> Float[torch.Tensor, "... 4"]:
     """Convert normalized public boxes to normalized ``ltrb``."""
     fmt = normalize_box_format(box_format)
     if fmt is BoxFormat.xywh:
