@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_layout_flow import LayoutFlowConfig
 from .modeling_layout_flow import LayoutFlowTransformerModel
@@ -42,8 +43,8 @@ def build_pipeline(config: LayoutFlowConfig) -> LayoutFlowPipeline:
 
 
 def convert_lightning_state_dict(
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Convert original Lightning checkpoint keys to local model keys.
 
     Args:
@@ -61,7 +62,7 @@ def convert_lightning_state_dict(
         >>> list(out)
         ['backbone.linear.weight']
     """
-    converted: dict[str, torch.Tensor] = {}
+    converted: dict[str, Shaped[torch.Tensor, "..."]] = {}
     for key, value in state_dict.items():
         if key.startswith("model.backbone."):
             converted[f"backbone.{key.removeprefix('model.backbone.')}"] = value

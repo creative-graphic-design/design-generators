@@ -19,6 +19,7 @@ dependencies = [
     "layout-corrector",
     "layout-detr",
     "layoutdiffusion",
+    "layout-fid",
     "layout-flow",
     "layout-gpt",
     "layout-transformer",
@@ -190,6 +191,7 @@ housegan = { workspace = true }
 layout-corrector = { workspace = true }
 layout-detr = { workspace = true }
 layoutdiffusion = { workspace = true }
+layout-fid = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
 layout-transformer = { workspace = true }

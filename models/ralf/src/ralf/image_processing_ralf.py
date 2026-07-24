@@ -7,6 +7,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from jaxtyping import Float
 from PIL import Image
 from transformers import BatchFeature
 from transformers.image_processing_utils import BaseImageProcessor
@@ -21,7 +22,9 @@ def _as_list(value: ImageInput | Sequence[ImageInput]) -> list[ImageInput]:
     return [value]  # type: ignore[list-item]
 
 
-def _image_to_tensor(image: ImageInput, *, channels: int) -> torch.Tensor:
+def _image_to_tensor(
+    image: ImageInput, *, channels: int
+) -> Float[torch.Tensor, "channels height width"]:
     if isinstance(image, Image.Image):
         array = np.asarray(image.convert("RGB" if channels == 3 else "L")).copy()
         tensor = torch.from_numpy(array)

@@ -7,6 +7,7 @@ from typing import Literal
 from typing import Protocol, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 
 from laygen.common.bbox import ltwh_to_xywh, ltrb_to_xywh
 from posgen.common.labels import DatasetName, normalize_dataset_name
@@ -30,7 +31,9 @@ RALF_STYLE_LABEL2ID = {
 }
 
 
-def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch.Tensor:
+def _remap_retrieval_labels(
+    labels: Int[torch.Tensor, "elements"], dataset: DatasetName
+) -> Int[torch.Tensor, "elements"]:
     if dataset is not DatasetName.pku_posterlayout:
         return labels
     if labels.numel() == 0:
@@ -38,7 +41,9 @@ def _remap_retrieval_labels(labels: torch.Tensor, dataset: DatasetName) -> torch
     return PKU_ORG_TO_CHECKPOINT_LABEL_ID[labels.clamp(0, 2)]
 
 
-def _labels_to_tensor(labels: object, dataset: DatasetName) -> torch.Tensor:
+def _labels_to_tensor(
+    labels: object, dataset: DatasetName
+) -> Int[torch.Tensor, "elements"]:
     values = list(cast(list[object], labels))
     if values and isinstance(values[0], str):
         label2id = RALF_STYLE_LABEL2ID[dataset]
@@ -163,7 +168,7 @@ def load_ralf_dataset(
 
 def build_retrieved_batch(
     dataset: _IndexableDataset,
-    indexes: torch.Tensor,
+    indexes: Int[torch.Tensor, "batch candidates"],
     *,
     max_seq_length: int,
     dataset_name: RalfDatasetName = "cgl",
@@ -193,11 +198,14 @@ def build_retrieved_batch(
             sample = normalize_org_sample(dataset[int(idx)], normalized_dataset)
             bbox = torch.zeros(max_seq_length, 4)
             labels = torch.zeros(max_seq_length, dtype=torch.long)
-            mask = torch.zeros(max_seq_length, dtype=torch.bool)
-            sample_labels = _remap_retrieval_labels(
-                cast(torch.Tensor, sample["labels"]).long(), normalized_dataset
+            mask: Bool[torch.Tensor, "elements"] = torch.zeros(
+                max_seq_length, dtype=torch.bool
             )
-            sample_bbox = cast(torch.Tensor, sample["bbox"])
+            sample_labels = _remap_retrieval_labels(
+                cast(Int[torch.Tensor, "sample_elements"], sample["labels"]).long(),
+                normalized_dataset,
+            )
+            sample_bbox = cast(Float[torch.Tensor, "sample_elements 4"], sample["bbox"])
             length = min(max_seq_length, sample_labels.numel())
             bbox[:length] = sample_bbox[:length]
             labels[:length] = sample_labels[:length]
