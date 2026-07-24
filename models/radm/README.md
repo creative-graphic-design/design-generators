@@ -1,0 +1,207 @@
+---
+language:
+  - en
+license: "other"
+library_name: "diffusers"
+pipeline_tag: "other"
+tags:
+  - "radm"
+  - "layout-generation"
+  - "poster-layout"
+datasets:
+  - "creative-graphic-design/CGL-Dataset"
+model-index:
+  - name: "RADM"
+    results:
+      - task:
+          type: "other"
+          name: "Content-aware poster layout generation"
+        dataset:
+          type: "creative-graphic-design/CGL-Dataset"
+          name: "CGL"
+          split: "local reference fixture"
+        metrics:
+          - type: "vendor-parity"
+            value: "not run"
+            name: "Vendor parity"
+---
+
+# Model Card for RADM
+
+[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2306.09086&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2306.09086)
+![venue](https://img.shields.io/static/v1?label=venue&message=CIKM+2023&color=purple&style=flat-square)
+![license](https://img.shields.io/static/v1?label=license&message=review-needed&color=yellow&style=flat-square)
+![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
+
+This package ports [RADM](https://arxiv.org/abs/2306.09086), the CIKM 2023 relation-aware diffusion method for controllable poster layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
+
+## Model Details
+
+### Model Description
+
+RADM is a proposal-box diffusion pipeline for content-aware poster layout generation. The public pipeline accepts a content image plus optional RADM text-feature tensors, runs reverse diffusion over normalized proposal boxes, and returns normalized center `xywh` boxes, dataset-local labels, a valid-element `mask`, `id2label`, scores, and optional denoising trajectory metadata.
+
+- **Developed by:** RADM authors.
+- **Shared by:** creative-graphic-design.
+- **Model type:** content-aware poster layout generation.
+- **Language(s) (NLP):** not applicable.
+- **License:** unconfirmed for the checked original source and weights.
+
+### Model Sources
+
+- **Repository:** [RADM repository](https://github.com/DUY-Semantics/RADM)
+- **Paper:** [arXiv 2306.09086](https://arxiv.org/abs/2306.09086)
+- **Original checkpoint host:** no released RADM checkpoint URL was found in the checked source.
+
+## Supported Checkpoints
+
+| Checkpoint | Hub ID | Status |
+| --- | --- | --- |
+| CGL | [`creative-graphic-design/radm-cgl`](https://huggingface.co/creative-graphic-design/radm-cgl) | not-published |
+| CGL-v2 | [`creative-graphic-design/radm-cgl-v2`](https://huggingface.co/creative-graphic-design/radm-cgl-v2) | not-published |
+
+## Uses
+
+### Direct Use
+
+Use this package for local RADM conversion experiments, CPU smoke tests, and gated original-code parity preparation after a checkpoint and license have been confirmed.
+
+The first public condition is `content_image`. `images` or `content["image"]` is required; `text_features` and `text_mask` are auxiliary payload fields under the same content-image condition.
+
+### Downstream Use
+
+Generated poster layouts may feed research evaluation, poster composition studies, or downstream rendering systems after dataset, license, and quality review.
+
+### Out-of-Scope Use
+
+Do not use synthetic RADM smoke artifacts as trained checkpoints, claim original-code agreement without generated references, or redistribute converted weights before checkpoint and license status are resolved.
+
+## Bias, Risks, and Limitations
+
+No public RADM checkpoint is confirmed here. The checked vendor source has no license file, so converted weight redistribution is blocked until maintainers verify the source license, checkpoint source, and dataset terms.
+
+### Recommendations
+
+Use explicit local paths for checkpoints, datasets, text features, and vendor source. Run the gated parity workflow before comparing generated layouts against the original method.
+
+## How to Get Started with the Model
+
+Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "radm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/radm"
+```
+
+Clone this repository, install the workspace member, and run the conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/REPRODUCING.md). Those steps create `.cache/radm/converted/cgl`.
+
+```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv sync --package radm
+uv run --package radm python
+```
+
+```python
+from PIL import Image
+from radm import RADMPipeline
+
+path = ".cache/radm/converted/cgl"
+# After Hub publication: from_pretrained("creative-graphic-design/radm-cgl")
+pipe = RADMPipeline.from_pretrained(path)
+out = pipe(Image.new("RGB", (512, 768)), seed=0)
+
+print(out.bbox)
+print(out.labels)
+print(out.mask)
+```
+
+## Training Details
+
+### Training Data
+
+| Dataset | Dataset ID | Notes |
+| --- | --- | --- |
+| CGL | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster layout and content-image metadata |
+| CGL-v2 | CGL-v2 local distribution | text-feature and validation path remains local until the dataset source is confirmed |
+
+RADM issue metadata names CGL training data and separate testing/text-feature assets. The short testing-data URL recorded in the issue redirected away from a usable asset endpoint during planning, so local asset validation is still required.
+
+### Training Procedure
+
+No training run is included in this package. RADM is in the train-ourselves lane because no released checkpoint has been confirmed.
+
+#### Speeds, Sizes, Times
+
+Training-time and carbon measurements are unknown.
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+#### Testing Data
+
+Vendor parity requires local original-code outputs generated from a user-supplied checkpoint, CGL dataset root, text-feature root, and one selected GPU. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+
+#### Factors
+
+Parity is disaggregated by checkpoint hash, config hash, seed, timestep sequence, proposal noise, denoiser logits, denoised boxes, post-threshold boxes, labels, scores, and NMS indices.
+
+#### Metrics
+
+Metrics are exact scheduler/timestep agreement, exact tensor equality where the converted and original paths share operations, and explicit tolerance only after dtype, TF32, operation-order, and Detectron2 versus torchvision differences are diagnosed.
+
+### Parity Results
+
+| Dataset | Compared path | Cases | Assertion |
+| --- | --- | ---: | --- |
+| CGL | original Detectron2 RADM path vs. converted `🧨diffusers` path | 0 | not run; checkpoint and license are unconfirmed |
+| Synthetic smoke | randomly initialized RADM pipeline save/load | 1 | schema smoke only, no original-code parity claim |
+
+No accepted original-code parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
+
+## Reproducibility
+
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/REPRODUCING.md) for the commands that inspect local assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+
+## Environmental Impact
+
+No new model training is performed by this package. Conversion, reference generation, and parity costs depend on the selected checkpoint and local hardware.
+
+## Technical Specifications
+
+### Model Architecture and Objective
+
+RADM samples proposal boxes and denoises them with relation-aware image and text conditioning. The package-level runtime keeps the image/text feature processor, proposal scheduler, denoiser, and postprocessing separate so converted artifacts can load through `🧨diffusers` component folders.
+
+### Compute Infrastructure
+
+Vendor parity commands are intended for one explicitly selected GPU when the original Detectron2 path is available.
+
+#### Hardware
+
+CPU is sufficient for import, tiny random-weight smoke tests, and config round trips. CUDA is required for heavyweight original-code parity.
+
+#### Software
+
+Use `uv run --package radm ...` from the repository root so workspace dependency sources and extras resolve correctly.
+
+## License
+
+Repository wrapper code is Apache-2.0. The checked original RADM source has no license file, and converted weight redistribution is blocked until license and checkpoint status are confirmed.
+
+## Citation
+
+```bibtex
+@inproceedings{zhang2023radm,
+  title={Relation-Aware Diffusion Model for Controllable Poster Layout Generation},
+  author={Zhang, Yiheng and others},
+  booktitle={Proceedings of the 32nd ACM International Conference on Information and Knowledge Management},
+  year={2023}
+}
+```

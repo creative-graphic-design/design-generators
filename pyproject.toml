@@ -35,6 +35,7 @@ dependencies = [
     "parse-then-place",
     "postero",
     "posgen",
+    "radm",
     "ralf",
     "smarttext",
     "traingen",
@@ -207,6 +208,7 @@ layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
 postero = { workspace = true }
 posgen = { workspace = true }
+radm = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
 traingen = { workspace = true }
