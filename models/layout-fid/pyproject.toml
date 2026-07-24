@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 vendor = [
+    "einops",
     "fsspec",
     "pytorch-fid",
 ]

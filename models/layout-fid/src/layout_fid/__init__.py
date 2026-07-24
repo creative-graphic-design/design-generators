@@ -22,20 +22,11 @@ from .modeling_layout_fid import LayoutFIDModel, LayoutFIDOutput
 from .pipeline_layout_fid import LayoutFIDEvaluator
 from .processing_layout_fid import LayoutFIDBatch, LayoutFIDProcessor
 
-FIDNetFeatureExtractor = LayoutFIDProcessor
-FIDNetModel = LayoutFIDModel
-LayoutFIDCalculator = LayoutFIDEvaluator
-LayoutFIDFeatureExtractor = LayoutFIDProcessor
-
 __all__ = [
-    "FIDNetFeatureExtractor",
-    "FIDNetModel",
     "LayoutFIDArchitecture",
     "LayoutFIDBatch",
-    "LayoutFIDCalculator",
     "LayoutFIDConfig",
     "LayoutFIDEvaluator",
-    "LayoutFIDFeatureExtractor",
     "LayoutFIDModel",
     "LayoutFIDOutput",
     "LayoutFIDProcessor",

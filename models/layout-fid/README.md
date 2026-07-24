@@ -39,7 +39,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package evaluates generated layouts with FIDNet/LayoutNet feature encoders and Frechet statistics through a `transformers` model and a repository-schema processor.
+This package is a `transformers` port of the layout-fid FIDNet/LayoutNet evaluator. It exposes feature extraction and Frechet-statistics scoring for generated layouts through the repository layout schema.
 
 ## Model Details
 
@@ -47,7 +47,8 @@ This package evaluates generated layouts with FIDNet/LayoutNet feature encoders 
 
 Layout FID is a feature-extraction and scoring package for normalized layout tensors. It accepts public `bbox`, `labels`, `mask`, and `id2label` inputs, converts them to the model tensor convention selected by config, extracts layout features, and computes Frechet distance against stored real-distribution statistics.
 
-- **Developed by:** creative-graphic-design.
+- **Developed by:** Kotaro Kikuchi, Edgar Simo-Serra, Mayu Otani, and Kota Yamaguchi.
+- **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
 - **Model type:** layout evaluation.
 - **Language(s) (NLP):** not applicable.
