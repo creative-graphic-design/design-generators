@@ -68,6 +68,67 @@ Training configs live under `models/layout-flow/configs/training`.
 | S4 | Validation and scheduler behavior | Confirms package-local validation metrics can drive scheduler behavior when those metrics are implemented. |
 | S5 | Full-run statistical comparison | Compares full RICO25 and PubLayNet learning behavior against the vendor training setup. |
 
+## Reproduction Results
+
+LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent on training-seed n=3: FID 5.7111 +/- 0.7459 ours vs. 6.3907 +/- 0.8031 vendor, mIoU 0.5562 +/- 0.0102 ours vs. 0.5631 +/- 0.0200 vendor; PubLayNet loss curves nearly match, with final `train_loss_epoch` 0.1529803425 ours vs. 0.1530758440 vendor, and generated metrics are comparable or better overall.
+
+The RICO25 numbers use training seeds `42975`, `42976`, and `42977`, epoch 1000, and fixed evaluation seed `42975`; the PubLayNet numbers use evaluation seeds `42975`, `42976`, and `42977` on one final checkpoint pair at epoch 1000 / global step 609000.
+
+| Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| RICO25 | vendor | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
+| RICO25 | ours | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
+| PubLayNet | vendor | evaluation-seed n=3 | 16.5893 +/- 0.2400 | 0.1072 +/- 0.0048 | 0.0313 +/- 0.0007 | 0.4290 +/- 0.0044 | final `train_loss_epoch` 0.1530758440 |
+| PubLayNet | ours | evaluation-seed n=3 | 11.9050 +/- 0.5273 | 0.1160 +/- 0.0033 | 0.0303 +/- 0.0012 | 0.4151 +/- 0.0025 | final `train_loss_epoch` 0.1529803425 |
+
+PubLayNet train-loss agreement over the 1000 common epochs has final difference -0.0000955015, mean absolute difference 0.0002493398, RMSE 0.0003080925, correlation 0.9995266371, and last-100 mean relative difference 0.0017203791.
+
+PubLayNet n=3 is evaluation-seed n=3 on one final checkpoint pair; true training-seed n=3 needs additional full runs.
+
+Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5065491554), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, `.cache/layout-flow/full-run/eval-publaynet/vendor-protocol-eval-seed-n3-summary.csv`, and local train-loss comparison outputs under `.cache/layout-flow/full-run/eval-publaynet/`.
+
+### Reproducing These Results
+
+1. Train the package-local implementation from the repository root.
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra training \
+  python -m traingen.lightning.cli fit \
+  --config models/layout-flow/configs/training/layoutflow_<rico25|publaynet>.yaml \
+  --model.init_args.scheduler=null --model.init_args.fid_calc_every_n=0 \
+  --trainer.accelerator=gpu --trainer.devices=1 --trainer.max_epochs=1000 \
+  --trainer.limit_val_batches=0 --trainer.num_sanity_val_steps=0 \
+  --data.init_args.batch_size=512 \
+  --trainer.default_root_dir=.cache/layout-flow/full-run/ours-<rico25|publaynet>
+```
+
+2. Train the vendor baseline from `vendor/layout-flow`.
+
+```bash
+cd vendor/layout-flow
+CUDA_VISIBLE_DEVICES=<gpu-index> python src/train.py \
+  experiment=LayoutFlow_<RICO|PubLayNet> dataset=<RICO|PubLayNet> model=LayoutFlow \
+  trainer.max_epochs=1000 model.scheduler=null model.fid_calc_every_n=0 \
+  +trainer.limit_val_batches=0 +trainer.num_sanity_val_steps=0 \
+  dataset.dataset.data_path=../../.cache/layout-flow/data/<rico25|publaynet>
+```
+
+3. Evaluate with the vendor protocol from `vendor/layout-flow`.
+
+```bash
+cd vendor/layout-flow
+CUDA_VISIBLE_DEVICES=<gpu-index> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
+TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
+uv run --project ../.. --package layout-flow --extra vendor --with rootutils \
+  python src/test.py \
+  checkpoint=../../.cache/layout-flow/full-run/<vendor-dataset>/checkpoints/last.ckpt \
+  model=LayoutFlow dataset=<RICO|PubLayNet> task=uncond cond_mask=uncond \
+  ode_solver=euler model.inference_steps=100 calc_miou=True multirun=False \
+  dataset.dataset.data_path=../../.cache/layout-flow/data/<rico25|publaynet>
+```
+
+For package-local checkpoints, replace the checkpoint path with `../../.cache/layout-flow/full-run/<ours-dataset>/eval-vendor-protocol/last-vendor-compatible.ckpt` after converting the raw package checkpoint to the vendor-compatible format.
+
 ## Launch Training
 
 Start a regular RICO25 training run. Until package-local FID validation is implemented, disable the plateau scheduler and validation batches for full training.
