@@ -44,6 +44,14 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   the vendor/original implementation in identifiers, docstrings, comments, or
   config names; vendor references belong only in conversion modules,
   `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- Tensor and array annotations in package source (`models/*/src`, `lib/*/src`)
+  must use fully qualified jaxtyping shaped types such as
+  `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
+  are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Write jaxtyping shaped types inline at the annotation site. Do not introduce
+  module-level aliases such as `FooTensor = Float[...]` or
+  `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
+  `scripts/jaxtyping_alias_baseline.txt`.
 
 ## Repo-Local Skills
 
