@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, cast
 
 import torch
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
@@ -122,7 +123,10 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | Sequence[ImageInput]
+        | Shaped[torch.Tensor, "..."]
+        | None = None,
         *,
         content: Mapping[str, object] | None = None,
         prompt: str | Sequence[str] | None = None,
@@ -131,13 +135,16 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: torch.Tensor
+        labels: Int[torch.Tensor, "batch elements"]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: torch.Tensor | None = None,
-        mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None = None,
-        num_elements: int | Sequence[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -148,7 +155,7 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         | str = BackgroundPreprocessing.none,
         out_jittering_strength: float = 0.0,
         out_postprocessing: PostprocessingMode | str = PostprocessingMode.none,
-        latents: torch.Tensor | None = None,
+        latents: Float[torch.Tensor, "batch elements latent"] | None = None,
     ) -> LayoutGenerationOutput:
         """Generate layouts for a background image and per-element text labels."""
         normalize_condition_type(condition_type)
