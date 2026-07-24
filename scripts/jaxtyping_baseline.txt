@@ -246,67 +246,6 @@ models/lace/src/lace/scheduling_lace.py	torch.Tensor	prev_sample: torch.Tensor
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	sample: torch.Tensor,
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	timestep: torch.Tensor,
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	timesteps: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/layousyn/src/layousyn/modeling_layousyn.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
-models/layousyn/src/layousyn/modeling_layousyn.py	np.ndarray	def get_1d_sincos_pos_embed(embed_dim: int, max_len: int) -> np.ndarray:
-models/layousyn/src/layousyn/modeling_layousyn.py	np.ndarray	def get_1d_sincos_pos_embed_from_grid(embed_dim: int, pos: np.ndarray) -> np.ndarray:
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	) -> torch.Tensor:
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	c: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	caption: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	caption_padding_mask: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def forward(self, x: torch.Tensor, c: torch.Tensor) -> torch.Tensor:
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	def modulate(x: torch.Tensor, shift: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	pos_embed: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	self.y_embedding: torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	self.y_padding_mask: torch.Tensor
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x_enc: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	x_padding_mask: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_null_embedding: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_null_embedding_mask: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor	y_padding_mask: torch.Tensor,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	caption: torch.Tensor | None,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	caption_padding_mask: torch.Tensor | None,
-models/layousyn/src/layousyn/modeling_layousyn.py	torch.Tensor | None	force_drop_ids: torch.Tensor | None = None,
-models/layousyn/src/layousyn/modeling_layousyn.py	tuple[torch.Tensor | None, torch.Tensor | None]	) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-models/layousyn/src/layousyn/modeling_layousyn.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
-models/layousyn/src/layousyn/pipeline_layousyn.py	LayoutGenerationOutput | dict[str, torch.Tensor | object]	) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
-models/layousyn/src/layousyn/pipeline_layousyn.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/layousyn/src/layousyn/pipeline_layousyn.py	dict[str, torch.Tensor]	self, model_kwargs: dict[str, torch.Tensor], batch_size: int
-models/layousyn/src/layousyn/pipeline_layousyn.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None, labels: list[list[str]]
-models/layousyn/src/layousyn/processing_layousyn.py	LayoutGenerationOutput | dict[str, torch.Tensor | object]	) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
-models/layousyn/src/layousyn/processing_layousyn.py	Sequence[str] | Sequence[Sequence[str]] | torch.Tensor | np.ndarray | None	labels: Sequence[str]
-models/layousyn/src/layousyn/processing_layousyn.py	float | Sequence[float] | torch.Tensor	self, aspect_ratio: float | Sequence[float] | torch.Tensor, batch_size: int
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	) -> torch.Tensor:
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	aspect_ratio: torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	caption_embeds: torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	caption_padding_mask: torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	concept_embeds: torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	concept_padding_mask: torch.Tensor
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	def _encode_concepts(self, labels: list[list[str]]) -> torch.Tensor:
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	sample: torch.Tensor,
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor	self, embeds: torch.Tensor, batch_size: int
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor | np.ndarray | list[object]	bbox: torch.Tensor | np.ndarray | list[object],
-models/layousyn/src/layousyn/processing_layousyn.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None,
-models/layousyn/src/layousyn/processing_layousyn.py	tuple[torch.Tensor, torch.Tensor]	def _encode_captions(self, prompts: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
-models/layousyn/src/layousyn/scheduling_layousyn.py	LayouSynSchedulerOutput | tuple[torch.Tensor]	) -> LayouSynSchedulerOutput | tuple[torch.Tensor]:
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	) -> torch.Tensor:
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	def _set_betas(self, betas: torch.Tensor) -> None:
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	model_output: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	model_var_values: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	noise: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	original_samples: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	pred_original_sample: torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	pred_xstart: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	prev_sample: torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	sample: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor, eps: torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor, pred_xstart: torch.Tensor
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	timestep: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	timesteps: torch.Tensor,
-models/layousyn/src/layousyn/scheduling_layousyn.py	torch.Tensor	values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
 models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	remapped: dict[str, torch.Tensor] = {}
 models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
 models/layout-action/src/layout_action/conversion.py	tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]	) -> tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]:
