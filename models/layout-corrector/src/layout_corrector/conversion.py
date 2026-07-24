@@ -8,6 +8,7 @@ from typing import Final, TypedDict, cast
 
 import torch
 import yaml
+from jaxtyping import Shaped
 from laygen.common.labels import normalize_dataset_name
 
 from .configuration_layout_corrector import CRELLO_BBOX_DATASET, LayoutCorrectorConfig
@@ -99,8 +100,8 @@ def remap_corrector_key(key: str) -> str:
 
 
 def split_original_corrector_state_dict(
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Strip original wrapper prefixes from a corrector state dict.
 
     Args:
@@ -112,7 +113,9 @@ def split_original_corrector_state_dict(
     return {remap_corrector_key(key): value for key, value in state_dict.items()}
 
 
-def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+def load_original_corrector_state_dict(
+    path: str | Path,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load and remap an original corrector checkpoint.
 
     Args:
@@ -130,7 +133,7 @@ def corrector_config_from_original(
     *,
     dataset: str,
     config_path: str | Path,
-    state_dict: dict[str, torch.Tensor],
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
     layout_dm: object,
 ) -> LayoutCorrectorConfig:
     """Build a Layout-Corrector config from original files.

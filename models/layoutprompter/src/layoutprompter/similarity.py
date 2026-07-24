@@ -6,11 +6,11 @@ from collections import Counter
 from itertools import permutations
 
 import numpy as np
-from numpy.typing import NDArray
+from jaxtyping import Float, Int
 
 
 def labels_similarity(
-    labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
+    labels_1: Int[np.ndarray, "elements"], labels_2: Int[np.ndarray, "elements"]
 ) -> float:
     """Compute the reference multiset label overlap score."""
     values_1 = [int(value) for value in labels_1.reshape(-1).tolist()]
@@ -26,10 +26,10 @@ def labels_similarity(
 
 
 def bboxes_similarity(
-    labels_1: NDArray[np.int64],
-    bboxes_1: NDArray[np.float32],
-    labels_2: NDArray[np.int64],
-    bboxes_2: NDArray[np.float32],
+    labels_1: Int[np.ndarray, "elements_1"],
+    bboxes_1: Float[np.ndarray, "elements_1 4"],
+    labels_2: Int[np.ndarray, "elements_2"],
+    bboxes_2: Float[np.ndarray, "elements_2 4"],
 ) -> float:
     """Compute LayoutPrompter's label-masked bbox matching score."""
     if len(labels_1) == 0 or len(labels_2) == 0:
@@ -52,10 +52,10 @@ def bboxes_similarity(
 
 
 def labels_bboxes_similarity(
-    labels_1: NDArray[np.int64],
-    bboxes_1: NDArray[np.float32],
-    labels_2: NDArray[np.int64],
-    bboxes_2: NDArray[np.float32],
+    labels_1: Int[np.ndarray, "elements_1"],
+    bboxes_1: Float[np.ndarray, "elements_1 dims"],
+    labels_2: Int[np.ndarray, "elements_2"],
+    bboxes_2: Float[np.ndarray, "elements_2 dims"],
     labels_weight: float,
     bboxes_weight: float,
 ) -> float:

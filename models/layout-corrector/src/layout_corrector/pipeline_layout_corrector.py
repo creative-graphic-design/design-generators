@@ -132,7 +132,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         time_adaptive_temperature: bool | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts with optional Layout-Corrector guidance.
 
         Args:
@@ -325,12 +325,15 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
     def _step_with_corrector(
         self,
         *,
-        sample: torch.Tensor,
-        timestep_batch: torch.Tensor,
+        sample: Float[torch.Tensor, "batch vocab tokens"],
+        timestep_batch: Int[torch.Tensor, "batch"],
         condition: LayoutDMCondition | None,
         sampling: LayoutCorrectorSamplingConfig,
         generator: torch.Generator | None,
-    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+    ) -> tuple[
+        Float[torch.Tensor, "batch vocab tokens"],
+        Float[torch.Tensor, "batch tokens"] | None,
+    ]:
         confidence = None
         current = sample
         for _ in range(sampling.corrector_steps):
@@ -402,7 +405,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             )
         return current, confidence
 
-    def _mask_ratio(self, timestep_batch: torch.Tensor) -> float:
+    def _mask_ratio(self, timestep_batch: Int[torch.Tensor, "batch"]) -> float:
         timestep = int(timestep_batch[0].item())
         timestep = max(0, min(timestep, self.layout_dm.scheduler.config.num_timesteps))
         if timestep == 0:
