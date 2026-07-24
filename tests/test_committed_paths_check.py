@@ -25,10 +25,15 @@ def load_check_committed_paths() -> ModuleType:
 
 check_committed_paths = load_check_committed_paths()
 SLASH = "/"
+BACKSLASH = "\\"
 
 
 def absolute_path(*parts: str) -> str:
     return SLASH + SLASH.join(parts)
+
+
+def windows_path(*parts: str) -> str:
+    return "C:" + BACKSLASH + BACKSLASH.join(parts)
 
 
 def init_repo(root: Path) -> None:
@@ -52,7 +57,8 @@ def test_check_committed_paths_rejects_tracked_host_paths(
                 "rooted=" + absolute_path("root", "ghq", "project"),
                 "linux=" + absolute_path("home", "alice", "workspace"),
                 "mac=" + absolute_path("Users", "alice", "workspace"),
-                "ghq=" + absolute_path("tmp", "ghq", "github.com", "org", "repo"),
+                "ghq " + absolute_path("tmp", "ghq", "github.com", "org", "repo"),
+                "windows=" + windows_path("Users", "alice", "workspace"),
                 "",
             ]
         ),
@@ -68,6 +74,28 @@ def test_check_committed_paths_rejects_tracked_host_paths(
     assert "docs/bad.md:2" in stderr
     assert "docs/bad.md:3" in stderr
     assert "docs/bad.md:4" in stderr
+    assert "docs/bad.md:5" in stderr
+
+
+def test_check_committed_paths_allows_non_absolute_ghq_shapes(
+    tmp_path: Path,
+) -> None:
+    init_repo(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "\n".join(
+            [
+                "~" + absolute_path("ghq", "github.com", "org", "repo"),
+                "$HOME" + absolute_path("ghq", "github.com", "org", "repo"),
+                "docs" + absolute_path("ghq", "github.com", "org", "repo"),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    track(tmp_path, "README.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 0
 
 
 def test_check_committed_paths_passes_for_clean_tracked_text(tmp_path: Path) -> None:

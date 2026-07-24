@@ -11,43 +11,20 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SLASH = "/"
+BACKSLASH = "\\"
 ROOT_HOME_PREFIX = SLASH + "root" + SLASH
 LINUX_HOME_PREFIX = SLASH + "home" + SLASH
 MACOS_HOME_PREFIX = SLASH + "Users" + SLASH
+WINDOWS_HOME_PATTERN = (
+    r"[A-Za-z]:" + re.escape(BACKSLASH) + re.escape("Users") + re.escape(BACKSLASH)
+)
 GHQ_MARKER = SLASH.join(("ghq", "github.com"))
+GHQ_ABSOLUTE_PREFIX = r"""(?:^|(?<=[\s'"`]))"""
 
 EXCLUDED_FILES = {"uv.lock"}
 EXCLUDED_DIRS = {"vendor"}
 PATH_CHARS = r"""[^\s'"`<>]*"""
-USERNAME = r"""[^\s/'"`<>:]+"""
-PATTERNS = (
-    (
-        "root home path",
-        re.compile(re.escape(ROOT_HOME_PREFIX) + PATH_CHARS),
-    ),
-    (
-        "Linux user home path",
-        re.compile(
-            re.escape(LINUX_HOME_PREFIX) + USERNAME + re.escape(SLASH) + PATH_CHARS
-        ),
-    ),
-    (
-        "macOS user home path",
-        re.compile(
-            re.escape(MACOS_HOME_PREFIX) + USERNAME + re.escape(SLASH) + PATH_CHARS
-        ),
-    ),
-    (
-        "absolute ghq checkout path",
-        re.compile(
-            r"(?<![:/])"
-            + re.escape(SLASH)
-            + PATH_CHARS
-            + re.escape(GHQ_MARKER)
-            + PATH_CHARS
-        ),
-    ),
-)
+USERNAME = r"""[^\s/'"`<>:\\]+"""
 
 
 @dataclass(frozen=True)
@@ -62,6 +39,52 @@ class PathViolation:
     def format(self) -> str:
         """Return the stable human-readable report line."""
         return f"{self.path}:{self.line}: {self.kind}: {self.match}"
+
+
+@dataclass(frozen=True)
+class PatternSpec:
+    """Compiled path pattern and the capture group to report."""
+
+    kind: str
+    pattern: re.Pattern[str]
+    match_group: str | int = 0
+
+
+PATTERNS = (
+    PatternSpec(
+        kind="root home path",
+        pattern=re.compile(re.escape(ROOT_HOME_PREFIX) + PATH_CHARS),
+    ),
+    PatternSpec(
+        kind="Linux user home path",
+        pattern=re.compile(
+            re.escape(LINUX_HOME_PREFIX) + USERNAME + re.escape(SLASH) + PATH_CHARS
+        ),
+    ),
+    PatternSpec(
+        kind="macOS user home path",
+        pattern=re.compile(
+            re.escape(MACOS_HOME_PREFIX) + USERNAME + re.escape(SLASH) + PATH_CHARS
+        ),
+    ),
+    PatternSpec(
+        kind="Windows user home path",
+        pattern=re.compile(WINDOWS_HOME_PATTERN + USERNAME + r"(?:\\[^\s'\"`<>]*)?"),
+    ),
+    PatternSpec(
+        kind="absolute ghq checkout path",
+        pattern=re.compile(
+            GHQ_ABSOLUTE_PREFIX
+            + r"(?P<path>"
+            + re.escape(SLASH)
+            + PATH_CHARS
+            + re.escape(GHQ_MARKER)
+            + PATH_CHARS
+            + r")"
+        ),
+        match_group="path",
+    ),
+)
 
 
 def tracked_paths(root: Path) -> list[PurePosixPath]:
@@ -97,14 +120,14 @@ def find_violations_in_text(rel_path: str, text: str) -> list[PathViolation]:
     """Return host-specific absolute path occurrences in one file."""
     violations: list[PathViolation] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
-        for kind, pattern in PATTERNS:
-            for match in pattern.finditer(line):
+        for spec in PATTERNS:
+            for match in spec.pattern.finditer(line):
                 violations.append(
                     PathViolation(
                         path=rel_path,
                         line=line_number,
-                        kind=kind,
-                        match=match.group(0),
+                        kind=spec.kind,
+                        match=match.group(spec.match_group),
                     )
                 )
     return violations
