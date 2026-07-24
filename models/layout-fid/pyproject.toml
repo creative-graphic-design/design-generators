@@ -1,0 +1,36 @@
+[project]
+name = "layout-fid"
+version = "0.1.0"
+description = "Transformers-style layout FID evaluator package."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "scipy>=1.10",
+    "torch>=2.1",
+    "transformers>=5.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "einops",
+    "fsspec",
+    "pytorch-fid",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.design-generators]
+framework = "transformers"
+task = "layout-evaluation"
+conditions = ["evaluation"]
+datasets = ["rico25", "publaynet"]
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original layout FID assets and source dependencies",
+]
