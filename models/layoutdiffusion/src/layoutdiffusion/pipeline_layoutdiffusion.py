@@ -207,8 +207,8 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
     def _decode_final_sample(
         self,
         *,
-        sample: torch.Tensor,
-        trajectory: list[torch.Tensor] | None,
+        sample: Float[torch.Tensor, "batch vocab tokens"],
+        trajectory: list[Int[torch.Tensor, "batch tokens"]] | None,
         condition_type: str,
         return_intermediates: bool,
     ) -> LayoutGenerationOutput:
