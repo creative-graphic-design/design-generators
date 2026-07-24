@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -12,17 +12,6 @@ from transformers.utils import ModelOutput
 
 from .configuration_layout_transformer import LayoutTransformerConfig
 from .modeling_lt_compatible import BBoxHead, RelEncoder
-
-if TYPE_CHECKING:
-    LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
-    BoolTensor3D: TypeAlias = Bool[torch.Tensor, "batch 1 sequence"]
-    FloatTensor3D: TypeAlias = Float[torch.Tensor, "batch sequence hidden"]
-    BBoxTensor: TypeAlias = Float[torch.Tensor, "batch sequence 4"]
-else:
-    LongTensor2D: TypeAlias = torch.Tensor
-    BoolTensor3D: TypeAlias = torch.Tensor
-    FloatTensor3D: TypeAlias = torch.Tensor
-    BBoxTensor: TypeAlias = torch.Tensor
 
 
 @dataclass
@@ -51,14 +40,14 @@ class LayoutTransformerModelOutput(ModelOutput):
         torch.Size([1, 2, 4])
     """
 
-    vocab_logits: FloatTensor3D | None = None
-    obj_id_logits: FloatTensor3D | None = None
-    token_type_logits: FloatTensor3D | None = None
-    coarse_box: BBoxTensor | None = None
-    coarse_gmm: torch.Tensor | None = None
-    refine_box: BBoxTensor | None = None
-    refine_gmm: torch.Tensor | None = None
-    hidden_states: FloatTensor3D | None = None
+    vocab_logits: Float[torch.Tensor, "batch sequence vocab"] | None = None
+    obj_id_logits: Float[torch.Tensor, "batch sequence object_classes"] | None = None
+    token_type_logits: Float[torch.Tensor, "batch sequence token_types"] | None = None
+    coarse_box: Float[torch.Tensor, "batch sequence 4"] | None = None
+    coarse_gmm: Float[torch.Tensor, "batch sequence gmm_params"] | None = None
+    refine_box: Float[torch.Tensor, "batch sequence 4"] | None = None
+    refine_gmm: Float[torch.Tensor, "batch sequence gmm_params"] | None = None
+    hidden_states: Float[torch.Tensor, "batch sequence hidden"] | None = None
 
 
 class LayoutTransformerForLayoutGeneration(PreTrainedModel):
@@ -78,19 +67,22 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
 
     def forward(
         self,
-        input_token: LongTensor2D,
-        input_obj_id: LongTensor2D,
-        segment_label: LongTensor2D,
-        token_type: LongTensor2D,
-        src_mask: BoolTensor3D | None = None,
-        global_mask: torch.Tensor | None = None,
-        bbox: BBoxTensor | None = None,
-        bbox_mask: torch.Tensor | None = None,
+        input_token: Int[torch.Tensor, "batch sequence"],
+        input_obj_id: Int[torch.Tensor, "batch sequence"],
+        segment_label: Int[torch.Tensor, "batch sequence"],
+        token_type: Int[torch.Tensor, "batch sequence"],
+        src_mask: Bool[torch.Tensor, "batch 1 sequence"] | None = None,
+        global_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
+        bbox: Float[torch.Tensor, "batch sequence 4"] | None = None,
+        bbox_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
         inference: bool = False,
         generator: torch.Generator | None = None,
         output_hidden_states: bool = False,
         return_dict: bool = True,
-    ) -> LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]:
+    ) -> (
+        LayoutTransformerModelOutput
+        | tuple[Float[torch.Tensor, "batch sequence feature"] | None, ...]
+    ):
         """Run LT-Net relation encoding and bbox prediction.
 
         Args:
@@ -186,12 +178,12 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
     @torch.no_grad()
     def _generate_boxes(
         self,
-        input_token: LongTensor2D,
-        input_obj_id: LongTensor2D,
-        segment_label: LongTensor2D,
-        token_type: LongTensor2D,
-        src_mask: BoolTensor3D | None = None,
-        global_mask: torch.Tensor | None = None,
+        input_token: Int[torch.Tensor, "batch sequence"],
+        input_obj_id: Int[torch.Tensor, "batch sequence"],
+        segment_label: Int[torch.Tensor, "batch sequence"],
+        token_type: Int[torch.Tensor, "batch sequence"],
+        src_mask: Bool[torch.Tensor, "batch 1 sequence"] | None = None,
+        global_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
         generator: torch.Generator | None = None,
     ) -> LayoutTransformerModelOutput:
         """Private pipeline helper for layout-level generation."""
