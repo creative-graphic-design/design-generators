@@ -113,19 +113,21 @@ CUDA_VISIBLE_DEVICES=<gpu-index> python src/train.py \
   dataset.dataset.data_path=../../.cache/layout-flow/data/<rico25|publaynet>
 ```
 
-3. Evaluate with the vendor protocol from the repository root.
+3. Evaluate with the vendor protocol from `vendor/layout-flow`.
 
 ```bash
+cd vendor/layout-flow
 CUDA_VISIBLE_DEVICES=<gpu-index> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
-uv run --package layout-flow --extra vendor --with rootutils \
-  python models/layout-flow/scripts/run_vendor_test_with_torch_load_patch.py \
-  checkpoint=.cache/layout-flow/full-run/<vendor-dataset>/checkpoints/last.ckpt \
+TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
+uv run --project ../.. --package layout-flow --extra vendor --with rootutils \
+  python src/test.py \
+  checkpoint=../../.cache/layout-flow/full-run/<vendor-dataset>/checkpoints/last.ckpt \
   model=LayoutFlow dataset=<RICO|PubLayNet> task=uncond cond_mask=uncond \
   ode_solver=euler model.inference_steps=100 calc_miou=True multirun=False \
-  dataset.dataset.data_path=.cache/layout-flow/data/<rico25|publaynet>
+  dataset.dataset.data_path=../../.cache/layout-flow/data/<rico25|publaynet>
 ```
 
-For package-local checkpoints, replace the checkpoint path with `.cache/layout-flow/full-run/<ours-dataset>/eval-vendor-protocol/last-vendor-compatible.ckpt` after converting the raw package checkpoint to the vendor-compatible format.
+For package-local checkpoints, replace the checkpoint path with `../../.cache/layout-flow/full-run/<ours-dataset>/eval-vendor-protocol/last-vendor-compatible.ckpt` after converting the raw package checkpoint to the vendor-compatible format.
 
 ## Launch Training
 
