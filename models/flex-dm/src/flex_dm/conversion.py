@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import torch
+from jaxtyping import Float, Shaped
 
 
 @dataclass(frozen=True)
@@ -18,32 +19,38 @@ class FlexDmConversionReport:
     unexpected_source_keys: tuple[str, ...]
 
 
-def convert_dense_kernel(tf_kernel: np.ndarray) -> torch.Tensor:
+def convert_dense_kernel(
+    tf_kernel: Float[np.ndarray, "in_features out_features"],
+) -> Float[torch.Tensor, "out_features in_features"]:
     """Transpose a TensorFlow Dense kernel into PyTorch Linear layout."""
     return torch.from_numpy(tf_kernel.T)
 
 
-def convert_dense_bias(tf_bias: np.ndarray) -> torch.Tensor:
+def convert_dense_bias(
+    tf_bias: Float[np.ndarray, "features"],
+) -> Float[torch.Tensor, "features"]:
     """Convert a TensorFlow Dense bias without transposition."""
     return torch.from_numpy(tf_bias)
 
 
-def convert_embedding(tf_embedding: np.ndarray) -> torch.Tensor:
+def convert_embedding(
+    tf_embedding: Float[np.ndarray, "tokens channels"],
+) -> Float[torch.Tensor, "tokens channels"]:
     """Convert a TensorFlow embedding table without transposition."""
     return torch.from_numpy(tf_embedding)
 
 
 def convert_layer_norm_gamma_beta(
-    gamma: np.ndarray,
-    beta: np.ndarray,
-) -> tuple[torch.Tensor, torch.Tensor]:
+    gamma: Float[np.ndarray, "features"],
+    beta: Float[np.ndarray, "features"],
+) -> tuple[Float[torch.Tensor, "features"], Float[torch.Tensor, "features"]]:
     """Convert TensorFlow LayerNorm gamma/beta to PyTorch weight/bias."""
     return torch.from_numpy(gamma), torch.from_numpy(beta)
 
 
 def map_tensor_by_rule(
-    source_name: str, value: np.ndarray
-) -> tuple[str, torch.Tensor] | None:
+    source_name: str, value: Shaped[np.ndarray, "..."]
+) -> tuple[str, Shaped[torch.Tensor, "..."]] | None:
     """Map one known vendor variable name to a PyTorch state-dict key.
 
     Args:
@@ -122,7 +129,7 @@ def map_tensor_by_rule(
 
 def conversion_report(
     *,
-    converted: dict[str, torch.Tensor],
+    converted: dict[str, Shaped[torch.Tensor, "..."]],
     target_keys: set[str],
     source_keys: set[str],
     consumed_source_keys: set[str],
