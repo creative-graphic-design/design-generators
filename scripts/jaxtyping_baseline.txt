@@ -30,29 +30,6 @@ lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors
 lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	) -> torch.Tensor:
 lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
 lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def tensor_sha256(tensor: torch.Tensor) -> str:
-models/housegan/src/housegan/datasets.py	np.ndarray	bbox_ltrb: np.ndarray,
-models/housegan/src/housegan/datasets.py	np.ndarray	def load_housegan_numpy(path: str | Path) -> np.ndarray:
-models/housegan/src/housegan/graph_schema.py	torch.FloatTensor	) -> torch.FloatTensor:
-models/housegan/src/housegan/graph_schema.py	torch.LongTensor	) -> torch.LongTensor:
-models/housegan/src/housegan/modeling_housegan.py	HouseGanModelOutput | tuple[torch.Tensor]	) -> HouseGanModelOutput | tuple[torch.Tensor]:
-models/housegan/src/housegan/pipeline_housegan.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
-models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
-models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
-models/housegan/src/housegan/processing_housegan.py	torch.LongTensor	labels: torch.LongTensor,
-models/housegan/src/housegan/processing_housegan.py	torch.LongTensor | None	edges: torch.LongTensor | None = None,
-models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def _xywh_to_ltrb_list(bbox: torch.Tensor) -> list[list[float]]:
-models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
-models/housegan/src/housegan/processing_housegan.py	torch.Tensor	masks: torch.Tensor,
-models/housegan/src/housegan/processing_housegan.py	torch.Tensor | None	node_features: torch.Tensor | None = None,
-models/housegan/src/housegan/vendor_state_dict.py	Mapping[str, torch.Tensor]	source: Mapping[str, torch.Tensor],
-models/housegan/src/housegan/vendor_state_dict.py	OrderedDict[str, torch.Tensor]	converted: OrderedDict[str, torch.Tensor] = OrderedDict()
-models/housegan/src/housegan/vendor_state_dict.py	tuple[OrderedDict[str, torch.Tensor], ConversionReport]	) -> tuple[OrderedDict[str, torch.Tensor], ConversionReport]:
-models/housegan/src/housegan/visualization.py	torch.Tensor	bbox: torch.Tensor,
-models/housegan/src/housegan/visualization.py	torch.Tensor	labels: torch.Tensor,
 models/lace/src/lace/constraints.py	torch.Tensor	bbox: torch.Tensor,
 models/lace/src/lace/constraints.py	torch.Tensor	def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
 models/lace/src/lace/constraints.py	torch.Tensor	def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:

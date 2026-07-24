@@ -8,7 +8,7 @@ from typing import ClassVar, cast
 
 import numpy as np
 import torch
-from jaxtyping import Float
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -123,10 +123,19 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.relation,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
+        | list[object]
+        | None = None,
+        bbox: Float[torch.Tensor, "... 4"]
+        | Float[np.ndarray, "... 4"]
+        | list[object]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Bool[np.ndarray, "..."]
+        | list[object]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "..."] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -218,9 +227,9 @@ def _merge_outputs(
         output = outputs[0]
     else:
         max_elements = max(item.labels.shape[1] for item in outputs)
-        bbox_rows: list[torch.Tensor] = []
-        label_rows: list[torch.Tensor] = []
-        mask_rows: list[torch.Tensor] = []
+        bbox_rows: list[Float[torch.Tensor, "batch elements 4"]] = []
+        label_rows: list[Int[torch.Tensor, "batch elements"]] = []
+        mask_rows: list[Bool[torch.Tensor, "batch elements"]] = []
         for item in outputs:
             pad = max_elements - item.labels.shape[1]
             bbox_rows.append(
