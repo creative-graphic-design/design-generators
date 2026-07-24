@@ -98,6 +98,38 @@ def test_check_committed_paths_allows_non_absolute_ghq_shapes(
     assert check_committed_paths.check_committed_paths(tmp_path) == 0
 
 
+def test_check_committed_paths_rejects_delimited_absolute_ghq_paths(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    init_repo(tmp_path)
+    path = tmp_path / "docs" / "ghq.md"
+    path.parent.mkdir()
+    path.write_text(
+        "\n".join(
+            [
+                "x=" + absolute_path("tmp", "ghq", "github.com", "org", "repo"),
+                "path:" + absolute_path("tmp", "ghq", "github.com", "org", "repo"),
+                "x=(" + absolute_path("tmp", "ghq", "github.com", "org", "repo") + ")",
+                "x=[" + absolute_path("tmp", "ghq", "github.com", "org", "repo") + "]",
+                "x={" + absolute_path("tmp", "ghq", "github.com", "org", "repo") + "}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    track(tmp_path, "docs/ghq.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 1
+
+    stderr = capsys.readouterr().err
+    assert "docs/ghq.md:1" in stderr
+    assert "docs/ghq.md:2" in stderr
+    assert "docs/ghq.md:3" in stderr
+    assert "docs/ghq.md:4" in stderr
+    assert "docs/ghq.md:5" in stderr
+
+
 def test_check_committed_paths_passes_for_clean_tracked_text(tmp_path: Path) -> None:
     init_repo(tmp_path)
     readme = tmp_path / "README.md"

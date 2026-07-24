@@ -19,7 +19,7 @@ WINDOWS_HOME_PATTERN = (
     r"[A-Za-z]:" + re.escape(BACKSLASH) + re.escape("Users") + re.escape(BACKSLASH)
 )
 GHQ_MARKER = SLASH.join(("ghq", "github.com"))
-GHQ_ABSOLUTE_PREFIX = r"""(?:^|(?<=[\s'"`]))"""
+GHQ_ABSOLUTE_PREFIX = r"(?<![A-Za-z0-9_./~$-])"
 
 EXCLUDED_FILES = {"uv.lock"}
 EXCLUDED_DIRS = {"vendor"}
