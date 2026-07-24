@@ -6,13 +6,14 @@ from collections.abc import Mapping
 from typing import cast
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_ds_gan import DSGANConfig
 
 
 def convert_vendor_state_dict(
-    state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Convert vendor DS-GAN generator keys to ``DSGANModel`` keys.
 
     The released checkpoint was commonly saved from ``torch.nn.DataParallel``;
@@ -29,7 +30,7 @@ def convert_vendor_state_dict(
         >>> convert_vendor_state_dict({"module.fc1.weight": torch.zeros(1)})["fc1.weight"].shape
         torch.Size([1])
     """
-    converted: dict[str, torch.Tensor] = {}
+    converted: dict[str, Shaped[torch.Tensor, "..."]] = {}
     for key, value in state_dict.items():
         name = key.removeprefix("module.")
         name = name.removeprefix("generator.")
