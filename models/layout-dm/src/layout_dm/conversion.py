@@ -6,6 +6,7 @@ import pickle
 from pathlib import Path
 
 import torch
+from jaxtyping import Shaped
 
 from laygen.common.model_card import layoutdm_model_card
 from laygen.common.labels import DatasetName
@@ -19,10 +20,10 @@ def remap_denoiser_key(key: str) -> str:
 
 
 def split_original_state_dict(
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Extract converted denoiser weights from an original state dict."""
-    denoiser: dict[str, torch.Tensor] = {}
+    denoiser: dict[str, Shaped[torch.Tensor, "..."]] = {}
     for key, value in state_dict.items():
         if key.startswith("model.module.transformer."):
             denoiser[remap_denoiser_key(key)] = value
