@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_layout_action import LayoutActionConfig
 from .modeling_layout_action import LayoutActionForCausalLM
@@ -31,12 +32,12 @@ def remap_layout_action_key(key: str) -> str:
 
 
 def remap_state_dict(
-    state_dict: dict[str, torch.Tensor],
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
     model: LayoutActionForCausalLM,
-) -> tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]:
+) -> tuple[dict[str, Shaped[torch.Tensor, "..."]], list[StateDictKeyReport]]:
     """Remap and report checkpoint key coverage."""
     target_keys = set(model.state_dict())
-    remapped: dict[str, torch.Tensor] = {}
+    remapped: dict[str, Shaped[torch.Tensor, "..."]] = {}
     report: list[StateDictKeyReport] = []
     for source_key, value in state_dict.items():
         target_key = remap_layout_action_key(source_key)

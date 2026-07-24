@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import torch
+from jaxtyping import Float, Int
 from torch.nn import functional as F
 
 from .configuration_layout_action import (
@@ -14,19 +15,23 @@ from .configuration_layout_action import (
 )
 
 
+@runtime_checkable
 class TokenModelOutput(Protocol):
     """Model output carrying logits."""
 
-    logits: torch.Tensor
+    logits: Float[torch.Tensor, "batch sequence vocab"]
 
 
+@runtime_checkable
 class ActionTokenModel(Protocol):
     """Minimal protocol implemented by LayoutAction token models."""
 
     def get_block_size(self) -> int:
         """Return the maximum context length."""
 
-    def __call__(self, input_ids: torch.Tensor) -> TokenModelOutput:
+    def __call__(
+        self, input_ids: Int[torch.Tensor, "batch sequence"]
+    ) -> TokenModelOutput:
         """Return a model output with logits."""
 
 
@@ -64,7 +69,9 @@ class LayoutActionSamplingConfig:
         )
 
 
-def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
+def top_k_logits(
+    logits: Float[torch.Tensor, "batch vocab"], k: int
+) -> Float[torch.Tensor, "batch vocab"]:
     """Mask logits outside the top ``k`` values exactly like the reference helper.
 
     Args:
@@ -83,13 +90,13 @@ def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
 @torch.no_grad()
 def sample_action_tokens(
     model: ActionTokenModel,
-    input_ids: torch.Tensor,
+    input_ids: Int[torch.Tensor, "batch sequence"],
     *,
     max_new_tokens: int,
     sampling: LayoutActionSamplingConfig,
-    forced_token_ids: torch.Tensor | None = None,
+    forced_token_ids: Int[torch.Tensor, "batch new_tokens"] | None = None,
     generator: torch.Generator | None = None,
-) -> torch.Tensor:
+) -> Int[torch.Tensor, "batch sequence"]:
     """Autoregressively sample LayoutAction token ids.
 
     Args:

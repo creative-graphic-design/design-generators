@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TypeAlias, cast
 
 import torch
-from jaxtyping import Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 from torch.nn import functional as F
 from transformers import PreTrainedModel
@@ -18,16 +18,15 @@ from .generation_layout_action import (
     sample_action_tokens,
 )
 
-if TYPE_CHECKING:
-    LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
-else:
-    LongTensor2D: TypeAlias = torch.Tensor
+LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
 
 
 class LayoutActionCausalSelfAttention(nn.Module):
     """Checkpoint-compatible masked multi-head self-attention."""
 
-    def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
+    def __init__(
+        self, config: LayoutActionConfig, mask: Bool[torch.Tensor, "1 1 block block"]
+    ) -> None:
         """Initialize key, query, value, and output projections."""
         super().__init__()
         if config.n_embd % config.n_head != 0:
@@ -41,7 +40,9 @@ class LayoutActionCausalSelfAttention(nn.Module):
         self.register_buffer("mask", mask.clone())
         self.n_head = config.n_head
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch sequence channels"]
+    ) -> Float[torch.Tensor, "batch sequence channels"]:
         """Apply causal self-attention."""
         batch, steps, channels = x.size()
         key = self.key(x).view(batch, steps, self.n_head, channels // self.n_head)
@@ -63,7 +64,9 @@ class LayoutActionCausalSelfAttention(nn.Module):
 class LayoutActionBlock(nn.Module):
     """Checkpoint-compatible GPT block."""
 
-    def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
+    def __init__(
+        self, config: LayoutActionConfig, mask: Bool[torch.Tensor, "1 1 block block"]
+    ) -> None:
         """Initialize layer norms, self-attention, and MLP."""
         super().__init__()
         self.ln1 = nn.LayerNorm(config.n_embd)
@@ -76,7 +79,9 @@ class LayoutActionBlock(nn.Module):
             nn.Dropout(config.resid_pdrop),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch sequence channels"]
+    ) -> Float[torch.Tensor, "batch sequence channels"]:
         """Run one transformer block."""
         x = x + self.attn(self.ln1(x))
         return x + self.mlp(self.ln2(x))
@@ -134,12 +139,12 @@ class LayoutActionForCausalLM(PreTrainedModel):
     def forward(
         self,
         input_ids: LongTensor2D,
-        attention_mask: torch.Tensor | None = None,
+        attention_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
         labels: LongTensor2D | None = None,
         return_dict: bool | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None,
-    ) -> CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]:
+    ) -> CausalLMOutputWithCrossAttentions | tuple[Shaped[torch.Tensor, "..."], ...]:
         """Run a standard causal language-model forward pass.
 
         Args:
@@ -181,7 +186,7 @@ class LayoutActionForCausalLM(PreTrainedModel):
                 ignore_index=-100,
             )
         if not use_return_dict:
-            values: tuple[torch.Tensor, ...]
+            values: tuple[Shaped[torch.Tensor, "..."], ...]
             values = (logits,) if loss is None else (loss, logits)
             if output_hidden_states:
                 values = (*values, hidden_states)
@@ -203,7 +208,7 @@ class LayoutActionForCausalLM(PreTrainedModel):
         do_sample: bool = False,
         forced_token_ids: LongTensor2D | None = None,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch sequence"]:
         """Generate token ids with the reference sampling loop.
 
         Args:
