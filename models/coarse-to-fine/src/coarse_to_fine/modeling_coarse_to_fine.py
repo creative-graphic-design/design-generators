@@ -6,40 +6,52 @@ from typing import cast
 
 import torch
 import torch.nn as nn
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedModel
 
 from .configuration_coarse_to_fine import CoarseToFineConfig
 
 
-def make_seq_first(arg: torch.Tensor) -> torch.Tensor:
+def make_seq_first(
+    arg: Shaped[torch.Tensor, "batch seq ..."],
+) -> Shaped[torch.Tensor, "seq batch ..."]:
     """Convert ``(batch, seq, ...)`` tensors to ``(seq, batch, ...)``."""
     dims = [1, 0, *range(2, arg.dim())]
     return arg.permute(*dims)
 
 
-def make_batch_first(arg: torch.Tensor) -> torch.Tensor:
+def make_batch_first(
+    arg: Shaped[torch.Tensor, "seq batch ..."],
+) -> Shaped[torch.Tensor, "batch seq ..."]:
     """Convert ``(seq, batch, ...)`` tensors to ``(batch, seq, ...)``."""
     dims = [1, 0, *range(2, arg.dim())]
     return arg.permute(*dims)
 
 
-def get_key_padding_mask(mask: torch.Tensor) -> torch.Tensor:
+def get_key_padding_mask(
+    mask: Bool[torch.Tensor, "batch seq"],
+) -> Bool[torch.Tensor, "batch seq"]:
     """Match the checkpoint cumulative padding-mask convention."""
     return (mask == 0).cumsum(dim=0) > 0
 
 
-def get_padding_mask(mask: torch.Tensor) -> torch.Tensor:
+def get_padding_mask(
+    mask: Bool[torch.Tensor, "batch seq"],
+) -> Bool[torch.Tensor, "seq batch 1"]:
     """Convert batch-first mask to seq-first broadcast mask."""
     return make_seq_first(mask.unsqueeze(2))
 
 
-def make_group_first(arg: torch.Tensor) -> torch.Tensor:
+def make_group_first(
+    arg: Shaped[torch.Tensor, "seq groups batch ..."],
+) -> Shaped[torch.Tensor, "groups seq batch ..."]:
     """Convert ``(seq, group, batch, ...)`` to ``(group, seq, batch, ...)``."""
     return arg.permute(1, 0, 2, *range(3, arg.dim()))
 
 
-def pack_group_batch(*args: torch.Tensor) -> tuple[torch.Tensor, ...]:
+def pack_group_batch(
+    *args: Shaped[torch.Tensor, "seq groups batch ..."],
+) -> tuple[Shaped[torch.Tensor, "seq group_batch ..."], ...]:
     """Flatten group and batch dimensions in seq-first grouped tensors."""
     return tuple(
         arg.reshape(arg.size(0), arg.size(1) * arg.size(2), *arg.shape[3:])
@@ -48,15 +60,17 @@ def pack_group_batch(*args: torch.Tensor) -> tuple[torch.Tensor, ...]:
 
 
 def unpack_group_batch(
-    batch_size: int, *args: torch.Tensor
-) -> tuple[torch.Tensor, ...]:
+    batch_size: int, *args: Shaped[torch.Tensor, "seq group_batch ..."]
+) -> tuple[Shaped[torch.Tensor, "seq groups batch ..."], ...]:
     """Restore ``(seq, group, batch, ...)`` tensors from packed group batches."""
     return tuple(
         arg.reshape(arg.size(0), -1, batch_size, *arg.shape[2:]) for arg in args
     )
 
 
-def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
+def generate_square_subsequent_mask(
+    size: int, device: torch.device
+) -> Float[torch.Tensor, "size size"]:
     """Create the causal decoder mask used by the checkpoint model."""
     mask = (torch.triu(torch.ones(size, size, device=device)) == 1).transpose(0, 1)
     return (
@@ -82,21 +96,31 @@ class LayoutEmbedding(nn.Module):
         nn.init.kaiming_normal_(self.bbox_embed.weight, mode="fan_in")
         nn.init.kaiming_normal_(self.proj_cat.weight, mode="fan_in")
 
-    def get_label_embedding(self, label: torch.Tensor) -> torch.Tensor:
+    def get_label_embedding(
+        self, label: Int[torch.Tensor, "..."]
+    ) -> Float[torch.Tensor, "... channels"]:
         """Embed element labels."""
         return self.label_embed(label)
 
-    def get_box_embedding(self, box: torch.Tensor) -> torch.Tensor:
+    def get_box_embedding(
+        self, box: Int[torch.Tensor, "seq batch 4"]
+    ) -> Float[torch.Tensor, "seq batch box_channels"]:
         """Embed four discrete box-coordinate ids and concatenate them."""
         bbox_vecs = self.bbox_embed(box)
         seq, batch, _, _ = bbox_vecs.shape
         return bbox_vecs.reshape(seq, batch, -1)
 
-    def get_group_label_embedding(self, label: torch.Tensor) -> torch.Tensor:
+    def get_group_label_embedding(
+        self, label: Float[torch.Tensor, "seq batch group_label_vocab"]
+    ) -> Float[torch.Tensor, "seq batch channels"]:
         """Embed per-group label histograms."""
         return self.group_label_embed(label)
 
-    def forward(self, label: torch.Tensor, box: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        label: Int[torch.Tensor, "seq batch"],
+        box: Int[torch.Tensor, "seq batch 4"],
+    ) -> Float[torch.Tensor, "seq batch channels"]:
         """Embed labels and boxes into transformer hidden states."""
         label_vecs = self.get_label_embedding(label)
         box_vecs = self.get_box_embedding(box)
@@ -125,8 +149,11 @@ class Encoder(nn.Module):
         )
 
     def forward(
-        self, labels: torch.Tensor, bboxes: torch.Tensor, masks: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        labels: Int[torch.Tensor, "seq batch"],
+        bboxes: Int[torch.Tensor, "seq batch 4"],
+        masks: Bool[torch.Tensor, "batch seq"],
+    ) -> Float[torch.Tensor, "1 batch channels"]:
         """Encode a seq-first padded layout and mean-pool valid states."""
         key_padding_mask = get_key_padding_mask(masks)
         src = self.embedding(labels, bboxes)
@@ -226,11 +253,15 @@ class GroupDecoder(nn.Module):
 
     def forward(
         self,
-        label: torch.Tensor,
-        box: torch.Tensor,
-        z: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        label: Float[torch.Tensor, "seq batch group_label_vocab"],
+        box: Int[torch.Tensor, "seq batch 4"],
+        z: Float[torch.Tensor, "1 batch channels"],
+        mask: Bool[torch.Tensor, "batch seq"],
+    ) -> tuple[
+        Float[torch.Tensor, "seq_minus_eos batch channels"],
+        Float[torch.Tensor, "seq batch box_logits"],
+        Float[torch.Tensor, "seq batch group_label_vocab"],
+    ]:
         """Teacher-forced group decoding."""
         key_padding_mask = get_key_padding_mask(mask)
         tgt_label_vecs = self.layout_embd.get_group_label_embedding(label)
@@ -249,8 +280,16 @@ class GroupDecoder(nn.Module):
         return out[:-2], rec_box, rec_label
 
     def inference(
-        self, z: torch.Tensor, *, max_group_num: int, device: torch.device
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        self,
+        z: Float[torch.Tensor, "1 batch channels"],
+        *,
+        max_group_num: int,
+        device: torch.device,
+    ) -> tuple[
+        Float[torch.Tensor, "seq_minus_eos batch channels"],
+        Float[torch.Tensor, "seq batch box_logits"],
+        Float[torch.Tensor, "seq batch group_label_vocab"],
+    ]:
         """Greedy autoregressive group decoding."""
         tgt = torch.zeros(max_group_num, z.shape[1], self.config.d_model, device=device)
         rec_labels = torch.zeros(
@@ -331,12 +370,15 @@ class ElementDecoder(nn.Module):
 
     def forward(
         self,
-        label: torch.Tensor,
-        box: torch.Tensor,
-        memory: torch.Tensor,
-        z: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        label: Int[torch.Tensor, "seq groups batch 1"],
+        box: Int[torch.Tensor, "seq groups batch 4"],
+        memory: Float[torch.Tensor, "groups batch channels"],
+        z: Float[torch.Tensor, "1 batch channels"],
+        mask: Bool[torch.Tensor, "batch groups seq"],
+    ) -> tuple[
+        Float[torch.Tensor, "seq groups batch box_logits"],
+        Float[torch.Tensor, "seq groups batch label_logits"],
+    ]:
         """Teacher-forced element decoding."""
         z = z.repeat(memory.size(0), 1, 1).unsqueeze(0)
         memory = memory.unsqueeze(0)
@@ -354,12 +396,15 @@ class ElementDecoder(nn.Module):
 
     def inference(
         self,
-        memory: torch.Tensor,
-        z: torch.Tensor,
+        memory: Float[torch.Tensor, "groups batch channels"],
+        z: Float[torch.Tensor, "1 batch channels"],
         *,
         max_num_elements: int,
         device: torch.device,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[
+        Float[torch.Tensor, "seq groups batch box_logits"],
+        Float[torch.Tensor, "seq groups batch label_logits"],
+    ]:
         """Greedy autoregressive element decoding."""
         groups, batch_size, _ = memory.shape
         z = z.repeat(memory.size(0), 1, 1).unsqueeze(0)
@@ -463,7 +508,7 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         batch_size: int,
         generator: torch.Generator | None,
         device: torch.device,
-    ) -> torch.FloatTensor:
+    ) -> Float[torch.Tensor, "1 batch latent"]:
         sample_device = generator.device if generator is not None else device
         return cast(
             torch.FloatTensor,
@@ -488,7 +533,9 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         latent_z: Float[torch.Tensor, "1 batch latent"] | None = None,
         use_teacher_forcing: bool = True,
         return_dict: bool | None = None,
-    ) -> dict[str, torch.Tensor] | tuple[torch.Tensor, ...]:
+    ) -> (
+        dict[str, Shaped[torch.Tensor, "..."]] | tuple[Shaped[torch.Tensor, "..."], ...]
+    ):
         """Run teacher-forced or greedy hierarchical decoding.
 
         Args:
@@ -581,7 +628,9 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         return output
 
     @torch.no_grad()
-    def _decode_hierarchy(self, latent_z: torch.FloatTensor) -> dict[str, torch.Tensor]:
+    def _decode_hierarchy(
+        self, latent_z: Float[torch.Tensor, "1 batch latent"]
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Decode raw hierarchy logits from a seq-first latent tensor."""
         z = latent_z.to(self.device)
         group_embd, group_bbox, group_label = self.group_decoder.inference(

@@ -74,7 +74,7 @@ class CoarseToFinePipeline(Pipeline):
         labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
         mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -84,16 +84,8 @@ class CoarseToFinePipeline(Pipeline):
         latent_z: Float[torch.Tensor, "1 batch latent"] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Generate layouts through model decode and processor post-processing."""
-        _ = (
-            labels,
-            bbox,
-            mask,
-            num_elements,
-            box_format,
-            normalized,
-            canvas_size,
-            num_inference_steps,
-        )
+        del labels, bbox, mask, num_elements
+        del box_format, normalized, canvas_size, num_inference_steps
         condition = normalize_condition_type(condition_type)
         if condition is not ConditionType.unconditional:
             raise NotImplementedError(

@@ -7,6 +7,7 @@ from typing import Final, cast
 
 import torch
 import torch.nn.functional as F
+from jaxtyping import Bool, Float, Int
 
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -26,29 +27,29 @@ INVALID_GROUP_INDEX: Final[int] = -1
 class CoarseToFineHierarchy:
     """Decoded Coarse-to-Fine hierarchy returned in ``intermediates``."""
 
-    group_bbox: torch.FloatTensor
-    group_mask: torch.BoolTensor
-    label_histogram: torch.FloatTensor
-    element_group_index: torch.LongTensor
-    relative_bbox: torch.FloatTensor
-    relative_mask: torch.BoolTensor
-    discrete_group_bbox: torch.LongTensor | None = None
-    discrete_relative_bbox: torch.LongTensor | None = None
+    group_bbox: Float[torch.Tensor, "batch groups 4"]
+    group_mask: Bool[torch.Tensor, "batch groups"]
+    label_histogram: Float[torch.Tensor, "batch groups labels"]
+    element_group_index: Int[torch.Tensor, "batch elements"]
+    relative_bbox: Float[torch.Tensor, "batch groups elements 4"]
+    relative_mask: Bool[torch.Tensor, "batch groups elements"]
+    discrete_group_bbox: Int[torch.Tensor, "batch groups 4"] | None = None
+    discrete_relative_bbox: Int[torch.Tensor, "batch groups elements 4"] | None = None
 
 
 @dataclass
 class CoarseToFineHierarchyEncoding:
     """Training/reference hierarchy tensors before padding."""
 
-    group_bounding_box: torch.LongTensor
-    label_in_one_group: torch.FloatTensor
-    grouped_labels: list[torch.LongTensor]
-    grouped_bbox: list[torch.LongTensor]
+    group_bounding_box: Int[torch.Tensor, "groups 4"]
+    label_in_one_group: Float[torch.Tensor, "groups labels"]
+    grouped_labels: list[Int[torch.Tensor, "elements"]]
+    grouped_bbox: list[Int[torch.Tensor, "elements 4"]]
 
 
 def _sort_boxes(
-    boxes: torch.Tensor, labels: torch.Tensor
-) -> list[tuple[torch.Tensor, int]]:
+    boxes: Float[torch.Tensor, "elements 4"], labels: Int[torch.Tensor, "elements"]
+) -> list[tuple[Float[torch.Tensor, "4"], int]]:
     order = sorted(
         range(boxes.size(0)), key=lambda i: (float(boxes[i, 1]), float(boxes[i, 0]))
     )
@@ -56,7 +57,7 @@ def _sort_boxes(
 
 
 def _group_bbox(
-    sorted_bbox_with_idx: list[tuple[torch.Tensor, int]], *, direction: str
+    sorted_bbox_with_idx: list[tuple[Float[torch.Tensor, "4"], int]], *, direction: str
 ) -> list[object]:
     if len(sorted_bbox_with_idx) == 1:
         return [sorted_bbox_with_idx[0][1]]
@@ -109,10 +110,11 @@ def _bottom_two_layers(
 
 
 def _structure_group_boxes(
-    structure: list[list[int]], sorted_boxes: list[tuple[torch.Tensor, int]]
-) -> torch.Tensor:
+    structure: list[list[int]],
+    sorted_boxes: list[tuple[Float[torch.Tensor, "4"], int]],
+) -> Float[torch.Tensor, "groups 4"]:
     box_values = [item[0] for item in sorted_boxes]
-    group_boxes: list[torch.Tensor] = []
+    group_boxes: list[Float[torch.Tensor, "4"]] = []
     for group in structure:
         boxes = torch.stack([box_values[idx] for idx in group])
         left = boxes[:, 0].min()
@@ -124,8 +126,8 @@ def _structure_group_boxes(
 
 
 def build_cut_hierarchy(
-    bbox_ltwh: torch.Tensor,
-    labels_1based: torch.Tensor,
+    bbox_ltwh: Float[torch.Tensor, "elements 4"],
+    labels_1based: Int[torch.Tensor, "elements"],
     *,
     num_labels: int,
     discrete_x_grid: int,
@@ -172,9 +174,9 @@ def build_cut_hierarchy(
     group_discrete = discretize_ltwh(
         group_ltwh, num_x_grid=discrete_x_grid, num_y_grid=discrete_y_grid
     )
-    grouped_labels: list[torch.LongTensor] = []
-    grouped_bbox: list[torch.LongTensor] = []
-    label_histogram: list[torch.Tensor] = []
+    grouped_labels: list[Int[torch.Tensor, "elements"]] = []
+    grouped_bbox: list[Int[torch.Tensor, "elements 4"]] = []
+    label_histogram: list[Float[torch.Tensor, "labels"]] = []
     for group_idx, group in enumerate(structure):
         labels = torch.tensor(
             [sorted_boxes[idx][1] for idx in group],
@@ -230,13 +232,13 @@ def flatten_hierarchy(
         Shared layout output with hierarchy metadata in ``intermediates``.
     """
     batch = hierarchy.group_bbox.size(0)
-    rows_bbox: list[torch.Tensor] = []
-    rows_labels: list[torch.Tensor] = []
-    rows_mask: list[torch.Tensor] = []
-    rows_group_index: list[torch.Tensor] = []
+    rows_bbox: list[Float[torch.Tensor, "elements 4"]] = []
+    rows_labels: list[Int[torch.Tensor, "elements"]] = []
+    rows_mask: list[Bool[torch.Tensor, "elements"]] = []
+    rows_group_index: list[Int[torch.Tensor, "elements"]] = []
     for batch_idx in range(batch):
-        bbox_values: list[torch.Tensor] = []
-        label_values: list[torch.Tensor] = []
+        bbox_values: list[Float[torch.Tensor, "4"]] = []
+        label_values: list[Int[torch.Tensor, ""]] = []
         group_values: list[int] = []
         for group_idx in range(hierarchy.group_bbox.size(1)):
             if not bool(hierarchy.group_mask[batch_idx, group_idx]):
@@ -308,10 +310,12 @@ def flatten_hierarchy(
 
 def decode_hierarchy_from_logits(
     *,
-    group_bbox_logits: torch.Tensor,
-    group_label_logits: torch.Tensor,
-    grouped_bbox_logits: torch.Tensor,
-    grouped_label_logits: torch.Tensor,
+    group_bbox_logits: Float[torch.Tensor, "batch group_tokens 4 bbox_vocab"],
+    group_label_logits: Float[torch.Tensor, "batch group_tokens group_label_vocab"],
+    grouped_bbox_logits: Float[torch.Tensor, "batch groups elements 4 bbox_vocab"],
+    grouped_label_logits: Float[
+        torch.Tensor, "batch groups elements element_label_vocab"
+    ],
     num_labels: int,
     group_eos_index: int,
     element_eos_id: int,
