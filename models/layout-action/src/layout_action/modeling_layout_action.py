@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TypeAlias, cast
+from typing import cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
@@ -17,8 +17,6 @@ from .generation_layout_action import (
     LayoutActionSamplingConfig,
     sample_action_tokens,
 )
-
-LongTensor2D: TypeAlias = Int[torch.Tensor, "batch sequence"]
 
 
 class LayoutActionCausalSelfAttention(nn.Module):
@@ -138,9 +136,9 @@ class LayoutActionForCausalLM(PreTrainedModel):
 
     def forward(
         self,
-        input_ids: LongTensor2D,
+        input_ids: Int[torch.Tensor, "batch sequence"],
         attention_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
-        labels: LongTensor2D | None = None,
+        labels: Int[torch.Tensor, "batch sequence"] | None = None,
         return_dict: bool | None = None,
         output_hidden_states: bool | None = None,
         output_attentions: bool | None = None,
@@ -200,13 +198,13 @@ class LayoutActionForCausalLM(PreTrainedModel):
     @torch.no_grad()
     def generate(
         self,
-        input_ids: LongTensor2D,
+        input_ids: Int[torch.Tensor, "batch sequence"],
         *,
         max_new_tokens: int,
         temperature: float = 1.0,
         top_k: int | None = None,
         do_sample: bool = False,
-        forced_token_ids: LongTensor2D | None = None,
+        forced_token_ids: Int[torch.Tensor, "batch sequence"] | None = None,
         generator: torch.Generator | None = None,
     ) -> Int[torch.Tensor, "batch sequence"]:
         """Generate token ids with the reference sampling loop.
