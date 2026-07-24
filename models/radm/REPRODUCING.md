@@ -42,6 +42,20 @@ uv run --package radm python models/radm/scripts/convert_original_checkpoint.py 
 
 ## Run Parity Checks
 
+Run the source-level parity checks that do not require released weights:
+
+```bash
+RADM_VENDOR_ROOT=./vendor/radm \
+uv run --package radm pytest models/radm/tests/vendor_parity -m vendor_parity -rs
+```
+
+These checks compare the cosine beta schedule, forward diffusion `q_sample`,
+DDIM coefficients, and focal-style postprocessing order against the checked
+RADM source. The denoiser architecture check requires a local Detectron2 build
+because the checked `RADM/head.py` DynamicHead depends on Detectron2 RoI pooling;
+with `PARITY_REQUIRE=1`, that missing dependency fails loudly instead of being
+reported as completed parity.
+
 ```bash
 PARITY_REQUIRE=1 \
 RADM_ORIGINAL_CHECKPOINT=.cache/radm/original/radm_cgl.pth \

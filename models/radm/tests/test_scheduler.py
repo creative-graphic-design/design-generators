@@ -26,7 +26,7 @@ def test_scheduler_timesteps_and_generator_reproducibility() -> None:
 
 
 def test_scheduler_step_tuple() -> None:
-    scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=2)
+    scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=2, eta=0.0)
     scheduler.set_timesteps(2)
     sample = torch.full((1, 2, 4), 0.4)
     out = scheduler.step(sample, scheduler.timesteps[0], sample, return_dict=False)
@@ -48,3 +48,18 @@ def test_scheduler_invalid_config_and_eta_noise() -> None:
         generator=torch.Generator().manual_seed(0),
     )
     assert out.noise is not None
+
+
+def test_scheduler_q_sample_and_posterior_shapes() -> None:
+    scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=2)
+    x_start = torch.full((2, 3, 4), 0.25)
+    noise = torch.full_like(x_start, -0.5)
+    timestep = torch.tensor([1, 3])
+    noised = scheduler.q_sample(x_start, timestep, noise)
+    assert noised.shape == x_start.shape
+    mean, variance, log_variance = scheduler.posterior_mean_variance(
+        x_start, noised, timestep
+    )
+    assert mean.shape == x_start.shape
+    assert variance.shape == (2, 1, 1)
+    assert log_variance.shape == (2, 1, 1)

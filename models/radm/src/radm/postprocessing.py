@@ -50,34 +50,46 @@ def select_predictions(
         Batched boxes, labels, valid mask, scores, and kept source indices.
     """
     scores_all = logits.sigmoid()
-    scores, labels = scores_all.max(dim=-1)
+    num_proposals = boxes_xyxy.shape[1]
+    num_classes = logits.shape[-1]
+    class_ids = torch.arange(num_classes, device=logits.device, dtype=torch.long)
+    flattened_labels = class_ids.unsqueeze(0).repeat(num_proposals, 1).flatten(0, 1)
     batch_boxes = boxes_xyxy.new_zeros(boxes_xyxy.shape)
-    batch_labels = labels.new_zeros(labels.shape)
-    batch_scores = scores.new_zeros(scores.shape)
-    batch_mask = torch.zeros_like(labels, dtype=torch.bool)
+    batch_labels = torch.zeros(
+        boxes_xyxy.shape[:2], device=logits.device, dtype=torch.long
+    )
+    batch_scores = boxes_xyxy.new_zeros(boxes_xyxy.shape[:2])
+    batch_mask = torch.zeros(
+        boxes_xyxy.shape[:2], device=logits.device, dtype=torch.bool
+    )
     kept_indices: list[Int[torch.Tensor, "kept"]] = []
     for batch_index in range(boxes_xyxy.shape[0]):
-        valid = scores[batch_index] >= class_threshold
-        if valid.any():
-            valid_indices = valid.nonzero(as_tuple=False).flatten()
-            keep_local = batched_nms(
-                boxes_xyxy[batch_index, valid],
-                scores[batch_index, valid],
-                labels[batch_index, valid],
-                nms_threshold,
+        candidate_count = min(num_proposals, num_proposals * num_classes)
+        top_scores, top_flat_indices = (
+            scores_all[batch_index]
+            .flatten(0, 1)
+            .topk(
+                candidate_count,
+                sorted=False,
             )
-            keep = valid_indices[keep_local]
+        )
+        labels = flattened_labels[top_flat_indices]
+        proposal_indices = torch.div(
+            top_flat_indices, num_classes, rounding_mode="floor"
+        )
+        boxes = boxes_xyxy[batch_index, proposal_indices]
+        if nms_threshold >= 0:
+            keep_local = batched_nms(boxes, top_scores, labels, nms_threshold)
         else:
-            keep = torch.arange(
-                min(1, boxes_xyxy.shape[1]),
-                device=boxes_xyxy.device,
-                dtype=torch.long,
+            keep_local = torch.arange(
+                top_scores.numel(), device=top_scores.device, dtype=torch.long
             )
-        count = min(keep.numel(), boxes_xyxy.shape[1])
-        keep = keep[:count]
-        kept_indices.append(keep.detach().cpu())
-        batch_boxes[batch_index, :count] = boxes_xyxy[batch_index, keep]
-        batch_labels[batch_index, :count] = labels[batch_index, keep]
-        batch_scores[batch_index, :count] = scores[batch_index, keep]
+        keep_local = keep_local[top_scores[keep_local] > class_threshold]
+        count = min(keep_local.numel(), num_proposals)
+        keep_local = keep_local[:count]
+        kept_indices.append(top_flat_indices[keep_local].detach().cpu())
+        batch_boxes[batch_index, :count] = boxes[keep_local]
+        batch_labels[batch_index, :count] = labels[keep_local]
+        batch_scores[batch_index, :count] = top_scores[keep_local]
         batch_mask[batch_index, :count] = True
     return batch_boxes, batch_labels, batch_mask, batch_scores, kept_indices
