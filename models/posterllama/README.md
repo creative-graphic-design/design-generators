@@ -59,7 +59,7 @@ while the pipeline owns local runtime generation after conversion.
 ### Model Sources
 
 - **Paper:** [PosterLlama: Bridging Design Ability of Language Model to Content-Aware Layout Generation](https://arxiv.org/abs/2404.00995)
-- **Original implementation:** [PosterLlama repository](https://github.com/Poetryhan/PosterLlama)
+- **Original implementation:** [PosterLlama repository](https://github.com/jaepoong/PosterLlama)
 - **Raw checkpoint:** [poong/PosterLlama](https://huggingface.co/poong/PosterLlama)
 
 ## Supported Checkpoints
@@ -174,8 +174,9 @@ backbone weights and should be run with an explicitly selected GPU.
 #### Testing Data
 
 Unit tests use synthetic prompts and representative generated HTML/SVG snippets.
-Gated parity uses local original-code assets and does not commit generated text,
-tensors, images, checkpoints, or references.
+Gated prompt/parser parity imports the original source templates and
+`html_to_ui.get_bbox()` from a local source checkout. Generated text, tensors,
+images, checkpoints, and large references are not committed.
 
 #### Factors
 
@@ -184,21 +185,21 @@ label mapping, and generation settings.
 
 #### Metrics
 
-Metrics include prompt field identity, parser behavior, normalized box values,
-schema output fields, and local `save_pretrained` to `from_pretrained` smoke
-loading.
+Metrics include prompt byte identity, parser `ltwh`/label identity, normalized
+box values, schema output fields, and local `save_pretrained` to
+`from_pretrained` smoke loading.
 
 ### Parity Results
 
 | Check | Cases | Match criterion | Result |
 | --- | ---: | --- | --- |
-| Prompt construction | 5 condition aliases | Deterministic condition mapping and `<FILL_i>` order | passed in unit tests |
-| HTML/SVG parser | 4 parser cases | Safe numeric parse, unknown-label skip, pixel `ltwh` to normalized center `xywh` | passed in unit tests |
+| Prompt construction | 5 condition aliases | Byte-exact against original source templates | passed in gated prompt/parser parity |
+| HTML/SVG parser | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in gated prompt/parser parity and unit tests |
 | Original GPU generation | 0 committed cases | Gated original `generate.py` run with fixed local assets | blocked until local 7B assets and GPU window are available |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/REPRODUCING.md) for the commands that inspect source assets, generate reference metadata, run parity checks, convert local artifacts, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/REPRODUCING.md) for the commands that inspect source assets, generate prompt/parser references, run parity checks, convert local artifacts, and smoke-test local loading.
 
 ## Environmental Impact
 

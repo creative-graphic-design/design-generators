@@ -274,7 +274,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "layoutvae": "https://github.com/Layout-Generation/layout-generation",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
-    "posterllama": "https://github.com/Poetryhan/PosterLlama",
+    "posterllama": "https://github.com/jaepoong/PosterLlama",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",

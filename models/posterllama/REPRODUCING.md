@@ -1,7 +1,7 @@
 # Reproducing PosterLlama Checks
 
 This page gives the mechanical local commands for PosterLlama prompt/parser
-checks, original-code metadata capture, checkpoint conversion, and
+checks, original-code prompt/parser reference capture, checkpoint conversion, and
 `from_pretrained` smoke tests.
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
@@ -30,19 +30,13 @@ uv run --package posterllama python models/posterllama/scripts/download_original
 uv run --package posterllama pytest models/posterllama/tests -m "not vendor_parity and not integration"
 ```
 
-## Original Reference Metadata
+## Original Prompt And Parser References
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package posterllama --extra vendor \
-  python models/posterllama/scripts/generate_reference_outputs.py \
-    --vendor-root ./vendor/posterllama \
-    --checkpoint-path ./.cache/posterllama/original/pytorch_model.bin \
-    --base-llm-path ./models/codeLlama-7b-hf \
-    --image-root ./.cache/posterllama/images \
-    --jsonl ./.cache/posterllama/fixture.jsonl \
-    --output-metadata ./.cache/posterllama/reference/metadata.json \
-    --device cuda:0 \
-    --seed 42
+uv run --package posterllama \
+  python models/posterllama/scripts/generate_prompt_parser_references.py \
+    --source-root ./vendor/posterllama \
+    --output-json ./.cache/posterllama/reference/prompt_parser.json
 ```
 
 ## Gated Parity
@@ -50,10 +44,13 @@ CUDA_VISIBLE_DEVICES=0 uv run --package posterllama --extra vendor \
 ```bash
 PARITY_REQUIRE=1 \
 POSTERLLAMA_VENDOR_ROOT=./vendor/posterllama \
-POSTERLLAMA_CHECKPOINT_PATH=./.cache/posterllama/original/pytorch_model.bin \
-POSTERLLAMA_BASE_LLM_PATH=./models/codeLlama-7b-hf \
 uv run --package posterllama pytest models/posterllama/tests/vendor_parity -m vendor_parity
 ```
+
+This prompt/parser parity path compares five original-source prompt templates
+and one `html_to_ui.get_bbox()` parser result. Run full generation parity by
+invoking `vendor/posterllama/generate.py` with the raw checkpoint, base LLM
+path, image root, JSONL input, fixed seed, and one selected GPU.
 
 ## Conversion And Smoke
 

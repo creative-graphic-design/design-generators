@@ -14,17 +14,21 @@ def test_vendor_condition_aliases_build_prompt() -> None:
         PosterLlamaConfig(canvas_size=(100, 200))
     )
 
-    prompt = processor.build_prompt(
-        condition_type="cond_cate_size_to_pos",
-        labels=["text"],
-        bbox=[[[0.5, 0.5, 0.2, 0.4]]],
-        canvas_size=(100, 200),
+    prompt = cast(
+        str,
+        processor.build_prompt(
+            condition_type="cond_cate_size_to_pos",
+            labels=["text"],
+            bbox=[[[0.5, 0.5, 0.2, 0.4]]],
+            canvas_size=(100, 200),
+        ),
     )
 
-    assert "Condition: label_size" in prompt
+    assert "categories and size and image" in prompt
     assert 'data-category="text"' in prompt
-    assert 'x="<FILL_0>"' in prompt
-    assert 'width="20.0"' in prompt
+    assert 'x="<FILL_1>"' in prompt
+    assert 'width="20"' in prompt
+    assert prompt.endswith(" <MID>")
 
 
 @pytest.mark.parametrize(
@@ -83,8 +87,8 @@ def test_processor_call_and_prompt_variants() -> None:
     )
 
     assert batch["condition_type"] == ConditionType.refinement
-    assert "Texts: headline | body" in batch["prompts"][0]
-    assert 'width="<FILL_0>"' in batch["prompts"][0]
+    assert "Text: headline | body" in batch["prompts"][0]
+    assert 'width="<FILL_1>"' in batch["prompts"][0]
 
 
 def test_parse_output_requires_canvas_when_missing() -> None:
@@ -119,5 +123,5 @@ def test_num_elements_sequence_and_tensor() -> None:
         num_elements=torch.tensor([3]),
     )
 
-    assert seq_prompt.count("<FILL_") == 10
-    assert tensor_prompt.count("<FILL_") == 15
+    assert seq_prompt.count("<FILL_") == 0
+    assert tensor_prompt.count("<FILL_") == 0

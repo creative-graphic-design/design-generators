@@ -45,11 +45,42 @@ UNSUPPORTED_CONDITIONS: Final[frozenset[ConditionType]] = frozenset(
         ConditionType.retrieval,
     }
 )
-PROMPT_PREFIX: Final[str] = (
-    "Generate poster layout markup using <rect> elements inside one <svg>."
-)
+SOURCE_TASK_INSTRUCTIONS: Final[dict[str, str]] = {
+    "cgl": "I want to generate layout in poster design format. ",
+    "cgl_v2": "I want to generate layout in poster design format. ",
+    "pku_posterlayout": "I want to generate layout in poster design format. ",
+}
+SOURCE_INSTRUCTIONS: Final[dict[str, str]] = {
+    "cond_cate_to_size_pos": (
+        "please generate the layout html according to the categories and image I "
+        "provide (in html format):\n###bbox html: {bbox_html}"
+    ),
+    "cond_cate_size_to_pos": (
+        "please generate the layout html according to the categories and size and "
+        "image I provide (in html format):\n###bbox html: {bbox_html}"
+    ),
+    "cond_cate_pos_to_size": (
+        "please generate the layout html according to the categories and position "
+        "and image I provide (in html format):\n###bbox html: {bbox_html}"
+    ),
+    "cond_random_mask": (
+        "please recover the layout html according to the bbox , categories, size, "
+        "image I provide (in html format):\n###bbox html: {bbox_html}"
+    ),
+    "unconditional": (
+        "plaese generate the layout html according to the image I provide "
+        "(in html format):\n###bbox html: {bbox_html}"
+    ),
+}
+SOURCE_TEXT_INSTRUCTIONS: Final[dict[str, str]] = {
+    key: value.replace("(in html format):\n", "(in html format)\nText: {text}\n")
+    for key, value in SOURCE_INSTRUCTIONS.items()
+}
 RECT_TEMPLATE: Final[str] = (
-    '<rect data-category="{label}" x="{x}" y="{y}" width="{width}" height="{height}"/>'
+    '<rect data-category="{label}", x="{x}", y="{y}", width="{width}", height="{height}"/>'
+)
+HTML_TEMPLATE: Final[str] = (
+    '<body> <svg width="{width}" height="{height}"> {content} </svg> </body>'
 )
 FILL_TEMPLATE: Final[str] = "<FILL_{}>"
 
@@ -318,13 +349,21 @@ class PosterLlamaProcessor(ProcessorMixin):
             normalized=normalized,
             canvas_size=canvas,
         )
-        body = (
-            f"{base_prompt}\n"
-            f"Condition: {condition.value}\n"
-            f"{text_line}"
-            f'<body> <svg width="{canvas[0]}" height="{canvas[1]}"> '
-            f"{known_markup} </svg> </body>"
+        bbox_html = HTML_TEMPLATE.format(
+            width=canvas[0],
+            height=canvas[1],
+            content=known_markup,
         )
+        source_key = self._source_condition_key(condition)
+        task_instruction = SOURCE_TASK_INSTRUCTIONS[self.config.dataset_name]
+        if text_line:
+            instruction = SOURCE_TEXT_INSTRUCTIONS[source_key].format(
+                text=text_line,
+                bbox_html=bbox_html,
+            )
+        else:
+            instruction = SOURCE_INSTRUCTIONS[source_key].format(bbox_html=bbox_html)
+        body = f"{base_prompt}{task_instruction}{instruction} <MID>"
         return self.config.prompt_template.format(body)
 
     def parse_output(
@@ -378,10 +417,10 @@ class PosterLlamaProcessor(ProcessorMixin):
 
     def _first_prompt(self, prompt: str | Sequence[str] | None) -> str:
         if prompt is None:
-            return PROMPT_PREFIX
+            return ""
         if isinstance(prompt, str):
             return prompt
-        return next(iter(prompt), PROMPT_PREFIX)
+        return next(iter(prompt), "")
 
     def _texts_line(
         self,
@@ -397,7 +436,7 @@ class PosterLlamaProcessor(ProcessorMixin):
                 values = cast(list[str], list(texts))
             else:
                 values = [str(value) for value in first]
-        return "Texts: " + " | ".join(values) + "\n"
+        return " | ".join(values)
 
     def _constraint_markup(
         self,
@@ -412,6 +451,8 @@ class PosterLlamaProcessor(ProcessorMixin):
         canvas_size: tuple[int, int],
     ) -> str:
         if labels is None:
+            if condition in {ConditionType.content_image, ConditionType.unconditional}:
+                return ""
             count = self._num_elements(num_elements)
             return " ".join(self._fill_rect(index) for index in range(count))
         label_tensor = self._labels_to_tensor(labels)
@@ -423,8 +464,12 @@ class PosterLlamaProcessor(ProcessorMixin):
             normalized=normalized,
             canvas_size=canvas_size,
         )
-        return " ".join(
-            self._rect_for_condition(
+        rects: list[str] = []
+        fill_index = 1
+        for index, (label, box) in enumerate(
+            zip(label_tensor[0].tolist(), bbox_tensor[0].tolist(), strict=True)
+        ):
+            rect, fill_index = self._rect_for_condition(
                 condition=condition,
                 label=int(label),
                 bbox_ltwh=(
@@ -433,12 +478,11 @@ class PosterLlamaProcessor(ProcessorMixin):
                     float(box[2]),
                     float(box[3]),
                 ),
-                fill_index=index,
+                fill_index=fill_index,
             )
-            for index, (label, box) in enumerate(
-                zip(label_tensor[0].tolist(), bbox_tensor[0].tolist(), strict=True)
-            )
-        )
+            if rect:
+                rects.append(rect)
+        return " ".join(rects)
 
     def _labels_to_tensor(self, labels: object) -> Int[torch.Tensor, "batch elements"]:
         if isinstance(labels, torch.Tensor):
@@ -489,31 +533,56 @@ class PosterLlamaProcessor(ProcessorMixin):
         label: int,
         bbox_ltwh: tuple[float, float, float, float],
         fill_index: int,
-    ) -> str:
+    ) -> tuple[str, int]:
         label_name = str(cast(dict[int, str], self.config.id2label)[label])
         x, y, width, height = bbox_ltwh
-        fill = FILL_TEMPLATE.format(fill_index)
         if condition is ConditionType.label:
-            x = y = width = height = fill
+            x, y, width, height = self._fill_values(fill_index, 4)
+            fill_index += 4
         elif condition is ConditionType.label_size:
-            x = y = fill
+            x, y = self._fill_values(fill_index, 2)
+            fill_index += 2
         elif condition is ConditionType.completion:
-            return self._fill_rect(fill_index)
+            x, y, width, height = self._fill_values(fill_index, 4)
+            fill_index += 4
         elif condition is ConditionType.refinement:
-            width = height = fill
+            width, height = self._fill_values(fill_index, 2)
+            fill_index += 2
         elif condition in {ConditionType.content_image, ConditionType.unconditional}:
-            return self._fill_rect(fill_index)
-        return RECT_TEMPLATE.format(
-            label=label_name,
-            x=x,
-            y=y,
-            width=width,
-            height=height,
+            return "", fill_index
+        x, y, width, height = (
+            _format_source_number(value) for value in (x, y, width, height)
+        )
+        return (
+            RECT_TEMPLATE.format(
+                label=label_name,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+            ),
+            fill_index,
         )
 
     def _fill_rect(self, index: int) -> str:
-        fill = FILL_TEMPLATE.format(index)
-        return RECT_TEMPLATE.format(label=fill, x=fill, y=fill, width=fill, height=fill)
+        label, x, y, width, height = self._fill_values(index + 1, 5)
+        return RECT_TEMPLATE.format(label=label, x=x, y=y, width=width, height=height)
+
+    def _fill_values(self, start: int, count: int) -> tuple[str, ...]:
+        return tuple(
+            FILL_TEMPLATE.format(index) for index in range(start, start + count)
+        )
+
+    def _source_condition_key(self, condition: ConditionType) -> str:
+        if condition is ConditionType.label:
+            return "cond_cate_to_size_pos"
+        if condition is ConditionType.label_size:
+            return "cond_cate_size_to_pos"
+        if condition is ConditionType.completion:
+            return "cond_random_mask"
+        if condition is ConditionType.refinement:
+            return "cond_cate_pos_to_size"
+        return "unconditional"
 
     def _num_elements(self, num_elements: object) -> int:
         if num_elements is None:
@@ -532,3 +601,13 @@ class PosterLlamaProcessor(ProcessorMixin):
 
     def _normalize_input_label(self, label: object) -> str:
         return str(label).strip().lower().replace("_", " ")
+
+
+def _format_source_number(value: float | int | str) -> str:
+    if isinstance(value, str):
+        return value
+    number = float(value)
+    rounded = round(number)
+    if abs(number - rounded) < 1e-4:
+        return str(int(rounded))
+    return f"{number:g}"

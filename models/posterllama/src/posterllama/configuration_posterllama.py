@@ -65,7 +65,7 @@ class PosterLlamaConfig(PretrainedConfig):
         lora_alpha: int = 16,
         lora_dropout: float = 0.05,
         lora_target_modules: Sequence[str] = ("q_proj", "v_proj"),
-        prompt_template: str = "[INST] {} [/INST] ",
+        prompt_template: str = "{}",
         image_placeholder: str = "<ImageHere>",
         image_end_token: str = "</Img>",
         max_txt_len: int = 400,
