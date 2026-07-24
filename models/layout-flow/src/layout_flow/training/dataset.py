@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, TypeAlias
+from typing import Final
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch.utils.data import Dataset, default_collate
 
 from laygen.common.bbox import BoxFormat
@@ -27,10 +27,9 @@ _SPLIT_FILES: Final[dict[str, dict[str, str]]] = {
         "test": "publaynet_test.h5",
     },
 }
-RawSample: TypeAlias = dict[str, torch.Tensor | str]
 
 
-class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
+class LayoutFlowH5Dataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]]):
     """HDF5 dataset for LayoutFlow training."""
 
     def __init__(
@@ -75,11 +74,11 @@ class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
         """Return dataset size."""
         return len(self.keys)
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
+    def __getitem__(self, index: int) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
         """Return a raw sample from the HDF5 file."""
         key = self.keys[index]
         sample = self.data[key]
-        sample_dict: dict[str, torch.Tensor | str] = {"id": str(key)}
+        sample_dict: dict[str, Shaped[torch.Tensor, "..."] | str] = {"id": str(key)}
         for feature in sample.keys():
             value = torch.from_numpy(np.array(sample[feature]))
             sample_dict["type" if feature == "categories" else feature] = value
@@ -111,11 +110,11 @@ class LayoutFlowH5Dataset(Dataset[dict[str, torch.Tensor | str]]):
 
 
 def collate_layout_flow_batch(
-    batch: Sequence[RawSample],
+    batch: Sequence[dict[str, Shaped[torch.Tensor, "..."] | str]],
     *,
     max_length: int | None = None,
     box_format: BoxFormat | str = BoxFormat.xywh,
-) -> dict[str, torch.Tensor | list[str]]:
+) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
     """Collate LayoutFlow samples with fixed-length padding.
 
     Args:
@@ -138,7 +137,7 @@ def collate_layout_flow_batch(
     """
     total_elems = [len(example["type"]) for example in batch]
     target_length = max(total_elems) if max_length is None else max_length
-    collated: list[RawSample] = []
+    collated: list[dict[str, Shaped[torch.Tensor, "..."] | str]] = []
     fmt = BoxFormat(box_format)
     for example, total in zip(batch, total_elems, strict=True):
         item = dict(example)
@@ -174,7 +173,7 @@ def _mask_tensor(length: int, max_length: int) -> Bool[torch.Tensor, "elements 1
 
 
 def _copy_1d(
-    tensor: torch.Tensor, max_length: int, dtype: torch.dtype
+    tensor: Shaped[torch.Tensor, "..."], max_length: int, dtype: torch.dtype
 ) -> Int[torch.Tensor, "elements"]:
     out = torch.zeros(max_length, dtype=dtype)
     out[: min(tensor.shape[0], max_length)] = tensor[:max_length].to(dtype=dtype)
@@ -182,7 +181,7 @@ def _copy_1d(
 
 
 def _copy_bbox(
-    tensor: torch.Tensor, total: int, max_length: int
+    tensor: Float[torch.Tensor, "source_elements 4"], total: int, max_length: int
 ) -> Float[torch.Tensor, "elements 4"]:
     out = torch.zeros(max_length, 4, dtype=torch.float32)
     out[: min(total, max_length)] = tensor[:max_length]

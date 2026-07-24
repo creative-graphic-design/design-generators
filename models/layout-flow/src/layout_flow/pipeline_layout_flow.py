@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from enum import StrEnum
 from pathlib import Path
-from typing import Self, TypeAlias, assert_never, cast
+from typing import assert_never, cast
 
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common.bbox import BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -24,8 +24,6 @@ from .processing_layout_flow import (
 )
 from .sampling import sample_initial_state
 from .scheduling_layout_flow import LayoutFlowEulerScheduler
-
-TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
 
 
 class OutputType(StrEnum):
@@ -89,7 +87,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
         guidance_scale: float = 0.0,
         output_type: OutputType | str = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."]]:
         """Generate layout boxes and labels.
 
         Args:
@@ -225,7 +223,9 @@ class LayoutFlowPipeline(DiffusionPipeline):
         self.layout_flow_config.save_config(save_directory)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: str | Path) -> Self:
+    def from_pretrained(
+        cls, pretrained_model_name_or_path: str | Path
+    ) -> LayoutFlowPipeline:
         """Load a saved LayoutFlow pipeline.
 
         Args:

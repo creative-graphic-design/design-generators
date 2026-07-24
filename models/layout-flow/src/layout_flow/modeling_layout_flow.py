@@ -14,7 +14,7 @@ from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 
 from laygen.nn import clone_module_list, get_activation
@@ -26,13 +26,14 @@ def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
     return clone_module_list(module, n)
 
 
-def _gelu2(x: torch.Tensor) -> torch.Tensor:
+def _gelu2(x: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
     return get_activation("gelu2")(x)
 
 
 def _get_activation_fn(
-    activation: str | Callable[[torch.Tensor], torch.Tensor],
-) -> Callable[[torch.Tensor], torch.Tensor]:
+    activation: str
+    | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]],
+) -> Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]]:
     if not isinstance(activation, str):
         return activation
     return get_activation(activation)
@@ -54,7 +55,7 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(1, max_len, d_model)
         pe[0, :, 0::2] = torch.sin(position * div_term)
         pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.pe: torch.Tensor
+        self.pe: Float[torch.Tensor, "1 tokens channels"]
         self.register_buffer("pe", pe)
 
     def forward(
@@ -100,7 +101,8 @@ class LayoutFlowBlock(nn.Module):
         nhead: int = 16,
         dim_feedforward: int = 2048,
         dropout: float = 0.0,
-        activation: str | Callable[[torch.Tensor], torch.Tensor] = F.relu,
+        activation: str
+        | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]] = F.relu,
         batch_first: bool = False,
         norm_first: bool = False,
     ) -> None:
@@ -137,10 +139,10 @@ class LayoutFlowBlock(nn.Module):
 
     def _sa_block(
         self,
-        x: torch.Tensor,
-        attn_mask: torch.Tensor | None,
-        key_padding_mask: torch.Tensor | None,
-    ) -> torch.Tensor:
+        x: Float[torch.Tensor, "batch tokens channels"],
+        attn_mask: Shaped[torch.Tensor, "..."] | None,
+        key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         x = self.self_attn(
             x,
             x,
@@ -151,7 +153,9 @@ class LayoutFlowBlock(nn.Module):
         )[0]
         return self.dropout1(x)
 
-    def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
+    def _ff_block(
+        self, x: Float[torch.Tensor, "batch tokens channels"]
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         return self.dropout2(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -171,11 +175,11 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        timestep: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        src: Float[torch.Tensor, "batch tokens channels"],
+        mask: Shaped[torch.Tensor, "..."] | None = None,
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        timestep: Float[torch.Tensor, "batch"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Run the stacked encoder blocks."""
         output = src
         for layer in self.layers:
