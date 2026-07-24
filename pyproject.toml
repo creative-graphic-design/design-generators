@@ -32,6 +32,7 @@ dependencies = [
     "laygen",
     "layoutformerpp",
     "parse-then-place",
+    "postero",
     "posgen",
     "ralf",
     "smarttext",
@@ -119,6 +120,14 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "postero" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "postero" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
         { package = "ds-gan" },
         { package = "layout-detr", extra = "vendor" },
     ],
@@ -164,6 +173,7 @@ layousyn = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
+postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }

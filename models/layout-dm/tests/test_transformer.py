@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from layout_dm.transformer import (
+from layout_dm.modeling_layout_dm import (
     AdaLayerNorm,
     Block,
     ElementPositionalEmbedding,
