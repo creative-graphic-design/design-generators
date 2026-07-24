@@ -98,6 +98,18 @@ def test_check_committed_paths_allows_non_absolute_ghq_shapes(
     assert check_committed_paths.check_committed_paths(tmp_path) == 0
 
 
+def test_check_committed_paths_allows_url_ghq_path_segments(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "url=https://example.com/tmp/ghq/github.com/org/repo\n",
+        encoding="utf-8",
+    )
+    track(tmp_path, "README.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 0
+
+
 def test_check_committed_paths_rejects_delimited_absolute_ghq_paths(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

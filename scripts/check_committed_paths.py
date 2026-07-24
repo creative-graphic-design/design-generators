@@ -77,6 +77,7 @@ PATTERNS = (
             GHQ_ABSOLUTE_PREFIX
             + r"(?P<path>"
             + re.escape(SLASH)
+            + r"(?!/)"
             + PATH_CHARS
             + re.escape(GHQ_MARKER)
             + PATH_CHARS
