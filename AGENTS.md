@@ -210,6 +210,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   co-specifying required workspace libraries such as `laygen` and `posgen` in
   the same command; clone + uv flows are for development and `REPRODUCING`
   docs.
+- README and model-card repository/source links must be copied from
+  `.gitmodules` or the implementation issue, then checked for a resolving HTTP
+  response before commit. Do not write upstream repository, project-page,
+  dataset, or source links from memory. PR CI mechanically verifies newly added
+  external URLs and rejects added 404/410 links.
 - Each README includes `Reproducibility`, opening with one sentence that states
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity
