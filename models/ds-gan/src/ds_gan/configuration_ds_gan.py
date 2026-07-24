@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias, cast
+from typing import cast
 
 from transformers import PretrainedConfig
 
@@ -11,8 +11,6 @@ from posgen.common.labels import (
     PKUPosterLayoutLabel,
     normalize_dataset_name,
 )
-
-Id2LabelMapping: TypeAlias = dict[int | str, str]
 
 
 def _semantic_pku_id2label() -> dict[int, str]:
@@ -66,7 +64,7 @@ class DSGANConfig(PretrainedConfig):
         reference_canvas_size: tuple[int, int] | list[int] = (513, 750),
         backbone_feature_size: int = 330,
         model_num_classes: int = 4,
-        id2label: Id2LabelMapping | None = None,
+        id2label: dict[int | str, str] | None = None,
         label2id: dict[str, int] | None = None,
         model_subfolder: str = "model",
         processor_subfolder: str = "processor",
