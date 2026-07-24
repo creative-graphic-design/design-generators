@@ -12,7 +12,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Models
 
-Framework, task, condition, and dataset metadata are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
+Framework, task, and dataset details are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
 
 | Model | Venue | Ckpt | Train |
 | --- | --- | --- | --- |
