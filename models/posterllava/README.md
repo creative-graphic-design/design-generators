@@ -40,7 +40,7 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=PosterLayout&color=informational&style=flat-square)
 ![dataset](https://img.shields.io/static/v1?label=dataset&message=QB-Poster&color=informational&style=flat-square)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=cpu-contract&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=n/a&color=lightgrey&style=flat-square)
 
 This package contains a PosterLLaVA processor and inference pipeline for parsing generated poster-layout JSON into normalized center `xywh` boxes, integer labels, valid-element masks, and `id2label`.
@@ -132,14 +132,15 @@ The package does not train or fine-tune PosterLLaVA. It provides local processor
 
 | Check | Cases | Match Criterion | Result |
 | --- | ---: | --- | --- |
-| Prompt bytes | 2 | Exact conversation string including `<image>` placement | Pass in unit tests |
-| JSON parser | 3 | First JSON array span and single-quote repair | Pass in unit tests |
-| Image padding | 1 | CLIP-mean square padding dimensions and fill | Pass in unit tests |
+| Prompt bytes | 2 | Exact match against original `conv_templates` output, including `<image>` placement | Pass in vendor-parity CPU comparison |
+| Prompt token ids | 1 | Exact `IMAGE_TOKEN_INDEX=-200` insertion against original `tokenizer_image_token` | Pass in vendor-parity CPU comparison |
+| JSON parser | 3 | Exact parsed objects against original `cli_multi.py` JSON-slice behavior on supported outputs | Pass in vendor-parity CPU comparison |
+| Image preprocessing | 1 | Exact tensor match against original square-pad CLIP preprocessing | Pass in vendor-parity CPU comparison |
 | Full 7B generation | 0 | Gated local run with original assets | Blocked in CI |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-padding, gated original-code parity, and local smoke checks.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-preprocessing, gated full-generation parity, and local smoke checks.
 
 ## Citation
 

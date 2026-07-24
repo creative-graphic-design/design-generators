@@ -309,17 +309,19 @@ class PosterLlavaProcessor(ProcessorMixin):
         """
         if num_elements <= 0:
             raise ValueError("num_elements must be positive")
+        element_list = list(elements)
         initial = ""
-        if elements:
-            initial = " Initial layout JSON: " + json.dumps(
-                list(elements), sort_keys=True
-            )
+        if element_list:
+            initial = " Initial layout JSON: " + json.dumps(element_list)
+        resolution = list(canvas_size or self.canvas_size)
         text_payload = self._format_texts(texts)
         body = prompt or self.prompt_template.format(
             num_elements=num_elements,
             domain_name=domain_name or self.default_domain_name,
             initial_layout=initial,
-            canvas_size=canvas_size or self.canvas_size,
+            initial_json=json.dumps(element_list),
+            canvas_size=resolution,
+            resolution=resolution,
             texts=text_payload,
         )
         if text_payload and "{texts}" not in self.prompt_template and prompt is None:
@@ -526,7 +528,12 @@ class PosterLlavaProcessor(ProcessorMixin):
                 "answers to the human's questions.###Human: "
                 f"{image_body}###Assistant:"
             )
-        return f"USER: {image_body}\nASSISTANT:"
+        return (
+            "A chat between a curious human and an artificial intelligence "
+            "assistant. The assistant gives helpful, detailed, and polite "
+            "answers to the human's questions. USER: "
+            f"{image_body} ASSISTANT:"
+        )
 
     def _format_texts(
         self,

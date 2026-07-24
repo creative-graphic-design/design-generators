@@ -31,9 +31,18 @@ class ConversationMode(StrEnum):
 
 DEFAULT_CHECKPOINT_ID: Final[str] = "posterllava/posterllava_v0"
 DEFAULT_PROMPT_TEMPLATE: Final[str] = (
-    "Generate {num_elements} layout elements for a {domain_name}. "
-    "Return only a JSON array. Each item must have a label string and a box "
-    "as [left, top, right, bottom] normalized to [0, 1].{initial_layout}"
+    "Hello! Could you please help me to place {num_elements} foreground "
+    "elements over the background image of resolution {resolution} to craft "
+    "an aesthetically pleasing, harmonious, balanced, and visually appealing "
+    "{domain_name}?\n"
+    "Finding semantic-meaningful objects or visual foci on the background "
+    "image at first might help in designing, and you should avoid any "
+    "unnecessary blocking of them.\n"
+    "Please return the result by completing the following JSON file. Each "
+    "element's location and size should be represented by a bounding box "
+    "described as [left, top, right, bottom], and each number is a continuous "
+    "digit from 0 to 1.\n"
+    "Here is the initial JSON file: {initial_json}"
 )
 
 

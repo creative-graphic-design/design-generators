@@ -910,6 +910,8 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     expected = (
         "not-run"
         if "not run" in section
+        else "cpu-contract"
+        if "vendor-parity CPU comparison" in section
         else "tolerance-verified"
         if _parity_requires_tolerance(section)
         else "bit-exact"

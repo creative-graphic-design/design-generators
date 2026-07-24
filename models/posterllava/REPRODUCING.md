@@ -7,7 +7,7 @@ tags:
 
 # Reproducing PosterLLaVA
 
-These commands reproduce the local PosterLLaVA prompt, parser, image-padding, and gated original-code parity checks.
+These commands reproduce the PosterLLaVA prompt, parser, image-preprocessing, and gated full-generation agreement checks.
 
 Workflow order: download assets, generate references, convert checkpoints when redistribution is approved, run parity checks, then smoke-test local loading with `from_pretrained`.
 
@@ -40,10 +40,22 @@ CUDA_VISIBLE_DEVICES=0 uv run --package posterllava python models/posterllava/sc
   --no-do-sample
 ```
 
+## Vendor CPU Contract
+
+```bash
+git submodule update --init vendor/posterllava
+PARITY_REQUIRE=1 uv run --package posterllava pytest \
+  models/posterllava/tests/vendor_parity \
+  -m vendor_parity \
+  -k cpu_prompt_token_parser_and_padding_contract
+```
+
 ## Vendor Parity
 
 ```bash
-PARITY_REQUIRE=1 uv run --package posterllava pytest models/posterllava/tests/vendor_parity -m vendor_parity
+PARITY_REQUIRE=1 uv run --package posterllava pytest \
+  models/posterllava/tests/vendor_parity \
+  -m vendor_parity
 ```
 
 ## Convert Checkpoints

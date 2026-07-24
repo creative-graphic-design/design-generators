@@ -22,12 +22,16 @@ class TinyTokenizer:
 def test_build_prompt_matches_llava_v0_image_token_contract() -> None:
     processor = PosterLlavaProcessor.from_config()
 
-    prompt = processor.build_prompt(num_elements=2, conv_mode="llava_v0")
+    prompt = processor.build_prompt(
+        num_elements=2, canvas_size=(320, 180), conv_mode="llava_v0"
+    )
 
     assert prompt.startswith("A chat between a curious human")
     assert "###Human: <image>\n" in prompt
     assert prompt.endswith("###Assistant:")
-    assert "Generate 2 layout elements" in prompt
+    assert "place 2 foreground elements" in prompt
+    assert "resolution [320, 180]" in prompt
+    assert "Here is the initial JSON file: []" in prompt
 
 
 def test_build_prompt_supports_llava_v1_wrapper() -> None:
@@ -35,8 +39,9 @@ def test_build_prompt_supports_llava_v1_wrapper() -> None:
 
     prompt = processor.build_prompt(num_elements=1, conv_mode="llava_v1")
 
-    assert prompt.startswith("USER: <image>\n")
-    assert prompt.endswith("\nASSISTANT:")
+    assert prompt.startswith("A chat between a curious human")
+    assert " USER: <image>\n" in prompt
+    assert prompt.endswith(" ASSISTANT:")
 
 
 def test_parse_output_uses_first_json_span_and_single_quote_repair() -> None:
