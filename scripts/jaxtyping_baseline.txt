@@ -64,25 +64,6 @@ models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	tuple[
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	) -> torch.Tensor:
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	confidence_logits: torch.Tensor,
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	timestep: torch.Tensor,
-models/layout-gpt/src/layout_gpt/types.py	torch.Tensor | None	sequences: torch.Tensor | None
-models/layoutformerpp/src/layoutformerpp/conversion.py	dict[str, torch.Tensor]	def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Callable[[int, int, torch.Tensor], tuple[list[int], int | None]] | None	generation_constraint_fn: Callable[
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Seq2SeqLMOutput | tuple[torch.Tensor, ...]	) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	list[torch.Tensor]	outs: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	self, labels: torch.Tensor
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor	sequences: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor | list[list[bool]] | list[bool] | None	mask: torch.Tensor | list[list[bool]] | list[bool] | None,
 models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
 models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
 models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
