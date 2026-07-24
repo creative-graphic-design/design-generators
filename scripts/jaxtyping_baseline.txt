@@ -109,55 +109,6 @@ models/lace/src/lace/scheduling_lace.py	torch.Tensor	prev_sample: torch.Tensor
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	sample: torch.Tensor,
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	timestep: torch.Tensor,
 models/lace/src/lace/scheduling_lace.py	torch.Tensor	timesteps: torch.Tensor,
-models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	remapped: dict[str, torch.Tensor] = {}
-models/layout-action/src/layout_action/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
-models/layout-action/src/layout_action/conversion.py	tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]	) -> tuple[dict[str, torch.Tensor], list[StateDictKeyReport]]:
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	) -> torch.Tensor:
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	def __call__(self, input_ids: torch.Tensor) -> TokenModelOutput:
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	input_ids: torch.Tensor,
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor	logits: torch.Tensor
-models/layout-action/src/layout_action/generation_layout_action.py	torch.Tensor | None	forced_token_ids: torch.Tensor | None = None,
-models/layout-action/src/layout_action/modeling_layout_action.py	CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]	) -> CausalLMOutputWithCrossAttentions | tuple[torch.Tensor, ...]:
-models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	) -> torch.Tensor:
-models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	LongTensor2D: TypeAlias = torch.Tensor
-models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	def __init__(self, config: LayoutActionConfig, mask: torch.Tensor) -> None:
-models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor	def forward(self, x: torch.Tensor) -> torch.Tensor:
-models/layout-action/src/layout_action/modeling_layout_action.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
-models/layout-action/src/layout_action/modeling_layout_action.py	tuple[torch.Tensor, ...]	values: tuple[torch.Tensor, ...]
-models/layout-action/src/layout_action/pipeline_layout_action.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
-models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/pipeline_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/processing_layout_action.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
-models/layout-action/src/layout_action/processing_layout_action.py	int | list[int] | torch.Tensor | None	self, num_elements: int | list[int] | torch.Tensor | None, mask: torch.Tensor
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	def _labels_to_ids(self, labels: object) -> torch.Tensor:
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	self, num_elements: int | list[int] | torch.Tensor | None, mask: torch.Tensor
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor	sequences: torch.Tensor,
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/processing_layout_action.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
-models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor | dict[str, torch.Tensor]]	) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
-models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor | dict[str, torch.Tensor]]	result: dict[str, torch.Tensor | dict[str, torch.Tensor]] = {
-models/layout-action/src/layout_action/tokenization_layout_action.py	dict[str, torch.Tensor]	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
-models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	boxes: list[torch.Tensor] = []
-models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	encoded_boxes: list[torch.Tensor] = []
-models/layout-action/src/layout_action/tokenization_layout_action.py	list[torch.Tensor]	self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	) -> torch.Tensor:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	bbox: torch.Tensor,
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def _latest_back_reference(self, hits: torch.Tensor) -> int:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def _trim_special_tokens(self, input_ids: torch.Tensor) -> torch.Tensor:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def continuize_bbox(self, quantized_bbox: torch.Tensor) -> torch.Tensor:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	def quantize_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	input_ids: torch.Tensor,
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	labels: torch.Tensor,
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	mask: torch.Tensor,
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	object: torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	option: torch.Tensor
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	quantized_bbox: torch.Tensor,
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
-models/layout-action/src/layout_action/tokenization_layout_action.py	torch.Tensor	value: torch.Tensor
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
