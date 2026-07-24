@@ -15,7 +15,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import Tensor, einsum
 from torchvision.models.feature_extraction import create_feature_extractor
 from transformers import PreTrainedModel
@@ -104,7 +104,9 @@ class ImageReshaper(nn.Module):
         super().__init__()
         self.d_model = d_model
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch pixels channels"]:
         if x.size(1) != self.d_model:
             raise ValueError(f"{x.size(1)} != {self.d_model}")
         return rearrange(x, "b c h w -> b (h w) c")
@@ -140,7 +142,9 @@ class PositionalEncoding1d(nn.Module):
             pe[:, 0, 1::2] = torch.cos(position * div_term)
         self.register_buffer("pe", pe)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "... channels"]
+    ) -> Float[torch.Tensor, "... channels"]:
         h = x * math.sqrt(self.d_model) if self.scale_input else x
         pe = cast(Tensor, self.pe)
         if self.batch_first:
@@ -169,7 +173,9 @@ class PositionEmbeddingSine(nn.Module):
         self.scale = 2 * math.pi if scale is None else scale
         self.reshape = ImageReshaper(d_model)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(
+        self, input: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch pixels channels"]:
         bs, _c, h, w = input.size()
         y, x = torch.meshgrid(
             torch.arange(h).type_as(input),
@@ -218,7 +224,9 @@ class FeedForward(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "... channels"]
+    ) -> Float[torch.Tensor, "... output_channels"]:
         return self.net(x)
 
 
@@ -245,8 +253,11 @@ class Attention(nn.Module):
         self.to_out = nn.Sequential(nn.Linear(inner_dim, dim_q), nn.Dropout(dropout))
 
     def forward(
-        self, x: Tensor, context: Tensor | None = None, kv_include_self: bool = False
-    ) -> Tensor:
+        self,
+        x: Float[torch.Tensor, "batch query channels"],
+        context: Float[torch.Tensor, "batch key channels"] | None = None,
+        kv_include_self: bool = False,
+    ) -> Float[torch.Tensor, "batch query channels"]:
         b, _n, _d = x.shape
         h = self.heads
         x = self.norm(x)
@@ -291,7 +302,9 @@ class ResnetBackbone(nn.Module):
             raise ValueError("RALF converted checkpoints use transformer image head")
         self.head = head
 
-    def forward(self, img: Tensor) -> Tensor:
+    def forward(
+        self, img: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch out_channels out_height out_width"]:
         h = self.body(img)
         resnet_f4 = h["layer3"]
         resnet_f5 = h["layer4"]
@@ -318,7 +331,9 @@ class ResnetFeatureExtractor(nn.Module):
         super().__init__()
         self.extractor = ResnetBackbone(backbone=backbone, d_model=d_model, head=head)
 
-    def forward(self, *args: object) -> Tensor:
+    def forward(
+        self, *args: object
+    ) -> Float[torch.Tensor, "batch channels height width"]:
         return self.extractor(*args)
 
 
@@ -340,7 +355,11 @@ class TransformerWithToken(nn.Module):
             num_layers=num_layers,
         )
 
-    def forward(self, x: Tensor, src_key_padding_mask: Tensor) -> Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "tokens batch channels"],
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"],
+    ) -> Float[torch.Tensor, "tokens batch channels"]:
         batch = x.size(1)
         token = self.token.expand(-1, batch, -1)
         x = torch.cat([token, x], dim=0)
@@ -373,7 +392,9 @@ class FIDNetFeatureExtractor(nn.Module):
         )
         self.dec_fc_in = nn.Linear(d_model * 2, d_model)
 
-    def extract_features(self, inputs: Mapping[str, Tensor]) -> Tensor:
+    def extract_features(
+        self, inputs: Mapping[str, Shaped[torch.Tensor, "..."]]
+    ) -> Float[torch.Tensor, "batch channels"]:
         padding_mask = ~inputs["mask"]
         bbox = torch.stack([inputs[key] for key in FID_BBOX_KEYS], dim=-1)
         h_bbox = self.fc_bbox(bbox)
@@ -434,11 +455,11 @@ class BaseDecoder(nn.Module):
 
     def forward(
         self,
-        tgt: Tensor,
-        memory: Tensor,
-        tgt_key_padding_mask: Tensor | None = None,
+        tgt: Int[torch.Tensor, "batch tokens"],
+        memory: Float[torch.Tensor, "batch memory_tokens channels"],
+        tgt_key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         is_causal: bool = False,
-    ) -> Tensor:
+    ) -> Float[torch.Tensor, "batch tokens vocab"]:
         h = self.pos_emb(self.emb(tgt))
         if is_causal:
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(h.size(1))
@@ -486,8 +507,11 @@ class UserConstraintTransformerEncoder(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def forward(
-        self, src: Tensor, src_key_padding_mask: Tensor, task_token: Tensor | None
-    ) -> Tensor:
+        self,
+        src: Int[torch.Tensor, "batch tokens"],
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"],
+        task_token: Int[torch.Tensor, "batch tokens"] | None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         h = self.pos_emb(self.emb(src))
         h = self.encoder(src=h, src_key_padding_mask=src_key_padding_mask)
         if task_token is not None:
@@ -625,10 +649,12 @@ class RalfTaskPreprocessor:
     def _relation_item_to_id(self, item: object) -> int:
         return self.name_to_id(self._relation_item_to_name(item))
 
-    def get_token(self, name: str, batch_size: int) -> Tensor:
+    def get_token(self, name: str, batch_size: int) -> Int[torch.Tensor, "batch 1"]:
         return torch.full((batch_size, 1), self.name_to_id(name), device=self.device)
 
-    def create_task_token(self, batch_size: int) -> Tensor:
+    def create_task_token(
+        self, batch_size: int
+    ) -> Int[torch.Tensor, "batch task_tokens"]:
         return torch.cat(
             [
                 self.get_token(self.TASK, batch_size),
@@ -637,17 +663,23 @@ class RalfTaskPreprocessor:
             dim=-1,
         )
 
-    def create_pad_mask(self, seq: Tensor) -> Tensor:
+    def create_pad_mask(
+        self, seq: Int[torch.Tensor, "batch tokens"]
+    ) -> Bool[torch.Tensor, "batch tokens"]:
         return seq == self.name_to_id("pad")
 
-    def _parse_seq_into_vars(self, seq: Tensor) -> dict[str, Tensor]:
+    def _parse_seq_into_vars(
+        self, seq: Int[torch.Tensor, "batch tokens"]
+    ) -> dict[str, Int[torch.Tensor, "batch elements"]]:
         seq = seq.clone()
         seq[seq == self.name_to_id("eos")] = self.name_to_id("pad")
         seq = seq[:, 1:]
         seq = seq.reshape(seq.size(0), -1, len(self.tokenizer.var_order))
         return {key: seq[..., idx] for idx, key in enumerate(self.tokenizer.var_order)}
 
-    def _shuffle_seq_vars(self, seq_vars: dict[str, Tensor]) -> dict[str, Tensor]:
+    def _shuffle_seq_vars(
+        self, seq_vars: dict[str, Int[torch.Tensor, "batch elements"]]
+    ) -> dict[str, Int[torch.Tensor, "batch elements"]]:
         label = seq_vars["label"]
         non_padding_counts = (label != self.name_to_id("pad")).sum(dim=1)
         shuffled = {key: value.clone() for key, value in seq_vars.items()}
@@ -659,11 +691,15 @@ class RalfTaskPreprocessor:
                 shuffled[key][batch_idx, :count] = value[batch_idx, indexes]
         return shuffled
 
-    def _valid_element_mask(self, seq_vars: Mapping[str, Tensor]) -> Tensor:
+    def _valid_element_mask(
+        self, seq_vars: Mapping[str, Int[torch.Tensor, "batch elements"]]
+    ) -> Bool[torch.Tensor, "batch elements"]:
         label = seq_vars["label"]
         return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
 
-    def _geo_sequence(self, inputs: "RalfConditionalInputs") -> Tensor:
+    def _geo_sequence(
+        self, inputs: "RalfConditionalInputs"
+    ) -> Int[torch.Tensor, "batch tokens"]:
         if inputs.seq is None:
             raise ValueError(f"condition_type={self.task_name!r} requires labels")
         seq = inputs.seq
@@ -688,7 +724,7 @@ class RalfTaskPreprocessor:
         max_valid = int(valid.sum(dim=1).max().item()) if valid.numel() else 0
         if max_valid == 0:
             return self.get_token("pad", inputs.image.size(0))
-        pieces: list[Tensor] = []
+        pieces: list[Int[torch.Tensor, "batch token_piece"]] = []
         sep = self.get_token("sep", inputs.image.size(0))
         for element_idx in range(max_valid):
             for key in self._VAR:
@@ -713,8 +749,10 @@ class RalfTaskPreprocessor:
         return [str(ids)] * batch_size
 
     def _relation_sequence(
-        self, inputs: "RalfConditionalInputs", label_sequence: Tensor
-    ) -> Tensor:
+        self,
+        inputs: "RalfConditionalInputs",
+        label_sequence: Int[torch.Tensor, "batch tokens"],
+    ) -> Int[torch.Tensor, "batch relation_tokens"]:
         if self.relationship_table is None:
             return label_sequence
         batch = label_sequence.size(0)
@@ -765,7 +803,9 @@ class RalfTaskPreprocessor:
             out[batch_idx, : seq.size(0)] = seq
         return out
 
-    def __call__(self, inputs: "RalfConditionalInputs") -> dict[str, Tensor]:
+    def __call__(
+        self, inputs: "RalfConditionalInputs"
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         batch = inputs.image.size(0)
         self.device = inputs.image.device
         bos = self.get_token("bos", batch)
@@ -788,18 +828,18 @@ class RalfTaskPreprocessor:
 class RalfConditionalInputs:
     """Model-side generation inputs."""
 
-    image: Tensor
-    retrieved: dict[str, Tensor]
-    seq: Tensor | None = None
-    mask: Tensor | None = None
-    element_mask: Tensor | None = None
+    image: Float[torch.Tensor, "batch channels height width"]
+    retrieved: dict[str, Shaped[torch.Tensor, "..."]]
+    seq: Int[torch.Tensor, "batch tokens"] | None = None
+    mask: Bool[torch.Tensor, "batch tokens"] | None = None
+    element_mask: Bool[torch.Tensor, "batch elements"] | None = None
     task: RalfTaskName | None = "uncond"
     id: object = None
 
 
 def _get_ref_layout_input(
-    retrieved_samples: Mapping[str, Tensor], kdx: int
-) -> dict[str, Tensor]:
+    retrieved_samples: Mapping[str, Shaped[torch.Tensor, "..."]], kdx: int
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     return {
         "center_x": retrieved_samples["center_x"][:, kdx],
         "center_y": retrieved_samples["center_y"][:, kdx],
@@ -812,12 +852,12 @@ def _get_ref_layout_input(
 
 def _extract_retrieved_features(
     *,
-    retrieved_samples: Mapping[str, Tensor],
+    retrieved_samples: Mapping[str, Shaped[torch.Tensor, "..."]],
     top_k: int,
     layout_encoder: FIDNetFeatureExtractor,
     layout_adapter: FeedForward,
     pos_emb_1d: PositionalEncoding1d,
-) -> Tensor:
+) -> Float[torch.Tensor, "batch candidates channels"]:
     ref_layouts = []
     for kdx in range(top_k):
         ref_layout_input = _get_ref_layout_input(retrieved_samples, kdx)
@@ -831,12 +871,12 @@ def _extract_retrieved_features(
 def _restrict_reliable_label_or_size(
     *,
     sampling_idx: int,
-    condition: Tensor | None,
-    logits: Tensor,
+    condition: Int[torch.Tensor, "batch tokens"] | None,
+    logits: Float[torch.Tensor, "batch vocab"],
     pad_id: int,
     eos_id: int,
     max_length: int,
-) -> Tensor:
+) -> Float[torch.Tensor, "batch vocab"]:
     if condition is None:
         return logits
     batch = condition.size(0)
@@ -862,12 +902,12 @@ def _restrict_reliable_label_or_size(
 def _restrict_only_category(
     *,
     sampling_idx: int,
-    condition: Tensor | None,
-    logits: Tensor,
+    condition: Int[torch.Tensor, "batch tokens"] | None,
+    logits: Float[torch.Tensor, "batch vocab"],
     pad_id: int,
     eos_id: int,
     max_length: int,
-) -> Tensor:
+) -> Float[torch.Tensor, "batch vocab"]:
     if (sampling_idx - 1) % 5 != 0:
         return logits
     return _restrict_reliable_label_or_size(
@@ -884,12 +924,12 @@ def _apply_decode_space_restriction(
     *,
     task: RalfTaskName,
     step: int,
-    condition: Tensor | None,
-    logits: Tensor,
+    condition: Int[torch.Tensor, "batch tokens"] | None,
+    logits: Float[torch.Tensor, "batch vocab"],
     pad_id: int,
     eos_id: int,
     max_length: int,
-) -> Tensor:
+) -> Float[torch.Tensor, "batch vocab"]:
     if task in {"c", "cwh"}:
         return _restrict_reliable_label_or_size(
             sampling_idx=step + 1,
@@ -1015,7 +1055,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
 
     def _default_retrieved(
         self, batch_size: int, device: torch.device, dtype: torch.dtype
-    ) -> dict[str, Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         shape = (batch_size, self.config.top_k, self.config.max_seq_length)
         image = torch.zeros(
             batch_size, self.config.top_k, 4, 64, 64, device=device, dtype=dtype
@@ -1031,10 +1071,13 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         }
 
     def _encode_into_memory(
-        self, inputs: Mapping[str, Tensor | Mapping[str, Tensor]]
-    ) -> dict[str, Tensor]:
+        self,
+        inputs: Mapping[
+            str, Shaped[torch.Tensor, "..."] | Mapping[str, Shaped[torch.Tensor, "..."]]
+        ],
+    ) -> dict[str, Float[torch.Tensor, "batch memory_tokens channels"]]:
         image = cast(Tensor, inputs["image"])
-        retrieved = cast(Mapping[str, Tensor], inputs["retrieved"])
+        retrieved = cast(Mapping[str, Shaped[torch.Tensor, "..."]], inputs["retrieved"])
         input_img_feature = self.encoder(image)
         input_img_feature = self.pos_emb_2d(input_img_feature)
         image_memory = self.transformer_encoder(input_img_feature)
@@ -1076,17 +1119,19 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     def _prepare_conditional_inputs(
         self,
         *,
-        pixel_values: Tensor | None,
-        saliency: Tensor | None,
+        pixel_values: Float[torch.Tensor, "batch channels height width"] | None,
+        saliency: Float[torch.Tensor, "batch 1 height width"] | None,
         retrieved: RalfRetrievedBatch | None,
         batch_size: int,
         condition_type: RalfConfigTaskName | None = None,
-        constraint_input_ids: Tensor | None = None,
-        constraint_mask: Tensor | None = None,
-        constraint_element_mask: Tensor | None = None,
+        constraint_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         relationship_table: Mapping[str, list[object]] | None = None,
         sample_ids: object = None,
-    ) -> dict[str, Tensor | Mapping[str, Tensor]]:
+    ) -> dict[
+        str, Shaped[torch.Tensor, "..."] | Mapping[str, Shaped[torch.Tensor, "..."]]
+    ]:
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         if pixel_values is None:
@@ -1161,11 +1206,13 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     def _prepare_unconditional_inputs(
         self,
         *,
-        pixel_values: Tensor | None,
-        saliency: Tensor | None,
+        pixel_values: Float[torch.Tensor, "batch channels height width"] | None,
+        saliency: Float[torch.Tensor, "batch 1 height width"] | None,
         retrieved: RalfRetrievedBatch | None,
         batch_size: int,
-    ) -> dict[str, Tensor | Mapping[str, Tensor]]:
+    ) -> dict[
+        str, Shaped[torch.Tensor, "..."] | Mapping[str, Shaped[torch.Tensor, "..."]]
+    ]:
         return self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,
@@ -1186,7 +1233,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
         **kwargs: object,
-    ) -> CausalLMOutput | tuple[torch.Tensor, ...]:
+    ) -> CausalLMOutput | tuple[Float[torch.Tensor, "..."], ...]:
         """Run teacher-forced token prediction using the local RALF port."""
         relationship_table = cast(
             Mapping[str, list[object]] | None, kwargs.get("relationship_table")
