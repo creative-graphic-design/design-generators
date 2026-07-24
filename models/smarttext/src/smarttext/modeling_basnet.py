@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from jaxtyping import Float
+from jaxtyping import Float, Shaped
 from torchvision import models
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
@@ -19,7 +19,9 @@ class SmartTextSaliencyOutput(ModelOutput):
     """Output of ``SmartTextBASNet.forward``."""
 
     saliency: Float[torch.Tensor, "batch height width"]
-    side_outputs: tuple[torch.Tensor, ...] | None = None
+    side_outputs: (
+        tuple[Float[torch.Tensor, "batch channel height width"], ...] | None
+    ) = None
 
 
 def _conv3x3(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
@@ -52,7 +54,9 @@ class _BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch channels height width"]:
         """Run one BASNet residual block."""
         residual = x
         out = self.relu(self.bn1(self.conv1(x)))
@@ -103,7 +107,9 @@ class _RefUnet(nn.Module):
             scale_factor=2, mode="bilinear", align_corners=False
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch channels height width"]:
         """Run the RefUnet refinement module."""
         hx = self.conv0(x)
         hx1 = self.relu1(self.bn1(self.conv1(hx)))
@@ -126,7 +132,9 @@ class _RefUnet(nn.Module):
         return x + self.conv_d0(d1)
 
 
-def normalize_saliency(pred: torch.Tensor) -> torch.Tensor:
+def normalize_saliency(
+    pred: Float[torch.Tensor, "... height width"],
+) -> Float[torch.Tensor, "... height width"]:
     """Normalize saliency maps exactly like ``basnet_test.py::normPRED``."""
     min_value = pred.amin(dim=(-2, -1), keepdim=True)
     max_value = pred.amax(dim=(-2, -1), keepdim=True)
@@ -254,7 +262,7 @@ class SmartTextBASNet(PreTrainedModel):
 
     def _forward_reference(
         self, x: Float[torch.Tensor, "batch channels height width"]
-    ) -> tuple[torch.Tensor, ...]:
+    ) -> tuple[Float[torch.Tensor, "batch channel height width"], ...]:
         hx = self.inrelu(self.inbn(self.inconv(x)))
         h1 = self.encoder1(hx)
         h2 = self.encoder2(h1)
@@ -308,7 +316,7 @@ class SmartTextBASNet(PreTrainedModel):
         self,
         pixel_values: Float[torch.Tensor, "batch channels height width"],
         return_dict: bool | None = None,
-    ) -> SmartTextSaliencyOutput | tuple[torch.Tensor, ...]:
+    ) -> SmartTextSaliencyOutput | tuple[Shaped[torch.Tensor, "..."], ...]:
         """Predict saliency with the BASNet forward path."""
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict

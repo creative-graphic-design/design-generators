@@ -10,15 +10,18 @@ for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THRE
     os.environ.setdefault(_thread_env_var, "1")
 
 import numpy as np
+from jaxtyping import Shaped
 from PIL import Image
 from sklearn.cluster import KMeans
 from threadpoolctl import threadpool_limits
 from typing import cast
 
-Color = np.ndarray | list[float] | list[int]
+Color = Shaped[np.ndarray, "channels"] | list[float] | list[int]
 
 
-def dominant_colors(image: np.ndarray, clusters: int) -> list[np.ndarray]:
+def dominant_colors(
+    image: Shaped[np.ndarray, "height width channels"], clusters: int
+) -> list[Shaped[np.ndarray, "channels"]]:
     """Return reference-sorted KMeans dominant colors.
 
     Args:
@@ -75,8 +78,8 @@ def contrast_rate(
 
 
 def best_color_candidates(
-    image: Image.Image | np.ndarray,
-    crop: np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
+    crop: Shaped[np.ndarray, "crop_height crop_width channels"],
     *,
     contrast_threshold: float,
     random_seed: int | None = 0,
@@ -105,8 +108,8 @@ def best_color_candidates(
 
 
 def _best_color_candidates_unseeded(
-    image: Image.Image | np.ndarray,
-    crop: np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
+    crop: Shaped[np.ndarray, "crop_height crop_width channels"],
     *,
     contrast_threshold: float,
 ) -> list[dict[str, object]]:
@@ -143,7 +146,7 @@ def _best_color_candidates_unseeded(
 
 
 def choose_text_color(
-    image: Image.Image | np.ndarray,
+    image: Image.Image | Shaped[np.ndarray, "height width channels"],
     crop_bbox_ltrb_px: tuple[int, int, int, int],
     *,
     contrast_threshold: float,

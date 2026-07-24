@@ -10,6 +10,7 @@ from typing import Final, TypedDict, cast
 import numpy as np
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float, Shaped
 from PIL import Image, ImageDraw, ImageFont
 
 from .configuration_smarttext import SmartTextConfig
@@ -75,7 +76,7 @@ def split_prompt_lines(prompt: str, ratio_list: Sequence[float]) -> tuple[str, .
 
 def generate_candidates(
     image: Image.Image,
-    saliency: np.ndarray | torch.Tensor,
+    saliency: Shaped[np.ndarray, "..."] | Shaped[torch.Tensor, "..."],
     *,
     prompt: str,
     font: str | Path | ImageFont.FreeTypeFont | ImageFont.ImageFont,
@@ -192,7 +193,11 @@ def prepare_scorer_batch(
     candidates: Sequence[SmartTextCandidate],
     *,
     config: SmartTextConfig,
-) -> tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]:
+) -> tuple[
+    Float[torch.Tensor, "batch channels height width"],
+    Float[torch.Tensor, "candidates 5"],
+    list[SmartTextCandidate],
+]:
     """Prepare scorer image tensor and RoI/RoD boxes.
 
     Args:
@@ -286,9 +291,9 @@ def candidate_from_reference_json(
 
 
 def _saliency_to_numpy(
-    saliency: np.ndarray | torch.Tensor,
+    saliency: Shaped[np.ndarray, "..."] | Shaped[torch.Tensor, "..."],
     size: tuple[int, int],
-) -> np.ndarray:
+) -> Float[np.ndarray, "height width"]:
     if isinstance(saliency, torch.Tensor):
         array = saliency.detach().cpu().float().numpy()
     else:
@@ -305,9 +310,9 @@ def _saliency_to_numpy(
 
 
 def _build_search_map(
-    saliency: np.ndarray,
+    saliency: Float[np.ndarray, "height width"],
     config: SmartTextConfig,
-) -> tuple[np.ndarray, int, int]:
+) -> tuple[Float[np.ndarray, "grid_height grid_width"], int, int]:
     height, width = saliency.shape
     grid_rsz = max(1, int(height / config.grid_num))
     if grid_rsz > 1 and grid_rsz % 2 == 1:
@@ -339,10 +344,10 @@ def _build_search_map(
 
 
 def _smooth_importance(
-    matrix: np.ndarray,
-    matrix_cal: np.ndarray,
-    matrix1d: np.ndarray,
-) -> np.ndarray:
+    matrix: Float[np.ndarray, "grid_height grid_width"],
+    matrix_cal: Float[np.ndarray, "grid_height grid_width"],
+    matrix1d: Float[np.ndarray, "cells"],
+) -> Float[np.ndarray, "grid_height grid_width"]:
     rows, cols = matrix.shape
     remaining = 0
     while remaining < rows * cols:
@@ -370,7 +375,7 @@ def _smooth_importance(
 
 
 def _top_non_overlapping(
-    matrix: np.ndarray,
+    matrix: Float[np.ndarray, "height width"],
     kernel_size: tuple[int, int],
     *,
     k: int,
@@ -440,7 +445,7 @@ def _text_size(
 
 def _preprocess_scorer_image(
     image: Image.Image, config: SmartTextConfig
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "batch channels height width"]:
     array = np.asarray(image.convert("RGB"), dtype=np.uint8)
     array = _resize_for_scorer(array, config)
     return torch.from_numpy(array.transpose(2, 0, 1)).unsqueeze(0).float()
@@ -451,9 +456,13 @@ def _prepare_expanded_scorer_batch(
     candidates: Sequence[SmartTextCandidate],
     *,
     config: SmartTextConfig,
-) -> tuple[torch.Tensor, torch.Tensor, list[SmartTextCandidate]]:
+) -> tuple[
+    Float[torch.Tensor, "candidates channels height width"],
+    Float[torch.Tensor, "candidates 5"],
+    list[SmartTextCandidate],
+]:
     source = np.asarray(image.convert("RGB"), dtype=np.uint8)
-    resized_images: list[np.ndarray] = []
+    resized_images: list[Shaped[np.ndarray, "height width channels"]] = []
     box_rows: list[list[float]] = []
     max_height = 0
     max_width = 0
@@ -500,11 +509,13 @@ def _prepare_expanded_scorer_batch(
 
 
 def _find_expanded_region(
-    image: np.ndarray,
+    image: Shaped[np.ndarray, "height width channels"],
     candidate: SmartTextCandidate,
     *,
     exp_prop: int,
-) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+) -> tuple[
+    Shaped[np.ndarray, "crop_height crop_width channels"], tuple[int, int, int, int]
+]:
     left, top, right, bottom = candidate.bbox_ltrb_px
     anno_width = int(np.floor(abs(float(right - left))))
     anno_height = int(np.floor(abs(float(bottom - top))))
@@ -525,7 +536,9 @@ def _find_expanded_region(
     )
 
 
-def _resize_for_scorer(array: np.ndarray, config: SmartTextConfig) -> np.ndarray:
+def _resize_for_scorer(
+    array: Shaped[np.ndarray, "height width channels"], config: SmartTextConfig
+) -> Float[np.ndarray, "resized_height resized_width channels"]:
     height, width = array.shape[:2]
     scale = float(config.image_size) / float(min(height, width))
     resized_h = max(32, int(round(height * scale / 32.0) * 32))
