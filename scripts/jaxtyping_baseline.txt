@@ -711,6 +711,9 @@ models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.float32]	bboxe
 models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64],
 models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
 models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_2: NDArray[np.int64],
+models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	bbox_state_dict: dict[str, torch.Tensor],
+models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	count_state_dict: dict[str, torch.Tensor],
+models/layoutvae/src/layoutvae/conversion.py	tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]	) -> tuple[
 models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	) -> torch.Tensor:
 models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	input_ids: torch.Tensor,
 models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
