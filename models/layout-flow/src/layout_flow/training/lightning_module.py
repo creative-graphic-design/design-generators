@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Float, Int, Shaped
 from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 
@@ -59,7 +59,7 @@ class LayoutFlowTrainingModule(LightningModule):
         self.fid_calc_every_n = fid_calc_every_n
         self.geom_dim = 4
         self.attr_dim = self.layout_flow_config.attr_dim
-        self.latest_step_trace: dict[str, torch.Tensor] = {}
+        self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Return AdamW and optional ReduceLROnPlateau."""
@@ -88,8 +88,8 @@ class LayoutFlowTrainingModule(LightningModule):
         return self.model(sample=xt, timestep=timestep, cond_mask=cond_mask).sample
 
     def training_step(
-        self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self, batch: dict[str, Shaped[torch.Tensor, "..."]], batch_idx: int
+    ) -> Float[torch.Tensor, ""]:
         """Run one LayoutFlow training step."""
         del batch_idx
         prepared = self._prepare_batch(batch)
@@ -128,7 +128,7 @@ class LayoutFlowTrainingModule(LightningModule):
         return losses["train_loss"]
 
     def get_start_end(
-        self, batch: dict[str, torch.Tensor]
+        self, batch: dict[str, Shaped[torch.Tensor, "..."]]
     ) -> tuple[
         Float[torch.Tensor, "batch elements channels"],
         Float[torch.Tensor, "batch elements channels"],
@@ -161,7 +161,7 @@ class LayoutFlowTrainingModule(LightningModule):
 
     def sample_xt(
         self,
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, Shaped[torch.Tensor, "..."]],
         x0: Float[torch.Tensor, "batch elements channels"],
         x1: Float[torch.Tensor, "batch elements channels"],
         cond_mask: Int[torch.Tensor, "batch elements channels"],
@@ -210,7 +210,9 @@ class LayoutFlowTrainingModule(LightningModule):
         cond_mask[2 * div : 3 * div, :, 2:] = 0
         return cond_mask
 
-    def _prepare_batch(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _prepare_batch(
+        self, batch: dict[str, Shaped[torch.Tensor, "..."]]
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         bbox = batch["bbox"].float()
         labels = batch.get("type", batch.get("labels"))
         if labels is None:

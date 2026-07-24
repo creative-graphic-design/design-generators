@@ -76,3 +76,51 @@ def test_modeling_without_hook_accepts_output_annotation_mismatches() -> None:
         assert LayoutFlowModelOutput(sample=torch.zeros(1, 2)).sample.shape == (1, 2)
         """
     )
+
+
+def test_processor_hook_liveness_rejects_label_dtype_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["layout_flow.processing_layout_flow"], "beartype.beartype"):
+            from layout_flow.configuration_layout_flow import LayoutFlowConfig
+            from layout_flow.processing_layout_flow import LayoutFlowProcessor
+
+        processor = LayoutFlowProcessor(LayoutFlowConfig(max_length=2))
+        processor.encode_labels(torch.zeros(1, 2, dtype=torch.float32))
+        """,
+        "LayoutFlowProcessor.encode_labels",
+    )
+
+
+def test_scheduler_hook_liveness_rejects_state_rank_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["layout_flow.scheduling_layout_flow"], "beartype.beartype"):
+            from layout_flow.scheduling_layout_flow import LayoutFlowEulerScheduler
+
+        scheduler = LayoutFlowEulerScheduler(num_inference_steps=2)
+        scheduler.step(torch.zeros(1, 2), torch.tensor(0.0), torch.zeros(1, 2, 3))
+        """,
+        "LayoutFlowEulerScheduler.step",
+    )
+
+
+def test_training_loss_hook_liveness_rejects_rank_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["layout_flow.training.losses"], "beartype.beartype"):
+            from layout_flow.training.losses import layout_flow_losses
+
+        layout_flow_losses(torch.ones(1, 2, 3), torch.ones(1, 2, 3), torch.ones(1, 2))
+        """,
+        "layout_flow_losses",
+    )

@@ -494,65 +494,6 @@ models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	inputs: to
 models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	labels: torch.Tensor,
 models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor	self, log_probs: torch.Tensor, key: str
 models/layout-dm/src/layout_dm/tokenization_layout_dm.py	torch.Tensor | None	mask: torch.Tensor | None = None,
-models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	converted: dict[str, torch.Tensor] = {}
-models/layout-flow/src/layout_flow/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	Callable[[torch.Tensor], torch.Tensor]	) -> Callable[[torch.Tensor], torch.Tensor]:
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	str | Callable[[torch.Tensor], torch.Tensor]	activation: str | Callable[[torch.Tensor], torch.Tensor] = F.relu,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	str | Callable[[torch.Tensor], torch.Tensor]	activation: str | Callable[[torch.Tensor], torch.Tensor],
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	) -> torch.Tensor:
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	self.pe: torch.Tensor
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	src: torch.Tensor,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor	x: torch.Tensor,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	attn_mask: torch.Tensor | None,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	key_padding_mask: torch.Tensor | None,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	mask: torch.Tensor | None = None,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	src_key_padding_mask: torch.Tensor | None = None,
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	torch.Tensor | None	timestep: torch.Tensor | None = None,
-models/layout-flow/src/layout_flow/pipeline_layout_flow.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
-models/layout-flow/src/layout_flow/pipeline_layout_flow.py	torch.Tensor | np.ndarray | Sequence[object] | None	TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
-models/layout-flow/src/layout_flow/processing_layout_flow.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/layout-flow/src/layout_flow/processing_layout_flow.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None,
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	) -> torch.Tensor:
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	cond_mask: torch.Tensor,
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def decode_labels(self, bits: torch.Tensor) -> torch.Tensor:
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def encode_labels(self, labels: torch.Tensor) -> torch.Tensor:
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	def model_state(self, bbox: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	mask: torch.Tensor,
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	self, state: torch.Tensor, *, reverse: bool = False
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	state: torch.Tensor,
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor	tensor: torch.Tensor, max_length: int, value: float | int | bool
-models/layout-flow/src/layout_flow/processing_layout_flow.py	torch.Tensor | np.ndarray | Sequence[object] | None	TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
-models/layout-flow/src/layout_flow/sampling.py	torch.Tensor	) -> torch.Tensor:
-models/layout-flow/src/layout_flow/sampling.py	torch.Tensor	lengths: torch.Tensor,
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	LayoutFlowSchedulerOutput | tuple[torch.Tensor]	) -> LayoutFlowSchedulerOutput | tuple[torch.Tensor]:
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	) -> torch.Tensor:
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	model_output: torch.Tensor,
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	prev_sample: torch.Tensor
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	sample: torch.Tensor,
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor	self, sample: torch.Tensor, timestep: torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float	self, sample: torch.Tensor, timestep: torch.Tensor | float
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float	timestep: torch.Tensor | float,
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	torch.Tensor | float | None	next_timestep: torch.Tensor | float | None = None,
-models/layout-flow/src/layout_flow/scheduling_layout_flow.py	tuple[torch.Tensor]	) -> tuple[torch.Tensor]: ...
-models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | list[str]]	) -> dict[str, torch.Tensor | list[str]]:
-models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	RawSample: TypeAlias = dict[str, torch.Tensor | str]
-models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
-models/layout-flow/src/layout_flow/training/dataset.py	dict[str, torch.Tensor | str]	sample_dict: dict[str, torch.Tensor | str] = {"id": str(key)}
-models/layout-flow/src/layout_flow/training/dataset.py	torch.Tensor	tensor: torch.Tensor, max_length: int, dtype: torch.dtype
-models/layout-flow/src/layout_flow/training/dataset.py	torch.Tensor	tensor: torch.Tensor, total: int, max_length: int
-models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
-models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	def _prepare_batch(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor]
-models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor], batch_idx: int
-models/layout-flow/src/layout_flow/training/lightning_module.py	dict[str, torch.Tensor]	self.latest_step_trace: dict[str, torch.Tensor] = {}
-models/layout-flow/src/layout_flow/training/lightning_module.py	torch.Tensor	) -> torch.Tensor:
-models/layout-flow/src/layout_flow/training/losses.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
-models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	reference_state: dict[str, torch.Tensor],
-models/layout-flow/src/layout_flow/training/parity.py	dict[str, torch.Tensor]	target_state: dict[str, torch.Tensor],
 models/layout-gpt/src/layout_gpt/types.py	torch.Tensor | None	sequences: torch.Tensor | None
 models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]	) -> LayoutTransformerModelOutput | tuple[torch.Tensor | None, ...]:
 models/layout-transformer/src/layout_transformer/modeling_layout_transformer.py	torch.Tensor	BBoxTensor: TypeAlias = torch.Tensor
