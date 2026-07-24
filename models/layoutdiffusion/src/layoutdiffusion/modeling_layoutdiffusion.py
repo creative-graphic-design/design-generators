@@ -105,7 +105,9 @@ class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
             nn.Linear(hidden_size, self.out_channels),
         )
 
-    def get_embeds(self, input_ids: torch.Tensor) -> torch.Tensor:
+    def get_embeds(
+        self, input_ids: Int[torch.Tensor, "batch tokens"]
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Return token embeddings for parity diagnostics."""
         return self.word_embedding(input_ids)
 

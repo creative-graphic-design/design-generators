@@ -10,6 +10,7 @@ import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Float, Int
 
 from laygen.common.discrete import (
     gumbel_noise_like,
@@ -28,9 +29,9 @@ if TYPE_CHECKING:
 class LayoutDiffusionSchedulerOutput(BaseOutput):
     """Output of one LayoutDiffusion scheduler step."""
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor | None = None
-    model_log_prob: torch.Tensor | None = None
+    prev_sample: Float[torch.Tensor, "batch vocab tokens"]
+    pred_original_sample: Float[torch.Tensor, "batch vocab tokens"] | None = None
+    model_log_prob: Float[torch.Tensor, "batch vocab tokens"] | None = None
 
 
 class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
@@ -109,10 +110,10 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def predict_start(
         self,
-        logits: torch.Tensor,
+        logits: Float[torch.Tensor, "batch vocab_without_mask tokens"],
         batch_size: int,
         seq_length: int,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Append the fixed mask logit and clamp model log probabilities."""
         log_pred = torch.log_softmax(logits.double(), dim=1).float()
         zero = (
@@ -124,13 +125,19 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         return torch.cat((log_pred, zero), dim=1).clamp(-70.0, 0.0)
 
     def q_pred_one_timestep(
-        self, log_x_t: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        log_x_t: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Compute ``q(x_t | x_{t-1})``."""
         matrix = self._transition_matrix(t, cumulative=False, device=log_x_t.device)
         return matrix.matmul(log_x_t.exp()).clamp(min=1e-30).log()
 
-    def q_pred(self, log_x_start: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def q_pred(
+        self,
+        log_x_start: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Compute cumulative ``q(x_t | x_0)``."""
         t = (t + (self.num_timesteps + 1)) % (self.num_timesteps + 1)
         matrix = self._transition_matrix(t, cumulative=True, device=log_x_start.device)
@@ -138,10 +145,10 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def q_posterior(
         self,
-        log_x_start: torch.Tensor,
-        log_x_t: torch.Tensor,
-        t: torch.Tensor,
-    ) -> torch.Tensor:
+        log_x_start: Float[torch.Tensor, "batch vocab tokens"],
+        log_x_t: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Compute ``p_theta(x_{t-1} | x_t)`` from predicted start logits."""
         if t.min().item() < 0 or t.max().item() >= self.num_timesteps:
             raise ValueError("timestep outside scheduler range")
@@ -187,9 +194,9 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def step(
         self,
-        logits: torch.Tensor,
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        logits: Float[torch.Tensor, "batch vocab_without_mask tokens"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch vocab tokens"],
         *,
         sampling: LayoutDiffusionSamplingConfig,
         condition: LayoutDiffusionCondition | None = None,
@@ -212,10 +219,10 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def log_sample_categorical(
         self,
-        logits: torch.Tensor,
+        logits: Float[torch.Tensor, "batch vocab tokens"],
         *,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Sample log one-hot categorical tokens with Gumbel-max."""
         sample = (gumbel_noise_like(logits, generator=generator) + logits).argmax(dim=1)
         return index_to_log_onehot(sample, self.vocab_size)
@@ -288,8 +295,8 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         self.q_mats = torch.from_numpy(np.stack(q_mats, axis=0)).float()
 
     def _transition_matrix(
-        self, t: torch.Tensor, *, cumulative: bool, device: torch.device
-    ) -> torch.Tensor:
+        self, t: Int[torch.Tensor, "batch"], *, cumulative: bool, device: torch.device
+    ) -> Float[torch.Tensor, "batch vocab vocab"]:
         batch_size = t.shape[0]
         if cumulative:
             log_at = _extract(self.log_cumprod_at.to(device), t, (batch_size, 1, 1))
@@ -408,20 +415,22 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
 
 def _extract(
-    values: torch.Tensor,
-    timesteps: torch.Tensor,
+    values: Float[torch.Tensor, "timesteps"],
+    timesteps: Int[torch.Tensor, "batch"],
     broadcast_shape: tuple[int, ...] | torch.Size,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "..."]:
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
     return out.reshape(batch, *((1,) * (len(broadcast_shape) - 1)))
 
 
-def _log_1_min_a(a: torch.Tensor) -> torch.Tensor:
+def _log_1_min_a(a: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
     return torch.log(1 - a.exp() + 1e-40)
 
 
-def _gaussian_matrix2(t: int, *, bt: torch.Tensor) -> np.ndarray:
+def _gaussian_matrix2(
+    t: int, *, bt: Float[torch.Tensor, "timesteps"]
+) -> Float[np.ndarray, "coords coords"]:
     num_pixel_vals = 128
     transition_bands = num_pixel_vals - 1
     beta_t = bt.numpy()[t]
@@ -441,7 +450,9 @@ def _gaussian_matrix2(t: int, *, bt: torch.Tensor) -> np.ndarray:
     return mat
 
 
-def _alpha_schedule(time_step: int, *, type_classes: int) -> tuple[np.ndarray, ...]:
+def _alpha_schedule(
+    time_step: int, *, type_classes: int
+) -> tuple[Float[np.ndarray, "timesteps"], ...]:
     sep = 5
     sep_1 = sep - 1
     first = time_step * sep_1 // sep

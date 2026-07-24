@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Final
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_layoutdiffusion import LayoutDiffusionConfig
 
@@ -100,8 +101,8 @@ def config_from_original(
 
 
 def remap_transformer_state_dict(
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Remap original EMA keys to the new transformer module.
 
     Args:
@@ -119,7 +120,9 @@ def remap_transformer_state_dict(
     return remapped
 
 
-def load_original_state_dict(checkpoint_path: str | Path) -> dict[str, torch.Tensor]:
+def load_original_state_dict(
+    checkpoint_path: str | Path,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load an original PyTorch checkpoint on CPU."""
     raw = torch.load(checkpoint_path, map_location="cpu")
     if isinstance(raw, dict) and all(isinstance(v, torch.Tensor) for v in raw.values()):
