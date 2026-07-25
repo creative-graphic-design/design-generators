@@ -1,0 +1,403 @@
+lib/laygen/src/laygen/agents/core.py	dict[str, object]	def output_to_dict(self, output: LayoutOutputLike) -> dict[str, object]:
+lib/laygen/src/laygen/agents/core.py	object	def bbox(self) -> object:
+lib/laygen/src/laygen/agents/core.py	object	def labels(self) -> object:
+lib/laygen/src/laygen/agents/core.py	object	def mask(self) -> object:
+lib/laygen/src/laygen/agents/core.py	object	def messages_to_text(messages: object) -> str:
+lib/laygen/src/laygen/agents/core.py	object	model_prompt: object,
+lib/laygen/src/laygen/agents/core.py	object | None	intermediates: object | None = None,
+lib/laygen/src/laygen/agents/testing.py	object	def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+lib/laygen/src/laygen/common/bbox.py	object	bbox: object,
+lib/laygen/src/laygen/common/bbox.py	object	labels: object,
+lib/laygen/src/laygen/common/bbox.py	object | None	mask: object | None = None,
+lib/laygen/src/laygen/common/model_card.py	dict[str, object]	def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
+lib/laygen/src/laygen/common/serialization.py	object	def sanitize_for_yaml(value: object) -> object:
+lib/laygen/src/laygen/common/testing.py	AbstractContextManager[object]	) -> AbstractContextManager[object]:
+lib/laygen/src/laygen/common/testing.py	Mapping[str, object] | None	overrides: Mapping[str, object] | None = None,
+lib/laygen/src/laygen/common/testing.py	dict[str, object]	) -> dict[str, object]:
+lib/laygen/src/laygen/common/testing.py	object	config: object,
+lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object]	components: Mapping[str, object],
+lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object] | None	components: Mapping[str, object] | None = None,
+lib/laygen/src/laygen/pipelines/base.py	dict[str, object | None]	) -> dict[str, object | None]:
+lib/laygen/src/laygen/pipelines/base.py	object	) -> object:
+lib/laygen/src/laygen/pipelines/base.py	object	def save_pretrained(self, save_directory: str | Path) -> object:
+lib/laygen/src/laygen/pipelines/base.py	tuple[object, ...]	def _pipeline_component_values(self) -> tuple[object, ...]:
+lib/traingen/src/traingen/lightning/cli.py	object	def main(args: list[str] | None = None) -> object:
+lib/traingen/src/traingen/lightning/cli.py	type[object]	def lightning_cli_class() -> type[object]:
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[object]	) -> list[object]:
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[object]	group_tree: list[object], out: list[list[int]]
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	LayoutGenerationOutput | dict[str, object]	model_outputs: LayoutGenerationOutput | dict[str, object],
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	object	self, input_: object, **preprocess_parameters: dict[str, object]
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	tuple[dict[str, object], dict[str, object], dict[str, object]]	) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	dict[str, object]	def to_dict(self) -> dict[str, object]:
+models/ds-gan/src/ds_gan/conversion.py	Mapping[str, object]	def _int_value(values: Mapping[str, object], key: str, default: int) -> int:
+models/ds-gan/src/ds_gan/conversion.py	Mapping[str, object]	def _values(args: object) -> Mapping[str, object]:
+models/ds-gan/src/ds_gan/conversion.py	object	def _values(args: object) -> Mapping[str, object]:
+models/ds-gan/src/ds_gan/conversion.py	object | None	def config_from_vendor_args(args: object | None = None) -> DSGANConfig:
+models/ds-gan/src/ds_gan/model_card.py	object	def dsgan_model_card() -> object:
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	object	) -> object:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/ds-gan/src/ds_gan/processing_ds_gan.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object]	bbox: Float[torch.Tensor, "batch elements 4"]
+models/ds-gan/src/ds_gan/processing_ds_gan.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object]	labels: Int[torch.Tensor, "batch elements"]
+models/ds-gan/src/ds_gan/processing_ds_gan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, object]	def _canvas_size_from_example(example: dict[str, object]) -> tuple[int, int]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, object]	example: dict[str, object],
+models/ds-gan/src/ds_gan/processing_ds_gan.py	list[object | None]	) -> list[object | None]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	list[object]	def _ensure_batch(value: object) -> list[object]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	def _ensure_batch(value: object) -> list[object]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	def _parse_box(raw_box: object) -> list[float]:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	def _to_pil(image: object) -> Image.Image:
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	image: object,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	image: object, image_size: tuple[int, int]
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	images: object,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	left: object,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object	right: object,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	image: object | None, image_size: tuple[int, int]
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	intermediates: object | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency: object | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency: object | None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency_basnet: object | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency_basnet: object | None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency_pfpnet: object | None = None,
+models/ds-gan/src/ds_gan/processing_ds_gan.py	object | None	saliency_pfpnet: object | None,
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	dict[str, object] | None	conversion_report: dict[str, object] | None = None,
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	dict[str, object] | None	original_args: dict[str, object] | None = None,
+models/flex-dm/src/flex_dm/data_specs.py	Mapping[str, object]	vocabulary: Mapping[str, object],
+models/flex-dm/src/flex_dm/data_specs.py	dict[str, object]	def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> dict[str, object]:
+models/flex-dm/src/flex_dm/masking.py	Callable[..., object]	model: Callable[..., object],
+models/flex-dm/src/flex_dm/masking.py	object	) -> object:
+models/flex-dm/src/flex_dm/masking.py	object	def __setitem__(self, key: str, value: object) -> None: ...
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, object] | None	attributes: Mapping[str, object] | None = None,
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	object	) -> object:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/flex-dm/src/flex_dm/processing_flex_dm.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, object] | None	attributes: Mapping[str, object] | None = None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, object] | None	attributes: Mapping[str, object] | None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	Mapping[str, object] | None	content: Mapping[str, object] | None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, object]	) -> dict[str, object]:
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, object]	vocabulary: dict[str, object],
+models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, object] | None	vocabulary: dict[str, object] | None = None,
+models/flex-dm/src/flex_dm/processing_flex_dm.py	object	value: object,
+models/flex-dm/src/flex_dm/tf_checkpoint.py	object	def load_variable(self, checkpoint_prefix: str, name: str) -> object:
+models/housegan/src/housegan/configuration_housegan.py	dict[str, object] | None	conversion_report: dict[str, object] | None = None,
+models/housegan/src/housegan/conversion.py	dict[str, object]	) -> dict[str, object]:
+models/housegan/src/housegan/datasets.py	object	row: object,
+models/housegan/src/housegan/graph_schema.py	HouseGanSceneGraph | Mapping[str, object] | None	scene_graph: HouseGanSceneGraph | Mapping[str, object] | None,
+models/housegan/src/housegan/graph_schema.py	object	def _predicate_to_adjacent(predicate: object) -> bool:
+models/housegan/src/housegan/graph_schema.py	object	def _to_label_sequence(labels: object) -> list[int | str]:
+models/housegan/src/housegan/graph_schema.py	object | None	def _normalize_relations(raw_relations: object | None) -> tuple[HouseGanRelation, ...]:
+models/housegan/src/housegan/graph_schema.py	object | None	labels: object | None,
+models/housegan/src/housegan/graph_schema.py	object | None	relations: object | None,
+models/housegan/src/housegan/pipeline_housegan.py	HouseGanSceneGraph | Mapping[str, object] | list[Mapping[str, object]] | None	scene_graph: HouseGanSceneGraph
+models/housegan/src/housegan/pipeline_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/housegan/src/housegan/pipeline_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/housegan/src/housegan/pipeline_housegan.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/housegan/src/housegan/pipeline_housegan.py	list[HouseGanSceneGraph | Mapping[str, object] | None]	) -> list[HouseGanSceneGraph | Mapping[str, object] | None]:
+models/housegan/src/housegan/pipeline_housegan.py	object	) -> object:
+models/housegan/src/housegan/pipeline_housegan.py	object | None	relations: object | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/processing_housegan.py	HouseGanSceneGraph | Mapping[str, object] | None	scene_graph: HouseGanSceneGraph | Mapping[str, object] | None = None,
+models/housegan/src/housegan/processing_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/housegan/src/housegan/processing_housegan.py	object | None	bbox: object | None = None,
+models/housegan/src/housegan/processing_housegan.py	object | None	labels: object | None = None,
+models/housegan/src/housegan/processing_housegan.py	object | None	mask: object | None = None,
+models/housegan/src/housegan/processing_housegan.py	object | None	relations: object | None = None,
+models/housegan/src/housegan/processing_housegan.py	object | None	scene_graph: object | None = None,
+models/housegan/src/housegan/vendor_state_dict.py	dict[str, object]	def to_dict(self) -> dict[str, object]:
+models/lace/src/lace/pipeline_lace.py	dict[str, object]	def components(self) -> dict[str, object]:
+models/lace/src/lace/processing_lace.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/lace/src/lace/processing_lace.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object]	bbox: Float[torch.Tensor, "batch elements 4"]
+models/lace/src/lace/processing_lace.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object]	labels: Int[torch.Tensor, "batch elements"]
+models/layousyn/src/layousyn/configuration_layousyn.py	dict[str, object]	def to_reference_dict(self) -> dict[str, object]:
+models/layousyn/src/layousyn/pipeline_layousyn.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layousyn/src/layousyn/pipeline_layousyn.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layousyn/src/layousyn/pipeline_layousyn.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layousyn/src/layousyn/pipeline_layousyn.py	LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, '...'] | object]	) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
+models/layousyn/src/layousyn/pipeline_layousyn.py	dict[str, object]	def components(self) -> dict[str, object]:
+models/layousyn/src/layousyn/processing_layousyn.py	Bool[torch.Tensor, '...'] | Bool[np.ndarray, '...'] | list[object] | None	mask: Bool[torch.Tensor, "..."] | Bool[np.ndarray, "..."] | list[object] | None,
+models/layousyn/src/layousyn/processing_layousyn.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layousyn/src/layousyn/processing_layousyn.py	Float[torch.Tensor, '... 4'] | Float[np.ndarray, '... 4'] | list[object]	bbox: Float[torch.Tensor, "... 4"] | Float[np.ndarray, "... 4"] | list[object],
+models/layousyn/src/layousyn/processing_layousyn.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layousyn/src/layousyn/processing_layousyn.py	LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, '...'] | object]	) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
+models/layousyn/src/layousyn/processing_layousyn.py	dict[str, object]	def to_dict(self) -> dict[str, object]:
+models/layousyn/src/layousyn/processing_layousyn.py	object | None	intermediates: object | None = None,
+models/layout-action/src/layout_action/configuration_layout_action.py	Mapping[str, object] | None	original_asset_manifest: Mapping[str, object] | None = None,
+models/layout-action/src/layout_action/conversion.py	dict[str, object]	) -> dict[str, object]:
+models/layout-action/src/layout_action/pipeline_layout_action.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-action/src/layout_action/pipeline_layout_action.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-action/src/layout_action/pipeline_layout_action.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-action/src/layout_action/pipeline_layout_action.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/layout-action/src/layout_action/pipeline_layout_action.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layout-action/src/layout_action/pipeline_layout_action.py	object	) -> object:
+models/layout-action/src/layout_action/processing_layout_action.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-action/src/layout_action/processing_layout_action.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-action/src/layout_action/processing_layout_action.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-action/src/layout_action/processing_layout_action.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layout-action/src/layout_action/processing_layout_action.py	object	def _labels_to_ids(self, labels: object) -> Int[torch.Tensor, "batch elements"]:
+models/layout-action/src/layout_action/tokenization_layout_action.py	object	*inputs: object,
+models/layout-corrector/src/layout_corrector/conversion.py	object	layout_dm: object,
+models/layout-corrector/src/layout_corrector/model_card.py	Sequence[ParityMetric | Mapping[str, object]] | None	parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	Mapping[str, object] | None	conversion_report: Mapping[str, object] | None = None,
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	Mapping[str, object] | None	med_config: Mapping[str, object] | None = None,
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	Mapping[str, object] | None	original_training_options: Mapping[str, object] | None = None,
+models/layout-detr/src/layout_detr/datasets.py	Iterable[dict[str, object]]	) -> Iterable[dict[str, object]]:
+models/layout-detr/src/layout_detr/datasets.py	Mapping[str, object]	def normalize_vendor_annotation(sample: Mapping[str, object]) -> dict[str, object]:
+models/layout-detr/src/layout_detr/datasets.py	dict[str, object]	def normalize_vendor_annotation(sample: Mapping[str, object]) -> dict[str, object]:
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	object	) -> object:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	Mapping[str, object]	def _write_processor_payload(path: Path, payload: Mapping[str, object]) -> None:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	dict[str, object]	def _metadata_payload(self) -> dict[str, object]:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	dict[str, object]	def _read_processor_payload(path: Path) -> dict[str, object]:
+models/layout-detr/src/layout_detr/processing_layout_detr.py	dict[str, object] | None	intermediates: dict[str, object] | None = None,
+models/layout-detr/src/layout_detr/processing_layout_detr.py	object	def _normalize_label_rows(self, labels: object) -> list[list[int]]:
+models/layout-detr/src/layout_detr/vendor_state.py	object	def __init__(self, *args: object, **kwargs: object) -> None:
+models/layout-detr/src/layout_detr/vendor_state.py	object	def add(self, word: object) -> None:
+models/layout-detr/src/layout_detr/vendor_state.py	object	def find_class(self: object, module: str, name: str) -> object:
+models/layout-detr/src/layout_detr/vendor_state.py	object	def split(self, text: object) -> list[str]:
+models/layout-detr/src/layout_detr/vendor_state.py	object	def tokenize(self, text: object, *args: object, **kwargs: object) -> list[str]:
+models/layout-detr/src/layout_detr/vendor_state.py	tuple[object, bool]	) -> tuple[object, bool]: # pragma: no cover
+models/layout-dm/src/layout_dm/pipeline_layout_dm.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-dm/src/layout_dm/pipeline_layout_dm.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-dm/src/layout_dm/pipeline_layout_dm.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-dm/src/layout_dm/processing_layout_dm.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-dm/src/layout_dm/processing_layout_dm.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object]	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-dm/src/layout_dm/processing_layout_dm.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object]	labels: Int[torch.Tensor, "batch elements"]
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	Float[torch.Tensor, 'batch elements 4'] | list[object]	bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	Int[torch.Tensor, 'batch elements'] | list[object]	labels: Int[torch.Tensor, "batch elements"] | list[object],
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	LayoutDMConfig | Mapping[str, object] | None	config: LayoutDMConfig | Mapping[str, object] | None = None,
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	Mapping[object, object]	def _cluster_centers(value: Mapping[object, object]) -> dict[str, list[float]]:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	Mapping[str, object]	def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	dict[str, object]	kwargs: dict[str, object],
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	*args: object,
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _cluster_centers_or_none(value: object) -> dict[str, list[float]] | None:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _floating(value: object, default: float) -> float:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _id2label(value: object) -> dict[int | str, str] | None:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _integer(value: object, default: int) -> int:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _label_id(value: object) -> int:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _optional_string(value: object, default: str | None = None) -> str | None:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _string(value: object, default: str | None = None) -> str:
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	object	def _string_tuple(value: object, default: tuple[str, ...]) -> tuple[str, ...]:
+models/layout-fid/src/layout_fid/configuration_layout_fid.py	dict[str, object]	def _get_generation_parameters(self) -> dict[str, object]:
+models/layout-fid/src/layout_fid/evaluation.py	LayoutFIDStatistics | Mapping[str, object]	candidate: LayoutFIDStatistics | Mapping[str, object],
+models/layout-fid/src/layout_fid/evaluation.py	LayoutFIDStatistics | Mapping[str, object]	reference: LayoutFIDStatistics | Mapping[str, object],
+models/layout-fid/src/layout_fid/evaluation.py	LayoutFIDStatistics | Mapping[str, object]	reference_statistics: LayoutFIDStatistics | Mapping[str, object],
+models/layout-fid/src/layout_fid/evaluation.py	LayoutFIDStatistics | Mapping[str, object]	stats: LayoutFIDStatistics | Mapping[str, object],
+models/layout-fid/src/layout_fid/evaluation.py	Mapping[str, object]	def from_mapping(cls, values: Mapping[str, object]) -> "LayoutFIDStatistics":
+models/layout-fid/src/layout_fid/model_card.py	dict[str, object]	def model_card_metadata(config: LayoutFIDConfig, *, hub_id: str) -> dict[str, object]:
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	LayoutFIDStatistics | Mapping[str, object] | None	reference_statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	LayoutFIDStatistics | Mapping[str, object] | None	statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	LayoutGenerationOutput | Mapping[str, object] | None	layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	LayoutGenerationOutput | Mapping[str, object] | None	layouts: LayoutGenerationOutput | Mapping[str, object] | None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	dict[str, object]	) -> dict[str, object]:
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	bbox: object | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	bbox: object | None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	labels: object | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	labels: object | None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	mask: object | None = None,
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	object | None	mask: object | None,
+models/layout-fid/src/layout_fid/processing_layout_fid.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | Sequence[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-fid/src/layout_fid/processing_layout_fid.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | Sequence[object]	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-fid/src/layout_fid/processing_layout_fid.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | Sequence[object]	labels: Int[torch.Tensor, "batch elements"]
+models/layout-flow/src/layout_flow/pipeline_layout_flow.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | Sequence[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-flow/src/layout_flow/pipeline_layout_flow.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | Sequence[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-flow/src/layout_flow/pipeline_layout_flow.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | Sequence[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-flow/src/layout_flow/processing_layout_flow.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | Sequence[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layout-flow/src/layout_flow/processing_layout_flow.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | Sequence[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layout-flow/src/layout_flow/processing_layout_flow.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | Sequence[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layout-flow/src/layout_flow/training/datamodule.py	DataLoader[object]	) -> DataLoader[object]:
+models/layout-flow/src/layout_flow/training/datamodule.py	DataLoader[object]	def test_dataloader(self) -> DataLoader[object]:
+models/layout-flow/src/layout_flow/training/datamodule.py	DataLoader[object]	def train_dataloader(self) -> DataLoader[object]:
+models/layout-flow/src/layout_flow/training/datamodule.py	DataLoader[object]	def val_dataloader(self) -> DataLoader[object]:
+models/layout-gpt/src/layout_gpt/agent.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layout-gpt/src/layout_gpt/agent.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/layout-gpt/src/layout_gpt/agent.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layout-gpt/src/layout_gpt/agent.py	object	def build_agent(model: ModelLike = None) -> object:
+models/layout-gpt/src/layout_gpt/exemplars.py	Mapping[str, object]	cls, record: Mapping[str, object], *, setting: str | LayoutGPTSetting
+models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	dict[str, object]	def _cfg(config: LayoutTransformerConfig) -> dict[str, object]:
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
+models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	object	) -> object:
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
+models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None,
+models/layout-transformer/src/layout_transformer/tokenization_layout_transformer.py	dict[int | str, object] | None	added_tokens_decoder: dict[int | str, object] | None = None,
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
+models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
+models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	Float[torch.Tensor, 'batch elements 4'] | list[object]	bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	Int[torch.Tensor, 'batch elements'] | list[object]	labels: Int[torch.Tensor, "batch elements"] | list[object],
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	LayoutDiffusionConfig | Mapping[str, object] | None	config: LayoutDiffusionConfig | Mapping[str, object] | None = None,
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	Mapping[str, object]	def _config_from_mapping(mapping: Mapping[str, object]) -> LayoutDiffusionConfig:
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	dict[str, object]	kwargs: dict[str, object],
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	object	*args: object,
+models/layoutformerpp/src/layoutformerpp/configuration_layoutformerpp.py	dict[str, object] | None	task_specific_params: dict[str, object] | None = None,
+models/layoutformerpp/src/layoutformerpp/conversion.py	list[ParityMetric | dict[str, object]] | None	parity_metrics: list[ParityMetric | dict[str, object]] | None = None,
+models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	object	) -> object:
+models/layoutformerpp/src/layoutformerpp/pipeline_layoutformerpp.py	object	bbox: object = None,
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	object	bbox: object = None,
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	object	bbox: object,
+models/layoutformerpp/src/layoutformerpp/tokenization_layoutformerpp.py	dict[int | str, object] | None	added_tokens_decoder: dict[int | str, object] | None = None,
+models/layoutganpp/src/layoutganpp/conversion.py	Mapping[str, object]	def _checkpoint_values(args: object) -> Mapping[str, object]:
+models/layoutganpp/src/layoutganpp/conversion.py	Mapping[str, object]	def _required_int(values: Mapping[str, object], key: str) -> int:
+models/layoutganpp/src/layoutganpp/conversion.py	object	def _checkpoint_values(args: object) -> Mapping[str, object]:
+models/layoutganpp/src/layoutganpp/conversion.py	object	def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
+models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	LayoutGenerationOutput | dict[str, object]	model_outputs: LayoutGenerationOutput | dict[str, object],
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	dict[str, object]	self, model_inputs: dict[str, object], **forward_params: object
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	object	) -> object:
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	object	self, input_: object = None, **preprocess_parameters: object
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	tuple[dict[str, object], dict[str, object], dict[str, object]]	) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[dict[str, object]]]	) -> list[list[dict[str, object]]]:
+models/layoutprompter/src/layoutprompter/agent.py	Bool[np.ndarray, 'batch elements'] | object | None	mask: Bool[np.ndarray, "batch elements"] | object | None = None,
+models/layoutprompter/src/layoutprompter/agent.py	Float[np.ndarray, 'batch elements 4'] | object | None	bbox: Float[np.ndarray, "batch elements 4"] | object | None = None,
+models/layoutprompter/src/layoutprompter/agent.py	Int[np.ndarray, 'batch elements'] | object | None	labels: Int[np.ndarray, "batch elements"] | object | None = None,
+models/layoutprompter/src/layoutprompter/agent.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutprompter/src/layoutprompter/agent.py	int | list[int] | Int[np.ndarray, 'batch'] | object | None	num_elements: int | list[int] | Int[np.ndarray, "batch"] | object | None = None,
+models/layoutprompter/src/layoutprompter/agent.py	object | None	generator: object | None = None,
+models/layoutprompter/src/layoutprompter/arrays.py	object	def as_float_array(value: object) -> Float[np.ndarray, "..."]:
+models/layoutprompter/src/layoutprompter/arrays.py	object	def as_int_array(value: object) -> Int[np.ndarray, "..."]:
+models/layoutprompter/src/layoutprompter/records.py	object	) -> object:
+models/layoutprompter/src/layoutprompter/records.py	object	data: LayoutRecordInput, key: LayoutRecordKey, default: object
+models/layoutprompter/src/layoutprompter/records.py	object	def record_value(data: LayoutRecordInput, key: LayoutRecordKey) -> object:
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	LayoutGenerationOutput | dict[str, object]	model_outputs: LayoutGenerationOutput | dict[str, object],
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	dict[str, object]	def _pop_generation_options(model_inputs: dict[str, object]) -> GenerationOptions:
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	dict[str, object]	self, model_inputs: dict[str, object], **forward_params: object
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	object	) -> object:
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	object	self, input_: object = None, **preprocess_parameters: object
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	tuple[dict[str, object], dict[str, object], dict[str, object]]	) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+models/layoutvae/src/layoutvae/processing_layoutvae.py	PublicMaskTensor | object | None	mask: PublicMaskTensor | object | None,
+models/layoutvae/src/layoutvae/processing_layoutvae.py	list[list[dict[str, object]]]	) -> list[list[dict[str, object]]]:
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	object	) -> object:
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/postero/src/postero/agent.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+models/postero/src/postero/agent.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
+models/postero/src/postero/agent.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/postero/src/postero/records.py	Mapping[str, object]	def _mapping(value: object) -> Mapping[str, object]:
+models/postero/src/postero/records.py	Mapping[str, object]	row: Mapping[str, object], *, id2label: Mapping[int, str]
+models/postero/src/postero/records.py	Sequence[object]	def _sequence(value: object) -> Sequence[object]:
+models/postero/src/postero/records.py	dict[str, object]	def record_to_mapping(record: PosterORecord) -> dict[str, object]:
+models/postero/src/postero/records.py	object	def _bbox(value: object) -> tuple[float, float, float, float]:
+models/postero/src/postero/records.py	object	def _canvas_size(value: object) -> tuple[int, int]:
+models/postero/src/postero/records.py	object	def _float(value: object) -> float:
+models/postero/src/postero/records.py	object	def _mapping(value: object) -> Mapping[str, object]:
+models/postero/src/postero/records.py	object	def _sequence(value: object) -> Sequence[object]:
+models/postero/src/postero/records.py	object	value: object, *, id2label: Mapping[int, str]
+models/postero/src/postero/schemas.py	dict[str, object]	def _intermediates(self) -> dict[str, object]:
+models/postero/src/postero/vendor_parity.py	dict[str, object]	def implementation_reference() -> dict[str, object]:
+models/postero/src/postero/vendor_parity.py	object	def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	original_config: Mapping[str, object] | None = None,
+models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	original_hydra_config: Mapping[str, object] | None = None,
+models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	retrieval_metadata: Mapping[str, object] | None = None,
+models/ralf/src/ralf/datasets.py	Mapping[str, object]	def __getitem__(self, index: int) -> Mapping[str, object]:
+models/ralf/src/ralf/datasets.py	Mapping[str, object]	sample: Mapping[str, object], dataset_name: DatasetName | str
+models/ralf/src/ralf/datasets.py	dict[str, object]	) -> dict[str, object]:
+models/ralf/src/ralf/datasets.py	object	) -> object:
+models/ralf/src/ralf/datasets.py	object	labels: object, dataset: DatasetName
+models/ralf/src/ralf/image_processing_ralf.py	dict[str, object]	def to_dict(self) -> dict[str, object]:
+models/ralf/src/ralf/modeling_ralf.py	Mapping[str, list[object]] | None	relationship_table: Mapping[str, list[object]] | None = None,
+models/ralf/src/ralf/modeling_ralf.py	object	def _relation_ids(self, ids: object, batch_size: int) -> list[str]:
+models/ralf/src/ralf/modeling_ralf.py	object	def _relation_item_to_id(self, item: object) -> int:
+models/ralf/src/ralf/modeling_ralf.py	object	def _relation_item_to_name(self, item: object) -> str:
+models/ralf/src/ralf/modeling_ralf.py	object	sample_ids: object = None,
+models/ralf/src/ralf/modeling_ralf.py	object	self, *args: object
+models/ralf/src/ralf/pipeline_ralf.py	Bool[torch.Tensor, '...'] | Sequence[object] | None	mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	Float[torch.Tensor, '...'] | Sequence[object] | None	bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/ralf/src/ralf/pipeline_ralf.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/ralf/src/ralf/pipeline_ralf.py	Mapping[str, object] | None	retrieval: Mapping[str, object] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	Mapping[str, object] | None	retrieved_layouts: Mapping[str, object] | None = None,
+models/ralf/src/ralf/pipeline_ralf.py	object	) -> object:
+models/ralf/src/ralf/pipeline_ralf.py	object	images: object = None,
+models/ralf/src/ralf/pipeline_ralf.py	object	relations: object = None,
+models/ralf/src/ralf/pipeline_ralf.py	object	retrieved_images: object = None,
+models/ralf/src/ralf/pipeline_ralf.py	object	retrieved_saliency: object = None,
+models/ralf/src/ralf/pipeline_ralf.py	object	saliency: object = None,
+models/ralf/src/ralf/processing_ralf.py	Bool[torch.Tensor, '...'] | Sequence[object] | None	mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	Float[torch.Tensor, '...'] | Sequence[object] | None	bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	Float[torch.Tensor, '...'] | Sequence[object] | None	bbox: Float[torch.Tensor, "..."] | Sequence[object] | None,
+models/ralf/src/ralf/processing_ralf.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/ralf/src/ralf/processing_ralf.py	Mapping[str, object] | None	retrieval: Mapping[str, object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	Mapping[str, object] | None	retrieved_layouts: Mapping[str, object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	dict[str, object] | None	intermediates: dict[str, object] | None = None,
+models/ralf/src/ralf/processing_ralf.py	object	images: object = None,
+models/ralf/src/ralf/processing_ralf.py	object	images: object,
+models/ralf/src/ralf/processing_ralf.py	object	indexes: object,
+models/ralf/src/ralf/processing_ralf.py	object	layouts: object,
+models/ralf/src/ralf/processing_ralf.py	object	relations: object = None,
+models/ralf/src/ralf/processing_ralf.py	object	retrieved_images: object = None,
+models/ralf/src/ralf/processing_ralf.py	object	retrieved_saliency: object = None,
+models/ralf/src/ralf/processing_ralf.py	object	saliency: object = None,
+models/ralf/src/ralf/processing_ralf.py	object	saliency: object,
+models/ralf/src/ralf/tokenization_ralf.py	object	*inputs: object,
+models/smarttext/src/smarttext/candidate_generation.py	Sequence[Mapping[str, object]]	row: Sequence[Mapping[str, object]],
+models/smarttext/src/smarttext/color.py	list[dict[str, object]]	) -> list[dict[str, object]]:
+models/smarttext/src/smarttext/configuration_smarttext.py	Mapping[str, object] | None	conversion_report: Mapping[str, object] | None = None,
+models/smarttext/src/smarttext/configuration_smarttext.py	Mapping[str, object] | None	original_options: Mapping[str, object] | None = None,
+models/smarttext/src/smarttext/conversion.py	dict[str, object]	) -> dict[str, object]:
+models/smarttext/src/smarttext/model_card.py	Mapping[str, object] | None	parity_results: Mapping[str, object] | None = None,
+models/smarttext/src/smarttext/pipeline_smarttext.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
+models/smarttext/src/smarttext/pipeline_smarttext.py	Mapping[str, object | None]	components: Mapping[str, object | None],
+models/smarttext/src/smarttext/pipeline_smarttext.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/smarttext/src/smarttext/pipeline_smarttext.py	Sequence[Mapping[str, object]] | Sequence[Sequence[Mapping[str, object]]] | None	candidate_boxes: Sequence[Mapping[str, object]]
+models/smarttext/src/smarttext/pipeline_smarttext.py	object	) -> object:
+models/smarttext/src/smarttext/pipeline_smarttext.py	object	bbox: object = None,
+models/smarttext/src/smarttext/pipeline_smarttext.py	object	labels: object = None,
+models/smarttext/src/smarttext/pipeline_smarttext.py	object	mask: object = None,
+models/smarttext/src/smarttext/processing_smarttext.py	Float[torch.Tensor, 'batch height width'] | object | None	saliency: Float[torch.Tensor, "batch height width"] | object | None = None,
+models/smarttext/src/smarttext/processing_smarttext.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
+models/smarttext/src/smarttext/processing_smarttext.py	Mapping[str, object]	content: Mapping[str, object],
+models/smarttext/src/smarttext/processing_smarttext.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
+models/smarttext/src/smarttext/processing_smarttext.py	Sequence[Mapping[str, object]] | Sequence[Sequence[Mapping[str, object]]] | None	candidate_boxes: Sequence[Mapping[str, object]]
+models/smarttext/src/smarttext/processing_smarttext.py	dict[str, object] | None	intermediates: dict[str, object] | None = None,
+models/smarttext/src/smarttext/processing_smarttext.py	object	def _ensure_image_list(images: object) -> list[Image.Image]:
