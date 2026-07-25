@@ -35,18 +35,6 @@ models/housegan/src/housegan/vendor_state_dict.py	OrderedDict[str, torch.Tensor]
 models/housegan/src/housegan/vendor_state_dict.py	tuple[OrderedDict[str, torch.Tensor], ConversionReport]	) -> tuple[OrderedDict[str, torch.Tensor], ConversionReport]:
 models/housegan/src/housegan/visualization.py	torch.Tensor	bbox: torch.Tensor,
 models/housegan/src/housegan/visualization.py	torch.Tensor	labels: torch.Tensor,
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	labels: torch.Tensor,
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
 models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	bbox_state_dict: dict[str, torch.Tensor],
 models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	count_state_dict: dict[str, torch.Tensor],
 models/layoutvae/src/layoutvae/conversion.py	tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]	) -> tuple[
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	) -> torch.Tensor:
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	input_ids: torch.Tensor,
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	torch.Tensor | Sequence[str]	generated_ids: torch.Tensor | Sequence[str],

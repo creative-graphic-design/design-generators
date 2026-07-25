@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import torch
-from jaxtyping import Int
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
@@ -103,9 +103,9 @@ class LayoutGANPPProcessor(ProcessorMixin):
 
     def batch_decode(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        attention_mask: Bool[torch.Tensor, "batch elements"] | None = None,
     ) -> list[list[dict[str, object]]]:
         """Decode generated boxes and label IDs into records.
 
@@ -155,7 +155,10 @@ class LayoutGANPPProcessor(ProcessorMixin):
         return records
 
     def _normalize_rows(
-        self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
+        self,
+        labels: list[list[str | int]]
+        | list[str | int]
+        | Int[torch.Tensor, "batch elements"],
     ) -> list[list[str | int]]:
         if isinstance(labels, torch.Tensor):
             if labels.ndim == 1:
