@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypeAlias
 
 import numpy as np
 import torch
@@ -15,7 +14,13 @@ from laygen.common.labels import DatasetName
 
 from .configuration_dlt import default_id2label, normalize_dataset
 
-TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
+ScalarInput = int | float | bool
+LayoutInput = (
+    Sequence[ScalarInput]
+    | Sequence[Sequence[ScalarInput]]
+    | Sequence[Sequence[Sequence[ScalarInput]]]
+)
+DLTProcessedBatch = dict[str, torch.Tensor]
 
 
 class DLTProcessor(ProcessorMixin):
@@ -78,19 +83,19 @@ class DLTProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | Sequence[object],
+        | LayoutInput,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | Sequence[object],
+        | LayoutInput,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | LayoutInput
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         device: torch.device | str | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> DLTProcessedBatch:
         """Convert public layout tensors into padded internal tensors."""
         bbox_t, labels_t, mask_t = prepare_layout_tensors(
             bbox=bbox,
@@ -118,7 +123,7 @@ class DLTProcessor(ProcessorMixin):
         batch_size: int,
         device: torch.device | str,
         dtype: torch.dtype = torch.float32,
-    ) -> dict[str, torch.Tensor]:
+    ) -> DLTProcessedBatch:
         """Return an empty unconditional internal batch."""
         device = torch.device(device)
         bbox = torch.zeros(batch_size, self.max_num_comp, 4, dtype=dtype, device=device)
@@ -137,10 +142,14 @@ class DLTProcessor(ProcessorMixin):
 
     def pad(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch max_elements 4"],
+        Int[torch.Tensor, "batch max_elements"],
+        Bool[torch.Tensor, "batch max_elements"],
+    ]:
         """Pad a layout batch to ``max_num_comp``."""
         if bbox.shape[1] > self.max_num_comp:
             raise ValueError(f"DLT supports at most {self.max_num_comp} elements")
@@ -184,31 +193,42 @@ class DLTProcessor(ProcessorMixin):
             )
         return bbox, labels, mask
 
-    def public_to_internal_boxes(self, bbox: torch.Tensor) -> torch.Tensor:
+    def public_to_internal_boxes(
+        self, bbox: Float[torch.Tensor, "batch elements 4"]
+    ) -> Float[torch.Tensor, "batch elements 4"]:
         """Map public normalized ``xywh`` boxes to DLT's internal range."""
         return bbox.clamp(0.0, 1.0) * 4.0 - 2.0
 
-    def internal_to_public_boxes(self, bbox: torch.Tensor) -> torch.Tensor:
+    def internal_to_public_boxes(
+        self, bbox: Float[torch.Tensor, "batch elements 4"]
+    ) -> Float[torch.Tensor, "batch elements 4"]:
         """Map DLT internal-range boxes to public normalized ``xywh``."""
         return (bbox / 2.0 + 1.0).div(2.0).clamp(0.0, 1.0)
 
     def public_to_internal_labels(
-        self, labels: torch.Tensor, mask: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> Int[torch.Tensor, "batch elements"]:
         """Shift public labels into DLT's internal category ids."""
         shifted = labels.long() + 1
         return torch.where(mask.bool(), shifted, torch.zeros_like(shifted))
 
     def internal_to_public_labels(
-        self, labels: torch.Tensor, mask: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> Int[torch.Tensor, "batch elements"]:
         """Shift DLT internal category ids back to public dataset-local ids."""
         public = (labels.long() - 1).clamp(0, len(self.labels) - 1)
         return public * mask.long()
 
     def condition_masks(
-        self, condition_type: str, *, mask: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, condition_type: str, *, mask: Bool[torch.Tensor, "batch elements"]
+    ) -> tuple[
+        Int[torch.Tensor, "batch elements 4"],
+        Int[torch.Tensor, "batch elements"],
+    ]:
         """Return DLT ``mask_box`` and ``mask_cat`` tensors.
 
         ``1`` means generated/noised and ``0`` means conditioned, matching the

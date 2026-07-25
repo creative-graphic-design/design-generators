@@ -6,12 +6,14 @@ import torch
 from lightning.pytorch import LightningModule
 from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
+from jaxtyping import Float
 
 from dlt.configuration_dlt import DLTConfig
 from dlt.conversion import build_pipeline
 from dlt.modeling_dlt import DLT
 from dlt.scheduling_dlt import DLTJointDiffusionScheduler
 
+from .dataset import DLTExample
 from .losses import masked_cross_entropy, masked_l2
 
 
@@ -35,11 +37,11 @@ class DLTTrainingModule(LightningModule):
         pipe = build_pipeline(self.dlt_config)
         self.model: DLT = pipe.model
         self.scheduler: DLTJointDiffusionScheduler = pipe.scheduler
-        self.latest_step_trace: dict[str, torch.Tensor] = {}
+        self.latest_step_trace: DLTExample = {}
 
     def training_step(
-        self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self, batch: DLTExample, batch_idx: int
+    ) -> Float[torch.Tensor, ""]:
         """Run one DLT denoising step and return the scalar loss."""
         del batch_idx
         device = self.device

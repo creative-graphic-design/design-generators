@@ -65,13 +65,16 @@ def test_pipeline_public_condition_modes() -> None:
 
 def test_pipeline_dict_output_errors_and_round_trip() -> None:
     pipe = tiny_pipeline()
-    out = pipe(
-        batch_size=1,
-        num_elements=1,
-        seed=0,
-        num_inference_steps=1,
-        output_type="dict",
-        return_intermediates=True,
+    out = cast(
+        dict[str, list[torch.Tensor]],
+        pipe(
+            batch_size=1,
+            num_elements=1,
+            seed=0,
+            num_inference_steps=1,
+            output_type="dict",
+            return_intermediates=True,
+        ),
     )
     assert type(out) is dict
     assert out["trajectory"][0].shape == (1, 3, 4)

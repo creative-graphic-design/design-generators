@@ -15,14 +15,15 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler, DDPMSchedulerOut
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from einops import rearrange
+from jaxtyping import Float, Int
 
 
 @dataclass
 class DLTJointSchedulerOutput(BaseOutput):
     """Output returned by one joint reverse step."""
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor
+    prev_sample: Float[torch.Tensor, "batch elements 4"]
+    pred_original_sample: Float[torch.Tensor, "batch elements 4"]
 
 
 DiscreteFeatureSpec = tuple[str, int]
@@ -55,7 +56,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
         alpha: float = 0.0,
         beta: float = 0.15,
         seq_max_length: int = 9,
-        discrete_features_names: Sequence[Sequence[object]] | None = None,
+        discrete_features_names: Sequence[Sequence[str | int]] | None = None,
         num_discrete_steps: Sequence[int] | None = None,
         temperature: float = 0.8,
         num_train_timesteps: int = 100,
@@ -84,7 +85,9 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
         self.num_discrete_steps = [int(step) for step in steps]
         self.temperature = temperature
         self._cont2disc: dict[str, dict[int, int]] | None = None
-        self._transition_matrices: dict[str, list[torch.Tensor]] | None = None
+        self._transition_matrices: (
+            dict[str, list[Float[torch.Tensor, "categories categories"]]] | None
+        ) = None
         self._ddpm = DDPMScheduler(
             num_train_timesteps=num_train_timesteps,
             beta_schedule=beta_schedule,
@@ -110,7 +113,9 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
         return self._cont2disc
 
     @property
-    def transition_matrices(self) -> dict[str, list[torch.Tensor]]:
+    def transition_matrices(
+        self,
+    ) -> dict[str, list[Float[torch.Tensor, "categories categories"]]]:
         """Return discrete transition matrices, computing lazily."""
         if self._transition_matrices is None:
             self._transition_matrices = {
@@ -123,19 +128,22 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def add_noise_jointly(
         self,
-        vec_cont: torch.Tensor,
-        vec_cat: dict[str, torch.Tensor],
-        timesteps: torch.Tensor,
-        noise: torch.Tensor,
+        vec_cont: Float[torch.Tensor, "batch elements 4"],
+        vec_cat: dict[str, Float[torch.Tensor, "..."] | Int[torch.Tensor, "..."]],
+        timesteps: Int[torch.Tensor, "batch"],
+        noise: Float[torch.Tensor, "batch elements 4"],
         generator: torch.Generator | None = None,
-    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements 4"],
+        dict[str, Int[torch.Tensor, "batch elements"]],
+    ]:
         """Add continuous DDPM noise and discrete categorical noise."""
         noised_cont = self._ddpm.add_noise(
             original_samples=vec_cont,
             timesteps=cast(torch.IntTensor, timesteps),
             noise=noise,
         )
-        cat_res: dict[str, torch.Tensor] = {}
+        cat_res: dict[str, Int[torch.Tensor, "batch elements"]] = {}
         for f_name, _ in self.discrete_features_names:
             t_to_discrete_stage = [
                 self.cont2disc[f_name][int(t.item())] for t in timesteps
@@ -157,13 +165,13 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def step_jointly(
         self,
-        cont_output: torch.Tensor,
-        cat_output: dict[str, torch.Tensor],
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        cont_output: Float[torch.Tensor, "batch elements 4"],
+        cat_output: dict[str, Float[torch.Tensor, "batch elements categories"]],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch elements 4"],
         generator: torch.Generator | None = None,
         return_dict: bool = True,
-    ) -> tuple[DLTJointSchedulerOutput, dict[str, torch.Tensor]]:
+    ) -> tuple[DLTJointSchedulerOutput, dict[str, Int[torch.Tensor, "batch elements"]]]:
         """Take one reverse step for boxes and categories."""
         bbox = cast(
             DDPMSchedulerOutput,
@@ -179,7 +187,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
             prev_sample=bbox.prev_sample,
             pred_original_sample=cast(torch.Tensor, bbox.pred_original_sample),
         )
-        step_cat_res: dict[str, torch.Tensor] = {}
+        step_cat_res: dict[str, Int[torch.Tensor, "batch elements"]] = {}
         batch_timestep = (
             timestep
             if timestep.numel() == sample.shape[0]
@@ -201,7 +209,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def generate_transition_mat(
         self, categories_num: int, num_discrete_steps: int
-    ) -> list[torch.Tensor]:
+    ) -> list[Float[torch.Tensor, "categories categories"]]:
         """Generate Markov transition matrices for one discrete feature."""
         transition_mat = (
             np.eye(categories_num) * (1 - self.alpha - self.beta)
@@ -210,7 +218,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
         transition_mat[:, -1] += self.beta
         transition_mat[-1, :] = 0
         transition_mat[-1, -1] = 1
-        transition_mat_list: list[torch.Tensor] = []
+        transition_mat_list: list[Float[torch.Tensor, "categories categories"]] = []
         curr_mat = transition_mat.copy()
         for _ in range(num_discrete_steps):
             transition_mat_list.append(torch.tensor(curr_mat, dtype=torch.float32))
@@ -219,12 +227,12 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
 
     def denoise_cat(
         self,
-        pred: torch.Tensor,
+        pred: Float[torch.Tensor, "batch elements categories"],
         t: list[int],
         cat_num: int,
-        transition_mat_list: list[torch.Tensor],
+        transition_mat_list: list[Float[torch.Tensor, "categories categories"]],
         generator: torch.Generator | None = None,
-    ) -> tuple[torch.Tensor, int]:
+    ) -> tuple[Int[torch.Tensor, "batch elements"], int]:
         """Denoise a categorical feature using DLT's transition rule."""
         pred_prob = F.softmax(pred, dim=2)
         prob, cls = torch.max(pred_prob, dim=2)

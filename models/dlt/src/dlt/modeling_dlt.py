@@ -139,8 +139,16 @@ class DLT(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        sample: dict[str, torch.Tensor],
-        noisy_sample: dict[str, torch.Tensor],
+        sample: dict[
+            str,
+            Float[torch.Tensor, "batch elements channels"]
+            | Int[torch.Tensor, "batch elements"],
+        ],
+        noisy_sample: dict[
+            str,
+            Float[torch.Tensor, "batch elements channels"]
+            | Int[torch.Tensor, "batch elements"],
+        ],
         timesteps: Int[torch.Tensor, "batch"],
         return_dict: bool = False,
     ) -> (
@@ -182,8 +190,9 @@ class DLT(ModelMixin, ConfigMixin):
         )
 
         def mask_to_emb(
-            mask: torch.Tensor, cond_mask_emb: torch.Tensor
-        ) -> torch.Tensor:
+            mask: Int[torch.Tensor, "batch elements"],
+            cond_mask_emb: Float[torch.Tensor, "mask channels"],
+        ) -> Float[torch.Tensor, "batch elements channels"]:
             mask_flat = rearrange(mask, "b c -> (b c)").long()
             mask_all_emb = cond_mask_emb[mask_flat, :]
             return rearrange(mask_all_emb, "(b c) d -> b c d", b=mask.shape[0])
@@ -214,13 +223,13 @@ class DLT(ModelMixin, ConfigMixin):
         self,
         save_directory: str | os.PathLike[str],
         is_main_process: bool = True,
-        save_function: Callable[..., object] | None = None,
+        save_function: Callable[..., None] | None = None,
         safe_serialization: bool = False,
         variant: str | None = None,
         max_shard_size: int | str = "10GB",
         push_to_hub: bool = False,
         use_flashpack: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | bool | float | None,
     ) -> None:
         """Save the model with PyTorch serialization by default.
 

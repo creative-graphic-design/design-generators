@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import torch
-
+from .dataset import DLTExample
 from .lightning_module import DLTTrainingModule
 
 
@@ -13,7 +12,7 @@ from .lightning_module import DLTTrainingModule
 class DLTStepTrace:
     """Comparable DLT training-step tensors."""
 
-    tensors: dict[str, torch.Tensor]
+    tensors: DLTExample
 
 
 class DLTSyntheticStepTraceAdapter:
@@ -37,7 +36,7 @@ class DLTSyntheticStepTraceAdapter:
     )
 
     def trace_training_step(
-        self, module: DLTTrainingModule, batch: dict[str, torch.Tensor]
+        self, module: DLTTrainingModule, batch: DLTExample
     ) -> DLTStepTrace:
         """Run and collect a DLT training-step trace."""
         module.training_step(batch, 0)

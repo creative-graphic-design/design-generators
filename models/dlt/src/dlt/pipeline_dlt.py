@@ -45,6 +45,11 @@ _DLT_CONDITION_ALIASES: dict[DLTConditionAlias, ConditionType] = {
 _SUPPORTED_CONDITION_TYPES = frozenset(
     {ConditionType.unconditional, ConditionType.label, ConditionType.label_size}
 )
+PipelineComponents = dict[str, object]
+PipelineOutputValue = (
+    torch.Tensor | dict[int, str] | list[torch.Tensor] | dict[str, str] | None
+)
+PipelineOutputDict = dict[str, PipelineOutputValue]
 
 
 def normalize_condition_type(
@@ -74,8 +79,8 @@ def normalize_condition_type(
 def _require_condition_inputs(
     *,
     condition_type: ConditionType | str | None,
-    bbox: torch.Tensor | None,
-    labels: torch.Tensor | None,
+    bbox: Float[torch.Tensor, "batch elements 4"] | None,
+    labels: Int[torch.Tensor, "batch elements"] | None,
 ) -> None:
     """Validate DLT conditioned generation inputs."""
     if bbox is not None and labels is not None:
@@ -87,7 +92,7 @@ def _require_condition_inputs(
 
 def _format_pipeline_output(
     output: LayoutGenerationOutput, output_kind: OutputType
-) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+) -> LayoutGenerationOutput | PipelineOutputDict:
     """Convert a DLT output dataclass to the requested public container."""
     match output_kind:
         case OutputType.dataclass:
@@ -130,7 +135,7 @@ class DLTPipeline(DiffusionPipeline):
         self.model.eval()
 
     @property
-    def components(self) -> dict[str, object]:
+    def components(self) -> PipelineComponents:
         """Return serializable pipeline components."""
         return {
             "model": self.model,
@@ -157,7 +162,7 @@ class DLTPipeline(DiffusionPipeline):
         temperature: float | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | PipelineOutputDict:
         """Run DLT joint denoising and return generated layouts.
 
         Args:
@@ -245,7 +250,9 @@ class DLTPipeline(DiffusionPipeline):
         if temperature is not None:
             self.scheduler.temperature = temperature
         steps = max(1, num_inference_steps or self.scheduler.num_train_timesteps)
-        trajectory: list[torch.Tensor] | None = [] if return_intermediates else None
+        trajectory: list[Float[torch.Tensor, "batch elements 4"]] | None = (
+            [] if return_intermediates else None
+        )
         bbox_step: DLTJointSchedulerOutput | None = None
         try:
             for i in range(steps - 1, -1, -1):

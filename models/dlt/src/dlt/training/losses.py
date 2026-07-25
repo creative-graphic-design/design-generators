@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float, Int
 
 
 def masked_l2(
-    target: torch.Tensor, pred: torch.Tensor, mask: torch.Tensor
-) -> torch.Tensor:
+    target: Float[torch.Tensor, "batch elements 4"],
+    pred: Float[torch.Tensor, "batch elements 4"],
+    mask: Int[torch.Tensor, "batch elements 4"],
+) -> Float[torch.Tensor, "batch"]:
     """Return per-example masked squared error."""
     loss = F.mse_loss(target, pred, reduction="none")
     denom = mask.sum(dim=(1, 2))
@@ -16,8 +19,10 @@ def masked_l2(
 
 
 def masked_cross_entropy(
-    pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor
-) -> torch.Tensor:
+    pred: Float[torch.Tensor, "batch elements categories"],
+    target: Int[torch.Tensor, "batch elements"],
+    mask: Int[torch.Tensor, "batch elements"],
+) -> Float[torch.Tensor, "batch"]:
     """Return per-example masked category cross entropy."""
     one_hot = F.one_hot(target.long(), num_classes=pred.shape[-1])
     log_probs = F.log_softmax(pred, dim=2)

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader
 
-from .dataset import H5DLTDataset, SyntheticDLTDataset, collate_dlt_batch
+from .dataset import DLTExample, H5DLTDataset, SyntheticDLTDataset, collate_dlt_batch
 
 
 class DLTDataModule(LightningDataModule):
@@ -67,7 +66,7 @@ class DLTDataModule(LightningDataModule):
             seed=self.seed + 10_000,
         )
 
-    def train_dataloader(self) -> DataLoader[dict[str, torch.Tensor]]:
+    def train_dataloader(self) -> DataLoader[DLTExample]:
         """Return the train dataloader."""
         if not hasattr(self, "train_dataset"):
             self.setup("fit")
@@ -79,7 +78,7 @@ class DLTDataModule(LightningDataModule):
             collate_fn=collate_dlt_batch,
         )
 
-    def val_dataloader(self) -> DataLoader[dict[str, torch.Tensor]]:
+    def val_dataloader(self) -> DataLoader[DLTExample]:
         """Return the validation dataloader."""
         if not hasattr(self, "val_dataset"):
             self.setup("validate")

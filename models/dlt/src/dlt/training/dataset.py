@@ -9,10 +9,13 @@ import random
 import h5py
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from torch.utils.data import Dataset
 
+DLTExample = dict[str, torch.Tensor]
 
-class SyntheticDLTDataset(Dataset[dict[str, torch.Tensor]]):
+
+class SyntheticDLTDataset(Dataset[DLTExample]):
     """Deterministic synthetic DLT batches that never download data."""
 
     def __init__(
@@ -33,7 +36,7 @@ class SyntheticDLTDataset(Dataset[dict[str, torch.Tensor]]):
         """Return dataset length."""
         return self.length
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, index: int) -> DLTExample:
         """Return one deterministic synthetic DLT sample."""
         generator = torch.Generator().manual_seed(self.seed + index)
         box = torch.rand(self.max_num_comp, 4, generator=generator) * 4.0 - 2.0
@@ -53,7 +56,7 @@ class SyntheticDLTDataset(Dataset[dict[str, torch.Tensor]]):
         }
 
 
-class H5DLTDataset(Dataset[dict[str, torch.Tensor]]):
+class H5DLTDataset(Dataset[DLTExample]):
     """DLT PubLayNet dataset backed by LayoutFlow-style HDF5 files."""
 
     def __init__(
@@ -79,7 +82,7 @@ class H5DLTDataset(Dataset[dict[str, torch.Tensor]]):
         """Return the number of valid layouts."""
         return len(self.keys)
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, index: int) -> DLTExample:
         """Return one DLT training sample."""
         with h5py.File(self.path, "r") as data:
             row = data[self.keys[index]]
@@ -111,14 +114,18 @@ class H5DLTDataset(Dataset[dict[str, torch.Tensor]]):
         }
 
 
-def _ltwh_to_scaled_xywh(box: np.ndarray) -> np.ndarray:
+def _ltwh_to_scaled_xywh(
+    box: Float[np.ndarray, "elements 4"],
+) -> Float[np.ndarray, "elements 4"]:
     xywh = box.copy()
     xywh[:, 0] = box[:, 0] + box[:, 2] / 2.0
     xywh[:, 1] = box[:, 1] + box[:, 3] / 2.0
     return ((xywh * 2.0) - 1.0) * 2.0
 
 
-def _valid_ltwh_mask(box: np.ndarray) -> np.ndarray:
+def _valid_ltwh_mask(
+    box: Float[np.ndarray, "elements 4"],
+) -> Bool[np.ndarray, "elements"]:
     x1 = box[:, 0]
     y1 = box[:, 1]
     x2 = x1 + box[:, 2]
@@ -126,7 +133,9 @@ def _valid_ltwh_mask(box: np.ndarray) -> np.ndarray:
     return (x1 >= 0) & (y1 >= 0) & (x2 <= 1) & (y2 <= 1) & (x2 > x1) & (y2 > y1)
 
 
-def _mask_instance(bbox_shape: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+def _mask_instance(
+    bbox_shape: tuple[int, int],
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     index = int(np.random.choice(6, 1, p=[0.2, 0.1, 0.05, 0.25, 0.1, 0.3])[0])
     if index == 0:
         return _mask_loc(bbox_shape, r_mask=np.random.uniform(0.5, 1.0, size=1)[0])
@@ -147,7 +156,9 @@ def _mask_instance(bbox_shape: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]
     return _mask_all(bbox_shape)
 
 
-def _choice_mask(bbox_shape: tuple[int, int], r_mask: float) -> np.ndarray:
+def _choice_mask(
+    bbox_shape: tuple[int, int], r_mask: float
+) -> Int[np.ndarray, "selected"]:
     count = int(bbox_shape[0] * r_mask)
     if count:
         return np.random.choice(range(bbox_shape[0]), count, replace=False)
@@ -156,7 +167,7 @@ def _choice_mask(bbox_shape: tuple[int, int], r_mask: float) -> np.ndarray:
 
 def _mask_loc(
     bbox_shape: tuple[int, int], r_mask: float = 1.0
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     rows = _choice_mask(bbox_shape, r_mask)
     mask = np.zeros(bbox_shape)
     mask[rows, :2] = 1
@@ -165,7 +176,7 @@ def _mask_loc(
 
 def _mask_size(
     bbox_shape: tuple[int, int], r_mask: float = 1.0
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     rows = _choice_mask(bbox_shape, r_mask)
     mask = np.zeros(bbox_shape)
     mask[rows, 2:] = 1
@@ -174,7 +185,7 @@ def _mask_size(
 
 def _mask_cat(
     bbox_shape: tuple[int, int], r_mask: float = 1.0
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     rows = _choice_mask(bbox_shape, r_mask)
     mask_cat = np.zeros(bbox_shape[0]).astype("long")
     mask_cat[rows] = 1
@@ -183,7 +194,7 @@ def _mask_cat(
 
 def _mask_whole_box(
     bbox_shape: tuple[int, int], r_mask: float = 1.0
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     rows = _choice_mask(bbox_shape, r_mask)
     mask = np.zeros(bbox_shape)
     mask[rows, :4] = 1
@@ -192,7 +203,7 @@ def _mask_whole_box(
 
 def _mask_random(
     bbox_shape: tuple[int, int], r_mask_box: float = 1.0, r_mask_cat: float = 1.0
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     mask_options = [_mask_loc, _mask_size, [_mask_loc, _mask_size], _mask_whole_box]
     option = mask_options[np.random.choice(range(len(mask_options)), 1)[0]]
     if isinstance(option, list):
@@ -207,17 +218,24 @@ def _mask_random(
     return mask_box, [base_cat_mask, full_cat_mask][np.random.choice(2, 1)[0]]
 
 
-def _mask_all(bbox_shape: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+def _mask_all(
+    bbox_shape: tuple[int, int],
+) -> tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]:
     return np.ones(bbox_shape), np.ones(bbox_shape[0]).astype("long")
 
 
 def _pad_instance(
-    box: np.ndarray,
-    cat: np.ndarray,
-    mask_box: np.ndarray,
-    mask_cat: np.ndarray,
+    box: Float[np.ndarray, "elements 4"],
+    cat: Int[np.ndarray, "elements"],
+    mask_box: Float[np.ndarray, "elements 4"],
+    mask_cat: Int[np.ndarray, "elements"],
     max_num_comp: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[
+    Float[np.ndarray, "max_elements 4"],
+    Int[np.ndarray, "max_elements"],
+    Float[np.ndarray, "max_elements 4"],
+    Int[np.ndarray, "max_elements"],
+]:
     pad = max_num_comp - box.shape[0]
     box = np.pad(box, pad_width=((0, pad), (0, 0)), constant_values=0.0)
     cat = np.pad(cat, pad_width=(0, pad), constant_values=0.0)
@@ -227,8 +245,8 @@ def _pad_instance(
 
 
 def collate_dlt_batch(
-    examples: list[dict[str, torch.Tensor]],
-) -> dict[str, torch.Tensor]:
+    examples: list[DLTExample],
+) -> DLTExample:
     """Stack DLT examples into one batch."""
     keys: Iterator[str] = iter(examples[0])
     return {key: torch.stack([example[key] for example in examples]) for key in keys}
