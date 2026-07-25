@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import torch
+from jaxtyping import Shaped
 
 
 @dataclass
 class PositionContent:
     """Minimal tensor content schema shared by position generators."""
 
-    positions: torch.Tensor
-    mask: torch.Tensor
+    positions: Shaped[torch.Tensor, "..."]
+    mask: Shaped[torch.Tensor, "..."]

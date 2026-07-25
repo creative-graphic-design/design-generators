@@ -55,7 +55,7 @@ SmartText places text on natural images with a BASNet/GDI saliency model, determ
 
 ### Model Sources
 
-- **Repository:** [SmartText repository](https://github.com/chenqi008/SmartText)
+- **Repository:** [SmartText repository](https://github.com/intchous/SmartText)
 - **Paper:** [Harmonious Textual Layout Generation over Natural Images via Deep Aesthetics Learning](https://ieeexplore.ieee.org/document/9520053)
 
 ## Supported Checkpoints

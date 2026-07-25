@@ -12,50 +12,6 @@ lib/laygen/src/laygen/common/testing.py	np.ndarray | torch.Tensor	ArrayLike: Typ
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	bbox: torch.Tensor,
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	labels: torch.Tensor,
 lib/laygen/src/laygen/common/visualization.py	torch.Tensor	mask: torch.Tensor,
-lib/posgen/src/posgen/common/content.py	torch.Tensor	mask: torch.Tensor
-lib/posgen/src/posgen/common/content.py	torch.Tensor	positions: torch.Tensor
-lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	reference_loader: Iterable[Mapping[str, torch.Tensor]],
-lib/traingen-parity/src/traingen_parity/compare.py	Iterable[Mapping[str, torch.Tensor]]	target_loader: Iterable[Mapping[str, torch.Tensor]],
-lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	reference_state: Mapping[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/compare.py	Mapping[str, torch.Tensor]	target_state: Mapping[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	actual: torch.Tensor,
-lib/traingen-parity/src/traingen_parity/compare.py	torch.Tensor	expected: torch.Tensor,
-lib/traingen-parity/src/traingen_parity/determinism.py	torch.Tensor	torch_cpu: torch.Tensor
-lib/traingen-parity/src/traingen_parity/determinism.py	tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object]	NumpyRandomState: TypeAlias = (
-lib/traingen-parity/src/traingen_parity/determinism.py	tuple[torch.Tensor, ...]	torch_cuda: tuple[torch.Tensor, ...]
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	batch: dict[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	self, batch: dict[str, torch.Tensor], batch_idx: int
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor]
-lib/traingen-parity/src/traingen_parity/trace.py	dict[str, torch.Tensor]	tensors: dict[str, torch.Tensor],
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	) -> torch.Tensor:
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
-lib/traingen-parity/src/traingen_parity/trace.py	torch.Tensor	def tensor_sha256(tensor: torch.Tensor) -> str:
-models/lace/src/lace/constraints.py	torch.Tensor	bbox: torch.Tensor,
-models/lace/src/lace/constraints.py	torch.Tensor	def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/constraints.py	torch.Tensor	def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/constraints.py	torch.Tensor	mask: torch.Tensor,
-models/lace/src/lace/constraints.py	tuple[torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor]:
-models/lace/src/lace/conversion.py	Mapping[str, torch.Tensor]	state_dict: Mapping[str, torch.Tensor],
-models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/lace/src/lace/conversion.py	dict[str, torch.Tensor]	def load_vendor_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
-models/lace/src/lace/modeling_lace.py	torch.Tensor	def _gelu2(x: torch.Tensor) -> torch.Tensor:
-models/lace/src/lace/pipeline_lace.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
-models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	) -> torch.Tensor | None:
-models/lace/src/lace/pipeline_lace.py	torch.Tensor | None	real_layout: torch.Tensor | None,
-models/lace/src/lace/processing_lace.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
-models/lace/src/lace/processing_lace.py	torch.Tensor	) -> torch.Tensor:
-models/lace/src/lace/processing_lace.py	torch.Tensor	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
-models/lace/src/lace/processing_lace.py	torch.Tensor	self, layout: torch.Tensor, clamp: bool = True
-models/lace/src/lace/processing_lace.py	torch.Tensor | None	self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	) -> torch.Tensor:
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	model_output: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	noise: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	original_samples: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	pred_original_sample: torch.Tensor
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	prev_sample: torch.Tensor
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	sample: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	timestep: torch.Tensor,
-models/lace/src/lace/scheduling_lace.py	torch.Tensor	timesteps: torch.Tensor,
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
 models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
@@ -67,25 +23,6 @@ models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	tuple[
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	) -> torch.Tensor:
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	confidence_logits: torch.Tensor,
 models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	timestep: torch.Tensor,
-models/layout-gpt/src/layout_gpt/types.py	torch.Tensor | None	sequences: torch.Tensor | None
-models/layoutformerpp/src/layoutformerpp/conversion.py	dict[str, torch.Tensor]	def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	bbox: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/geometry.py	torch.Tensor	ids: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Callable[[int, int, torch.Tensor], tuple[list[int], int | None]] | None	generation_constraint_fn: Callable[
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	Seq2SeqLMOutput | tuple[torch.Tensor, ...]	) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	list[torch.Tensor]	outs: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	torch.Tensor	self, labels: torch.Tensor
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor	sequences: torch.Tensor,
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	torch.Tensor | list[list[bool]] | list[bool] | None	mask: torch.Tensor | list[list[bool]] | list[bool] | None,
 models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
 models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
 models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
