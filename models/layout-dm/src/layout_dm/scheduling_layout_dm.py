@@ -10,6 +10,7 @@ import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Float, Int, Shaped
 
 from laygen.common.discrete import (
     index_to_log_onehot,
@@ -28,9 +29,9 @@ if TYPE_CHECKING:
 class LayoutDMSchedulerOutput(BaseOutput):
     """Scheduler step output for LayoutDM reverse diffusion."""
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor | None = None
-    model_log_prob: torch.Tensor | None = None
+    prev_sample: Float[torch.Tensor, "batch vocab tokens"]
+    pred_original_sample: Float[torch.Tensor, "batch vocab tokens"] | None = None
+    model_log_prob: Float[torch.Tensor, "batch vocab tokens"] | None = None
 
 
 class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
@@ -123,7 +124,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         *,
         device: torch.device,
         condition: LayoutDMCondition | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Create the initial log one-hot sample for reverse diffusion."""
         if condition is not None:
             ids = condition.input_ids.to(device)
@@ -136,7 +137,9 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
             )
         return index_to_log_onehot(ids, self.vocab_size)
 
-    def predict_start(self, denoiser_output: torch.Tensor) -> torch.Tensor:
+    def predict_start(
+        self, denoiser_output: Float[torch.Tensor, "batch tokens vocab"]
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Convert denoiser logits to start-sequence log probabilities."""
         logits = denoiser_output[:, :, :-1]
         log_pred = torch.log_softmax(logits.double(), dim=-1).float()
@@ -151,8 +154,11 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def q_posterior(
-        self, log_x_start: torch.Tensor, log_x_t: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        log_x_start: Float[torch.Tensor, "batch vocab tokens"],
+        log_x_t: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Compute the LayoutDM posterior transition distribution."""
         if self.per_var_full_ids is not None:
             return self._constrained_q_posterior(log_x_start, log_x_t, t)
@@ -166,10 +172,10 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
 
     def _constrained_q_posterior(
         self,
-        log_x_start_full: torch.Tensor,
-        log_x_t_full: torch.Tensor,
-        t: torch.Tensor,
-    ) -> torch.Tensor:
+        log_x_start_full: Float[torch.Tensor, "batch vocab tokens"],
+        log_x_t_full: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Compute posterior probabilities with per-variable vocab constraints."""
         batch_size = log_x_start_full.size(0)
         step = len(self.var_order)
@@ -212,8 +218,11 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _q_pred_one_timestep(
-        self, log_x_t: torch.Tensor, t: torch.Tensor, key: str
-    ) -> torch.Tensor:
+        self,
+        log_x_t: Float[torch.Tensor, "batch partial_vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+        key: str,
+    ) -> Float[torch.Tensor, "batch partial_vocab tokens"]:
         """Apply one forward noising transition in partial vocabulary space."""
         log_at, log_bt, log_ct = (self.schedules[key][i].to(t.device) for i in range(3))
         log_at = _extract(log_at, t, log_x_t.shape)
@@ -229,8 +238,11 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _q_pred(
-        self, log_x_start: torch.Tensor, t: torch.Tensor, key: str
-    ) -> torch.Tensor:
+        self,
+        log_x_start: Float[torch.Tensor, "batch partial_vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+        key: str,
+    ) -> Float[torch.Tensor, "batch partial_vocab tokens"]:
         """Apply cumulative forward noising in partial vocabulary space."""
         t = (t + (self.num_timesteps + 1)) % (self.num_timesteps + 1)
         log_cumprod_at, log_cumprod_bt, log_cumprod_ct = (
@@ -255,18 +267,24 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         assert self.per_var_full_ids is not None
         return len(self.per_var_full_ids[key])
 
-    def _full_ids(self, key: str, device: torch.device) -> torch.Tensor:
+    def _full_ids(
+        self, key: str, device: torch.device
+    ) -> Int[torch.Tensor, "partial_vocab"]:
         """Return full vocabulary ids for a constrained token variable."""
         assert self.per_var_full_ids is not None
         return torch.tensor(self.per_var_full_ids[key], dtype=torch.long, device=device)
 
-    def _full_to_partial_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+    def _full_to_partial_log(
+        self, inputs: Float[torch.Tensor, "batch vocab tokens"], key: str
+    ) -> Float[torch.Tensor, "batch partial_vocab tokens"]:
         """Gather full-vocabulary log probabilities into partial space."""
         full_ids = self._full_ids(key, inputs.device)
         index = full_ids.reshape(1, -1, 1).expand(inputs.shape[0], -1, inputs.shape[-1])
         return torch.gather(inputs, dim=1, index=index)
 
-    def _partial_to_full_log(self, inputs: torch.Tensor, key: str) -> torch.Tensor:
+    def _partial_to_full_log(
+        self, inputs: Float[torch.Tensor, "batch partial_vocab tokens"], key: str
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Scatter partial-space log probabilities into full vocabulary space."""
         full_ids = self._full_ids(key, inputs.device)
         outputs = torch.full(
@@ -280,9 +298,9 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
 
     def step(
         self,
-        denoiser_output: torch.Tensor,
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        denoiser_output: Float[torch.Tensor, "batch tokens vocab"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch vocab tokens"],
         *,
         previous_timestep: int,
         sampling: LayoutDMSamplingConfig,
@@ -334,7 +352,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
 
 def _alpha_schedule(
     num_timesteps: int, n: int, att_1: float, att_t: float, ctt_1: float, ctt_t: float
-) -> tuple[torch.Tensor, ...]:
+) -> tuple[Float[torch.Tensor, "steps"], ...]:
     att = np.arange(0, num_timesteps) / (num_timesteps - 1) * (att_t - att_1) + att_1
     att = np.concatenate(([1], att))
     at = att[1:] / att[:-1]
@@ -353,12 +371,14 @@ def _alpha_schedule(
 
 
 def _extract(
-    values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
-) -> torch.Tensor:
+    values: Float[torch.Tensor, "steps"],
+    timesteps: Int[torch.Tensor, "batch"],
+    broadcast_shape: torch.Size,
+) -> Shaped[torch.Tensor, "..."]:
     batch, *_ = timesteps.shape
     out = values.gather(-1, timesteps)
     return out.reshape(batch, *((1,) * (len(broadcast_shape) - 1)))
 
 
-def _log_1_min_a(a: torch.Tensor) -> torch.Tensor:
+def _log_1_min_a(a: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
     return torch.log(1 - a.exp() + 1e-40)

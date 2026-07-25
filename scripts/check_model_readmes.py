@@ -282,7 +282,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
-    "smarttext": "https://github.com/chenqi008/SmartText",
+    "smarttext": "https://github.com/intchous/SmartText",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
 }

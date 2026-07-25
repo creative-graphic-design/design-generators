@@ -160,7 +160,13 @@ class DSGANModel(PreTrainedModel):
         pixel_values: Float[torch.Tensor, "batch 4 height width"],
         layout: Float[torch.Tensor, "batch elements 2 4"],
         return_dict: bool = True,
-    ) -> DSGANModelOutput | tuple[torch.Tensor, torch.Tensor]:
+    ) -> (
+        DSGANModelOutput
+        | tuple[
+            Float[torch.Tensor, "batch elements 4"],
+            Float[torch.Tensor, "batch elements 4"],
+        ]
+    ):
         """Run a DS-GAN generator forward pass.
 
         Args:

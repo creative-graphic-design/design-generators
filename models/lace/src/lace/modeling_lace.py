@@ -58,7 +58,9 @@ def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
     return clone_module_list(module, n)
 
 
-def _gelu2(x: torch.Tensor) -> torch.Tensor:
+def _gelu2(
+    x: Float[torch.Tensor, "..."],
+) -> Float[torch.Tensor, "..."]:
     return get_activation("gelu2")(x)
 
 

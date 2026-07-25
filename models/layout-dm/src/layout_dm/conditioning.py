@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import torch
+from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType, normalize_condition_type
 
@@ -16,23 +17,23 @@ from .tokenization_layout_dm import LayoutDMTokenizer
 class LayoutDMCondition:
     """Strong and weak token constraints for conditional LayoutDM sampling."""
 
-    input_ids: torch.Tensor
-    mask: torch.Tensor
+    input_ids: Int[torch.Tensor, "batch tokens"]
+    mask: Bool[torch.Tensor, "batch tokens"]
     type: Literal["c", "cwh", "partial", "refinement"]
-    num_element: torch.Tensor | None = None
-    original_input_ids: torch.Tensor | None = None
-    weak_mask: torch.Tensor | None = None
-    weak_logits: torch.Tensor | None = None
+    num_element: Int[torch.Tensor, "batch"] | None = None
+    original_input_ids: Int[torch.Tensor, "batch tokens"] | None = None
+    weak_mask: Bool[torch.Tensor, "batch tokens"] | None = None
+    weak_logits: Float[torch.Tensor, "batch tokens vocab"] | None = None
 
 
 def build_condition(
     tokenizer: LayoutDMTokenizer,
     *,
     cond_type: ConditionType | str,
-    bbox: torch.Tensor,
-    labels: torch.Tensor,
-    mask: torch.Tensor,
-    noisy_bbox: torch.Tensor | None = None,
+    bbox: Float[torch.Tensor, "batch elements 4"],
+    labels: Int[torch.Tensor, "batch elements"],
+    mask: Bool[torch.Tensor, "batch elements"],
+    noisy_bbox: Float[torch.Tensor, "batch elements 4"] | None = None,
 ) -> LayoutDMCondition:
     """Build token-level conditioning masks for a LayoutDM layout condition.
 
