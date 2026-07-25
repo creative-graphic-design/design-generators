@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import cast
 
 import torch
+from jaxtyping import Float, Int
 
 
 @dataclass(frozen=True)
@@ -111,7 +112,7 @@ def complete_signed_edges(
     *,
     default_adjacent: bool = False,
     device: torch.device | None = None,
-) -> torch.LongTensor:
+) -> Int[torch.Tensor, "edges 3"]:
     """Build signed complete graph triples.
 
     Args:
@@ -144,7 +145,7 @@ def graph_to_node_features(
     label2id: Mapping[str, int],
     num_labels: int,
     device: torch.device | None = None,
-) -> torch.FloatTensor:
+) -> Float[torch.Tensor, "elements room_labels"]:
     """Convert public room labels to 10-way one-hot features."""
     label_ids = [_label_to_id(node.label, label2id=label2id) for node in nodes]
     labels_t = torch.tensor(label_ids, dtype=torch.long, device=device)

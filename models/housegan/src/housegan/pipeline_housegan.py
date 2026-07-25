@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import ClassVar, TypeAlias, cast
 
 import numpy as np
 import torch
-from jaxtyping import Float
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -24,6 +24,10 @@ from .configuration_housegan import HouseGanConfig
 from .graph_schema import HouseGanSceneGraph
 from .modeling_housegan import HouseGanGenerator
 from .processing_housegan import HouseGanProcessor, OutputType
+
+NestedBoolList: TypeAlias = list[bool] | list[list[bool]]
+NestedFloatList: TypeAlias = list[float] | list[list[float]] | list[list[list[float]]]
+NestedIntList: TypeAlias = list[int] | list[list[int]]
 
 
 def _load_model_component(
@@ -123,10 +127,19 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.relation,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
+        | NestedIntList
+        | None = None,
+        bbox: Float[torch.Tensor, "... 4"]
+        | Float[np.ndarray, "... 4"]
+        | NestedFloatList
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Bool[np.ndarray, "..."]
+        | NestedBoolList
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "..."] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -218,9 +231,9 @@ def _merge_outputs(
         output = outputs[0]
     else:
         max_elements = max(item.labels.shape[1] for item in outputs)
-        bbox_rows: list[torch.Tensor] = []
-        label_rows: list[torch.Tensor] = []
-        mask_rows: list[torch.Tensor] = []
+        bbox_rows: list[Float[torch.Tensor, "batch elements 4"]] = []
+        label_rows: list[Int[torch.Tensor, "batch elements"]] = []
+        mask_rows: list[Bool[torch.Tensor, "batch elements"]] = []
         for item in outputs:
             pad = max_elements - item.labels.shape[1]
             bbox_rows.append(
