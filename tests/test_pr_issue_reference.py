@@ -36,16 +36,16 @@ REQUIRED_CHECKLIST_ITEMS = [
     "README reproducibility steps are copy-pasteable commands, if README docs changed.",
     "Documented any deviations from the plan, checklist, or repository conventions below.",
 ]
+COMPLETION_GATE_ITEMS = [
+    "Vendor parity verified, or gated-pending: <blocker name and short reason>.",
+    "Training S5 reproduction complete, or N/A: <reason>.",
+    "Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)",
+]
 
 
 def filled_body(reference: str = "Refs #127") -> str:
     checklist = "\n".join(f"- [x] {item}" for item in REQUIRED_CHECKLIST_ITEMS)
-    completion_gate = "\n".join(
-        [
-            "- [x] Vendor parity verified, or gated-pending: <blocker name and short reason>.",
-            "- [x] Training S5 reproduction complete, or N/A: <reason>.",
-        ]
-    )
+    completion_gate = "\n".join(f"- [x] {item}" for item in COMPLETION_GATE_ITEMS)
     return (
         f"## Summary\n\n{reference}\n\n"
         f"## Checklist\n\n{checklist}\n\n"
@@ -173,7 +173,8 @@ def test_completion_gate_allows_draft_incomplete() -> None:
         draft=True,
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
-            "- [ ] Training S5 reproduction complete, or N/A: <reason>."
+            "- [ ] Training S5 reproduction complete, or N/A: <reason>.\n"
+            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
         ),
     )
 
@@ -184,13 +185,14 @@ def test_completion_gate_rejects_ready_incomplete() -> None:
     body = completion_body(
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
-            "- [ ] Training S5 reproduction complete, or N/A: <reason>."
+            "- [ ] Training S5 reproduction complete, or N/A: <reason>.\n"
+            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
         ),
     )
 
     errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
 
-    assert len(errors) == 2
+    assert len(errors) == 3
     assert all("convert the PR back to draft" in error for error in errors)
 
 
@@ -198,7 +200,8 @@ def test_completion_gate_accepts_ready_complete() -> None:
     body = completion_body(
         completion_gate=(
             "- [x] Vendor parity verified, or gated-pending: <blocker name and short reason>.\n"
-            "- [x] Training S5 reproduction complete, or N/A: <reason>."
+            "- [x] Training S5 reproduction complete, or N/A: <reason>.\n"
+            "- [x] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
         ),
     )
 
@@ -209,11 +212,30 @@ def test_completion_gate_accepts_na_and_blocker_reasons() -> None:
     body = completion_body(
         completion_gate=(
             "- [ ] Vendor parity verified, or gated-pending: no redistributable checkpoint is available.\n"
-            "- [ ] Training S5 reproduction complete, or N/A: documentation-only PR."
+            "- [ ] Training S5 reproduction complete, or N/A: documentation-only PR.\n"
+            "- [x] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
         ),
     )
 
     assert check_pr_issue_reference.completion_gate_errors(body, draft=False) == []
+
+
+def test_completion_gate_rejects_unchecked_adversarial_review() -> None:
+    body = completion_body(
+        completion_gate=(
+            "- [ ] Vendor parity verified, or gated-pending: no redistributable checkpoint is available.\n"
+            "- [ ] Training S5 reproduction complete, or N/A: documentation-only PR.\n"
+            "- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)"
+        ),
+    )
+
+    errors = check_pr_issue_reference.completion_gate_errors(body, draft=False)
+
+    assert errors == [
+        "Ready-for-review PRs must check `Pre-PR adversarial review completed "
+        "(reviewer spawned before opening the PR; findings resolved)` or convert "
+        "the PR back to draft."
+    ]
 
 
 def test_completion_gate_allows_legacy_ready_body_without_section() -> None:

@@ -35,6 +35,7 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 
 - [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.
 - [ ] Training S5 reproduction complete, or N/A: <reason>.
+- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
 
 ## Deviations / Follow-ups
 

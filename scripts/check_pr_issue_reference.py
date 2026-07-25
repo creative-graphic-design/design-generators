@@ -54,6 +54,15 @@ COMPLETION_REQUIREMENTS = (
         allowed_justification="N/A:",
         justification_label="a reason",
     ),
+    CompletionRequirement(
+        name="pre-PR adversarial review",
+        prefix=(
+            "Pre-PR adversarial review completed "
+            "(reviewer spawned before opening the PR; findings resolved)"
+        ),
+        allowed_justification=None,
+        justification_label=None,
+    ),
 )
 
 
@@ -212,10 +221,16 @@ def completion_gate_errors(
             continue
         if marker is not None and _has_actionable_justification(text, marker):
             continue
-        errors.append(
-            f"Ready-for-review PRs must complete `{requirement.prefix}` with "
-            f"{requirement.justification_label} or convert the PR back to draft."
-        )
+        if requirement.justification_label is None:
+            errors.append(
+                f"Ready-for-review PRs must check `{requirement.prefix}` or "
+                "convert the PR back to draft."
+            )
+        else:
+            errors.append(
+                f"Ready-for-review PRs must complete `{requirement.prefix}` with "
+                f"{requirement.justification_label} or convert the PR back to draft."
+            )
     return errors
 
 
