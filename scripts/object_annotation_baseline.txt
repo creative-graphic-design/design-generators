@@ -308,7 +308,6 @@ models/layoutvae/src/layoutvae/pipeline_layoutvae.py	dict[str, object]	self, mod
 models/layoutvae/src/layoutvae/pipeline_layoutvae.py	object	) -> object:
 models/layoutvae/src/layoutvae/pipeline_layoutvae.py	object	self, input_: object = None, **preprocess_parameters: object
 models/layoutvae/src/layoutvae/pipeline_layoutvae.py	tuple[dict[str, object], dict[str, object], dict[str, object]]	) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-models/layoutvae/src/layoutvae/processing_layoutvae.py	PublicMaskTensor | object | None	mask: PublicMaskTensor | object | None,
 models/layoutvae/src/layoutvae/processing_layoutvae.py	list[list[dict[str, object]]]	) -> list[list[dict[str, object]]]:
 models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
 models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
