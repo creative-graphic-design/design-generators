@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import ClassVar, TypeAlias, cast
 
 import numpy as np
 import torch
@@ -24,6 +24,10 @@ from .configuration_housegan import HouseGanConfig
 from .graph_schema import HouseGanSceneGraph
 from .modeling_housegan import HouseGanGenerator
 from .processing_housegan import HouseGanProcessor, OutputType
+
+NestedBoolList: TypeAlias = list[bool] | list[list[bool]]
+NestedFloatList: TypeAlias = list[float] | list[list[float]] | list[list[list[float]]]
+NestedIntList: TypeAlias = list[int] | list[list[int]]
 
 
 def _load_model_component(
@@ -125,15 +129,15 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         condition_type: ConditionType | str = ConditionType.relation,
         labels: Int[torch.Tensor, "..."]
         | Int[np.ndarray, "..."]
-        | list[object]
+        | NestedIntList
         | None = None,
         bbox: Float[torch.Tensor, "... 4"]
         | Float[np.ndarray, "... 4"]
-        | list[object]
+        | NestedFloatList
         | None = None,
         mask: Bool[torch.Tensor, "..."]
         | Bool[np.ndarray, "..."]
-        | list[object]
+        | NestedBoolList
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "..."] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,

@@ -107,10 +107,7 @@ models/housegan/src/housegan/graph_schema.py	object	def _to_label_sequence(label
 models/housegan/src/housegan/graph_schema.py	object | None	def _normalize_relations(raw_relations: object | None) -> tuple[HouseGanRelation, ...]:
 models/housegan/src/housegan/graph_schema.py	object | None	labels: object | None,
 models/housegan/src/housegan/graph_schema.py	object | None	relations: object | None,
-models/housegan/src/housegan/pipeline_housegan.py	Bool[torch.Tensor, '...'] | Bool[np.ndarray, '...'] | list[object] | None	mask: Bool[torch.Tensor, "..."]
-models/housegan/src/housegan/pipeline_housegan.py	Float[torch.Tensor, '... 4'] | Float[np.ndarray, '... 4'] | list[object] | None	bbox: Float[torch.Tensor, "... 4"]
 models/housegan/src/housegan/pipeline_housegan.py	HouseGanSceneGraph | Mapping[str, object] | list[Mapping[str, object]] | None	scene_graph: HouseGanSceneGraph
-models/housegan/src/housegan/pipeline_housegan.py	Int[torch.Tensor, '...'] | Int[np.ndarray, '...'] | list[object] | None	labels: Int[torch.Tensor, "..."]
 models/housegan/src/housegan/pipeline_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
 models/housegan/src/housegan/pipeline_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
 models/housegan/src/housegan/pipeline_housegan.py	Mapping[str, object | None]	components: Mapping[str, object | None],
