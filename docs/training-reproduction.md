@@ -52,6 +52,22 @@ Every training-first package must assert all of the following before S1/S2 can b
 
 If any topology guard fails, stop the S-stage claim at the failing check, document the mismatch in `TRAINING.md`, and do not launch S5 as evidence of reproduction.
 
+### Scheduler Cadence Guard
+
+Step-level schedulers such as warmup plus cosine decay must be wired with their
+original update cadence. Injecting them through LightningCLI's top-level
+`lr_scheduler` field makes Lightning treat the scheduler as
+`interval="epoch"` unless the optimizer return value says otherwise. The run can
+then train for every step at the warmup-scale learning rate: loss may stay close
+to the original trace while generated quality collapses.
+
+For schedulers that step every optimizer update, return the scheduler from
+`configure_optimizers()` with `{"scheduler": scheduler, "interval": "step"}` or
+inject the scheduler through `model.init_args` and construct the Lightning
+optimizer configuration explicitly. S2/S3 evidence must confirm that
+`scheduler.last_epoch` follows `trainer.global_step` and that the first few
+hundred learning-rate values match the original implementation.
+
 ## Dataset Coverage
 
 S5 must cover every dataset that the original implementation trains on for the checkpoints or claims being documented. Record status per dataset even when the PR implements only one package.
@@ -74,11 +90,28 @@ Training-seed n=3 is the target evidence for S5. Train the original implementati
 
 Evaluation-seed n=3 on a single original/package training pair is acceptable interim evidence when full retraining is still running or too expensive for the current PR. It must be labeled `evaluation-seed n=3`, not `training-seed n=3`, and the text must state that true training-seed n=3 requires additional full runs.
 
+Evaluation-seed evidence is weaker than training-seed evidence because it tests
+sampling or evaluation variance for one trained checkpoint, not retraining
+variance. For example, a LayoutFlow PubLayNet report that evaluates one
+checkpoint with three evaluation seeds must be described as `evaluation-seed
+n=3` interim evidence unless three matched original/package training runs also
+exist.
+
 Single-seed evidence can unblock diagnosis, but it is not enough for a final reproduction claim unless the model issue explicitly narrows the claim.
 
 ## Evidence Recording
 
 Each training-first package should include `models/<package>/TRAINING.md`. Its `Reproduction Results` section is the durable summary; issue comments and PR bodies may quote it, but they must not be the only place where the result lives.
+
+Per-model `TRAINING.md` files must be result-focused. Open with the conclusion,
+including the reproduction verdict, covered datasets, numeric metrics, and seed
+scope. Include only the reproducible training, evaluation, conversion, and smoke
+test procedure that maintainers should rerun. Do not include discarded attempts,
+failed diagnostic narratives, or process history; move that material to issue
+discussion only when it is still useful. The CGB-DM update in
+[PR #167](https://github.com/creative-graphic-design/design-generators/pull/167)
+is a good example of a conclusion-first report with numeric evidence and
+copy-pasteable commands.
 
 Write `Reproduction Results` in this order:
 
