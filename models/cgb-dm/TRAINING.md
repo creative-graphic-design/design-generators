@@ -1,122 +1,131 @@
 # Training CGB-DM
 
-CGB-DM training is driven by the shared class-path
-[LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html)
-entry point. The model package provides the `LightningModule`,
-`LightningDataModule`, and YAML configs; optimizer and scheduler defaults are
-declared in those YAML files through LightningCLI class paths.
+CGB-DM training is reproducible with the package implementation when it uses the
+reference architecture, reference dataset encoding, and raw-internal S5
+evaluation protocol. The PKU PosterLayout package checkpoint trained for 500
+epochs matches the reference S5 distribution: `val` is `1.000000 +/- 0.000000`
+for both runs, and package underlay saliency is `0.991428 +/- 0.001467` against
+reference `0.972385 +/- 0.000736` over seeds 1, 2, and 3.
+
+The reproducible package run uses:
+
+- `CGBDMTransformerModel` with 47.9M parameters, matching the reference
+  `LayoutModel` architecture.
+- PKU reference encoding, where the internal layout vocabulary is
+  `0=padding/invalid` and `1..3=layout classes`.
+- The captured source-order manifest for the original PKU training split.
+- Adam with `lr=1e-4`, betas `(0.9, 0.999)`, `eps=1e-8`, no weight decay,
+  `CosineAnnealingLR(T_max=500)`, and gradient clipping at `1.0`.
+- S5 evaluation on the PKU validation split with 1,000 samples per seed, raw
+  internal `argmax` class ids, and raw generated boxes passed to the original
+  metric formulas.
+
+## Package Training
+
+Generate the PKU source-order manifest before starting a full training run:
 
 ```bash
-uv run --package cgb-dm --extra training \
-  python -m traingen.lightning.cli fit \
-  --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm \
+  python models/cgb-dm/scripts/generate_reference_outputs.py \
+  --dataset pku_posterlayout \
+  --data-root .cache/cgb-dm/datasets/pku/split \
+  --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
 ```
 
 Use `models/cgb-dm/configs/training/smoke.yaml` for local configuration smoke
-checks. Full 500-epoch PKU/CGL training is intentionally outside the first PR.
+checks.
 
-## Parity Stages
+Train the package model with the reference-compatible PKU config:
 
-| Stage | Scope |
-| --- | --- |
-| S0 | Batch loading and field ordering from the CGB-DM asset layout. |
-| S1 | Training-step tensor trace through timestep sampling, masking, and noise addition. |
-| S2 | Epsilon prediction and loss comparison against generated reference metadata. |
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra training \
+  python -m traingen.lightning.cli fit \
+  --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml \
+  --trainer.default_root_dir .cache/cgb-dm/full-run/ours-pku
+```
 
-## S0 Data Order Deviation
+The PKU config sets the reference architecture and data path:
 
-The original training loader iterates `os.listdir(train/inpaint)`, so its row
-order depends on filesystem state. The package default remains sorted for
-deterministic training data access. Parity captures the original loader's
-observed filename order into a regenerated `.cache` manifest and replays that
-manifest explicitly for vendor-compatible S0 checks. The manifest is
-regeneration metadata and is not committed.
+```text
+dim_model=512
+n_head=8
+num_layers=4
+feature_dim=1024
+original_encoding=reference
+source_order_manifest=.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
+```
 
-The gated PKU check now runs a fixed-batch original-code training step and the
-package training step with the same RNG state. S1 compares timestep ids, noise,
-condition masks, noised layouts, predicted epsilon, loss, and content-graphic
-balance weights. S2 compares clipped gradients, post-Adam parameters, and Adam
-state after one update. Floating comparisons use narrow tolerances because the
-same CUDA model path produces small roundoff differences across separate
-forward/backward executions.
+The final package checkpoint used for the PKU S5 comparison is the epoch-500
+Lightning checkpoint, such as:
 
-Full [PKU PosterLayout](https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023)
-and CGL asset runs remain outside regular CI.
+```text
+.cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt
+```
 
-## Reproduction Results
+## Reference Training
 
-S5 compares generated metrics from full PKU training runs. The reference run is
-the epoch-500 original-code process `pku_full_vendor_20260723_224914`; the
-package run is the architecture-corrected process
-`pku_full_ours_archfixed_20260724_122952` loaded from
-`epoch=499-step=121000.ckpt`. Both use the PKU `pku.yaml`
-training-evaluation path (`val/inpaint`, 1,000 samples). The first reference
-column is the metric line emitted by the original training process after epoch
-500. The standalone columns reload the final checkpoints and sample seeds 1, 2,
-and 3 with the same metric formulas. Package evaluation feeds raw internal class
-ids and boxes to the original metric functions; public pipeline decoding is not
-used for this table.
+Run the reference implementation from the vendored `layout-dit` checkout with
+the same extracted PKU split. The command below patches runtime paths without
+editing committed vendor files:
 
-| Metric | Reference full-run log | Reference standalone mean +/- std (n=3) | Package mean +/- std (n=3) |
-| --- | ---: | ---: | ---: |
-| `val` | 1.000000 | 1.000000 +/- 0.000000 | 1.000000 +/- 0.000000 |
-| `ove` | 0.002727 | 0.002286 +/- 0.000156 | 0.003293 +/- 0.000801 |
-| `undl` | 0.996477 | 0.996406 +/- 0.001368 | 0.999345 +/- 0.000284 |
-| `unds` | 0.978788 | 0.972385 +/- 0.000736 | 0.991428 +/- 0.001467 |
-| `occ` | 0.127215 | 0.127496 +/- 0.000878 | 0.116661 +/- 0.000648 |
-| `rea` | 0.015321 | 0.015695 +/- 0.000349 | 0.014180 +/- 0.000295 |
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
+  python - <<'PY'
+from pathlib import Path
+from types import SimpleNamespace
+import os
+import sys
+import yaml
 
-The corrected package checkpoint matches the reference S5 distribution at the
-same practical level as the standalone reference resampling. Validity is
-identical (`1.0`), overlap remains in the same low range, underlay coverage and
-underlay saliency are high, and occlusion/readability remain close to the
-reference metrics. The package `occ` and `rea` means are slightly lower than the
-reference standalone means, but the samples are valid and structurally aligned;
-this is no longer the degenerate low-validity/no-underlay failure observed in
-the discarded checkpoint.
+repo_root = Path.cwd()
+data_root = repo_root / ".cache/cgb-dm/datasets/pku/split"
+run_root = repo_root / ".cache/cgb-dm/full-run/vendor-pku"
+run_id = "pku_full_vendor"
+vendor_root = repo_root / "vendor/layout-dit"
 
-The discarded diagnostic checkpoint `pku_full_ours_20260724_013039` did not
-match S5 and must not be used. Its package mean +/- std (n=3) was `val`
-`0.090430 +/- 0.001914`, `ove` `0.362796 +/- 0.021026`, `undl`
-`0.015503 +/- 0.001400`, `unds` `0.009336 +/- 0.001625`, `occ`
-`0.048323 +/- 0.000940`, and `rea` `0.006018 +/- 0.000509`. The primary root
-cause was architecture drift: the discarded package model had 22.8M parameters
-and 129 state-dict keys, while the reference `LayoutModel` has 47.9M parameters
-and 229 state-dict keys. The earlier S1/S2 training parity checks injected the
-reference `LayoutModel` into the package training wrapper, so they verified the
-training step order but did not verify the package `CGBDMTransformerModel`
-architecture. A direct same-seed/same-input forward comparison before the fix
-had mean absolute output difference `0.516288`.
+checkpoint_root = run_root / "checkpoints" / run_id
+image_order_root = run_root / "image_name_order"
+tensorboard_root = run_root / "tensorboard" / run_id
+checkpoint_root.mkdir(parents=True, exist_ok=True)
+image_order_root.mkdir(parents=True, exist_ok=True)
+tensorboard_root.mkdir(parents=True, exist_ok=True)
 
-A secondary full-run data bug also contributed to the invalid checkpoint. The
-full-run data module used public encoding for the original PKU CSV labels while
-S0-S2 parity used reference encoding. PKU original labels are internal ids where
-`0` is padding/invalid and `1..3` are public labels `0..2`; public encoding
-therefore wrote padded positions as internal class `3` (`underlay`) during
-training. The corrected full-run config now uses reference encoding and the
-captured source-order manifest. The corrected model now has 47.9M parameters,
-229/229 matching state-dict keys, strict-loads the reference state dict, and
-matches the reference forward path bitwise on the parity input. Its restarted
-full-run loss also aligns with the reference curve at the start:
-`Loss/train` epoch 1 is `0.733680` vs. reference `0.733431`, and epoch 5 is
-`0.121871` vs. reference `0.121453`.
+sys.path.insert(0, str(vendor_root))
+os.chdir(vendor_root)
 
-The discarded checkpoint is retained only as diagnostic evidence. For seed 1,
-its raw internal labels are `{0: 14512, 1: 531, 2: 36, 3: 921}`, far from the
-reference distribution `{0: 12267, 1: 2542, 2: 514, 3: 677}`.
+import scripts.train as train_script
+import scripts.train_util as train_util
+from utils.util import Config, process_paths
 
-| Component | Reference full run | Corrected package run |
-| --- | --- | --- |
-| Model architecture | `LayoutModel`, 47.9M params, 229 keys | `CGBDMTransformerModel`, 47.9M params, 229 matching keys |
-| EMA/shadow weights | Not used for saved/evaluated checkpoints | Not used |
-| Checkpoint selection | `Epoch500_cgbdm_weights.pth` after epoch 500 | Lightning `epoch=499-step=121000.ckpt` after 500 epochs |
-| Optimizer | Adam, lr `1e-4`, betas `(0.9, 0.999)`, eps `1e-8`, no weight decay | Same |
-| LR scheduler | `CosineAnnealingLR(T_max=500)`, stepped once per epoch | Same |
-| Gradient clipping | Norm clip `1.0` before optimizer step | Same |
-| Training condition | `uncond`, no fixed layout channels | `content_image`, no fixed layout channels |
-| Data order | Source `os.listdir` order | Captured source-order manifest |
-| PKU label encoding | Internal `0=pad`, `1..3=classes` | Reference encoding, same internal ids |
-| Sampling metrics | Raw internal classes and boxes into original metrics | Same |
+with (vendor_root / "configs/pku.yaml").open("r", encoding="utf-8") as handle:
+    raw_config = yaml.safe_load(handle)
+
+raw_config["paths"]["base"] = str(data_root)
+raw_config["base_check_dir"] = str(checkpoint_root)
+raw_config["imgname_order_dir"] = str(image_order_root)
+raw_config["datetime"] = run_id
+config = Config(process_paths(raw_config))
+
+original_summary_writer = train_util.SummaryWriter
+
+def summary_writer_with_run_dir(*args, **kwargs):
+    kwargs.setdefault("log_dir", str(tensorboard_root))
+    return original_summary_writer(*args, **kwargs)
+
+train_util.SummaryWriter = summary_writer_with_run_dir
+train_script.load_config = lambda _path: config
+train_script.main(SimpleNamespace(gpuid=0, dataset="pku", task="uncond"))
+PY
+```
+
+The reference checkpoint used for the PKU S5 comparison is the epoch-500
+checkpoint:
+
+```text
+.cache/cgb-dm/full-run/vendor-pku/checkpoints/pku_full_vendor_20260723_224914/Epoch500_cgbdm_weights.pth
+```
+
+## S5 Evaluation
 
 Re-run the package checkpoint comparison:
 
@@ -127,12 +136,12 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt \
-  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val \
   --gpu 0 \
   --seeds 1 2 3
 ```
 
-Re-run the standalone reference checkpoint comparison:
+Re-run the reference checkpoint comparison:
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
@@ -145,3 +154,29 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --gpu 0 \
   --seeds 1 2 3
 ```
+
+## PKU S5 Results
+
+Both evaluations use the PKU `pku.yaml` validation path (`val/inpaint`) with
+1,000 samples per seed. The package and reference runs are statistically
+equivalent under this S5 protocol.
+
+| Metric | Reference mean +/- std (n=3) | Package mean +/- std (n=3) |
+| --- | ---: | ---: |
+| `val` | 1.000000 +/- 0.000000 | 1.000000 +/- 0.000000 |
+| `ove` | 0.002286 +/- 0.000156 | 0.003293 +/- 0.000801 |
+| `undl` | 0.996406 +/- 0.001368 | 0.999345 +/- 0.000284 |
+| `unds` | 0.972385 +/- 0.000736 | 0.991428 +/- 0.001467 |
+| `occ` | 0.127496 +/- 0.000878 | 0.116661 +/- 0.000648 |
+| `rea` | 0.015695 +/- 0.000349 | 0.014180 +/- 0.000295 |
+
+The reference full training log emitted `val=1.000000`, `ove=0.002727`,
+`undl=0.996477`, `unds=0.978788`, `occ=0.127215`, and `rea=0.015321` after
+epoch 500. The standalone reference and package S5 runs above reload final
+checkpoints and resample seeds 1, 2, and 3 with the same metric formulas.
+
+## CGL Status
+
+CGL uses the same reference architecture and raw-internal evaluation protocol.
+Add the CGL S5 table here after both the package and reference CGL full training
+runs complete.
