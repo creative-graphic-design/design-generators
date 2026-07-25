@@ -70,22 +70,18 @@ Training configs live under `models/layout-flow/configs/training`.
 
 ## Reproduction Results
 
-LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent on training-seed n=3: FID 5.7111 +/- 0.7459 ours vs. 6.3907 +/- 0.8031 vendor, mIoU 0.5562 +/- 0.0102 ours vs. 0.5631 +/- 0.0200 vendor; PubLayNet loss curves nearly match, with final `train_loss_epoch` 0.1529803425 ours vs. 0.1530758440 vendor, and generated metrics are comparable or better overall.
+LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent on training-seed n=3: FID 5.7111 +/- 0.7459 ours vs. 6.3907 +/- 0.8031 vendor, mIoU 0.5562 +/- 0.0102 ours vs. 0.5631 +/- 0.0200 vendor; PubLayNet is acceptable on training-seed n=3: FID 13.6507 +/- 1.1766 ours vs. 13.9420 +/- 2.4765 vendor, mIoU 0.4151 +/- 0.0014 ours vs. 0.4229 +/- 0.0092 vendor.
 
-The RICO25 numbers use training seeds `42975`, `42976`, and `42977`, epoch 1000, and fixed evaluation seed `42975`; the PubLayNet numbers use evaluation seeds `42975`, `42976`, and `42977` on one final checkpoint pair at epoch 1000 / global step 609000.
+The RICO25 and PubLayNet numbers use training seeds `42975`, `42976`, and `42977`, epoch 1000, and fixed evaluation seed `42975`.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
 | RICO25 | vendor | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
 | RICO25 | ours | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
-| PubLayNet | vendor | evaluation-seed n=3 | 16.5893 +/- 0.2400 | 0.1072 +/- 0.0048 | 0.0313 +/- 0.0007 | 0.4290 +/- 0.0044 | final `train_loss_epoch` 0.1530758440 |
-| PubLayNet | ours | evaluation-seed n=3 | 11.9050 +/- 0.5273 | 0.1160 +/- 0.0033 | 0.0303 +/- 0.0012 | 0.4151 +/- 0.0025 | final `train_loss_epoch` 0.1529803425 |
+| PubLayNet | vendor | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
+| PubLayNet | ours | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
 
-PubLayNet train-loss agreement over the 1000 common epochs has final difference -0.0000955015, mean absolute difference 0.0002493398, RMSE 0.0003080925, correlation 0.9995266371, and last-100 mean relative difference 0.0017203791.
-
-PubLayNet n=3 is evaluation-seed n=3 on one final checkpoint pair; true training-seed n=3 needs additional full runs.
-
-Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5065491554), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, `.cache/layout-flow/full-run/eval-publaynet/vendor-protocol-eval-seed-n3-summary.csv`, and local train-loss comparison outputs under `.cache/layout-flow/full-run/eval-publaynet/`.
+Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5077346498), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, and `.cache/layout-flow/full-run/eval-publaynet/training-seed-n3-vendor-protocol/summary_mean_std.csv`.
 
 ### Reproducing These Results
 
