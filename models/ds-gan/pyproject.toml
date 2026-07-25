@@ -29,7 +29,7 @@ vendor = [
 framework = "transformers"
 task = "content-aware-layout-generation"
 conditions = ["content_image"]
-datasets = ["posterlayout"]
+datasets = ["pku_posterlayout"]
 
 [tool.uv.sources]
 laygen = { workspace = true }

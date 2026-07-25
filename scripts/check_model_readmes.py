@@ -120,7 +120,7 @@ EXPECTED_FRONTMATTER = {
     },
     "ds-gan": {
         "license": "other",
-        "datasets": ["PosterLayout"],
+        "datasets": ["creative-graphic-design/PKU-PosterLayout"],
     },
     "flex-dm": {
         "license": "apache-2.0",
