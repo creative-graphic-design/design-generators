@@ -222,6 +222,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity
   tests, conversion, and `from_pretrained` smoke tests.
+- When adding a new conference venue badge to the root README, check the
+  conference's official site, logo, or style assets first and use a badge color
+  that matches that venue rather than choosing an arbitrary generic color.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
 - Docs and READMEs link the first mention of external projects and repositories.

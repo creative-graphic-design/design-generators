@@ -10,7 +10,7 @@ import re
 import shutil
 import tomllib
 from typing import cast
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 GENERATED_API_DIR = ROOT / "docs" / "api"
@@ -62,6 +62,73 @@ MODEL_OVERVIEW_BADGE_COLORS = {
     "task": "purple",
     "conditions": "green",
     "datasets": "orange",
+}
+MODEL_OVERVIEW_TASK_BADGE_COLORS = {
+    frozenset({"content-agnostic-layout-generation"}): "2f80ed",
+    frozenset({"content-aware-layout-generation"}): "eb5757",
+    frozenset({"layout-evaluation"}): "6b7280",
+    frozenset(
+        {"content-agnostic-layout-generation", "content-aware-layout-generation"}
+    ): "9b51e0",
+}
+MODEL_OVERVIEW_TASK_LEGEND = {
+    "content-agnostic": "2f80ed",
+    "content-aware": "eb5757",
+    "layout-evaluation": "6b7280",
+    "mixed": "9b51e0",
+}
+MODEL_OVERVIEW_RUNTIME_BADGES = {
+    "diffusers": ("red", "huggingface"),
+    "pydantic-ai": ("violet", "pydantic"),
+    "transformers": ("yellow", "huggingface"),
+}
+MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
+    "AAAI 2022": "2f5f8f",
+    "AAAI 2023": "2f5f8f",
+    "ACM MM 2021": "0085ca",
+    "CVPR 2021": "0076a8",
+    "CVPR 2023": "0076a8",
+    "CVPR 2024": "0076a8",
+    "CVPR 2025": "0076a8",
+    "ECCV 2020": "009688",
+    "ECCV 2024": "009688",
+    "ICCV 2019": "0066cc",
+    "ICCV 2023": "0066cc",
+    "ICCV 2025": "0066cc",
+    "ICLR 2024": "00a88f",
+    "NeurIPS 2023": "4b2e83",
+    "TMM 2021": "00629b",
+}
+MODEL_OVERVIEW_DATASET_LABELS = {
+    "ad_banner": "Ad Banner",
+    "cgl": "CGL",
+    "coco": "COCO",
+    "coco-grounded": "COCO grounded",
+    "crello": "Crello",
+    "grit": "GRIT",
+    "housegan-floorplan-vectorized": "housegan-floorplan-vectorized",
+    "magazine": "Magazine",
+    "nsr-1k": "NSR-1K",
+    "pku_posterlayout": "PKU-PosterLayout",
+    "posterlayout": "PosterLayout",
+    "publaynet": "PubLayNet",
+    "rico13": "RICO13",
+    "rico25": "RICO25",
+    "smarttext-demo": "SmartText demo assets",
+    "vg-msdn": "VG-MSDN",
+    "web": "Web",
+    "webui": "WebUI",
+}
+MODEL_OVERVIEW_DATASET_LINKS = {
+    "CGL": "https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset",
+    "Crello": "https://huggingface.co/datasets/cyberagent/crello",
+    "Magazine": "https://huggingface.co/datasets/creative-graphic-design/magazine",
+    "PKU-PosterLayout": (
+        "https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout"
+    ),
+    "PubLayNet": "https://huggingface.co/datasets/creative-graphic-design/PubLayNet",
+    "RICO13": "https://huggingface.co/datasets/creative-graphic-design/Rico",
+    "RICO25": "https://huggingface.co/datasets/creative-graphic-design/Rico",
 }
 MODEL_OVERVIEW_FRAMEWORK_LOGOS = {
     "diffusers": "huggingface",
@@ -762,6 +829,185 @@ def render_model_overview_badges(values: tuple[str, ...], *, axis: str) -> str:
     return " ".join(render_model_overview_badge(value, axis=axis) for value in values)
 
 
+def render_static_badge(
+    *,
+    alt_label: str,
+    label: str,
+    message: str,
+    color: str,
+    logo: str | None = None,
+    logo_color: str | None = None,
+) -> str:
+    """Render a shields.io static badge with the root README badge style."""
+    params = [
+        ("label", label),
+        ("message", message),
+        ("color", color),
+    ]
+    if logo is not None:
+        params.append(("logo", logo))
+    if logo_color is not None:
+        params.append(("logoColor", logo_color))
+    url = f"https://img.shields.io/static/v1?{urlencode(params)}"
+    return f"![{alt_label}: {message}]({url})"
+
+
+def render_linked_badge(badge: str, link: str) -> str:
+    """Wrap a badge in a Markdown link."""
+    return f"[{badge}]({link})"
+
+
+def model_overview_task_color(tasks: tuple[str, ...]) -> str:
+    """Return the dataset badge color that represents a package task family."""
+    task_key = frozenset(tasks)
+    try:
+        return MODEL_OVERVIEW_TASK_BADGE_COLORS[task_key]
+    except KeyError as exc:
+        raise ValueError(
+            f"No model overview badge color for tasks {sorted(task_key)}"
+        ) from exc
+
+
+def render_model_overview_task_legend() -> str:
+    """Render the task-color legend used by the model overview table."""
+    badges = [
+        render_static_badge(
+            alt_label="task",
+            label={
+                "content-agnostic": "🧩",
+                "content-aware": "🎨",
+                "layout-evaluation": "📊",
+                "mixed": "🔀",
+            }[message],
+            message=message,
+            color=color,
+        )
+        for message, color in MODEL_OVERVIEW_TASK_LEGEND.items()
+    ]
+    return f"Task colors: {' '.join(badges)}"
+
+
+def render_model_overview_runtime_badge(framework: str) -> str:
+    """Render the framework badge used in the old root README table."""
+    try:
+        color, logo = MODEL_OVERVIEW_RUNTIME_BADGES[framework]
+    except KeyError as exc:
+        raise ValueError(f"No model overview runtime badge for {framework!r}") from exc
+    return render_static_badge(
+        alt_label="framework",
+        label=".",
+        message=framework,
+        color=color,
+        logo=logo,
+        logo_color="white",
+    )
+
+
+def model_overview_dataset_label(value: str) -> str:
+    """Return a human-readable dataset label for the model overview table."""
+    try:
+        return MODEL_OVERVIEW_DATASET_LABELS[value]
+    except KeyError as exc:
+        raise ValueError(f"No model overview dataset label for {value!r}") from exc
+
+
+def render_model_overview_dataset_badges(
+    metadata: ModelDesignMetadata,
+) -> str:
+    """Render dataset badges using task-family colors."""
+    color = model_overview_task_color(metadata.tasks)
+    badges = []
+    for value in metadata.datasets:
+        message = model_overview_dataset_label(value)
+        badge = render_static_badge(
+            alt_label="dataset",
+            label="🗂️",
+            message=message,
+            color=color,
+        )
+        link = MODEL_OVERVIEW_DATASET_LINKS.get(message)
+        badges.append(render_linked_badge(badge, link) if link is not None else badge)
+    return " ".join(badges)
+
+
+def model_overview_venue(package: ApiPackage) -> str | None:
+    """Read the canonical venue badge message for a model package."""
+    root_readme = ROOT / "README.md"
+    if root_readme.is_file():
+        root_line_prefix = f"models/{package.member_dir.name}/README.md"
+        for line in root_readme.read_text(encoding="utf-8").splitlines():
+            if root_line_prefix not in line:
+                continue
+            root_match = re.search(r"!\[venue: ([^\]]+)\]", line)
+            if root_match is not None:
+                return root_match.group(1)
+    readme_path = package.member_dir / "README.md"
+    if not readme_path.is_file():
+        return None
+    text = readme_path.read_text(encoding="utf-8")
+    for match in re.finditer(r"https://img\.shields\.io/static/v1\?([^)\s]+)", text):
+        query = parse_qs(
+            urlparse(f"https://img.shields.io/static/v1?{match.group(1)}").query
+        )
+        if query.get("label") == ["venue"] and "message" in query:
+            venue = query["message"][0].replace("+", " ")
+            return {"ACMMM 2021": "ACM MM 2021"}.get(venue, venue)
+    return None
+
+
+def render_model_overview_venue_badge(package: ApiPackage) -> str:
+    """Render a venue badge with the researched venue color mapping."""
+    venue = model_overview_venue(package)
+    if venue is None:
+        return render_static_badge(
+            alt_label="venue",
+            label="🎓",
+            message="n/a",
+            color="lightgrey",
+        )
+    try:
+        color = MODEL_OVERVIEW_VENUE_BADGE_COLORS[venue]
+    except KeyError as exc:
+        raise ValueError(f"No model overview venue color for {venue!r}") from exc
+    return render_static_badge(
+        alt_label="venue",
+        label="🎓",
+        message=venue,
+        color=color,
+    )
+
+
+def render_model_overview_checkpoint_badge(package: ApiPackage) -> str:
+    """Render the checkpoint reproduction badge."""
+    badge = render_static_badge(
+        alt_label="checkpoint",
+        label="💾",
+        message="ckpt",
+        color="success",
+    )
+    if package.reproducing_path is None:
+        return badge
+    return render_linked_badge(badge, docs_route(package.reproducing_path))
+
+
+def render_model_overview_training_badge(package: ApiPackage) -> str:
+    """Render the training reproduction badge."""
+    if package.training_path is None:
+        return render_static_badge(
+            alt_label="training",
+            label="🏋️",
+            message="n/a",
+            color="lightgrey",
+        )
+    badge = render_static_badge(
+        alt_label="training",
+        label="🏋️",
+        message="train",
+        color="success",
+    )
+    return render_linked_badge(badge, docs_route(package.training_path))
+
+
 def write_package_indexes(packages: list[ApiPackage]) -> None:
     """Write package landing pages with README content and module links."""
     for package in packages:
@@ -819,11 +1065,13 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
         [
             "# Models",
             "",
-            "This generated table summarizes model package metadata declared in each "
-            "`models/*/pyproject.toml`.",
+            "This generated table summarizes model package metadata and "
+            "reproducibility guides.",
             "",
-            "| Package | Framework | Task | Conditions | Datasets |",
-            "| --- | --- | --- | --- | --- |",
+            render_model_overview_task_legend(),
+            "",
+            "| Model | Venue | Runtime | Datasets | Ckpt | Train |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
     )
     for package in model_packages:
@@ -835,13 +1083,11 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
             " | ".join(
                 [
                     f"| {package_link}",
-                    render_model_overview_badge(metadata.framework, axis="framework"),
-                    render_model_overview_badges(metadata.tasks, axis="task"),
-                    render_model_overview_badges(
-                        metadata.conditions, axis="conditions"
-                    ),
-                    render_model_overview_badges(metadata.datasets, axis="datasets")
-                    + " |",
+                    render_model_overview_venue_badge(package),
+                    render_model_overview_runtime_badge(metadata.framework),
+                    render_model_overview_dataset_badges(metadata),
+                    render_model_overview_checkpoint_badge(package),
+                    render_model_overview_training_badge(package) + " |",
                 ]
             )
         )
