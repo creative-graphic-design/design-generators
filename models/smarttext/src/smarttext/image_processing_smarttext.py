@@ -7,6 +7,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from jaxtyping import Float
 from PIL import Image
 from transformers import BaseImageProcessor
 from transformers.image_processing_utils import BatchFeature
@@ -177,7 +178,9 @@ def _to_pil(image: ImageInput) -> Image.Image:
     raise TypeError(f"Unsupported image input: {type(image)!r}")
 
 
-def _resize_basnet_rgb(image: Image.Image) -> np.ndarray:
+def _resize_basnet_rgb(
+    image: Image.Image,
+) -> Float[np.ndarray, "height width channels"]:
     raw = np.asarray(image)
     try:
         from skimage import transform  # type: ignore[import-not-found]

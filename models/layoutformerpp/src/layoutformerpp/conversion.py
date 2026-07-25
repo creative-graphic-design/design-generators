@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Final, TypedDict
 
 import torch
+from jaxtyping import Shaped
 from huggingface_hub import ModelCard
 from laygen.common import ConditionType, DatasetName
 from laygen.common.model_card import ParityMetric, build_layout_model_card
@@ -61,7 +62,7 @@ def layoutformerpp_hub_id(
     )
 
 
-def load_original_state_dict(path: Path) -> dict[str, torch.Tensor]:
+def load_original_state_dict(path: Path) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load a published LayoutFormer++ checkpoint and strip DDP prefixes."""
     raw = torch.load(path, map_location="cpu")
     state = raw.get("state_dict", raw) if isinstance(raw, dict) else raw

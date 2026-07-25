@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from jaxtyping import Shaped
 
 from laygen.common.labels import DatasetName
 
@@ -13,7 +14,9 @@ from .modeling_coarse_to_fine import CoarseToFineForLayoutGeneration
 from .processing_coarse_to_fine import CoarseToFineProcessor
 
 
-def strip_module_prefix(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+def strip_module_prefix(
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Remove optional DDP ``module.`` prefixes from checkpoint keys."""
     return {key.removeprefix("module."): value for key, value in state_dict.items()}
 

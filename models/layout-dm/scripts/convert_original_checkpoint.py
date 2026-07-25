@@ -14,10 +14,10 @@ from layout_dm.conversion import (
     split_original_state_dict,
     write_layoutdm_model_card,
 )
-from layout_dm.denoiser import LayoutDMDenoiser
-from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.modeling_layout_dm import LayoutDMDenoiser
+from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
-from layout_dm.scheduler import LayoutDMScheduler
+from layout_dm.scheduling_layout_dm import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
 

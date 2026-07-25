@@ -25,8 +25,12 @@ def test_transformer_hook_liveness_rejects_logits_dtype_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layoutdiffusion.transformer"], "beartype.beartype"):
-            from layoutdiffusion.transformer import LayoutDiffusionTransformerOutput
+        with install_import_hook(
+            ["layoutdiffusion.modeling_layoutdiffusion"], "beartype.beartype"
+        ):
+            from layoutdiffusion.modeling_layoutdiffusion import (
+                LayoutDiffusionTransformerOutput,
+            )
 
         LayoutDiffusionTransformerOutput(logits=torch.zeros(1, 2, 3, dtype=torch.long))
         """,
@@ -40,8 +44,12 @@ def test_transformer_hook_liveness_rejects_logits_rank_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layoutdiffusion.transformer"], "beartype.beartype"):
-            from layoutdiffusion.transformer import LayoutDiffusionTransformerOutput
+        with install_import_hook(
+            ["layoutdiffusion.modeling_layoutdiffusion"], "beartype.beartype"
+        ):
+            from layoutdiffusion.modeling_layoutdiffusion import (
+                LayoutDiffusionTransformerOutput,
+            )
 
         LayoutDiffusionTransformerOutput(logits=torch.zeros(1, 2))
         """,
@@ -55,7 +63,9 @@ def test_transformer_hook_liveness_rejects_condition_shape_mismatch() -> None:
         import torch
         from jaxtyping import install_import_hook
 
-        with install_import_hook(["layoutdiffusion.transformer"], "beartype.beartype"):
+        with install_import_hook(
+            ["layoutdiffusion.modeling_layoutdiffusion"], "beartype.beartype"
+        ):
             from layoutdiffusion import LayoutDiffusionTransformer
 
         model = LayoutDiffusionTransformer(vocab_size=16, hidden_size=32, num_channels=8, num_hidden_layers=1, num_attention_heads=4, intermediate_size=64)
@@ -70,7 +80,7 @@ def test_transformer_without_hook_accepts_output_annotation_mismatches() -> None
         """
         import torch
 
-        from layoutdiffusion.transformer import LayoutDiffusionTransformerOutput
+        from layoutdiffusion.modeling_layoutdiffusion import LayoutDiffusionTransformerOutput
 
         assert LayoutDiffusionTransformerOutput(logits=torch.zeros(1, 2, 3, dtype=torch.long)).logits.shape == (1, 2, 3)
         assert LayoutDiffusionTransformerOutput(logits=torch.zeros(1, 2)).logits.shape == (1, 2)

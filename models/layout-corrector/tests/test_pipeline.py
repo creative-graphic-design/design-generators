@@ -3,7 +3,7 @@ import pytest
 
 from layout_corrector import CorrectorMaskMode
 from layout_corrector import LayoutCorrectorModel, LayoutCorrectorPipeline
-from layout_corrector.pipeline import OutputType
+from layout_corrector.pipeline_layout_corrector import OutputType
 from layout_dm import (
     LayoutDMDenoiser,
     LayoutDMPipeline,

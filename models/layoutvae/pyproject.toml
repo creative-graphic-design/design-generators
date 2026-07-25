@@ -1,0 +1,36 @@
+[project]
+name = "layoutvae"
+version = "0.1.0"
+description = "Transformers-style LayoutVAE conversion package."
+requires-python = ">=3.11"
+dependencies = [
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers[torch]>=5.0.0",
+]
+
+[project.optional-dependencies]
+hub = [
+    "huggingface-hub>=1.0.0",
+]
+vendor = [
+    "matplotlib",
+    "pandas",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-agnostic-layout-generation"
+conditions = ["label"]
+datasets = ["publaynet"]
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires original LayoutVAE weights and reference outputs",
+]

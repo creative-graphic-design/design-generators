@@ -20,11 +20,15 @@ def test_build_pipeline_and_state_dict_conversion() -> None:
     assert isinstance(pipe, LayoutFlowPipeline)
     converted = convert_lightning_state_dict(
         {
+            "model.backbone.linear.bias": torch.ones(1),
             "model.linear.weight": torch.zeros(1),
             "other.weight": torch.ones(1),
         }
     )
-    assert converted == {"backbone.linear.weight": torch.zeros(1)}
+    assert converted == {
+        "backbone.linear.bias": torch.ones(1),
+        "backbone.linear.weight": torch.zeros(1),
+    }
 
 
 def test_sample_initial_state_uniform_padding_and_errors() -> None:

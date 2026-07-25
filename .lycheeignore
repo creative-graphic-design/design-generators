@@ -1,0 +1,7 @@
+^https://huggingface\.co/creative-graphic-design/.*
+^https://doi\.org/.*
+^https://tianchi\.aliyun\.com/.*
+^https?://(?:www\.)?example\.(?:com|org|net)(?:/.*)?$
+^https?://localhost(?::[0-9]+)?(?:/.*)?$
+^https?://127\.0\.0\.1(?::[0-9]+)?(?:/.*)?$
+^https?://0\.0\.0\.0(?::[0-9]+)?(?:/.*)?$

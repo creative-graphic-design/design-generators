@@ -7,8 +7,8 @@ from .configuration_layout_corrector import (
     CorrectorTransformerType,
     LayoutCorrectorConfig,
 )
-from .corrector import LayoutCorrectorModel, LayoutCorrectorOutput
-from .pipeline import LayoutCorrectorPipeline
+from .modeling_layout_corrector import LayoutCorrectorModel, LayoutCorrectorOutput
+from .pipeline_layout_corrector import LayoutCorrectorPipeline
 from .sampling import CorrectorMaskMode, LayoutCorrectorSamplingConfig
 
 __all__ = [

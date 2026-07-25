@@ -12,7 +12,7 @@ import torch
 from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
 from layout_corrector.conversion import build_corrector_from_original
-from layout_dm.pipeline import LayoutDMPipeline
+from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 
 
 DATASETS: Final[tuple[str, ...]] = ("rico25", "publaynet", "crello-bbox")

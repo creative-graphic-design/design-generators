@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from typing import Final, Literal, Protocol, cast
 
 import torch
+from jaxtyping import Bool, Int, Shaped
 
 from laygen.common.conditions import ConditionType
 
@@ -16,12 +17,14 @@ NULL_VALUE: Final[float] = 0.0
 
 
 class _MutableLogitsOutput(Protocol):
-    logits: dict[str, torch.Tensor]
+    logits: dict[str, Shaped[torch.Tensor, "..."]]
 
     def __setitem__(self, key: str, value: object) -> None: ...
 
 
-def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Tensor:
+def get_seq_mask(
+    length: Int[torch.Tensor, "..."], *, maxlen: int | None = None
+) -> Bool[torch.Tensor, "batch elements"]:
     """Return the zero-based valid-element mask.
 
     Args:
@@ -45,10 +48,10 @@ def get_seq_mask(length: torch.Tensor, *, maxlen: int | None = None) -> torch.Te
 
 def get_initial_masks(
     input_columns: Mapping[str, FlexDmColumnSpec],
-    seq_mask: torch.Tensor,
-) -> dict[str, torch.Tensor]:
+    seq_mask: Bool[torch.Tensor, "batch elements"],
+) -> dict[str, Bool[torch.Tensor, "..."]]:
     """Return initial initial masks with no sequence fields hidden."""
-    masks: dict[str, torch.Tensor] = {}
+    masks: dict[str, Bool[torch.Tensor, "..."]] = {}
     for key, column in input_columns.items():
         masks[key] = (
             torch.ones(seq_mask.shape[:1], dtype=torch.bool, device=seq_mask.device)
@@ -59,13 +62,13 @@ def get_initial_masks(
 
 
 def apply_token(
-    input_: torch.Tensor,
+    input_: Shaped[torch.Tensor, "batch elements channels"],
     column: FlexDmColumnSpec,
-    mask: torch.Tensor,
+    mask: Bool[torch.Tensor, "batch elements"],
     token_type: Literal["masked", "unused", "random"],
     *,
     generator: torch.Generator | None = None,
-) -> torch.Tensor:
+) -> Shaped[torch.Tensor, "batch elements channels"]:
     """Apply a masked, unused, or random model token to selected elements."""
     mask_expanded = mask.to(device=input_.device).unsqueeze(-1)
     if column["type"] == "categorical":
@@ -103,12 +106,12 @@ def apply_token(
 
 
 def filter_padding(
-    inputs: Mapping[str, torch.Tensor],
+    inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
     input_columns: Mapping[str, FlexDmColumnSpec],
-    mask: torch.Tensor,
-) -> dict[str, torch.Tensor]:
+    mask: Bool[torch.Tensor, "batch elements"],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Replace padded and conditionally invalid fields with model unused tokens."""
-    modified: dict[str, torch.Tensor] = {}
+    modified: dict[str, Shaped[torch.Tensor, "..."]] = {}
     unused_mask = ~mask
     for key, column in input_columns.items():
         input_ = inputs[key]
@@ -130,12 +133,12 @@ def filter_padding(
 
 def build_feature_masks(
     input_columns: Mapping[str, FlexDmColumnSpec],
-    seq_mask: torch.Tensor,
+    seq_mask: Bool[torch.Tensor, "batch elements"],
     *,
     condition_type: ConditionType,
     feature_group: str | None = None,
-    target_indices: torch.Tensor | None = None,
-) -> dict[str, torch.Tensor]:
+    target_indices: Int[torch.Tensor, "..."] | None = None,
+) -> dict[str, Bool[torch.Tensor, "..."]]:
     """Create explicit masks for Flex-DM completion/refinement tasks."""
     _ = condition_type
     masks = get_initial_masks(input_columns, seq_mask)
@@ -171,11 +174,11 @@ def build_feature_masks(
 def iterative_decode(
     model: Callable[..., object],
     *,
-    inputs: dict[str, torch.Tensor],
-    masks: dict[str, torch.Tensor],
+    inputs: dict[str, Shaped[torch.Tensor, "..."]],
+    masks: dict[str, Bool[torch.Tensor, "..."]],
     num_iter: int,
     input_columns: Mapping[str, FlexDmColumnSpec],
-    source_inputs: Mapping[str, torch.Tensor] | None = None,
+    source_inputs: Mapping[str, Shaped[torch.Tensor, "..."]] | None = None,
 ) -> object:
     """Run a deterministic MaskGIT-like categorical decode loop.
 
@@ -214,7 +217,7 @@ def iterative_decode(
         for key in categorical_keys
     )
     updates_per_iter = (masked_counts / num_iter).round().astype("int")
-    final_logits: dict[str, torch.Tensor] | None = None
+    final_logits: dict[str, Shaped[torch.Tensor, "..."]] | None = None
     for index in range(num_iter):
         output = model(inputs=current_inputs, masks=current_masks, return_dict=True)
         logits = output.logits  # ty: ignore[unresolved-attribute]

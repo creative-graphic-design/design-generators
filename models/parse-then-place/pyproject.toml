@@ -24,13 +24,6 @@ vendor = [
     "scipy",
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=6.0.0",
-    "ruff>=0.1.5",
-    "ty>=0.0.10",
-]
-
 [tool.uv.sources]
 laygen = { workspace = true }
 
