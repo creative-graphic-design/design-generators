@@ -7,6 +7,7 @@ from enum import StrEnum, auto
 from typing import assert_never
 
 import torch
+from jaxtyping import Bool, Float, Int
 
 from laygen.common.discrete import (
     SamplingMode,
@@ -119,14 +120,14 @@ def should_apply_corrector(
 
 
 def add_confidence_gumbel_noise(
-    confidence_logits: torch.Tensor,
+    confidence_logits: Float[torch.Tensor, "batch tokens"],
     *,
-    timestep: torch.Tensor,
+    timestep: Int[torch.Tensor, "batch"],
     mask_ratio: float,
     temperature: float,
     time_adaptive_temperature: bool,
     generator: torch.Generator | None = None,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "batch tokens"]:
     """Add Gumbel noise to confidence logits.
 
     Args:
@@ -170,13 +171,13 @@ def add_confidence_gumbel_noise(
 
 
 def select_tokens_to_remask(
-    confidence_logits: torch.Tensor,
+    confidence_logits: Float[torch.Tensor, "batch tokens"],
     *,
     mask_ratio: float,
     mode: CorrectorMaskMode | str,
     threshold: float,
     temperature: float = 1.0,
-) -> torch.Tensor:
+) -> Bool[torch.Tensor, "batch tokens"]:
     """Select low-confidence tokens that should be masked again.
 
     Args:
