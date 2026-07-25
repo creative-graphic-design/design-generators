@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import torch
+from jaxtyping import Shaped
 
 from laygen.common.labels import DatasetName
 
@@ -16,7 +17,7 @@ from .processing_lace import LaceProcessor
 from .scheduling_lace import LaceScheduler
 
 
-def load_vendor_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+def load_vendor_state_dict(path: str | Path) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load a PyTorch checkpoint as a state dictionary.
 
     Args:
@@ -37,8 +38,8 @@ def load_vendor_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
 
 
 def convert_state_dict(
-    state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Convert vendor parameter names to the Diffusers module names.
 
     Args:

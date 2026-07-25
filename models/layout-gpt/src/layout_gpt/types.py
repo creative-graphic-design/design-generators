@@ -28,7 +28,7 @@ class LayoutGPTOutputDict(TypedDict):
     labels: Int[torch.Tensor, "batch elements"]
     mask: Bool[torch.Tensor, "batch elements"]
     id2label: dict[int, str]
-    sequences: torch.Tensor | None
+    sequences: Int[torch.Tensor, "..."] | None
     scores: object | None
     trajectory: object | None
     intermediates: object | None

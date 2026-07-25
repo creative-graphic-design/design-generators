@@ -193,7 +193,10 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def _prepare_mask(
         self,
-        mask: torch.Tensor | list[list[bool]] | list[bool] | None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | list[list[bool]]
+        | list[bool]
+        | None,
         *,
         batch_size: int,
         row_lengths: list[int],
@@ -340,7 +343,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def post_process_layouts(
         self,
-        sequences: torch.Tensor,
+        sequences: Int[torch.Tensor, "batch tokens"],
         *,
         box_format: BoxFormat | str = BoxFormat.xywh,
         output_type: OutputType | str = OutputType.dataclass,
@@ -354,9 +357,9 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         )
         if max_len == 0:
             max_len = 1
-        label_rows: list[torch.Tensor] = []
-        bbox_rows: list[torch.Tensor] = []
-        mask_rows: list[torch.Tensor] = []
+        label_rows: list[Int[torch.Tensor, "elements"]] = []
+        bbox_rows: list[Int[torch.Tensor, "elements 4"]] = []
+        mask_rows: list[Bool[torch.Tensor, "elements"]] = []
         for item in parsed:
             if item is None:
                 labels = torch.zeros(max_len, dtype=torch.long)
