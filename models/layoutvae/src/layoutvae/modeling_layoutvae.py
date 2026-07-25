@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final, TypeAlias, cast
+from typing import Final, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -18,14 +18,6 @@ from laygen.common.enums import normalize_enum_value
 from .configuration_layoutvae import LayoutVAEConfig
 
 INTERNAL_EMPTY_LABEL_ID: Final[int] = 0
-LayoutVAETupleOutput: TypeAlias = tuple[
-    Float[torch.Tensor, "batch elements 4"],
-    Float[torch.Tensor, "batch elements 4"],
-    Int[torch.Tensor, "batch elements"],
-    Bool[torch.Tensor, "batch elements"],
-    Float[torch.Tensor, "batch internal_labels"],
-    Int[torch.Tensor, "batch elements"],
-]
 
 
 class OutputType(StrEnum):
@@ -441,7 +433,17 @@ class LayoutVAEModel(PreTrainedModel):
         count_samples: Float[torch.Tensor, "batch internal_labels"] | None = None,
         generator: torch.Generator | None = None,
         return_dict: bool = True,
-    ) -> LayoutVAEModelOutput | LayoutVAETupleOutput:
+    ) -> (
+        LayoutVAEModelOutput
+        | tuple[
+            Float[torch.Tensor, "batch elements 4"],
+            Float[torch.Tensor, "batch elements 4"],
+            Int[torch.Tensor, "batch elements"],
+            Bool[torch.Tensor, "batch elements"],
+            Float[torch.Tensor, "batch internal_labels"],
+            Int[torch.Tensor, "batch elements"],
+        ]
+    ):
         """Run label-conditioned layout generation.
 
         Args:
