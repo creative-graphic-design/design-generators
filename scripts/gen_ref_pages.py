@@ -231,12 +231,6 @@ def relative_docs_route(target: Path, *, source: Path) -> str:
 def site_page_for_repo_link(link: str) -> str:
     """Return the documentation-site target for a repository-relative link."""
     target = link.removeprefix("./")
-    if target.startswith("../"):
-        candidate = target
-        while candidate.startswith("../"):
-            candidate = candidate.removeprefix("../")
-        if candidate.startswith(("docs/", "lib/", "models/")):
-            target = candidate
     if target.startswith(("http://", "https://", "#", "mailto:")):
         return link
     if target.startswith("models/") and target.endswith("/README.md"):

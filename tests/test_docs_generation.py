@@ -508,12 +508,12 @@ def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
     gen_ref_pages = _load_gen_ref_pages()
 
     assert (
-        gen_ref_pages.site_page_for_repo_link("../../docs/training-reproduction.md")
+        gen_ref_pages.site_page_for_repo_link("docs/training-reproduction.md")
         == "training-reproduction/"
     )
     assert (
         gen_ref_pages.rewrite_repo_relative_links(
-            "[training](../../docs/training-reproduction.md)"
+            "[training](docs/training-reproduction.md)"
         )
         == "[training](training-reproduction/)"
     )
