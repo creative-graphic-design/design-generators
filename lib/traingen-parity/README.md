@@ -11,7 +11,7 @@
 
 Keep package-specific trace-point selection in the model package. Use this library for shared comparison mechanics and reproducibility controls.
 
-The repository-wide methodology for S0-S5 training reproduction, topology guards, dataset coverage, seed policy, and evidence recording is defined in the [training reproduction protocol](https://creative-graphic-design.github.io/design-generators/training-reproduction/).
+The repository-wide methodology for S0-S5 training reproduction, topology guards, dataset coverage, seed policy, and evidence recording is defined in `docs/training-reproduction.md`.
 
 ## Install
 
