@@ -9,6 +9,7 @@ import random
 
 import torch
 import torch.nn as nn
+from jaxtyping import Bool, Float, Int
 
 from .configuration_layout_transformer import LayoutTransformerConfig
 
@@ -56,11 +57,11 @@ class MultiHeadedAttention(nn.Module):
 
     def forward(
         self,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        q: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        k: Float[torch.Tensor, "batch sequence features"],
+        v: Float[torch.Tensor, "batch sequence features"],
+        q: Float[torch.Tensor, "batch sequence features"],
+        mask: Bool[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "batch sequence features"]:
         batch_size = k.size(0)
         num_heads = self.num_heads
         k = self.k_layer(k)
@@ -104,11 +105,11 @@ class ContMultiHeadedAttention(nn.Module):
 
     def forward(
         self,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        q: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        k: Float[torch.Tensor, "batch sequence features"],
+        v: Float[torch.Tensor, "batch sequence features"],
+        q: Float[torch.Tensor, "batch sequence features"],
+        mask: Bool[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "batch sequence features"]:
         batch_size = k.size(0)
         num_heads = self.num_heads
         k = self.k_layer(k)
@@ -155,12 +156,12 @@ class CustomAttention(nn.Module):
 
     def forward(
         self,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        q: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        xy_pdf_score: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        k: Float[torch.Tensor, "batch sequence box_features"],
+        v: Float[torch.Tensor, "batch sequence hidden"],
+        q: Float[torch.Tensor, "batch sequence box_features"],
+        mask: Bool[torch.Tensor, "..."] | None = None,
+        xy_pdf_score: Float[torch.Tensor, "batch sequence"] | None = None,
+    ) -> Float[torch.Tensor, "batch sequence hidden"]:
         batch_size = k.size(0)
         num_heads = self.num_heads
         k = self.k_layer(k)
@@ -193,7 +194,9 @@ class CustomAttention(nn.Module):
 class GELU(nn.Module):
     """Original LT-Net GELU implementation."""
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch sequence features"]
+    ) -> Float[torch.Tensor, "batch sequence features"]:
         return (
             0.5
             * x
@@ -215,7 +218,9 @@ class PositionwiseFeedForward(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch sequence features"]
+    ) -> Float[torch.Tensor, "batch sequence features"]:
         return self.pwff_layer(self.layer_norm(x)) + x
 
 
@@ -232,7 +237,11 @@ class TransformerEncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.size = size
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch sequence hidden"],
+        mask: Bool[torch.Tensor, "..."],
+    ) -> Float[torch.Tensor, "batch sequence hidden"]:
         x_norm = self.layer_norm(x)
         h = self.src_src_att(x_norm, x_norm, x_norm, mask)
         return self.feed_forward(self.dropout(h) + x)
@@ -267,7 +276,11 @@ class TransformerEncoder(nn.Module):
         self._output_size = hidden_size
         self._hidden_size = hidden_size
 
-    def forward(self, embed_src: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        embed_src: Float[torch.Tensor, "batch sequence hidden"],
+        mask: Bool[torch.Tensor, "..."],
+    ) -> Float[torch.Tensor, "batch sequence hidden"]:
         x = embed_src
         for layer in self.layers:
             x = layer(x, mask)
@@ -297,11 +310,14 @@ class SentenceEmbeddings(nn.Module):
 
     def forward(
         self,
-        input_token: torch.Tensor,
-        input_obj_id: torch.Tensor,
-        segment_label: torch.Tensor,
-        token_type: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        input_token: Int[torch.Tensor, "batch sequence"],
+        input_obj_id: Int[torch.Tensor, "batch sequence"],
+        segment_label: Int[torch.Tensor, "batch sequence"],
+        token_type: Int[torch.Tensor, "batch sequence"],
+    ) -> tuple[
+        Float[torch.Tensor, "batch sequence hidden"],
+        Float[torch.Tensor, "batch sequence hidden"],
+    ]:
         inputs_embeds = self.word_embeddings(input_token)
         embeddings = (
             inputs_embeds
@@ -339,18 +355,18 @@ class RelEncoder(nn.Module):
 
     def forward(
         self,
-        input_token: torch.Tensor,
-        input_obj_id: torch.Tensor,
-        segment_label: torch.Tensor,
-        token_type: torch.Tensor,
-        src_mask: torch.Tensor,
+        input_token: Int[torch.Tensor, "batch sequence"],
+        input_obj_id: Int[torch.Tensor, "batch sequence"],
+        segment_label: Int[torch.Tensor, "batch sequence"],
+        token_type: Int[torch.Tensor, "batch sequence"],
+        src_mask: Bool[torch.Tensor, "..."],
     ) -> tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
+        Float[torch.Tensor, "batch sequence hidden"],
+        Float[torch.Tensor, "batch sequence vocab"],
+        Float[torch.Tensor, "batch sequence object_classes"],
+        Float[torch.Tensor, "batch sequence token_types"],
+        Float[torch.Tensor, "batch sequence hidden"],
+        Float[torch.Tensor, "batch sequence hidden"],
     ]:
         src, class_embeds = self.input_embeddings(
             input_token, input_obj_id, segment_label, token_type
@@ -393,12 +409,12 @@ class CustomTransformerDecoderLayer(nn.Module):
 
     def forward(
         self,
-        spatial_x: torch.Tensor,
-        semantic_x: torch.Tensor,
-        memory: torch.Tensor,
-        src_mask: torch.Tensor | None = None,
-        trg_mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        spatial_x: Float[torch.Tensor, "batch box_sequence box_features"],
+        semantic_x: Float[torch.Tensor, "batch decoder_sequence hidden"],
+        memory: Float[torch.Tensor, "batch sequence hidden"],
+        src_mask: Bool[torch.Tensor, "..."] | None = None,
+        trg_mask: Bool[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "batch decoder_sequence features"]:
         _ = src_mask
         spatial_x_norm = self.spa_layer_norm(spatial_x)
         self.x_layer_norm(semantic_x)
@@ -443,15 +459,15 @@ class CustomTransformerDecoder(nn.Module):
 
     def forward(
         self,
-        trg_embed_0: torch.Tensor,
-        trg_embed_1: torch.Tensor,
-        encoder_output: torch.Tensor,
-        encoder_hidden: torch.Tensor | None = None,
-        src_mask: torch.Tensor | None = None,
+        trg_embed_0: Float[torch.Tensor, "batch box_sequence box_features"],
+        trg_embed_1: Float[torch.Tensor, "batch decoder_sequence hidden"],
+        encoder_output: Float[torch.Tensor, "batch sequence hidden"],
+        encoder_hidden: Float[torch.Tensor, "batch sequence hidden"] | None = None,
+        src_mask: Bool[torch.Tensor, "..."] | None = None,
         unroll_steps: int | None = None,
-        hidden: torch.Tensor | None = None,
-        trg_mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        hidden: Float[torch.Tensor, "batch decoder_sequence hidden"] | None = None,
+        trg_mask: Bool[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "batch decoder_sequence features"]:
         _ = (encoder_hidden, unroll_steps, hidden)
         if trg_mask is None:
             raise ValueError("trg_mask required for Transformer")
@@ -470,7 +486,7 @@ class CustomTransformerDecoder(nn.Module):
         return self.layer_norm(x)
 
     @staticmethod
-    def subsequent_mask(size: int) -> torch.Tensor:
+    def subsequent_mask(size: int) -> Bool[torch.Tensor, "..."]:
         mask = torch.triu(torch.ones((1, size, size), dtype=torch.uint8), diagonal=1)
         return mask == 0
 
@@ -484,8 +500,14 @@ class DecoderLinearHead(nn.Module):
         self.activation = nn.Sigmoid()
 
     def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, None, None, None]:
+        self, x: Float[torch.Tensor, "batch sequence hidden"]
+    ) -> tuple[
+        Float[torch.Tensor, "batch sequence 2"],
+        Float[torch.Tensor, "batch sequence 2"],
+        None,
+        None,
+        None,
+    ]:
         x = self.activation(self.dense(x))
         return x[:, :, 2:], x[:, :, :2], None, None, None
 
@@ -504,8 +526,16 @@ class LinearHead(nn.Module):
         self.activation = nn.Sigmoid()
 
     def forward(
-        self, x: torch.Tensor, box: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, None, None, None]:
+        self,
+        x: Float[torch.Tensor, "batch sequence hidden"],
+        box: Float[torch.Tensor, "batch sequence 4"],
+    ) -> tuple[
+        Float[torch.Tensor, "batch sequence 2"],
+        Float[torch.Tensor, "batch sequence 2"],
+        None,
+        None,
+        None,
+    ]:
         box_embed = self.box_embedding(box)
         x = self.dense(torch.cat((x, box_embed), dim=-1))
         x = self.activation(self.feed_forward(x + box_embed))
@@ -547,13 +577,15 @@ class GMMHead(nn.Module):
         self.is_training = False
 
     def forward(
-        self, x: torch.Tensor, generator: torch.Generator | None = None
+        self,
+        x: Float[torch.Tensor, "batch sequence hidden"],
+        generator: torch.Generator | None = None,
     ) -> tuple[
-        torch.Tensor,
-        torch.Tensor | None,
-        torch.Tensor,
-        torch.Tensor | None,
-        torch.Tensor | None,
+        Float[torch.Tensor, "batch sequence 2"],
+        Float[torch.Tensor, "batch sequence 2"] | None,
+        Float[torch.Tensor, "batch sequence gmm_params"],
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
+        Float[torch.Tensor, "batch sequence"] | None,
     ]:
         batch_size = x.size(0)
         xy_gmm = self.xy_bivariate(x)
@@ -609,14 +641,14 @@ class GMMHead(nn.Module):
         return sample_wh, sample_xy, wh_gmm, xy_gmm, xy_pdf
 
     def get_gmm_params(
-        self, gmm_params: torch.Tensor
+        self, gmm_params: Float[torch.Tensor, "batch sequence gmm_params"]
     ) -> tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
+        Float[torch.Tensor, "items components"],
+        Float[torch.Tensor, "items components"],
+        Float[torch.Tensor, "items components"],
+        Float[torch.Tensor, "items components"],
+        Float[torch.Tensor, "items components"],
+        Float[torch.Tensor, "items components"],
     ]:
         pi, u_x, u_y, sigma_x, sigma_y, rho_xy = torch.split(
             gmm_params, self.gmm_comp_num, dim=2
@@ -637,18 +669,18 @@ class GMMHead(nn.Module):
 
     def sample_box(
         self,
-        pi: torch.Tensor,
-        u_x: torch.Tensor,
-        u_y: torch.Tensor,
-        sigma_x: torch.Tensor,
-        sigma_y: torch.Tensor,
-        rho_xy: torch.Tensor,
+        pi: Float[torch.Tensor, "items components"],
+        u_x: Float[torch.Tensor, "items components"],
+        u_y: Float[torch.Tensor, "items components"],
+        sigma_x: Float[torch.Tensor, "items components"],
+        sigma_y: Float[torch.Tensor, "items components"],
+        rho_xy: Float[torch.Tensor, "items components"],
         *,
         temp: float | None,
         greedy: bool,
         device: torch.device,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "items 2"]:
         if temp is not None:
             pi = self.adjust_temp(pi, temp)
         try:
@@ -679,7 +711,9 @@ class GMMHead(nn.Module):
         )
 
     @staticmethod
-    def adjust_temp(pi_pdf: torch.Tensor, temperature: float) -> torch.Tensor:
+    def adjust_temp(
+        pi_pdf: Float[torch.Tensor, "items components"], temperature: float
+    ) -> Float[torch.Tensor, "items components"]:
         pi_pdf = torch.log(pi_pdf) / temperature
         pi_pdf -= torch.max(pi_pdf)
         pi_pdf = torch.exp(pi_pdf)
@@ -688,17 +722,17 @@ class GMMHead(nn.Module):
 
     @staticmethod
     def sample_bivariate_normal(
-        u_x: torch.Tensor,
-        u_y: torch.Tensor,
-        sigma_x: torch.Tensor,
-        sigma_y: torch.Tensor,
-        rho_xy: torch.Tensor,
+        u_x: Float[torch.Tensor, "items components"],
+        u_y: Float[torch.Tensor, "items components"],
+        sigma_x: Float[torch.Tensor, "items components"],
+        sigma_y: Float[torch.Tensor, "items components"],
+        rho_xy: Float[torch.Tensor, "items components"],
         temperature: float | None,
         *,
         greedy: bool,
         device: torch.device,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "items 2"]:
         if greedy:
             return torch.cat((u_x, u_y), dim=-1).to(device)
         sample_device = u_x.device
@@ -729,18 +763,18 @@ class GMMHead(nn.Module):
 
     @staticmethod
     def batch_pdf(
-        pi_xy: torch.Tensor,
-        x: torch.Tensor,
-        y: torch.Tensor,
-        u_x: torch.Tensor,
-        u_y: torch.Tensor,
-        sigma_x: torch.Tensor,
-        sigma_y: torch.Tensor,
-        rho_xy: torch.Tensor,
+        pi_xy: Float[torch.Tensor, "items components"],
+        x: Float[torch.Tensor, "batch sequence gmm_params"],
+        y: Float[torch.Tensor, "batch sequence gmm_params"],
+        u_x: Float[torch.Tensor, "items components"],
+        u_y: Float[torch.Tensor, "items components"],
+        sigma_x: Float[torch.Tensor, "items components"],
+        sigma_y: Float[torch.Tensor, "items components"],
+        rho_xy: Float[torch.Tensor, "items components"],
         batch_size: int,
         gmm_comp_num: int,
         device: torch.device,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch sequence"]:
         u_x = u_x.reshape(batch_size, -1, gmm_comp_num).to(device)
         u_y = u_y.reshape(batch_size, -1, gmm_comp_num).to(device)
         sigma_x = sigma_x.reshape(batch_size, -1, gmm_comp_num).to(device)
@@ -783,11 +817,11 @@ class TransformerRefineLayer(nn.Module):
 
     def forward(
         self,
-        context: torch.Tensor,
-        box: torch.Tensor,
-        mask: torch.Tensor,
-        xy_pdf_score: torch.Tensor | None,
-    ) -> torch.Tensor:
+        context: Float[torch.Tensor, "batch sequence hidden"],
+        box: Float[torch.Tensor, "batch sequence box_features"],
+        mask: Bool[torch.Tensor, "..."],
+        xy_pdf_score: Float[torch.Tensor, "batch sequence"] | None,
+    ) -> Float[torch.Tensor, "batch sequence hidden"]:
         context_norm = self.layer_norm(context)
         box_norm = self.box_norm(box)
         h = self.src_src_att(box_norm, context_norm, box_norm, mask, xy_pdf_score)
@@ -824,11 +858,11 @@ class RefineEncoder(nn.Module):
 
     def forward(
         self,
-        context: torch.Tensor,
-        input_box: torch.Tensor,
-        mask: torch.Tensor,
-        xy_pdf_score: torch.Tensor | None,
-    ) -> torch.Tensor:
+        context: Float[torch.Tensor, "batch sequence hidden"],
+        input_box: Float[torch.Tensor, "batch sequence 4"],
+        mask: Bool[torch.Tensor, "..."],
+        xy_pdf_score: Float[torch.Tensor, "batch sequence"] | None,
+    ) -> Float[torch.Tensor, "batch sequence hidden"]:
         box = input_box.clone()
         box[:, :, : self.box_dim][~mask.squeeze(1)] = self.blank_box[: self.box_dim].to(
             box.device
@@ -882,8 +916,11 @@ class PDFDecoder(nn.Module):
             self.box_predictor = DecoderLinearHead(hidden_size, 4)
 
     def random_sample(
-        self, output_box: torch.Tensor, pred_box: torch.Tensor, sample_num: int
-    ) -> torch.Tensor:
+        self,
+        output_box: Float[torch.Tensor, "batch box_sequence 4"],
+        pred_box: Float[torch.Tensor, "batch box_sequence 4"],
+        sample_num: int,
+    ) -> Float[torch.Tensor, "batch box_sequence 4"]:
         length = torch.arange(output_box.size(1))
         index = torch.Tensor(random.sample(list(enumerate(length)), sample_num))[
             :, 0
@@ -897,24 +934,24 @@ class PDFDecoder(nn.Module):
 
     def forward(
         self,
-        output_box: torch.Tensor,
-        output_context: torch.Tensor,
-        encoder_output: torch.Tensor,
-        src_mask: torch.Tensor,
-        trg_mask: torch.Tensor,
-        src: torch.Tensor,
-        class_embeds: torch.Tensor,
+        output_box: Float[torch.Tensor, "batch box_sequence 4"],
+        output_context: Float[torch.Tensor, "batch context_sequence hidden"],
+        encoder_output: Float[torch.Tensor, "batch sequence hidden"],
+        src_mask: Bool[torch.Tensor, "..."],
+        trg_mask: Bool[torch.Tensor, "..."],
+        src: Float[torch.Tensor, "batch sequence hidden"],
+        class_embeds: Float[torch.Tensor, "batch sequence hidden"],
         epoch: int = 0,
         is_train: bool = True,
-        global_mask: torch.Tensor | None = None,
+        global_mask: Bool[torch.Tensor, "..."] | None = None,
         generator: torch.Generator | None = None,
     ) -> tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor | None,
-        torch.Tensor | None,
-        torch.Tensor | None,
+        Float[torch.Tensor, "batch sequence hidden"],
+        Float[torch.Tensor, "batch sequence 2"],
+        Float[torch.Tensor, "batch sequence 2"],
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
+        Float[torch.Tensor, "batch sequence"] | None,
     ]:
         _ = (src, class_embeds)
         output_box_c = output_box.clone()
@@ -1054,16 +1091,19 @@ class BBoxHead(nn.Module):
     def forward(
         self,
         epoch: int,
-        encoder_output: torch.Tensor,
-        mask: torch.Tensor,
-        src: torch.Tensor,
-        class_embeds: torch.Tensor,
-        output_box: torch.Tensor,
-        trg_mask: torch.Tensor,
-        global_mask: torch.Tensor,
+        encoder_output: Float[torch.Tensor, "batch sequence hidden"],
+        mask: Bool[torch.Tensor, "..."],
+        src: Float[torch.Tensor, "batch sequence hidden"],
+        class_embeds: Float[torch.Tensor, "batch sequence hidden"],
+        output_box: Float[torch.Tensor, "batch box_sequence 4"],
+        trg_mask: Bool[torch.Tensor, "..."],
+        global_mask: Bool[torch.Tensor, "..."],
         generator: torch.Generator | None = None,
     ) -> tuple[
-        torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None
+        Float[torch.Tensor, "batch sequence 4"],
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
+        Float[torch.Tensor, "batch sequence 4"] | None,
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
     ]:
         (
             decoder_output,
@@ -1118,14 +1158,17 @@ class BBoxHead(nn.Module):
 
     def inference(
         self,
-        encoder_output: torch.Tensor,
-        mask: torch.Tensor,
-        src: torch.Tensor,
-        class_embeds: torch.Tensor,
-        global_mask: torch.Tensor,
+        encoder_output: Float[torch.Tensor, "batch sequence hidden"],
+        mask: Bool[torch.Tensor, "..."],
+        src: Float[torch.Tensor, "batch sequence hidden"],
+        class_embeds: Float[torch.Tensor, "batch sequence hidden"],
+        global_mask: Bool[torch.Tensor, "..."],
         generator: torch.Generator | None = None,
     ) -> tuple[
-        torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None
+        Float[torch.Tensor, "batch sequence 4"],
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
+        Float[torch.Tensor, "batch sequence 4"] | None,
+        Float[torch.Tensor, "batch sequence gmm_params"] | None,
     ]:
         (
             decoder_output,
@@ -1182,37 +1225,41 @@ class BBoxHead(nn.Module):
 
 def greedy_pdf(
     *,
-    src_mask: torch.Tensor,
+    src_mask: Bool[torch.Tensor, "..."],
     bos_index: int,
     eos_index: int,
     max_output_length: int,
     decoder: PDFDecoder,
-    encoder_output: torch.Tensor,
-    encoder_hidden: torch.Tensor | None,
-    class_embeds: torch.Tensor,
-    src: torch.Tensor,
-    global_mask: torch.Tensor,
+    encoder_output: Float[torch.Tensor, "batch sequence hidden"],
+    encoder_hidden: Float[torch.Tensor, "batch sequence hidden"] | None,
+    class_embeds: Float[torch.Tensor, "batch sequence hidden"],
+    src: Float[torch.Tensor, "batch sequence hidden"],
+    global_mask: Bool[torch.Tensor, "..."],
     generator: torch.Generator | None = None,
 ) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
+    Float[torch.Tensor, "batch sequence hidden"],
+    Float[torch.Tensor, "batch sequence 2"],
+    Float[torch.Tensor, "batch sequence 2"],
+    Float[torch.Tensor, "batch sequence gmm_params"] | None,
+    Float[torch.Tensor, "batch sequence gmm_params"] | None,
+    Float[torch.Tensor, "batch sequence"] | None,
 ]:
     _ = (bos_index, eos_index, encoder_hidden)
     gmm_comp_num = 5
     batch_size = src_mask.size(0)
     ys_0 = encoder_output.new_full([batch_size, 1, 4], 2.0, dtype=torch.float)
     ys_1 = encoder_output
-    ys_wh_gmm: torch.Tensor | None = encoder_output.new_full(
-        [batch_size, 1, gmm_comp_num * 6], 0.0, dtype=torch.float
+    ys_wh_gmm: Float[torch.Tensor, "batch sequence gmm_params"] | None = (
+        encoder_output.new_full(
+            [batch_size, 1, gmm_comp_num * 6], 0.0, dtype=torch.float
+        )
     )
-    ys_xy_gmm: torch.Tensor | None = encoder_output.new_full(
-        [batch_size, 1, gmm_comp_num * 6], 0.0, dtype=torch.float
+    ys_xy_gmm: Float[torch.Tensor, "batch sequence gmm_params"] | None = (
+        encoder_output.new_full(
+            [batch_size, 1, gmm_comp_num * 6], 0.0, dtype=torch.float
+        )
     )
-    ys_xy_pdf: torch.Tensor | None = encoder_output.new_full(
+    ys_xy_pdf: Float[torch.Tensor, "batch sequence"] | None = encoder_output.new_full(
         [batch_size, 1], 0.0001, dtype=torch.float
     )
     trg_mask = src_mask.new_ones([1, 1, 1])

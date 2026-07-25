@@ -9,7 +9,7 @@ from typing import Literal
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat
@@ -50,11 +50,20 @@ class LayouSynPipeline(DiffusionPipeline):
     ) -> None:
         """Initialize the pipeline."""
         super().__init__()
+        self._register_layousyn_modules(model, scheduler, processor)
+        self.model.eval()
+
+    def _register_layousyn_modules(
+        self,
+        model: LayouSynDiTModel,
+        scheduler: LayouSynScheduler,
+        processor: LayouSynProcessor,
+    ) -> None:
+        """Register pipeline modules and keep concrete attributes typed."""
         self.register_modules(model=model, scheduler=scheduler)
         self.model = model
         self.scheduler = scheduler
         self.processor = processor
-        self.model.eval()
 
     @property
     def components(self) -> dict[str, object]:
@@ -129,7 +138,7 @@ class LayouSynPipeline(DiffusionPipeline):
         caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"]
         | None = None,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor | object]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
         """Run LayouSyn denoising.
 
         Args:
@@ -247,8 +256,8 @@ class LayouSynPipeline(DiffusionPipeline):
     generate = __call__
 
     def _cfg_model_kwargs(
-        self, model_kwargs: dict[str, torch.Tensor], batch_size: int
-    ) -> dict[str, torch.Tensor]:
+        self, model_kwargs: dict[str, Shaped[torch.Tensor, "..."]], batch_size: int
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         y_null = (
             self.model.y_embedder.y_embedding.to(self.device)
             .unsqueeze(0)
@@ -279,7 +288,8 @@ class LayouSynPipeline(DiffusionPipeline):
 
     @staticmethod
     def _validate_num_elements(
-        num_elements: int | list[int] | torch.Tensor | None, labels: list[list[str]]
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None,
+        labels: list[list[str]],
     ) -> None:
         if num_elements is None:
             return

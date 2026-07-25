@@ -1,0 +1,73 @@
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	def linear_continuize(ids: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	torch.Tensor	def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+lib/laygen/src/laygen/common/bbox.py	tuple[torch.Tensor, torch.Tensor, torch.Tensor]	) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	) -> torch.Tensor:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+lib/laygen/src/laygen/common/discrete.py	torch.Tensor	x: torch.Tensor,
+lib/laygen/src/laygen/common/testing.py	Mapping[str, 'torch.Tensor']	state_dict: Mapping[str, "torch.Tensor"],
+lib/laygen/src/laygen/common/testing.py	OrderedDict[str, torch.Tensor]	) -> "OrderedDict[str, torch.Tensor]":
+lib/laygen/src/laygen/common/testing.py	dict[str, 'torch.Tensor']	) -> dict[str, "torch.Tensor"]:
+lib/laygen/src/laygen/common/testing.py	np.ndarray | torch.Tensor	ArrayLike: TypeAlias = np.ndarray | torch.Tensor
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	bbox: torch.Tensor,
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	labels: torch.Tensor,
+lib/laygen/src/laygen/common/visualization.py	torch.Tensor	mask: torch.Tensor,
+models/housegan/src/housegan/datasets.py	np.ndarray	bbox_ltrb: np.ndarray,
+models/housegan/src/housegan/datasets.py	np.ndarray	def load_housegan_numpy(path: str | Path) -> np.ndarray:
+models/housegan/src/housegan/graph_schema.py	torch.FloatTensor	) -> torch.FloatTensor:
+models/housegan/src/housegan/graph_schema.py	torch.LongTensor	) -> torch.LongTensor:
+models/housegan/src/housegan/modeling_housegan.py	HouseGanModelOutput | tuple[torch.Tensor]	) -> HouseGanModelOutput | tuple[torch.Tensor]:
+models/housegan/src/housegan/pipeline_housegan.py	int | list[int] | torch.Tensor | None	num_elements: int | list[int] | torch.Tensor | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
+models/housegan/src/housegan/processing_housegan.py	torch.LongTensor	labels: torch.LongTensor,
+models/housegan/src/housegan/processing_housegan.py	torch.LongTensor | None	edges: torch.LongTensor | None = None,
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def _xywh_to_ltrb_list(bbox: torch.Tensor) -> list[list[float]]:
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor	masks: torch.Tensor,
+models/housegan/src/housegan/processing_housegan.py	torch.Tensor | None	node_features: torch.Tensor | None = None,
+models/housegan/src/housegan/vendor_state_dict.py	Mapping[str, torch.Tensor]	source: Mapping[str, torch.Tensor],
+models/housegan/src/housegan/vendor_state_dict.py	OrderedDict[str, torch.Tensor]	converted: OrderedDict[str, torch.Tensor] = OrderedDict()
+models/housegan/src/housegan/vendor_state_dict.py	tuple[OrderedDict[str, torch.Tensor], ConversionReport]	) -> tuple[OrderedDict[str, torch.Tensor], ConversionReport]:
+models/housegan/src/housegan/visualization.py	torch.Tensor	bbox: torch.Tensor,
+models/housegan/src/housegan/visualization.py	torch.Tensor	labels: torch.Tensor,
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	) -> dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	def load_original_corrector_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/conversion.py	dict[str, torch.Tensor]	state_dict: dict[str, torch.Tensor],
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	LayoutGenerationOutput | dict[str, torch.Tensor]	) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	def _mask_ratio(self, timestep_batch: torch.Tensor) -> float:
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	sample: torch.Tensor,
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	torch.Tensor	timestep_batch: torch.Tensor,
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	tuple[torch.Tensor, torch.Tensor | None]	) -> tuple[torch.Tensor, torch.Tensor | None]:
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	) -> torch.Tensor:
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	confidence_logits: torch.Tensor,
+models/layout-corrector/src/layout_corrector/sampling.py	torch.Tensor	timestep: torch.Tensor,
+models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	torch.Tensor	) -> torch.Tensor:
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	list[list[str | int]] | list[str | int] | torch.Tensor	self, labels: list[list[str | int]] | list[str | int] | torch.Tensor
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	bbox: torch.Tensor,
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor	labels: torch.Tensor,
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	) -> NDArray[np.float32]:
+models/layoutprompter/src/layoutprompter/parsing.py	NDArray[np.float32]	pixel_ltwh: NDArray[np.float32], *, canvas_size: tuple[int, int]
+models/layoutprompter/src/layoutprompter/parsing.py	tuple[NDArray[np.int64], NDArray[np.float32]]	) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+models/layoutprompter/src/layoutprompter/records.py	NDArray[np.int64] | NDArray[np.int32] | NDArray[np.float32] | NDArray[np.float64]	NumericArray: TypeAlias = (
+models/layoutprompter/src/layoutprompter/records.py	NDArray[np.int64] | Sequence[int]	labels: NDArray[np.int64] | Sequence[int]
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.float32]	bboxes_1: NDArray[np.float32],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.float32]	bboxes_2: NDArray[np.float32],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64],
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_1: NDArray[np.int64], labels_2: NDArray[np.int64]
+models/layoutprompter/src/layoutprompter/similarity.py	NDArray[np.int64]	labels_2: NDArray[np.int64],
+models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	bbox_state_dict: dict[str, torch.Tensor],
+models/layoutvae/src/layoutvae/conversion.py	dict[str, torch.Tensor]	count_state_dict: dict[str, torch.Tensor],
+models/layoutvae/src/layoutvae/conversion.py	tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]	) -> tuple[
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	) -> torch.Tensor:
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor	input_ids: torch.Tensor,
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	torch.Tensor | None	attention_mask: torch.Tensor | None = None,
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	bbox_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	label_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	list[torch.Tensor]	mask_rows: list[torch.Tensor] = []
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	torch.Tensor | Sequence[str]	generated_ids: torch.Tensor | Sequence[str],

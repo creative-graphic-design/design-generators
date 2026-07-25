@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypeAlias, assert_never
+from typing import assert_never
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -21,8 +21,6 @@ from laygen.common.bbox import (
 from laygen.common.conditions import ConditionType, normalize_condition_type
 
 from .configuration_layout_flow import LayoutFlowConfig
-
-TensorInput: TypeAlias = torch.Tensor | np.ndarray | Sequence[object] | None
 
 __all__ = ["ConditionType", "LayoutFlowProcessor", "normalize_condition_type"]
 
@@ -64,7 +62,7 @@ class LayoutFlowProcessor(ProcessorMixin):
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         device: torch.device | str | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Convert public inputs into padded model-ready tensors.
 
         Args:
@@ -135,28 +133,39 @@ class LayoutFlowProcessor(ProcessorMixin):
         labels_t = labels_t * mask_t.long()
         return {"bbox": bbox_t, "labels": labels_t, "mask": mask_t, "length": lengths}
 
-    def encode_labels(self, labels: torch.Tensor) -> torch.Tensor:
-        """Encode integer labels as vendor analog-bit vectors."""
+    def encode_labels(
+        self, labels: Int[torch.Tensor, "batch elements"]
+    ) -> Float[torch.Tensor, "batch elements bits"]:
+        """Encode integer labels as analog-bit vectors."""
         bit_mask = self.bit_mask.to(labels.device)
         return (
             torch.bitwise_and(labels.unsqueeze(-1), bit_mask).float() / bit_mask.float()
         )
 
-    def decode_labels(self, bits: torch.Tensor) -> torch.Tensor:
-        """Decode vendor analog-bit vectors into integer labels."""
+    def decode_labels(
+        self, bits: Float[torch.Tensor, "batch elements bits"]
+    ) -> Int[torch.Tensor, "batch elements"]:
+        """Decode analog-bit vectors into integer labels."""
         bit_mask = self.bit_mask.to(bits.device)
         active = (bits - 0.5 >= 0).long()
         return (
             (active * bit_mask).sum(dim=-1).clamp(0, self.config.num_labels - 1).long()
         )
 
-    def model_state(self, bbox: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def model_state(
+        self,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Concatenate normalized boxes and analog-bit labels."""
         return torch.cat([bbox, self.encode_labels(labels)], dim=-1)
 
     def preprocess_state(
-        self, state: torch.Tensor, *, reverse: bool = False
-    ) -> torch.Tensor:
+        self,
+        state: Float[torch.Tensor, "batch elements channels"],
+        *,
+        reverse: bool = False,
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Map between public ``[0, 1]`` state and model distribution range."""
         if self.config.distribution in {"gaussian", "gmm", "uniform", "gauss_uniform"}:
             return (state + 1) / 2 if reverse else 2 * state - 1
@@ -166,10 +175,10 @@ class LayoutFlowProcessor(ProcessorMixin):
         self,
         condition_type: ConditionType,
         *,
-        mask: torch.Tensor,
+        mask: Bool[torch.Tensor, "batch elements"],
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
-        """Create the vendor condition mask for a conditioning mode.
+    ) -> Int[torch.Tensor, "batch elements channels"]:
+        """Create the condition mask for a conditioning mode.
 
         Args:
             condition_type: Canonical condition or alias.
@@ -204,13 +213,13 @@ class LayoutFlowProcessor(ProcessorMixin):
 
     def postprocess(
         self,
-        state: torch.Tensor,
+        state: Float[torch.Tensor, "batch elements channels"],
         *,
-        mask: torch.Tensor,
+        mask: Bool[torch.Tensor, "batch elements"],
         box_format: BoxFormat | str = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Convert model state back to public layout tensors.
 
         Args:
@@ -252,10 +261,10 @@ class LayoutFlowProcessor(ProcessorMixin):
 
     def _completion_mask(
         self,
-        cond_mask: torch.Tensor,
-        mask: torch.Tensor,
+        cond_mask: Int[torch.Tensor, "batch elements channels"],
+        mask: Bool[torch.Tensor, "batch elements"],
         generator: torch.Generator | None,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch elements channels"]:
         for i, length in enumerate(mask.sum(dim=1).tolist()):
             if length <= 1:
                 continue
@@ -267,8 +276,8 @@ class LayoutFlowProcessor(ProcessorMixin):
 
     @staticmethod
     def _pad_tensor(
-        tensor: torch.Tensor, max_length: int, value: float | int | bool
-    ) -> torch.Tensor:
+        tensor: Shaped[torch.Tensor, "..."], max_length: int, value: float | int | bool
+    ) -> Shaped[torch.Tensor, "..."]:
         if tensor.shape[1] > max_length:
             return tensor[:, :max_length]
         if tensor.shape[1] == max_length:
@@ -279,11 +288,11 @@ class LayoutFlowProcessor(ProcessorMixin):
 
     @staticmethod
     def _num_elements_to_lengths(
-        num_elements: int | list[int] | torch.Tensor | None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None,
         batch_size: int,
         max_length: int,
         device: torch.device,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch"]:
         if num_elements is None:
             return torch.full(
                 (batch_size,), max_length, dtype=torch.long, device=device

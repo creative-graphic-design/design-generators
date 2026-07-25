@@ -205,7 +205,7 @@ class SmartTextProcessor(ProcessorMixin):
         self,
         *,
         candidates: Sequence[SmartTextCandidate],
-        scores: torch.Tensor,
+        scores: Float[torch.Tensor, "candidates"],
         image_size: tuple[int, int],
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_text_lines: bool = False,

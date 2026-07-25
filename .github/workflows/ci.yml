@@ -31,6 +31,31 @@ jobs:
         if: github.event_name != 'pull_request'
         run: echo "PR metadata checks are only required for pull_request events."
 
+  changed-url-check:
+    name: Changed URL Check
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Check newly added URLs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+        run: python scripts/check_changed_urls.py --base "$BASE_SHA" --head "$HEAD_SHA"
+
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -82,6 +107,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6

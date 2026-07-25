@@ -1,6 +1,6 @@
 import torch
 
-from layout_dm.denoiser import LayoutDMDenoiser
+from layout_dm.modeling_layout_dm import LayoutDMDenoiser
 
 
 def test_denoiser_forward_tiny():

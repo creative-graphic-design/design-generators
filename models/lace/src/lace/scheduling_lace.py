@@ -8,6 +8,7 @@ import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Float, Int
 from laygen.schedulers.continuous import (
     BetaSchedule,
     DDIMDiscretization,
@@ -27,8 +28,8 @@ class LaceSchedulerOutput(BaseOutput):
         pred_original_sample: Scheduler estimate of the clean layout tensor.
     """
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor
+    prev_sample: Float[torch.Tensor, "batch elements channels"]
+    pred_original_sample: Float[torch.Tensor, "batch elements channels"]
 
 
 class LaceScheduler(SchedulerMixin, ConfigMixin):
@@ -107,10 +108,10 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
 
     def add_noise(
         self,
-        original_samples: torch.Tensor,
-        noise: torch.Tensor,
-        timesteps: torch.Tensor,
-    ) -> torch.Tensor:
+        original_samples: Float[torch.Tensor, "batch elements channels"],
+        noise: Float[torch.Tensor, "batch elements channels"],
+        timesteps: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Add forward-process noise to clean samples.
 
         Args:
@@ -137,7 +138,7 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         device: torch.device,
         generator: torch.Generator | None = None,
         stochastic: bool = True,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Create the initial denoising sample.
 
         Args:
@@ -159,9 +160,9 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
 
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch elements channels"],
         index: int,
         generator: torch.Generator | None = None,
     ) -> LaceSchedulerOutput:

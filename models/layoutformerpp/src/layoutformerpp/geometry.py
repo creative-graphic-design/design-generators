@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import torch
+from jaxtyping import Float, Int
 
 from laygen.common.bbox import (
     BoxFormat,
@@ -13,8 +14,8 @@ from laygen.common.bbox import (
 
 
 def discretize_ltwh(
-    bbox: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-) -> torch.Tensor:
+    bbox: Float[torch.Tensor, "... 4"], *, x_grid: int = 128, y_grid: int = 128
+) -> Int[torch.Tensor, "... 4"]:
     """Convert normalized ltwh values to LayoutFormer++ integer bins."""
     grids = (
         torch.tensor(
@@ -26,8 +27,8 @@ def discretize_ltwh(
 
 
 def continuize_ltwh(
-    ids: torch.Tensor, *, x_grid: int = 128, y_grid: int = 128
-) -> torch.Tensor:
+    ids: Int[torch.Tensor, "... 4"], *, x_grid: int = 128, y_grid: int = 128
+) -> Float[torch.Tensor, "... 4"]:
     """Convert LayoutFormer++ integer bins back to normalized ltwh."""
     grids = (
         torch.tensor(
@@ -39,12 +40,12 @@ def continuize_ltwh(
 
 
 def public_to_discrete_ltwh(
-    bbox: torch.Tensor,
+    bbox: Float[torch.Tensor, "... 4"],
     *,
     box_format: BoxFormat | str = BoxFormat.xywh,
     x_grid: int = 128,
     y_grid: int = 128,
-) -> torch.Tensor:
+) -> Int[torch.Tensor, "... 4"]:
     """Convert public normalized boxes to internal discrete ltwh tokens."""
     fmt = normalize_box_format(box_format)
     ltwh = xywh_to_ltwh(bbox.float()) if fmt is BoxFormat.xywh else bbox.float()
@@ -54,12 +55,12 @@ def public_to_discrete_ltwh(
 
 
 def discrete_ltwh_to_public(
-    ids: torch.Tensor,
+    ids: Int[torch.Tensor, "... 4"],
     *,
     box_format: BoxFormat | str = BoxFormat.xywh,
     x_grid: int = 128,
     y_grid: int = 128,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "... 4"]:
     """Convert internal discrete ltwh tokens to public normalized boxes."""
     ltwh = continuize_ltwh(ids, x_grid=x_grid, y_grid=y_grid)
     fmt = normalize_box_format(box_format)

@@ -10,7 +10,7 @@ from typing import Literal, TypedDict, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
@@ -254,9 +254,9 @@ class FlexDmProcessor(ProcessorMixin):
 
     def _num_elements_tensor(
         self,
-        num_elements: int | list[int] | torch.Tensor | None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None,
         batch_size: int,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch"]:
         if num_elements is None:
             return torch.full(
                 (batch_size,), min(1, self.config.max_seq_length), dtype=torch.long
@@ -269,14 +269,14 @@ class FlexDmProcessor(ProcessorMixin):
     def _layout_to_inputs(
         self,
         *,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
         attributes: Mapping[str, object] | None,
         content: Mapping[str, object] | None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         ltwh = xywh_to_ltwh(bbox).clamp(0.0, 1.0)
-        inputs: dict[str, torch.Tensor] = {}
+        inputs: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for idx, key in enumerate(GEOMETRY_KEYS):
             inputs[key] = self._discretize(key, ltwh[..., idx : idx + 1]).long()
         inputs["type"] = labels.unsqueeze(-1).long()
@@ -297,8 +297,8 @@ class FlexDmProcessor(ProcessorMixin):
         key: str,
         column: FlexDmColumnSpec,
         value: object,
-        mask: torch.Tensor,
-    ) -> torch.Tensor:
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> Shaped[torch.Tensor, "batch elements channels"]:
         batch, seq_len = mask.shape
         shape = (batch, seq_len, int(column["shape"][-1]))
         if value is None:
@@ -313,12 +313,16 @@ class FlexDmProcessor(ProcessorMixin):
             dtype=torch.float32 if column["type"] == "numerical" else torch.long
         )
 
-    def _discretize(self, key: str, value: torch.Tensor) -> torch.Tensor:
+    def _discretize(
+        self, key: str, value: Float[torch.Tensor, "..."]
+    ) -> Float[torch.Tensor, "..."]:
         spec = self.discretizers[key]
         scaled = (value - spec["min"]) / (spec["max"] - spec["min"])
         return torch.clamp((scaled * spec["bins"]).floor(), 0, spec["bins"] - 1)
 
-    def _continuize(self, key: str, value: torch.Tensor) -> torch.Tensor:
+    def _continuize(
+        self, key: str, value: Shaped[torch.Tensor, "..."]
+    ) -> Float[torch.Tensor, "..."]:
         spec = self.discretizers[key]
         scale = (spec["max"] - spec["min"]) / spec["bins"]
         return value.float() * scale + spec["min"]
@@ -327,11 +331,11 @@ class FlexDmProcessor(ProcessorMixin):
         self,
         outputs: FlexDmModelOutput,
         *,
-        original_inputs: Mapping[str, torch.Tensor],
-        masks: Mapping[str, torch.Tensor],
+        original_inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
+        masks: Mapping[str, Bool[torch.Tensor, "..."]],
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        refinement_input: Mapping[str, torch.Tensor] | None = None,
+        refinement_input: Mapping[str, Shaped[torch.Tensor, "..."]] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Decode Flex-DM model outputs to the common layout schema."""
         decoded = self._decode_logits(outputs.logits, original_inputs, masks)
@@ -374,11 +378,11 @@ class FlexDmProcessor(ProcessorMixin):
 
     def _decode_logits(
         self,
-        logits: Mapping[str, torch.Tensor],
-        original_inputs: Mapping[str, torch.Tensor],
-        masks: Mapping[str, torch.Tensor],
-    ) -> dict[str, torch.Tensor]:
-        decoded: dict[str, torch.Tensor] = {}
+        logits: Mapping[str, Shaped[torch.Tensor, "..."]],
+        original_inputs: Mapping[str, Shaped[torch.Tensor, "..."]],
+        masks: Mapping[str, Bool[torch.Tensor, "..."]],
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+        decoded: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for key, column in self.config.input_columns.items():
             if not column["is_sequence"]:
                 continue

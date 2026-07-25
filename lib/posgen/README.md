@@ -25,6 +25,12 @@ For local development in a checkout, use uv workspace commands.
 uv sync --package posgen
 ```
 
+Install from outside the workspace with pip's direct-reference subdirectory form:
+
+```bash
+pip install "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen"
+```
+
 ## Current API
 
 ```bash

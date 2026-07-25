@@ -35,8 +35,26 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends
   on that member's extras, dependency source mapping, or package metadata.
+- Do not commit host-specific absolute filesystem paths. Pass runtime absolute
+  paths through environment variables or CLI arguments; repository defaults must
+  be repo-root-relative.
 - Keep original implementations under `vendor/` read-only. Isolate their
   dependencies behind a model package's `vendor` optional extra.
+- Main package code (`models/*/src`, `lib/*/src`) and configs must not reference
+  the vendor/original implementation in identifiers, docstrings, comments, or
+  config names; vendor references belong only in conversion modules,
+  `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- Tensor and array annotations in package source (`models/*/src`, `lib/*/src`)
+  must use fully qualified jaxtyping shaped types such as
+  `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
+  are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Do not weaken annotations to satisfy checkers. Replacing precise annotations
+  with `object`, bare containers, or similarly less informative types is
+  prohibited; annotations must move toward more precise types.
+- Write jaxtyping shaped types inline at the annotation site. Do not introduce
+  module-level aliases such as `FooTensor = Float[...]` or
+  `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
+  `scripts/jaxtyping_alias_baseline.txt`.
 
 ## Repo-Local Skills
 
@@ -125,6 +143,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   `label_size`, `completion`, `refinement`; v2 adds `text`, `content_image`,
   `relation`, `hierarchical`, `retrieval`. Normalize vendor aliases and raise
   explicit errors for unsupported modes.
+- Constrained string options in public APIs use `Literal` aliases or `StrEnum`
+  classes rather than bare `str` annotations.
 - Discrete-vocabulary layout tokenizers subclass
   `transformers.PreTrainedTokenizer`; serialize auxiliary data with tokenizer
   files. Use a custom class only when the base class truly conflicts and document
@@ -198,12 +218,20 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   co-specifying required workspace libraries such as `laygen` and `posgen` in
   the same command; clone + uv flows are for development and `REPRODUCING`
   docs.
+- README and model-card repository/source links must be copied from
+  `.gitmodules` or the implementation issue, then checked for a resolving HTTP
+  response before commit. Do not write upstream repository, project-page,
+  dataset, or source links from memory. PR CI mechanically verifies newly added
+  external URLs and rejects added 404/410 links.
 - Each README includes `Reproducibility`, opening with one sentence that states
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity
   tests, conversion, and `from_pretrained` smoke tests.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
+- Docs and READMEs link the first mention of external projects and repositories.
+  Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
+  unless that page defines them in place or links directly to the definition.
 - Hub model cards are generated through `laygen.common.model_card` using the
   official Hugging Face model-card template.
 

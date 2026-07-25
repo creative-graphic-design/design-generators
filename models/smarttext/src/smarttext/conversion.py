@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Final
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_smarttext import SmartTextConfig
 from .image_processing_smarttext import SmartTextImageProcessor
@@ -21,8 +22,8 @@ CONVERSION_REPORT: Final[str] = "conversion_report.json"
 
 
 def strip_module_prefix(
-    state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Remove ``DataParallel`` ``module.`` prefixes.
 
     Args:

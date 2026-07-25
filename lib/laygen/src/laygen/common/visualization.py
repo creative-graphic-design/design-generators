@@ -1,16 +1,20 @@
 """Visualization helpers for generated layouts and gallery assets."""
 
+# ruff: noqa: ANN401,TID251
+# Gallery rendering accepts heterogeneous pipeline outputs and normalizes their
+# tensor-like fields at runtime before drawing.
+
 from __future__ import annotations
 
 from io import BytesIO
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Literal, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -47,15 +51,31 @@ _GALLERY_PALETTE = (
 
 
 class _LayoutOutputLike(Protocol):
-    bbox: object
-    labels: object
-    mask: object
-    id2label: dict[int, str] | None
-    trajectory: object | None
-    intermediates: object | None
+    @property
+    def bbox(self) -> Any: ...
+
+    @property
+    def labels(self) -> Any: ...
+
+    @property
+    def mask(self) -> Any: ...
+
+    @property
+    def id2label(self) -> Mapping[int, str] | None: ...
+
+    @property
+    def trajectory(self) -> Any | None: ...
+
+    @property
+    def intermediates(self) -> Any | None: ...
 
 
-def _as_tensor(value: object) -> torch.Tensor:
+class _TrajectoryStepLike(Protocol):
+    @property
+    def bbox(self) -> Any: ...
+
+
+def _as_tensor(value: Any) -> Shaped[torch.Tensor, "..."]:
     if isinstance(value, torch.Tensor):
         return value.detach().cpu()
     if isinstance(value, np.ndarray):
@@ -63,7 +83,7 @@ def _as_tensor(value: object) -> torch.Tensor:
     return torch.as_tensor(value).detach().cpu()
 
 
-def _sample_tensor(value: object, sample_index: int) -> torch.Tensor:
+def _sample_tensor(value: Any, sample_index: int) -> Shaped[torch.Tensor, "..."]:
     tensor = _as_tensor(value)
     if tensor.ndim >= 3:
         return tensor[sample_index]
@@ -71,11 +91,11 @@ def _sample_tensor(value: object, sample_index: int) -> torch.Tensor:
 
 
 def _sample_layout_field(
-    value: object,
+    value: Any,
     sample_index: int,
     *,
     unbatched_ndim: int,
-) -> torch.Tensor:
+) -> Shaped[torch.Tensor, "..."]:
     tensor = _as_tensor(value)
     if tensor.ndim > unbatched_ndim:
         return tensor[sample_index]
@@ -89,7 +109,7 @@ def _color_for_label(label_id: int, palette: Sequence[str]) -> str:
 def _legend_handles(
     labels: Int[torch.Tensor, "elements"],
     mask: Bool[torch.Tensor, "elements"],
-    id2label: dict[int, str],
+    id2label: Mapping[int, str],
     palette: Sequence[str],
 ) -> list[Line2D]:
     seen = sorted(
@@ -124,7 +144,7 @@ def render_layout(
     bbox: Float[torch.Tensor, "elements 4"] | Float[np.ndarray, "elements 4"],
     labels: Int[torch.Tensor, "elements"] | Int[np.ndarray, "elements"],
     mask: Bool[torch.Tensor, "elements"] | Bool[np.ndarray, "elements"],
-    id2label: dict[int, str],
+    id2label: Mapping[int, str],
     *,
     ax: Axes | None = None,
     canvas_size: tuple[int, int] = (1, 1),
@@ -212,7 +232,7 @@ def render_layout(
     return ax
 
 
-def _trajectory_from_output(output: object) -> object:
+def _trajectory_from_output(output: _LayoutOutputLike) -> Any:
     trajectory = getattr(output, "trajectory", None)
     if trajectory is not None:
         return trajectory
@@ -223,7 +243,9 @@ def _trajectory_from_output(output: object) -> object:
     raise ValueError(msg)
 
 
-def _step_bbox(step: object, sample_index: int) -> torch.Tensor:
+def _step_bbox(
+    step: Mapping[str, Any] | _TrajectoryStepLike | Any, sample_index: int
+) -> Float[torch.Tensor, "elements 4"]:
     value = step
     if isinstance(step, dict):
         value = step.get("bbox")
@@ -239,7 +261,9 @@ def _step_bbox(step: object, sample_index: int) -> torch.Tensor:
     return bbox
 
 
-def _trajectory_bbox_steps(output: object, sample_index: int) -> list[torch.Tensor]:
+def _trajectory_bbox_steps(
+    output: _LayoutOutputLike, sample_index: int
+) -> list[Float[torch.Tensor, "elements 4"]]:
     trajectory = _trajectory_from_output(output)
     if isinstance(trajectory, torch.Tensor | np.ndarray):
         tensor = _as_tensor(trajectory).float()
@@ -256,7 +280,7 @@ def _trajectory_bbox_steps(output: object, sample_index: int) -> list[torch.Tens
 
 
 def render_trajectory(
-    output: object,
+    output: Any,
     *,
     sample_index: int = 0,
     ax: Axes | None = None,
@@ -311,7 +335,7 @@ def render_trajectory(
         _, ax = plt.subplots()
     palette = tuple(colors or _GALLERY_PALETTE)
     width, height = canvas_size
-    steps = _trajectory_bbox_steps(output, sample_index)
+    steps = _trajectory_bbox_steps(typed, sample_index)
     final_bbox = _sample_layout_field(
         typed.bbox, sample_index, unbatched_ndim=2
     ).float()
@@ -365,7 +389,7 @@ def render_trajectory(
 
 
 def render_trajectory_gif(
-    output: object,
+    output: Any,
     output_path: str | Path,
     *,
     sample_index: int = 0,
@@ -434,7 +458,7 @@ def render_trajectory_gif(
     typed = cast(_LayoutOutputLike, output)
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    full_steps = _trajectory_bbox_steps(output, sample_index)
+    full_steps = _trajectory_bbox_steps(typed, sample_index)
     if max_frames < 1:
         msg = "max_frames must be at least 1"
         raise ValueError(msg)
@@ -575,7 +599,7 @@ def render_trajectory_gif(
 
 
 def save_layout_gif(
-    output: object,
+    output: Any,
     output_path: str | Path,
     *,
     sample_index: int = 0,
@@ -619,7 +643,7 @@ def save_layout_gif(
 
 
 def make_gallery_grid(
-    outputs: Sequence[object],
+    outputs: Sequence[Any],
     *,
     columns: int = 3,
     canvas_size: tuple[int, int] = (1, 1),

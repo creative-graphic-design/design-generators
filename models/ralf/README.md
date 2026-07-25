@@ -58,7 +58,7 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 
 - **Repository:** [RALF repository](https://github.com/CyberAgentAILab/RALF)
 - **Paper:** [arXiv 2311.13602](https://arxiv.org/abs/2311.13602)
-- **Project page:** [RALF project page](https://cyberagentailab.github.io/RALF/)
+- **Project page:** [RALF project page](https://udonda.github.io/RALF/)
 
 ## Supported Checkpoints
 

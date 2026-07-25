@@ -1,4 +1,5 @@
 """PyTorch modules for the converted LayoutFlow vector-field model."""
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from diffusers import ConfigMixin, ModelMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from einops import pack, rearrange, unpack
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 
 from laygen.nn import clone_module_list, get_activation
@@ -25,20 +26,21 @@ def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
     return clone_module_list(module, n)
 
 
-def _gelu2(x: torch.Tensor) -> torch.Tensor:
+def _gelu2(x: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
     return get_activation("gelu2")(x)
 
 
 def _get_activation_fn(
-    activation: str | Callable[[torch.Tensor], torch.Tensor],
-) -> Callable[[torch.Tensor], torch.Tensor]:
+    activation: str
+    | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]],
+) -> Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]]:
     if not isinstance(activation, str):
         return activation
     return get_activation(activation)
 
 
 class PositionalEncoding(nn.Module):
-    """Sinusoidal positional encoding used by the vendor backbone."""
+    """Sinusoidal positional encoding used by the LayoutFlow backbone."""
 
     def __init__(
         self, d_model: int, dropout: float = 0.1, max_len: int = 10000
@@ -53,7 +55,7 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(1, max_len, d_model)
         pe[0, :, 0::2] = torch.sin(position * div_term)
         pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.pe: torch.Tensor
+        self.pe: Float[torch.Tensor, "1 tokens channels"]
         self.register_buffer("pe", pe)
 
     def forward(
@@ -91,7 +93,7 @@ class AdaLayerNorm(nn.Module):
 
 
 class LayoutFlowBlock(nn.Module):
-    """Transformer encoder block matching the original LayoutFlow backbone."""
+    """Transformer encoder block used by the LayoutFlow backbone."""
 
     def __init__(
         self,
@@ -99,7 +101,8 @@ class LayoutFlowBlock(nn.Module):
         nhead: int = 16,
         dim_feedforward: int = 2048,
         dropout: float = 0.0,
-        activation: str | Callable[[torch.Tensor], torch.Tensor] = F.relu,
+        activation: str
+        | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]] = F.relu,
         batch_first: bool = False,
         norm_first: bool = False,
     ) -> None:
@@ -136,10 +139,10 @@ class LayoutFlowBlock(nn.Module):
 
     def _sa_block(
         self,
-        x: torch.Tensor,
-        attn_mask: torch.Tensor | None,
-        key_padding_mask: torch.Tensor | None,
-    ) -> torch.Tensor:
+        x: Float[torch.Tensor, "batch tokens channels"],
+        attn_mask: Shaped[torch.Tensor, "..."] | None,
+        key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         x = self.self_attn(
             x,
             x,
@@ -150,7 +153,9 @@ class LayoutFlowBlock(nn.Module):
         )[0]
         return self.dropout1(x)
 
-    def _ff_block(self, x: torch.Tensor) -> torch.Tensor:
+    def _ff_block(
+        self, x: Float[torch.Tensor, "batch tokens channels"]
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         return self.dropout2(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -170,11 +175,11 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
     def forward(
         self,
-        src: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        src_key_padding_mask: torch.Tensor | None = None,
-        timestep: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        src: Float[torch.Tensor, "batch tokens channels"],
+        mask: Shaped[torch.Tensor, "..."] | None = None,
+        src_key_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
+        timestep: Float[torch.Tensor, "batch"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Run the stacked encoder blocks."""
         output = src
         for layer in self.layers:
@@ -188,7 +193,7 @@ class LayoutFlowTransformerEncoder(nn.Module):
 
 
 class LayoutDMBackbone(nn.Module):
-    """Vendor-compatible LayoutFlow backbone module."""
+    """LayoutFlow backbone module."""
 
     def __init__(
         self,
@@ -204,7 +209,7 @@ class LayoutDMBackbone(nn.Module):
         attr_encoding: AttrEncoding = AttrEncoding.continuous,
         seq_type: SeqType = SeqType.stacked,
     ) -> None:
-        """Initialize the vendor-compatible backbone."""
+        """Initialize the LayoutFlow backbone."""
         super().__init__()
         self.geom_dim = 4
         self.num_cat = num_cat
@@ -348,7 +353,7 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
 
         Args:
             num_labels: Number of dataset labels.
-            latent_dim: Vendor latent dimension.
+            latent_dim: Latent dimension.
             tr_enc_only: Whether to use the encoder-only path.
             d_model: Transformer hidden size.
             nhead: Number of attention heads.
@@ -356,8 +361,8 @@ class LayoutFlowTransformerModel(ModelMixin, ConfigMixin):
             num_layers: Number of transformer layers.
             dropout: Dropout probability.
             use_pos_enc: Whether to add positional encodings.
-            attr_encoding: Vendor attribute encoding.
-            seq_type: Vendor sequence type.
+            attr_encoding: Attribute encoding.
+            seq_type: Sequence type.
         """
         super().__init__()
         self.geom_dim = 4

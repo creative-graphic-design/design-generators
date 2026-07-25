@@ -19,10 +19,12 @@ dependencies = [
     "layout-corrector",
     "layout-detr",
     "layoutdiffusion",
+    "layout-fid",
     "layout-flow",
     "layout-gpt",
     "layout-transformer",
     "layout-action",
+    "layoutvae",
     "lace",
     "layoutganpp",
     "layout-dm",
@@ -31,9 +33,12 @@ dependencies = [
     "laygen",
     "layoutformerpp",
     "parse-then-place",
+    "postero",
     "posgen",
     "ralf",
     "smarttext",
+    "traingen",
+    "traingen-parity",
     "transformers[torch,vision]>=5.0.0",
 ]
 
@@ -44,11 +49,18 @@ diffusion = [
 download = [
     "gdown>=6.1.0",
 ]
+evaluation = [
+    "evaluate",
+    "opencv-python",
+    "prdc",
+    "pytorch-fid",
+]
 llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
 training = [
-    "lightning>=2.0.0",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
 ]
 
 [dependency-groups]
@@ -83,6 +95,30 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "housegan", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "layoutprompter", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "ralf", extra = "vendor" },
+    ],
+    [
+        { package = "design-generators", extra = "evaluation" },
+        { package = "smarttext", extra = "vendor" },
+    ],
+    [
         { package = "design-generators" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
@@ -112,6 +148,14 @@ conflicts = [
     ],
     [
         { package = "layoutprompter" },
+        { package = "flex-dm", extra = "convert" },
+    ],
+    [
+        { package = "postero" },
+        { package = "flex-dm", extra = "vendor-tf" },
+    ],
+    [
+        { package = "postero" },
         { package = "flex-dm", extra = "convert" },
     ],
     [
@@ -147,10 +191,12 @@ housegan = { workspace = true }
 layout-corrector = { workspace = true }
 layout-detr = { workspace = true }
 layoutdiffusion = { workspace = true }
+layout-fid = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
 layout-transformer = { workspace = true }
 layout-action = { workspace = true }
+layoutvae = { workspace = true }
 lace = { workspace = true }
 layoutganpp = { workspace = true }
 layout-dm = { workspace = true }
@@ -159,9 +205,12 @@ layousyn = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
+postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.ruff]
 exclude = ["vendor"]
@@ -217,6 +266,7 @@ testpaths = ["tests", "lib", "models"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original model weights and vendor dependencies",
 ]
 
@@ -225,8 +275,13 @@ branch = true
 omit = [
     "tests/*",
     "tests/**/*",
+    "models/*/tests/vendor_parity/*",
+    "models/*/tests/vendor_parity/**/*",
+    "models/layout-flow/src/layout_flow/training/*",
     "scripts/*",
     "scripts/**/*",
+    "vendor/*",
+    "vendor/**/*",
 ]
 
 [tool.coverage.report]

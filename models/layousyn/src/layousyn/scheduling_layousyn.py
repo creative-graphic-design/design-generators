@@ -10,6 +10,7 @@ from diffusers import ConfigMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Float, Int, Shaped
 
 from laygen.schedulers.continuous import get_layousyn_beta_schedule
 
@@ -18,8 +19,8 @@ from laygen.schedulers.continuous import get_layousyn_beta_schedule
 class LayouSynSchedulerOutput(BaseOutput):
     """Output returned by a LayouSyn scheduler step."""
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor
+    prev_sample: Float[torch.Tensor, "batch elements channels"]
+    pred_original_sample: Float[torch.Tensor, "batch elements channels"]
 
 
 class LayouSynScheduler(SchedulerMixin, ConfigMixin):
@@ -55,7 +56,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         self._set_betas(self.original_betas)
         self.set_timesteps(num_train_timesteps)
 
-    def _set_betas(self, betas: torch.Tensor) -> None:
+    def _set_betas(self, betas: Float[torch.Tensor, "timesteps"]) -> None:
         """Set derived buffers from the active beta sequence."""
         self.betas = betas.double()
         alphas = 1.0 - self.betas
@@ -117,7 +118,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         *,
         device: torch.device,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Create initial Gaussian noise."""
         return torch.randn(
             batch_size,
@@ -130,10 +131,10 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     def add_noise(
         self,
-        original_samples: torch.Tensor,
-        noise: torch.Tensor,
-        timesteps: torch.Tensor,
-    ) -> torch.Tensor:
+        original_samples: Float[torch.Tensor, "batch elements channels"],
+        noise: Float[torch.Tensor, "batch elements channels"],
+        timesteps: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Add forward-process noise to clean samples."""
         alphas = self.alphas_cumprod.to(original_samples.device)
         sqrt_alpha = torch.gather(alphas.sqrt(), 0, timesteps).reshape(-1, 1, 1)
@@ -144,16 +145,18 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch model_elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch elements channels"],
         *,
         generator: torch.Generator | None = None,
         eta: float = 0.0,
         clip_denoised: bool = False,
         sampling_type: Literal["ddim", "ddpm"] | None = None,
         return_dict: bool = True,
-    ) -> LayouSynSchedulerOutput | tuple[torch.Tensor]:
+    ) -> (
+        LayouSynSchedulerOutput | tuple[Float[torch.Tensor, "batch elements channels"]]
+    ):
         """Take one reverse diffusion step."""
         mode = sampling_type or self.sampling_type
         eps, model_var_values = torch.split(model_output, sample.shape[1], dim=1)
@@ -179,13 +182,13 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     def _ddim_step(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
-        pred_xstart: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        pred_xstart: Float[torch.Tensor, "batch elements channels"],
         *,
         generator: torch.Generator | None,
         eta: float,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         eps = self._predict_eps_from_xstart(sample, timestep, pred_xstart)
         alpha_bar = self._extract(self.alphas_cumprod, timestep, sample.shape)
         alpha_bar_prev = self._extract(self.alphas_cumprod_prev, timestep, sample.shape)
@@ -206,13 +209,13 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     def _ddpm_step(
         self,
-        sample: torch.Tensor,
-        timestep: torch.Tensor,
-        pred_xstart: torch.Tensor,
-        model_var_values: torch.Tensor,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        pred_xstart: Float[torch.Tensor, "batch elements channels"],
+        model_var_values: Float[torch.Tensor, "batch elements channels"],
         *,
         generator: torch.Generator | None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         mean = (
             self._extract(self.posterior_mean_coef1, timestep, sample.shape)
             * pred_xstart
@@ -234,8 +237,11 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         return mean + nonzero_mask * torch.exp(0.5 * model_log_variance) * noise
 
     def _predict_xstart_from_eps(
-        self, sample: torch.Tensor, timestep: torch.Tensor, eps: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        eps: Float[torch.Tensor, "batch elements channels"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         return self._extract(
             self.sqrt_recip_alphas_cumprod, timestep, sample.shape
         ) * sample - (
@@ -244,8 +250,11 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         )
 
     def _predict_eps_from_xstart(
-        self, sample: torch.Tensor, timestep: torch.Tensor, pred_xstart: torch.Tensor
-    ) -> torch.Tensor:
+        self,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        pred_xstart: Float[torch.Tensor, "batch elements channels"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         return (
             self._extract(self.sqrt_recip_alphas_cumprod, timestep, sample.shape)
             * sample
@@ -254,8 +263,10 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
 
     @staticmethod
     def _extract(
-        values: torch.Tensor, timesteps: torch.Tensor, broadcast_shape: torch.Size
-    ) -> torch.Tensor:
+        values: Shaped[torch.Tensor, "timesteps"],
+        timesteps: Int[torch.Tensor, "batch"],
+        broadcast_shape: torch.Size,
+    ) -> Float[torch.Tensor, "..."]:
         out = values.to(device=timesteps.device).gather(0, timesteps).float()
         while out.ndim < len(broadcast_shape):
             out = out.unsqueeze(-1)
