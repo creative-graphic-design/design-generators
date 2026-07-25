@@ -48,6 +48,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   must use fully qualified jaxtyping shaped types such as
   `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
   are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Do not weaken annotations to satisfy checkers. Replacing precise annotations
+  with `object`, bare containers, or similarly less informative types is
+  prohibited; annotations must move toward more precise types.
 - Write jaxtyping shaped types inline at the annotation site. Do not introduce
   module-level aliases such as `FooTensor = Float[...]` or
   `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
@@ -210,6 +213,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   co-specifying required workspace libraries such as `laygen` and `posgen` in
   the same command; clone + uv flows are for development and `REPRODUCING`
   docs.
+- README and model-card repository/source links must be copied from
+  `.gitmodules` or the implementation issue, then checked for a resolving HTTP
+  response before commit. Do not write upstream repository, project-page,
+  dataset, or source links from memory. PR CI mechanically verifies newly added
+  external URLs and rejects added 404/410 links.
 - Each README includes `Reproducibility`, opening with one sentence that states
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity

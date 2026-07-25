@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 import torch
+from jaxtyping import Shaped
 
 from .trace import StepTrace
 
@@ -58,8 +59,8 @@ class BatchStreamReport:
 
 def compare_tensors(
     name: str,
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: Shaped[torch.Tensor, "..."],
+    expected: Shaped[torch.Tensor, "..."],
     tolerance: TensorTolerance | None = None,
 ) -> TensorComparison:
     """Compare two tensors and return max-difference diagnostics.
@@ -145,8 +146,8 @@ def compare_step_trace(
 
 
 def compare_optimizer_step(
-    reference_state: Mapping[str, torch.Tensor],
-    target_state: Mapping[str, torch.Tensor],
+    reference_state: Mapping[str, Shaped[torch.Tensor, "..."]],
+    target_state: Mapping[str, Shaped[torch.Tensor, "..."]],
     tolerances: Mapping[str, TensorTolerance] | None = None,
 ) -> OptimizerStepReport:
     """Compare two state dictionaries after an optimizer step."""
@@ -167,8 +168,8 @@ def compare_optimizer_step(
 
 
 def compare_batch_stream(
-    reference_loader: Iterable[Mapping[str, torch.Tensor]],
-    target_loader: Iterable[Mapping[str, torch.Tensor]],
+    reference_loader: Iterable[Mapping[str, Shaped[torch.Tensor, "..."]]],
+    target_loader: Iterable[Mapping[str, Shaped[torch.Tensor, "..."]]],
     *,
     steps: int,
 ) -> BatchStreamReport:

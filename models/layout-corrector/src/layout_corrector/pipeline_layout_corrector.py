@@ -132,7 +132,21 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
         time_adaptive_temperature: bool | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "batch elements 4"]
+            | Int[torch.Tensor, "batch elements"]
+            | Bool[torch.Tensor, "batch elements"]
+            | Int[torch.Tensor, "batch tokens"]
+            | Float[torch.Tensor, "steps batch tokens"]
+            | list[Int[torch.Tensor, "batch tokens"]]
+            | dict[int, str]
+            | dict[str, str]
+            | None,
+        ]
+    ):
         """Generate layouts with optional Layout-Corrector guidance.
 
         Args:
