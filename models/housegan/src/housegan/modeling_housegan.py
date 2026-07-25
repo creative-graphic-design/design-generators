@@ -155,7 +155,7 @@ class HouseGanGenerator(PreTrainedModel):
         node_features: Float[torch.Tensor, "elements room_labels"],
         edges: Int[torch.Tensor, "edges 3"],
         return_dict: bool | None = None,
-    ) -> HouseGanModelOutput | tuple[torch.Tensor]:
+    ) -> HouseGanModelOutput | tuple[Float[torch.Tensor, "elements height width"]]:
         """Run a House-GAN forward pass.
 
         Args:

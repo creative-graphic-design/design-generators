@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal, Self, cast
 
 import torch
+from jaxtyping import Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import (
@@ -199,11 +200,11 @@ class HouseGanProcessor(ProcessorMixin):
 
     def post_process_masks(
         self,
-        masks: torch.Tensor,
+        masks: Float[torch.Tensor, "elements height width"],
         *,
-        labels: torch.LongTensor,
-        edges: torch.LongTensor | None = None,
-        node_features: torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "elements"],
+        edges: Int[torch.Tensor, "edges 3"] | None = None,
+        node_features: Float[torch.Tensor, "elements room_labels"] | None = None,
         scene_graph: object | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
@@ -245,7 +246,11 @@ class HouseGanProcessor(ProcessorMixin):
         )
 
 
-def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
+def mask_to_ltrb(
+    masks: Float[torch.Tensor, "elements height width"],
+    *,
+    threshold: float = 0.0,
+) -> Float[torch.Tensor, "elements 4"]:
     """Convert thresholded masks to inclusive-exclusive ``ltrb`` boxes."""
     boxes: list[list[float]] = []
     for mask in masks.detach().cpu():
@@ -261,7 +266,7 @@ def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor
     return torch.tensor(boxes, dtype=torch.float32, device=masks.device)
 
 
-def _xywh_to_ltrb_list(bbox: torch.Tensor) -> list[list[float]]:
+def _xywh_to_ltrb_list(bbox: Float[torch.Tensor, "elements 4"]) -> list[list[float]]:
     x, y, w, h = bbox.unbind(dim=-1)
     ltrb = torch.stack((x - w / 2, y - h / 2, x + w / 2, y + h / 2), dim=-1)
     return cast(list[list[float]], ltrb.detach().cpu().tolist())
