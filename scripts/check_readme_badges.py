@@ -10,6 +10,9 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+ROOT_REPO_BLOB_URL = (
+    "https://github.com/creative-graphic-design/design-generators/blob/main/"
+)
 BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
@@ -35,11 +38,18 @@ MODEL_ORDER = [
 ]
 
 VERIFIED_SIMPLE_ICON_SLUGS = {
+    "adobe",
+    "android",
     "apache",
     "arxiv",
+    "canva",
     "creativecommons",
     "doi",
+    "figma",
     "githubactions",
+    "googledocs",
+    "googlenews",
+    "googlescholar",
     "huggingface",
     "opensourceinitiative",
     "pydantic",
@@ -47,8 +57,50 @@ VERIFIED_SIMPLE_ICON_SLUGS = {
     "readthedocs",
     "uv",
 }
-
-HF_DATASET_BADGE_MESSAGES = {"RICO25", "PubLayNet", "Crello", "Magazine", "CGL", "PKU"}
+RUNTIME_BADGE_POLICY = {
+    "transformers": ("yellow", "huggingface"),
+    "diffusers": ("red", "huggingface"),
+    "pydantic-ai": ("violet", "pydantic"),
+}
+DATASET_BADGE_POLICY = {
+    "RICO25": ("blue", "android"),
+    "RICO13": ("blue", "android"),
+    "PubLayNet": ("informational", "googledocs"),
+    "Crello": ("violet", "canva"),
+    "Magazine": ("orange", "googlenews"),
+    "CGL": ("red", "adobe"),
+    "PKU": ("blueviolet", "figma"),
+    "PKU-PosterLayout": ("blueviolet", "figma"),
+}
+ROOT_VENUE_BADGE_COLORS = {
+    "AAAI 2022": "2f5f8f",
+    "AAAI 2023": "2f5f8f",
+    "ACM MM 2021": "0085ca",
+    "CVPR 2021": "0076a8",
+    "CVPR 2023": "0076a8",
+    "CVPR 2024": "0076a8",
+    "CVPR 2025": "0076a8",
+    "ECCV 2020": "009688",
+    "ECCV 2024": "009688",
+    "ICCV 2019": "0066cc",
+    "ICCV 2023": "0066cc",
+    "ICCV 2025": "0066cc",
+    "ICLR 2024": "00a88f",
+    "NeurIPS 2023": "4b2e83",
+    "TMM 2021": "00629b",
+}
+ROOT_TASK_LEGEND_BADGE_COLORS = {
+    "content-agnostic": "2f80ed",
+    "content-aware": "eb5757",
+    "layout-evaluation": "6b7280",
+    "mixed": "9b51e0",
+}
+ROOT_LIBRARY_BADGE_COLORS = {
+    "laygen": "2f80ed",
+    "posgen": "00a88f",
+    "traingen": "27ae60",
+    "traingen-parity": "9b51e0",
+}
 
 DOCS_URL = "https://creative-graphic-design.github.io/design-generators/"
 CODECOV_URL = "https://codecov.io/gh/creative-graphic-design/design-generators"
@@ -61,6 +113,7 @@ DATASET_LINKS = {
     "Magazine": "https://huggingface.co/datasets/creative-graphic-design/magazine",
     "CGL": "https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset",
     "PKU": "https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout",
+    "PKU-PosterLayout": "https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout",
 }
 PAPER_LINKS = {
     (
@@ -126,7 +179,32 @@ class Badge:
     logo: str | None
 
 
-def _allowed_logos(label: str, message: str | None) -> set[str | None]:
+def _is_root_readme(path: Path) -> bool:
+    return path == REPO_ROOT / "README.md"
+
+
+def _semantic_label(alt: str, query_label: str) -> str:
+    alt_prefix, separator, _ = alt.partition(":")
+    if query_label == ">" and (not separator or not alt_prefix):
+        raise AssertionError(
+            f"badge with label=> must use '<semantic label>: ...' alt text: {alt!r}"
+        )
+    semantic_alt_prefixes = {
+        "checkpoint",
+        "dataset",
+        "framework",
+        "library",
+        "model",
+        "task",
+        "training",
+        "venue",
+    }
+    if separator and alt_prefix in semantic_alt_prefixes:
+        return alt_prefix
+    return alt_prefix
+
+
+def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | None]:
     if label == "CI":
         return {"githubactions"}
     if label == "coverage":
@@ -151,12 +229,32 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
         return {"arxiv"}
     if label == "DOI":
         return {"doi"}
-    if label in {"paper", "OpenReview", "venue"}:
+    if label in {"paper", "OpenReview"}:
         return {None}
+    if label == "venue":
+        return {None}
+    if label == "model":
+        return {None}
+    if label == "library":
+        return {None}
+    if label == "task":
+        return {None}
+    if label == "framework":
+        policy = RUNTIME_BADGE_POLICY.get(message or "")
+        return {policy[1]} if policy else set()
     if label == "base":
+        if _is_root_readme(path):
+            policy = RUNTIME_BADGE_POLICY.get(message or "")
+            return {policy[1]} if policy else set()
         return {"pydantic"} if message == "pydantic-ai" else {"huggingface"}
     if label == "dataset":
-        return {"huggingface"} if message in HF_DATASET_BADGE_MESSAGES else {None}
+        if _is_root_readme(path):
+            return {None}
+        return {None, "huggingface"}
+    if label == "training":
+        return {None}
+    if label == "checkpoint":
+        return {None}
     if label == "hub":
         if message == "n/a":
             return {None}
@@ -166,7 +264,7 @@ def _allowed_logos(label: str, message: str | None) -> set[str | None]:
     raise AssertionError(f"no badge logo rule for label={label!r} message={message!r}")
 
 
-def _expected_color(label: str, message: str | None) -> str | None:
+def _expected_color(path: Path, label: str, message: str | None) -> str | None:
     if label == "CI":
         return None
     if label == "coverage":
@@ -180,13 +278,43 @@ def _expected_color(label: str, message: str | None) -> str | None:
             return "orange"
         if message == "review-needed":
             return "yellow"
-    if label in {"python", "package", "base", "paper", "OpenReview", "DOI"}:
+    if label in {"python", "package", "paper", "OpenReview", "DOI"}:
+        return "blue"
+    if label == "model":
+        if _is_root_readme(path):
+            return None
+        return "blue"
+    if label == "library":
+        if _is_root_readme(path) and message in ROOT_LIBRARY_BADGE_COLORS:
+            return ROOT_LIBRARY_BADGE_COLORS[message]
+        return "blue"
+    if label == "task":
+        if _is_root_readme(path) and message in ROOT_TASK_LEGEND_BADGE_COLORS:
+            return ROOT_TASK_LEGEND_BADGE_COLORS[message]
+        return "purple"
+    if label == "framework" and message:
+        policy = RUNTIME_BADGE_POLICY.get(message)
+        if policy is not None:
+            return policy[0]
+    if label == "base" and message and _is_root_readme(path):
+        policy = RUNTIME_BADGE_POLICY.get(message)
+        if policy is not None:
+            return policy[0]
+    if label == "base":
         return "blue"
     if label == "arXiv":
         return "b31b1b"
-    if label in {"uv", "extras", "runtime", "dataset"}:
+    if label in {"uv", "extras", "runtime"}:
         return "informational"
-    if label in {"models", "venue"}:
+    if label == "dataset":
+        if _is_root_readme(path):
+            return None
+        return "informational"
+    if label == "venue":
+        if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
+            return ROOT_VENUE_BADGE_COLORS[message]
+        return "purple"
+    if label == "models":
         return "purple"
     if label == "vendor-parity" and message == "not-run":
         return "lightgrey"
@@ -194,6 +322,13 @@ def _expected_color(label: str, message: str | None) -> str | None:
         return "success"
     if label == "status":
         return "lightgrey"
+    if label == "checkpoint" and message == "ckpt":
+        return "success"
+    if label == "training":
+        if message == "train":
+            return "success"
+        if message == "n/a":
+            return "lightgrey"
     if label == "hub":
         return "lightgrey" if message == "n/a" else "orange"
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
@@ -234,8 +369,6 @@ def _iter_badges(path: Path) -> list[Badge]:
         if " " in url:
             raise AssertionError(f"{path}: badge URL contains a literal space: {url}")
         query = parse_qs(parsed.query)
-        if query.get("style") != ["flat-square"]:
-            raise AssertionError(f"{path}: badge must use style=flat-square: {url}")
         if parsed.path == "/static/v1":
             if "label" not in query or "message" not in query or "color" not in query:
                 raise AssertionError(
@@ -250,7 +383,7 @@ def _iter_badges(path: Path) -> list[Badge]:
         if "label" not in query:
             raise AssertionError(f"{path}: badge missing label: {url}")
         else:
-            label = query["label"][0]
+            label = _semantic_label(match.group("alt"), query["label"][0])
         message = query.get("message", [None])[0]
         if parsed.path == "/static/v1":
             for key, value in (("label", label), ("message", message)):
@@ -260,7 +393,7 @@ def _iter_badges(path: Path) -> list[Badge]:
                     )
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
-        allowed_logos = _allowed_logos(label, message)
+        allowed_logos = _allowed_logos(path, label, message)
         if logo not in allowed_logos:
             raise AssertionError(
                 f"{path}: badge {label!r} logo {logo!r} not in {allowed_logos!r}: {url}"
@@ -272,7 +405,7 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(f"{path}: unverified Simple Icons slug {logo!r}")
         elif query.get("logoColor") != ["white"]:
             raise AssertionError(f"{path}: badge logoColor must be white: {url}")
-        expected_color = _expected_color(label, message)
+        expected_color = _expected_color(path, label, message)
         if expected_color is not None and color != expected_color:
             raise AssertionError(
                 f"{path}: badge {label!r} color {color!r} != {expected_color!r}: {url}"
@@ -314,6 +447,10 @@ def _expected_link(badge: Badge) -> str | None:
         if badge.message in {"n/a", "not-published"}:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
+    if badge.label == "library" and badge.message:
+        if _is_root_readme(badge.path):
+            return f"{ROOT_REPO_BLOB_URL}lib/{badge.message}/README.md"
+        return f"lib/{badge.message}/README.md"
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]
     return None

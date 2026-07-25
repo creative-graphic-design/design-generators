@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Final, Literal, TypedDict, cast
 
 import torch
-from jaxtyping import Int
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
 
 from laygen.common.bbox import normalize_boxes
@@ -247,7 +247,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
 
     def decode_layout_sequences(
         self,
-        generated_ids: torch.Tensor | Sequence[str],
+        generated_ids: Int[torch.Tensor, "batch tokens"] | Sequence[str],
         *,
         batch_size: int,
         num_return_sequences: int,
@@ -288,9 +288,9 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         selected = self._select_candidates(candidate_groups, output_candidate)
         parsed_groups = [self._parse_layout_text(item) for item in selected]
         max_len = max((len(item) for item in parsed_groups), default=0) or 1
-        bbox_rows: list[torch.Tensor] = []
-        label_rows: list[torch.Tensor] = []
-        mask_rows: list[torch.Tensor] = []
+        bbox_rows: list[Float[torch.Tensor, "elements 4"]] = []
+        label_rows: list[Int[torch.Tensor, "elements"]] = []
+        mask_rows: list[Bool[torch.Tensor, "elements"]] = []
         for parsed in parsed_groups:
             labels = torch.tensor([item["label"] for item in parsed], dtype=torch.long)
             boxes = torch.tensor([item["bbox"] for item in parsed], dtype=torch.float32)

@@ -185,8 +185,8 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def place(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         generation_max_length: int | None = None,
         num_return_sequences: int | None = None,
@@ -194,7 +194,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         do_sample: bool = True,
         generator: torch.Generator | None = None,
         **generate_kwargs: object,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate layout token ids with the placement stage."""
         if self.placement is None:
             raise ValueError("Placement stage is not loaded")
