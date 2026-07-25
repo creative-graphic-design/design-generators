@@ -29,6 +29,14 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 - [ ] README reproducibility steps are copy-pasteable commands, if README docs changed.
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
 
+## Completion Gate
+
+<!-- Draft PRs may leave these pending. Ready-for-review PRs must either satisfy each item, or keep an actionable blocker/reason in the item text. -->
+
+- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.
+- [ ] Training S5 reproduction complete, or N/A: <reason>.
+- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
+
 ## Deviations / Follow-ups
 
 <!-- Model PRs: summarize parity, checkpoint, dataset, and Hub-card deviations here. Infra/docs PRs: summarize scope limits, skipped commands, or follow-up cleanup here. -->
