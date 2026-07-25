@@ -48,7 +48,7 @@ class _ImageFeedForward(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
         return self.net(x)
 
 
@@ -71,7 +71,7 @@ class _ImageAttention(nn.Module):
             else nn.Identity()
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
         x = self.norm(x)
         qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = (
@@ -110,7 +110,7 @@ class _ImageTransformer(nn.Module):
             ]
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
         for layer_pair in self.layers:
             attn, ff = cast(tuple[nn.Module, nn.Module], tuple(layer_pair.children()))
             x = attn(x) + x
@@ -160,7 +160,9 @@ class CGBDMImageEncoder(nn.Module):
             dim_model, depth, heads, dim_head, mlp_dim, dropout
         )
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, image: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch tokens channels"]:
         """Encode image tensors into patch tokens."""
         x = self.to_patch_embedding(image)
         batch, tokens, _ = x.shape
@@ -184,7 +186,7 @@ class _LayoutMLP(nn.Module):
         )
         self.num_layers = num_layers
 
-    def forward(self, value: torch.Tensor) -> torch.Tensor:
+    def forward(self, value: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
         x = value
         for index, layer in enumerate(self.layers):
             x = layer(x)
@@ -200,7 +202,7 @@ class _LayoutBlock(nn.Module):
         nhead: int,
         dim_feedforward: int,
         dropout: float = 0.1,
-        activation: Callable[[Tensor], Tensor] = F.relu,
+        activation: Callable[[Float[Tensor, "..."]], Float[Tensor, "..."]] = F.relu,
         diffusion_steps: int = 1000,
         timestep_type: str | None = "adalayernorm",
     ) -> None:
@@ -226,13 +228,13 @@ class _LayoutBlock(nn.Module):
 
     def forward(
         self,
-        src: Tensor,
-        img: Tensor | None,
-        cgb_w: Tensor | None,
-        salbox_encode: Tensor | None,
+        src: Float[Tensor, "batch elements channels"],
+        img: Float[Tensor, "..."] | None,
+        cgb_w: Float[Tensor, "..."] | None,
+        salbox_encode: Float[Tensor, "..."] | None,
         *,
-        timestep: Tensor,
-    ) -> Tensor:
+        timestep: Int[Tensor, "batch"],
+    ) -> Float[Tensor, "batch elements channels"]:
         x = src
         x = (
             self.norm1(x, timestep)
@@ -250,13 +252,22 @@ class _LayoutBlock(nn.Module):
         x = x + self._ff_block(self.norm4(x))
         return x
 
-    def _sa_block(self, x: Tensor) -> Tensor:
+    def _sa_block(
+        self, x: Float[Tensor, "batch elements channels"]
+    ) -> Float[Tensor, "batch elements channels"]:
         return self.dropout1(self.self_attn(x, x, x, need_weights=False)[0])
 
-    def _ca_block(self, x: Tensor, k: Tensor, v: Tensor) -> Tensor:
+    def _ca_block(
+        self,
+        x: Float[Tensor, "batch elements channels"],
+        k: Float[Tensor, "..."],
+        v: Float[Tensor, "..."],
+    ) -> Float[Tensor, "batch elements channels"]:
         return self.dropout2(self.self_attn(x, k, v, need_weights=False)[0])
 
-    def _ff_block(self, x: Tensor) -> Tensor:
+    def _ff_block(
+        self, x: Float[Tensor, "batch elements channels"]
+    ) -> Float[Tensor, "batch elements channels"]:
         return self.dropout3(
             self.linear2(self.dropout(self.activation(self.linear1(x))))
         )
@@ -299,12 +310,12 @@ class CGBDMLayoutModule(nn.Module):
 
     def forward(
         self,
-        src: Tensor,
-        img_encode: Tensor | None,
-        cgb_w: Tensor | None,
-        salbox_encode: Tensor | None,
-        timestep: Tensor,
-    ) -> Tensor:
+        src: Float[Tensor, "batch elements channels"],
+        img_encode: Float[Tensor, "..."] | None,
+        cgb_w: Float[Tensor, "..."] | None,
+        salbox_encode: Float[Tensor, "..."] | None,
+        timestep: Int[Tensor, "batch"],
+    ) -> Float[Tensor, "batch elements channels"]:
         """Run the layout encoder or decoder path."""
         if self.if_encoder:
             output = F.softplus(self.mlp(src))
@@ -328,7 +339,7 @@ class CGBDMLayoutModule(nn.Module):
 
 
 class _TransformerLayerNorm(nn.LayerNorm):
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
         original_type = input.dtype
         output = F.layer_norm(
             input, self.normalized_shape, self.weight, self.bias, self.eps
@@ -361,8 +372,10 @@ class _ResidualAttentionBlock(nn.Module):
         )
 
     def forward(
-        self, x: torch.Tensor, attn_mask: torch.Tensor | None = None
-    ) -> torch.Tensor:
+        self,
+        x: Float[torch.Tensor, "..."],
+        attn_mask: Float[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "..."]:
         attn_mask = attn_mask.to(x.dtype) if attn_mask is not None else None
         attended = self.attn(
             self.ln_1(x),
@@ -386,8 +399,10 @@ class _TokenTransformer(nn.Module):
         )
 
     def forward(
-        self, x: torch.Tensor, attn_mask: torch.Tensor | None = None
-    ) -> torch.Tensor:
+        self,
+        x: Float[torch.Tensor, "..."],
+        attn_mask: Float[torch.Tensor, "..."] | None = None,
+    ) -> Float[torch.Tensor, "..."]:
         for block in self.resblocks:
             x = block(x, attn_mask=attn_mask)
         return x
@@ -421,7 +436,9 @@ class CGBDMQFormer(nn.Module):
             nn.Softplus(),
         )
 
-    def forward(self, image_tokens: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, image_tokens: Float[torch.Tensor, "batch tokens channels"]
+    ) -> Float[torch.Tensor, "batch tokens 1"]:
         """Pool image tokens into a content-graphic balance weight."""
         scale_emb = self.scale_emb.repeat(image_tokens.shape[0], 1, 1)
         x = torch.cat([scale_emb, image_tokens], dim=1)

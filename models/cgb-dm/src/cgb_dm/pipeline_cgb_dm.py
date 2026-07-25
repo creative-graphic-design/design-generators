@@ -7,6 +7,7 @@ from typing import Final
 
 import torch
 from diffusers import DiffusionPipeline
+from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
@@ -34,6 +35,9 @@ _SUPPORTED_CONDITION_TYPES: Final[frozenset[ConditionType]] = frozenset(
         ConditionType.refinement,
     }
 )
+
+CGBDMInputValue = object
+CGBDMOutputValue = object
 
 
 def normalize_condition_type(
@@ -116,7 +120,7 @@ class CGBDMPipeline(DiffusionPipeline):
         self.model.eval()
 
     @property
-    def components(self) -> dict[str, object]:
+    def components(self) -> dict[str, CGBDMOutputValue]:
         """Return serializable pipeline components."""
         return {
             "model": self.model,
@@ -128,21 +132,21 @@ class CGBDMPipeline(DiffusionPipeline):
     def __call__(
         self,
         *,
-        image: object | None = None,
-        content: dict[str, object] | None = None,
-        saliency: object | None = None,
-        saliency_isnet: object | None = None,
-        saliency_basnet: object | None = None,
-        saliency_box: torch.Tensor | None = None,
-        pixel_values: torch.Tensor | None = None,
+        image: CGBDMInputValue | None = None,
+        content: dict[str, CGBDMInputValue] | None = None,
+        saliency: CGBDMInputValue | None = None,
+        saliency_isnet: CGBDMInputValue | None = None,
+        saliency_basnet: CGBDMInputValue | None = None,
+        saliency_box: Float[torch.Tensor, "..."] | None = None,
+        pixel_values: Float[torch.Tensor, "batch channels height width"] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: torch.Tensor | list[object] | None = None,
-        bbox: torch.Tensor | list[object] | None = None,
-        mask: torch.Tensor | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
+        bbox: Float[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
+        mask: Bool[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "..."] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -150,7 +154,7 @@ class CGBDMPipeline(DiffusionPipeline):
         completion_ratio: float = 0.2,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
         """Run DDIM sampling and return generated layouts.
 
         Args:
@@ -251,8 +255,8 @@ class CGBDMPipeline(DiffusionPipeline):
             sample = torch.where(fix_mask, real_layout, sample)
         pixel_values = pixel_values.to(self.device)
         resolved_saliency_box = resolved_saliency_box.to(self.device)
-        trajectory: list[torch.Tensor] = []
-        cgb_weights: list[torch.Tensor] = []
+        trajectory: list[Float[torch.Tensor, "..."]] = []
+        cgb_weights: list[Float[torch.Tensor, "..."]] = []
         for index, timestep in enumerate(self.scheduler.timesteps):
             timestep_batch = torch.full(
                 (batch_size,),
@@ -288,11 +292,11 @@ class CGBDMPipeline(DiffusionPipeline):
 
     def _decode(
         self,
-        sample: torch.Tensor,
+        sample: Float[torch.Tensor, "..."],
         output_type: OutputType,
-        trajectory: list[torch.Tensor],
-        intermediates: object | None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        trajectory: list[Float[torch.Tensor, "..."]],
+        intermediates: CGBDMOutputValue | None,
+    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
         decoded = self.processor.decode(
             sample.detach().cpu(),
             output_type="dataclass",

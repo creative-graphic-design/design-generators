@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 import torch
+from jaxtyping import Float
 
 from .configuration_cgb_dm import CGBDMConfig
 from .modeling_cgb_dm import CGBDMTransformerModel
@@ -16,8 +17,8 @@ from .scheduling_cgb_dm import CGBDMScheduler
 
 
 def convert_state_dict(
-    state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
+    state_dict: Mapping[str, Float[torch.Tensor, "..."]],
+) -> dict[str, Float[torch.Tensor, "..."]]:
     """Normalize CGB-DM checkpoint keys for ``CGBDMTransformerModel``.
 
     Args:
@@ -30,7 +31,7 @@ def convert_state_dict(
         >>> convert_state_dict({"model.module.img_encoder.patch.weight": torch.zeros(1)})["img_encoder.patch.weight"].shape
         torch.Size([1])
     """
-    converted: dict[str, torch.Tensor] = {}
+    converted: dict[str, Float[torch.Tensor, "..."]] = {}
     for key, value in state_dict.items():
         name = key.removeprefix("state_dict.")
         name = name.removeprefix("model.")
@@ -40,7 +41,7 @@ def convert_state_dict(
     return converted
 
 
-def load_state_dict(path: str | Path) -> dict[str, torch.Tensor]:
+def load_state_dict(path: str | Path) -> dict[str, Float[torch.Tensor, "..."]]:
     """Load a state-dict-like checkpoint from disk."""
     checkpoint = torch.load(path, map_location="cpu")
     if isinstance(checkpoint, Mapping):

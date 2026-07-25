@@ -8,13 +8,10 @@ import os
 from pathlib import Path
 from typing import cast
 
-import torch
-
 from cgb_dm.data import CGBDMOriginalDataset
 
-CGBDMBatch = (
-    Mapping[str, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-)
+CGBDMBatch = Mapping[str, object] | tuple[object, object, object]
+CGBDMBatchMapping = Mapping[str, object]
 
 
 class CGBDMStepTraceAdapter:
@@ -33,17 +30,17 @@ class CGBDMStepTraceAdapter:
         "loss",
     )
 
-    def comparable_batch(self, batch: CGBDMBatch) -> Mapping[str, torch.Tensor]:
+    def comparable_batch(self, batch: CGBDMBatch) -> CGBDMBatchMapping:
         """Normalize dict or tuple batches to comparable tensor mappings."""
         if not isinstance(batch, Mapping):
             image, layout, saliency_box = batch
-            result: dict[str, torch.Tensor] = {
+            result: dict[str, object] = {
                 "pixel_values": image,
                 "layout": layout,
                 "saliency_box": saliency_box,
             }
             return result
-        return cast(Mapping[str, torch.Tensor], batch)
+        return cast(CGBDMBatchMapping, batch)
 
 
 def capture_vendor_order(data_root: str | Path, *, split: str = "train") -> list[str]:

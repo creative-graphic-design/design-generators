@@ -10,6 +10,7 @@ import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
+from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType
 from laygen.schedulers.continuous import (
@@ -33,8 +34,8 @@ class CGBDMSchedulerOutput(BaseOutput):
         pred_original_sample: Estimated clean layout sample.
     """
 
-    prev_sample: torch.Tensor
-    pred_original_sample: torch.Tensor
+    prev_sample: Float[torch.Tensor, "batch elements channels"]
+    pred_original_sample: Float[torch.Tensor, "batch elements channels"]
 
 
 def make_beta_schedule(
@@ -43,7 +44,7 @@ def make_beta_schedule(
     *,
     start: float = 2.0e-4,
     end: float = 4.0e-2,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "timesteps"]:
     """Create a CGB-DM beta schedule.
 
     Args:
@@ -78,7 +79,7 @@ def make_ddim_timesteps(
     num_ddim_timesteps: int,
     num_ddpm_timesteps: int,
     mode: str = "uniform",
-) -> np.ndarray:
+) -> Int[np.ndarray, "timesteps"]:
     """Create DDIM timestep ids using CGB-DM discretization rules."""
     if mode == "uniform":
         stride = num_ddpm_timesteps // num_ddim_timesteps
@@ -170,19 +171,19 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         device: torch.device,
         generator: torch.Generator | None = None,
         t_max: int | None = None,
-    ) -> torch.Tensor:
+    ) -> Int[torch.Tensor, "batch"]:
         """Sample training timesteps."""
         high = int(t_max or self.num_train_timesteps - 1)
         return torch.randint(0, high, (batch_size,), device=device, generator=generator)
 
     def add_noise(
         self,
-        original_samples: torch.Tensor,
-        noise: torch.Tensor,
-        timesteps: torch.Tensor,
+        original_samples: Float[torch.Tensor, "batch elements channels"],
+        noise: Float[torch.Tensor, "batch elements channels"],
+        timesteps: Int[torch.Tensor, "batch"],
         *,
-        fix_mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        fix_mask: Bool[torch.Tensor, "batch elements channels"] | None = None,
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Add training noise, preserving fixed channels when requested."""
         alphas = self.alphas_bar_sqrt.to(original_samples.device)
         one_minus = self.one_minus_alphas_bar_sqrt.to(original_samples.device)
@@ -201,7 +202,7 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         *,
         device: torch.device,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Create the initial DDIM sample."""
         return torch.randn(
             batch_size, seq_len, seq_dim, device=device, generator=generator
@@ -209,12 +210,12 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
 
     def condition_mask(
         self,
-        layout: torch.Tensor,
+        layout: Float[torch.Tensor, "batch elements channels"],
         condition_type: ConditionType,
         *,
         completion_ratio: float = 0.2,
         generator: torch.Generator | None = None,
-    ) -> torch.Tensor:
+    ) -> Bool[torch.Tensor, "batch elements channels"]:
         """Build a channel-level mask for fixed conditioning values."""
         mask = torch.zeros_like(layout, dtype=torch.bool)
         num_labels = layout.shape[-1] - 4
@@ -239,9 +240,9 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
 
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch elements channels"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch elements channels"],
         index: int,
         generator: torch.Generator | None = None,
     ) -> CGBDMSchedulerOutput:

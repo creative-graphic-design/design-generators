@@ -11,6 +11,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from jaxtyping import Float
 from PIL import Image
 from torch.utils.data import Dataset
 
@@ -52,7 +53,7 @@ class CGBDMDataPaths:
         return self.root / "csv" / f"{self.split}_sal.csv"
 
 
-class CGBDMOriginalDataset(Dataset[dict[str, torch.Tensor]]):
+class CGBDMOriginalDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
     """Read an extracted CGB-DM dataset split without downloading assets.
 
     Args:
@@ -86,7 +87,7 @@ class CGBDMOriginalDataset(Dataset[dict[str, torch.Tensor]]):
         """Return number of image rows."""
         return len(self.names)
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, index: int) -> dict[str, Float[torch.Tensor, "..."]]:
         """Return one normalized CGB-DM training row."""
         name = self.names[index]
         image_path = self.paths.inpaint_dir / name
@@ -168,7 +169,7 @@ def _normalize_ltrb(
     | tuple[tuple[float, float, float, float], int],
     width: int,
     height: int,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "4"]:
     if isinstance(box[0], tuple):
         box = box[0]
     tensor = torch.tensor(box, dtype=torch.float32)
@@ -188,7 +189,7 @@ def _encode_vendor_row(
     max_seq_length: int,
     num_labels: int,
     image_size: tuple[int, int],
-) -> dict[str, torch.Tensor]:
+) -> dict[str, Float[torch.Tensor, "..."]]:
     rgb = _pil_to_normalized_tensor(image, image_size, mode="RGB")
     saliency_map = Image.fromarray(
         np.maximum(np.asarray(saliency), np.asarray(saliency_sub))
@@ -208,7 +209,7 @@ def _pil_to_normalized_tensor(
     image_size: tuple[int, int],
     *,
     mode: Literal["RGB", "L"],
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "..."]:
     image = image.convert(mode).resize(
         (image_size[1], image_size[0]), Image.Resampling.BILINEAR
     )
@@ -226,7 +227,7 @@ def _encode_vendor_layout(
     height: int,
     max_seq_length: int,
     num_labels: int,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "elements channels"]:
     label_cls = np.zeros((max_seq_length, num_labels))
     label_box = np.zeros((max_seq_length, 4))
     for index, (box, label) in enumerate(annotations[:max_seq_length]):
@@ -252,7 +253,7 @@ def _encode_vendor_saliency_box(
     saliency_box: tuple[tuple[float, float, float, float], int],
     width: int,
     height: int,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "1 4"]:
     box, _ = saliency_box
     tensor = ltrb_to_xywh(torch.tensor([box], dtype=torch.float32))
     tensor[::2] /= width

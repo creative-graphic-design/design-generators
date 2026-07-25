@@ -153,6 +153,6 @@ The original implementation is Apache-2.0. This package is Apache-2.0.
   title = {CGB-DM: Content and Graphic Balance Layout Generation with Transformer-based Diffusion Model},
   author = {Li, Yu and Chen, Yifan and Liu, Gongye and Yin, Fei and Bai, Qingyan and Wu, Jie and Wang, Hongfa and Chu, Ruihang and Yang, Yujiu},
   year = {2024},
-  url = {https://arxiv.org/abs/2407.15233}
+  url = "https://arxiv.org/abs/2407.15233"
 }
 ```

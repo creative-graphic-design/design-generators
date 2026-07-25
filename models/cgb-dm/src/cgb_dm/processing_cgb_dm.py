@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import IO, Literal, cast
+from typing import IO, Literal, TypedDict, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from PIL import Image
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
@@ -24,6 +25,17 @@ CGBDM_LAYOUT_KEY = "layout"
 CGBDM_BBOX_KEY = "bbox"
 CGBDM_LABELS_KEY = "labels"
 CGBDM_MASK_KEY = "mask"
+CGBDMInputValue = object
+CGBDMOutputValue = object
+
+
+class CGBDMEncodedLayout(TypedDict):
+    """Encoded CGB-DM layout tensors."""
+
+    layout: Float[torch.Tensor, "batch elements channels"]
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
 
 
 class CGBDMProcessor(ProcessorMixin):
@@ -73,12 +85,12 @@ class CGBDMProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: object | None = None,
+        images: CGBDMInputValue | None = None,
         *,
-        saliency: object | None = None,
-        saliency_isnet: object | None = None,
-        saliency_basnet: object | None = None,
-        saliency_box: torch.Tensor | None = None,
+        saliency: CGBDMInputValue | None = None,
+        saliency_isnet: CGBDMInputValue | None = None,
+        saliency_basnet: CGBDMInputValue | None = None,
+        saliency_box: Float[torch.Tensor, "..."] | None = None,
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
         """Encode image and saliency inputs into model tensors."""
@@ -121,13 +133,20 @@ class CGBDMProcessor(ProcessorMixin):
     def encode_layout(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list[object],
-        labels: torch.Tensor | np.ndarray | list[object],
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: Float[torch.Tensor, "..."]
+        | Float[np.ndarray, "..."]
+        | list[CGBDMInputValue],
+        labels: Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
+        | list[CGBDMInputValue],
+        mask: Bool[torch.Tensor, "..."]
+        | Bool[np.ndarray, "..."]
+        | list[CGBDMInputValue]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> CGBDMEncodedLayout:
         """Encode public layout tensors into CGB-DM latent layout format."""
         bbox_t, labels_t, mask_t = prepare_layout_tensors(
             bbox=bbox,
@@ -149,10 +168,14 @@ class CGBDMProcessor(ProcessorMixin):
 
     def pad(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements 4"],
+        Int[torch.Tensor, "batch elements"],
+        Bool[torch.Tensor, "batch elements"],
+    ]:
         """Pad public layout tensors to ``max_seq_length``."""
         if mask is None:
             mask = torch.ones(labels.shape, dtype=torch.bool, device=labels.device)
@@ -169,10 +192,10 @@ class CGBDMProcessor(ProcessorMixin):
 
     def encode(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Encode normalized boxes and public labels into internal tensors."""
         bbox, labels, mask = self.pad(bbox, labels, mask)
         if self.dataset_name == str(DatasetName.pku_posterlayout):
@@ -190,12 +213,12 @@ class CGBDMProcessor(ProcessorMixin):
 
     def decode(
         self,
-        layout: torch.Tensor,
+        layout: Float[torch.Tensor, "batch elements channels"],
         *,
         output_type: Literal["dataclass", "dict"] | str = "dataclass",
-        scores: torch.Tensor | None = None,
-        intermediates: object | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        scores: Float[torch.Tensor, "..."] | None = None,
+        intermediates: CGBDMOutputValue | None = None,
+    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
         """Decode internal layout tensors into the public schema."""
         bbox = (layout[:, :, self.num_labels :].clamp(-1.0, 1.0) / 2 + 0.5).cpu()
         class_logits = layout[:, :, : self.num_labels]
@@ -228,10 +251,10 @@ class CGBDMProcessor(ProcessorMixin):
         self,
         batch_size: int,
         *,
-        saliency: object | None,
-        saliency_isnet: object | None,
-        saliency_basnet: object | None,
-    ) -> list[object | None]:
+        saliency: CGBDMInputValue | None,
+        saliency_isnet: CGBDMInputValue | None,
+        saliency_basnet: CGBDMInputValue | None,
+    ) -> list[CGBDMInputValue | None]:
         if saliency is not None:
             rows = _ensure_batch(saliency)
             if len(rows) != batch_size:
@@ -240,7 +263,7 @@ class CGBDMProcessor(ProcessorMixin):
         if saliency_isnet is None and saliency_basnet is None:
             return [None] * batch_size
         return cast(
-            list[object | None],
+            list[CGBDMInputValue | None],
             [
                 _merge_saliency_pair(left, right, self.image_size)
                 for left, right in zip(
@@ -252,7 +275,7 @@ class CGBDMProcessor(ProcessorMixin):
         )
 
 
-def _ensure_batch(value: object | None) -> list[object]:
+def _ensure_batch(value: CGBDMInputValue | None) -> list[CGBDMInputValue]:
     if value is None:
         raise ValueError("images or pixel_values are required")
     if isinstance(value, torch.Tensor):
@@ -267,7 +290,9 @@ def _ensure_batch(value: object | None) -> list[object]:
     return [value]
 
 
-def _optional_batch(value: object | None, batch_size: int) -> list[object | None]:
+def _optional_batch(
+    value: CGBDMInputValue | None, batch_size: int
+) -> list[CGBDMInputValue | None]:
     if value is None:
         return [None] * batch_size
     rows = _ensure_batch(value)
@@ -276,7 +301,9 @@ def _optional_batch(value: object | None, batch_size: int) -> list[object | None
     return rows
 
 
-def _to_rgb_tensor(value: object, image_size: tuple[int, int]) -> torch.Tensor:
+def _to_rgb_tensor(
+    value: CGBDMInputValue, image_size: tuple[int, int]
+) -> Float[torch.Tensor, "channels height width"]:
     if isinstance(value, torch.Tensor):
         tensor = value.float()
         if tensor.ndim == 3 and tensor.shape[0] == 3:
@@ -302,7 +329,9 @@ def _to_rgb_tensor(value: object, image_size: tuple[int, int]) -> torch.Tensor:
     return tensor * 2 - 1
 
 
-def _to_l_tensor(value: object, image_size: tuple[int, int]) -> torch.Tensor:
+def _to_l_tensor(
+    value: CGBDMInputValue, image_size: tuple[int, int]
+) -> Float[torch.Tensor, "1 height width"]:
     if isinstance(value, torch.Tensor):
         tensor = value.float()
         if tensor.ndim == 2:
@@ -329,13 +358,17 @@ def _to_l_tensor(value: object, image_size: tuple[int, int]) -> torch.Tensor:
     return torch.from_numpy(array).unsqueeze(0) * 2 - 1
 
 
-def _normalize_zero_one_tensor(tensor: torch.Tensor) -> torch.Tensor:
+def _normalize_zero_one_tensor(
+    tensor: Float[torch.Tensor, "..."],
+) -> Float[torch.Tensor, "..."]:
     if tensor.max() > 1.0 or tensor.min() < 0.0:
         tensor = tensor / 255.0
     return tensor * 2 - 1
 
 
-def _saliency_box_from_tensor(saliency: torch.Tensor) -> torch.Tensor:
+def _saliency_box_from_tensor(
+    saliency: Float[torch.Tensor, "1 height width"],
+) -> Float[torch.Tensor, "1 4"]:
     binary = saliency[0] > saliency[0].mean()
     if not bool(binary.any()):
         return torch.tensor([[0.5, 0.5, 1.0, 1.0]], dtype=torch.float32)
@@ -351,10 +384,10 @@ def _saliency_box_from_tensor(saliency: torch.Tensor) -> torch.Tensor:
 
 
 def _merge_saliency_pair(
-    left: object | None,
-    right: object | None,
+    left: CGBDMInputValue | None,
+    right: CGBDMInputValue | None,
     image_size: tuple[int, int],
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "1 height width"]:
     if left is None:
         return _to_l_tensor(right, image_size)
     if right is None:

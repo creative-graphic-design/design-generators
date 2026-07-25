@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import torch
+from jaxtyping import Float
 from torch.utils.data import Dataset
 
 from cgb_dm.data import CGBDMOriginalDataset
 
 
-class CGBDMSyntheticDataset(Dataset[dict[str, torch.Tensor]]):
+class CGBDMSyntheticDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
     """Tiny deterministic dataset used by tests and smoke configs."""
 
     def __init__(
@@ -29,7 +30,7 @@ class CGBDMSyntheticDataset(Dataset[dict[str, torch.Tensor]]):
         """Return dataset length."""
         return self.length
 
-    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+    def __getitem__(self, index: int) -> dict[str, Float[torch.Tensor, "..."]]:
         """Return one deterministic row."""
         generator = torch.Generator().manual_seed(index)
         labels = torch.zeros(self.max_seq_length, self.seq_dim - 4)

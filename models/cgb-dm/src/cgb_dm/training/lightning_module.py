@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
+
 import torch
+from jaxtyping import Float, Int
 from torch import nn
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
 from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
@@ -13,13 +18,22 @@ from laygen.common import ConditionType
 
 from .losses import denoising_mse
 
-try:
+CGBDMConfigValue = object
+
+if TYPE_CHECKING:
     from lightning.pytorch import LightningModule
     from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
-except ImportError:  # pragma: no cover - exercised only without training extra
-    LightningModule = nn.Module  # type: ignore[misc,assignment]
-    OptimizerCallable = object  # type: ignore[misc,assignment]
-    LRSchedulerCallable = object  # type: ignore[misc,assignment]
+    from lightning.pytorch.utilities.types import OptimizerLRScheduler
+else:
+    try:
+        from lightning.pytorch import LightningModule
+        from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
+        from lightning.pytorch.utilities.types import OptimizerLRScheduler
+    except ImportError:  # pragma: no cover - exercised only without training extra
+        LightningModule = nn.Module
+        OptimizerCallable = Callable[[Iterable[nn.Parameter]], Optimizer]
+        LRSchedulerCallable = Callable[[Optimizer], LRScheduler]
+        OptimizerLRScheduler = Optimizer | dict[str, CGBDMConfigValue]
 
 
 class CGBDMTrainingModule(LightningModule):
@@ -28,8 +42,8 @@ class CGBDMTrainingModule(LightningModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, object],
-        optimizer: OptimizerCallable,
+        config: CGBDMConfig | dict[str, CGBDMConfigValue],
+        optimizer: OptimizerCallable | None = None,
         lr_scheduler: LRSchedulerCallable | None = None,
         model: CGBDMTransformerModel | None = None,
         condition_type: str = "content_image",
@@ -60,21 +74,21 @@ class CGBDMTrainingModule(LightningModule):
         self.lr_scheduler = lr_scheduler
         self.condition_type = ConditionType(condition_type)
         self.seed_mode = seed_mode
-        self.latest_step_trace: dict[str, torch.Tensor] = {}
+        self.latest_step_trace: dict[str, Float[torch.Tensor, "..."]] = {}
 
     def forward(
         self,
-        sample: torch.Tensor,
-        image: torch.Tensor,
-        saliency_box: torch.Tensor,
-        timestep: torch.Tensor,
-    ) -> torch.Tensor:
+        sample: Float[torch.Tensor, "batch elements channels"],
+        image: Float[torch.Tensor, "batch channels height width"],
+        saliency_box: Float[torch.Tensor, "batch 1 4"],
+        timestep: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Predict epsilon for a training sample."""
         return self.model(sample, image, saliency_box, timestep).sample
 
     def training_step(
-        self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self, batch: dict[str, Float[torch.Tensor, "..."]], batch_idx: int
+    ) -> Float[torch.Tensor, ""]:
         """Run one CGB-DM denoising training step."""
         del batch_idx
         layout = batch["layout"]
@@ -117,10 +131,21 @@ class CGBDMTrainingModule(LightningModule):
             )
         return loss
 
-    def configure_optimizers(self) -> Optimizer | dict[str, object]:
+    def configure_optimizers(self) -> OptimizerLRScheduler:
         """Build optimizers injected by LightningCLI."""
-        optimizer = self.optimizer(self.parameters())
+        optimizer = (
+            self.optimizer(self.parameters())  # type: ignore[call-arg]
+            if self.optimizer is not None
+            else torch.optim.Adam(
+                self.parameters(),
+                lr=1.0e-4,
+                weight_decay=0.0,
+                betas=(0.9, 0.999),
+                amsgrad=False,
+                eps=1.0e-8,
+            )
+        )
         if self.lr_scheduler is None:
             return optimizer
-        scheduler = self.lr_scheduler(optimizer)
+        scheduler = self.lr_scheduler(optimizer)  # type: ignore[call-arg]
         return {"optimizer": optimizer, "lr_scheduler": scheduler}

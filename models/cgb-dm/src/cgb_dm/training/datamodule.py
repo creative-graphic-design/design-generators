@@ -9,6 +9,9 @@ from cgb_dm.processing_cgb_dm import CGBDMProcessor
 
 from .dataset import CGBDMOriginalDataset, CGBDMSyntheticDataset
 
+CGBDMConfigValue = object
+CGBDMBatchValue = object
+
 try:
     from lightning.pytorch import LightningDataModule
 except ImportError:  # pragma: no cover - exercised only without training extra
@@ -23,7 +26,7 @@ class CGBDMDataModule(LightningDataModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, object],
+        config: CGBDMConfig | dict[str, CGBDMConfigValue],
         source: str = "synthetic",
         data_root: str | None = None,
         batch_size: int = 2,
@@ -80,7 +83,7 @@ class CGBDMDataModule(LightningDataModule):
         self.train_dataset = CGBDMSyntheticDataset(**kwargs)
         self.val_dataset = CGBDMSyntheticDataset(length=2, **kwargs)
 
-    def train_dataloader(self) -> DataLoader[dict[str, object]]:
+    def train_dataloader(self) -> DataLoader[dict[str, CGBDMBatchValue]]:
         """Return the training dataloader."""
         return DataLoader(
             self.train_dataset,
@@ -89,7 +92,7 @@ class CGBDMDataModule(LightningDataModule):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> DataLoader[dict[str, object]]:
+    def val_dataloader(self) -> DataLoader[dict[str, CGBDMBatchValue]]:
         """Return the validation dataloader."""
         return DataLoader(
             self.val_dataset,
