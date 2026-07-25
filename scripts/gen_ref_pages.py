@@ -231,6 +231,12 @@ def relative_docs_route(target: Path, *, source: Path) -> str:
 def site_page_for_repo_link(link: str) -> str:
     """Return the documentation-site target for a repository-relative link."""
     target = link.removeprefix("./")
+    if target.startswith("../"):
+        candidate = target
+        while candidate.startswith("../"):
+            candidate = candidate.removeprefix("../")
+        if candidate.startswith(("docs/", "lib/", "models/")):
+            target = candidate
     if target.startswith(("http://", "https://", "#", "mailto:")):
         return link
     if target.startswith("models/") and target.endswith("/README.md"):
@@ -1023,7 +1029,7 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             readme = strip_markdown_frontmatter(
                 readme_path.read_text(encoding="utf-8")
             ).rstrip()
-            lines.extend([readme, ""])
+            lines.extend([rewrite_repo_relative_links(readme), ""])
         else:
             lines.extend([f"# {package.display_name}", ""])
         if package.reproducing_path is not None:

@@ -504,6 +504,21 @@ def test_generated_overview_matches_readme_with_rewritten_links() -> None:
     )
 
 
+def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+
+    assert (
+        gen_ref_pages.site_page_for_repo_link("../../docs/training-reproduction.md")
+        == "training-reproduction/"
+    )
+    assert (
+        gen_ref_pages.rewrite_repo_relative_links(
+            "[training](../../docs/training-reproduction.md)"
+        )
+        == "[training](training-reproduction/)"
+    )
+
+
 def test_gen_ref_pages_rejects_unknown_model_metadata_values(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
