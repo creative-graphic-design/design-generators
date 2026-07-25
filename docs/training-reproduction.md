@@ -108,10 +108,9 @@ including the reproduction verdict, covered datasets, numeric metrics, and seed
 scope. Include only the reproducible training, evaluation, conversion, and smoke
 test procedure that maintainers should rerun. Do not include discarded attempts,
 failed diagnostic narratives, or process history; move that material to issue
-discussion only when it is still useful. The CGB-DM update in
-[PR #167](https://github.com/creative-graphic-design/design-generators/pull/167)
-is a good example of a conclusion-first report with numeric evidence and
-copy-pasteable commands.
+discussion only when it is still useful. The CGB-DM update in PR #167 is a good
+example of a conclusion-first report with numeric evidence and copy-pasteable
+commands.
 
 Write `Reproduction Results` in this order:
 
