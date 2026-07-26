@@ -57,7 +57,7 @@ class LayoutDetrImageProcessor(BaseImageProcessor):
 
         Args:
             images: PIL, NumPy, or torch image input.
-            background_preprocessing: Vendor-compatible lightweight mode.
+            background_preprocessing: Released-checkpoint-compatible mode.
             canvas_size: Optional canvas metadata override.
             return_tensors: Only ``"pt"`` is supported.
             kwargs: Ignored compatibility kwargs.
