@@ -145,8 +145,13 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 ## Citation
 
 ```bibtex
-@article{posterllava2024,
-  title = {PosterLLaVA: Constructing a Unified Multi-modal Layout Generator with LLM},
-  year = {2024}
+@misc{yang2024posterllava,
+  title = {PosterLLaVa: Constructing a Unified Multi-modal Layout Generator with LLM},
+  author = {Tao Yang and Yingmin Luo and Zhongang Qi and Yang Wu and Ying Shan and Chang Wen Chen},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = {https://arxiv.org/abs/2406.02884}
 }
 ```

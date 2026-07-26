@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, Protocol, cast
+from typing import Any, ClassVar, Literal, Protocol, cast  # noqa: TID251  # Dynamic HF payloads.
 
 import torch
 from jaxtyping import Bool, Float, Int
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModelForCausalLM, AutoTokenizer  # ty: ignore[possibly-missing-import]
+from transformers import ImageProcessingMixin
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, PretrainedConfig
+from transformers import StoppingCriteriaList
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
@@ -41,7 +43,7 @@ class _CausalLMGenerationModel(Protocol):
         top_k: int | None = None,
         num_beams: int | None = None,
         generator: torch.Generator | None = None,
-        **generate_kwargs: object,
+        **generate_kwargs: StoppingCriteriaList | None,
     ) -> Int[torch.Tensor, "batch generated_tokens"]:
         """Generate token ids."""
 
@@ -52,7 +54,7 @@ class _ImagePreprocessor(Protocol):
         images: Sequence[Image.Image],
         *,
         return_tensors: str = "pt",
-    ) -> Mapping[str, object]:
+    ) -> Mapping[str, Any]:
         """Preprocess images."""
 
 
@@ -61,11 +63,14 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
-    kwargs: dict[str, object] = {"local_files_only": local_files_only}
+) -> PreTrainedModel:
+    kwargs: dict[str, bool | str] = {"local_files_only": local_files_only}
     if subfolder is not None:
         kwargs["subfolder"] = subfolder
-    return AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path, **kwargs)
+    return cast(
+        PreTrainedModel,
+        AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path, **kwargs),
+    )
 
 
 def _load_tokenizer_component(
@@ -73,11 +78,14 @@ def _load_tokenizer_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
-    kwargs: dict[str, object] = {"local_files_only": local_files_only}
+) -> PreTrainedTokenizerBase:
+    kwargs: dict[str, bool | str] = {"local_files_only": local_files_only}
     if subfolder is not None:
         kwargs["subfolder"] = subfolder
-    return AutoTokenizer.from_pretrained(pretrained_model_name_or_path, **kwargs)
+    return cast(
+        PreTrainedTokenizerBase,
+        AutoTokenizer.from_pretrained(pretrained_model_name_or_path, **kwargs),
+    )
 
 
 def _load_image_processor_component(
@@ -85,11 +93,14 @@ def _load_image_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
-    kwargs: dict[str, object] = {"local_files_only": local_files_only}
+) -> ImageProcessingMixin:
+    kwargs: dict[str, bool | str] = {"local_files_only": local_files_only}
     if subfolder is not None:
         kwargs["subfolder"] = subfolder
-    return AutoImageProcessor.from_pretrained(pretrained_model_name_or_path, **kwargs)
+    return cast(
+        ImageProcessingMixin,
+        AutoImageProcessor.from_pretrained(pretrained_model_name_or_path, **kwargs),
+    )
 
 
 def _load_processor_component(
@@ -97,7 +108,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PosterLlavaProcessor:
     return PosterLlavaProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -162,7 +173,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
     processor: PosterLlavaProcessor
     model: PreTrainedModel | None
     tokenizer: PreTrainedTokenizerBase | None
-    image_processor: object | None
+    image_processor: Any | None
 
     def __init__(
         self,
@@ -171,7 +182,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         *,
         model: PreTrainedModel | None = None,
         tokenizer: PreTrainedTokenizerBase | None = None,
-        image_processor: object | None = None,
+        image_processor: Any | None = None,  # noqa: ANN401
     ) -> None:
         """Initialize the PosterLLaVA recipe pipeline."""
         super().__init__(config)
@@ -190,7 +201,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, Any | None],
     ) -> "PosterLlavaPipeline":
         """Build a pipeline from loaded root config and components."""
         cfg = cast(PosterLlavaConfig, config)
@@ -202,7 +213,9 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
                 prompt_template=cfg.prompt_template,
             )
         tokenizer = cast(PreTrainedTokenizerBase | None, components.get("tokenizer"))
-        image_processor = components.get("image_processor")
+        image_processor = cast(
+            ImageProcessingMixin | None, components.get("image_processor")
+        )
         return cls(
             config=cfg,
             processor=processor,
@@ -216,15 +229,17 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         *,
         images: Image.Image | Sequence[Image.Image] | None = None,
         prompt: str | Sequence[str] | None = None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None = None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: Int[torch.Tensor, "batch elements"] | Sequence[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | Sequence[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | Sequence[str | int] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[Sequence[float]]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | Sequence[bool] | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -240,7 +255,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         num_beams: int | None = 1,
         conv_mode: ConversationMode | str | None = None,
         domain_name: str = "social media promotion poster with qbposter style",
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | dict[str, Any]:  # ty: ignore[invalid-method-override]
         """Generate a poster layout from an image-conditioned prompt.
 
         Args:
@@ -354,7 +369,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         self,
         *,
         images: Image.Image | Sequence[Image.Image] | None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None,
+        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
     ) -> list[Image.Image]:
         if images is None:
             if content is None:
@@ -373,12 +388,14 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         self,
         *,
         prompt: str | Sequence[str] | None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None,
+        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None,
         batch_size: int,
-        labels: Int[torch.Tensor, "batch elements"] | Sequence[object] | None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | Sequence[object] | None,
-        mask: Bool[torch.Tensor, "batch elements"] | Sequence[object] | None,
+        labels: Int[torch.Tensor, "batch elements"] | Sequence[str | int] | None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[Sequence[float]]
+        | None,
+        mask: Bool[torch.Tensor, "batch elements"] | Sequence[bool] | None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None,
         box_format: BoxFormat | str,
         normalized: bool,
@@ -465,21 +482,21 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
 
     def _broadcast_content(
         self,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None,
+        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
         *,
         batch_size: int,
-    ) -> list[Mapping[str, object]]:
+    ) -> list[Mapping[str, Any]]:
         if content is None:
             return [{} for _ in range(batch_size)]
         if isinstance(content, Mapping):
-            return [cast(Mapping[str, object], content) for _ in range(batch_size)]
+            return [cast(Mapping[str, Any], content) for _ in range(batch_size)]
         return list(content)
 
     def _resolve_num_elements(
         self,
         *,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None,
-        content_items: Sequence[Mapping[str, object]],
+        content_items: Sequence[Mapping[str, Any]],
         batch_size: int,
     ) -> list[int]:
         if num_elements is None:
@@ -499,7 +516,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
     def _texts_for_index(
         self,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None,
-        content_items: Sequence[Mapping[str, object]],
+        content_items: Sequence[Mapping[str, Any]],
         idx: int,
     ) -> str | Sequence[str] | None:
         content_value = content_items[idx].get("texts", content_items[idx].get("text"))
@@ -512,9 +529,27 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
 
     def _slice_optional(
         self,
-        value: object,
+        value: Int[torch.Tensor, "batch elements"]
+        | Float[torch.Tensor, "batch elements 4"]
+        | Bool[torch.Tensor, "batch elements"]
+        | Sequence[str | int]
+        | Sequence[Sequence[float]]
+        | Sequence[bool]
+        | None,
         idx: int,
-    ) -> object:
+    ) -> (
+        Int[torch.Tensor, "elements"]
+        | Float[torch.Tensor, "elements 4"]
+        | Bool[torch.Tensor, "elements"]
+        | Sequence[str | int]
+        | Sequence[float]
+        | Sequence[Sequence[float]]
+        | Sequence[bool]
+        | str
+        | int
+        | bool
+        | None
+    ):
         if value is None:
             return None
         if isinstance(value, torch.Tensor) and value.ndim >= 2:

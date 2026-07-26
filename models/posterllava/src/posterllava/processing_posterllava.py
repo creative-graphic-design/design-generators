@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Final, Literal, TypedDict, cast
+from typing import Any, Final, Literal, TypedDict, cast  # noqa: TID251  # Dynamic processor payloads.
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -82,7 +82,7 @@ class PosterLlavaProcessor(ProcessorMixin):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase | None = None,
-        image_processor: object | None = None,
+        image_processor: Any | None = None,  # noqa: ANN401
         dataset_name: DatasetName | str = DatasetName.ad_banner,
         canvas_size: tuple[int, int] = DEFAULT_CANVAS_SIZE,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
@@ -145,7 +145,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         revision: str = "main",
         *,
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | bool | list[int] | dict[str, str],
     ) -> "PosterLlavaProcessor":
         """Load processor metadata from a checkpoint directory.
 
@@ -186,7 +186,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | bool | None,
     ) -> None:
         """Save processor metadata and optional component processors.
 
@@ -283,7 +283,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         *,
         num_elements: int,
         canvas_size: tuple[int, int] | None = None,
-        elements: Sequence[Mapping[str, object]] = (),
+        elements: Sequence[Mapping[str, Any]] = (),
         domain_name: str | None = None,
         conv_mode: ConversationMode | str = ConversationMode.llava_v0,
         prompt: str | None = None,
@@ -407,9 +407,9 @@ class PosterLlavaProcessor(ProcessorMixin):
         *,
         output_type: OutputType | Literal["dataclass", "dict"] = OutputType.dataclass,
         return_intermediates: bool = False,
-        sequences: object | None = None,
+        sequences: Int[torch.Tensor, "batch generated_tokens"] | None = None,
         prompts: Sequence[str] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | dict[str, Any]:
         """Decode generated text into the shared layout output schema.
 
         Args:
@@ -461,7 +461,7 @@ class PosterLlavaProcessor(ProcessorMixin):
             mask_rows.append(mask)
         raw_ltrb = torch.stack(bbox_rows)
         bbox = self._ltrb_to_xywh(raw_ltrb).clamp(0.0, 1.0)
-        intermediates: dict[str, object] | None = None
+        intermediates: dict[str, Any] | None = None
         if return_intermediates:
             intermediates = {
                 "generated_text": texts,
