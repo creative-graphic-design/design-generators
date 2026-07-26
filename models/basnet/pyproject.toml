@@ -1,0 +1,33 @@
+[project]
+name = "basnet"
+version = "0.1.0"
+description = "Transformers-style BASNet saliency detection components."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jaxtyping>=0.3",
+    "numpy>=1.24",
+    "pillow>=10",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "torchvision>=0.16",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+download = ["gdown>=6.1.0"]
+convert = ["huggingface-hub>=0.24"]
+vendor = ["scikit-image>=0.21"]
+
+[tool.design-generators]
+framework = "transformers"
+task = "saliency-detection"
+conditions = ["content_image"]
+datasets = ["gdi"]
+
+[tool.pytest.ini_options]
+addopts = ["--cov=basnet", "--cov-report=term-missing", "--cov-fail-under=90"]
+markers = [
+    "vendor_parity: requires original BASNet weights and reference outputs",
+    "integration: requires external downloads or heavyweight runtime setup",
+]
