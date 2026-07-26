@@ -21,7 +21,7 @@ from .configuration_posterllama import PosterLlamaConfig
 from .image_processing_posterllama import PosterLlamaImageProcessor
 from .postprocessing import parse_rectangles, rect_ltwh_to_output
 
-VENDOR_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
+REQUEST_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
     "cond_cate_to_size_pos": ConditionType.label,
     "cond_cate_size_to_pos": ConditionType.label_size,
     "cond_recover_mask": ConditionType.completion,
@@ -221,8 +221,8 @@ class PosterLlamaProcessor(ProcessorMixin):
         """
         if isinstance(condition_type, str):
             alias = condition_type.lower().replace("-", "_")
-            if alias in VENDOR_CONDITION_ALIASES:
-                return VENDOR_CONDITION_ALIASES[alias]
+            if alias in REQUEST_CONDITION_ALIASES:
+                return REQUEST_CONDITION_ALIASES[alias]
         condition = normalize_condition_type(condition_type)
         if condition in UNSUPPORTED_CONDITIONS:
             raise NotImplementedError(f"PosterLlama does not support {condition}")

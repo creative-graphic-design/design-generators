@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "src_vendor_language_baseline.txt"
 SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
-VENDOR_RE = re.compile(r"\bvendor\b", re.IGNORECASE)
+VENDOR_RE = re.compile(r"vendor", re.IGNORECASE)
 
 
 def is_excluded(path: Path) -> bool:
@@ -19,20 +19,20 @@ def is_excluded(path: Path) -> bool:
     return name.startswith("conversion") or name.startswith("vendor_state")
 
 
-def source_files() -> list[Path]:
+def source_files(root: Path = ROOT) -> list[Path]:
     """Return package source files covered by this check."""
     files: list[Path] = []
     for pattern in SCAN_GLOBS:
-        files.extend(path for path in ROOT.glob(pattern) if path.is_file())
+        files.extend(path for path in root.glob(pattern) if path.is_file())
     return sorted(path for path in files if not is_excluded(path))
 
 
-def current_entries() -> set[str]:
+def current_entries(root: Path = ROOT) -> set[str]:
     """Return normalized baseline entries for current source matches."""
     entries: set[str] = set()
     occurrences: dict[tuple[str, str], int] = defaultdict(int)
-    for path in source_files():
-        rel_path = path.relative_to(ROOT).as_posix()
+    for path in source_files(root):
+        rel_path = path.relative_to(root).as_posix()
         for line in path.read_text(encoding="utf-8").splitlines():
             if VENDOR_RE.search(line) is None:
                 continue
@@ -58,10 +58,10 @@ def main() -> int:
     """Compare source matches against the shrink-only baseline."""
     if sys.argv[1:] == ["--write-baseline"]:
         BASELINE_PATH.write_text(
-            "\n".join(sorted(current_entries())) + "\n", encoding="utf-8"
+            "\n".join(sorted(current_entries(ROOT))) + "\n", encoding="utf-8"
         )
         return 0
-    current = current_entries()
+    current = current_entries(ROOT)
     baseline = baseline_entries()
     unexpected = sorted(current - baseline)
     stale = sorted(baseline - current)

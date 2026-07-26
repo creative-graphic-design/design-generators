@@ -1,6 +1,11 @@
+lib/laygen/src/laygen/common/testing.py	1	>>> callable(skip_or_fail_vendor_parity)
+lib/laygen/src/laygen/common/testing.py	1	def skip_or_fail_vendor_parity(
+lib/laygen/src/laygen/common/testing.py	1	def vendor_backbone_kwargs(
 lib/laygen/src/laygen/common/vendor.py	1	"""Resolve an initialized vendor submodule checkout.
 lib/laygen/src/laygen/common/vendor.py	1	"""Vendor repository path helpers shared by parity scripts."""
+lib/laygen/src/laygen/common/vendor.py	1	>>> vendor_root("const-layout") # doctest: +SKIP
 lib/laygen/src/laygen/common/vendor.py	1	Resolved path to the vendor checkout.
+lib/laygen/src/laygen/common/vendor.py	1	def vendor_root(
 lib/laygen/src/laygen/common/vendor.py	1	f"Could not find initialized vendor/{repo}. {hint}\nSearched:\n{searched}"
 lib/laygen/src/laygen/common/vendor.py	1	f"Found vendor/{repo}, but required marker `{marker_path}` is missing. "
 lib/laygen/src/laygen/common/vendor.py	1	hint = f"Run `git submodule update --init vendor/{repo}` from the repository root."
@@ -9,20 +14,105 @@ lib/laygen/src/laygen/common/vendor.py	1	path: Optional user-supplied path. Defa
 lib/laygen/src/laygen/common/vendor.py	1	repo: Repository directory name under `vendor/`.
 lib/laygen/src/laygen/common/vendor.py	1	repo_dir = Path("vendor") / repo
 lib/laygen/src/laygen/nn/blocks.py	1	Layout-Corrector vendor code.
+lib/laygen/src/laygen/schedulers/continuous.py	1	These formulas are copied narrowly from LayoutDiffusion's vendored
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	self.vendor_label_offset = vendor_label_offset
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	vendor_label_offset: Offset from public label ids to internal ids.
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	1	vendor_label_offset: int = 1,
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	def _labels_to_vendor(
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	self._labels_to_vendor(labels[idx, valid]),
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	vendor_labels = self._labels_to_vendor(label_tensor)
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	1	{"labels": vendor_labels, "bbox": discrete, "mask": encoded_mask}
+models/ds-gan/src/ds_gan/__init__.py	1	"convert_vendor_state_dict",
+models/ds-gan/src/ds_gan/__init__.py	1	from .conversion import convert_vendor_state_dict
+models/lace/src/lace/__init__.py	1	"build_pipeline_from_vendor_checkpoint",
+models/lace/src/lace/__init__.py	1	"load_vendor_state_dict",
+models/lace/src/lace/__init__.py	1	build_pipeline_from_vendor_checkpoint,
+models/lace/src/lace/__init__.py	1	load_vendor_state_dict,
+models/layout-action/src/layout_action/configuration_layout_action.py	1	dataset = normalize_vendor_dataset_name(dataset_name)
+models/layout-action/src/layout_action/configuration_layout_action.py	1	normalize_vendor_dataset_name,
+models/layout-action/src/layout_action/data.py	1	>>> normalize_vendor_dataset_name("rico")
+models/layout-action/src/layout_action/data.py	1	dataset = normalize_vendor_dataset_name(dataset_name)
+models/layout-action/src/layout_action/data.py	1	def iter_vendor_infoppt_samples() -> None:
+models/layout-action/src/layout_action/data.py	1	def normalize_vendor_dataset_name(dataset_name: str | LayoutActionDatasetName) -> str:
+models/layout-action/src/layout_action/data.py	2	dataset = normalize_vendor_dataset_name(dataset_name)
 models/layout-detr/src/layout_detr/configuration_layout_detr.py	1	"""Return the vendor bbox-label count."""
 models/layout-detr/src/layout_detr/datasets.py	1	"""Iterate a local vendor Ad Banner directory without downloading assets.
 models/layout-detr/src/layout_detr/datasets.py	1	"""Normalize one vendor annotation row to public normalized center ``xywh``.
+models/layout-detr/src/layout_detr/datasets.py	1	def normalize_vendor_annotation(sample: Mapping[str, object]) -> dict[str, object]:
 models/layout-detr/src/layout_detr/datasets.py	1	if source != "vendor":
 models/layout-detr/src/layout_detr/datasets.py	1	raise ValueError("LayoutDETR currently supports only source='vendor'")
 models/layout-detr/src/layout_detr/datasets.py	1	sample: Vendor element with ``xyxy_word_fit``, ``label``, ``str``,
 models/layout-detr/src/layout_detr/datasets.py	1	source: Literal["vendor"] = "vendor",
 models/layout-detr/src/layout_detr/image_processing_layout_detr.py	1	background_preprocessing: Vendor-compatible lightweight mode.
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	) -> "_VendorBertModel": # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	) -> _VendorBertOutput | tuple[Float[torch.Tensor, "batch tokens hidden"]]:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	[_VendorBertLayer(config) for _ in range(config.num_hidden_layers)]
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	bbox, hidden = self._forward_vendor(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertAttention(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertEmbeddings(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertEncoder(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertIntermediate(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertLayer(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertModel(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertOutput(ModelOutput): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertOutputLayer(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertSelfAttention(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorBertSelfOutput(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	class _VendorMLP(nn.Module): # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	def _build_vendor_bert_lm_head(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	def _build_vendor_bert_model(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	def _forward_vendor( # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	def _init_vendor_layers(self, config: LayoutDetrConfig) -> None: # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	if self._is_vendor_architecture:
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	if self._is_vendor_architecture: # pragma: no cover
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	model = _VendorBertModel(bert_config, add_pooling_layer=add_pooling_layer)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	model.bert.embeddings = _VendorBertEmbeddings(bert_config) # ty: ignore[invalid-assignment]
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	return _VendorBertOutput(last_hidden_state=hidden_states)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self._init_vendor_layers(config)
 models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self._is_vendor_architecture = config.architecture == "vendor"
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.attention = _VendorBertAttention(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.bbox_embed = _VendorMLP(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.crossattention = _VendorBertAttention(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.embeddings = _VendorBertEmbeddings(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.encoder = _VendorBertEncoder(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.fc_in = _VendorMLP(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.intermediate = _VendorBertIntermediate(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.output = _VendorBertOutputLayer(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.output = _VendorBertSelfOutput(config)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.self = _VendorBertSelfAttention(config, is_cross_attention)
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.text_decoder = _build_vendor_bert_lm_head(
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	1	self.text_encoder = _build_vendor_bert_model(
 models/layout-detr/src/layout_detr/postprocessing.py	1	"""Apply vendor-style multiplicative jitter to generated boxes."""
 models/layout-detr/src/layout_detr/postprocessing.py	1	"""Reduce vertical overlaps with the deterministic vendor arithmetic."""
 models/layout-detr/src/layout_detr/postprocessing.py	1	# Vendor generate.py contains a random-postprocessing assignment typo; the
+models/layout-gpt/src/layout_gpt/exemplars.py	1	LayoutExample.from_vendor_record(record, setting=setting) for record in records
+models/layout-gpt/src/layout_gpt/exemplars.py	1	def from_vendor_record(
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	>>> vendor_labels_for_dataset("publaynet")[0]
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	VENDOR_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	VENDOR_RICO25_LABELS: Final[tuple[str, ...]] = (
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	def normalize_vendor_label(label: str) -> str:
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	def public_id_to_vendor_label(dataset_name: DatasetName | str, label_id: int) -> str:
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	def vendor_label_to_public_id(dataset_name: DatasetName | str, label: str) -> int:
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	def vendor_labels_for_dataset(dataset_name: DatasetName | str) -> tuple[str, ...]:
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	labels = vendor_labels_for_dataset(dataset_name)
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	normalized = normalize_vendor_label(label)
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	return VENDOR_PUBLAYNET_LABELS
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	return VENDOR_RICO25_LABELS
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	return dict(enumerate(vendor_labels_for_dataset(dataset_name)))
+models/layoutdiffusion/src/layoutdiffusion/labels.py	1	return vendor_labels_for_dataset(dataset_name)[int(label_id)]
+models/layoutdiffusion/src/layoutdiffusion/sampling.py	1	name: LayoutDiffusionSamplingName | str = LayoutDiffusionSamplingName.vendor_gumbel
+models/layoutdiffusion/src/layoutdiffusion/sampling.py	1	vendor_gumbel = auto()
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Build the vendor sampling start template.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert token ids to vendor text lines."""
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Convert vendor text lines into padded token ids."""
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Encode public layout tensors into vendor token ids.
 models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	"""Split a vendor layout token string on whitespace."""
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	from .labels import public_id_to_vendor_label, vendor_label_to_public_id
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	label = public_id_to_vendor_label(
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	1	labels[i] = vendor_label_to_public_id(self.config.dataset_name, label)
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	2	label = public_id_to_vendor_label(
+models/layoutformerpp/src/layoutformerpp/tasks.py	1	DATASET_TO_VENDOR_SLUG: Final[dict[DatasetName, str]] = {
+models/layoutformerpp/src/layoutformerpp/tasks.py	1	return DATASET_TO_VENDOR_SLUG[normalize_layoutformerpp_dataset(dataset)]
+models/layoutprompter/src/layoutprompter/parsing.py	1	def _extract_from_seq_vendor(
+models/layoutprompter/src/layoutprompter/parsing.py	1	def parse_vendor_compatible(
+models/layoutprompter/src/layoutprompter/parsing.py	1	labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
