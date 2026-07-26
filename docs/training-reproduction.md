@@ -27,6 +27,21 @@ Run stages on one explicitly selected GPU when CUDA is involved, with fixed seed
 
 S0-S2 are exact or near-exact step-level checks. S3-S4 expand that surface to repeated training and data order. S5 is a statistical full-run claim and must be reported separately from S0-S4.
 
+### Step Parity and Full-Run Parity
+
+S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
+
+When S5 diverges, diagnose the gap in this order before claiming a bug:
+
+1. Score both checkpoints on the same evaluation samples to separate evaluation-side differences.
+2. Confirm training-input bit parity to separate data-handling differences.
+3. Run multi-seed S5 checks to separate sampling stochasticity.
+4. Attribute the remaining gap to the training trajectory.
+
+To separate benign training stochasticity from a training-loop or orchestration difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to an orchestration difference that should be fixed or documented.
+
+Parity thresholds are per-dataset. Trajectory-sensitive metrics such as saliency and occlusion can make a model practical-parity on one dataset and qualitative-with-caveat on another. The CGB-DM reproduction recorded this pattern for CGL versus PKU, where CGL reached practical parity while PKU retained saliency/occlusion caveats despite passing S0-S2 step checks; use [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148) as the reference example.
+
 ### Vendor Stack Modes
 
 Choose the adapter that matches the original implementation and state the mode in `TRAINING.md`.
