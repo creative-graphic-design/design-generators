@@ -1,6 +1,6 @@
 # Reproducing CGB-DM Checks
 
-The staged parity workflow defined in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md) does not download the 13 GB dataset during tests.
+The staged parity workflow defined in [TRAINING.md](models/cgb-dm/TRAINING.md) does not download the 13 GB dataset during tests.
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
@@ -37,7 +37,7 @@ uv run --package cgb-dm python models/cgb-dm/scripts/convert_training_checkpoint
 uv run --package cgb-dm python models/cgb-dm/scripts/smoke_from_pretrained.py --path .cache/cgb-dm/converted/pku
 ```
 
-Full PKU and CGL S5 generated-metric agreement is recorded in
-[TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md).
+Full PKU and CGL S5 generated-metric results are recorded in
+[TRAINING.md](models/cgb-dm/TRAINING.md).
 That guide includes the full-training checkpoints and the standalone S5
 evaluation commands for reloading package and reference checkpoints.

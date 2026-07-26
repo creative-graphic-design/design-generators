@@ -109,7 +109,7 @@ Run the gated parity workflow before publishing trained checkpoints or comparing
 
 ## How to Get Started with the Model
 
-Clone this repository, install the workspace member, and run the training or conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md). Those steps create converted pipeline directories under `.cache/cgb-dm/converted/`.
+Clone this repository, install the workspace member, and run the training or conversion steps in [REPRODUCING.md](models/cgb-dm/REPRODUCING.md). Those steps create converted pipeline directories under `.cache/cgb-dm/converted/`.
 
 ```bash
 pip install \
@@ -143,12 +143,12 @@ The gated vendor parity suite requires local CGB-DM assets and `PARITY_REQUIRE=1
 | Dataset | Stage | Cases | Criterion | Result |
 | --- | --- | ---: | --- | --- |
 | PKU PosterLayout | real vendor S0-S2 training-step parity | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
-| PKU PosterLayout | S5 full-run metrics | 3 seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are statistically equivalent | pass: `val=1.000000 +/- 0.000000`, `ove=0.003293 +/- 0.000801`, `undl=0.999345 +/- 0.000284`, `unds=0.991428 +/- 0.001467`, `occ=0.116661 +/- 0.000648`, `rea=0.014180 +/- 0.000295` |
-| CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are statistically equivalent | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
+| PKU PosterLayout | S5 full-run metrics | 3 seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; qualitative regime matches, but `unds` and `occ` show systematic ~1-2% absolute differences | pass with caveat: `val=1.000000 +/- 0.000000`, `ove=0.003293 +/- 0.000801`, `undl=0.999345 +/- 0.000284`, `unds=0.991428 +/- 0.001467` (+0.019043 package-reference), `occ=0.116661 +/- 0.000648` (-0.010835), `rea=0.014180 +/- 0.000295` (-0.001515) |
+| CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are in practical parity | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](models/cgb-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 ## License
 

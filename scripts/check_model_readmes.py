@@ -890,13 +890,14 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
 
 def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
     section = _section(text, "## Reproducibility")
-    expected = (
+    absolute = (
         "https://github.com/creative-graphic-design/design-generators/blob/main/"
         f"models/{path.parent.name}/REPRODUCING.md"
     )
-    if expected not in section:
+    repo_relative = f"models/{path.parent.name}/REPRODUCING.md"
+    if absolute not in section and repo_relative not in section:
         raise AssertionError(
-            f"{path}: Reproducibility must link absolute REPRODUCING.md URL {expected}"
+            f"{path}: Reproducibility must link REPRODUCING.md as {repo_relative}"
         )
     if "uv run --package " in section or "```" in section:
         raise AssertionError(

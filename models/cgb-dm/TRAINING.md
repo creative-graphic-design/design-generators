@@ -3,9 +3,11 @@
 CGB-DM training is reproducible with the package implementation when it uses the
 reference architecture, reference dataset encoding, and raw-internal S5
 evaluation protocol. The PKU PosterLayout package checkpoint trained for 500
-epochs matches the reference S5 distribution: `val` is `1.000000 +/- 0.000000`
-for both runs, and package underlay saliency is `0.991428 +/- 0.001467` against
-reference `0.972385 +/- 0.000736` over seeds 1, 2, and 3.
+epochs reproduces the qualitative S5 metric regime but is not statistically
+equivalent to the reference run: `val` is `1.000000 +/- 0.000000` for both runs,
+while package underlay saliency is `0.991428 +/- 0.001467` against reference
+`0.972385 +/- 0.000736`, and package occlusion is `0.116661 +/- 0.000648`
+against reference `0.127496 +/- 0.000878` over seeds 1, 2, and 3.
 
 The reproducible package run uses:
 
@@ -158,8 +160,10 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
 ## PKU S5 Results
 
 Both evaluations use the PKU `pku.yaml` validation path (`val/inpaint`) with
-1,000 samples per seed. The package and reference runs are statistically
-equivalent under this S5 protocol.
+1,000 samples per seed. The qualitative metric regime matches the reference run,
+but package underlay saliency (`unds`, +0.019043) and occlusion (`occ`,
+-0.010835) differ by about 1-2% absolute and are systematic at roughly 10 sigma;
+`rea` is also lower by -0.001515.
 
 | Metric | Reference mean +/- std (n=3) | Package mean +/- std (n=3) |
 | --- | ---: | ---: |

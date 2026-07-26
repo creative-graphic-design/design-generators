@@ -24,3 +24,6 @@ def test_cgl_s5_protocol_uses_cgl_config_and_seed_fixture_name():
     assert spec.config_name == "cgl.yaml"
     assert spec.package_dataset_name == "cgl"
     assert spec.fixture_dataset_name == "cgl"
+    assert f"seed_{7}_{spec.fixture_dataset_name}_unanno_test.pt" == (
+        "seed_7_cgl_unanno_test.pt"
+    )

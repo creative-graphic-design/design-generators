@@ -55,7 +55,7 @@ def is_supported_repo_root_link(link: str) -> bool:
         return True
     if re.fullmatch(r"lib/[^/]+/README\.md", target):
         return True
-    if re.fullmatch(r"models/[^/]+/(README|REPRODUCING)\.md", target):
+    if re.fullmatch(r"models/[^/]+/(README|REPRODUCING|TRAINING)\.md", target):
         return True
     return False
 
@@ -86,7 +86,7 @@ def violation_for_link(path: Path, line: int, link: str) -> LinkViolation | None
             path,
             line,
             link,
-            "repo-root-relative README links must use docs/*.md, lib/*/README.md, models/*/README.md, or models/*/REPRODUCING.md",
+            "repo-root-relative README links must use docs/*.md, lib/*/README.md, models/*/README.md, models/*/REPRODUCING.md, or models/*/TRAINING.md",
         )
     return None
 
