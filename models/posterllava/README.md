@@ -152,6 +152,6 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
   eprint = {2406.02884},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
-  url = {https://arxiv.org/abs/2406.02884}
+  url = "https://arxiv.org/abs/2406.02884"
 }
 ```
