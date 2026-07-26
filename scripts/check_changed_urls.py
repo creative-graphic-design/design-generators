@@ -23,6 +23,9 @@ DEFAULT_TIMEOUT_SECONDS = 5.0
 DEFAULT_RETRIES = 2
 USER_AGENT = "design-generators-changed-url-check/1.0"
 EXCLUDED_DIFF_FILES = {".lycheeignore"}
+REPO_MAIN_BLOB_URL = (
+    "https://github.com/creative-graphic-design/design-generators/blob/main/"
+)
 
 
 @dataclass(frozen=True)
@@ -127,6 +130,17 @@ def is_ignored(url: str, patterns: Iterable[re.Pattern[str]]) -> bool:
     return any(pattern.search(url) for pattern in patterns)
 
 
+def local_main_blob_path(url: str, root: Path = ROOT) -> Path | None:
+    """Return the local path for a repo ``blob/main`` URL when it exists."""
+    if not url.startswith(REPO_MAIN_BLOB_URL):
+        return None
+    relative = url.removeprefix(REPO_MAIN_BLOB_URL)
+    if not relative or relative.startswith(("../", "/")):
+        return None
+    path = root / relative
+    return path if path.exists() else None
+
+
 def git_diff(root: Path, base: str, head: str) -> str:
     """Return a merge-base diff for ``base...head``."""
     result = subprocess.run(
@@ -184,12 +198,18 @@ def check_changed_urls(
     changed_urls: Iterable[ChangedUrl],
     ignore_patterns: Iterable[re.Pattern[str]],
     checker: UrlChecker = check_url,
+    root: Path = ROOT,
 ) -> list[UrlCheckResult]:
     """Check changed URLs and return checked, ignored, and warning results."""
     results: list[UrlCheckResult] = []
     for changed_url in unique_urls(changed_urls):
         if is_ignored(changed_url.url, ignore_patterns):
             results.append(UrlCheckResult(url=changed_url.url, outcome="ignored"))
+            continue
+        if local_main_blob_path(changed_url.url, root=root) is not None:
+            results.append(
+                UrlCheckResult(url=changed_url.url, outcome="ok", status=200)
+            )
             continue
         result = checker(changed_url.url)
         if result.url != changed_url.url:
