@@ -16,7 +16,7 @@ from laygen.common.vendor import vendor_root
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
-from layout_dm.training.dataset import LayoutDMDataset
+from layout_dm.training.dataset import LayoutDMDataset, LayoutDMProcessedDataset
 from layout_dm.training.lightning_module import LayoutDMTrainingModule
 from layout_dm.training.parity import (
     compare_layout_dm_optimizer_step,
@@ -390,3 +390,71 @@ def test_s4_loader_tokenizer_output_matches_vendor() -> None:
     )
     assert torch.equal(loader_encoded["input_ids"], vendor_encoded["seq"][0])
     assert torch.equal(loader_encoded["mask"], vendor_encoded["mask"][0])
+
+
+def test_s4_processed_stream_matches_vendor_dataset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _vendor_classes()
+    from torch_geometric.data import Data
+    from trainer.datasets.publaynet import PubLayNetDataset
+
+    monkeypatch.setenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+    root = tmp_path / "processed-data"
+    processed_dir = root / "publaynet-max4" / "processed"
+    processed_dir.mkdir(parents=True)
+    rows = [
+        Data(
+            x=torch.tensor(
+                [[0.125, 0.25, 0.375, 0.5], [0.5, 0.625, 0.25, 0.125]],
+                dtype=torch.float32,
+            ),
+            y=torch.tensor([1, 2], dtype=torch.long),
+        ),
+        Data(
+            x=torch.tensor([[0.25, 0.125, 0.5, 0.25]], dtype=torch.float32),
+            y=torch.tensor([3], dtype=torch.long),
+        ),
+    ]
+    for idx, row in enumerate(rows):
+        row.attr = {
+            "name": f"row-{idx}",
+            "width": 100.0,
+            "height": 200.0,
+            "filtered": False,
+            "has_canvas_element": False,
+            "NoiseAdded": False,
+        }
+    collated = PubLayNetDataset.collate(rows)
+    for split_name in ["train", "val", "test"]:
+        torch.save(collated, processed_dir / f"{split_name}.pt")
+
+    vendor_dataset = PubLayNetDataset(str(root), "train", 4)
+    target_dataset = LayoutDMProcessedDataset(
+        dataset_name="publaynet",
+        config=_config(),
+        processed_data_dir=root,
+        split="train",
+    )
+    processor = LayoutDMProcessor(LayoutDMTokenizer(_config()))
+    assert len(target_dataset) == len(vendor_dataset) == 2
+    for index in range(len(vendor_dataset)):
+        vendor_row = vendor_dataset[index]
+        mask = torch.ones(vendor_row.y.shape, dtype=torch.bool)
+        vendor_encoded = processor(
+            bbox=vendor_row.x.unsqueeze(0),
+            labels=vendor_row.y.unsqueeze(0),
+            mask=mask.unsqueeze(0),
+        )
+        target_encoded = target_dataset[index]
+        assert torch.equal(
+            cast(torch.Tensor, target_encoded["input_ids"]),
+            vendor_encoded["input_ids"][0],
+        )
+        assert torch.equal(
+            cast(torch.Tensor, target_encoded["mask"]), vendor_encoded["mask"][0]
+        )
+        assert torch.equal(
+            cast(torch.Tensor, target_encoded["attention_mask"]),
+            vendor_encoded["attention_mask"][0],
+        )

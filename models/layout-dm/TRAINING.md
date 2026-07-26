@@ -30,7 +30,10 @@ replacement.
 
 ## Data
 
-The training datamodule reads approved Hugging Face datasets directly:
+The training datamodule supports two data sources:
+
+- `hf`: approved Hugging Face datasets for development and smoke checks.
+- `processed`: preprocessed LayoutDM `.pt` splits under `<data-dir>/<dataset>-max<S>/processed/{train,val,test}.pt`. Use this source for S5 so package-local training and original-code training consume the same sample stream.
 
 | Dataset | Source | Config |
 | --- | --- | --- |
@@ -64,7 +67,7 @@ Training configs live under `models/layout-dm/configs/training`.
 
 ## Reproduction Results
 
-LayoutDM package-local training currently has exact S0-S2 numeric parity on a fixed PubLayNet-style synthetic batch, plus S4 tokenizer/loader row encoding parity for the same local fixture. Full deterministic loader-stream parity over downloaded training splits and S5 full-run statistical comparison are PENDING. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol.
+LayoutDM package-local training currently has exact S0-S2 numeric parity on a fixed PubLayNet-style synthetic batch, plus S4 tokenizer/loader row encoding parity and preprocessed stream reader parity for local fixtures. S5 full-run statistical comparison is PENDING. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol using the same preprocessed `.pt` splits.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
@@ -109,6 +112,8 @@ Start a regular RICO25 package-local training run.
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
   python -m traingen.lightning.cli fit \
   --config models/layout-dm/configs/training/layoutdm_rico25.yaml \
+  --data.init_args.dataset_source=processed \
+  --data.init_args.processed_data_dir=.cache/layout-dm/original-data \
   --trainer.accelerator=gpu --trainer.devices=1 \
   --trainer.default_root_dir=.cache/layout-dm/training-runs/rico25
 ```
@@ -119,6 +124,8 @@ Start a regular PubLayNet package-local training run.
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
   python -m traingen.lightning.cli fit \
   --config models/layout-dm/configs/training/layoutdm_publaynet.yaml \
+  --data.init_args.dataset_source=processed \
+  --data.init_args.processed_data_dir=.cache/layout-dm/original-data \
   --trainer.accelerator=gpu --trainer.devices=1 \
   --trainer.default_root_dir=.cache/layout-dm/training-runs/publaynet
 ```

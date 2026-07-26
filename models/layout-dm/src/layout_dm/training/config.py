@@ -8,6 +8,9 @@ from typing import Literal, TypeAlias
 LayoutDMTrainingDatasetName: TypeAlias = Literal["rico25", "publaynet"]
 """Dataset names supported by package-local LayoutDM training data."""
 
+LayoutDMTrainingDatasetSource: TypeAlias = Literal["hf", "processed"]
+"""Dataset source modes supported by package-local LayoutDM training data."""
+
 LayoutDMTrainingSplit: TypeAlias = Literal["train", "validation", "test"]
 """Split names supported by package-local LayoutDM training data."""
 

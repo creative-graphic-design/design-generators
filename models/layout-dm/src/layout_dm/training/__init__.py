@@ -6,10 +6,11 @@ from .config import (
     LayoutDMSeedMode,
     LayoutDMTimeSampler,
     LayoutDMTrainingDatasetName,
+    LayoutDMTrainingDatasetSource,
     LayoutDMTrainingScheduler,
     LayoutDMTrainingSplit,
 )
-from .dataset import LayoutDMDataset, LayoutDMSyntheticDataset
+from .dataset import LayoutDMDataset, LayoutDMProcessedDataset, LayoutDMSyntheticDataset
 
 _LIGHTNING_EXPORTS: tuple[type[object], ...] = ()
 try:
@@ -24,10 +25,12 @@ except ModuleNotFoundError as exc:
 __all__ = [
     "LayoutDMDataModule",
     "LayoutDMDataset",
+    "LayoutDMProcessedDataset",
     "LayoutDMSeedMode",
     "LayoutDMSyntheticDataset",
     "LayoutDMTimeSampler",
     "LayoutDMTrainingDatasetName",
+    "LayoutDMTrainingDatasetSource",
     "LayoutDMTrainingModule",
     "LayoutDMTrainingScheduler",
     "LayoutDMTrainingSplit",

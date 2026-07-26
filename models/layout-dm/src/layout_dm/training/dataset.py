@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Final, TypeAlias, cast
+from pathlib import Path
+from typing import TYPE_CHECKING, Final, Protocol, TypeAlias, cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
@@ -30,10 +31,22 @@ LayoutDMValue: TypeAlias = (
     | None
 )
 
+
+class _ProcessedData(Protocol):
+    x: Float[torch.Tensor, "rows 4"]
+    y: Int[torch.Tensor, "rows"]
+    attr: Mapping[str, str | Sequence[str]]
+
+
 _RICO_CONFIG: Final[str] = "ui-screenshots-and-hierarchies-with-semantic-annotations"
 _DATASET_IDS: Final[dict[str, tuple[str, str | None]]] = {
     "rico25": ("creative-graphic-design/Rico", _RICO_CONFIG),
     "publaynet": ("creative-graphic-design/PubLayNet", None),
+}
+_PROCESSED_SPLITS: Final[dict[str, str]] = {
+    "train": "train",
+    "validation": "val",
+    "test": "test",
 }
 _BOX_KEYS: Final[tuple[str, ...]] = ("bbox", "bboxes", "boxes")
 _LABEL_KEYS: Final[tuple[str, ...]] = (
@@ -125,6 +138,69 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
         sample_id = sample.get("id") or sample.get("image_id") or sample.get("doc_id")
         if sample_id is not None:
             output["id"] = str(sample_id)
+        return output
+
+
+class LayoutDMProcessedDataset(
+    TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
+):
+    """Preprocessed LayoutDM training data stream."""
+
+    def __init__(
+        self,
+        *,
+        dataset_name: LayoutDMTrainingDatasetName,
+        config: LayoutDMConfig,
+        processed_data_dir: str | Path,
+        split: LayoutDMTrainingSplit = "train",
+        tokenizer: LayoutDMTokenizer | None = None,
+        max_seq_length: int | None = None,
+    ) -> None:
+        """Load a preprocessed split from a local data directory.
+
+        Args:
+            dataset_name: ``rico25`` or ``publaynet``.
+            config: LayoutDM configuration.
+            processed_data_dir: Directory containing ``<dataset>-max<S>/processed``.
+            split: Package split name. ``validation`` maps to processed ``val``.
+            tokenizer: Optional tokenizer. Built from ``config`` otherwise.
+            max_seq_length: Optional element cap used in the processed directory name.
+        """
+        super().__init__()
+        self.dataset_name = dataset_name
+        self.split = split
+        self.config = config
+        self.tokenizer = tokenizer or LayoutDMTokenizer(self.config)
+        self.processor = LayoutDMProcessor(self.tokenizer)
+        self.max_seq_length = max_seq_length or self.config.max_seq_length
+        split_name = _PROCESSED_SPLITS[split]
+        path = (
+            Path(processed_data_dir)
+            / f"{dataset_name}-max{self.max_seq_length}"
+            / "processed"
+            / f"{split_name}.pt"
+        )
+        self.data, self.slices = _load_processed_split(path)
+        self.length = _processed_length(self.slices)
+
+    def __len__(self) -> int:
+        """Return the number of layouts in the processed split."""
+        return self.length
+
+    def __getitem__(self, index: int) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
+        """Return one tokenized training example."""
+        bbox, labels, sample_id = _processed_row(self.data, self.slices, index)
+        mask = torch.ones(labels.shape, dtype=torch.bool)
+        encoded = self.processor(
+            bbox=bbox.unsqueeze(0),
+            labels=labels.unsqueeze(0),
+            mask=mask.unsqueeze(0),
+        )
+        output: dict[str, Shaped[torch.Tensor, "..."] | str] = {
+            key: value.squeeze(0) for key, value in encoded.items()
+        }
+        if sample_id is not None:
+            output["id"] = sample_id
         return output
 
 
@@ -274,3 +350,69 @@ def _to_int(value: LayoutDMValue) -> int:
     if isinstance(value, int | float | str):
         return int(value)
     raise TypeError(f"Expected numeric canvas dimension, got {type(value).__name__}")
+
+
+def _load_processed_split(
+    path: Path,
+) -> tuple[_ProcessedData, Mapping[str, Int[torch.Tensor, "examples_plus_one"]]]:
+    try:
+        import torch_geometric  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "Reading preprocessed LayoutDM data requires torch-geometric. "
+            "Install the optional dependencies for processed data before selecting "
+            "`dataset_source='processed'`."
+        ) from exc
+    try:
+        loaded = torch.load(path, map_location="cpu", weights_only=False)
+    except TypeError:
+        loaded = torch.load(path, map_location="cpu")
+    data, slices = loaded
+    return cast(_ProcessedData, data), cast(
+        Mapping[str, Int[torch.Tensor, "examples_plus_one"]], slices
+    )
+
+
+def _processed_length(
+    slices: Mapping[str, Int[torch.Tensor, "examples_plus_one"]],
+) -> int:
+    slice_obj = slices.get("x")
+    if slice_obj is None:
+        slice_obj = slices.get("y")
+    if not isinstance(slice_obj, torch.Tensor):
+        raise TypeError("processed LayoutDM split must contain x/y slice tensors")
+    return int(slice_obj.numel() - 1)
+
+
+def _processed_row(
+    data: _ProcessedData,
+    slices: Mapping[str, Int[torch.Tensor, "examples_plus_one"]],
+    index: int,
+) -> tuple[
+    Float[torch.Tensor, "elements 4"], Int[torch.Tensor, "elements"], str | None
+]:
+    x_slices = slices.get("x")
+    y_slices = slices.get("y")
+    if not isinstance(x_slices, torch.Tensor) or not isinstance(y_slices, torch.Tensor):
+        raise TypeError("processed LayoutDM split must contain x/y slice tensors")
+    x = getattr(data, "x")
+    y = getattr(data, "y")
+    x_start, x_end = int(x_slices[index]), int(x_slices[index + 1])
+    y_start, y_end = int(y_slices[index]), int(y_slices[index + 1])
+    sample_id = _processed_sample_id(data.attr, index)
+    return x[x_start:x_end].float(), y[y_start:y_end].long(), sample_id
+
+
+def _processed_sample_id(
+    attr: Mapping[str, str | Sequence[str]] | None, index: int
+) -> str | None:
+    if attr is None:
+        return None
+    name = attr.get("name")
+    if isinstance(name, Sequence) and not isinstance(name, str | bytes):
+        if index < len(name):
+            return str(name[index])
+        return None
+    if isinstance(name, str) and index == 0:
+        return name
+    return None

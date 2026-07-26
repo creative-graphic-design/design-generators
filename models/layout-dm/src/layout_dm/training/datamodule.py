@@ -11,12 +11,16 @@ from laygen.common.bbox import BoxFormat
 
 from ..configuration_layout_dm import LayoutDMConfig
 from ..tokenization_layout_dm import LayoutDMTokenizer
-from .config import LayoutDMTrainingDatasetName, LayoutDMTrainingSplit
-from .dataset import LayoutDMDataset, LayoutDMSyntheticDataset
+from .config import (
+    LayoutDMTrainingDatasetName,
+    LayoutDMTrainingDatasetSource,
+    LayoutDMTrainingSplit,
+)
+from .dataset import LayoutDMDataset, LayoutDMProcessedDataset, LayoutDMSyntheticDataset
 
 
 class LayoutDMDataModule(LightningDataModule):
-    """Package-local LightningDataModule for LayoutDM HF datasets."""
+    """Package-local LightningDataModule for LayoutDM training data."""
 
     def __init__(
         self,
@@ -29,6 +33,8 @@ class LayoutDMDataModule(LightningDataModule):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         synthetic_size: int | None = None,
+        dataset_source: LayoutDMTrainingDatasetSource = "hf",
+        processed_data_dir: str | None = None,
     ) -> None:
         """Initialize datamodule settings."""
         super().__init__()
@@ -40,6 +46,8 @@ class LayoutDMDataModule(LightningDataModule):
         self.box_format = box_format
         self.normalized = normalized
         self.synthetic_size = synthetic_size
+        self.dataset_source = dataset_source
+        self.processed_data_dir = processed_data_dir
         self.tokenizer = LayoutDMTokenizer(self.config)
         self.train_dataset: (
             Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]] | None
@@ -91,6 +99,19 @@ class LayoutDMDataModule(LightningDataModule):
                 config=self.config,
                 size=self.synthetic_size,
                 elements=min(3, self.max_seq_length),
+            )
+        if self.dataset_source == "processed":
+            if self.processed_data_dir is None:
+                raise ValueError(
+                    "processed_data_dir is required when dataset_source='processed'"
+                )
+            return LayoutDMProcessedDataset(
+                dataset_name=self.dataset_name,
+                split=split,
+                config=self.config,
+                tokenizer=self.tokenizer,
+                max_seq_length=self.max_seq_length,
+                processed_data_dir=self.processed_data_dir,
             )
         return LayoutDMDataset(
             dataset_name=self.dataset_name,
