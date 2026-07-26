@@ -74,3 +74,9 @@ repos:
         entry: uv run --package design-generators python scripts/check_module_naming.py
         language: system
         pass_filenames: false
+
+      - id: readme-links
+        name: README repository links
+        entry: uv run --package design-generators python scripts/check_readme_links.py
+        language: system
+        pass_filenames: false

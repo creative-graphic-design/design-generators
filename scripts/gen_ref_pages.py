@@ -1023,7 +1023,7 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             readme = strip_markdown_frontmatter(
                 readme_path.read_text(encoding="utf-8")
             ).rstrip()
-            lines.extend([readme, ""])
+            lines.extend([rewrite_repo_relative_links(readme), ""])
         else:
             lines.extend([f"# {package.display_name}", ""])
         if package.reproducing_path is not None:

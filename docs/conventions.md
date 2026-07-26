@@ -9,7 +9,7 @@ tags:
 
 This project exposes research implementations through package interfaces that behave like regular Transformers or Diffusers components. Public code should be importable, documented, and runnable without reading the original vendor repository.
 
-For setup and first inference, start with [Getting Started](getting-started.md).
+For setup and first inference, start with [Getting Started](getting-started/).
 
 ## User Interface
 
