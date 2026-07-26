@@ -8946,6 +8946,12 @@ download = [
 hub = [
     { name = "huggingface-hub" },
 ]
+training = [
+    { name = "datasets" },
+    { name = "pyarrow" },
+    { name = "traingen", extra = ["lightning"] },
+    { name = "traingen-parity", extra = ["lightning"] },
+]
 vendor = [
     { name = "detectron2" },
     { name = "fvcore" },
@@ -8954,6 +8960,7 @@ vendor = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'training'", specifier = ">=4.0" },
     { name = "detectron2", marker = "extra == 'vendor'", git = "https://github.com/facebookresearch/detectron2.git?rev=v0.6" },
     { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
     { name = "fvcore", marker = "extra == 'vendor'", specifier = ">=0.1.5" },
@@ -8965,12 +8972,15 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "posgen", editable = "lib/posgen" },
+    { name = "pyarrow", marker = "extra == 'training'", specifier = ">=17" },
     { name = "safetensors", specifier = ">=0.4" },
     { name = "torch", specifier = ">=2.1" },
     { name = "torchvision", specifier = ">=0.16" },
+    { name = "traingen", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", specifier = ">=5.0.0" },
 ]
-provides-extras = ["vendor", "download", "hub"]
+provides-extras = ["vendor", "download", "hub", "training"]
 
 [[package]]
 name = "ralf"
