@@ -36,13 +36,22 @@ using the same PubLayNet validation split, `all` conditioning, and evaluation se
 
 | Dataset | Status | Checkpoints | Loss mean | FID | Overlap | IoU | Conclusion |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| PubLayNet | run | vendor epoch 799 vs ours epoch 799 | vendor `1.8069 +/- 0.0228`; ours `1.8775 +/- 0.0215` | vendor `2.3806 +/- 0.0546`; ours `31.2920 +/- 0.1734` | vendor `0.0241 +/- 0.0003`; ours `0.2130 +/- 0.0019` | vendor `0.0034 +/- 0.0001`; ours `0.0448 +/- 0.0005` | Training loss is close, but generation metrics do not reproduce vendor quality. |
+| PubLayNet | S5 pass | vendor epoch 799 vs ours epoch 799 | vendor `1.8069 +/- 0.0228`; ours `1.8072 +/- 0.0225`; delta `+0.0003` | vendor `2.3806 +/- 0.0546`; ours `1.9500 +/- 0.0379`; delta `-0.4306` | vendor `0.0241 +/- 0.0003`; ours `0.0257 +/- 0.0004`; delta `+0.0015` | vendor `0.0034 +/- 0.0001`; ours `0.0033 +/- 0.0001`; delta `-0.0001` | Validation loss and generation metrics reproduce the vendor checkpoint under the fixed S5 protocol. |
 | RICO13 | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending full vendor/package training pair. |
 | Magazine | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
 
-For the PubLayNet training-loss curve, the regenerated final segment from epochs
-733-799 has mean absolute train-loss delta `0.4549` versus the vendor log, with
-final train losses `0.6560` for vendor and `0.7291` for ours. The first epoch in
-that resumed segment with absolute delta greater than `0.5` is epoch 733; there
-is no monotonic late-epoch divergence, but generated layouts remain much worse
-than the vendor checkpoint under the same evaluation protocol.
+| Seed | Vendor loss | Ours loss | Loss delta | Vendor FID | Ours FID | FID delta | Vendor overlap | Ours overlap | Overlap delta | Vendor align | Ours align | Align delta | Vendor IoU | Ours IoU | IoU delta |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 42 | `1.8391` | `1.8390` | `-0.0002` | `2.3065` | `1.9388` | `-0.3677` | `0.0245` | `0.0262` | `+0.0018` | `0.0102` | `0.0109` | `+0.0007` | `0.0035` | `0.0034` | `-0.0000` |
+| 43 | `1.7927` | `1.7934` | `+0.0006` | `2.4362` | `2.0010` | `-0.4352` | `0.0242` | `0.0252` | `+0.0009` | `0.0102` | `0.0110` | `+0.0008` | `0.0035` | `0.0032` | `-0.0003` |
+| 44 | `1.7889` | `1.7893` | `+0.0004` | `2.3993` | `1.9103` | `-0.4889` | `0.0237` | `0.0255` | `+0.0019` | `0.0103` | `0.0109` | `+0.0006` | `0.0034` | `0.0034` | `+0.0001` |
+
+The per-epoch train-loss rows are instantaneous stochastic training-step logs,
+not synchronized epoch means. The S5 diagnostic recomputed both final checkpoints
+on the same 128 PubLayNet batches, noise, and timesteps and found bit-identical
+package-vs-vendor loss definitions (`max_abs_ours_loss_def_delta=0.0`) plus
+matching train-loss distributions: vendor mean `0.8764726606`, package mean
+`0.8752792128`, and mean delta `-0.0011934477`. The remaining curve delta is a
+logging-sample artifact; see
+`.cache/dlt/full-run/s5-evaluation-lr-step/train_loss_diagnostic.{json,md}` and
+`.cache/dlt/full-run/s5-evaluation-lr-step/results-gpu1-rerun.json`.

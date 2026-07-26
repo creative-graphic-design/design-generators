@@ -25,6 +25,12 @@ PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor \
   pytest models/dlt/tests/vendor_parity -m vendor_parity
 ```
 
+The accepted PubLayNet S5 rerun compares seeds `42`, `43`, and `44` and writes
+`.cache/dlt/full-run/s5-evaluation-lr-step/results-gpu1-rerun.json`. The
+train-loss diagnostic writes
+`.cache/dlt/full-run/s5-evaluation-lr-step/train_loss_diagnostic.{json,md}` and
+recomputes the final checkpoints on the same batches, noise, and timesteps.
+
 ```bash
 uv run --package dlt \
   python models/dlt/scripts/convert_original_checkpoint.py \

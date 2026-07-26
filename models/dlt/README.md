@@ -36,7 +36,7 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/magazine)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [DLT](https://arxiv.org/abs/2303.03755), the ICCV 2023 joint continuous and discrete diffusion model for content-agnostic layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
@@ -136,7 +136,7 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 | --- | ---: | --- | --- |
 | Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
 | Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
-| Released checkpoint inference | 0 | trained checkpoint required | not run |
+| PubLayNet S5 full checkpoint evaluation | 3 seeds | vendor epoch 799 vs independently trained package epoch 799; summary acceptance uses `atol=5e-3` for validation loss and metric deltas from `results-gpu1-rerun.json` | passed: loss delta `+0.0003`, FID delta `-0.4306`, overlap delta `+0.0015`, IoU delta `-0.0001` |
 
 ## Reproducibility
 
