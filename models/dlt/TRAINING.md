@@ -28,6 +28,17 @@ uv run --package dlt --extra training \
 
 Magazine remains gated until polygon and train-only handling is amended.
 
+## Scheduler Recipe
+
+All class-path training configs use AdamW, per-step warmup-cosine scheduling,
+and `gradient_clip_val=1.0`. The PubLayNet configs pin `num_warmup_steps=100000`
+and `num_training_steps=1994400`, matching the evaluated S5 checkpoint's
+`global_step=1994400` and scheduler `last_epoch=1994400`. RICO13 uses the
+vendor warmup of `10000` steps and Magazine uses the vendor warmup of `2000`
+steps; their total training steps are resolved by Lightning from the active
+datamodule because full RICO13/Magazine package training pairs have not yet
+been run.
+
 ## Reproduction Results
 
 S5 compares a full vendor checkpoint with an independently trained package checkpoint

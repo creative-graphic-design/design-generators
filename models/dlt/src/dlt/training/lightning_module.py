@@ -27,7 +27,7 @@ class DLTWarmupCosineSchedulerFactory:
         self,
         *,
         num_warmup_steps: int,
-        num_training_steps: int,
+        num_training_steps: int | None = None,
         num_cycles: float = 0.5,
         last_epoch: int = -1,
     ) -> None:
@@ -37,12 +37,25 @@ class DLTWarmupCosineSchedulerFactory:
         self.num_cycles = num_cycles
         self.last_epoch = last_epoch
 
-    def __call__(self, optimizer: Optimizer) -> LambdaLR:
+    def __call__(
+        self,
+        optimizer: Optimizer,
+        *,
+        estimated_stepping_batches: int | None = None,
+    ) -> LambdaLR:
         """Build a diffusers warmup-cosine scheduler for an optimizer."""
+        num_training_steps = self.num_training_steps
+        if num_training_steps is None:
+            num_training_steps = estimated_stepping_batches
+        if num_training_steps is None:
+            raise ValueError(
+                "num_training_steps is required unless Lightning estimated "
+                "stepping batches are provided"
+            )
         return get_cosine_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.num_warmup_steps,
-            num_training_steps=self.num_training_steps,
+            num_training_steps=num_training_steps,
             num_cycles=self.num_cycles,
             last_epoch=self.last_epoch,
         )
@@ -113,7 +126,18 @@ class DLTTrainingModule(LightningModule):
         optimizer = self.optimizer(self.parameters())
         if self.lr_scheduler is None:
             return optimizer
-        scheduler = self.lr_scheduler(optimizer)
+        if isinstance(self.lr_scheduler, DLTWarmupCosineSchedulerFactory):
+            estimated_stepping_batches = None
+            if self.lr_scheduler.num_training_steps is None:
+                estimated_stepping_batches = int(
+                    self.trainer.estimated_stepping_batches
+                )
+            scheduler = self.lr_scheduler(
+                optimizer,
+                estimated_stepping_batches=estimated_stepping_batches,
+            )
+        else:
+            scheduler = self.lr_scheduler(optimizer)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

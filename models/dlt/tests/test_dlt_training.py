@@ -118,6 +118,29 @@ def test_warmup_cosine_scheduler_factory_matches_step_values() -> None:
 
 
 @pytest.mark.training
+def test_warmup_cosine_scheduler_factory_accepts_estimated_steps() -> None:
+    module = tiny_training_module()
+    optimizer = module.optimizer(module.parameters())
+    scheduler = DLTWarmupCosineSchedulerFactory(num_warmup_steps=2)(
+        optimizer,
+        estimated_stepping_batches=10,
+    )
+    optimizer.step()
+    scheduler.step()
+    assert scheduler.last_epoch == 1
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(5.0e-5)
+
+
+@pytest.mark.training
+def test_warmup_cosine_scheduler_factory_requires_total_steps() -> None:
+    module = tiny_training_module()
+    optimizer = module.optimizer(module.parameters())
+    scheduler_factory = DLTWarmupCosineSchedulerFactory(num_warmup_steps=2)
+    with pytest.raises(ValueError, match="num_training_steps is required"):
+        scheduler_factory(optimizer)
+
+
+@pytest.mark.training
 def test_datamodule_seed_and_trace_adapter() -> None:
     apply_seed_mode(DLTSeedMode.default, 123)
     first = torch.rand(1)
