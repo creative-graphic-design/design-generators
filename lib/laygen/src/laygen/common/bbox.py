@@ -11,7 +11,13 @@ else:
     try:
         import torch
     except ImportError:
-        pass
+
+        class _TorchStub:
+            Tensor = object
+            device = object
+            dtype = object
+
+        torch = _TorchStub()
 
 
 class BoxFormat(StrEnum):
