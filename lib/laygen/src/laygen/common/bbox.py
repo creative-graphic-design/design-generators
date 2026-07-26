@@ -1,11 +1,9 @@
 """Bounding-box conversion and quantization helpers for layout packages."""
 
-from __future__ import annotations
-
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, assert_never
 
-from jaxtyping import Float
+from jaxtyping import Bool, Float, Int
 
 if TYPE_CHECKING:
     import torch
@@ -100,7 +98,7 @@ def clamp_boxes(bbox: Float[torch.Tensor, "... 4"]) -> Float[torch.Tensor, "... 
 
 def _canvas_tensor(
     canvas_size: tuple[int, int], device: torch.device, dtype: torch.dtype
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "4"]:
     import torch
 
     width, height = canvas_size
@@ -159,7 +157,11 @@ def prepare_layout_tensors(
     normalized: bool = True,
     canvas_size: tuple[int, int] | None = None,
     clamp_converted_normalized: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[
+    Float[torch.Tensor, "batch elements 4"],
+    Int[torch.Tensor, "batch elements"],
+    Bool[torch.Tensor, "batch elements"],
+]:
     """Convert public layout arrays to batched normalized tensor inputs.
 
     Args:
@@ -241,13 +243,17 @@ def denormalize_boxes(
     return out * scale
 
 
-def linear_discretize(values: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+def linear_discretize(
+    values: Float[torch.Tensor, "..."], *, num_bins: int
+) -> Int[torch.Tensor, "..."]:
     """Map normalized continuous values to evenly spaced integer bins."""
     delta = 1.0 / num_bins
     values = values.clamp(0.0, 1.0 - delta)
     return (values * num_bins).round().long().clamp(0, num_bins - 1)
 
 
-def linear_continuize(ids: torch.Tensor, *, num_bins: int) -> torch.Tensor:
+def linear_continuize(
+    ids: Int[torch.Tensor, "..."], *, num_bins: int
+) -> Float[torch.Tensor, "..."]:
     """Map evenly spaced integer bins back to normalized continuous values."""
     return ids.float().clamp(0, num_bins - 1) / num_bins
