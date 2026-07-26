@@ -23,7 +23,20 @@ repos:
     hooks:
       - id: pytest-models
         name: pytest models
-        entry: bash -c 'env MEMBER_TEST_COVERAGE=0 MEMBER_TEST_RUNNER_DEPS=0 scripts/run_member_tests.sh lib/laygen && printf "%s\n" lib/posgen models/layout-dm models/layoutganpp | xargs -P "${PYTEST_MODELS_JOBS:-3}" -I {} env MEMBER_TEST_COVERAGE=0 MEMBER_TEST_RUNNER_DEPS=0 scripts/run_member_tests.sh "{}"'
+        # Cap xdist at 4 by default: the slow units are a small set of
+        # jaxtyping-runtime subprocess tests, so more workers mostly repeat
+        # torch/diffusers import and nested subprocess startup overhead.
+        # Override PYTEST_MODELS_XDIST_JOBS for machine-specific tuning.
+        entry: >-
+          bash -c 'env MEMBER_TEST_COVERAGE=0 MEMBER_TEST_RUNNER_DEPS=0 MEMBER_TEST_XDIST_JOBS="${PYTEST_MODELS_XDIST_JOBS:-4}" scripts/run_member_tests.sh lib/laygen
+          && printf "%s\n" lib/posgen models/layout-dm models/layoutganpp
+          | xargs -P "${PYTEST_MODELS_JOBS:-3}" -I {} bash -c '"'"'
+            if [ "$1" = "lib/posgen" ]; then
+              env MEMBER_TEST_COVERAGE=0 MEMBER_TEST_RUNNER_DEPS=0 scripts/run_member_tests.sh "$1"
+            else
+              env MEMBER_TEST_COVERAGE=0 MEMBER_TEST_RUNNER_DEPS=0 MEMBER_TEST_XDIST_JOBS="${PYTEST_MODELS_XDIST_JOBS:-4}" scripts/run_member_tests.sh "$1"
+            fi
+          '"'"' _ {}'
         language: system
         pass_filenames: false
 
