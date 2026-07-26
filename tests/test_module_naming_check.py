@@ -55,8 +55,8 @@ def test_violation_for_module_accepts_hf_core_package_suffix(
 
 
 def test_violation_for_module_rejects_hf_core_wrong_suffix(tmp_path: Path) -> None:
-    path = write_module(tmp_path, "layout-transformer", "modeling_lt_wrong.py")
-    module = check_module_naming.ModuleRecord("layout_transformer", path, tmp_path)
+    path = write_module(tmp_path, "ltnet", "modeling_lt_wrong.py")
+    module = check_module_naming.ModuleRecord("ltnet", path, tmp_path)
 
     violation = check_module_naming.violation_for_module(module)
 
@@ -67,12 +67,12 @@ def test_violation_for_module_rejects_hf_core_wrong_suffix(tmp_path: Path) -> No
 def test_violation_for_module_accepts_package_specific_modules(
     tmp_path: Path,
 ) -> None:
-    lt_path = write_module(tmp_path, "layout-transformer", "modeling_lt_compatible.py")
+    lt_path = write_module(tmp_path, "ltnet", "modeling_lt_compatible.py")
     smarttext_path = write_module(tmp_path, "smarttext", "modeling_basnet.py")
 
     assert (
         check_module_naming.violation_for_module(
-            check_module_naming.ModuleRecord("layout_transformer", lt_path, tmp_path)
+            check_module_naming.ModuleRecord("ltnet", lt_path, tmp_path)
         )
         is None
     )

@@ -3,23 +3,23 @@ from typing import cast
 
 from laygen.common.testing import assert_layout_output_schema
 from laygen.modeling_outputs import LayoutGenerationOutput
-from layout_transformer import (
+from ltnet import (
     LayoutObject,
     LayoutRelation,
-    LayoutTransformerConfig,
-    LayoutTransformerForLayoutGeneration,
-    LayoutTransformerPipeline,
-    LayoutTransformerProcessor,
+    LTNetConfig,
+    LTNetForLayoutGeneration,
+    LTNetPipeline,
+    LTNetProcessor,
 )
 
 
 def build_pipeline():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person", 2: "table"},
         relation_id2label={1: "left of"},
         max_sequence_length=8,
     )
-    config = LayoutTransformerConfig(
+    config = LTNetConfig(
         vocab_size=processor.tokenizer.vocab_size,
         obj_classes_size=8,
         hidden_size=32,
@@ -29,19 +29,19 @@ def build_pipeline():
         id2label=processor.id2label,
         relation_id2label=processor.relation_id2label,
     )
-    return LayoutTransformerPipeline(
-        model=LayoutTransformerForLayoutGeneration(config),
+    return LTNetPipeline(
+        model=LTNetForLayoutGeneration(config),
         processor=processor,
     )
 
 
 def build_stochastic_pipeline():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person", 2: "table"},
         relation_id2label={1: "left of"},
         max_sequence_length=8,
     )
-    config = LayoutTransformerConfig(
+    config = LTNetConfig(
         vocab_size=processor.tokenizer.vocab_size,
         obj_classes_size=8,
         hidden_size=32,
@@ -53,8 +53,8 @@ def build_stochastic_pipeline():
         id2label=processor.id2label,
         relation_id2label=processor.relation_id2label,
     )
-    return LayoutTransformerPipeline(
-        model=LayoutTransformerForLayoutGeneration(config),
+    return LTNetPipeline(
+        model=LTNetForLayoutGeneration(config),
         processor=processor,
     )
 
@@ -100,7 +100,7 @@ def test_pipeline_save_pretrained_round_trip(tmp_path):
     pipe = build_pipeline()
     pipe.save_pretrained(tmp_path)
 
-    loaded = LayoutTransformerPipeline.from_pretrained(tmp_path, local_files_only=True)
+    loaded = LTNetPipeline.from_pretrained(tmp_path, local_files_only=True)
     output = loaded(objects=[LayoutObject(id="a", label="person")])
 
     assert_layout_output_schema(cast(LayoutGenerationOutput, output), batch_size=1)

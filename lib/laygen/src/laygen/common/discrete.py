@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 else:
     try:
         import torch
-    except ImportError:
+    except ModuleNotFoundError:
         pass
 
 LOG_EPS: Final[float] = -70.0

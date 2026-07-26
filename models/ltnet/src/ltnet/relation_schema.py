@@ -1,4 +1,4 @@
-"""Public scene-graph dataclasses for LayoutTransformer processors."""
+"""Public scene-graph dataclasses for LT-Net processors."""
 
 from __future__ import annotations
 

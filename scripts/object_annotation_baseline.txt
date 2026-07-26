@@ -238,18 +238,6 @@ models/layout-gpt/src/layout_gpt/agent.py	Float[torch.Tensor, 'batch elements 4'
 models/layout-gpt/src/layout_gpt/agent.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
 models/layout-gpt/src/layout_gpt/agent.py	object	def build_agent(model: ModelLike = None) -> object:
 models/layout-gpt/src/layout_gpt/exemplars.py	Mapping[str, object]	cls, record: Mapping[str, object], *, setting: str | LayoutGPTSetting
-models/layout-transformer/src/layout_transformer/modeling_lt_compatible.py	dict[str, object]	def _cfg(config: LayoutTransformerConfig) -> dict[str, object]:
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Float[torch.Tensor, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Int[torch.Tensor, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]: # ty: ignore[invalid-method-override]
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	Mapping[str, object | None]	components: Mapping[str, object | None],
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
-models/layout-transformer/src/layout_transformer/pipeline_layout_transformer.py	object	) -> object:
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	SceneGraphInput | Mapping[str, object] | None	scene_graph: SceneGraphInput | Mapping[str, object] | None,
-models/layout-transformer/src/layout_transformer/tokenization_layout_transformer.py	dict[int | str, object] | None	added_tokens_decoder: dict[int | str, object] | None = None,
 models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"]
 models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | list[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
 models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	Int[torch.Tensor, 'batch elements'] | Int[np.ndarray, 'batch elements'] | list[object] | None	labels: Int[torch.Tensor, "batch elements"]

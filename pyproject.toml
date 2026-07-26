@@ -22,7 +22,7 @@ dependencies = [
     "layout-fid",
     "layout-flow",
     "layout-gpt",
-    "layout-transformer",
+    "ltnet",
     "layout-action",
     "layoutvae",
     "lace",
@@ -195,7 +195,7 @@ layoutdiffusion = { workspace = true }
 layout-fid = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
-layout-transformer = { workspace = true }
+ltnet = { workspace = true }
 layout-action = { workspace = true }
 layoutvae = { workspace = true }
 lace = { workspace = true }

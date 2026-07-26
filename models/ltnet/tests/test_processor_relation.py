@@ -3,17 +3,17 @@ from typing import Literal, cast
 import torch
 
 from laygen.modeling_outputs import LayoutGenerationOutput
-from layout_transformer import (
+from ltnet import (
     LayoutObject,
     LayoutRelation,
-    LayoutTransformerModelOutput,
-    LayoutTransformerProcessor,
-    LayoutTransformerRelationTokenizer,
+    LTNetModelOutput,
+    LTNetProcessor,
+    LTNetRelationTokenizer,
 )
 
 
 def test_processor_serializes_relation_graph():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person", 2: "table"},
         relation_id2label={1: "left of"},
         max_sequence_length=8,
@@ -35,7 +35,7 @@ def test_processor_serializes_relation_graph():
 
 
 def test_processor_rejects_unsupported_condition():
-    processor = LayoutTransformerProcessor.from_config()
+    processor = LTNetProcessor.from_config()
 
     try:
         processor(objects=[LayoutObject(id="a", label=0)], condition_type="label")
@@ -46,7 +46,7 @@ def test_processor_rejects_unsupported_condition():
 
 
 def test_processor_accepts_mapping_scene_graph_and_numpy_output():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person", 2: "table"},
         relation_id2label={1: "left of"},
         max_sequence_length=8,
@@ -68,7 +68,7 @@ def test_processor_accepts_mapping_scene_graph_and_numpy_output():
 
 
 def test_processor_accepts_integer_ids_and_overrides_max_length():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person", 2: "table"},
         relation_id2label={1: "left of"},
         max_sequence_length=8,
@@ -85,7 +85,7 @@ def test_processor_accepts_integer_ids_and_overrides_max_length():
 
 
 def test_processor_rejects_unknown_labels_and_tensor_type():
-    processor = LayoutTransformerProcessor.from_config(
+    processor = LTNetProcessor.from_config(
         id2label={0: "__image__", 1: "person"},
         relation_id2label={1: "left of"},
     )
@@ -119,8 +119,8 @@ def test_processor_rejects_unknown_labels_and_tensor_type():
 
 
 def test_processor_postprocess_coarse_boxes_and_intermediates():
-    processor = LayoutTransformerProcessor.from_config(id2label={0: "__image__"})
-    model_outputs = LayoutTransformerModelOutput(
+    processor = LTNetProcessor.from_config(id2label={0: "__image__"})
+    model_outputs = LTNetModelOutput(
         coarse_box=torch.full((1, 3, 4), 0.5),
         vocab_logits=torch.zeros(1, 3, 4),
         obj_id_logits=torch.zeros(1, 3, 4),
@@ -143,11 +143,11 @@ def test_processor_postprocess_coarse_boxes_and_intermediates():
 
 
 def test_processor_postprocess_requires_boxes():
-    processor = LayoutTransformerProcessor.from_config()
+    processor = LTNetProcessor.from_config()
 
     try:
         processor.post_process_layout_generation(
-            LayoutTransformerModelOutput(),
+            LTNetModelOutput(),
             input_obj_id=torch.tensor([[0]]),
             token_type=torch.tensor([[0]]),
         )
@@ -158,8 +158,8 @@ def test_processor_postprocess_requires_boxes():
 
 
 def test_processor_object_reduce_deduplicates_repeated_relations():
-    tokenizer = LayoutTransformerRelationTokenizer(tokens=["person", "table"])
-    model_outputs = LayoutTransformerModelOutput(
+    tokenizer = LTNetRelationTokenizer(tokens=["person", "table"])
+    model_outputs = LTNetModelOutput(
         refine_box=torch.tensor(
             [
                 [
@@ -179,7 +179,7 @@ def test_processor_object_reduce_deduplicates_repeated_relations():
 
     outputs = {}
     for reduce in ("first", "last", "mean"):
-        processor = LayoutTransformerProcessor(
+        processor = LTNetProcessor(
             tokenizer=tokenizer,
             id2label={0: "__image__", 11: "person", 21: "table"},
             object_reduce=reduce,
@@ -210,7 +210,7 @@ def test_processor_object_reduce_deduplicates_repeated_relations():
 
 
 def test_processor_rejects_missing_graph():
-    processor = LayoutTransformerProcessor.from_config()
+    processor = LTNetProcessor.from_config()
 
     try:
         processor()

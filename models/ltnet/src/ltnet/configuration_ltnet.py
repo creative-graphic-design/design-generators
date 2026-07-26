@@ -1,4 +1,4 @@
-"""Configuration for converted LayoutTransformer checkpoints."""
+"""Configuration for converted LT-Net checkpoints."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def _normalize_box_loss(value: BoxLossType | str) -> BoxLossType:
     raise ValueError(f"Unsupported box loss: {value}")
 
 
-class LayoutTransformerConfig(PretrainedConfig):
+class LTNetConfig(PretrainedConfig):
     """Architecture and processor metadata for LT-Net checkpoints.
 
     Args:
@@ -89,12 +89,12 @@ class LayoutTransformerConfig(PretrainedConfig):
         kwargs: Additional ``PretrainedConfig`` fields.
 
     Examples:
-        >>> config = LayoutTransformerConfig(hidden_size=32, num_attention_heads=4)
+        >>> config = LTNetConfig(hidden_size=32, num_attention_heads=4)
         >>> config.model_type
-        'layout-transformer'
+        'ltnet'
     """
 
-    model_type = "layout-transformer"
+    model_type = "ltnet"
 
     def __init__(
         self,
