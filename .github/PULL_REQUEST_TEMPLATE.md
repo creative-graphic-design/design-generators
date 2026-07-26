@@ -14,6 +14,12 @@
 
 - TODO
 
+## Shared Library Changes
+
+<!-- Required when this PR changes lib/*/src/**. Explain why the shared-library change belongs in this PR; write N/A otherwise. -->
+
+- TODO
+
 ## Checklist
 
 Full checklist: see [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) (source of truth).

@@ -48,6 +48,7 @@ def filled_body(reference: str = "Refs #127") -> str:
     completion_gate = "\n".join(f"- [x] {item}" for item in COMPLETION_GATE_ITEMS)
     return (
         f"## Summary\n\n{reference}\n\n"
+        "## Shared Library Changes\n\nN/A\n\n"
         f"## Checklist\n\n{checklist}\n\n"
         f"## Completion Gate\n\n{completion_gate}\n"
     )
@@ -58,6 +59,7 @@ def completion_body(*, draft: bool = False, completion_gate: str) -> str:
     draft_note = "\n\nDraft only.\n" if draft else "\n"
     return (
         "## Summary\n\nRefs #127\n\n"
+        "## Shared Library Changes\n\nN/A\n\n"
         f"## Checklist\n\n{checklist}\n"
         f"{draft_note}"
         "## Completion Gate\n\n"
@@ -239,7 +241,11 @@ def test_completion_gate_rejects_unchecked_adversarial_review() -> None:
 
 
 def test_completion_gate_allows_legacy_ready_body_without_section() -> None:
-    body = "## Summary\n\nRefs #127\n\n## Checklist\n\n- [x] Existing item\n"
+    body = (
+        "## Summary\n\nRefs #127\n\n"
+        "## Shared Library Changes\n\nN/A\n\n"
+        "## Checklist\n\n- [x] Existing item\n"
+    )
 
     assert (
         check_pr_issue_reference.completion_gate_errors(
@@ -281,3 +287,74 @@ def test_main_passes_with_implementation_issue(
 
     assert check_pr_issue_reference.main(["--body-file", str(body_path)]) == 0
     assert "#127" in capsys.readouterr().out
+
+
+def test_shared_library_change_errors_ignore_model_only_changes() -> None:
+    assert (
+        check_pr_issue_reference.shared_library_change_errors(
+            filled_body(), ["models/ltnet/src/ltnet/modeling_ltnet.py"]
+        )
+        == []
+    )
+
+
+def test_shared_library_change_errors_require_reason_for_lib_core_change() -> None:
+    body = filled_body().replace("## Shared Library Changes\n\nN/A\n\n", "")
+
+    errors = check_pr_issue_reference.shared_library_change_errors(
+        body, ["lib/laygen/src/laygen/common/__init__.py"]
+    )
+
+    assert errors == [
+        "PRs that change `lib/*/src/**` must include a non-empty "
+        "`## Shared Library Changes` section explaining why the shared library "
+        "change belongs in this PR."
+    ]
+
+
+def test_shared_library_change_errors_reject_placeholder_only_reason() -> None:
+    body = filled_body().replace("N/A", "- TODO")
+
+    errors = check_pr_issue_reference.shared_library_change_errors(
+        body, ["lib/laygen/src/laygen/common/bbox.py"]
+    )
+
+    assert errors
+
+
+def test_shared_library_change_errors_accept_substantive_reason() -> None:
+    body = filled_body().replace(
+        "N/A",
+        "This PR changes laygen because the model package needs a new shared "
+        "schema helper used by multiple members.",
+    )
+
+    assert (
+        check_pr_issue_reference.shared_library_change_errors(
+            body, ["lib/laygen/src/laygen/common/bbox.py"]
+        )
+        == []
+    )
+
+
+def test_main_fails_for_lib_core_change_without_shared_library_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    body_path = tmp_path / "body.md"
+    body_path.write_text(
+        filled_body().replace("## Shared Library Changes\n\nN/A\n\n", ""),
+        encoding="utf-8",
+    )
+
+    assert (
+        check_pr_issue_reference.main(
+            [
+                "--body-file",
+                str(body_path),
+                "--changed-file",
+                "lib/laygen/src/laygen/common/discrete.py",
+            ]
+        )
+        == 1
+    )
+    assert "Shared Library Changes" in capsys.readouterr().err

@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         if: github.event_name == 'pull_request'
@@ -33,6 +35,9 @@ jobs:
 
       - name: Check issue reference
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python scripts/check_pr_issue_reference.py
 
       - name: Skip issue reference outside pull requests
