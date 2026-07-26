@@ -114,9 +114,6 @@ models/housegan/src/housegan/pipeline_housegan.py	Mapping[str, object | None]	co
 models/housegan/src/housegan/pipeline_housegan.py	list[HouseGanSceneGraph | Mapping[str, object] | None]	) -> list[HouseGanSceneGraph | Mapping[str, object] | None]:
 models/housegan/src/housegan/pipeline_housegan.py	object	) -> object:
 models/housegan/src/housegan/pipeline_housegan.py	object | None	relations: object | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	labels: torch.Tensor | np.ndarray | list[object] | None = None,
-models/housegan/src/housegan/pipeline_housegan.py	torch.Tensor | np.ndarray | list[object] | None	mask: torch.Tensor | np.ndarray | list[object] | None = None,
 models/housegan/src/housegan/processing_housegan.py	HouseGanSceneGraph | Mapping[str, object] | None	scene_graph: HouseGanSceneGraph | Mapping[str, object] | None = None,
 models/housegan/src/housegan/processing_housegan.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
 models/housegan/src/housegan/processing_housegan.py	object | None	bbox: object | None = None,

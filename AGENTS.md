@@ -235,6 +235,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   ..." or equivalent when only one machine/GPU/driver combination has been
   tested; do not present that setup as the package's inherent training
   environment.
+- Package READMEs reference repository docs with repo-root-relative links such as
+  `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
 - Hub model cards are generated through `laygen.common.model_card` using the
   official Hugging Face model-card template.
 
@@ -244,6 +246,13 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   and LightningCLI with YAML configs plus CLI overrides.
 - Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the
   model package.
+- Training-first packages follow the canonical
+  [training reproduction protocol](docs/training-reproduction.md) for S0-S5
+  evidence, topology guards, dataset coverage, seed policy, and evidence
+  recording.
+- PRs for models whose only weight path is self-training stay draft until S5 is
+  confirmed for every claimed dataset; partial coverage must be stated in the
+  package `TRAINING.md`, README, and PR body.
 
 ## CI
 

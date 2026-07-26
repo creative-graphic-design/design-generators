@@ -1023,7 +1023,7 @@ def write_package_indexes(packages: list[ApiPackage]) -> None:
             readme = strip_markdown_frontmatter(
                 readme_path.read_text(encoding="utf-8")
             ).rstrip()
-            lines.extend([readme, ""])
+            lines.extend([rewrite_repo_relative_links(readme), ""])
         else:
             lines.extend([f"# {package.display_name}", ""])
         if package.reproducing_path is not None:
@@ -1174,7 +1174,9 @@ def write_reproducing_pages(packages: list[ApiPackage]) -> None:
             "\n".join(
                 [
                     *frontmatter,
-                    reproducing_path.read_text(encoding="utf-8").rstrip(),
+                    rewrite_repo_relative_links(
+                        reproducing_path.read_text(encoding="utf-8").rstrip()
+                    ),
                     "",
                 ]
             ),
@@ -1196,7 +1198,9 @@ def write_training_pages(packages: list[ApiPackage]) -> None:
             "\n".join(
                 [
                     *frontmatter,
-                    training_path.read_text(encoding="utf-8").rstrip(),
+                    rewrite_repo_relative_links(
+                        training_path.read_text(encoding="utf-8").rstrip()
+                    ),
                     "",
                 ]
             ),

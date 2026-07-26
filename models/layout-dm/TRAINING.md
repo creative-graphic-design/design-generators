@@ -1,6 +1,6 @@
 # LayoutDM Training
 
-This guide covers package-local LightningCLI training configs, trained-checkpoint conversion, and the staged S0-S5 reproduction protocol for LayoutDM.
+This guide covers package-local LightningCLI training configs, trained-checkpoint conversion, and the staged S0-S5 reproduction protocol for LayoutDM. It follows the repository [training reproduction protocol](docs/training-reproduction.md).
 
 Run commands from the repository root. Training data, logs, generated checkpoints, converted local pipelines, and evaluation artifacts stay under `.cache/layout-dm`.
 
@@ -63,7 +63,7 @@ Training configs live under `models/layout-dm/configs/training`.
 
 ## Reproduction Results
 
-LayoutDM package-local training has S0-S4 scaffolding in place and S5 full-run statistical comparison is not yet complete. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol.
+LayoutDM package-local training has S0-S4 scaffolding in place and S5 full-run statistical comparison is PENDING. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |

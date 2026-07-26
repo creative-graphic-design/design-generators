@@ -149,6 +149,27 @@ def test_root_models_table_rejects_metadata_columns(
         check_model_readmes._root_model_slugs(readme)
 
 
+def test_model_readme_reproducibility_accepts_repo_root_link(tmp_path: Path) -> None:
+    check_model_readmes = _load_check_model_readmes()
+    readme = tmp_path / "models" / "layout-dm" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        """# Model Card for LayoutDM
+
+## Reproducibility
+
+See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for commands.
+
+## Environmental Impact
+""",
+        encoding="utf-8",
+    )
+
+    check_model_readmes._assert_readme_reproducibility_link(
+        readme, readme.read_text(encoding="utf-8")
+    )
+
+
 def test_readme_badge_policy_derives_model_label_from_alt_prefix(
     tmp_path: Path,
 ) -> None:
