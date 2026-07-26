@@ -1,0 +1,40 @@
+seed_everything: false
+trainer:
+  accelerator: auto
+  devices: auto
+  precision: 32
+  max_epochs: 200
+  check_val_every_n_epoch: 20
+  gradient_clip_val: 1.0
+  num_sanity_val_steps: 2
+model:
+  class_path: layout_dm.training.LayoutDMTrainingModule
+  init_args:
+    config:
+      class_path: layout_dm.LayoutDMConfig
+      init_args:
+        dataset_name: publaynet
+        max_seq_length: 25
+        num_timesteps: 100
+    learning_rate: 0.0005
+    weight_decay: 0.1
+    auxiliary_loss_weight: 0.1
+    adaptive_auxiliary_loss: true
+    time_sampler: importance
+    scheduler: reduce_on_plateau
+    seed_mode: default
+data:
+  class_path: layout_dm.training.LayoutDMDataModule
+  init_args:
+    dataset_name: publaynet
+    config:
+      class_path: layout_dm.LayoutDMConfig
+      init_args:
+        dataset_name: publaynet
+        max_seq_length: 25
+        num_timesteps: 100
+    batch_size: 256
+    max_seq_length: 25
+    num_workers: 4
+    box_format: xywh
+    normalized: true

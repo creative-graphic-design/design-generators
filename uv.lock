@@ -3796,6 +3796,11 @@ convert = [
 download = [
     { name = "requests" },
 ]
+training = [
+    { name = "datasets" },
+    { name = "traingen", extra = ["lightning"] },
+    { name = "traingen-parity", extra = ["lightning"] },
+]
 vendor = [
     { name = "fsspec" },
     { name = "hydra-core" },
@@ -3811,6 +3816,7 @@ vendor = [
 
 [package.metadata]
 requires-dist = [
+    { name = "datasets", marker = "extra == 'training'", specifier = ">=3" },
     { name = "diffusers", extras = ["torch"], specifier = ">=0.36.0" },
     { name = "einops", specifier = ">=0.8" },
     { name = "fsspec", marker = "extra == 'vendor'" },
@@ -3831,9 +3837,11 @@ requires-dist = [
     { name = "torch", specifier = ">=2.1" },
     { name = "torch-geometric", marker = "extra == 'vendor'", specifier = ">=2.5,<2.7" },
     { name = "torchvision", marker = "extra == 'vendor'" },
+    { name = "traingen", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen" },
+    { name = "traingen-parity", extras = ["lightning"], marker = "extra == 'training'", editable = "lib/traingen-parity" },
     { name = "transformers", specifier = ">=5.0.0" },
 ]
-provides-extras = ["convert", "download", "vendor"]
+provides-extras = ["training", "convert", "download", "vendor"]
 
 [[package]]
 name = "layout-fid"

@@ -13,7 +13,6 @@ from laygen.common.labels import (
 )
 
 
-@dataclass
 class LayoutDMConfig(ConfigMixin):
     """Serializable LayoutDM architecture and tokenizer configuration.
 

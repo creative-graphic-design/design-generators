@@ -151,7 +151,7 @@ print(out.bbox.shape)
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Package-local training reproduction is tracked in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md).
 
 #### Preprocessing
 
@@ -192,7 +192,7 @@ The deterministic sequence check uses the non-default argmax sampling mode (`sam
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
 
 
 ## Environmental Impact
