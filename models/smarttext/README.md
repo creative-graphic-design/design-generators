@@ -112,6 +112,7 @@ Install the package directly from this repository. The command includes shared p
 
 ```bash
 pip install \
+  "basnet @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/basnet" \
   "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
   "smarttext @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/smarttext"
 ```

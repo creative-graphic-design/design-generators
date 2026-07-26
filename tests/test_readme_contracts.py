@@ -452,3 +452,25 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
         [("laygen", "lib/laygen")],
         "Install",
     )
+
+
+def test_model_install_contract_requires_workspace_model_dependencies() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for SmartText
+
+## How to Get Started with the Model
+
+```bash
+pip install \\
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \\
+  "smarttext @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/smarttext"
+```
+
+## Training Details
+"""
+
+    with pytest.raises(AssertionError, match="models/basnet"):
+        check_model_readmes._assert_model_pip_install_snippet(
+            REPO_ROOT / "models" / "smarttext" / "README.md",
+            text,
+        )

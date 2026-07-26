@@ -291,10 +291,6 @@ EXPECTED_REPOSITORY_LINKS = {
 }
 
 PROMPT_ONLY_SLUGS = {"layout-gpt", "layoutprompter", "postero"}
-SHARED_PACKAGE_SUBDIRS = {
-    "laygen": "lib/laygen",
-    "posgen": "lib/posgen",
-}
 PROMPT_ONLY_STALE_PHRASES = [
     "CUDA_VISIBLE_DEVICES",
     "converted behavior follows the upstream checkpoints",
@@ -358,21 +354,56 @@ def _project_dependencies(member_dir: Path) -> list[str]:
     return [dependency for dependency in dependencies if isinstance(dependency, str)]
 
 
+def _workspace_package_subdirs() -> dict[str, str]:
+    subdirs: dict[str, str] = {}
+    for member_dir in [*LIB_MEMBER_DIRS, *MODEL_MEMBER_DIRS]:
+        subdirs[_project_name(member_dir)] = str(member_dir.relative_to(REPO_ROOT))
+    return subdirs
+
+
+def _workspace_source_names(member_dir: Path) -> set[str]:
+    tool = _project_metadata(member_dir).get("tool", {})
+    if not isinstance(tool, dict):
+        return set()
+    uv = tool.get("uv", {})
+    if not isinstance(uv, dict):
+        return set()
+    sources = uv.get("sources", {})
+    if not isinstance(sources, dict):
+        return set()
+    return {
+        name
+        for name, source in sources.items()
+        if isinstance(name, str)
+        and isinstance(source, dict)
+        and source.get("workspace") is True
+    }
+
+
 def _direct_requirement(package_name: str, subdirectory: str) -> str:
     return f"{package_name} @ git+{GIT_REPO_URL}#subdirectory={subdirectory}"
 
 
 def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
-    shared_dependencies: list[tuple[str, str]] = []
-    for shared_name, subdirectory in SHARED_PACKAGE_SUBDIRS.items():
-        for requirement in _project_dependencies(member_dir):
-            if _dependency_name(requirement) == shared_name:
-                shared_dependencies.append(
-                    (_dependency_direct_name(requirement), subdirectory)
-                )
-                break
+    workspace_dependencies: list[tuple[str, str]] = []
+    workspace_package_subdirs = _workspace_package_subdirs()
+    workspace_source_names = _workspace_source_names(member_dir)
+    own_package = _project_name(member_dir)
+    for requirement in _project_dependencies(member_dir):
+        dependency = _dependency_name(requirement)
+        if dependency == own_package or dependency not in workspace_source_names:
+            continue
+        subdirectory = workspace_package_subdirs.get(dependency)
+        if subdirectory is None:
+            raise AssertionError(
+                f"{member_dir / 'pyproject.toml'}: workspace dependency "
+                f"{dependency!r} is not a workspace member"
+            )
+        workspace_dependencies.append(
+            (_dependency_direct_name(requirement), subdirectory)
+        )
     slug = member_dir.name
-    return [*shared_dependencies, (_project_name(member_dir), f"models/{slug}")]
+    return [*workspace_dependencies, (own_package, f"models/{slug}")]
 
 
 def _pip_install_snippet(requirements: list[tuple[str, str]]) -> str:
