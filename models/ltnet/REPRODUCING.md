@@ -4,12 +4,13 @@ This guide reproduces the original-implementation agreement checks for the LT-Ne
 
 Workflow order: download assets, prepare dataset metadata, generate references, convert checkpoints, run parity checks, then smoke-test local loading.
 
-Run these commands from the repository root unless a block explicitly changes directory. The commands assume CUDA is available as device `2`, the vendored original implementation is present at `vendor/layout-transformer`, and generated files may be written under `.cache/`.
+Run these commands from the repository root unless a block explicitly changes directory. The commands assume CUDA is available for vendor parity, the vendored original implementation is present at `vendor/layout-transformer`, and generated files may be written under `.cache/`. Select the GPU for parity commands with `LTNET_CUDA_VISIBLE_DEVICES`.
 
 Prerequisite:
 
 ```bash
 git submodule update --init vendor/layout-transformer
+export LTNET_CUDA_VISIBLE_DEVICES="${LTNET_CUDA_VISIBLE_DEVICES:-0}"
 ```
 
 ### 1. Download Original Weights
@@ -67,7 +68,7 @@ unzip -o .cache/ltnet/data/vg_msdn/vg_msdn.zip \
 This writes local-only reference fixtures under `.cache/ltnet/reference/<dataset>/`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package ltnet --extra vendor \
+CUDA_VISIBLE_DEVICES="${LTNET_CUDA_VISIBLE_DEVICES}" uv run --package ltnet --extra vendor \
   --with coloredlogs --with bounding-box --with opencv-python-headless \
   --with matplotlib --with scikit-image --with scikit-learn --with pycocotools \
   --with joblib --with tqdm --with tensorboard \
@@ -83,7 +84,7 @@ CUDA_VISIBLE_DEVICES=2 uv run --package ltnet --extra vendor \
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package ltnet --extra vendor \
+CUDA_VISIBLE_DEVICES="${LTNET_CUDA_VISIBLE_DEVICES}" uv run --package ltnet --extra vendor \
   --with coloredlogs --with bounding-box --with opencv-python-headless \
   --with matplotlib --with scikit-image --with scikit-learn --with pycocotools \
   --with joblib --with tqdm --with tensorboard \
@@ -130,7 +131,7 @@ Expected local output roots:
 ### 5. Run Vendor Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package ltnet pytest \
+CUDA_VISIBLE_DEVICES="${LTNET_CUDA_VISIBLE_DEVICES}" uv run --package ltnet pytest \
   models/ltnet/tests/vendor_parity -m vendor_parity -rs
 ```
 

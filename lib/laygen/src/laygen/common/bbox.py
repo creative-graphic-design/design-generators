@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 else:
     try:
         import torch
-    except ModuleNotFoundError:
+    except ImportError:
         pass
 
 
