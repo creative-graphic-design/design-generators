@@ -98,7 +98,7 @@ pip install \
   "dlt @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/dlt"
 ```
 
-The Hub checkpoints are not published yet. Clone the repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/REPRODUCING.md). Those steps create `.cache/dlt/converted/publaynet`.
+The Hub checkpoints are not published yet. Clone the repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](models/dlt/REPRODUCING.md). Those steps create `.cache/dlt/converted/publaynet`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -126,7 +126,7 @@ PubLayNet uses [`creative-graphic-design/PubLayNet`](https://huggingface.co/data
 
 ### Training Procedure
 
-Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) through the shared [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) entry point and full `class_path` YAML configs. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md) for smoke, PubLayNet, and RICO13 commands.
+Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) through the shared [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) entry point and full `class_path` YAML configs. See [TRAINING.md](models/dlt/TRAINING.md) for smoke, PubLayNet, and RICO13 commands.
 
 ## Evaluation
 
@@ -140,7 +140,7 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/REPRODUCING.md) to reproduce the original-implementation agreement checks by downloading vendor assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading.
+See [REPRODUCING.md](models/dlt/REPRODUCING.md) to reproduce the original-implementation agreement checks by downloading vendor assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading.
 
 ## License
 

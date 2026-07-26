@@ -5,5 +5,3 @@
 ^https?://localhost(?::[0-9]+)?(?:/.*)?$
 ^https?://127\.0\.0\.1(?::[0-9]+)?(?:/.*)?$
 ^https?://0\.0\.0\.0(?::[0-9]+)?(?:/.*)?$
-^https://github\.com/creative-graphic-design/design-generators/blob/main/models/dlt/REPRODUCING\.md$
-^https://github\.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING\.md$
