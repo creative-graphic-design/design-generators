@@ -34,11 +34,19 @@ S5 compares a full vendor checkpoint with an independently trained package check
 using the same PubLayNet validation split, `all` conditioning, and evaluation seeds
 `42`, `43`, and `44`. Lower is better for FID, overlap, alignment, IoU, and loss.
 
-| Dataset | Status | Checkpoints | Loss mean | FID | Overlap | IoU | Conclusion |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| PubLayNet | S5 pass | vendor epoch 799 vs ours epoch 799 | vendor `1.8069 +/- 0.0228`; ours `1.8072 +/- 0.0225`; delta `+0.0003` | vendor `2.3806 +/- 0.0546`; ours `1.9500 +/- 0.0379`; delta `-0.4306` | vendor `0.0241 +/- 0.0003`; ours `0.0257 +/- 0.0004`; delta `+0.0015` | vendor `0.0034 +/- 0.0001`; ours `0.0033 +/- 0.0001`; delta `-0.0001` | Validation loss and generation metrics reproduce the vendor checkpoint under the fixed S5 protocol. |
-| RICO13 | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending full vendor/package training pair. |
-| Magazine | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
+| Dataset | Status | Checkpoints | Loss mean | FID | Overlap | Alignment | IoU | Conclusion |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| PubLayNet | S5 near-parity, offsets disclosed | vendor epoch 799 vs ours epoch 799 | vendor `1.8069 +/- 0.0228`; ours `1.8072 +/- 0.0225`; delta `+0.0003` | vendor `2.3806 +/- 0.0546`; ours `1.9500 +/- 0.0379`; delta `-0.4306` | vendor `0.0241 +/- 0.0003`; ours `0.0257 +/- 0.0004`; delta `+0.0015` | vendor `0.0102 +/- 0.0000`; ours `0.0109 +/- 0.0001`; delta `+0.0007` | vendor `0.0034 +/- 0.0001`; ours `0.0033 +/- 0.0001`; delta `-0.0001` | Loss, FID, and IoU are aligned or better for the package checkpoint, while overlap and alignment retain small systematic one-directional offsets. |
+| RICO13 | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending full vendor/package training pair. |
+| Magazine | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
+
+The PubLayNet S5 run is not a clean metric-identical pass. The package checkpoint
+has better FID (`-0.4306`) and matching validation loss (`+0.0003`) and IoU
+(`-0.0001`), but overlap is higher by `+0.00153` (about `+6.3%`, one-directional
+and roughly `5` standard deviations at this seed scope) and alignment is higher
+by `+0.00071` (about `+6.9%`, one-directional and roughly `10` standard
+deviations at this seed scope). Treat the result as near-parity with disclosed
+offsets, not as exact training reproduction.
 
 | Seed | Vendor loss | Ours loss | Loss delta | Vendor FID | Ours FID | FID delta | Vendor overlap | Ours overlap | Overlap delta | Vendor align | Ours align | Align delta | Vendor IoU | Ours IoU | IoU delta |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

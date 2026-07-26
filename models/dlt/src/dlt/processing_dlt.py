@@ -24,7 +24,7 @@ DLTProcessedBatch = dict[str, torch.Tensor]
 
 
 class DLTProcessor(ProcessorMixin):
-    """Encode DLT public inputs into the original tensor format.
+    """Encode DLT public inputs into the package tensor format.
 
     Args:
         dataset: Canonical dataset name.
@@ -231,8 +231,7 @@ class DLTProcessor(ProcessorMixin):
     ]:
         """Return DLT ``mask_box`` and ``mask_cat`` tensors.
 
-        ``1`` means generated/noised and ``0`` means conditioned, matching the
-        original implementation.
+        ``1`` means generated/noised and ``0`` means conditioned.
         """
         mask_box = torch.ones(
             mask.shape[0], mask.shape[1], 4, dtype=torch.long, device=mask.device

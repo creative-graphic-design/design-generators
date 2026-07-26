@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import torch
+from diffusers.optimization import get_cosine_schedule_with_warmup
+from jaxtyping import Float
 from lightning.pytorch import LightningModule
 from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
-from jaxtyping import Float
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
 
 from dlt.configuration_dlt import DLTConfig
 from dlt.conversion import build_pipeline
@@ -15,6 +18,34 @@ from dlt.scheduling_dlt import DLTJointDiffusionScheduler
 
 from .dataset import DLTExample
 from .losses import masked_cross_entropy, masked_l2
+
+
+class DLTWarmupCosineSchedulerFactory:
+    """Create the warmup-cosine scheduler used for DLT training."""
+
+    def __init__(
+        self,
+        *,
+        num_warmup_steps: int,
+        num_training_steps: int,
+        num_cycles: float = 0.5,
+        last_epoch: int = -1,
+    ) -> None:
+        """Store scheduler parameters until the optimizer is available."""
+        self.num_warmup_steps = num_warmup_steps
+        self.num_training_steps = num_training_steps
+        self.num_cycles = num_cycles
+        self.last_epoch = last_epoch
+
+    def __call__(self, optimizer: Optimizer) -> LambdaLR:
+        """Build a diffusers warmup-cosine scheduler for an optimizer."""
+        return get_cosine_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.num_warmup_steps,
+            num_training_steps=self.num_training_steps,
+            num_cycles=self.num_cycles,
+            last_epoch=self.last_epoch,
+        )
 
 
 class DLTTrainingModule(LightningModule):
@@ -82,7 +113,11 @@ class DLTTrainingModule(LightningModule):
         optimizer = self.optimizer(self.parameters())
         if self.lr_scheduler is None:
             return optimizer
+        scheduler = self.lr_scheduler(optimizer)
         return {
             "optimizer": optimizer,
-            "lr_scheduler": self.lr_scheduler(optimizer),
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",
+            },
         }

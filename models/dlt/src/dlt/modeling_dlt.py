@@ -1,4 +1,4 @@
-"""DLT transformer denoiser with original state-dict key compatibility."""
+"""DLT transformer denoiser with checkpoint state-dict key compatibility."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class DLTModelOutput(BaseOutput):
 
 
 class PositionalEncoding(nn.Module):
-    """Sinusoidal positional encoding used by the original DLT model."""
+    """Sinusoidal positional encoding used by the DLT denoiser."""
 
     def __init__(
         self, d_model: int, dropout: float = 0.05, max_len: int = 5000
@@ -59,7 +59,7 @@ class PositionalEncoding(nn.Module):
 
 
 class TimestepEmbedder(nn.Module):
-    """Timestep MLP used by the original DLT model."""
+    """Timestep MLP used by the DLT denoiser."""
 
     def __init__(self, latent_dim: int, seq_pos_enc: PositionalEncoding) -> None:
         """Initialize the timestep embedder."""
@@ -82,12 +82,11 @@ class TimestepEmbedder(nn.Module):
 class DLT(ModelMixin, ConfigMixin):
     """Joint continuous/discrete DLT denoiser.
 
-    The module names intentionally match the original implementation so
-    original ``model.save_pretrained`` directories can load without key
-    rewriting.
+    The module names intentionally match released checkpoint keys so
+    ``model.save_pretrained`` directories can load without key rewriting.
 
     Args:
-        categories_num: Original category count including pad and mask/drop ids.
+        categories_num: Internal category count including pad and mask/drop ids.
         latent_dim: Transformer latent dimension.
         num_layers: Number of transformer encoder layers.
         num_heads: Number of attention heads.
@@ -161,15 +160,15 @@ class DLT(ModelMixin, ConfigMixin):
         """Predict clean boxes and category logits for a noisy layout.
 
         Args:
-            sample: Original-format conditioning batch with ``box_cond``,
+            sample: DLT-format conditioning batch with ``box_cond``,
                 ``cat``, ``mask_box``, and ``mask_cat``.
             noisy_sample: Current noisy ``box`` and ``cat`` tensors.
             timesteps: Continuous diffusion timestep per batch item.
             return_dict: Whether to return ``DLTModelOutput``.
 
         Returns:
-            Either a two-tuple ``(box, logits)`` for original compatibility or a
-            dataclass output.
+            Either a two-tuple ``(box, logits)`` for checkpoint-compatible
+            callers or a dataclass output.
         """
         cat_input = (
             noisy_sample["cat"] * sample["mask_cat"]
@@ -233,8 +232,8 @@ class DLT(ModelMixin, ConfigMixin):
     ) -> None:
         """Save the model with PyTorch serialization by default.
 
-        DLT keeps the original shared positional-encoding module structure,
-        which creates shared buffers that safetensors refuses to flatten.
+        DLT keeps shared positional-encoding buffers that safetensors refuses
+        to flatten.
         """
         super().save_pretrained(
             save_directory,

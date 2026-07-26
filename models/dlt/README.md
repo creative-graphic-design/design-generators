@@ -126,7 +126,7 @@ PubLayNet uses [`creative-graphic-design/PubLayNet`](https://huggingface.co/data
 
 ### Training Procedure
 
-Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) through the shared [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) entry point and full `class_path` YAML configs. See [TRAINING.md](models/dlt/TRAINING.md) for smoke, PubLayNet, and RICO13 commands.
+Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) through the shared [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) entry point and full `class_path` YAML configs. See [TRAINING.md](TRAINING.md) for smoke, PubLayNet, and RICO13 commands.
 
 ## Evaluation
 
@@ -136,7 +136,15 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 | --- | ---: | --- | --- |
 | Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
 | Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
-| PubLayNet S5 full checkpoint evaluation | 3 seeds | vendor epoch 799 vs independently trained package epoch 799; summary acceptance uses `atol=5e-3` for validation loss and metric deltas from `results-gpu1-rerun.json` | passed: loss delta `+0.0003`, FID delta `-0.4306`, overlap delta `+0.0015`, IoU delta `-0.0001` |
+| PubLayNet S5 full checkpoint evaluation | 3 seeds | vendor epoch 799 vs independently trained package epoch 799 using `results-gpu1-rerun.json`; summary acceptance keeps `atol=5e-3` for validation loss and discloses metric offsets | near-parity with disclosed offsets: loss delta `+0.0003`, FID delta `-0.4306`, overlap delta `+0.0015`, alignment delta `+0.0007`, IoU delta `-0.0001` |
+
+PubLayNet S5 is not metric-identical. The package checkpoint has better FID and
+matching validation loss and IoU, while overlap remains higher by `+0.00153`
+(about `+6.3%`, one-directional and roughly `5` standard deviations at this seed
+scope) and alignment remains higher by `+0.00071` (about `+6.9%`,
+one-directional and roughly `10` standard deviations at this seed scope). See
+[TRAINING.md](TRAINING.md) for the seed table and train-loss
+diagnostic.
 
 ## Reproducibility
 

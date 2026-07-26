@@ -29,7 +29,7 @@ class OutputType(StrEnum):
 
 
 class DLTConditionAlias(StrEnum):
-    """DLT original condition aliases."""
+    """DLT checkpoint condition aliases."""
 
     all = auto()
     whole_box = auto()
@@ -55,7 +55,7 @@ PipelineOutputDict = dict[str, PipelineOutputValue]
 def normalize_condition_type(
     condition_type: ConditionType | str | None,
 ) -> ConditionType:
-    """Normalize public and original DLT condition names."""
+    """Normalize public and DLT alias condition names."""
     if condition_type is None:
         canonical = ConditionType.unconditional
     elif isinstance(condition_type, ConditionType):
@@ -169,7 +169,7 @@ class DLTPipeline(DiffusionPipeline):
             batch_size: Number of layouts to generate.
             seed: Optional seed used when ``generator`` is absent.
             generator: Optional torch generator. Takes precedence over ``seed``.
-            condition_type: Canonical condition or DLT original alias.
+            condition_type: Canonical condition or DLT checkpoint alias.
             labels: Optional public labels for conditioned modes.
             bbox: Optional public boxes for conditioned modes.
             mask: Optional valid-element mask.

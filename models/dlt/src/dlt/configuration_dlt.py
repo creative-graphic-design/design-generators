@@ -60,7 +60,7 @@ class DLTConfig(ConfigMixin):
         id2label: Optional public label mapping. When omitted, shared dataset
             labels are used.
         max_num_comp: Maximum number of layout elements.
-        categories_num: Original category count including pad and mask/drop ids.
+        categories_num: Internal category count including pad and mask/drop ids.
         latent_dim: Transformer latent dimension.
         num_layers: Number of transformer encoder layers.
         num_heads: Number of attention heads.

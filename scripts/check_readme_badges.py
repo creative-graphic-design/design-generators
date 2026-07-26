@@ -10,9 +10,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ROOT_REPO_BLOB_URL = (
-    "https://github.com/creative-graphic-design/design-generators/blob/main/"
-)
 BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
@@ -449,8 +446,6 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        if _is_root_readme(badge.path):
-            return f"{ROOT_REPO_BLOB_URL}lib/{badge.message}/README.md"
         return f"lib/{badge.message}/README.md"
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]

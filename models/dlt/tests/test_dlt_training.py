@@ -1,4 +1,5 @@
 from functools import partial
+from typing import TypedDict, cast
 
 import h5py
 import numpy as np
@@ -12,9 +13,22 @@ pytest.importorskip("lightning")
 
 from dlt.training.datamodule import DLTDataModule
 from dlt.training.dataset import SyntheticDLTDataset, collate_dlt_batch
-from dlt.training.lightning_module import DLTTrainingModule
+from dlt.training.lightning_module import (
+    DLTTrainingModule,
+    DLTWarmupCosineSchedulerFactory,
+)
 from dlt.training.parity import DLTSyntheticStepTraceAdapter
 from dlt.training.seed import apply_seed_mode
+
+
+class _SchedulerConfig(TypedDict):
+    scheduler: torch.optim.lr_scheduler.LambdaLR
+    interval: str
+
+
+class _OptimizerSchedulerConfig(TypedDict):
+    optimizer: torch.optim.AdamW
+    lr_scheduler: _SchedulerConfig
 
 
 def tiny_training_module() -> DLTTrainingModule:
@@ -72,6 +86,35 @@ def test_configure_optimizers_uses_injected_adamw_values() -> None:
     assert optimizer.param_groups[0]["betas"] == (0.95, 0.999)
     assert optimizer.param_groups[0]["eps"] == 1e-8
     assert optimizer.param_groups[0]["weight_decay"] == 1e-6
+
+
+@pytest.mark.training
+def test_configure_optimizers_steps_scheduler_per_batch() -> None:
+    module = tiny_training_module()
+    module.lr_scheduler = partial(
+        torch.optim.lr_scheduler.LambdaLR,
+        lr_lambda=lambda step: float(step + 1),
+    )
+    optimizer_config = cast(_OptimizerSchedulerConfig, module.configure_optimizers())
+    assert isinstance(optimizer_config, dict)
+    assert isinstance(optimizer_config["optimizer"], torch.optim.AdamW)
+    scheduler_config = optimizer_config["lr_scheduler"]
+    assert scheduler_config["interval"] == "step"
+    assert isinstance(scheduler_config["scheduler"], torch.optim.lr_scheduler.LambdaLR)
+
+
+@pytest.mark.training
+def test_warmup_cosine_scheduler_factory_matches_step_values() -> None:
+    module = tiny_training_module()
+    optimizer = module.optimizer(module.parameters())
+    scheduler = DLTWarmupCosineSchedulerFactory(
+        num_warmup_steps=100,
+        num_training_steps=1000,
+    )(optimizer)
+    optimizer.step()
+    scheduler.step()
+    assert scheduler.last_epoch == 1
+    assert optimizer.param_groups[0]["lr"] == pytest.approx(1.0e-6)
 
 
 @pytest.mark.training

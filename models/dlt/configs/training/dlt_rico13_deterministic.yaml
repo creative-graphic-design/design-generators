@@ -1,5 +1,6 @@
 trainer:
   devices: 1
+  gradient_clip_val: 1.0
 model:
   class_path: dlt.training.lightning_module.DLTTrainingModule
   init_args:
@@ -10,13 +11,13 @@ model:
         max_num_comp: 9
         categories_num: 15
     loss_box_weight: 5.0
-optimizer:
-  class_path: torch.optim.AdamW
-  init_args:
-    lr: 0.0001
-    betas: [0.95, 0.999]
-    eps: 1.0e-8
-    weight_decay: 1.0e-6
+    optimizer:
+      class_path: torch.optim.AdamW
+      init_args:
+        lr: 0.0001
+        betas: [0.95, 0.999]
+        eps: 1.0e-8
+        weight_decay: 1.0e-6
 data:
   class_path: dlt.training.datamodule.DLTDataModule
   init_args:
