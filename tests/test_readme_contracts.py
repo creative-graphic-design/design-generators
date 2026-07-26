@@ -42,6 +42,7 @@ DOCS_MODEL_TASK_COLORS = {
     frozenset({"content-agnostic-layout-generation"}): "2f80ed",
     frozenset({"content-aware-layout-generation"}): "eb5757",
     frozenset({"layout-evaluation"}): "6b7280",
+    frozenset({"saliency-detection"}): "009688",
     frozenset(
         {"content-agnostic-layout-generation", "content-aware-layout-generation"}
     ): "9b51e0",

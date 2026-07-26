@@ -241,6 +241,7 @@ EXPECTED_FRONTMATTER = {
         ],
     },
     "smarttext": {"license": "other", "datasets": ["SmartText demo"]},
+    "basnet": {"license": "apache-2.0", "datasets": ["SmartText demo"]},
 }
 
 
@@ -268,6 +269,7 @@ EXPECTED_MODEL_NAMES = {
     "postero": "PosterO",
     "ralf": "RALF",
     "smarttext": "SmartText",
+    "basnet": "BASNet",
 }
 
 EXPECTED_REPOSITORY_LINKS = {
@@ -283,6 +285,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "smarttext": "https://github.com/intchous/SmartText",
+    "basnet": "https://github.com/xuebinqin/BASNet",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
     "housegan": "https://github.com/ennauata/housegan",
 }

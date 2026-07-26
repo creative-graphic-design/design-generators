@@ -23,7 +23,7 @@ vendor = ["scikit-image>=0.21"]
 framework = "transformers"
 task = "saliency-detection"
 conditions = ["content_image"]
-datasets = ["gdi"]
+datasets = ["smarttext-demo"]
 
 [tool.pytest.ini_options]
 addopts = ["--cov=basnet", "--cov-report=term-missing", "--cov-fail-under=90"]
