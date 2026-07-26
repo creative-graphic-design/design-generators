@@ -5,10 +5,10 @@ from PIL import Image
 
 from cgb_dm.training.parity import (
     CGBDMStepTraceAdapter,
-    build_vendor_compatible_dataset,
-    capture_vendor_order,
-    load_vendor_order_manifest,
-    write_vendor_order_manifest,
+    build_reference_dataset,
+    capture_source_order,
+    load_source_order_manifest,
+    write_source_order_manifest,
 )
 from cgb_dm.training.seed import apply_seed_mode
 
@@ -117,7 +117,7 @@ def test_training_helpers_cover_tuple_adapter_and_plain_optimizer():
     assert batch["saliency_box"] is saliency_box
 
 
-def test_vendor_order_manifest_helpers(tmp_path):
+def test_source_order_manifest_helpers(tmp_path):
     root = tmp_path / "split"
     for rel in [
         "train/inpaint",
@@ -139,17 +139,17 @@ def test_vendor_order_manifest_helpers(tmp_path):
     )
     manifest = tmp_path / "manifest.json"
 
-    assert capture_vendor_order(root) == ["sample.png"]
+    assert capture_source_order(root) == ["sample.png"]
     assert (
-        write_vendor_order_manifest(
+        write_source_order_manifest(
             data_root=root,
             output=manifest,
             dataset="pku_posterlayout",
         )
         == manifest
     )
-    assert load_vendor_order_manifest(manifest) == ["sample.png"]
-    dataset = build_vendor_compatible_dataset(root, manifest=manifest)
+    assert load_source_order_manifest(manifest) == ["sample.png"]
+    dataset = build_reference_dataset(root, manifest=manifest)
     assert dataset[0]["layout"].shape == (16, 8)
 
 

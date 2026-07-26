@@ -37,10 +37,10 @@ model-index:
 ![base](https://img.shields.io/static/v1?label=base&message=diffusers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PKU&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=CGL&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=not-run&color=lightgrey&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports CGB-DM, the content-aware poster layout diffusion model from LayoutDiT, into a [`🧨 diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
+This package ports CGB-DM, the content-aware poster layout diffusion model from LayoutDiT, into a `🧨diffusers`-style package.
 
 ## Model Details
 
@@ -64,8 +64,8 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | planned after training |
-| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | planned after training |
+| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training and S5 parity complete; Hub publish deferred |
+| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 parity complete; Hub publish deferred |
 
 ## Uses
 
@@ -111,6 +111,13 @@ Run the gated parity workflow before publishing trained checkpoints or comparing
 
 Clone this repository, install the workspace member, and run the training or conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md). Those steps create converted pipeline directories under `.cache/cgb-dm/converted/`.
 
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
+  "cgb-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/cgb-dm"
+```
+
 ## Training Details
 
 ### Training Data
@@ -131,12 +138,13 @@ uv run --package cgb-dm --extra training \
 
 ### Parity Results
 
-The full vendor parity suite is not run unless local CGB-DM assets are present and `PARITY_REQUIRE=1` is set.
+The gated vendor parity suite requires local CGB-DM assets and `PARITY_REQUIRE=1`.
 
 | Dataset | Stage | Cases | Criterion | Result |
 | --- | --- | ---: | --- | --- |
 | PKU PosterLayout | real vendor S0-S2 training-step parity | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
-| CGL | synthetic training-step parity | 0 | gated adapter present | not run |
+| PKU PosterLayout | S5 full-run metrics | 3 seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are statistically equivalent | pass: `val=1.000000 +/- 0.000000`, `ove=0.003293 +/- 0.000801`, `undl=0.999345 +/- 0.000284`, `unds=0.991428 +/- 0.001467`, `occ=0.116661 +/- 0.000648`, `rea=0.014180 +/- 0.000295` |
+| CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are statistically equivalent | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
 
 ## Reproducibility
 

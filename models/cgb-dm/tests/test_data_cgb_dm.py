@@ -44,7 +44,7 @@ def test_original_dataset_reads_tiny_extract(tmp_path):
     assert row["saliency_box"].shape == (1, 4)
 
 
-def test_original_dataset_replays_manifest_with_vendor_encoding(tmp_path):
+def test_original_dataset_replays_manifest_with_reference_encoding(tmp_path):
     root = tmp_path / "split"
     for rel in [
         "train/inpaint",
@@ -78,13 +78,13 @@ def test_original_dataset_replays_manifest_with_vendor_encoding(tmp_path):
     manifest.write_text(json.dumps({"names": ["b.png", "a.png"]}), encoding="utf-8")
 
     public_dataset = CGBDMOriginalDataset(root, split="train")
-    vendor_dataset = CGBDMOriginalDataset(
-        root, split="train", name_manifest=manifest, encoding="vendor"
+    reference_dataset = CGBDMOriginalDataset(
+        root, split="train", name_manifest=manifest, encoding="reference"
     )
 
     assert public_dataset.names == ["a.png", "b.png"]
-    assert vendor_dataset.names == ["b.png", "a.png"]
-    row = vendor_dataset[0]
+    assert reference_dataset.names == ["b.png", "a.png"]
+    row = reference_dataset[0]
     assert row["pixel_values"].shape == (4, 384, 256)
     assert row["layout"].shape == (16, 8)
     assert row["layout"][-1, 0] == 1
