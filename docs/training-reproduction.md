@@ -153,7 +153,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> \
   uv run --package <package> --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/<package>/configs/training/<dataset>.yaml \
   --trainer.devices=1
 ```
