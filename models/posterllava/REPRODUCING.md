@@ -23,13 +23,28 @@ uv run --package posterllava pytest models/posterllava/tests -m "not vendor_pari
 
 ## Original Reference Generation
 
+Full-generation references require at least 35 GB free on `/root` before
+downloading `posterllava/posterllava_v0`; the checkpoint is about 24.9 GiB and
+the workflow keeps at least 10 GB free after download.
+
 ```bash
-uv sync --package posterllava --extra vendor
-# The original LLaVA reference environment used transformers==4.31.0,
-# accelerate==0.21.0, peft==0.4.0, bitsandbytes==0.41.0, timm==0.6.13,
-# and pydantic<2. Install those exact pins in a separate vendor environment
-# when strict original-code reproduction is required.
-CUDA_VISIBLE_DEVICES=0 uv run --package posterllava python models/posterllava/scripts/generate_reference_outputs.py \
+df -h /root
+git submodule update --init vendor/posterllava
+uv venv .cache/posterllava/vendor-venv --python 3.11
+. .cache/posterllava/vendor-venv/bin/activate
+uv pip install \
+  "transformers==4.31.0" \
+  "accelerate==0.21.0" \
+  "peft==0.4.0" \
+  "timm==0.6.13" \
+  "pydantic<2" \
+  shortuuid \
+  sentencepiece \
+  pillow \
+  requests \
+  torch \
+  torchvision
+python models/posterllava/scripts/generate_reference_outputs.py \
   --vendor-root ./vendor/posterllava \
   --model-path ./pretrained_model/posterllava_v0 \
   --json-file ./vendor/posterllava/data/qbposter/qbposter_val_instruct.json \
@@ -39,6 +54,9 @@ CUDA_VISIBLE_DEVICES=0 uv run --package posterllava python models/posterllava/sc
   --seed 0 \
   --no-do-sample
 ```
+
+Use `--prepare-only` with the same arguments to write the deterministic runner
+and metadata without loading the checkpoint or images.
 
 ## Vendor CPU Contract
 

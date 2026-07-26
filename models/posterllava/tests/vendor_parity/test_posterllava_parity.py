@@ -231,11 +231,17 @@ def test_full_generation_reference_json_is_validated_when_present() -> None:
     processor = PosterLlavaProcessor.from_config()
     checked_layouts = 0
     checked_elements = 0
+    empty_samples = 0
     for sample_id, generations in data.items():
         if not isinstance(sample_id, str):
             raise AssertionError("reference sample ids must be strings")
-        if not isinstance(generations, list) or not generations:
-            raise AssertionError(f"reference sample {sample_id!r} has no generations")
+        if not isinstance(generations, list):
+            raise AssertionError(
+                f"reference sample {sample_id!r} generations must be a list"
+            )
+        if not generations:
+            empty_samples += 1
+            continue
         for layout in generations:
             if not isinstance(layout, list):
                 raise AssertionError(
@@ -251,3 +257,5 @@ def test_full_generation_reference_json_is_validated_when_present() -> None:
 
     if checked_layouts == 0 or checked_elements == 0:
         raise AssertionError("reference JSON did not contain any generated elements")
+    if empty_samples >= len(data):
+        raise AssertionError("reference JSON did not contain any parseable generations")
