@@ -21,6 +21,17 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
 def test_s5_training_configs_pin_layoutdm_experiment_settings() -> None:
     for dataset in ("rico25", "publaynet"):
         text = (CONFIG_DIR / f"layoutdm_{dataset}.yaml").read_text(encoding="utf-8")
+        assert "  max_epochs: 50" in text
+        assert "  check_val_every_n_epoch: 1" in text
+        assert "  gradient_clip_val: 1.0" in text
+        assert "    learning_rate: 0.0005" in text
+        assert "    weight_decay: 0.1" in text
+        assert "    betas: [0.9, 0.98]" in text
+        assert "    scheduler: reduce_on_plateau" in text
+        assert "    scheduler_factor: 0.5" in text
+        assert "    scheduler_patience: 2" in text
+        assert "    scheduler_threshold: 0.01" in text
+        assert "    batch_size: 64" in text
         assert "bbox_quantization: kmeans" in text
         assert "q_type: constrained" in text
         assert (
