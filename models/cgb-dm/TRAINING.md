@@ -178,5 +178,52 @@ checkpoints and resample seeds 1, 2, and 3 with the same metric formulas.
 ## CGL Status
 
 CGL uses the same reference architecture and raw-internal evaluation protocol.
-Add the CGL S5 table here after both the package and reference CGL full training
-runs complete.
+Both evaluations use the CGL `cgl.yaml` validation path (`val/inpaint`) with
+6,055 samples per seed. The package and reference runs are statistically
+equivalent under this S5 protocol.
+
+Re-run the package checkpoint comparison:
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
+  python models/cgb-dm/scripts/evaluate_full_run.py \
+  --dataset cgl \
+  --backend ours \
+  --repo-root "$PWD" \
+  --data-root .cache/cgb-dm/datasets/cgl/split \
+  --checkpoint .cache/cgb-dm/full-run/ours-cgl/cgl_full_ours_archfixed_20260725_012723/lightning_logs/version_0/checkpoints/epoch=499-step=189500.ckpt \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-cgl-val \
+  --gpu 0 \
+  --seeds 1 2 3
+```
+
+Re-run the reference checkpoint comparison:
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
+  python models/cgb-dm/scripts/evaluate_full_run.py \
+  --dataset cgl \
+  --backend reference \
+  --repo-root "$PWD" \
+  --data-root .cache/cgb-dm/datasets/cgl/split \
+  --checkpoint .cache/cgb-dm/full-run/vendor-cgl/cgl_full_vendor_20260725_012722/checkpoints/cgl_full_vendor_20260725_012722/Epoch500_cgbdm_weights.pth \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-vendor-cgl-val \
+  --gpu 0 \
+  --seeds 1 2 3
+```
+
+## CGL S5 Results
+
+| Metric | Reference mean +/- std (n=3) | Package mean +/- std (n=3) | Package - reference |
+| --- | ---: | ---: | ---: |
+| `val` | 0.999097 +/- 0.000109 | 0.999213 +/- 0.000044 | +0.000115 |
+| `ove` | 0.001795 +/- 0.000044 | 0.001790 +/- 0.000203 | -0.000005 |
+| `undl` | 0.997452 +/- 0.000849 | 0.996399 +/- 0.001292 | -0.001052 |
+| `unds` | 0.983453 +/- 0.001646 | 0.987553 +/- 0.002680 | +0.004100 |
+| `occ` | 0.115873 +/- 0.000318 | 0.116357 +/- 0.000279 | +0.000484 |
+| `rea` | 0.005768 +/- 0.000118 | 0.005971 +/- 0.000115 | +0.000203 |
+
+The reference full training log emitted `val=0.998943`, `ove=0.002324`,
+`undl=0.996198`, `unds=0.982091`, `occ=0.115683`, and `rea=0.005327` after
+epoch 500. The standalone reference and package S5 runs above reload final
+checkpoints and resample seeds 1, 2, and 3 with the same metric formulas.

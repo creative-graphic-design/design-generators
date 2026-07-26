@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any  # noqa: TID251 - evaluation CLI bridges dynamic reference imports.
 
@@ -21,11 +22,44 @@ from cgb_dm.configuration_cgb_dm import cgb_dm_config_for_dataset
 from cgb_dm.conversion import build_pipeline_from_checkpoint
 
 
+@dataclass(frozen=True)
+class DatasetEvalSpec:
+    """Dataset-specific settings for the original S5 evaluation protocol."""
+
+    config_name: str
+    package_dataset_name: str
+    fixture_dataset_name: str
+
+
+DATASET_EVAL_SPECS = {
+    "pku_posterlayout": DatasetEvalSpec(
+        config_name="pku.yaml",
+        package_dataset_name="pku_posterlayout",
+        fixture_dataset_name="pku",
+    ),
+    "cgl": DatasetEvalSpec(
+        config_name="cgl.yaml",
+        package_dataset_name="cgl",
+        fixture_dataset_name="cgl",
+    ),
+}
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=".", help="Repository root.")
-    parser.add_argument("--data-root", required=True, help="Extracted PKU split root.")
+    parser.add_argument(
+        "--dataset",
+        choices=sorted(DATASET_EVAL_SPECS),
+        default="pku_posterlayout",
+        help="Dataset/protocol to evaluate.",
+    )
+    parser.add_argument(
+        "--data-root",
+        required=True,
+        help="Extracted dataset split root matching --dataset.",
+    )
     parser.add_argument("--checkpoint", required=True, help="Checkpoint to evaluate.")
     parser.add_argument("--output-dir", required=True, help="Directory for metrics.")
     parser.add_argument("--backend", choices=["ours", "reference"], default="ours")
@@ -50,7 +84,8 @@ def main() -> None:
     cv2.setNumThreads(1)
     torch.set_num_threads(8)
 
-    config_path = reference_root / "configs" / "pku.yaml"
+    dataset_spec = DATASET_EVAL_SPECS[args.dataset]
+    config_path = reference_root / "configs" / dataset_spec.config_name
     with config_path.open("r", encoding="utf-8") as handle:
         raw_config = yaml.safe_load(handle)
     raw_config["paths"]["base"] = str(Path(args.data_root).resolve())
@@ -66,7 +101,8 @@ def main() -> None:
     diffusion_model = None
     if args.backend == "ours":
         pipe = build_pipeline_from_checkpoint(
-            args.checkpoint, config=cgb_dm_config_for_dataset("pku_posterlayout")
+            args.checkpoint,
+            config=cgb_dm_config_for_dataset(dataset_spec.package_dataset_name),
         ).to(device)
     else:
         diffusion_cls = importlib.import_module("cgbdm.diffusion").Diffusion
@@ -89,7 +125,9 @@ def main() -> None:
     for seed in args.seeds:
         set_seed(seed)
         cfg.imgname_order_dir = str(
-            output_dir / "image_name_order" / f"seed_{seed}_pku_unanno_test.pt"
+            output_dir
+            / "image_name_order"
+            / f"seed_{seed}_{dataset_spec.fixture_dataset_name}_unanno_test.pt"
         )
         testing_set = dataloader_mod.test_uncond_dataset(cfg)
         testing_dl = DataLoader(
