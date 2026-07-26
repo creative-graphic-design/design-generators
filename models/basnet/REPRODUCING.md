@@ -30,9 +30,13 @@ Generate golden saliency tensors through the reference path and keep the results
 under `.cache/basnet/references`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --package basnet pytest \
-  models/basnet/tests/vendor_parity/test_basnet_parity.py \
-  -m vendor_parity --no-cov
+CUDA_VISIBLE_DEVICES=0 uv run --package basnet --extra vendor python \
+  models/basnet/scripts/generate_reference_outputs.py \
+  --vendor-dir vendor/smarttext \
+  --checkpoint .cache/basnet/original/gdi-basnet.pth \
+  --image-dir vendor/smarttext/test_data/SMT \
+  --output-dir .cache/basnet/references \
+  --max-images 3
 ```
 
 ## Convert A Checkpoint
