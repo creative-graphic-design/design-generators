@@ -24,6 +24,12 @@ def test_s5_training_configs_pin_layoutdm_experiment_settings() -> None:
         assert "  max_epochs: 50" in text
         assert "  check_val_every_n_epoch: 1" in text
         assert "  gradient_clip_val: 1.0" in text
+        assert "  num_sanity_val_steps: 0" in text
+        assert "        monitor: val_loss" in text
+        assert "        mode: min" in text
+        assert "        save_top_k: 1" in text
+        assert "        save_last: true" in text
+        assert '        filename: "epoch={epoch:02d}-val_loss={val_loss:.4f}"' in text
         assert "    learning_rate: 0.0005" in text
         assert "    weight_decay: 0.1" in text
         assert "    betas: [0.9, 0.98]" in text
