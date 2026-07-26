@@ -9,6 +9,7 @@ dependencies = [
     "jaxtyping>=0.3.11,<0.4",
     "matplotlib>=3.8",
     "numpy>=1.24",
+    "pillow>=10",
     "transformers>=5.0.0",
 ]
 
