@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -365,7 +366,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         full_ids = self._full_ids(key, inputs.device)
         outputs = torch.full(
             (inputs.shape[0], self.vocab_size, inputs.shape[-1]),
-            -70.0,
+            math.log(1.0e-30),
             device=inputs.device,
             dtype=inputs.dtype,
         )

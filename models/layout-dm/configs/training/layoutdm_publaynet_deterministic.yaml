@@ -19,6 +19,9 @@ model:
         dataset_name: publaynet
         max_seq_length: 25
         num_timesteps: 100
+        bbox_quantization: kmeans
+        q_type: constrained
+        cluster_centers_path: .cache/layout-dm/original/download/clustering_weights/publaynet_max25_kmeans_train_clusters.pkl
     learning_rate: 0.0005
     weight_decay: 0.1
     auxiliary_loss_weight: 0.1
@@ -36,6 +39,9 @@ data:
         dataset_name: publaynet
         max_seq_length: 25
         num_timesteps: 100
+        bbox_quantization: kmeans
+        q_type: constrained
+        cluster_centers_path: .cache/layout-dm/original/download/clustering_weights/publaynet_max25_kmeans_train_clusters.pkl
     batch_size: 256
     max_seq_length: 25
     num_workers: 0

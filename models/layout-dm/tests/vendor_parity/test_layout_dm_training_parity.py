@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import NamedTuple, Protocol, cast
+from typing import Literal, NamedTuple, Protocol, cast
 
+import numpy as np
 import pytest
 import torch
 
@@ -32,9 +33,16 @@ ROOT = Path(__file__).resolve().parents[4]
 class VendorTokenizer(Protocol):
     N_total: int
     max_token_length: int
+    var_names: list[str]
+    N_var_per_element: int
+    N_category: int
+    N_bbox_per_var: int
 
     def encode(self, inputs: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """Encode structured layout tensors into a flattened token sequence."""
+
+    def name_to_id(self, name: str) -> int:
+        """Return a special-token id."""
 
 
 class VendorDiffusion(Protocol):
@@ -90,6 +98,26 @@ class TrainingParityFixture(NamedTuple):
     mask: torch.Tensor
 
 
+class TinyClusteringModel:
+    def __init__(self, centers: list[float]) -> None:
+        self.cluster_centers_ = np.array(centers, dtype=np.float32).reshape(-1, 1)
+
+    def predict(self, inputs: np.ndarray) -> np.ndarray:
+        distances = np.abs(inputs - self.cluster_centers_.reshape(1, -1))
+        return distances.argmin(axis=1)
+
+
+class ParityScenario(NamedTuple):
+    name: str
+    q_type: Literal["vanilla", "constrained"]
+    bbox_quantization: Literal["linear", "kmeans"]
+
+
+VANILLA_LINEAR = ParityScenario("vanilla_linear", "vanilla", "linear")
+LAYOUTDM_CONFIG = ParityScenario("layoutdm_constrained_kmeans", "constrained", "kmeans")
+SCENARIOS = (VANILLA_LINEAR, LAYOUTDM_CONFIG)
+
+
 def _vendor_classes() -> tuple[type[torch.nn.Module], type[object]]:
     try:
         vendor_dir = vendor_root(
@@ -110,28 +138,36 @@ def _vendor_classes() -> tuple[type[torch.nn.Module], type[object]]:
     return LayoutDM, LayoutSequenceTokenizer
 
 
-def _config() -> LayoutDMConfig:
+def _config(
+    scenario: ParityScenario = VANILLA_LINEAR,
+    cluster_centers_path: Path | None = None,
+) -> LayoutDMConfig:
     return LayoutDMConfig(
         dataset_name="publaynet",
         max_seq_length=4,
         num_bin_bboxes=8,
-        bbox_quantization="linear",
+        bbox_quantization=scenario.bbox_quantization,
+        cluster_centers_path=(
+            None if cluster_centers_path is None else str(cluster_centers_path)
+        ),
         hidden_size=29,
         num_attention_heads=1,
         num_hidden_layers=1,
         intermediate_size=29,
         num_timesteps=4,
-        q_type="vanilla",
+        q_type=scenario.q_type,
     )
 
 
-def _vendor_tokenizer(vendor_tokenizer_cls: type[object]) -> VendorTokenizer:
+def _vendor_tokenizer(
+    vendor_tokenizer_cls: type[object], scenario: ParityScenario
+) -> VendorTokenizer:
     omegaconf = pytest.importorskip("omegaconf")
     data_cfg = omegaconf.OmegaConf.create(
         {
             "pad_until_max": True,
             "shared_bbox_vocab": "x-y-w-h",
-            "bbox_quantization": "linear",
+            "bbox_quantization": scenario.bbox_quantization,
             "var_order": "c-x-y-w-h",
             "special_tokens": ["pad", "mask"],
             "num_bin_bboxes": 8,
@@ -146,10 +182,38 @@ def _vendor_tokenizer(vendor_tokenizer_cls: type[object]) -> VendorTokenizer:
     return cast(VendorTokenizer, vendor_tokenizer_cls(data_cfg, dataset_cfg))
 
 
-def _build_fixture(device: torch.device) -> TrainingParityFixture:
+def _cluster_centers_file(tmp_path: Path) -> Path:
+    import pickle
+
+    root = tmp_path / "clustering_weights"
+    root.mkdir()
+    centers = [0.0625, 0.1875, 0.3125, 0.4375, 0.5625, 0.6875, 0.8125, 0.9375]
+    models = {f"{key}-8": TinyClusteringModel(centers) for key in ("x", "y", "w", "h")}
+    path = root / "publaynet_max4_kmeans_train_clusters.pkl"
+    with path.open("wb") as f:
+        pickle.dump(models, f)
+    return path
+
+
+def _build_fixture(
+    device: torch.device,
+    scenario: ParityScenario = VANILLA_LINEAR,
+    tmp_path: Path | None = None,
+    monkeypatch: pytest.MonkeyPatch | None = None,
+) -> TrainingParityFixture:
     omegaconf = pytest.importorskip("omegaconf")
     vendor_layout_dm_cls, vendor_tokenizer_cls = _vendor_classes()
-    vendor_tokenizer = _vendor_tokenizer(vendor_tokenizer_cls)
+    cluster_centers_path = None
+    if scenario.bbox_quantization == "kmeans":
+        if tmp_path is None or monkeypatch is None:
+            raise AssertionError("kmeans parity requires tmp_path and monkeypatch")
+        cluster_centers_path = _cluster_centers_file(tmp_path)
+        import trainer.helpers.bbox_tokenizer as bbox_tokenizer
+
+        monkeypatch.setattr(
+            bbox_tokenizer, "KMEANS_WEIGHT_ROOT", str(cluster_centers_path.parent)
+        )
+    vendor_tokenizer = _vendor_tokenizer(vendor_tokenizer_cls, scenario)
     backbone_cfg = omegaconf.OmegaConf.create(
         {
             "_target_": "trainer.models.transformer_utils.TransformerEncoder",
@@ -177,11 +241,11 @@ def _build_fixture(device: torch.device) -> TrainingParityFixture:
             pos_emb="elem_attr",
             num_timesteps=4,
             auxiliary_loss_weight=0.1,
-            q_type="vanilla",
+            q_type=scenario.q_type,
             seq_type="poset",
         ).to(device),
     )
-    cfg = _config()
+    cfg = _config(scenario, cluster_centers_path=cluster_centers_path)
     target = LayoutDMTrainingModule(config=cfg, time_sampler="uniform", scheduler=None)
     target.to(device)
     vendor_model = cast(VendorDiffusion, vendor.model.module)
@@ -247,8 +311,11 @@ def _vendor_trace(
     batch_size = x_start.size(0)
     t, pt = vendor.sample_time(batch_size, x_start.device, "importance")
     log_x_start = index_to_log_onehot(x_start, vendor.num_classes)
-    log_xt = vendor.q_sample(log_x_start=log_x_start, t=t)
-    xt = log_onehot_to_index(log_xt)
+    if hasattr(vendor, "converter"):
+        log_xt, xt = _vendor_constrained_q_sample(vendor, x_start, t)
+    else:
+        log_xt = vendor.q_sample(log_x_start=log_x_start, t=t)
+        xt = log_onehot_to_index(log_xt)
     log_x0_recon = vendor.predict_start(log_xt, t=t)
     log_model_prob = vendor.q_posterior(log_x_start=log_x0_recon, log_x_t=log_xt, t=t)
     log_true_prob = vendor.q_posterior(log_x_start=log_x_start, log_x_t=log_xt, t=t)
@@ -293,8 +360,41 @@ def _vendor_trace(
     }
 
 
-def test_s0_training_static_state_matches_vendor() -> None:
-    fixture = _build_fixture(_device())
+def _vendor_constrained_q_sample(
+    vendor: VendorDiffusion, x_start: torch.Tensor, t: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    tokenizer = cast(VendorTokenizer, getattr(vendor, "tokenizer"))
+    converter = getattr(vendor, "converter")
+    batch_size = x_start.shape[0]
+    step = tokenizer.N_var_per_element
+    seq_len = x_start.shape[1] // step
+    x_start_reshaped = converter.f_to_p_id_all(
+        x_start.reshape(batch_size, seq_len, step)
+    )
+    log_xt_full_parts = []
+    xt_full_parts = []
+    for i, key in enumerate(tokenizer.var_names):
+        mat_size = (
+            tokenizer.N_category + 2 if key == "c" else tokenizer.N_bbox_per_var + 2
+        )
+        log_x_start = index_to_log_onehot(x_start_reshaped[..., i], mat_size)
+        log_xt = getattr(vendor, "q_sample")(log_x_start=log_x_start, t=t, key=key)
+        log_xt_full_parts.append(converter.p_to_f_log(log_xt, key))
+        xt_full_parts.append(log_onehot_to_index(log_xt))
+    xt_full = converter.p_to_f_id_all(torch.stack(xt_full_parts, dim=-1)).view(
+        batch_size, -1
+    )
+    log_xt_full = torch.stack(log_xt_full_parts, dim=-1).view(
+        batch_size, vendor.num_classes, -1
+    )
+    return log_xt_full, xt_full
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=[item.name for item in SCENARIOS])
+def test_s0_training_static_state_matches_vendor(
+    scenario: ParityScenario, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_fixture(_device(), scenario, tmp_path, monkeypatch)
     report = compare_layout_dm_optimizer_step(
         fixture.vendor_model.transformer.state_dict(),
         fixture.target.model.transformer.state_dict(),
@@ -309,8 +409,11 @@ def test_s0_training_static_state_matches_vendor() -> None:
     )
 
 
-def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor() -> None:
-    fixture = _build_fixture(_device())
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=[item.name for item in SCENARIOS])
+def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor(
+    scenario: ParityScenario, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_fixture(_device(), scenario, tmp_path, monkeypatch)
     torch.manual_seed(999)
     vendor_trace = build_step_trace(
         "vendor", _vendor_trace(fixture.vendor_model, fixture.batch)
@@ -325,8 +428,11 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor() -> None:
     assert report.passed, report
 
 
-def test_s2_one_optimizer_step_matches_vendor() -> None:
-    fixture = _build_fixture(_device())
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=[item.name for item in SCENARIOS])
+def test_s2_one_optimizer_step_matches_vendor(
+    scenario: ParityScenario, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_fixture(_device(), scenario, tmp_path, monkeypatch)
     vendor_optimizer = torch.optim.AdamW(
         fixture.vendor_model.transformer.parameters(), lr=5e-4, betas=(0.9, 0.98)
     )
@@ -352,8 +458,11 @@ def test_s2_one_optimizer_step_matches_vendor() -> None:
     assert report.passed, report
 
 
-def test_s4_loader_tokenizer_output_matches_vendor() -> None:
-    fixture = _build_fixture(_device())
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=[item.name for item in SCENARIOS])
+def test_s4_loader_tokenizer_output_matches_vendor(
+    scenario: ParityScenario, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _build_fixture(_device(), scenario, tmp_path, monkeypatch)
     vendor_encoded = fixture.vendor.tokenizer.encode(
         {
             "bbox": fixture.bbox.cpu(),
@@ -361,7 +470,7 @@ def test_s4_loader_tokenizer_output_matches_vendor() -> None:
             "mask": fixture.mask.cpu(),
         }
     )
-    processor = LayoutDMProcessor(LayoutDMTokenizer(_config()))
+    processor = LayoutDMProcessor(fixture.target.tokenizer)
     target_encoded = processor(
         bbox=fixture.bbox.cpu(),
         labels=fixture.labels.cpu(),
@@ -374,7 +483,7 @@ def test_s4_loader_tokenizer_output_matches_vendor() -> None:
     dataset = LayoutDMDataset.__new__(LayoutDMDataset)
     dataset.dataset_name = "publaynet"
     dataset.split = "train"
-    dataset.config = _config()
+    dataset.config = fixture.target.layout_dm_config
     dataset.tokenizer = LayoutDMTokenizer(dataset.config)
     dataset.processor = LayoutDMProcessor(dataset.tokenizer)
     dataset.max_seq_length = dataset.config.max_seq_length
@@ -395,11 +504,17 @@ def test_s4_loader_tokenizer_output_matches_vendor() -> None:
 def test_s4_processed_stream_matches_vendor_dataset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _vendor_classes()
+    _, vendor_tokenizer_cls = _vendor_classes()
     from torch_geometric.data import Data
     from trainer.datasets.publaynet import PubLayNetDataset
 
     monkeypatch.setenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+    cluster_centers_path = _cluster_centers_file(tmp_path)
+    import trainer.helpers.bbox_tokenizer as bbox_tokenizer
+
+    monkeypatch.setattr(
+        bbox_tokenizer, "KMEANS_WEIGHT_ROOT", str(cluster_centers_path.parent)
+    )
     root = tmp_path / "processed-data"
     processed_dir = root / "publaynet-max4" / "processed"
     processed_dir.mkdir(parents=True)
@@ -430,31 +545,35 @@ def test_s4_processed_stream_matches_vendor_dataset(
         torch.save(collated, processed_dir / f"{split_name}.pt")
 
     vendor_dataset = PubLayNetDataset(str(root), "train", 4)
+    vendor_tokenizer = _vendor_tokenizer(vendor_tokenizer_cls, LAYOUTDM_CONFIG)
+    config = _config(LAYOUTDM_CONFIG, cluster_centers_path=cluster_centers_path)
     target_dataset = LayoutDMProcessedDataset(
         dataset_name="publaynet",
-        config=_config(),
+        config=config,
         processed_data_dir=root,
         split="train",
     )
-    processor = LayoutDMProcessor(LayoutDMTokenizer(_config()))
     assert len(target_dataset) == len(vendor_dataset) == 2
     for index in range(len(vendor_dataset)):
         vendor_row = vendor_dataset[index]
         mask = torch.ones(vendor_row.y.shape, dtype=torch.bool)
-        vendor_encoded = processor(
-            bbox=vendor_row.x.unsqueeze(0),
-            labels=vendor_row.y.unsqueeze(0),
-            mask=mask.unsqueeze(0),
+        vendor_encoded = vendor_tokenizer.encode(
+            {
+                "bbox": vendor_row.x.unsqueeze(0),
+                "label": vendor_row.y.unsqueeze(0),
+                "mask": mask.unsqueeze(0),
+            }
         )
         target_encoded = target_dataset[index]
         assert torch.equal(
             cast(torch.Tensor, target_encoded["input_ids"]),
-            vendor_encoded["input_ids"][0],
+            vendor_encoded["seq"][0],
         )
         assert torch.equal(
-            cast(torch.Tensor, target_encoded["mask"]), vendor_encoded["mask"][0]
+            cast(torch.Tensor, target_encoded["mask"]),
+            vendor_encoded["mask"][0],
         )
         assert torch.equal(
             cast(torch.Tensor, target_encoded["attention_mask"]),
-            vendor_encoded["attention_mask"][0],
+            vendor_encoded["mask"][0],
         )

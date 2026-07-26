@@ -3798,6 +3798,7 @@ download = [
 ]
 training = [
     { name = "datasets" },
+    { name = "scikit-learn" },
     { name = "traingen", extra = ["lightning"] },
     { name = "traingen-parity", extra = ["lightning"] },
 ]
@@ -3832,6 +3833,7 @@ requires-dist = [
     { name = "requests", marker = "extra == 'download'", specifier = ">=2.31" },
     { name = "safetensors", specifier = ">=0.4" },
     { name = "scikit-learn", marker = "extra == 'convert'", specifier = ">=1.0" },
+    { name = "scikit-learn", marker = "extra == 'training'", specifier = ">=1.0" },
     { name = "scikit-learn", marker = "extra == 'vendor'", specifier = ">=1.0" },
     { name = "seaborn", marker = "extra == 'vendor'" },
     { name = "torch", specifier = ">=2.1" },

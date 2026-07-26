@@ -26,6 +26,7 @@ class LayoutDMConfig(ConfigMixin):
         bbox_quantization: Bounding-box quantization mode.
         special_tokens: Special token names. ``mask`` must be last for LayoutDM.
         cluster_centers: Optional bbox cluster centers stored with tokenizer files.
+        cluster_centers_path: Optional local path to released cluster centers.
         hidden_size: Transformer hidden size.
         num_attention_heads: Number of attention heads.
         num_hidden_layers: Number of transformer layers.
@@ -60,6 +61,7 @@ class LayoutDMConfig(ConfigMixin):
         bbox_quantization: str = "kmeans",
         special_tokens: tuple[str, ...] = ("pad", "mask"),
         cluster_centers: dict[str, list[float]] | None = None,
+        cluster_centers_path: str | None = None,
         hidden_size: int = 464,
         num_attention_heads: int = 8,
         num_hidden_layers: int = 4,
@@ -84,6 +86,7 @@ class LayoutDMConfig(ConfigMixin):
         self.bbox_quantization = bbox_quantization
         self.special_tokens = tuple(special_tokens)
         self.cluster_centers = cluster_centers
+        self.cluster_centers_path = cluster_centers_path
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.num_hidden_layers = num_hidden_layers

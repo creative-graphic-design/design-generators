@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 training = [
     "datasets>=3",
+    "scikit-learn>=1.0",
     "traingen[lightning]",
     "traingen-parity[lightning]",
 ]
