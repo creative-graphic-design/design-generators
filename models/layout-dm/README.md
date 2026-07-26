@@ -151,7 +151,7 @@ print(out.bbox.shape)
 
 ### Training Procedure
 
-Package-local training reproduction is tracked in [TRAINING.md](models/layout-dm/TRAINING.md); S0-S4 scaffolding is in place and S5 full-run statistical comparison is pending.
+Package-local training reproduction is tracked in [TRAINING.md](models/layout-dm/TRAINING.md). S0-S2 exact numeric parity currently covers a fixed PubLayNet-style synthetic batch, S4 covers tokenizer and loader row encoding for that local fixture, and S5 full-run statistical comparison is pending.
 
 #### Preprocessing
 

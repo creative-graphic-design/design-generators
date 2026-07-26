@@ -18,14 +18,15 @@ uv sync --package layout-dm --extra training --extra vendor
 
 ### GPU Environment
 
-The currently verified GPU setup is Tesla V100 with driver `575.57.08`, which
-is compatible with CUDA 12.9-era wheels. The repository default torch build is
-`cu130` (CUDA 13.0), and GPU initialization on that verified V100 setup fails
-with `driver too old (found 12090)`. Keep the repository torch pins and lockfile
-at their defaults, but before launching GPU training in this environment,
-install a driver-compatible CUDA 12 torch wheel such as `cu126` into the
-execution environment. This is a local runtime change only; do not commit
-lockfile or `pyproject.toml` changes for the temporary torch replacement.
+So far, we have only verified the GPU setup on Tesla V100 with driver
+`575.57.08`, which is compatible with CUDA 12.9-era wheels. The repository
+default torch build is `cu130` (CUDA 13.0), and GPU initialization on that
+verified V100 setup fails with `driver too old (found 12090)`. Keep the
+repository torch pins and lockfile at their defaults, but before launching GPU
+training in this environment, install a driver-compatible CUDA 12 torch wheel
+such as `cu126` into the execution environment. This is a local runtime change
+only; do not commit lockfile or `pyproject.toml` changes for the temporary torch
+replacement.
 
 ## Data
 
@@ -63,7 +64,7 @@ Training configs live under `models/layout-dm/configs/training`.
 
 ## Reproduction Results
 
-LayoutDM package-local training has S0-S4 scaffolding in place and S5 full-run statistical comparison is PENDING. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol.
+LayoutDM package-local training currently has exact S0-S2 numeric parity on a fixed PubLayNet-style synthetic batch, plus S4 tokenizer/loader row encoding parity for the same local fixture. Full deterministic loader-stream parity over downloaded training splits and S5 full-run statistical comparison are PENDING. RICO25 and PubLayNet training-seed n=3 results must be filled after package and original-code runs finish under the vendor evaluation protocol.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
@@ -96,7 +97,7 @@ Run the staged vendor parity checks after the submodule and local assets are ava
 
 ```bash
 git submodule update --init vendor/layout-dm
-CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
+CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 \
   uv run --package layout-dm --extra training --extra vendor --with pytest pytest \
   models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py \
   -m "vendor_parity and training" -rs

@@ -206,6 +206,11 @@ class LayoutDMTrainingModule(LightningModule):
         Int[torch.Tensor, "batch tokens"],
     ]:
         """Draw ``x_t`` from the forward diffusion posterior per variable."""
+        if self.layout_dm_config.q_type == "vanilla":
+            log_x_start = index_to_log_onehot(x_start, self.num_classes)
+            log_qpred = self.diffusion_scheduler._vanilla_q_pred(log_x_start, t)
+            xt = log_sample_categorical(log_qpred)
+            return index_to_log_onehot(xt, self.num_classes), xt
         batch_size = x_start.shape[0]
         step = len(self.var_order)
         seq_len = x_start.shape[1] // step
