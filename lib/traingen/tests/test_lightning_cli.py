@@ -1,5 +1,6 @@
 import sys
 import types
+from importlib.metadata import entry_points
 
 from traingen.lightning.cli import lightning_cli_class, main
 
@@ -48,3 +49,11 @@ def test_main_uses_yaml_class_path_mode(monkeypatch) -> None:
             "args": ["fit", "--config", "config.yaml"],
         }
     ]
+
+
+def test_console_script_entry_point_loads_main() -> None:
+    scripts = entry_points(group="console_scripts")
+    traingen_script = next(script for script in scripts if script.name == "traingen")
+
+    assert traingen_script.value == "traingen.lightning.cli:main"
+    assert traingen_script.load() is main

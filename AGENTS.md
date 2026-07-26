@@ -116,6 +116,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Do not silently work around guidance known to be wrong. If the same kind of
   mistake is raised repeatedly, add or revise a rule, template item, or check so
   future work can catch it mechanically.
+- Keep PR diffs minimal for the stated task. Do not move dependencies between
+  core `dependencies` and `[project.optional-dependencies]`, or add/modify
+  `[build-system]`, unless the task requires it and the PR explains why.
 
 ## Public Interface
 
