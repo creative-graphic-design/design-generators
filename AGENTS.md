@@ -48,6 +48,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   must use fully qualified jaxtyping shaped types such as
   `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
   are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Do not weaken annotations to satisfy checkers. Replacing precise annotations
+  with `object`, bare containers, or similarly less informative types is
+  prohibited; annotations must move toward more precise types.
 - Write jaxtyping shaped types inline at the annotation site. Do not introduce
   module-level aliases such as `FooTensor = Float[...]` or
   `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
@@ -113,6 +116,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Do not silently work around guidance known to be wrong. If the same kind of
   mistake is raised repeatedly, add or revise a rule, template item, or check so
   future work can catch it mechanically.
+- Keep PR diffs minimal for the stated task. Do not move dependencies between
+  core `dependencies` and `[project.optional-dependencies]`, or add/modify
+  `[build-system]`, unless the task requires it and the PR explains why.
 
 ## Public Interface
 
@@ -210,15 +216,25 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   co-specifying required workspace libraries such as `laygen` and `posgen` in
   the same command; clone + uv flows are for development and `REPRODUCING`
   docs.
+- README and model-card repository/source links must be copied from
+  `.gitmodules` or the implementation issue, then checked for a resolving HTTP
+  response before commit. Do not write upstream repository, project-page,
+  dataset, or source links from memory. PR CI mechanically verifies newly added
+  external URLs and rejects added 404/410 links.
 - Each README includes `Reproducibility`, opening with one sentence that states
   how to reproduce the original-implementation agreement checks, followed by
   copy-pasteable commands for download, vendor reference generation, parity
   tests, conversion, and `from_pretrained` smoke tests.
+- When adding a new conference venue badge to the root README, check the
+  conference's official site, logo, or style assets first and use a badge color
+  that matches that venue rather than choosing an arbitrary generic color.
 - Markdown code fences must be tagged. Use `bash` for executable shell commands
   and `text` for non-executable output, logs, or examples.
 - Docs and READMEs link the first mention of external projects and repositories.
   Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
   unless that page defines them in place or links directly to the definition.
+- Package READMEs reference repository docs with repo-root-relative links such as
+  `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
 - Hub model cards are generated through `laygen.common.model_card` using the
   official Hugging Face model-card template.
 
@@ -228,6 +244,13 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   and LightningCLI with YAML configs plus CLI overrides.
 - Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the
   model package.
+- Training-first packages follow the canonical
+  [training reproduction protocol](docs/training-reproduction.md) for S0-S5
+  evidence, topology guards, dataset coverage, seed policy, and evidence
+  recording.
+- PRs for models whose only weight path is self-training stay draft until S5 is
+  confirmed for every claimed dataset; partial coverage must be stated in the
+  package `TRAINING.md`, README, and PR body.
 
 ## CI
 

@@ -30,7 +30,9 @@ def _conv_bn(inp: int, oup: int, stride: int) -> nn.Sequential:
     )
 
 
-def _channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
+def _channel_shuffle(
+    x: Float[torch.Tensor, "batch channels height width"], groups: int
+) -> Float[torch.Tensor, "batch channels height width"]:
     batch_size, num_channels, height, width = x.size()
     channels_per_group = num_channels // groups
     x = x.view(batch_size, groups, channels_per_group, height, width)
@@ -78,7 +80,9 @@ class _InvertedResidual(nn.Module):
         else:
             assert_never(self.benchmodel)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch channels_out height_out width_out"]:
         """Run one SmartText ShuffleNetV2 residual block."""
         if self.benchmodel == 1:
             x1 = x[:, : (x.shape[1] // 2), :, :]
@@ -126,8 +130,12 @@ class _ShuffleNetV2Base(nn.Module):
         self.feature5 = nn.Sequential(model.features[12:])
 
     def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> tuple[
+        Float[torch.Tensor, "batch channels3 height3 width3"],
+        Float[torch.Tensor, "batch channels4 height4 width4"],
+        Float[torch.Tensor, "batch channels5 height5 width5"],
+    ]:
         """Return SmartText feature stages f3, f4, and f5."""
         f3 = self.feature3(x)
         f4 = self.feature4(f3)
@@ -162,8 +170,11 @@ class _AlignBase(nn.Module):
         self.spatial_scale = float(spatial_scale)
 
     def _sample(
-        self, features: torch.Tensor, rois: torch.Tensor, mode: Literal["roi", "rod"]
-    ) -> torch.Tensor:
+        self,
+        features: Float[torch.Tensor, "batch channels height width"],
+        rois: Float[torch.Tensor, "candidates 5"],
+        mode: Literal["roi", "rod"],
+    ) -> Float[torch.Tensor, "candidates channels aligned_height aligned_width"]:
         batch_size, channels, height, width = features.shape
         del batch_size
         output = features.new_zeros(
@@ -229,7 +240,11 @@ class _AlignBase(nn.Module):
 class SmartTextRoIAlignAvg(_AlignBase):
     """PyTorch port of the reference ``RoIAlignAvg`` forward kernel."""
 
-    def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        features: Float[torch.Tensor, "batch channels height width"],
+        rois: Float[torch.Tensor, "candidates 5"],
+    ) -> Float[torch.Tensor, "candidates channels aligned_height aligned_width"]:
         """Align RoI features and average adjacent samples."""
         sampled = self._sample(features, rois, "roi")
         return F.avg_pool2d(sampled, kernel_size=2, stride=1)
@@ -238,7 +253,11 @@ class SmartTextRoIAlignAvg(_AlignBase):
 class SmartTextRoDAlignAvg(_AlignBase):
     """PyTorch port of the reference ``RoDAlignAvg`` forward kernel."""
 
-    def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        features: Float[torch.Tensor, "batch channels height width"],
+        rois: Float[torch.Tensor, "candidates 5"],
+    ) -> Float[torch.Tensor, "candidates channels aligned_height aligned_width"]:
         """Align outside-region features and average adjacent samples."""
         sampled = self._sample(features, rois, "rod")
         return F.avg_pool2d(sampled, kernel_size=2, stride=1)

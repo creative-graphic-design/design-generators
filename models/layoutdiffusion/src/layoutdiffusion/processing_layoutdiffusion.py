@@ -6,7 +6,7 @@ from typing import Literal
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import BoxFormat
@@ -55,7 +55,7 @@ class LayoutDiffusionProcessor(ProcessorMixin):
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Process layout tensors for conditional generation.
 
         Args:

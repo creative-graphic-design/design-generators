@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import torch
+from jaxtyping import Shaped
 
 from traingen_parity.compare import (
     OptimizerStepReport,
@@ -34,7 +35,7 @@ TRACE_POINTS: tuple[str, ...] = (
 
 def trace_layout_flow_step(
     module: TrainingStepModule,
-    batch: dict[str, torch.Tensor],
+    batch: dict[str, Shaped[torch.Tensor, "..."]],
     rng_state: RNGState | None = None,
 ) -> StepTrace:
     """Trace one LayoutFlow training step with the canonical trace points."""
@@ -53,8 +54,8 @@ def compare_layout_flow_step(
 
 
 def compare_layout_flow_optimizer_step(
-    reference_state: dict[str, torch.Tensor],
-    target_state: dict[str, torch.Tensor],
+    reference_state: dict[str, Shaped[torch.Tensor, "..."]],
+    target_state: dict[str, Shaped[torch.Tensor, "..."]],
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:

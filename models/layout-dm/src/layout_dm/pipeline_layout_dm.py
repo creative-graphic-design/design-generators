@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 import torch
 from diffusers import DiffusionPipeline
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat
@@ -95,7 +95,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."]]:
         """Run unconditional or conditional layout generation.
 
         Args:

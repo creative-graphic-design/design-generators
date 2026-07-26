@@ -365,15 +365,20 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     )
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
     models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
+    assert "| Model | Venue | Runtime | Datasets | Ckpt | Train |" in models_overview
+    assert (
+        "Task colors: ![task: content-agnostic]"
+        "(https://img.shields.io/static/v1?label=%F0%9F%A7%A9&message=content-agnostic&color=2f80ed)"
+        in models_overview
+    )
     assert (
         "| [FakeProject](api/models/fake-project/) | "
-        "![framework: transformers](https://img.shields.io/static/v1?label=framework&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white) | "
-        "![task: content-agnostic-layout-generation](https://img.shields.io/static/v1?label=task&message=content-agnostic-layout-generation&color=purple&style=flat-square) "
-        "![task: content-aware-layout-generation](https://img.shields.io/static/v1?label=task&message=content-aware-layout-generation&color=purple&style=flat-square) | "
-        "![condition: unconditional](https://img.shields.io/static/v1?label=condition&message=unconditional&color=green&style=flat-square) "
-        "![condition: label_size](https://img.shields.io/static/v1?label=condition&message=label_size&color=green&style=flat-square) | "
-        "![dataset: rico25](https://img.shields.io/static/v1?label=dataset&message=rico25&color=orange&style=flat-square&logo=huggingface&logoColor=white) "
-        "![dataset: publaynet](https://img.shields.io/static/v1?label=dataset&message=publaynet&color=orange&style=flat-square&logo=huggingface&logoColor=white) |"
+        "![venue: n/a](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=n%2Fa&color=lightgrey) | "
+        "![framework: transformers](https://img.shields.io/static/v1?label=.&message=transformers&color=yellow&logo=huggingface&logoColor=white) | "
+        "[![dataset: RICO25](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=RICO25&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/Rico) "
+        "[![dataset: PubLayNet](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=PubLayNet&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](api/models/fake-project/reproducing/) | "
+        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](api/models/fake-project/training/) |"
     ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
     assert "  - Models: models.md" in generated_config
@@ -496,6 +501,21 @@ def test_generated_overview_matches_readme_with_rewritten_links() -> None:
 
     assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
         f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
+    )
+
+
+def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+
+    assert (
+        gen_ref_pages.site_page_for_repo_link("docs/training-reproduction.md")
+        == "training-reproduction/"
+    )
+    assert (
+        gen_ref_pages.rewrite_repo_relative_links(
+            "[training](docs/training-reproduction.md)"
+        )
+        == "[training](training-reproduction/)"
     )
 
 

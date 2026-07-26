@@ -5,12 +5,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 import torch
+from jaxtyping import Float, Int
 from PIL import Image, ImageDraw
 
 
 def render_layout(
-    bbox: torch.Tensor,
-    labels: torch.Tensor,
+    bbox: Float[torch.Tensor, "elements 4"],
+    labels: Int[torch.Tensor, "elements"],
     *,
     id2label: Mapping[int, str],
     canvas_size: tuple[int, int] = (256, 256),

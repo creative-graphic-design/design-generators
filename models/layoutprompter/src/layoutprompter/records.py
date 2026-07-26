@@ -8,12 +8,8 @@ from enum import StrEnum, auto
 from typing import TypeAlias
 
 import numpy as np
-from numpy.typing import NDArray
+from jaxtyping import Float, Int
 from typing_extensions import NotRequired, TypedDict
-
-NumericArray: TypeAlias = (
-    NDArray[np.int64] | NDArray[np.int32] | NDArray[np.float32] | NDArray[np.float64]
-)
 
 
 class LayoutRecordKey(StrEnum):
@@ -34,14 +30,38 @@ class LayoutRecord(TypedDict, total=False):
     """Structured LayoutPrompter record accepted by prompt and selector code."""
 
     id: NotRequired[str]
-    labels: NDArray[np.int64] | Sequence[int]
-    bboxes: NumericArray | Sequence[Sequence[int | float]]
-    discrete_bboxes: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
-    discrete_gold_bboxes: NumericArray | Sequence[Sequence[int | float]]
-    discrete_content_bboxes: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
-    relations: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
+    labels: Int[np.ndarray, "elements"] | Sequence[int]
+    bboxes: (
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    )
+    discrete_bboxes: NotRequired[
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    ]
+    discrete_gold_bboxes: (
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    )
+    discrete_content_bboxes: NotRequired[
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    ]
+    relations: NotRequired[
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    ]
     text: NotRequired[str]
-    embedding: NotRequired[NumericArray | Sequence[Sequence[int | float]]]
+    embedding: NotRequired[
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Sequence[Sequence[int | float]]
+    ]
 
 
 LayoutRecordInput: TypeAlias = LayoutRecord | Mapping[str, object]

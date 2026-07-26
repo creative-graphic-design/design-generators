@@ -116,7 +116,7 @@ class PosterLlamaImageProcessor(BaseImageProcessor):
             )
         return BatchFeature({"pixel_values": pixel_values}, tensor_type=return_tensors)
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, str | tuple[int, int] | None]:
         """Serialize image processor metadata."""
         data = super().to_dict()
         data["image_size"] = self.image_size

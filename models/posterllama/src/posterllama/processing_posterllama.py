@@ -11,6 +11,7 @@ from typing import Final, Literal, cast
 import torch
 from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
+from transformers.image_utils import ImageInput
 
 from laygen.common.bbox import BoxFormat, denormalize_boxes, prepare_layout_tensors
 from laygen.common.conditions import ConditionType, normalize_condition_type
@@ -232,9 +233,11 @@ class PosterLlamaProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        images: object = None,
+        images: ImageInput | Sequence[ImageInput] | None = None,
         prompt: str | Sequence[str] | None = None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+        content: Mapping[str, str | int | float | bool | None]
+        | Sequence[Mapping[str, str | int | float | bool | None]]
+        | None = None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None = None,
         batch_size: int = 1,
         condition_type: ConditionType | str = ConditionType.content_image,
@@ -242,8 +245,15 @@ class PosterLlamaProcessor(ProcessorMixin):
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        bbox: Float[torch.Tensor, "..."]
+        | Sequence[Sequence[Sequence[float | int]]]
+        | Sequence[Sequence[float | int]]
+        | Sequence[float | int]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -303,14 +313,23 @@ class PosterLlamaProcessor(ProcessorMixin):
         *,
         condition_type: ConditionType | str = ConditionType.content_image,
         prompt: str | Sequence[str] | None = None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+        content: Mapping[str, str | int | float | bool | None]
+        | Sequence[Mapping[str, str | int | float | bool | None]]
+        | None = None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None = None,
         labels: Int[torch.Tensor, "..."]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        bbox: Float[torch.Tensor, "..."]
+        | Sequence[Sequence[Sequence[float | int]]]
+        | Sequence[Sequence[float | int]]
+        | Sequence[float | int]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -374,7 +393,24 @@ class PosterLlamaProcessor(ProcessorMixin):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         strict: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[str]
+            | list[tuple[float, float, float, float]]
+            | tuple[int, int]
+            | str
+            | int
+            | float
+            | bool
+            | None,
+        ]
+    ):
         """Parse generated HTML/SVG into public layout output.
 
         Args:
@@ -442,10 +478,20 @@ class PosterLlamaProcessor(ProcessorMixin):
         self,
         *,
         condition: ConditionType,
-        labels: object,
-        bbox: object,
-        mask: object | None,
-        num_elements: object,
+        labels: Int[torch.Tensor, "..."]
+        | Sequence[Sequence[int | str]]
+        | Sequence[int | str]
+        | None,
+        bbox: Float[torch.Tensor, "..."]
+        | Sequence[Sequence[Sequence[float | int]]]
+        | Sequence[Sequence[float | int]]
+        | Sequence[float | int]
+        | None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None,
         box_format: BoxFormat | str,
         normalized: bool,
         canvas_size: tuple[int, int],
@@ -484,30 +530,42 @@ class PosterLlamaProcessor(ProcessorMixin):
                 rects.append(rect)
         return " ".join(rects)
 
-    def _labels_to_tensor(self, labels: object) -> Int[torch.Tensor, "batch elements"]:
+    def _labels_to_tensor(
+        self,
+        labels: Int[torch.Tensor, "..."]
+        | Sequence[Sequence[int | str]]
+        | Sequence[int | str],
+    ) -> Int[torch.Tensor, "batch elements"]:
         if isinstance(labels, torch.Tensor):
             tensor = labels.long()
             return tensor.unsqueeze(0) if tensor.ndim == 1 else tensor
-        rows = cast(Sequence[object], labels)
+        rows = cast(Sequence[int | str | Sequence[int | str]], labels)
         if rows and isinstance(rows[0], Sequence) and not isinstance(rows[0], str):
-            row = cast(Sequence[object], rows[0])
+            row = cast(Sequence[int | str], rows[0])
         else:
-            row = rows
+            row = cast(Sequence[int | str], rows)
         label2id = self._label2id()
         values = [
             label2id[self._normalize_input_label(item)]
             if isinstance(item, str)
-            else int(cast(int, item))
+            else int(item)
             for item in row
         ]
         return torch.tensor([values], dtype=torch.long)
 
     def _bbox_to_tensor(
         self,
-        bbox: object,
+        bbox: Float[torch.Tensor, "..."]
+        | Sequence[Sequence[Sequence[float | int]]]
+        | Sequence[Sequence[float | int]]
+        | Sequence[float | int]
+        | None,
         *,
         labels: Int[torch.Tensor, "batch elements"],
-        mask: object | None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None,
         box_format: BoxFormat | str,
         normalized: bool,
         canvas_size: tuple[int, int],
@@ -584,7 +642,10 @@ class PosterLlamaProcessor(ProcessorMixin):
             return "cond_cate_pos_to_size"
         return "unconditional"
 
-    def _num_elements(self, num_elements: object) -> int:
+    def _num_elements(
+        self,
+        num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None,
+    ) -> int:
         if num_elements is None:
             return 1
         if isinstance(num_elements, torch.Tensor):
@@ -599,7 +660,7 @@ class PosterLlamaProcessor(ProcessorMixin):
             for index, label in cast(dict[int, str], self.config.id2label).items()
         }
 
-    def _normalize_input_label(self, label: object) -> str:
+    def _normalize_input_label(self, label: int | str) -> str:
         return str(label).strip().lower().replace("_", " ")
 
 

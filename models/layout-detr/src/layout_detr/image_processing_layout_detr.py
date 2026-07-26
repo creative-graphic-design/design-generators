@@ -7,6 +7,7 @@ from typing import Literal
 
 import numpy as np
 import torch
+from jaxtyping import Float, Shaped
 from PIL import Image, ImageFilter, ImageOps
 from transformers import BaseImageProcessor
 from transformers.image_processing_utils import BatchFeature
@@ -70,7 +71,7 @@ class LayoutDetrImageProcessor(BaseImageProcessor):
                 "LayoutDetrImageProcessor only supports return_tensors='pt'"
             )
         mode = normalize_background_preprocessing(background_preprocessing)
-        tensors: list[torch.Tensor] = []
+        tensors: list[Float[torch.Tensor, "channels height width"]] = []
         sizes: list[tuple[int, int]] = []
         for image in _ensure_pil_batch(images):
             sizes.append(canvas_size or image.size)
@@ -138,7 +139,7 @@ def _to_pil(image: ImageInput) -> Image.Image:
     raise TypeError(f"Unsupported image input: {type(image)!r}")
 
 
-def _tensor_to_pil_batch(images: torch.Tensor) -> list[Image.Image]:
+def _tensor_to_pil_batch(images: Shaped[torch.Tensor, "..."]) -> list[Image.Image]:
     tensor = images.detach().cpu()
     batch = tensor.unsqueeze(0) if tensor.ndim == 3 else tensor
     rows: list[Image.Image] = []
@@ -150,7 +151,7 @@ def _tensor_to_pil_batch(images: torch.Tensor) -> list[Image.Image]:
     return rows
 
 
-def _array_to_rgb_image(image: np.ndarray) -> Image.Image:
+def _array_to_rgb_image(image: Shaped[np.ndarray, "..."]) -> Image.Image:
     array = np.asarray(image)
     scaled = array * 255.0 if array.max() <= 1.0 else array
     return Image.fromarray(scaled.astype(np.uint8)).convert("RGB")

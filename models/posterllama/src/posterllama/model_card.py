@@ -5,7 +5,9 @@ from __future__ import annotations
 from .configuration_posterllama import PosterLlamaConfig
 
 
-def model_card_metadata(config: PosterLlamaConfig, *, hub_id: str) -> dict[str, object]:
+def model_card_metadata(
+    config: PosterLlamaConfig, *, hub_id: str
+) -> dict[str, str | list[str]]:
     """Return model-card metadata for a PosterLlama recipe artifact."""
     _ = config
     return {

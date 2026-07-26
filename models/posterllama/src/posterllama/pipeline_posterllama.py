@@ -9,6 +9,7 @@ from typing import ClassVar, Literal, cast
 import torch
 from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
+from transformers.image_utils import ImageInput
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
@@ -25,7 +26,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PosterLlamaProcessor:
     return PosterLlamaProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -38,7 +39,7 @@ def _load_runtime_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PosterLlamaRuntime:
     return PosterLlamaRuntime.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -102,11 +103,11 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
         self.runtime = runtime
 
     @classmethod
-    def _from_pretrained_components(
+    def _from_pretrained_components(  # ty: ignore[invalid-method-override]
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, PosterLlamaProcessor | PosterLlamaRuntime | None],
     ) -> "PosterLlamaPipeline":
         """Build a pipeline from loaded components."""
         return cls(
@@ -116,12 +117,14 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         *,
-        images: object = None,
+        images: ImageInput | Sequence[ImageInput] | None = None,
         prompt: str | Sequence[str] | None = None,
-        content: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+        content: Mapping[str, str | int | float | bool | None]
+        | Sequence[Mapping[str, str | int | float | bool | None]]
+        | None = None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
@@ -131,8 +134,15 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        bbox: Float[torch.Tensor, "..."]
+        | Sequence[Sequence[Sequence[float | int]]]
+        | Sequence[Sequence[float | int]]
+        | Sequence[float | int]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -146,7 +156,26 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
         top_p: float | None = None,
         top_k: int | None = None,
         num_beams: int | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, str | bytes | int | float | bool | None]
+            | list[str]
+            | list[tuple[float, float, float, float]]
+            | tuple[int, int]
+            | str
+            | bytes
+            | int
+            | float
+            | bool
+            | None,
+        ]
+    ):
         """Generate a poster layout.
 
         Args:
@@ -232,15 +261,23 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
         )
         result = cast(LayoutGenerationOutput, output)
         if return_intermediates:
-            existing = cast(dict[str, object], result.intermediates or {})
-            existing.update(
-                {
-                    "prompt_bytes": cast(list[str], batch["prompts"])[0].encode(),
-                    "raw_generated_text": generated[0],
-                    "condition_type": str(batch["condition_type"]),
-                    "generation_args": generation_args,
-                }
+            existing = cast(
+                dict[
+                    str,
+                    str
+                    | bytes
+                    | int
+                    | float
+                    | bool
+                    | None
+                    | Mapping[str, str | int | float | bool | None],
+                ],
+                result.intermediates or {},
             )
+            existing["prompt_bytes"] = cast(list[str], batch["prompts"])[0].encode()
+            existing["raw_generated_text"] = generated[0]
+            existing["condition_type"] = str(batch["condition_type"])
+            existing["generation_args"] = generation_args
             result.intermediates = existing
         if output_type == "dict":
             return dict(result)
