@@ -4,12 +4,18 @@ version = "0.1.0"
 description = "Shared training helpers for generator packages."
 requires-python = ">=3.11"
 dependencies = [
-    "torch>=2.1",
-]
-
-[project.optional-dependencies]
-lightning = [
-    "lightning>=2.4,<3",
     "jsonargparse[signatures]>=4.27",
+    "lightning>=2.4,<3",
+    "torch>=2.1",
     "torchmetrics>=1.4",
 ]
+
+[project.scripts]
+traingen = "traingen.lightning.cli:main"
+
+[project.optional-dependencies]
+lightning = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
