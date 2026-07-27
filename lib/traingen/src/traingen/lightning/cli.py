@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
-def lightning_cli_class() -> type[object]:
+if TYPE_CHECKING:
+    from lightning.pytorch.cli import LightningCLI
+
+
+def lightning_cli_class() -> type[LightningCLI]:
     """Return LightningCLI without importing Lightning at package import time."""
     from lightning.pytorch.cli import LightningCLI
 
     return LightningCLI
 
 
-def main(args: list[str] | None = None) -> object:
+def main(args: list[str] | None = None) -> LightningCLI:
     """Run a model-agnostic LightningCLI from YAML ``class_path`` entries.
 
     Args:

@@ -12,6 +12,7 @@ from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     prepare_layout_tensors,
     xywh_to_ltrb,
@@ -50,13 +51,13 @@ class LayoutFIDProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | Sequence[object],
+        | Sequence[ArrayLikeInput],
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | Sequence[object],
+        | Sequence[ArrayLikeInput],
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
         box_format: BoxFormat | str = "xywh",

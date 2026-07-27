@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 try:
-    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
     from pydantic_ai.models.function import AgentInfo, FunctionModel
     from pydantic_ai.models.test import TestModel
 except ImportError as exc:  # pragma: no cover - depends on optional extra
@@ -21,7 +21,7 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 def function_model_from_text(text: str) -> FunctionModel:
     """Build a deterministic ``FunctionModel`` returning one text response."""
 
-    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+    def respond(_messages: Sequence[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(parts=[TextPart(content=text)])
 
     return FunctionModel(respond)

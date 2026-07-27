@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar, Literal, cast
 
@@ -11,7 +11,7 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, model_processor_component_specs
@@ -107,15 +107,15 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         condition_type: ConditionType | str = ConditionType.completion,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,

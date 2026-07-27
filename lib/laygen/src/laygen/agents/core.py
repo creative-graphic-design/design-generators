@@ -6,7 +6,18 @@ import os
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final, Generic, Protocol, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Final,
+    Generic,
+    Protocol,
+    TypeAlias,
+    TypedDict,
+    TypeVar,
+    cast,
+)
+
+from jaxtyping import Bool, Float, Int
 
 try:
     from pydantic_ai import Agent
@@ -22,15 +33,50 @@ from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.modeling_outputs import LayoutGenerationOutput
 
+if TYPE_CHECKING:
+    import numpy as np
+    import torch
+
 ModelLike = Model | str | None
 RawResponseT = TypeVar("RawResponseT")
 ExampleT = TypeVar("ExampleT")
 ParsedOutputT = TypeVar("ParsedOutputT")
+LayoutAuxScalar: TypeAlias = str | int | float | bool | None
 
 DEFAULT_SUPPORTED_CONDITIONS: Final[tuple[ConditionType, ...]] = (
     ConditionType.text,
     ConditionType.unconditional,
 )
+
+
+class ChatMessageLike(TypedDict):
+    """Chat-style message with role and content text fields."""
+
+    role: str
+    content: str
+
+
+LayoutAuxValue: TypeAlias = (
+    LayoutAuxScalar
+    | ChatMessageLike
+    | Sequence["LayoutAuxValue"]
+    | Mapping[str, "LayoutAuxValue"]
+)
+
+
+class LayoutOutputDict(TypedDict):
+    """Dictionary form of the canonical layout generation schema."""
+
+    bbox: (
+        Float[np.ndarray, "batch elements 4"] | Float[torch.Tensor, "batch elements 4"]
+    )
+    labels: Int[np.ndarray, "batch elements"] | Int[torch.Tensor, "batch elements"]
+    mask: Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    sequences: LayoutAuxValue | None
+    scores: LayoutAuxValue | None
+    trajectory: LayoutAuxValue | None
+    intermediates: Mapping[str, LayoutAuxValue] | None
 
 
 class ExemplarSelector(Protocol[ExampleT]):
@@ -46,7 +92,7 @@ class PromptBuilder(Protocol[ExampleT]):
 
     def __call__(
         self, prompt: str, exemplars: Sequence[ExampleT]
-    ) -> str | Sequence[Mapping[str, str]]:
+    ) -> str | Sequence[ChatMessageLike]:
         """Serialize ``prompt`` and ``exemplars`` for model execution."""
         ...
 
@@ -107,17 +153,25 @@ class LayoutOutputLike(Protocol):
     """Minimal shared layout output fields used for dict serialization."""
 
     @property
-    def bbox(self) -> object:
+    def bbox(
+        self,
+    ) -> (
+        Float[np.ndarray, "batch elements 4"] | Float[torch.Tensor, "batch elements 4"]
+    ):
         """Layout boxes."""
         ...
 
     @property
-    def labels(self) -> object:
+    def labels(
+        self,
+    ) -> Int[np.ndarray, "batch elements"] | Int[torch.Tensor, "batch elements"]:
         """Layout labels."""
         ...
 
     @property
-    def mask(self) -> object:
+    def mask(
+        self,
+    ) -> Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"]:
         """Valid element mask."""
         ...
 
@@ -127,7 +181,7 @@ class LayoutOutputLike(Protocol):
         ...
 
 
-def messages_to_text(messages: object) -> str:
+def messages_to_text(messages: str | Sequence[ChatMessageLike]) -> str:
     """Convert provider chat messages to deterministic plain text.
 
     Pydantic AI accepts both provider-native strings and structured chat-like
@@ -136,9 +190,8 @@ def messages_to_text(messages: object) -> str:
     """
     if isinstance(messages, str):
         return messages
-    chat_messages = cast(Sequence[Mapping[str, str]], messages)
     return "\n\n".join(
-        f"{message['role'].upper()}:\n{message['content']}" for message in chat_messages
+        f"{message['role'].upper()}:\n{message['content']}" for message in messages
     )
 
 
@@ -146,7 +199,7 @@ def layout_items_to_output(
     items: Sequence[LayoutItem2DLike],
     *,
     id2label: Mapping[int, str],
-    intermediates: object | None = None,
+    intermediates: Mapping[str, LayoutAuxValue] | None = None,
 ) -> LayoutGenerationOutput:
     """Build the torch-backed shared normalized center-``xywh`` output schema."""
     import torch
@@ -212,7 +265,7 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
 
     def run_raw_sync(
         self,
-        model_prompt: object,
+        model_prompt: str | Sequence[ChatMessageLike],
         *,
         model: ModelLike = None,
         model_settings: ModelSettings | None = None,
@@ -256,17 +309,24 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
             raise ValueError(msg)
         return normalized_condition_type, normalized_box_format
 
-    def output_to_dict(self, output: LayoutOutputLike) -> dict[str, object]:
+    def output_to_dict(self, output: LayoutOutputLike) -> LayoutOutputDict:
         """Serialize the shared output with canonical layout schema keys."""
         return {
             "bbox": output.bbox,
             "labels": output.labels,
             "mask": output.mask,
             "id2label": output.id2label,
-            "sequences": getattr(output, "sequences", None),
-            "scores": getattr(output, "scores", None),
-            "trajectory": getattr(output, "trajectory", None),
-            "intermediates": getattr(output, "intermediates", None),
+            "sequences": cast(
+                LayoutAuxValue | None, getattr(output, "sequences", None)
+            ),
+            "scores": cast(LayoutAuxValue | None, getattr(output, "scores", None)),
+            "trajectory": cast(
+                LayoutAuxValue | None, getattr(output, "trajectory", None)
+            ),
+            "intermediates": cast(
+                Mapping[str, LayoutAuxValue] | None,
+                getattr(output, "intermediates", None),
+            ),
         }
 
     def repair_response_text(self, text: str) -> str:

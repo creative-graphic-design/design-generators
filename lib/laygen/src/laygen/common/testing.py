@@ -7,13 +7,26 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 import os
 from os import PathLike
-from typing import TYPE_CHECKING, NoReturn, Protocol, cast
+from typing import TYPE_CHECKING, NoReturn, Protocol, TypeAlias, cast
 
 import numpy as np
 from jaxtyping import Bool, Float, Int, Shaped
 
 if TYPE_CHECKING:
     import torch
+
+ConfigScalar: TypeAlias = str | int | float | bool | None
+ConfigValue: TypeAlias = (
+    ConfigScalar | Sequence["ConfigValue"] | Mapping[str, "ConfigValue"]
+)
+
+
+class ConfigAttributes(Protocol):
+    """Attribute-backed config accepted by parity test helpers."""
+
+    def __getattribute__(self, name: str, /) -> ConfigValue:
+        """Return a constructor-compatible config field."""
+        ...
 
 
 def parity_require_enabled() -> bool:
@@ -247,12 +260,12 @@ def strip_torch_state_dict_prefix(
 
 
 def vendor_backbone_kwargs(
-    config: object,
+    config: Mapping[str, ConfigValue] | ConfigAttributes,
     fields: Sequence[str],
     *,
     aliases: Mapping[str, str] | None = None,
-    overrides: Mapping[str, object] | None = None,
-) -> dict[str, object]:
+    overrides: Mapping[str, ConfigValue] | None = None,
+) -> dict[str, ConfigValue]:
     """Build checkpoint-backbone constructor kwargs from a config object.
 
     Args:
@@ -266,14 +279,14 @@ def vendor_backbone_kwargs(
     """
     aliases = aliases or {}
     overrides = overrides or {}
-    kwargs: dict[str, object] = {}
+    kwargs: dict[str, ConfigValue] = {}
     for field in fields:
         if field in overrides:
             kwargs[field] = overrides[field]
             continue
         source_field = aliases.get(field, field)
         if isinstance(config, Mapping):
-            kwargs[field] = cast("Mapping[str, object]", config)[source_field]
+            kwargs[field] = cast("Mapping[str, ConfigValue]", config)[source_field]
         else:
             kwargs[field] = getattr(config, source_field)
     return kwargs
@@ -281,7 +294,7 @@ def vendor_backbone_kwargs(
 
 def install_jaxtyping_runtime_hook(
     modules: Sequence[str],
-) -> AbstractContextManager[object]:
+) -> AbstractContextManager[None]:
     """Install the test-only jaxtyping runtime checker for target modules.
 
     Args:

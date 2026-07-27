@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, assert_never
+from typing import TYPE_CHECKING, TypeAlias, assert_never
 
 from jaxtyping import Bool, Float, Int
 
 if TYPE_CHECKING:
+    import numpy as np
     import torch
 else:
     try:
@@ -22,6 +24,10 @@ class BoxFormat(StrEnum):
     xywh = auto()
     ltwh = auto()
     ltrb = auto()
+
+
+ArrayLikeScalar: TypeAlias = int | float | bool
+ArrayLikeInput: TypeAlias = ArrayLikeScalar | Sequence["ArrayLikeInput"]
 
 
 def normalize_box_format(box_format: BoxFormat | str) -> BoxFormat:
@@ -152,9 +158,22 @@ def normalize_boxes(
 
 def prepare_layout_tensors(
     *,
-    bbox: object,
-    labels: object,
-    mask: object | None = None,
+    bbox: Float[torch.Tensor, "... 4"]
+    | Float[np.ndarray, "... 4"]
+    | Sequence[Sequence[Sequence[float]]]
+    | Sequence[Sequence[float]]
+    | Sequence[ArrayLikeInput],
+    labels: Int[torch.Tensor, "..."]
+    | Int[np.ndarray, "..."]
+    | Sequence[Sequence[int]]
+    | Sequence[int]
+    | Sequence[ArrayLikeInput],
+    mask: Bool[torch.Tensor, "..."]
+    | Bool[np.ndarray, "..."]
+    | Sequence[Sequence[bool]]
+    | Sequence[bool]
+    | Sequence[ArrayLikeInput]
+    | None = None,
     box_format: BoxFormat | str = BoxFormat.xywh,
     normalized: bool = True,
     canvas_size: tuple[int, int] | None = None,

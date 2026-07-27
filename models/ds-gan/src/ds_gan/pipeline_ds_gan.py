@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import ClassVar, cast
@@ -12,7 +12,7 @@ from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_shared_condition_type,
@@ -202,9 +202,15 @@ class DSGANPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,

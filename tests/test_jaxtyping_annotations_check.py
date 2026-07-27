@@ -170,6 +170,36 @@ def bad(
     }
 
 
+def test_current_weak_cast_entries_detects_nested_object_and_any_casts(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+from __future__ import annotations
+
+from builtins import object as builtin_object
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
+import typing as typ
+
+def example(value: object) -> None:
+    cast(Sequence[object], value)
+    cast(Mapping[str, Any] | None, value)
+    typ.cast(list[builtin_object], value)
+    cast(str | int, value)
+""",
+    )
+
+    entries = check_jaxtyping_annotations.current_weak_cast_entries(tmp_path)
+
+    assert entries == {
+        "models/layout-dm/src/layout_dm/example.py\tMapping[str, Any] | None\tcast(Mapping[str, Any] | None, value)",
+        "models/layout-dm/src/layout_dm/example.py\tSequence[object]\tcast(Sequence[object], value)",
+        "models/layout-dm/src/layout_dm/example.py\tlist[builtin_object]\ttyp.cast(list[builtin_object], value)",
+    }
+
+
 def test_check_fails_on_new_raw_annotation(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -358,6 +388,34 @@ def bad(value: list[object]) -> None:
     stderr = capsys.readouterr().err
     assert "New object annotations in function signatures" in stderr
     assert "list[object]" in stderr
+
+
+def test_check_fails_on_new_weak_cast_type(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        check_jaxtyping_annotations, "baseline_reference_entries", lambda *_: None
+    )
+    write_source(
+        tmp_path,
+        """
+from collections.abc import Sequence
+from typing import cast
+
+def bad(value: object) -> None:
+    cast(Sequence[object], value)
+""",
+    )
+    baseline = tmp_path / "baseline.txt"
+    baseline.write_text("", encoding="utf-8")
+
+    assert check_jaxtyping_annotations.check_weak_cast_types(tmp_path, baseline) == 1
+
+    stderr = capsys.readouterr().err
+    assert "New bare object/Any references in cast target types" in stderr
+    assert "Sequence[object]" in stderr
 
 
 def test_check_rejects_baseline_growth_for_new_jaxtyping_alias(
