@@ -1,3 +1,0 @@
-lib/laygen/src/laygen/common/typing.py	NumpyLayoutBBoxes	Float[np.ndarray, 'batch elements 4']	NumpyLayoutBBoxes: TypeAlias = Float[np.ndarray, "batch elements 4"]
-lib/laygen/src/laygen/common/typing.py	NumpyLayoutLabels	Int[np.ndarray, 'batch elements']	NumpyLayoutLabels: TypeAlias = Int[np.ndarray, "batch elements"]
-lib/laygen/src/laygen/common/typing.py	NumpyLayoutMask	Bool[np.ndarray, 'batch elements']	NumpyLayoutMask: TypeAlias = Bool[np.ndarray, "batch elements"]

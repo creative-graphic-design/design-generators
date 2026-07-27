@@ -67,6 +67,7 @@ MODEL_OVERVIEW_TASK_BADGE_COLORS = {
     frozenset({"content-agnostic-layout-generation"}): "2f80ed",
     frozenset({"content-aware-layout-generation"}): "eb5757",
     frozenset({"layout-evaluation"}): "6b7280",
+    frozenset({"saliency-detection"}): "009688",
     frozenset(
         {"content-agnostic-layout-generation", "content-aware-layout-generation"}
     ): "9b51e0",
@@ -76,6 +77,7 @@ MODEL_OVERVIEW_TASK_LEGEND = {
     "content-aware": "eb5757",
     "layout-evaluation": "6b7280",
     "mixed": "9b51e0",
+    "saliency": "009688",
 }
 MODEL_OVERVIEW_RUNTIME_BADGES = {
     "diffusers": ("red", "huggingface"),
@@ -86,6 +88,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "AAAI 2022": "2f5f8f",
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
+    "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
     "CVPR 2024": "0076a8",
@@ -150,6 +153,7 @@ TASK_TAGS = frozenset(
         "content-agnostic-layout-generation",
         "content-aware-layout-generation",
         "layout-evaluation",
+        "saliency-detection",
     }
 )
 
@@ -883,6 +887,7 @@ def render_model_overview_task_legend() -> str:
                 "content-aware": "🎨",
                 "layout-evaluation": "📊",
                 "mixed": "🔀",
+                "saliency": "🖼️",
             }[message],
             message=message,
             color=color,

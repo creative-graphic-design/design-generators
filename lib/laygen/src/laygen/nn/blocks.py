@@ -2,7 +2,7 @@
 
 The timestep-aware encoder layer follows Microsoft VQ-Diffusion's
 ``transformer_utils.Block`` structure as carried by LayoutDM, LACE, and
-Layout-Corrector vendor code.
+Layout-Corrector reference implementations.
 """
 
 from __future__ import annotations
