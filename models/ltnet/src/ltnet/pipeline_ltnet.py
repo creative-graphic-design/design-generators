@@ -1,4 +1,4 @@
-"""Pipeline wrapper for LayoutTransformer relation-to-layout generation."""
+"""Pipeline wrapper for LT-Net relation-to-layout generation."""
 
 from __future__ import annotations
 
@@ -15,10 +15,20 @@ from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
-from .configuration_layout_transformer import LayoutTransformerConfig
-from .modeling_layout_transformer import LayoutTransformerForLayoutGeneration
-from .processing_layout_transformer import LayoutTransformerProcessor, OutputType
+from .configuration_ltnet import LTNetConfig
+from .modeling_ltnet import LTNetForLayoutGeneration
+from .processing_ltnet import LTNetProcessor, OutputType
 from .relation_schema import LayoutObject, LayoutRelation, SceneGraphInput
+
+SceneGraphMapping = Mapping[
+    str,
+    str
+    | int
+    | float
+    | Sequence[float]
+    | Sequence[Mapping[str, str | int | float | Sequence[float]]]
+    | Mapping[int | str, str],
+]
 
 
 def _load_model_component(
@@ -26,14 +36,14 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LTNetForLayoutGeneration:
     if subfolder is not None:
-        return LayoutTransformerForLayoutGeneration.from_pretrained(
+        return LTNetForLayoutGeneration.from_pretrained(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
             subfolder=subfolder,
         )
-    return LayoutTransformerForLayoutGeneration.from_pretrained(
+    return LTNetForLayoutGeneration.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
     )
@@ -44,20 +54,20 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LTNetProcessor:
     if subfolder is not None:
-        return LayoutTransformerProcessor.from_pretrained(
+        return LTNetProcessor.from_pretrained(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
             subfolder=subfolder,
         )
-    return LayoutTransformerProcessor.from_pretrained(
+    return LTNetProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
     )
 
 
-class LayoutTransformerPipeline(LayoutGenerationPipeline):
+class LTNetPipeline(LayoutGenerationPipeline):
     """Compose an LT-Net model and processor for scene-graph layout inference.
 
     Args:
@@ -66,22 +76,22 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         config: Optional root pipeline config. Defaults to ``model.config``.
 
     Examples:
-        >>> processor = LayoutTransformerProcessor.from_config()
-        >>> config = LayoutTransformerConfig(
+        >>> processor = LTNetProcessor.from_config()
+        >>> config = LTNetConfig(
         ...     vocab_size=processor.tokenizer.vocab_size,
         ...     hidden_size=32,
         ...     num_hidden_layers=1,
         ...     num_attention_heads=4,
         ... )
-        >>> pipe = LayoutTransformerPipeline(
-        ...     model=LayoutTransformerForLayoutGeneration(config),
+        >>> pipe = LTNetPipeline(
+        ...     model=LTNetForLayoutGeneration(config),
         ...     processor=processor,
         ... )
         >>> pipe.config.model_type
-        'layout-transformer'
+        'ltnet'
     """
 
-    config_class: ClassVar[type[PretrainedConfig]] = LayoutTransformerConfig
+    config_class: ClassVar[type[PretrainedConfig]] = LTNetConfig
     component_specs: ClassVar[dict[str, PipelineComponentSpec]] = {
         "model": PipelineComponentSpec(
             attribute_name="model",
@@ -96,15 +106,15 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         ),
     }
 
-    config: LayoutTransformerConfig
-    model: LayoutTransformerForLayoutGeneration
-    processor: LayoutTransformerProcessor
+    config: LTNetConfig
+    model: LTNetForLayoutGeneration
+    processor: LTNetProcessor
 
     def __init__(
         self,
-        model: LayoutTransformerForLayoutGeneration,
-        processor: LayoutTransformerProcessor,
-        config: LayoutTransformerConfig | None = None,
+        model: LTNetForLayoutGeneration,
+        processor: LTNetProcessor,
+        config: LTNetConfig | None = None,
     ) -> None:
         """Initialize the pipeline with model and processor components."""
         super().__init__(config or model.config)
@@ -113,30 +123,32 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         self.processor = processor
 
     @classmethod
-    def _from_pretrained_components(
+    def _from_pretrained_components(  # ty: ignore[invalid-method-override]
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
-    ) -> "LayoutTransformerPipeline":
+        components: Mapping[str, LTNetForLayoutGeneration | LTNetProcessor | None],
+    ) -> "LTNetPipeline":
         """Build a pipeline from loaded root components."""
         return cls(
-            config=cast(LayoutTransformerConfig, config),
-            model=cast(LayoutTransformerForLayoutGeneration, components["model"]),
-            processor=cast(LayoutTransformerProcessor, components["processor"]),
+            config=cast(LTNetConfig, config),
+            model=cast(LTNetForLayoutGeneration, components["model"]),
+            processor=cast(LTNetProcessor, components["processor"]),
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         *,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.relation,
-        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | Sequence[int] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[Sequence[float]]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | Sequence[bool] | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -144,10 +156,20 @@ class LayoutTransformerPipeline(LayoutGenerationPipeline):
         num_inference_steps: int | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
-        scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
+        scene_graph: SceneGraphInput | SceneGraphMapping | None = None,
         objects: Sequence[LayoutObject] | None = None,
         relations: Sequence[LayoutRelation] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[str, Float[torch.Tensor, "..."] | None],
+        ]
+    ):
         """Generate layouts from a public scene graph.
 
         Args:

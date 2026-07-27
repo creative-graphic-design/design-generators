@@ -1,10 +1,10 @@
 from typing import cast
 
-from layout_transformer import LayoutTransformerConfig
+from ltnet import LTNetConfig
 
 
 def test_config_round_trip(tmp_path):
-    config = LayoutTransformerConfig(
+    config = LTNetConfig(
         dataset_name="vg_msdn",
         vocab_size=20,
         obj_classes_size=10,
@@ -16,7 +16,7 @@ def test_config_round_trip(tmp_path):
     )
     config.save_pretrained(tmp_path)
 
-    loaded = LayoutTransformerConfig.from_pretrained(tmp_path)
+    loaded = LTNetConfig.from_pretrained(tmp_path)
 
     assert loaded.dataset_name == "vg_msdn"
     assert loaded.vocab_size == 20
@@ -27,14 +27,14 @@ def test_config_round_trip(tmp_path):
 
 def test_config_rejects_unsupported_head_and_box_loss():
     try:
-        LayoutTransformerConfig(decoder_head_type="unsupported")
+        LTNetConfig(decoder_head_type="unsupported")
     except ValueError as exc:
         assert "Unsupported decoder head type" in str(exc)
     else:
         raise AssertionError("expected unsupported head type error")
 
     try:
-        LayoutTransformerConfig(decoder_box_loss="unsupported")
+        LTNetConfig(decoder_box_loss="unsupported")
     except ValueError as exc:
         assert "Unsupported box loss" in str(exc)
     else:

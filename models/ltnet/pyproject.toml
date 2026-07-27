@@ -1,7 +1,7 @@
 [project]
-name = "layout-transformer"
+name = "ltnet"
 version = "0.1.0"
-description = "Transformers-style LayoutTransformer (LT-Net) conversion package."
+description = "Transformers-style LT-Net conversion package."
 requires-python = ">=3.11"
 dependencies = [
     "huggingface-hub>=0.24",

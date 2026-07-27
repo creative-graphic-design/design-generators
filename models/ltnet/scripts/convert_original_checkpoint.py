@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import Literal, cast
 
-from layout_transformer.conversion import convert_original_checkpoint
+from ltnet.conversion import convert_original_checkpoint
 
 
 def parse_args() -> argparse.Namespace:

@@ -5,19 +5,19 @@ import torch
 from transformers import AutoProcessor
 from transformers.models.auto.configuration_auto import AutoConfig
 
-from layout_transformer import (
-    LayoutTransformerConfig,
-    LayoutTransformerForLayoutGeneration,
-    LayoutTransformerProcessor,
-    LayoutTransformerRelationTokenizer,
+from ltnet import (
+    LTNetConfig,
+    LTNetForLayoutGeneration,
+    LTNetProcessor,
+    LTNetRelationTokenizer,
 )
-from layout_transformer.conversion import (
+from ltnet.conversion import (
     _load_config,
     _load_vocab,
     _split_vocab,
     convert_original_checkpoint,
 )
-from layout_transformer.vendor_state_dict import (
+from ltnet.vendor_state_dict import (
     load_original_state_dict,
     load_strict_mapped_state_dict,
 )
@@ -200,8 +200,8 @@ MODEL:
     REFINE: false
 """
     )
-    model = LayoutTransformerForLayoutGeneration(
-        LayoutTransformerConfig(
+    model = LTNetForLayoutGeneration(
+        LTNetConfig(
             dataset_name="coco",
             vocab_size=8,
             obj_classes_size=9,
@@ -225,15 +225,11 @@ MODEL:
     )
 
     metadata = json.loads((output_dir / "conversion_metadata.json").read_text())
-    config = LayoutTransformerConfig.from_pretrained(output_dir)
-    tokenizer = LayoutTransformerRelationTokenizer.from_pretrained(output_dir)
-    reloaded_model = LayoutTransformerForLayoutGeneration.from_pretrained(output_dir)
-    AutoConfig.register(
-        LayoutTransformerConfig.model_type, LayoutTransformerConfig, exist_ok=True
-    )
-    AutoProcessor.register(
-        LayoutTransformerConfig, LayoutTransformerProcessor, exist_ok=True
-    )
+    config = LTNetConfig.from_pretrained(output_dir)
+    tokenizer = LTNetRelationTokenizer.from_pretrained(output_dir)
+    reloaded_model = LTNetForLayoutGeneration.from_pretrained(output_dir)
+    AutoConfig.register(LTNetConfig.model_type, LTNetConfig, exist_ok=True)
+    AutoProcessor.register(LTNetConfig, LTNetProcessor, exist_ok=True)
     processor = AutoProcessor.from_pretrained(output_dir, local_files_only=True)
 
     assert metadata["strict_vendor_key_mapping"] is True
@@ -244,6 +240,6 @@ MODEL:
     assert "use_vendor_modules" not in config.to_dict()
     assert tokenizer.object_token_ids == [4, 5]
     assert tokenizer.relation_token_ids == [6, 7]
-    assert isinstance(reloaded_model, LayoutTransformerForLayoutGeneration)
-    assert isinstance(processor, LayoutTransformerProcessor)
+    assert isinstance(reloaded_model, LTNetForLayoutGeneration)
+    assert isinstance(processor, LTNetProcessor)
     assert processor.dataset_name == "coco"

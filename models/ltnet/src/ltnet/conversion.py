@@ -9,11 +9,11 @@ from typing import Literal, cast
 
 import yaml
 
-from .configuration_layout_transformer import BoxLossType, DecoderHeadType
-from .configuration_layout_transformer import LayoutTransformerConfig
-from .modeling_layout_transformer import LayoutTransformerForLayoutGeneration
-from .processing_layout_transformer import LayoutTransformerProcessor
-from .tokenization_layout_transformer import LayoutTransformerRelationTokenizer
+from .configuration_ltnet import BoxLossType, DecoderHeadType
+from .configuration_ltnet import LTNetConfig
+from .modeling_ltnet import LTNetForLayoutGeneration
+from .processing_ltnet import LTNetProcessor
+from .tokenization_ltnet import LTNetRelationTokenizer
 from .vendor_state_dict import load_original_state_dict
 
 
@@ -68,14 +68,14 @@ def _load_config(
     vocab_size: int,
     id2label: dict[int, str],
     relation_id2label: dict[int, str],
-) -> LayoutTransformerConfig:
+) -> LTNetConfig:
     with Path(cfg_path).open() as f:
         raw_cfg = yaml.safe_load(f) or {}
     model_cfg = raw_cfg.get("MODEL", {})
     encoder_cfg = model_cfg.get("ENCODER", {})
     decoder_cfg = model_cfg.get("DECODER", {})
     refine_cfg = model_cfg.get("REFINE", {})
-    return LayoutTransformerConfig(
+    return LTNetConfig(
         dataset_name=dataset_name,
         vocab_size=int(encoder_cfg.get("VOCAB_SIZE", vocab_size)),
         obj_classes_size=int(encoder_cfg.get("OBJ_CLASSES_SIZE", 155)),
@@ -143,7 +143,7 @@ def convert_original_checkpoint(
             "Hub upload is intentionally not part of PR conversion"
         )
     if not strict:
-        raise ValueError("LayoutTransformer conversion requires strict=True")
+        raise ValueError("LT-Net conversion requires strict=True")
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     vocab = _load_vocab(vocab_path)
@@ -157,7 +157,7 @@ def convert_original_checkpoint(
         id2label=id2label,
         relation_id2label=relation_id2label,
     )
-    model = LayoutTransformerForLayoutGeneration(config)
+    model = LTNetForLayoutGeneration(config)
     state_dict = load_original_state_dict(checkpoint_path)
     incompatible = model.load_state_dict(state_dict, strict=True)
     metadata = {
@@ -170,12 +170,12 @@ def convert_original_checkpoint(
         "strict_vendor_key_mapping": True,
     }
     model.save_pretrained(out)
-    tokenizer = LayoutTransformerRelationTokenizer(
+    tokenizer = LTNetRelationTokenizer(
         tokens=[vocab[idx] for idx in sorted(vocab)],
         object_token_ids=object_token_ids,
         relation_token_ids=relation_token_ids,
     )
-    processor = LayoutTransformerProcessor(
+    processor = LTNetProcessor(
         tokenizer=tokenizer,
         dataset_name=dataset_name,
         max_sequence_length=config.max_sequence_length,

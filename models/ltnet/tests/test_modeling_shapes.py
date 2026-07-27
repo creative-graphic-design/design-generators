@@ -1,13 +1,13 @@
 import torch
 
-from layout_transformer import (
-    LayoutTransformerConfig,
-    LayoutTransformerForLayoutGeneration,
+from ltnet import (
+    LTNetConfig,
+    LTNetForLayoutGeneration,
 )
 
 
 def build_model(refine=False):
-    config = LayoutTransformerConfig(
+    config = LTNetConfig(
         vocab_size=16,
         obj_classes_size=8,
         hidden_size=32,
@@ -16,7 +16,7 @@ def build_model(refine=False):
         max_sequence_length=6,
         refine=refine,
     )
-    return LayoutTransformerForLayoutGeneration(config)
+    return LTNetForLayoutGeneration(config)
 
 
 def build_inputs():

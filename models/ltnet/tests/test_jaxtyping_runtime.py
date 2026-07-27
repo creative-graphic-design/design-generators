@@ -3,18 +3,18 @@ import sys
 import textwrap
 
 
-def test_runtime_import_hook_validates_layout_transformer_shapes():
+def test_runtime_import_hook_validates_ltnet_shapes():
     script = r"""
     import torch
     from jaxtyping import install_import_hook
 
-    with install_import_hook("layout_transformer", "beartype.beartype"):
-        import layout_transformer.modeling_layout_transformer as modeling
-        import layout_transformer.pipeline_layout_transformer as pipeline
-        import layout_transformer.processing_layout_transformer as processing
-        from layout_transformer.relation_schema import LayoutObject, LayoutRelation
+    with install_import_hook("ltnet", "beartype.beartype"):
+        import ltnet.modeling_ltnet as modeling
+        import ltnet.pipeline_ltnet as pipeline
+        import ltnet.processing_ltnet as processing
+        from ltnet.relation_schema import LayoutObject, LayoutRelation
 
-    processor = processing.LayoutTransformerProcessor.from_config(
+    processor = processing.LTNetProcessor.from_config(
         max_sequence_length=6,
         id2label={0: "person", 1: "table"},
         relation_id2label={0: "left of"},
@@ -32,7 +32,7 @@ def test_runtime_import_hook_validates_layout_transformer_shapes():
     assert tuple(encoded["input_token"].shape) == (1, 6)
     assert tuple(encoded["src_mask"].shape) == (1, 1, 6)
 
-    config = modeling.LayoutTransformerConfig(
+    config = modeling.LTNetConfig(
         vocab_size=processor.tokenizer.vocab_size,
         obj_classes_size=8,
         hidden_size=32,
@@ -40,12 +40,12 @@ def test_runtime_import_hook_validates_layout_transformer_shapes():
         num_attention_heads=4,
         max_sequence_length=6,
     )
-    model = modeling.LayoutTransformerForLayoutGeneration(config)
+    model = modeling.LTNetForLayoutGeneration(config)
     output = model(**encoded)
     assert tuple(output.coarse_box.shape) == (1, 6, 4)
     assert tuple(output.vocab_logits.shape) == (1, 6, processor.tokenizer.vocab_size)
 
-    generated = pipeline.LayoutTransformerPipeline(
+    generated = pipeline.LTNetPipeline(
         model=model,
         processor=processor,
     )(

@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,9 +20,11 @@ ISSUE_REF_RE = re.compile(
 )
 CHECKLIST_HEADING_RE = re.compile(r"(?im)^## Checklist\s*$")
 COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
+SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
 
 
 class PullRequestMetadata(NamedTuple):
@@ -111,6 +114,11 @@ def checklist_section(body: str) -> str | None:
 def completion_gate_section(body: str) -> str | None:
     """Return the PR completion gate section body, excluding the heading."""
     return section_body(body, COMPLETION_GATE_HEADING_RE)
+
+
+def shared_library_section(body: str) -> str | None:
+    """Return the shared-library/cross-cutting section body, excluding the heading."""
+    return section_body(body, SHARED_LIBRARY_HEADING_RE)
 
 
 def section_body(body: str, heading_re: re.Pattern[str]) -> str | None:
@@ -234,11 +242,66 @@ def completion_gate_errors(
     return errors
 
 
+def _is_guarded_cross_cutting_path(path: str) -> bool:
+    return (
+        path.startswith("docs/")
+        or path.startswith(".agents/skills/")
+        or (path.startswith("lib/") and "/src/" in path)
+    )
+
+
+def guarded_cross_cutting_paths(changed_files: list[str]) -> list[str]:
+    """Return changed files that require cross-cutting-change rationale."""
+    return [path for path in changed_files if _is_guarded_cross_cutting_path(path)]
+
+
+def changed_files_from_git(base: str, head: str) -> list[str]:
+    """Return changed file paths between two revisions."""
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{base}...{head}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def _has_actionable_section_text(section: str) -> bool:
+    cleaned_lines = [
+        PLACEHOLDER_RE.sub("", line).strip(" -.\t")
+        for line in section.splitlines()
+        if line.strip()
+    ]
+    return any(line and not NON_ACTIONABLE_RE.match(line) for line in cleaned_lines)
+
+
+def shared_library_change_errors(
+    body: str,
+    changed_files: list[str],
+) -> list[str]:
+    """Return errors for cross-cutting changes without PR-body rationale."""
+    guarded_paths = guarded_cross_cutting_paths(changed_files)
+    if not guarded_paths:
+        return []
+
+    section = shared_library_section(body)
+    if section is not None and _has_actionable_section_text(section):
+        return []
+
+    return [
+        "PRs changing cross-cutting paths must explain the rationale in "
+        "`## Shared Library Changes`: " + ", ".join(guarded_paths)
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate that a PR body links an issue and fills the checklist."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--body-file", type=Path)
     parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--changed-file", action="append", default=[])
+    parser.add_argument("--base")
+    parser.add_argument("--head")
     args = parser.parse_args(argv)
 
     if args.body_file is not None:
@@ -275,6 +338,10 @@ def main(argv: list[str] | None = None) -> int:
             created_at=metadata.created_at,
         )
     )
+    changed_files = list(args.changed_file)
+    if args.base and args.head:
+        changed_files.extend(changed_files_from_git(args.base, args.head))
+    errors.extend(shared_library_change_errors(metadata.body, changed_files))
 
     if errors:
         print("\n".join(errors), file=sys.stderr)

@@ -4,22 +4,22 @@ import pytest
 import torch
 
 from laygen.common.testing import skip_or_fail_vendor_parity
-from layout_transformer import LayoutTransformerForLayoutGeneration
+from ltnet import LTNetForLayoutGeneration
 
 
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize("dataset_name", ["coco", "vg_msdn"])
 def test_vendor_reference_matches_local_converted_checkpoint(dataset_name):
-    reference_dir = Path(".cache/layout-transformer/reference")
+    reference_dir = Path(".cache/ltnet/reference")
     sample_path = reference_dir / dataset_name / f"{dataset_name}_sample_0.pt"
-    converted_dir = Path(".cache/layout-transformer/converted") / dataset_name
+    converted_dir = Path(".cache/ltnet/converted") / dataset_name
     if not sample_path.exists() or not (converted_dir / "config.json").exists():
         skip_or_fail_vendor_parity(
             "Generate vendor references with scripts/export_reference.py first",
             missing_paths=[sample_path, converted_dir / "config.json"],
             regeneration_hint=(
-                "run models/layout-transformer/scripts/export_reference.py and "
-                "models/layout-transformer/scripts/convert_original_checkpoint.py"
+                "run models/ltnet/scripts/export_reference.py and "
+                "models/ltnet/scripts/convert_original_checkpoint.py"
             ),
         )
     if not torch.cuda.is_available():
@@ -32,7 +32,7 @@ def test_vendor_reference_matches_local_converted_checkpoint(dataset_name):
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     reference = torch.load(sample_path, map_location="cpu")
-    model = LayoutTransformerForLayoutGeneration.from_pretrained(
+    model = LTNetForLayoutGeneration.from_pretrained(
         converted_dir,
         local_files_only=True,
     ).to("cuda")
