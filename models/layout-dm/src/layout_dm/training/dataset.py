@@ -30,12 +30,15 @@ LayoutDMValue: TypeAlias = (
     | Sequence[LayoutDMAnnotation]
     | None
 )
+LayoutDMProcessedAttrValue: TypeAlias = (
+    str | bool | Sequence[str] | Sequence[bool] | torch.Tensor
+)
 
 
 class _ProcessedData(Protocol):
     x: Float[torch.Tensor, "rows 4"]
     y: Int[torch.Tensor, "rows"]
-    attr: Mapping[str, str | Sequence[str]]
+    attr: Mapping[str, LayoutDMProcessedAttrValue]
 
 
 _RICO_CONFIG: Final[str] = "ui-screenshots-and-hierarchies-with-semantic-annotations"
@@ -78,6 +81,7 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
         max_seq_length: int | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
+        random_order: bool = False,
     ) -> None:
         """Load a LayoutDM training split from the approved HF dataset source.
 
@@ -89,6 +93,8 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
             max_seq_length: Optional element cap before tokenization.
             box_format: Source box format.
             normalized: Whether source boxes are already normalized.
+            random_order: Whether to apply the vendor RandomOrder transform
+                before tokenization.
         """
         super().__init__()
         self.dataset_name = dataset_name
@@ -99,6 +105,7 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
         self.max_seq_length = max_seq_length or self.config.max_seq_length
         self.box_format = box_format
         self.normalized = normalized
+        self.random_order = random_order
         self.label2id = _casefold_mapping(label2id_for_dataset(dataset_name))
 
         import datasets
@@ -121,6 +128,9 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
         self, sample: Mapping[str, LayoutDMValue]
     ) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
         bbox, labels, canvas_size = _extract_layout(sample, self.label2id)
+        if self.random_order:
+            _assert_no_canvas_element(sample)
+            bbox, labels = _random_order_layout(bbox, labels)
         bbox = bbox[: self.max_seq_length]
         labels = labels[: self.max_seq_length]
         mask = torch.ones(labels.shape, dtype=torch.bool)
@@ -155,6 +165,7 @@ class LayoutDMProcessedDataset(
         split: LayoutDMTrainingSplit = "train",
         tokenizer: LayoutDMTokenizer | None = None,
         max_seq_length: int | None = None,
+        random_order: bool = False,
     ) -> None:
         """Load a preprocessed split from a local data directory.
 
@@ -165,6 +176,8 @@ class LayoutDMProcessedDataset(
             split: Package split name. ``validation`` maps to processed ``val``.
             tokenizer: Optional tokenizer. Built from ``config`` otherwise.
             max_seq_length: Optional element cap used in the processed directory name.
+            random_order: Whether to apply the vendor RandomOrder transform
+                before tokenization.
         """
         super().__init__()
         self.dataset_name = dataset_name
@@ -173,6 +186,7 @@ class LayoutDMProcessedDataset(
         self.tokenizer = tokenizer or LayoutDMTokenizer(self.config)
         self.processor = LayoutDMProcessor(self.tokenizer)
         self.max_seq_length = max_seq_length or self.config.max_seq_length
+        self.random_order = random_order
         split_name = _PROCESSED_SPLITS[split]
         path = (
             Path(processed_data_dir)
@@ -190,6 +204,9 @@ class LayoutDMProcessedDataset(
     def __getitem__(self, index: int) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
         """Return one tokenized training example."""
         bbox, labels, sample_id = _processed_row(self.data, self.slices, index)
+        if self.random_order:
+            _assert_processed_no_canvas_element(self.data.attr, index)
+            bbox, labels = _random_order_layout(bbox, labels)
         mask = torch.ones(labels.shape, dtype=torch.bool)
         encoded = self.processor(
             bbox=bbox.unsqueeze(0),
@@ -404,7 +421,7 @@ def _processed_row(
 
 
 def _processed_sample_id(
-    attr: Mapping[str, str | Sequence[str]] | None, index: int
+    attr: Mapping[str, LayoutDMProcessedAttrValue] | None, index: int
 ) -> str | None:
     if attr is None:
         return None
@@ -416,3 +433,38 @@ def _processed_sample_id(
     if isinstance(name, str) and index == 0:
         return name
     return None
+
+
+def _random_order_layout(
+    bbox: Float[torch.Tensor, "elements 4"],
+    labels: Int[torch.Tensor, "elements"],
+) -> tuple[Float[torch.Tensor, "elements 4"], Int[torch.Tensor, "elements"]]:
+    """Apply the vendor RandomOrder transform to one tokenization input."""
+    idx = torch.randperm(labels.shape[0], device=labels.device)
+    return bbox[idx], labels[idx]
+
+
+def _assert_no_canvas_element(sample: Mapping[str, LayoutDMValue]) -> None:
+    value = sample.get("has_canvas_element")
+    if isinstance(value, bool):
+        assert not value
+    elif isinstance(value, torch.Tensor):
+        assert not bool(value.any().item())
+
+
+def _assert_processed_no_canvas_element(
+    attr: Mapping[str, LayoutDMProcessedAttrValue] | None, index: int
+) -> None:
+    if attr is None:
+        return
+    value = attr.get("has_canvas_element")
+    if isinstance(value, bool):
+        assert not value
+    elif isinstance(value, torch.Tensor):
+        if value.ndim == 0:
+            assert not bool(value.item())
+        elif index < value.numel():
+            assert not bool(value[index].item())
+    elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        if index < len(value):
+            assert not bool(value[index])

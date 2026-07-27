@@ -38,6 +38,7 @@ def test_s5_training_configs_pin_layoutdm_experiment_settings() -> None:
         assert "    scheduler_patience: 2" in text
         assert "    scheduler_threshold: 0.01" in text
         assert "    batch_size: 64" in text
+        assert "    train_transforms: [RandomOrder]" in text
         assert "bbox_quantization: kmeans" in text
         assert "q_type: constrained" in text
         assert (

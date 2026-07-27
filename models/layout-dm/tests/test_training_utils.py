@@ -15,6 +15,7 @@ from layout_dm.training.config import (
     LayoutDMTrainingDatasetName,
     LayoutDMTrainingDatasetSource,
     LayoutDMTrainingScheduler,
+    LayoutDMTrainingTransform,
 )
 from layout_dm.training.dataset import (
     LayoutDMDataset,
@@ -97,10 +98,63 @@ def test_synthetic_dataset_and_hf_sample_normalization() -> None:
     dataset.max_seq_length = 4
     dataset.box_format = "xywh"
     dataset.normalized = True
+    dataset.random_order = False
     dataset.label2id = {"text": 0, "figure": 4}
     encoded = dataset._encode_sample(sample)
     assert encoded["input_ids"].shape == (20,)
     assert encoded["id"] == "doc-1"
+
+
+def test_hf_dataset_random_order_applies_before_tokenization() -> None:
+    class CaptureProcessor:
+        def __call__(
+            self,
+            *,
+            bbox: torch.Tensor,
+            labels: torch.Tensor,
+            mask: torch.Tensor,
+            **kwargs,
+        ) -> dict[str, torch.Tensor]:
+            del kwargs
+            return {"bbox": bbox, "labels": labels, "mask": mask}
+
+    sample = {
+        "bbox": [
+            [0.0, 0.0, 0.1, 0.1],
+            [0.1, 0.1, 0.2, 0.2],
+            [0.2, 0.2, 0.3, 0.3],
+            [0.3, 0.3, 0.4, 0.4],
+        ],
+        "labels": [0, 1, 2, 3],
+        "has_canvas_element": False,
+    }
+    dataset = LayoutDMDataset.__new__(LayoutDMDataset)
+    dataset.random_order = True
+    dataset.processor = CaptureProcessor()
+    dataset.max_seq_length = 4
+    dataset.box_format = "xywh"
+    dataset.normalized = True
+    dataset.label2id = {}
+
+    torch.manual_seed(13)
+    expected_idx = torch.randperm(4)
+    torch.manual_seed(13)
+    encoded = dataset._encode_sample(sample)
+    assert cast(torch.Tensor, encoded["labels"]).tolist() == expected_idx.tolist()
+    assert torch.allclose(
+        cast(torch.Tensor, encoded["bbox"])[:, 0],
+        expected_idx.float() / 10,
+    )
+
+    torch.manual_seed(13)
+    first = cast(torch.Tensor, dataset._encode_sample(sample)["labels"])
+    torch.manual_seed(13)
+    second = cast(torch.Tensor, dataset._encode_sample(sample)["labels"])
+    assert torch.equal(first, second)
+
+    dataset.random_order = False
+    encoded_val = dataset._encode_sample(sample)
+    assert cast(torch.Tensor, encoded_val["labels"]).tolist() == [0, 1, 2, 3]
 
 
 def test_processed_dataset_and_datamodule_stream(
@@ -155,6 +209,10 @@ def test_processed_dataset_and_datamodule_stream(
     )
     dm.setup("fit")
     assert len(dm.train_dataloader()) == 1
+    assert isinstance(dm.train_dataset, LayoutDMProcessedDataset)
+    assert dm.train_dataset.random_order is True
+    assert isinstance(dm.val_dataset, LayoutDMProcessedDataset)
+    assert dm.val_dataset.random_order is False
     lazy_dm = LayoutDMDataModule(
         dataset_name="publaynet",
         config=config,
@@ -186,6 +244,7 @@ def test_seed_modes_public_options_and_conversion_key_maps() -> None:
     assert LayoutDMTrainingDatasetName.__args__ == ("rico25", "publaynet")
     assert LayoutDMTrainingDatasetSource.__args__ == ("hf", "processed")
     assert LayoutDMTrainingScheduler.__args__ == ("reduce_on_plateau",)
+    assert LayoutDMTrainingTransform.__args__ == ("RandomOrder",)
     assert LayoutDMTimeSampler.__args__ == ("importance", "uniform")
 
     assert (

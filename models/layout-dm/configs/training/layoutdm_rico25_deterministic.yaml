@@ -47,3 +47,4 @@ data:
     num_workers: 0
     box_format: xywh
     normalized: true
+    train_transforms: [RandomOrder]

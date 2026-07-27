@@ -14,6 +14,9 @@ LayoutDMTrainingDatasetSource: TypeAlias = Literal["hf", "processed"]
 LayoutDMTrainingSplit: TypeAlias = Literal["train", "validation", "test"]
 """Split names supported by package-local LayoutDM training data."""
 
+LayoutDMTrainingTransform: TypeAlias = Literal["RandomOrder"]
+"""Training-only layout transforms supported by package-local LayoutDM data."""
+
 LayoutDMTrainingScheduler: TypeAlias = Literal["reduce_on_plateau"]
 """Scheduler names supported by package-local LayoutDM training."""
 

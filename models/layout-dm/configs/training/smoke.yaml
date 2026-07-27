@@ -50,3 +50,4 @@ data:
     max_seq_length: 4
     num_workers: 0
     synthetic_size: 4
+    train_transforms: [RandomOrder]

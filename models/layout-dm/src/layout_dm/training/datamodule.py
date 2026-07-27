@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 from jaxtyping import Shaped
 from lightning.pytorch import LightningDataModule
@@ -15,6 +17,7 @@ from .config import (
     LayoutDMTrainingDatasetName,
     LayoutDMTrainingDatasetSource,
     LayoutDMTrainingSplit,
+    LayoutDMTrainingTransform,
 )
 from .dataset import LayoutDMDataset, LayoutDMProcessedDataset, LayoutDMSyntheticDataset
 
@@ -35,6 +38,7 @@ class LayoutDMDataModule(LightningDataModule):
         synthetic_size: int | None = None,
         dataset_source: LayoutDMTrainingDatasetSource = "hf",
         processed_data_dir: str | None = None,
+        train_transforms: Sequence[LayoutDMTrainingTransform] | None = ("RandomOrder",),
     ) -> None:
         """Initialize datamodule settings."""
         super().__init__()
@@ -48,6 +52,10 @@ class LayoutDMDataModule(LightningDataModule):
         self.synthetic_size = synthetic_size
         self.dataset_source = dataset_source
         self.processed_data_dir = processed_data_dir
+        self.train_transforms = tuple(train_transforms or ())
+        unsupported = set(self.train_transforms) - {"RandomOrder"}
+        if unsupported:
+            raise ValueError(f"Unsupported LayoutDM train transforms: {unsupported}")
         self.tokenizer = LayoutDMTokenizer(self.config)
         self.train_dataset: (
             Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]] | None
@@ -112,6 +120,7 @@ class LayoutDMDataModule(LightningDataModule):
                 tokenizer=self.tokenizer,
                 max_seq_length=self.max_seq_length,
                 processed_data_dir=self.processed_data_dir,
+                random_order=self._uses_random_order(split),
             )
         return LayoutDMDataset(
             dataset_name=self.dataset_name,
@@ -121,7 +130,11 @@ class LayoutDMDataModule(LightningDataModule):
             max_seq_length=self.max_seq_length,
             box_format=self.box_format,
             normalized=self.normalized,
+            random_order=self._uses_random_order(split),
         )
+
+    def _uses_random_order(self, split: LayoutDMTrainingSplit) -> bool:
+        return split == "train" and "RandomOrder" in self.train_transforms
 
     def _loader(
         self,
