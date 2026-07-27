@@ -171,7 +171,11 @@ class SmartTextProcessor(ProcessorMixin):
         if return_tensors != "pt":
             raise ValueError("SmartTextProcessor only supports return_tensors='pt'")
         content = dict(content or {})
-        resolved_images = images or content.get("image") or content.get("images")
+        resolved_images = images
+        if resolved_images is None:
+            resolved_images = content.get("image")
+        if resolved_images is None:
+            resolved_images = content.get("images")
         if resolved_images is None:
             raise ValueError("SmartText requires an image/content payload")
         image_rows = _ensure_image_list(resolved_images)
