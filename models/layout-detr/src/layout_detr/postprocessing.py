@@ -36,7 +36,7 @@ def jitter_boxes(
     strength: float,
     generator: torch.Generator | None,
 ) -> Float[torch.Tensor, "batch elements 4"]:
-    """Apply vendor-style multiplicative jitter to generated boxes."""
+    """Apply multiplicative jitter to generated boxes."""
     if strength == 0.0:
         return bbox
     if strength < 0.0 or strength >= 1.0:
@@ -84,7 +84,7 @@ def de_overlap(
     bbox: Float[torch.Tensor, "batch elements 4"],
     mask: Bool[torch.Tensor, "batch elements"],
 ) -> Float[torch.Tensor, "batch elements 4"]:
-    """Reduce vertical overlaps with the deterministic vendor arithmetic."""
+    """Reduce vertical overlaps with deterministic LayoutDETR arithmetic."""
     out = bbox.clone()
     for batch in range(out.shape[0]):
         indexes = torch.nonzero(mask[batch], as_tuple=False).flatten().tolist()
@@ -116,8 +116,8 @@ def apply_postprocessing(
     """Apply LayoutDETR jitter/alignment/de-overlap without rendering."""
     out = jitter_boxes(bbox, strength=jitter_strength, generator=generator)
     normalized_mode = normalize_postprocessing_mode(mode)
-    # Vendor generate.py contains a random-postprocessing assignment typo; the
-    # public port keeps deterministic explicit modes only.
+    # Random postprocessing is intentionally omitted because the source behavior
+    # is assignment-order dependent; public modes stay deterministic and explicit.
     if normalized_mode is PostprocessingMode.horizontal_center_aligned:
         out = horizontal_center_aligned(out, mask)
     elif normalized_mode is PostprocessingMode.horizontal_left_aligned:
