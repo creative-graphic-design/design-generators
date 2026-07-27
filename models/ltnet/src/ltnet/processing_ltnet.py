@@ -16,27 +16,36 @@ from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
-from .configuration_layout_transformer import (
+from .configuration_ltnet import (
     DEFAULT_ID2LABEL,
     DEFAULT_RELATION_ID2LABEL,
 )
-from .modeling_layout_transformer import LayoutTransformerModelOutput
+from .modeling_ltnet import LTNetModelOutput
 from .relation_schema import LayoutObject, LayoutRelation, SceneGraphInput
-from .tokenization_layout_transformer import LayoutTransformerRelationTokenizer
+from .tokenization_ltnet import LTNetRelationTokenizer
 
 
 OutputType = Literal["dataclass", "dict"]
+SceneGraphMapping = Mapping[
+    str,
+    str
+    | int
+    | float
+    | Sequence[float]
+    | Sequence[Mapping[str, str | int | float | Sequence[float]]]
+    | Mapping[int | str, str],
+]
 
 
-class LayoutTransformerProcessor(ProcessorMixin):
+class LTNetProcessor(ProcessorMixin):
     """Normalize scene graphs, tokenize LT-Net inputs, and postprocess boxes."""
 
     attributes = ["tokenizer"]
-    tokenizer_class = "LayoutTransformerRelationTokenizer"
+    tokenizer_class = "LTNetRelationTokenizer"
 
     def __init__(
         self,
-        tokenizer: LayoutTransformerRelationTokenizer,
+        tokenizer: LTNetRelationTokenizer,
         dataset_name: str = "coco",
         max_sequence_length: int = 128,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
@@ -72,14 +81,14 @@ class LayoutTransformerProcessor(ProcessorMixin):
         max_sequence_length: int = 128,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
         relation_id2label: Mapping[int, str] | Mapping[str, str] | None = None,
-    ) -> "LayoutTransformerProcessor":
+    ) -> "LTNetProcessor":
         """Construct a processor and tokenizer without external files.
 
         Returns:
             Processor with synthetic vocabulary derived from the label maps.
 
         Examples:
-            >>> processor = LayoutTransformerProcessor.from_config()
+            >>> processor = LTNetProcessor.from_config()
             >>> processor.tokenizer.cls_token_id
             1
         """
@@ -94,7 +103,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
         tokens = ["__image__"]
         tokens.extend(value for _, value in sorted(object_labels.items()))
         tokens.extend(value for _, value in sorted(relation_labels.items()))
-        tokenizer = LayoutTransformerRelationTokenizer(tokens=tokens)
+        tokenizer = LTNetRelationTokenizer(tokens=tokens)
         return cls(
             tokenizer=tokenizer,
             dataset_name=dataset_name,
@@ -110,13 +119,13 @@ class LayoutTransformerProcessor(ProcessorMixin):
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
         **kwargs: object,
-    ) -> LayoutTransformerRelationTokenizer:
+    ) -> LTNetRelationTokenizer:
         """Load tokenizer for ``ProcessorMixin.from_pretrained``."""
         _ = sub_processor_type
         path = Path(pretrained_model_name_or_path)
         tokenizer_path = path / subfolder if subfolder else path
         token = kwargs.get("token")
-        return LayoutTransformerRelationTokenizer.from_pretrained(
+        return LTNetRelationTokenizer.from_pretrained(
             tokenizer_path,
             cache_dir=cast(str | PathLike[str] | None, kwargs.get("cache_dir")),
             force_download=bool(kwargs.get("force_download", False)),
@@ -132,7 +141,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
         condition = normalize_condition_type(condition_type)
         if condition is not ConditionType.relation:
             raise ValueError(
-                "LayoutTransformer only supports condition_type='relation' "
+                "LT-Net only supports condition_type='relation' "
                 "and aliases 'scene_graph', 'graph', or 'gen_r'."
             )
         return condition
@@ -161,7 +170,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
 
     def _normalize_scene_graph(
         self,
-        scene_graph: SceneGraphInput | Mapping[str, object] | None,
+        scene_graph: SceneGraphInput | SceneGraphMapping | None,
         *,
         objects: Sequence[LayoutObject] | None,
         relations: Sequence[LayoutRelation] | None,
@@ -266,7 +275,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        scene_graph: SceneGraphInput | Mapping[str, object] | None = None,
+        scene_graph: SceneGraphInput | SceneGraphMapping | None = None,
         objects: Sequence[LayoutObject] | None = None,
         relations: Sequence[LayoutRelation] | None = None,
         batch_size: int = 1,
@@ -308,7 +317,7 @@ class LayoutTransformerProcessor(ProcessorMixin):
 
     def post_process_layout_generation(
         self,
-        model_outputs: LayoutTransformerModelOutput,
+        model_outputs: LTNetModelOutput,
         *,
         input_token: Int[torch.Tensor, "batch sequence"] | None = None,
         input_obj_id: Int[torch.Tensor, "batch sequence"],
@@ -318,11 +327,21 @@ class LayoutTransformerProcessor(ProcessorMixin):
         canvas_size: tuple[int, int] | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[str, Float[torch.Tensor, "..."] | None],
+        ]
+    ):
         """Convert raw token-level boxes into public object-level layouts."""
         _ = (canvas_size, normalize_box_format(box_format))
         if not normalized:
-            raise ValueError("LayoutTransformer outputs normalized boxes only")
+            raise ValueError("LT-Net outputs normalized boxes only")
         raw_box = model_outputs.refine_box
         if raw_box is None:
             raw_box = model_outputs.coarse_box

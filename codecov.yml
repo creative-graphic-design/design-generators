@@ -38,7 +38,7 @@ flags:
     carryforward: true
   layout-gpt:
     carryforward: true
-  layout-transformer:
+  ltnet:
     carryforward: true
   layoutdiffusion:
     carryforward: true

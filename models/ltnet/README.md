@@ -7,14 +7,14 @@ license_link: "unknown"
 library_name: "transformers"
 pipeline_tag: "other"
 tags:
-  - "layout-transformer"
+  - "ltnet"
   - "layout-generation"
   - "scene-graph-to-layout"
 datasets:
   - "COCO"
   - "VG-MSDN"
 model-index:
-  - name: "LayoutTransformer"
+  - name: "LT-Net"
     results:
       - task:
           type: "other"
@@ -29,7 +29,7 @@ model-index:
             name: "Vendor parity"
 ---
 
-# Model Card for LayoutTransformer
+# Model Card for LT-Net
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2021&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html)
 ![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2021&color=purple&style=flat-square)
@@ -40,13 +40,13 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutTransformer](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html), also known as LT-Net, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for scene-graph-conditioned layout generation.
+This package ports [LayoutTransformer](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html), packaged here as LT-Net, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package for scene-graph-conditioned layout generation.
 
 ## Model Details
 
 ### Model Description
 
-LayoutTransformer is a scene-graph-to-layout model for natural-image scene layouts. It encodes object and relation tokens, decodes box distributions with Gaussian mixture heads, and optionally refines boxes with visual-textual co-attention. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It encodes object and relation tokens, decodes box distributions with Gaussian mixture heads, and optionally refines boxes with visual-textual co-attention. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Cheng-Fu Yang, Wan-Cyuan Fan, Fu-En Yang, and Yu-Chiang Frank Wang.
 - **Shared by:** creative-graphic-design.
@@ -64,8 +64,8 @@ LayoutTransformer is a scene-graph-to-layout model for natural-image scene layou
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| COCO full LT-Net | [`creative-graphic-design/layout-transformer-coco`](https://huggingface.co/creative-graphic-design/layout-transformer-coco) | not-published |
-| VG-MSDN full LT-Net | [`creative-graphic-design/layout-transformer-vg-msdn`](https://huggingface.co/creative-graphic-design/layout-transformer-vg-msdn) | not-published |
+| COCO full LT-Net | [`creative-graphic-design/ltnet-coco`](https://huggingface.co/creative-graphic-design/ltnet-coco) | not-published |
+| VG-MSDN full LT-Net | [`creative-graphic-design/ltnet-vg-msdn`](https://huggingface.co/creative-graphic-design/ltnet-vg-msdn) | not-published |
 
 ## Uses
 
@@ -73,7 +73,7 @@ LayoutTransformer is a scene-graph-to-layout model for natural-image scene layou
 
 Use this package for research inference, checkpoint conversion checks, and vendor-parity validation of relation-conditioned layout generation.
 
-LayoutTransformer accepts scene graph objects and relations, serializes them through the package tokenizer and processor, and returns common `laygen` layout outputs.
+LT-Net accepts scene graph objects and relations, serializes them through the package tokenizer and processor, and returns common `laygen` layout outputs.
 
 ### Downstream Use
 
@@ -98,24 +98,24 @@ Install the package directly from this repository. The command includes shared p
 ```bash
 pip install \
   "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
-  "layout-transformer @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-transformer"
+  "ltnet @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/ltnet"
 ```
 
-Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-transformer/REPRODUCING.md). Those steps create `.cache/layout-transformer/converted/coco`.
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md). Those steps create `.cache/ltnet/converted/coco`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
-uv sync --package layout-transformer
-uv run --package layout-transformer python
+uv sync --package ltnet
+uv run --package ltnet python
 ```
 
 ```python
-from layout_transformer import LayoutObject, LayoutRelation, LayoutTransformerPipeline
+from ltnet import LayoutObject, LayoutRelation, LTNetPipeline
 
-path = ".cache/layout-transformer/converted/coco"
-# After Hub publication: from_pretrained("creative-graphic-design/layout-transformer-coco")
-pipe = LayoutTransformerPipeline.from_pretrained(path, local_files_only=True)
+path = ".cache/ltnet/converted/coco"
+# After Hub publication: from_pretrained("creative-graphic-design/ltnet-coco")
+pipe = LTNetPipeline.from_pretrained(path, local_files_only=True)
 out = pipe(
     condition_type="relation",
     objects=[
@@ -185,7 +185,7 @@ Metrics are exact tensor equality or explicitly stated numeric tolerance against
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-transformer/REPRODUCING.md) for the commands that download vendor assets, prepare dataset metadata, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) for the commands that download vendor assets, prepare dataset metadata, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
@@ -195,7 +195,7 @@ No new model training is performed by these conversion packages. Conversion and 
 
 ### Model Architecture and Objective
 
-LayoutTransformer encodes scene-graph token sequences with object, relation, segment, and token-type embeddings. Its decoder predicts Gaussian mixture parameters for center and size coordinates, and the optional refinement module updates object boxes through attention over decoded layout features.
+LT-Net encodes scene-graph token sequences with object, relation, segment, and token-type embeddings. Its decoder predicts Gaussian mixture parameters for center and size coordinates, and the optional refinement module updates object boxes through attention over decoded layout features.
 
 ### Compute Infrastructure
 
@@ -207,7 +207,7 @@ CPU is sufficient for import, serialization, and most unit tests. CUDA is requir
 
 #### Software
 
-Use `uv run --package layout-transformer ...` from the repository root so workspace dependency sources, optional extras, and package metadata resolve from the correct workspace member.
+Use `uv run --package ltnet ...` from the repository root so workspace dependency sources, optional extras, and package metadata resolve from the correct workspace member.
 
 ## License
 

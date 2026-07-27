@@ -12,13 +12,14 @@ from laygen.common.tokenization import (
     build_token_maps,
     save_json_vocabulary,
 )
+from tokenizers import AddedToken
 from transformers import PreTrainedTokenizer
 
 DEFAULT_MODEL_MAX_LENGTH: Final[int] = 1_000_000_000_000_000_019_884_624_838_656
 SPECIAL_TOKENS: Final[tuple[str, ...]] = ("[PAD]", "[CLS]", "[SEP]", "[MASK]")
 
 
-class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
+class LTNetRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
     """Discrete scene-graph tokenizer saved as a standard HF tokenizer.
 
     Args:
@@ -35,7 +36,7 @@ class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTok
         kwargs: Additional tokenizer compatibility fields.
 
     Examples:
-        >>> tokenizer = LayoutTransformerRelationTokenizer(tokens=["__image__", "person"])
+        >>> tokenizer = LTNetRelationTokenizer(tokens=["__image__", "person"])
         >>> tokenizer.convert_tokens_to_ids("[CLS]")
         1
     """
@@ -58,7 +59,7 @@ class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTok
         padding_side: str = "right",
         truncation_side: str = "right",
         clean_up_tokenization_spaces: bool = False,
-        added_tokens_decoder: dict[int | str, object] | None = None,
+        added_tokens_decoder: dict[int | str, str | AddedToken] | None = None,
         name_or_path: str = "",
         **kwargs: object,
     ) -> None:
@@ -145,9 +146,7 @@ class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTok
             "object_token_ids": self.object_token_ids,
             "relation_token_ids": self.relation_token_ids,
         }
-        with (Path(save_directory) / "layout_transformer_tokenizer_config.json").open(
-            "w"
-        ) as f:
+        with (Path(save_directory) / "ltnet_tokenizer_config.json").open("w") as f:
             json.dump(metadata, f, indent=2, sort_keys=True)
         return paths
 
@@ -163,10 +162,10 @@ class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTok
         object_token_ids: list[int] | None = None,
         relation_token_ids: list[int] | None = None,
         **kwargs: object,
-    ) -> "LayoutTransformerRelationTokenizer":
+    ) -> "LTNetRelationTokenizer":
         """Load tokenizer and LT-Net metadata."""
         path = Path(pretrained_model_name_or_path)
-        metadata_path = path / "layout_transformer_tokenizer_config.json"
+        metadata_path = path / "ltnet_tokenizer_config.json"
         metadata: dict[str, object] = {}
         if metadata_path.exists():
             with metadata_path.open() as f:
@@ -177,7 +176,7 @@ class LayoutTransformerRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTok
             metadata["relation_token_ids"] = relation_token_ids
         metadata.update(kwargs)
         return cast(
-            "LayoutTransformerRelationTokenizer",
+            "LTNetRelationTokenizer",
             super().from_pretrained(
                 str(pretrained_model_name_or_path),
                 cache_dir=cache_dir,

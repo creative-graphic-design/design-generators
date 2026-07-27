@@ -11,10 +11,12 @@ import torch
 import torch.nn as nn
 from jaxtyping import Bool, Float, Int
 
-from .configuration_layout_transformer import LayoutTransformerConfig
+from .configuration_ltnet import LTNetConfig
 
 
-def _cfg(config: LayoutTransformerConfig) -> dict[str, object]:
+def _cfg(
+    config: LTNetConfig,
+) -> dict[str, bool | dict[str, bool | dict[str, str | bool | float]]]:
     return {
         "MODEL": {
             "PRETRAIN": False,
@@ -331,7 +333,7 @@ class SentenceEmbeddings(nn.Module):
 class RelEncoder(nn.Module):
     """Original LT-Net relation encoder and token classifiers."""
 
-    def __init__(self, config: LayoutTransformerConfig) -> None:
+    def __init__(self, config: LTNetConfig) -> None:
         super().__init__()
         self.input_embeddings = SentenceEmbeddings(
             config.vocab_size,
@@ -552,7 +554,7 @@ class GMMHead(nn.Module):
         condition: bool = False,
         x_softmax: bool = False,
         greedy: bool = False,
-        config: LayoutTransformerConfig,
+        config: LTNetConfig,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
@@ -882,7 +884,7 @@ class PDFDecoder(nn.Module):
         num_layers: int = 2,
         attn_heads: int = 2,
         dropout: float = 0.1,
-        config: LayoutTransformerConfig,
+        config: LTNetConfig,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
@@ -1049,7 +1051,7 @@ class PDFDecoder(nn.Module):
 class BBoxHead(nn.Module):
     """Original LT-Net bbox head."""
 
-    def __init__(self, config: LayoutTransformerConfig) -> None:
+    def __init__(self, config: LTNetConfig) -> None:
         super().__init__()
         self.pad_index = 0
         self.bos_index = 1
