@@ -36,7 +36,7 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package implements BASNet as a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style saliency model for content-aware layout and poster generation packages.
+This package implements BASNet as a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style salient object detection model that predicts foreground saliency maps from RGB images.
 
 ## Model Details
 
@@ -89,7 +89,7 @@ saliency = processor.postprocess_saliency(
 
 ### Downstream Use
 
-Downstream packages can use the returned saliency tensor as content-image evidence for candidate filtering, text placement, or poster-layout generation. SmartText uses this package as the shared BASNet implementation behind its saliency preprocessing path.
+Downstream packages can use the returned saliency tensor as content-image evidence, for example when filtering candidate regions or placing text over images. SmartText uses this package as the shared BASNet implementation behind its saliency preprocessing path.
 
 ### Out-of-Scope Use
 
