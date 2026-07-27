@@ -24,10 +24,10 @@ models/layout-detr/src/layout_detr/processing_layout_detr.py	dict[str, object]	r
 models/layout-fid/src/layout_fid/pipeline_layout_fid.py	Mapping[str, object]	LayoutFIDStatistics.from_mapping(cast(Mapping[str, object], statistics))
 models/layout-fid/src/layout_fid/pipeline_layout_fid.py	Mapping[str, object]	cast(Mapping[str, object], reference_statistics)
 models/layout-gpt/src/layout_gpt/exemplars.py	Sequence[Mapping[str, object]]	records = cast(Sequence[Mapping[str, object]], json.loads(Path(path).read_text()))
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	Mapping[str, object]	item = cast(Mapping[str, object], edge)
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	Mapping[str, object]	item = cast(Mapping[str, object], node)
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	Sequence[object]	for edge in cast(Sequence[object], edges):
-models/layout-transformer/src/layout_transformer/processing_layout_transformer.py	Sequence[object]	for node in cast(Sequence[object], nodes):
+models/ltnet/src/ltnet/processing_ltnet.py	Mapping[str, object]	item = cast(Mapping[str, object], edge)
+models/ltnet/src/ltnet/processing_ltnet.py	Mapping[str, object]	item = cast(Mapping[str, object], node)
+models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for edge in cast(Sequence[object], edges):
+models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for node in cast(Sequence[object], nodes):
 models/layoutganpp/src/layoutganpp/conversion.py	Mapping[str, object]	return cast(Mapping[str, object], args)
 models/postero/src/postero/records.py	Mapping[str, object]	return cast(Mapping[str, object], value)
 models/ralf/src/ralf/datasets.py	list[object]	values = list(cast(list[object], labels))
