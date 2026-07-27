@@ -5,25 +5,22 @@ import textwrap
 import numpy as np
 import pytest
 import torch
+from jaxtyping import Bool, Float, Int
 
 from laygen.common.testing import assert_layout_output_schema
-from laygen.common.typing import (
-    NumpyLayoutBBoxes,
-    NumpyLayoutLabels,
-    NumpyLayoutMask,
-    TorchLayoutBBoxes,
-    TorchLayoutLabels,
-    TorchLayoutMask,
-)
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 
-def test_torch_aliases_accept_torch_values():
+def test_inline_torch_annotations_accept_torch_values():
     def accept_layout(
-        bbox: TorchLayoutBBoxes,
-        labels: TorchLayoutLabels,
-        mask: TorchLayoutMask,
-    ) -> tuple[TorchLayoutBBoxes, TorchLayoutLabels, TorchLayoutMask]:
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements 4"],
+        Int[torch.Tensor, "batch elements"],
+        Bool[torch.Tensor, "batch elements"],
+    ]:
         return bbox, labels, mask
 
     torch_values = accept_layout(
@@ -35,10 +32,10 @@ def test_torch_aliases_accept_torch_values():
     assert torch_values[0].shape == (1, 2, 4)
 
 
-def test_numpy_aliases_accept_numpy_values():
-    bbox: NumpyLayoutBBoxes = np.zeros((1, 1, 4), dtype=np.float32)
-    labels: NumpyLayoutLabels = np.zeros((1, 1), dtype=np.int64)
-    mask: NumpyLayoutMask = np.ones((1, 1), dtype=bool)
+def test_modeling_output_accepts_numpy_values():
+    bbox: Float[np.ndarray, "batch elements 4"] = np.zeros((1, 1, 4), dtype=np.float32)
+    labels: Int[np.ndarray, "batch elements"] = np.zeros((1, 1), dtype=np.int64)
+    mask: Bool[np.ndarray, "batch elements"] = np.ones((1, 1), dtype=bool)
 
     output = LayoutGenerationOutput(
         bbox=bbox,
@@ -63,7 +60,7 @@ def test_modeling_output_shape_validation_is_schema_assertion_responsibility():
         assert_layout_output_schema(output)
 
 
-def test_typing_aliases_and_output_import_without_torch():
+def test_modeling_output_imports_without_torch():
     code = textwrap.dedent(
         """
         import builtins
@@ -90,11 +87,11 @@ def test_typing_aliases_and_output_import_without_torch():
         importlib.util.find_spec = find_spec_without_torch
         builtins.__import__ = import_without_torch
 
-        from laygen.common.typing import NumpyLayoutBBoxes
+        from jaxtyping import Float
         from laygen.modeling_outputs import LayoutGenerationOutput
 
-        bbox: NumpyLayoutBBoxes = np.zeros((1, 1, 4), dtype=np.float32)
-        numpy_bbox: NumpyLayoutBBoxes = bbox
+        bbox: Float[np.ndarray, "batch elements 4"] = np.zeros((1, 1, 4), dtype=np.float32)
+        numpy_bbox: Float[np.ndarray, "batch elements 4"] = bbox
         output = LayoutGenerationOutput(
             bbox=numpy_bbox,
             labels=np.zeros((1, 1), dtype=np.int64),
