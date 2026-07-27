@@ -18,22 +18,22 @@ Run the commands below from the repository root. The original source under `vend
 uv run --package layout-flow python models/layout-flow/scripts/download_original.py
 ```
 
-2. Generate vendor golden/reference tensors. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use. The script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
+2. Generate vendor golden/reference tensors. Set `CUDA_VISIBLE_DEVICES=<gpu-id>` to the GPU you want to use. The script writes `.cache/layout-flow/golden/*_vendor_vector_field.pt` and `.cache/layout-flow/golden/summary.json`.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-flow --extra vendor python models/layout-flow/scripts/generate_reference_outputs.py --dataset all
 ```
 
 3. Run the parity pytest suite against both released checkpoints.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-flow --extra vendor pytest models/layout-flow/tests/vendor_parity -m vendor_parity -rs
 ```
 
 4. Run the staged training-parity hooks. See `models/layout-flow/TRAINING.md` for the training config list, seed modes, and the full training-parity rerun notes.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
+CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 \
   uv run --package layout-flow --extra training --extra vendor pytest \
   models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py \
   -m "vendor_parity and training" -rs

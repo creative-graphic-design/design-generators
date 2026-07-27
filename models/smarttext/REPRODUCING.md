@@ -27,7 +27,7 @@ The original RoI/RoD CUDA extensions do not build against the current PyTorch ex
 The script sets `torch.use_deterministic_algorithms(True)`, disables TF32, disables cuDNN, and fixes the KMeans seed and threadpool used by vendor `cal_best_color`. With cuDNN enabled, the first cross-process drift appears at the scorer's first ShuffleNetV2 convolution (`Feat_ext.feature3.0.0`) by a few float32 ULPs even with deterministic algorithms enabled.
 
 ```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=2 \
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=<gpu-id> \
   uv run --package smarttext --extra vendor python models/smarttext/scripts/generate_reference_outputs.py \
   --vendor-dir vendor/smarttext \
   --smt-checkpoint .cache/smarttext/original/SMT.pth \
@@ -51,7 +51,7 @@ uv run --package smarttext --extra convert python models/smarttext/scripts/conve
 ## Run Vendor Parity
 
 ```bash
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=2 \
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES=<gpu-id> \
   uv run --package smarttext --extra vendor --with pytest --with pytest-cov pytest models/smarttext/tests/vendor_parity -m vendor_parity --no-cov
 ```
 

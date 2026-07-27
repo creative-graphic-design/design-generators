@@ -194,7 +194,7 @@ print(out.mask)    # valid element mask
 See `models/<slug>/REPRODUCING.md` for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 <!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
-<!-- Commands that need CUDA should use CUDA_VISIBLE_DEVICES=<gpu-index> and explain that <gpu-index> is the selected local CUDA device. Do not hardcode machine-specific GPU numbers. -->
+<!-- Commands that need CUDA should use CUDA_VISIBLE_DEVICES=<gpu-id> and explain that <gpu-id> is the selected local CUDA device. Do not hardcode machine-specific GPU numbers. -->
 
 ## Model Examination [optional]
 

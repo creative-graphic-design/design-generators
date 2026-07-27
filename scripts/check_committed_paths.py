@@ -1,4 +1,4 @@
-"""Reject host-specific absolute paths in committed files."""
+"""Reject host-specific values in committed files."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ USERNAME = r"""[^\s/'"`<>:\\]+"""
 
 @dataclass(frozen=True)
 class PathViolation:
-    """Host-specific path occurrence in a tracked file."""
+    """Host-specific value occurrence in a tracked file."""
 
     path: str
     line: int
@@ -43,11 +43,12 @@ class PathViolation:
 
 @dataclass(frozen=True)
 class PatternSpec:
-    """Compiled path pattern and the capture group to report."""
+    """Compiled value pattern and the capture group to report."""
 
     kind: str
     pattern: re.Pattern[str]
     match_group: str | int = 0
+    markdown_only: bool = False
 
 
 PATTERNS = (
@@ -85,7 +86,39 @@ PATTERNS = (
         ),
         match_group="path",
     ),
+    PatternSpec(
+        kind="host-specific GPU device id; use <gpu-id>",
+        pattern=re.compile(
+            r"\bCUDA_VISIBLE_DEVICES\s*=\s*(?P<device>[0-9]+(?:,[0-9]+)*)\b"
+        ),
+        match_group="device",
+        markdown_only=True,
+    ),
+    PatternSpec(
+        kind="host-specific GPU device id; use <gpu-id>",
+        pattern=re.compile(r"(?<![\w-])--gpu\s+(?P<device>[0-9]+)\b"),
+        match_group="device",
+        markdown_only=True,
+    ),
+    PatternSpec(
+        kind="host-specific GPU device id; use <gpu-id>",
+        pattern=re.compile(r"\b(?:CUDA\s+)?device\s+`?(?P<device>[0-9]+)`?\b"),
+        match_group="device",
+        markdown_only=True,
+    ),
+    PatternSpec(
+        kind="non-canonical GPU placeholder; use <gpu-id>",
+        pattern=re.compile(r"<gpu-index>"),
+        markdown_only=True,
+    ),
 )
+
+MARKDOWN_SUFFIXES = {".md", ".mdx", ".rst"}
+
+
+def is_markdown_like_path(rel_path: str) -> bool:
+    """Return whether a tracked path is documentation-like text."""
+    return Path(rel_path).suffix in MARKDOWN_SUFFIXES
 
 
 def tracked_paths(root: Path) -> list[PurePosixPath]:
@@ -118,10 +151,13 @@ def read_text_file(path: Path) -> str | None:
 
 
 def find_violations_in_text(rel_path: str, text: str) -> list[PathViolation]:
-    """Return host-specific absolute path occurrences in one file."""
+    """Return host-specific value occurrences in one file."""
     violations: list[PathViolation] = []
+    is_markdown_like = is_markdown_like_path(rel_path)
     for line_number, line in enumerate(text.splitlines(), start=1):
         for spec in PATTERNS:
+            if spec.markdown_only and not is_markdown_like:
+                continue
             for match in spec.pattern.finditer(line):
                 violations.append(
                     PathViolation(
@@ -135,7 +171,7 @@ def find_violations_in_text(rel_path: str, text: str) -> list[PathViolation]:
 
 
 def check_committed_paths(root: Path) -> int:
-    """Check tracked text files for host-specific absolute paths."""
+    """Check tracked text files for host-specific values."""
     violations: list[PathViolation] = []
     for rel_path in tracked_paths(root):
         if is_excluded(rel_path):
@@ -149,7 +185,7 @@ def check_committed_paths(root: Path) -> int:
         return 0
 
     print(
-        "Host-specific absolute paths are not allowed in committed files:",
+        "Host-specific paths or device ids are not allowed in committed files:",
         file=sys.stderr,
     )
     for violation in violations:

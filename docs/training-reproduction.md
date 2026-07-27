@@ -145,13 +145,13 @@ Use this table shape unless a model requires extra metric columns:
 Commands must be executable from the repository root and must not depend on untracked helper scripts unless the helper creation command is also shown.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
+CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 \
   uv run --package <package> --extra training --extra vendor pytest \
   models/<package>/tests/vendor_parity -m "vendor_parity and training" -rs
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> \
+CUDA_VISIBLE_DEVICES=<gpu-id> \
   uv run --package <package> --extra training \
   traingen fit \
   --config models/<package>/configs/training/<dataset>.yaml \
@@ -181,7 +181,7 @@ Pull requests for models whose only weight path is self-training must stay draft
 Before applying `parity-verified`, the coordinator independently reruns the relevant parity suite with missing local assets treated as failures:
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
+CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 \
   uv run --package <package> --extra training --extra vendor pytest \
   models/<package>/tests/vendor_parity -m "vendor_parity and training" -rs
 ```

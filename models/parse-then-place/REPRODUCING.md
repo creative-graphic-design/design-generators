@@ -4,7 +4,7 @@ This guide reproduces the original-implementation agreement checks for the Parse
 
 Workflow order: download assets, generate references, run parity checks, convert checkpoints, then smoke-test local loading.
 
-Run commands from the repository root. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use for vendor reference generation and parity.
+Run commands from the repository root. Set `CUDA_VISIBLE_DEVICES=<gpu-id>` to the GPU you want to use for vendor reference generation and parity.
 
 1. Download the original assets. This writes `.cache/parse-then-place/assets`, including the expected `ckpt/rico/stage1/pytorch_model.bin` parser state and stage-2 placement checkpoints.
 
@@ -16,7 +16,7 @@ uv run --package parse-then-place python models/parse-then-place/scripts/downloa
 2. Generate fixed-seed vendor reference outputs for the RICO finetune placement model.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
   --original-root .cache/parse-then-place/assets \
   --dataset-name rico \
   --stage2-mode finetune \
@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package parse-then-place python models
 3. Run the marked vendor parity tests against the generated reference directory. The current parity suite covers the stage-2 placement model; stage-1 parser adapter flattening is checked by conversion and smoke loading.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-then-place/assets \
+CUDA_VISIBLE_DEVICES=<gpu-id> PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-then-place/assets \
   PARSE_THEN_PLACE_REFERENCE_DIR=.cache/parse-then-place/reference/rico-finetune \
   uv run --package parse-then-place pytest models/parse-then-place/tests/vendor_parity -m vendor_parity
 ```

@@ -13,7 +13,7 @@ PyTorch 2 CUDA tensor-index compatibility patch described in the generated
 Regenerate references with:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layoutdiffusion --extra vendor \
   --with spacy --with pyyaml --with sacremoses \
   python models/layoutdiffusion/scripts/generate_reference_outputs.py \
   --dataset all \

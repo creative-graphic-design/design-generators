@@ -10,7 +10,7 @@ checkpoint, and running the marked parity tests against those external assets.
 
 Run the commands from the repository root. Initialize the vendor implementation
 with `git submodule update --init vendor/lay-your-scene`. The commands use
-`CUDA_VISIBLE_DEVICES=<gpu-index>`; replace `<gpu-index>` with one CUDA device
+`CUDA_VISIBLE_DEVICES=<gpu-id>`; replace `<gpu-id>` with one CUDA device
 visible on your machine.
 
 ```bash
@@ -20,7 +20,7 @@ SNAPSHOT="$(uv run --package layousyn python models/layousyn/scripts/download_or
 CKPT="${SNAPSHOT}/grit/model.pt"
 CONFIG="${SNAPSHOT}/grit/config.json"
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn --extra vendor python models/layousyn/scripts/save_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layousyn --extra vendor python models/layousyn/scripts/save_reference_outputs.py \
   --vendor-root vendor/lay-your-scene \
   --ckpt "${CKPT}" \
   --ckpt-config "${CONFIG}" \
@@ -39,12 +39,12 @@ uv run --package layousyn python models/layousyn/scripts/convert_checkpoint.py \
   --output-dir .cache/layousyn/converted \
   --variant-name grit
 
-CUDA_VISIBLE_DEVICES=<gpu-index> \
+CUDA_VISIBLE_DEVICES=<gpu-id> \
 LAYOUSYN_REFERENCE_DIR=.cache/layousyn/reference \
 LAYOUSYN_CONVERTED_DIR=.cache/layousyn/converted \
 uv run --package layousyn pytest models/layousyn/tests -m vendor_parity -q
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn python models/layousyn/scripts/smoke_from_pretrained.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layousyn python models/layousyn/scripts/smoke_from_pretrained.py \
   --path .cache/layousyn/converted \
   --inputs .cache/layousyn/reference/inputs.pt \
   --device cuda

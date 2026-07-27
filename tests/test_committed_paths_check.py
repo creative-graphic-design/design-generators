@@ -69,7 +69,7 @@ def test_check_committed_paths_rejects_tracked_host_paths(
     assert check_committed_paths.check_committed_paths(tmp_path) == 1
 
     stderr = capsys.readouterr().err
-    assert "Host-specific absolute paths" in stderr
+    assert "Host-specific paths or device ids" in stderr
     assert "docs/bad.md:1" in stderr
     assert "docs/bad.md:2" in stderr
     assert "docs/bad.md:3" in stderr
@@ -150,6 +150,85 @@ def test_check_committed_paths_passes_for_clean_tracked_text(tmp_path: Path) -> 
         encoding="utf-8",
     )
     track(tmp_path, "README.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 0
+
+
+def test_check_committed_paths_rejects_markdown_gpu_device_ids(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    init_repo(tmp_path)
+    bad_path = tmp_path / "docs" / "gpu.md"
+    bad_path.parent.mkdir()
+    bad_path.write_text(
+        "\n".join(
+            [
+                "CUDA_VISIBLE_DEVICES=2 uv run pytest",
+                "CUDA_VISIBLE_DEVICES=0,1 uv run pytest",
+                "python export.py --gpu 3",
+                "Run on device `4`.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    track(tmp_path, "docs/gpu.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 1
+
+    stderr = capsys.readouterr().err
+    assert "Host-specific paths or device ids" in stderr
+    assert "docs/gpu.md:1: host-specific GPU device id; use <gpu-id>: 2" in stderr
+    assert "docs/gpu.md:2: host-specific GPU device id; use <gpu-id>: 0,1" in stderr
+    assert "docs/gpu.md:3: host-specific GPU device id; use <gpu-id>: 3" in stderr
+    assert "docs/gpu.md:4: host-specific GPU device id; use <gpu-id>: 4" in stderr
+
+
+def test_check_committed_paths_rejects_legacy_gpu_placeholder(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    init_repo(tmp_path)
+    bad_path = tmp_path / "docs" / "gpu.md"
+    bad_path.parent.mkdir()
+    bad_path.write_text(
+        "CUDA_VISIBLE_DEVICES=<gpu-index> uv run pytest\n",
+        encoding="utf-8",
+    )
+    track(tmp_path, "docs/gpu.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 1
+
+    stderr = capsys.readouterr().err
+    assert "docs/gpu.md:1: non-canonical GPU placeholder; use <gpu-id>" in stderr
+
+
+def test_check_committed_paths_allows_markdown_gpu_placeholder(
+    tmp_path: Path,
+) -> None:
+    init_repo(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "CUDA_VISIBLE_DEVICES=<gpu-id> python export.py --gpu <gpu-id>\n",
+        encoding="utf-8",
+    )
+    track(tmp_path, "README.md")
+
+    assert check_committed_paths.check_committed_paths(tmp_path) == 0
+
+
+def test_check_committed_paths_ignores_code_gpu_device_literals(
+    tmp_path: Path,
+) -> None:
+    init_repo(tmp_path)
+    test_file = tmp_path / "tests" / "test_device.py"
+    test_file.parent.mkdir()
+    test_file.write_text(
+        'assert "CUDA_VISIBLE_DEVICES=2" in text\ndevice = torch.device("cuda:0")\n',
+        encoding="utf-8",
+    )
+    track(tmp_path, "tests/test_device.py")
 
     assert check_committed_paths.check_committed_paths(tmp_path) == 0
 

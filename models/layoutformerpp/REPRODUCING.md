@@ -10,7 +10,7 @@ Prerequisites:
 - Use `uv sync --package layoutformerpp` once before the first run.
 - Initialize the vendor implementation with `git submodule update --init vendor/ms-layout-generation`.
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
-- Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use for the parity pytest run when CUDA is available.
+- Set `CUDA_VISIBLE_DEVICES=<gpu-id>` to the GPU you want to use for the parity pytest run when CUDA is available.
 
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
@@ -39,7 +39,7 @@ done
 
 ```bash
 LAYOUTFORMERPP_ORIGINAL_DIR=.cache/layoutformerpp/original \
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp pytest \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layoutformerpp pytest \
   models/layoutformerpp/tests/vendor_parity \
   -m vendor_parity \
   -q

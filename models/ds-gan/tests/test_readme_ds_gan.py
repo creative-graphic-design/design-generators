@@ -9,4 +9,4 @@ def test_readme_has_required_model_card_sections():
     assert "## Reproducibility" in text
     assert "creative-graphic-design/ds-gan-pku-posterlayout" in text
     assert "models/ds-gan/REPRODUCING.md" in text
-    assert "CUDA_VISIBLE_DEVICES=1" in reproducing
+    assert "CUDA_VISIBLE_DEVICES=<gpu-id>" in reproducing

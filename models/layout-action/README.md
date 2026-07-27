@@ -134,7 +134,7 @@ Training follows the original GPT-style causal language-model objective over pad
 | --- | ---: | --- | --- |
 | Strict checkpoint conversion | 2 | `missing_keys == []` and `unexpected_keys == []` for RICO13 and PubLayNet | Pass |
 | Fixed-input logits | 6 | `torch.equal` for RICO13/PubLayNet across `random_generate`, `category_generate`, and `completion_generate` references | Pass |
-| Stochastic top-k sequences | 6 | Exact token ids with seed 42 on `CUDA_VISIBLE_DEVICES=0` | Pass |
+| Stochastic top-k sequences | 6 | Exact token ids with seed 42 on `CUDA_VISIBLE_DEVICES=<gpu-id>` | Pass |
 | Category forced labels | 2 | Exact forced label-token positions for RICO13 and PubLayNet | Pass |
 | Decoded layouts | 6 | Exact `bbox`, `labels`, and `mask` after token parity | Pass |
 

@@ -24,7 +24,7 @@ def test_reproducing_has_ordered_commands():
         "Workflow order: download assets, generate references, convert checkpoints, run parity checks"
         in text
     )
-    assert "CUDA_VISIBLE_DEVICES=1" in text
+    assert "CUDA_VISIBLE_DEVICES=<gpu-id>" in text
     assert "PARITY_REQUIRE=1" in text
     assert "uv run --package layout-detr" in text
     assert "from_pretrained" in text

@@ -17,7 +17,7 @@ uv run --package ds-gan --extra download python models/ds-gan/scripts/download_o
 Step 2 generates the golden vendor fixture with the PosterLayout code. The generated file is `.cache/ds-gan/fixtures/pku/reference_seed0.pt`. Set `CUDA_VISIBLE_DEVICES` to the GPU index you want the vendor model to use.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package ds-gan --extra vendor python models/ds-gan/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package ds-gan --extra vendor python models/ds-gan/scripts/generate_reference_outputs.py \
   --vendor-dir vendor/posterlayout-cvpr2023 \
   --checkpoint .cache/ds-gan/original/DS-GAN-Epoch300.pth \
   --dataset-root .cache/ds-gan/original/Dataset/test \
@@ -37,7 +37,7 @@ uv run --package ds-gan python models/ds-gan/scripts/convert_original_checkpoint
 Step 4 runs the vendor parity tests against the generated reference fixture and converted model code.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 uv run --package ds-gan --extra vendor pytest models/ds-gan/tests/vendor_parity -m vendor_parity -rs -q
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package ds-gan --extra vendor pytest models/ds-gan/tests/vendor_parity -m vendor_parity -rs -q
 ```
 
 Expected parity results:
