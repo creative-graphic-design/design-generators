@@ -67,16 +67,16 @@ Training configs live under `models/layout-dm/configs/training`.
 
 ## Reproduction Results
 
-LayoutDM package-local training currently has exact S0-S2 numeric parity on a fixed PubLayNet-style synthetic batch, plus S4 tokenizer/loader row encoding parity and preprocessed stream reader parity for local fixtures. RICO25 S5 training-seed n=3 has been evaluated under the original FIDNetV3 protocol; PubLayNet S5 is PENDING. The RICO25 root cause was an initialization mismatch: the package-local denoiser used PyTorch defaults while the original training path initialized linear and embedding weights with `normal_(0, 0.02)`. After matching that scheme, the RICO25 FID mean gap is +0.1704, within the original-code seed variance. The overall S5 verdict remains PENDING until PubLayNet package and original-code runs finish under the same vendor evaluation protocol using the same preprocessed `.pt` splits.
+LayoutDM package-local training currently has exact S0-S2 numeric parity on a fixed PubLayNet-style synthetic batch, plus S4 tokenizer/loader row encoding parity and preprocessed stream reader parity for local fixtures. RICO25 S5 training-seed n=8 has been evaluated under the original FIDNetV3 protocol; PubLayNet S5 is rerunning with the same initialization fix and remains PENDING. The RICO25 root cause was an initialization mismatch: the package-local denoiser used PyTorch defaults while the original training path initialized linear and embedding weights with `normal_(0, 0.02)`. After matching that scheme, the RICO25 FID mean gap is +0.1252 at n=8, the FID ranges overlap, and Welch's t-test does not reject equality (`t=0.7331`, `p=0.4768`). The pre-fix high-FID n=8 run had a larger gap (`ours=9.0264`, `vendor=7.1055`, `delta=+1.9209`, `p=0.0005`, no range overlap), so the initialization fix resolves the established RICO25 over-FID failure. The overall S5 verdict remains PENDING until PubLayNet package and original-code runs finish under the same vendor evaluation protocol using the same preprocessed `.pt` splits.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | vendor | training-seed n=3 | 6.8928 ± 0.3946 | 0.0021 ± 0.0003 | 0.8477 ± 0.0082 | 0.1972 ± 0.0063 | S5 RICO25 complete |
-| RICO25 | ours | training-seed n=3 | 7.0632 ± 0.1331 | 0.0020 ± 0.0003 | 0.8335 ± 0.0153 | 0.1918 ± 0.0019 | S5 RICO25 complete |
+| RICO25 | vendor | training-seed n=8 | 7.1055 ± 0.3673 | 0.0019 ± 0.0004 | 0.8438 ± 0.0115 | 0.1941 ± 0.0050 | S5 RICO25 complete |
+| RICO25 | ours | training-seed n=8 initfix | 7.2307 ± 0.2632 | 0.0022 ± 0.0006 | 0.8379 ± 0.0169 | 0.1931 ± 0.0028 | S5 RICO25 complete |
 | PubLayNet | vendor | training-seed n=3 | TBD | TBD | TBD | TBD | S5 pending |
-| PubLayNet | ours | training-seed n=3 | TBD | TBD | TBD | TBD | S5 pending |
+| PubLayNet | ours | training-seed n=3 initfix rerun | TBD | TBD | TBD | TBD | S5 pending |
 
-RICO25 metrics use the vendor `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the vendor `LayoutGAN++` variants; mIoU is reported from the vendor `average_iou-VTN` output. Standard deviations use population standard deviation over the three training seeds.
+RICO25 metrics use the vendor `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the vendor `LayoutGAN++` variants; mIoU is reported from the vendor `average_iou-VTN` output. Standard deviations use population standard deviation over the reported training seeds.
 
 Evidence locations:
 
