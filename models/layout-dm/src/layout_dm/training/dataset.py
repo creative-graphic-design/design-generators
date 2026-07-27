@@ -30,15 +30,14 @@ LayoutDMValue: TypeAlias = (
     | Sequence[LayoutDMAnnotation]
     | None
 )
-LayoutDMProcessedAttrValue: TypeAlias = (
-    str | bool | Sequence[str] | Sequence[bool] | torch.Tensor
-)
 
 
 class _ProcessedData(Protocol):
     x: Float[torch.Tensor, "rows 4"]
     y: Int[torch.Tensor, "rows"]
-    attr: Mapping[str, LayoutDMProcessedAttrValue]
+    attr: Mapping[
+        str, str | bool | Sequence[str] | Sequence[bool] | Shaped[torch.Tensor, "..."]
+    ]
 
 
 _RICO_CONFIG: Final[str] = "ui-screenshots-and-hierarchies-with-semantic-annotations"
@@ -93,8 +92,8 @@ class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]
             max_seq_length: Optional element cap before tokenization.
             box_format: Source box format.
             normalized: Whether source boxes are already normalized.
-            random_order: Whether to apply the vendor RandomOrder transform
-                before tokenization.
+            random_order: Whether to apply the RandomOrder transform before
+                tokenization.
         """
         super().__init__()
         self.dataset_name = dataset_name
@@ -176,8 +175,8 @@ class LayoutDMProcessedDataset(
             split: Package split name. ``validation`` maps to processed ``val``.
             tokenizer: Optional tokenizer. Built from ``config`` otherwise.
             max_seq_length: Optional element cap used in the processed directory name.
-            random_order: Whether to apply the vendor RandomOrder transform
-                before tokenization.
+            random_order: Whether to apply the RandomOrder transform before
+                tokenization.
         """
         super().__init__()
         self.dataset_name = dataset_name
@@ -421,7 +420,11 @@ def _processed_row(
 
 
 def _processed_sample_id(
-    attr: Mapping[str, LayoutDMProcessedAttrValue] | None, index: int
+    attr: Mapping[
+        str, str | bool | Sequence[str] | Sequence[bool] | Shaped[torch.Tensor, "..."]
+    ]
+    | None,
+    index: int,
 ) -> str | None:
     if attr is None:
         return None
@@ -439,7 +442,7 @@ def _random_order_layout(
     bbox: Float[torch.Tensor, "elements 4"],
     labels: Int[torch.Tensor, "elements"],
 ) -> tuple[Float[torch.Tensor, "elements 4"], Int[torch.Tensor, "elements"]]:
-    """Apply the vendor RandomOrder transform to one tokenization input."""
+    """Apply the RandomOrder transform to one tokenization input."""
     idx = torch.randperm(labels.shape[0], device=labels.device)
     return bbox[idx], labels[idx]
 
@@ -453,7 +456,11 @@ def _assert_no_canvas_element(sample: Mapping[str, LayoutDMValue]) -> None:
 
 
 def _assert_processed_no_canvas_element(
-    attr: Mapping[str, LayoutDMProcessedAttrValue] | None, index: int
+    attr: Mapping[
+        str, str | bool | Sequence[str] | Sequence[bool] | Shaped[torch.Tensor, "..."]
+    ]
+    | None,
+    index: int,
 ) -> None:
     if attr is None:
         return
