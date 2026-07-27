@@ -35,6 +35,7 @@ dependencies = [
     "layoutformerpp",
     "parse-then-place",
     "posterllama",
+    "posterllava",
     "postero",
     "posgen",
     "ralf",
@@ -166,6 +167,18 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "posterllava" },
+        { package = "posterllava", extra = "vendor" },
+    ],
+    [
+        { package = "posterllava", extra = "vendor" },
+        { package = "ds-gan" },
+    ],
+    [
+        { package = "posterllava", extra = "vendor" },
+        { package = "ralf" },
+    ],
+    [
         { package = "ds-gan" },
         { package = "layout-detr", extra = "vendor" },
     ],
@@ -214,6 +227,7 @@ laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
 posterllama = { workspace = true }
+posterllava = { workspace = true }
 postero = { workspace = true }
 posgen = { workspace = true }
 ralf = { workspace = true }
