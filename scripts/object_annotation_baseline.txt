@@ -1,29 +1,3 @@
-lib/laygen/src/laygen/agents/core.py	dict[str, object]	def output_to_dict(self, output: LayoutOutputLike) -> dict[str, object]:
-lib/laygen/src/laygen/agents/core.py	object	def bbox(self) -> object:
-lib/laygen/src/laygen/agents/core.py	object	def labels(self) -> object:
-lib/laygen/src/laygen/agents/core.py	object	def mask(self) -> object:
-lib/laygen/src/laygen/agents/core.py	object	def messages_to_text(messages: object) -> str:
-lib/laygen/src/laygen/agents/core.py	object	model_prompt: object,
-lib/laygen/src/laygen/agents/core.py	object | None	intermediates: object | None = None,
-lib/laygen/src/laygen/agents/testing.py	object	def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
-lib/laygen/src/laygen/common/bbox.py	object	bbox: object,
-lib/laygen/src/laygen/common/bbox.py	object	labels: object,
-lib/laygen/src/laygen/common/bbox.py	object | None	mask: object | None = None,
-lib/laygen/src/laygen/common/model_card.py	dict[str, object]	def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
-lib/laygen/src/laygen/common/serialization.py	object	def sanitize_for_yaml(value: object) -> object:
-lib/laygen/src/laygen/common/testing.py	AbstractContextManager[object]	) -> AbstractContextManager[object]:
-lib/laygen/src/laygen/common/testing.py	Mapping[str, object] | None	overrides: Mapping[str, object] | None = None,
-lib/laygen/src/laygen/common/testing.py	dict[str, object]	) -> dict[str, object]:
-lib/laygen/src/laygen/common/testing.py	object	config: object,
-lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object | None]	components: Mapping[str, object | None],
-lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object]	components: Mapping[str, object],
-lib/laygen/src/laygen/pipelines/base.py	Mapping[str, object] | None	components: Mapping[str, object] | None = None,
-lib/laygen/src/laygen/pipelines/base.py	dict[str, object | None]	) -> dict[str, object | None]:
-lib/laygen/src/laygen/pipelines/base.py	object	) -> object:
-lib/laygen/src/laygen/pipelines/base.py	object	def save_pretrained(self, save_directory: str | Path) -> object:
-lib/laygen/src/laygen/pipelines/base.py	tuple[object, ...]	def _pipeline_component_values(self) -> tuple[object, ...]:
-lib/traingen/src/traingen/lightning/cli.py	object	def main(args: list[str] | None = None) -> object:
-lib/traingen/src/traingen/lightning/cli.py	type[object]	def lightning_cli_class() -> type[object]:
 models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[object]	) -> list[object]:
 models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[object]	group_tree: list[object], out: list[list[int]]
 models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	Bool[torch.Tensor, 'batch elements'] | list[object] | None	mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
