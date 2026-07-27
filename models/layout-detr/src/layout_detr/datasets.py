@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Final, Literal, cast
+from typing import Final, Literal, TypeAlias, TypedDict, cast
 
 import json
 import torch
@@ -22,6 +22,16 @@ AD_BANNER_LABELS: Final[tuple[str, ...]] = (
     "logo",
 )
 
+AdBannerAnnotationValue: TypeAlias = str | int | float | Sequence[int | float]
+
+
+class NormalizedAdBannerAnnotation(TypedDict):
+    """Normalized Ad Banner annotation row."""
+
+    bbox: list[float]
+    label: int
+    text: str
+
 
 def id2label_for_ad_banner() -> dict[int, str]:
     """Return the LayoutDETR Ad Banner label vocabulary."""
@@ -33,11 +43,13 @@ def label2id_for_ad_banner() -> dict[str, int]:
     return {label: index for index, label in id2label_for_ad_banner().items()}
 
 
-def normalize_vendor_annotation(sample: Mapping[str, object]) -> dict[str, object]:
-    """Normalize one vendor annotation row to public normalized center ``xywh``.
+def normalize_ad_banner_annotation(
+    sample: Mapping[str, AdBannerAnnotationValue],
+) -> NormalizedAdBannerAnnotation:
+    """Normalize one Ad Banner annotation row to public center ``xywh``.
 
     Args:
-        sample: Vendor element with ``xyxy_word_fit``, ``label``, ``str``,
+        sample: Ad Banner element with ``xyxy_word_fit``, ``label``, ``str``,
             ``width``, and ``height`` values.
 
     Returns:
@@ -52,7 +64,9 @@ def normalize_vendor_annotation(sample: Mapping[str, object]) -> dict[str, objec
         raise ValueError(f"Unknown Ad Banner label: {label}")
     width = int(cast(int | str, sample["width"]))
     height = int(cast(int | str, sample["height"]))
-    xyxy = torch.tensor(sample["xyxy_word_fit"], dtype=torch.float32).view(1, 1, 4)
+    xyxy = torch.tensor(
+        cast(Sequence[int | float], sample["xyxy_word_fit"]), dtype=torch.float32
+    ).view(1, 1, 4)
     bbox = normalize_boxes(xyxy, canvas_size=(width, height), box_format="ltrb")
     return {
         "bbox": bbox[0, 0].tolist(),
@@ -65,15 +79,15 @@ def load_ad_banner_dataset(
     root: str | Path,
     *,
     split: Literal["train", "validation"],
-    source: Literal["vendor"] = "vendor",
+    source: Literal["ad_banner"] = "ad_banner",
 ) -> Iterable[dict[str, object]]:
-    """Iterate a local vendor Ad Banner directory without downloading assets.
+    """Iterate a local Ad Banner directory without downloading assets.
 
     TODO: switch this adapter to a ``creative-graphic-design`` Hugging Face
     dataset once Ad Banner is imported into the org.
     """
-    if source != "vendor":
-        raise ValueError("LayoutDETR currently supports only source='vendor'")
+    if source != "ad_banner":
+        raise ValueError("LayoutDETR currently supports only source='ad_banner'")
     split_name = "val" if split == "validation" else "train"
     root_path = Path(root)
     json_paths = sorted(root_path.glob(f"{split_name}/**/*.json"))

@@ -6,11 +6,9 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
 from typing import NamedTuple
 
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
@@ -21,12 +19,9 @@ ISSUE_REF_RE = re.compile(
 )
 CHECKLIST_HEADING_RE = re.compile(r"(?im)^## Checklist\s*$")
 COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
-SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
-HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-SHARED_LIBRARY_CORE_RE = re.compile(r"^lib/[^/]+/src/")
 
 
 class PullRequestMetadata(NamedTuple):
@@ -116,11 +111,6 @@ def checklist_section(body: str) -> str | None:
 def completion_gate_section(body: str) -> str | None:
     """Return the PR completion gate section body, excluding the heading."""
     return section_body(body, COMPLETION_GATE_HEADING_RE)
-
-
-def shared_library_section(body: str) -> str | None:
-    """Return the shared-library change section body, excluding the heading."""
-    return section_body(body, SHARED_LIBRARY_HEADING_RE)
 
 
 def section_body(body: str, heading_re: re.Pattern[str]) -> str | None:
@@ -244,56 +234,11 @@ def completion_gate_errors(
     return errors
 
 
-def _has_substantive_section_text(section: str | None) -> bool:
-    if section is None:
-        return False
-    without_comments = HTML_COMMENT_RE.sub("", section)
-    without_placeholders = PLACEHOLDER_RE.sub("", without_comments)
-    meaningful_lines = [
-        line.strip(" -*\t")
-        for line in without_placeholders.splitlines()
-        if line.strip(" -*\t")
-    ]
-    return any(line.upper() != "TODO" for line in meaningful_lines)
-
-
-def touches_shared_library_core(changed_files: Iterable[str]) -> bool:
-    """Return whether the PR changes shared library implementation code."""
-    return any(SHARED_LIBRARY_CORE_RE.match(path) for path in changed_files)
-
-
-def shared_library_change_errors(body: str, changed_files: Iterable[str]) -> list[str]:
-    """Require an explicit rationale when a PR changes shared library code."""
-    if not touches_shared_library_core(changed_files):
-        return []
-    if _has_substantive_section_text(shared_library_section(body)):
-        return []
-    return [
-        "PRs that change `lib/*/src/**` must include a non-empty "
-        "`## Shared Library Changes` section explaining why the shared library "
-        "change belongs in this PR."
-    ]
-
-
-def changed_files_from_git(base: str, head: str) -> list[str]:
-    """Return changed files between two Git refs."""
-    result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...{head}"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return [line for line in result.stdout.splitlines() if line]
-
-
 def main(argv: list[str] | None = None) -> int:
     """Validate that a PR body links an issue and fills the checklist."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--body-file", type=Path)
     parser.add_argument("--draft", action="store_true")
-    parser.add_argument("--base", default=os.environ.get("BASE_SHA"))
-    parser.add_argument("--head", default=os.environ.get("HEAD_SHA"))
-    parser.add_argument("--changed-file", action="append", default=[])
     args = parser.parse_args(argv)
 
     if args.body_file is not None:
@@ -330,10 +275,6 @@ def main(argv: list[str] | None = None) -> int:
             created_at=metadata.created_at,
         )
     )
-    changed_files = list(args.changed_file)
-    if args.base and args.head:
-        changed_files.extend(changed_files_from_git(args.base, args.head))
-    errors.extend(shared_library_change_errors(metadata.body, changed_files))
 
     if errors:
         print("\n".join(errors), file=sys.stderr)

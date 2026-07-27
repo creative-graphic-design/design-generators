@@ -16,7 +16,7 @@ uv run --package housegan --extra download \
 ## 2. Generate Vendor References
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package housegan \
+CUDA_VISIBLE_DEVICES=0 uv run --package housegan \
   python models/housegan/scripts/generate_reference_outputs.py \
     --vendor-dir ./vendor/housegan \
     --assets-dir .cache/housegan/original \
@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package housegan \
 ## 3. Run Vendor-Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 uv run --package housegan \
+CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --package housegan \
   pytest models/housegan/tests -m vendor_parity
 ```
 

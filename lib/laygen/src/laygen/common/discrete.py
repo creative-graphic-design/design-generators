@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, Final, assert_never
 
-from jaxtyping import Float, Int
+from jaxtyping import Bool, Float, Int
 
 if TYPE_CHECKING:
     import torch
@@ -88,7 +88,9 @@ def log_onehot_to_index(
     return log_x.argmax(dim=1)
 
 
-def log_add_exp(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def log_add_exp(
+    a: Float[torch.Tensor, "..."], b: Float[torch.Tensor, "..."]
+) -> Float[torch.Tensor, "..."]:
     """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
     import torch
 
@@ -100,7 +102,7 @@ def extract(
     values: Float[torch.Tensor, "timesteps"],
     timesteps: Int[torch.Tensor, "batch"],
     broadcast_shape: torch.Size,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "batch ..."]:
     """Gather timestep values and reshape them for broadcast operations."""
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
@@ -108,10 +110,10 @@ def extract(
 
 
 def gumbel_noise_like(
-    x: torch.Tensor,
+    x: Float[torch.Tensor, "..."],
     *,
     generator: torch.Generator | None = None,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "..."]:
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
     import torch
 
@@ -130,7 +132,7 @@ def log_sample_categorical(
 
 def top_k_logits(
     logits: Float[torch.Tensor, "... vocab"], k: int, dim: int = -1
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "... vocab"]:
     """Mask logits outside the top-k entries along ``dim``."""
     import torch
 
@@ -143,7 +145,7 @@ def top_k_logits(
 
 def _top_p_logits(
     logits: Float[torch.Tensor, "... vocab"], top_p: float
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "... vocab"]:
     import torch
 
     if top_p >= 1.0:
@@ -228,7 +230,7 @@ def sample_categorical(
 
 def batch_topk_mask(
     scores: Float[torch.Tensor, "batch candidates"], k: Int[torch.Tensor, "batch"]
-) -> torch.Tensor:
+) -> Bool[torch.Tensor, "batch candidates"]:
     """Return a per-row boolean mask for the top ``k`` scores."""
     import torch
 

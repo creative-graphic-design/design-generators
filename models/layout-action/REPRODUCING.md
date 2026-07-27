@@ -25,7 +25,7 @@ uv run --package layout-action --extra download \
 ## 2. Generate Vendor References
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-action --extra vendor \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-action --extra vendor \
   python models/layout-action/scripts/generate_reference_outputs.py \
     --dataset rico \
     --asset-dir .cache/layout-action/original \
@@ -43,7 +43,7 @@ Repeat with `--dataset publaynet` to cover both released public checkpoints.
 LAYOUT_ACTION_VENDOR_ROOT=vendor/layout-action/LayoutAction \
 LAYOUT_ACTION_ASSET_DIR=.cache/layout-action/original \
 LAYOUT_ACTION_REFERENCE_DIR=.cache/layout-action/references \
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-action pytest \
+CUDA_VISIBLE_DEVICES=0 uv run --package layout-action pytest \
   models/layout-action/tests -m vendor_parity
 ```
 

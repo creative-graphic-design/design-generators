@@ -88,7 +88,7 @@ Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creat
 1. Train the package-local implementation from the repository root.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-flow --extra training \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra training \
   traingen fit \
   --config models/layout-flow/configs/training/layoutflow_<rico25|publaynet>.yaml \
   --model.init_args.scheduler=null --model.init_args.fid_calc_every_n=0 \
@@ -102,7 +102,7 @@ CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-flow --extra training \
 
 ```bash
 cd vendor/layout-flow
-CUDA_VISIBLE_DEVICES=<gpu-id> python src/train.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> python src/train.py \
   experiment=LayoutFlow_<RICO|PubLayNet> dataset=<RICO|PubLayNet> model=LayoutFlow \
   trainer.max_epochs=1000 model.scheduler=null model.fid_calc_every_n=0 \
   +trainer.limit_val_batches=0 +trainer.num_sanity_val_steps=0 \
@@ -113,7 +113,7 @@ CUDA_VISIBLE_DEVICES=<gpu-id> python src/train.py \
 
 ```bash
 cd vendor/layout-flow
-CUDA_VISIBLE_DEVICES=<gpu-id> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
+CUDA_VISIBLE_DEVICES=<gpu-index> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
 uv run --project ../.. --package layout-flow --extra vendor --with rootutils \
   python src/test.py \
@@ -197,7 +197,7 @@ model:
     scheduler: null
     fid_calc_every_n: 0
 YAML
-CUDA_VISIBLE_DEVICES=<gpu-id> \
+CUDA_VISIBLE_DEVICES=<gpu-index> \
 uv run --package layout-flow --extra training \
   traingen fit \
   --config models/layout-flow/configs/training/layoutflow_rico25.yaml \
@@ -207,7 +207,7 @@ uv run --package layout-flow --extra training \
 Start a deterministic short run on one selected GPU. Set `CUBLAS_WORKSPACE_CONFIG` before the process starts.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> CUBLAS_WORKSPACE_CONFIG=:4096:8 \
+CUDA_VISIBLE_DEVICES=<gpu-index> CUBLAS_WORKSPACE_CONFIG=:4096:8 \
 uv run --package layout-flow --extra training \
   traingen fit \
   --config models/layout-flow/configs/training/layoutflow_rico25_deterministic.yaml \
@@ -261,7 +261,7 @@ git submodule update --init vendor/layout-flow
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> PARITY_REQUIRE=1 \
+CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   uv run --package layout-flow --extra training --extra vendor pytest \
   models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py \
   -m "vendor_parity and training" -rs

@@ -17,16 +17,16 @@ uv run --package ralf --extra download python models/ralf/scripts/download_origi
   --unzip
 ```
 
-Step 2 generates golden vendor reference metadata and, when the vendor environment is available, runs vendor inference on GPU <gpu-id>.
+Step 2 generates golden vendor reference metadata and, when the vendor environment is available, runs vendor inference on GPU 0.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package ralf --extra vendor python models/ralf/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor python models/ralf/scripts/generate_reference_outputs.py \
   --job-dir .cache/ralf/cache/training_logs/ralf_uncond_cgl \
   --cache-dir .cache/ralf/cache \
   --output-dir .cache/ralf/references \
   --seed 0 \
   --split test \
-  --gpu <gpu-id> \
+  --gpu 0 \
   --condition-type uncond \
   --batch-size 1 \
   --run-vendor
@@ -95,7 +95,7 @@ done
 Step 4 runs the gated parity tests against the generated references and converted checkpoints.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package ralf --extra vendor pytest models/ralf/tests/vendor_parity -m vendor_parity -q
+CUDA_VISIBLE_DEVICES=0 uv run --package ralf --extra vendor pytest models/ralf/tests/vendor_parity -m vendor_parity -q
 ```
 
 Expected unconditional parity result from the existing reference set:

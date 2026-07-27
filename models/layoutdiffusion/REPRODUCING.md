@@ -8,7 +8,7 @@ These commands reproduce the original-implementation agreement checks against th
 
 Run the commands from the repository root. Initialize the vendor implementation
 with `git submodule update --init vendor/ms-layout-generation`. The commands
-use `CUDA_VISIBLE_DEVICES=<gpu-id>`; replace `<gpu-id>` with one CUDA
+use `CUDA_VISIBLE_DEVICES=<gpu-index>`; replace `<gpu-index>` with one CUDA
 device visible on your machine.
 
 ### 1. Prepare Vendor Code And Weights
@@ -26,7 +26,7 @@ This writes checkpoints under `.cache/layoutdiffusion/original/results/checkpoin
 ### 2. Generate Reference Tensors
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layoutdiffusion --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutdiffusion --extra vendor \
   --with spacy --with pyyaml --with sacremoses \
   python models/layoutdiffusion/scripts/generate_reference_outputs.py \
   --dataset all \
@@ -59,7 +59,7 @@ uv run --package layoutdiffusion \
 ### 4. Run Parity Tests
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layoutdiffusion pytest \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutdiffusion pytest \
   models/layoutdiffusion/tests -m vendor_parity
 ```
 

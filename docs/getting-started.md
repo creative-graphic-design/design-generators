@@ -69,10 +69,10 @@ Text
 
 ## GPU Selection
 
-Vendor parity and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-id>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
+Vendor parity and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity
 ```
 
 ## Prompt-Only Packages
