@@ -92,6 +92,131 @@ def test_readme_badge_contracts() -> None:
     _run_script("scripts/check_readme_badges.py")
 
 
+def test_citation_contract_accepts_matching_arxiv_metadata() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{yang2024posterllava,
+  title = {PosterLLaVa: Constructing a Unified Multi-modal Layout Generator},
+  author = {Tao Yang and Yingmin Luo},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2406.02884"
+}
+```
+"""
+
+    check_model_readmes._assert_citation_bibtex(Path("models/example/README.md"), text)
+
+
+def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2301.00000},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2301.00000"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="Citation arXiv ids"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  url = "https://arxiv.org/abs/2406.02884"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="missing required fields"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_rejects_eprint_url_mismatch() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2301.00000"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="does not match url"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2303.08137)
+
+## Citation
+
+```bibtex
+@inproceedings{example2023,
+  title = {Example},
+  author = {Example Author},
+  booktitle = {Proceedings of Example Conference},
+  year = {2023}
+}
+```
+"""
+
+    check_model_readmes._assert_citation_bibtex(Path("models/example/README.md"), text)
+
+
 def test_static_v1_badges_reject_double_hyphen_query_values(tmp_path: Path) -> None:
     check_readme_badges = _load_check_readme_badges()
     readme = tmp_path / "README.md"
