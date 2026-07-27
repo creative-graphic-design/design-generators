@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Final, TypeAlias, TypedDict, cast
+from typing import Any, Final, TypeAlias, TypedDict, cast  # noqa: TID251 - parity metric mappings come from package-specific model-card adapters.
 
 from huggingface_hub import ModelCard, ModelCardData
 
@@ -84,7 +84,7 @@ class ParityMetricRow(TypedDict):
     logits_max_rel: float
 
 
-ParityMetricInput: TypeAlias = ParityMetric | ParityMetricRow | Mapping[str, object]
+ParityMetricInput: TypeAlias = ParityMetric | ParityMetricRow | Mapping[str, Any]
 
 
 def build_layout_model_card(
@@ -526,7 +526,7 @@ def _parity_table(metrics: Sequence[ParityMetricInput]) -> str:
     return "\n".join(rows)
 
 
-def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
+def _metric_dict(metric: ParityMetricInput) -> ParityMetricRow:
     if isinstance(metric, ParityMetric):
         return {
             ParityMetricKey.dataset.value: metric.dataset,
@@ -535,7 +535,7 @@ def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
             ParityMetricKey.logits_max_abs.value: metric.logits_max_abs,
             ParityMetricKey.logits_max_rel.value: metric.logits_max_rel,
         }
-    return dict(metric)
+    return cast(ParityMetricRow, dict(metric))
 
 
 _LAYOUTDM_BIBTEX: Final[str] = r"""

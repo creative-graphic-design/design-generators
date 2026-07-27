@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, assert_never
+from typing import TYPE_CHECKING, Any, assert_never  # noqa: TID251 - torch.as_tensor accepts legacy array-like inputs from model adapters.
 
 from jaxtyping import Bool, Float, Int
 
 if TYPE_CHECKING:
+    import numpy as np
     import torch
 else:
     try:
@@ -152,9 +154,22 @@ def normalize_boxes(
 
 def prepare_layout_tensors(
     *,
-    bbox: object,
-    labels: object,
-    mask: object | None = None,
+    bbox: Float[torch.Tensor, "... 4"]
+    | Float[np.ndarray, "... 4"]
+    | Sequence[Sequence[Sequence[float]]]
+    | Sequence[Sequence[float]]
+    | Sequence[Any],
+    labels: Int[torch.Tensor, "..."]
+    | Int[np.ndarray, "..."]
+    | Sequence[Sequence[int]]
+    | Sequence[int]
+    | Sequence[Any],
+    mask: Bool[torch.Tensor, "..."]
+    | Bool[np.ndarray, "..."]
+    | Sequence[Sequence[bool]]
+    | Sequence[bool]
+    | Sequence[Any]
+    | None = None,
     box_format: BoxFormat | str = BoxFormat.xywh,
     normalized: bool = True,
     canvas_size: tuple[int, int] | None = None,

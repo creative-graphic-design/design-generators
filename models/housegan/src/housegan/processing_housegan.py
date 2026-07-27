@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from os import PathLike
 from pathlib import Path
-from typing import Literal, Self, cast
+from typing import Any, Literal, Self, cast  # noqa: TID251 - narrows guarded optional public payloads for shared tensor preparation.
 
 import torch
 from jaxtyping import Float, Int
@@ -136,9 +136,9 @@ class HouseGanProcessor(ProcessorMixin):
         relation_payload = relations
         if relation_payload is None and bbox is not None and labels is not None:
             bbox_t, labels_t, _ = prepare_layout_tensors(
-                bbox=bbox,
-                labels=labels,
-                mask=mask,
+                bbox=cast(Any, bbox),
+                labels=cast(Any, labels),
+                mask=cast(Any, mask),
                 box_format=normalize_box_format(box_format),
                 normalized=normalized,
                 canvas_size=canvas_size or self.canvas_size,

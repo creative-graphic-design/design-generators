@@ -5,9 +5,15 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from enum import Enum
+from typing import Any, TypeAlias, cast  # noqa: TID251 - YAML sanitization accepts arbitrary mapping and sequence payloads.
 
 
-def sanitize_for_yaml(value: object) -> object:
+YamlScalar: TypeAlias = str | int | float | bool | None
+YamlValue: TypeAlias = YamlScalar | list["YamlValue"] | dict[YamlScalar, "YamlValue"]
+YamlInputValue: TypeAlias = YamlScalar | Enum | Mapping[Any, Any] | Sequence[Any]
+
+
+def sanitize_for_yaml(value: YamlInputValue) -> YamlValue:
     """Convert enum-rich metadata into objects accepted by ``yaml.safe_dump``.
 
     Args:
@@ -26,12 +32,17 @@ def sanitize_for_yaml(value: object) -> object:
     if isinstance(value, Enum):
         return str(value.value)
     if is_dataclass(value) and not isinstance(value, type):
-        return sanitize_for_yaml(asdict(value))
+        return sanitize_for_yaml(cast(YamlInputValue, asdict(value)))
     if isinstance(value, Mapping):
-        return {
-            sanitize_for_yaml(key): sanitize_for_yaml(item)
-            for key, item in value.items()
-        }
+        return cast(
+            YamlValue,
+            {
+                sanitize_for_yaml(cast(YamlInputValue, key)): sanitize_for_yaml(
+                    cast(YamlInputValue, item)
+                )
+                for key, item in value.items()
+            },
+        )
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
-        return [sanitize_for_yaml(item) for item in value]
-    return value
+        return [sanitize_for_yaml(cast(YamlInputValue, item)) for item in value]
+    return cast(YamlScalar, value)
