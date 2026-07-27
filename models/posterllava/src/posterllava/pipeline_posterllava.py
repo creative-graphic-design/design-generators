@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Protocol, cast  # noqa: TID251  # Dynamic HF payloads.
+from typing import Any, ClassVar, Literal, Protocol, TypeGuard, cast  # noqa: TID251  # Dynamic HF payloads.
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -114,6 +114,18 @@ def _load_processor_component(
         local_files_only=local_files_only,
         subfolder=subfolder,
     )
+
+
+def _is_content_mapping(
+    content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
+) -> TypeGuard[Mapping[str, Any]]:
+    return isinstance(content, Mapping)
+
+
+def _is_content_sequence(
+    content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
+) -> TypeGuard[Sequence[Mapping[str, Any]]]:
+    return isinstance(content, Sequence)
 
 
 class PosterLlavaPipeline(LayoutGenerationPipeline):
@@ -488,9 +500,11 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
     ) -> list[Mapping[str, Any]]:
         if content is None:
             return [{} for _ in range(batch_size)]
-        if isinstance(content, Mapping):
-            return [cast(Mapping[str, Any], content) for _ in range(batch_size)]
-        return list(content)
+        if _is_content_mapping(content):
+            return [content for _ in range(batch_size)]
+        if _is_content_sequence(content):
+            return list(content)
+        raise TypeError("content must be a mapping, a sequence of mappings, or None")
 
     def _resolve_num_elements(
         self,
