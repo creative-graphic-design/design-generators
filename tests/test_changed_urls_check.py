@@ -165,6 +165,31 @@ def test_check_changed_urls_skips_ignored_urls_without_calling_checker() -> None
     assert check_changed_urls.report_results(results) == 0
 
 
+def test_check_changed_urls_accepts_repo_main_blob_for_added_file(
+    tmp_path: Path,
+) -> None:
+    readme = tmp_path / "models" / "basnet" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text("# BASNet\n", encoding="utf-8")
+    url = f"{DESIGN_GENERATORS_URL}/blob/main/models/basnet/README.md"
+
+    def checker(url: str) -> object:
+        raise AssertionError(f"checker should not be called for {url}")
+
+    assert check_changed_urls.local_main_blob_path(url, root=tmp_path) == readme
+    results = check_changed_urls.check_changed_urls(
+        [check_changed_urls.ChangedUrl(url, "README.md:1")],
+        ignore_patterns=[],
+        checker=checker,
+        root=tmp_path,
+    )
+
+    assert results == [
+        check_changed_urls.UrlCheckResult(url=url, outcome="ok", status=200)
+    ]
+    assert check_changed_urls.report_results(results) == 0
+
+
 def test_check_changed_urls_treats_5xx_as_warning_success() -> None:
     urls = [
         check_changed_urls.ChangedUrl(
