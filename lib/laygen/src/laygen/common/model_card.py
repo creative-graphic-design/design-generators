@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Any, Final, TypeAlias, TypedDict, cast  # noqa: TID251 - parity metric mappings come from package-specific model-card adapters.
+from typing import Final, TypeAlias, TypedDict, cast
 
 from huggingface_hub import ModelCard, ModelCardData
 
@@ -84,7 +84,7 @@ class ParityMetricRow(TypedDict):
     logits_max_rel: float
 
 
-ParityMetricInput: TypeAlias = ParityMetric | ParityMetricRow | Mapping[str, Any]
+ParityMetricInput: TypeAlias = ParityMetric | ParityMetricRow | Mapping[str, object]
 
 
 def build_layout_model_card(
