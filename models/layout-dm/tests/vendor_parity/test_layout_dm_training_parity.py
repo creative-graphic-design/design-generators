@@ -246,9 +246,15 @@ def _build_fixture(
         ).to(device),
     )
     cfg = _config(scenario, cluster_centers_path=cluster_centers_path)
+    torch.manual_seed(123)
     target = LayoutDMTrainingModule(config=cfg, time_sampler="uniform", scheduler=None)
     target.to(device)
     vendor_model = cast(VendorDiffusion, vendor.model.module)
+    init_report = compare_layout_dm_optimizer_step(
+        vendor_model.transformer.state_dict(),
+        target.model.transformer.state_dict(),
+    )
+    assert init_report.passed, init_report
     target.model.transformer.load_state_dict(
         vendor_model.transformer.state_dict(), strict=True
     )
@@ -490,6 +496,7 @@ def test_s4_loader_tokenizer_output_matches_vendor(
     dataset.box_format = "xywh"
     dataset.normalized = True
     dataset.label2id = {}
+    dataset.random_order = False
     loader_encoded = dataset._encode_sample(
         {
             "id": "layout-dm-s4-fixture",

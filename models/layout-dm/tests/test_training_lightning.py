@@ -2,6 +2,8 @@ from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import Trainer
+from torch.utils.data import DataLoader, Dataset
 
 pytest.importorskip("lightning")
 pytest.importorskip("traingen_parity")
@@ -47,6 +49,17 @@ def tiny_batch() -> dict[str, torch.Tensor]:
     return cast(dict[str, torch.Tensor], next(iter(dm.train_dataloader())))
 
 
+class TwoBatchDataset(Dataset[dict[str, torch.Tensor]]):
+    def __init__(self, rows: list[dict[str, torch.Tensor]]) -> None:
+        self.rows = rows
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        return self.rows[index]
+
+
 def test_training_step_records_required_trace_points() -> None:
     module = LayoutDMTrainingModule(
         config=tiny_config(), scheduler=None, time_sampler="uniform"
@@ -76,6 +89,44 @@ def test_optimizer_scheduler_and_parity_helpers() -> None:
     mismatch_reference = build_step_trace("reference", {"x": torch.ones(1)})
     mismatch_target = build_step_trace("target", {"x": torch.zeros(1)})
     assert not compare_layout_dm_step(mismatch_reference, mismatch_target).passed
+
+
+def test_validation_epoch_loss_uses_vendor_step_mean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = LayoutDMTrainingModule(
+        config=tiny_config(), scheduler=None, time_sampler="uniform"
+    )
+    batch = tiny_batch()
+    small_batch = {"input_ids": batch["input_ids"][:1]}
+    seen: list[float] = []
+    original_validation_step = module.validation_step
+
+    def wrapped_validation_step(
+        batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
+        loss = original_validation_step(batch, batch_idx)
+        seen.append(float(loss.detach()))
+        return loss
+
+    monkeypatch.setattr(module, "validation_step", wrapped_validation_step)
+    trainer = Trainer(
+        accelerator="cpu",
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+    torch.manual_seed(123)
+    result = trainer.validate(
+        module,
+        dataloaders=DataLoader(TwoBatchDataset([batch, small_batch]), batch_size=None),
+        verbose=False,
+    )
+    expected = sum(seen) / len(seen)
+    weighted = (seen[0] * 2 + seen[1]) / 3
+    assert result[0]["val_loss"] == pytest.approx(expected)
+    assert result[0]["val_loss"] != pytest.approx(weighted)
 
 
 def test_datamodule_synthetic_loaders_and_cli_help() -> None:

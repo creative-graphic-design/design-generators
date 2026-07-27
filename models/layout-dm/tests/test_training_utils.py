@@ -212,7 +212,10 @@ def test_processed_dataset_and_datamodule_stream(
     assert isinstance(dm.train_dataset, LayoutDMProcessedDataset)
     assert dm.train_dataset.random_order is True
     assert isinstance(dm.val_dataset, LayoutDMProcessedDataset)
-    assert dm.val_dataset.random_order is False
+    assert dm.val_dataset.random_order is True
+    dm.setup("test")
+    assert isinstance(dm.test_dataset, LayoutDMProcessedDataset)
+    assert dm.test_dataset.random_order is True
     lazy_dm = LayoutDMDataModule(
         dataset_name="publaynet",
         config=config,

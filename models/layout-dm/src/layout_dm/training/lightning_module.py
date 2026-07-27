@@ -309,8 +309,15 @@ class LayoutDMTrainingModule(LightningModule):
         losses, trace = self._diffusion_losses(seq, is_train=True)
         total = torch.stack(tuple(losses.values())).sum()
         for key, value in losses.items():
-            self.log(key, value, on_step=True, on_epoch=True)
-        self.log("train_loss", total, prog_bar=True, on_step=True, on_epoch=True)
+            self.log(key, value, on_step=True, on_epoch=True, batch_size=1)
+        self.log(
+            "train_loss",
+            total,
+            prog_bar=True,
+            on_step=True,
+            on_epoch=True,
+            batch_size=1,
+        )
         self.latest_step_trace = {**trace, "train_loss": total.detach()}
         return total
 
@@ -322,5 +329,12 @@ class LayoutDMTrainingModule(LightningModule):
         seq = batch["input_ids"].long()
         losses, _ = self._diffusion_losses(seq, is_train=True)
         total = torch.stack(tuple(losses.values())).sum()
-        self.log("val_loss", total, prog_bar=True, on_step=False, on_epoch=True)
+        self.log(
+            "val_loss",
+            total,
+            prog_bar=True,
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
         return total

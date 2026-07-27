@@ -134,7 +134,8 @@ class LayoutDMDataModule(LightningDataModule):
         )
 
     def _uses_random_order(self, split: LayoutDMTrainingSplit) -> bool:
-        return split == "train" and "RandomOrder" in self.train_transforms
+        del split
+        return "RandomOrder" in self.train_transforms
 
     def _loader(
         self,
