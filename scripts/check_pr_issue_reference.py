@@ -252,11 +252,7 @@ def _is_guarded_cross_cutting_path(path: str) -> bool:
 
 def guarded_cross_cutting_paths(changed_files: list[str]) -> list[str]:
     """Return changed files that require cross-cutting-change rationale."""
-    return [
-        path
-        for path in changed_files
-        if _is_guarded_cross_cutting_path(path)
-    ]
+    return [path for path in changed_files if _is_guarded_cross_cutting_path(path)]
 
 
 def changed_files_from_git(base: str, head: str) -> list[str]:
@@ -276,10 +272,7 @@ def _has_actionable_section_text(section: str) -> bool:
         for line in section.splitlines()
         if line.strip()
     ]
-    return any(
-        line and not NON_ACTIONABLE_RE.match(line)
-        for line in cleaned_lines
-    )
+    return any(line and not NON_ACTIONABLE_RE.match(line) for line in cleaned_lines)
 
 
 def shared_library_change_errors(
@@ -297,8 +290,7 @@ def shared_library_change_errors(
 
     return [
         "PRs changing cross-cutting paths must explain the rationale in "
-        "`## Shared Library Changes`: "
-        + ", ".join(guarded_paths)
+        "`## Shared Library Changes`: " + ", ".join(guarded_paths)
     ]
 
 
