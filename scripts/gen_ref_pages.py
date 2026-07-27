@@ -280,6 +280,11 @@ def rewrite_repo_relative_links(markdown: str) -> str:
         link = match.group("link")
         return f"[{label}]({site_page_for_repo_link(link)})"
 
+    markdown = re.sub(
+        r"\[(?P<label>!\[[^\]]*\]\([^)]+\))\]\((?P<link>[^):#][^)]+)\)",
+        replace,
+        markdown,
+    )
     return re.sub(
         r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
         replace,

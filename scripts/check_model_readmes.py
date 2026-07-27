@@ -226,6 +226,10 @@ EXPECTED_FRONTMATTER = {
         "license": "mit",
         "datasets": ["creative-graphic-design/Rico", "Web"],
     },
+    "posterllama": {
+        "license": "other",
+        "datasets": ["creative-graphic-design/CGL-Dataset"],
+    },
     "postero": {
         "license": "apache-2.0",
         "datasets": [
@@ -266,6 +270,7 @@ EXPECTED_MODEL_NAMES = {
     "layoutganpp": "LayoutGAN++",
     "layoutprompter": "LayoutPrompter",
     "parse-then-place": "Parse-Then-Place",
+    "posterllama": "PosterLlama",
     "postero": "PosterO",
     "ralf": "RALF",
     "smarttext": "SmartText",
@@ -281,6 +286,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "layoutganpp": "https://github.com/ktrk115/const_layout",
     "layoutvae": "https://github.com/Layout-Generation/layout-generation",
     "layout-detr": "https://github.com/salesforce/LayoutDETR",
+    "posterllama": "https://github.com/jaepoong/PosterLlama",
     "ralf": "https://github.com/CyberAgentAILab/RALF",
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
