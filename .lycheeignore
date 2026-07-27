@@ -1,4 +1,6 @@
 ^https://huggingface\.co/creative-graphic-design/.*
+^https://github\.com/creative-graphic-design/design-generators/blob/main/models/ltnet/README\.md$
+^https://github\.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING\.md$
 ^https://doi\.org/.*
 ^https://tianchi\.aliyun\.com/.*
 ^https?://(?:www\.)?example\.(?:com|org|net)(?:/.*)?$

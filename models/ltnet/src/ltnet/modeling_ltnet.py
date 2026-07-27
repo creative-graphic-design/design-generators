@@ -1,4 +1,4 @@
-"""PyTorch model wrapper for LayoutTransformer (LT-Net)."""
+"""PyTorch model wrapper for LT-Net."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from .configuration_layout_transformer import LayoutTransformerConfig
+from .configuration_ltnet import LTNetConfig
 from .modeling_lt_compatible import BBoxHead, RelEncoder
 
 
 @dataclass
-class LayoutTransformerModelOutput(ModelOutput):
+class LTNetModelOutput(ModelOutput):
     """Raw LT-Net model outputs.
 
     Attributes:
@@ -30,7 +30,7 @@ class LayoutTransformerModelOutput(ModelOutput):
 
     Examples:
         >>> import torch
-        >>> out = LayoutTransformerModelOutput(
+        >>> out = LTNetModelOutput(
         ...     vocab_logits=torch.zeros(1, 2, 3),
         ...     obj_id_logits=torch.zeros(1, 2, 4),
         ...     token_type_logits=torch.zeros(1, 2, 4),
@@ -50,15 +50,15 @@ class LayoutTransformerModelOutput(ModelOutput):
     hidden_states: Float[torch.Tensor, "batch sequence hidden"] | None = None
 
 
-class LayoutTransformerForLayoutGeneration(PreTrainedModel):
+class LTNetForLayoutGeneration(PreTrainedModel):
     """Transformers ``PreTrainedModel`` for LT-Net relation-to-layout inference."""
 
-    config_class = LayoutTransformerConfig
-    base_model_prefix = "layout_transformer"
+    config_class = LTNetConfig
+    base_model_prefix = "ltnet"
     main_input_name = "input_token"
     _tied_weights_keys: dict[str, str] = {}
 
-    def __init__(self, config: LayoutTransformerConfig) -> None:
+    def __init__(self, config: LTNetConfig) -> None:
         """Initialize relation encoder and bbox head."""
         super().__init__(config)
         self.encoder = RelEncoder(config)
@@ -80,7 +80,7 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ) -> (
-        LayoutTransformerModelOutput
+        LTNetModelOutput
         | tuple[Float[torch.Tensor, "batch sequence feature"] | None, ...]
     ):
         """Run LT-Net relation encoding and bbox prediction.
@@ -161,7 +161,7 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
                 effective_global_mask,
                 generator=generator,
             )
-        output = LayoutTransformerModelOutput(
+        output = LTNetModelOutput(
             vocab_logits=vocab_logits,
             obj_id_logits=obj_id_logits,
             token_type_logits=token_type_logits,
@@ -185,7 +185,7 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
         src_mask: Bool[torch.Tensor, "batch 1 sequence"] | None = None,
         global_mask: Bool[torch.Tensor, "batch sequence"] | None = None,
         generator: torch.Generator | None = None,
-    ) -> LayoutTransformerModelOutput:
+    ) -> LTNetModelOutput:
         """Private pipeline helper for layout-level generation."""
         output = self(
             input_token=input_token,
@@ -198,4 +198,4 @@ class LayoutTransformerForLayoutGeneration(PreTrainedModel):
             generator=generator,
             return_dict=True,
         )
-        return cast(LayoutTransformerModelOutput, output)
+        return cast(LTNetModelOutput, output)
