@@ -8,6 +8,7 @@ import torch
 
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.conversion import remap_denoiser_key, split_original_state_dict
+import layout_dm.training.datamodule as datamodule_module
 from layout_dm.training.datamodule import LayoutDMDataModule
 from layout_dm.training.config import (
     LayoutDMSeedMode,
@@ -231,6 +232,27 @@ def test_processed_dataset_and_datamodule_stream(
     with pytest.raises(RuntimeError):
         lazy_dm._loader(None, shuffle=False)
 
+    lazy_val_dm = LayoutDMDataModule(
+        dataset_name="publaynet",
+        config=config,
+        batch_size=2,
+        max_seq_length=4,
+        num_workers=0,
+        dataset_source="processed",
+        processed_data_dir=str(data_root),
+    )
+    assert len(lazy_val_dm.val_dataloader()) == 1
+
+    with pytest.raises(ValueError, match="Unsupported LayoutDM train transforms"):
+        LayoutDMDataModule(
+            dataset_name="publaynet",
+            config=config,
+            num_workers=0,
+            train_transforms=cast(
+                tuple[LayoutDMTrainingTransform, ...], ("SortByLabel",)
+            ),
+        )
+
     with pytest.raises(ValueError):
         LayoutDMDataModule(
             dataset_name="publaynet",
@@ -238,6 +260,35 @@ def test_processed_dataset_and_datamodule_stream(
             dataset_source="processed",
             num_workers=0,
         ).setup("fit")
+
+
+def test_datamodule_hf_source_builds_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = LayoutDMConfig(
+        dataset_name="publaynet",
+        max_seq_length=4,
+        num_bin_bboxes=8,
+        bbox_quantization="linear",
+    )
+
+    class FakeLayoutDMDataset:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(datamodule_module, "LayoutDMDataset", FakeLayoutDMDataset)
+    dm = LayoutDMDataModule(
+        dataset_name="publaynet",
+        config=config,
+        batch_size=2,
+        max_seq_length=4,
+        num_workers=0,
+        dataset_source="hf",
+    )
+    dataset = dm._dataset("train")
+    assert isinstance(dataset, FakeLayoutDMDataset)
+    assert dataset.kwargs["split"] == "train"
+    assert dataset.kwargs["random_order"] is True
 
 
 def test_seed_modes_public_options_and_conversion_key_maps() -> None:
@@ -258,6 +309,7 @@ def test_seed_modes_public_options_and_conversion_key_maps() -> None:
         remap_denoiser_key("model.transformer.emb.weight") == "transformer.emb.weight"
     )
     assert remap_denoiser_key("model.backbone.emb.weight") == "emb.weight"
+    assert remap_denoiser_key("model.model.emb.weight") == "emb.weight"
     state = {
         "model.transformer.emb.weight": torch.ones(1),
         "lt_history": torch.zeros(1),
@@ -267,3 +319,13 @@ def test_seed_modes_public_options_and_conversion_key_maps() -> None:
     assert torch.equal(converted["transformer.emb.weight"], torch.ones(1))
     with pytest.raises(KeyError):
         remap_denoiser_key("unexpected.weight")
+
+
+def test_default_seed_mode_seeds_cuda_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[int] = []
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "manual_seed_all", lambda seed: seen.append(seed))
+    apply_layout_dm_seed_mode("default", seed=7)
+    assert seen[-1] == 7
