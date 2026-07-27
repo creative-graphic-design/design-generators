@@ -129,10 +129,10 @@ def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
   title = {Example},
   author = {Example Author},
   year = {2024},
-  eprint = {2301.00000},
+  eprint = {2303.08137},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
-  url = "https://arxiv.org/abs/2301.00000"
+  url = "https://arxiv.org/abs/2303.08137"
 }
 ```
 """
@@ -185,7 +185,7 @@ def test_citation_contract_rejects_eprint_url_mismatch() -> None:
   eprint = {2406.02884},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
-  url = "https://arxiv.org/abs/2301.00000"
+  url = "https://arxiv.org/abs/2303.08137"
 }
 ```
 """
