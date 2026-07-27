@@ -99,6 +99,15 @@ exist.
 
 Single-seed evidence can unblock diagnosis, but it is not enough for a final reproduction claim unless the model issue explicitly narrows the claim.
 
+## GPU Placement
+
+Use `scripts/pick_free_gpus.sh <N> [exclude_csv]` before launching S5-style multi-job verification runs. The helper sorts GPUs by used memory and prints indices for the least-loaded devices, so launchers can fill idle GPUs with one job per GPU instead of hard-coding a few indices. Pass currently reserved devices, such as long-running dataset jobs, through `exclude_csv`.
+
+```bash
+mapfile -t gpus < <(scripts/pick_free_gpus.sh 6 "3,7")
+CUDA_VISIBLE_DEVICES="${gpus[0]}" setsid ./train-one-seed.sh &
+```
+
 ## Evidence Recording
 
 Each training-first package should include `models/<package>/TRAINING.md`. Its `Reproduction Results` section is the durable summary; issue comments and PR bodies may quote it, but they must not be the only place where the result lives.
