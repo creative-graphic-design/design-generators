@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "basnet",
     "coarse-to-fine",
     "ds-gan",
     "flex-dm",
@@ -70,6 +71,7 @@ dev = [
     "pylint>=4.0.0",
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0,<4",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
@@ -86,6 +88,10 @@ docs = [
 # These conflicts can be removed once the TF/vendor runtime supports protobuf>=5
 # or the pydantic-ai/logfire stacks no longer require protobuf>=5.
 conflicts = [
+    [
+        { package = "basnet", extra = "vendor" },
+        { package = "housegan", extra = "vendor" },
+    ],
     [
         { package = "design-generators", extra = "llm-agent" },
         { package = "flex-dm", extra = "vendor-tf" },
@@ -184,6 +190,7 @@ conflicts = [
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+basnet = { workspace = true }
 coarse-to-fine = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }

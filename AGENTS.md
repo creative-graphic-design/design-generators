@@ -44,6 +44,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   the vendor/original implementation in identifiers, docstrings, comments, or
   config names; vendor references belong only in conversion modules,
   `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- `laygen.common.vendor` is the narrow shared-library exception for resolving
+  parity submodule checkouts; keep it documented in
+  `scripts/check_src_vendor_language.py` if it remains in package source.
 - Tensor and array annotations in package source (`models/*/src`, `lib/*/src`)
   must use fully qualified jaxtyping shaped types such as
   `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
@@ -116,6 +119,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Do not silently work around guidance known to be wrong. If the same kind of
   mistake is raised repeatedly, add or revise a rule, template item, or check so
   future work can catch it mechanically.
+- Keep PR diffs minimal for the stated task. Do not move dependencies between
+  core `dependencies` and `[project.optional-dependencies]`, or add/modify
+  `[build-system]`, unless the task requires it and the PR explains why.
 
 ## Public Interface
 

@@ -123,7 +123,7 @@ def extract_generator_state(
     init_kwargs = dict(getattr(generator, "init_kwargs", {}) or {})
     config = LayoutDetrConfig(
         z_dim=int(getattr(generator, "z_dim", init_kwargs.get("z_dim", 4))),
-        architecture="vendor",
+        architecture="reference",
         text_vocab_size=30_524,
         bert_num_heads=4,
         bert_num_decoder_layers=2,
@@ -135,7 +135,7 @@ def extract_generator_state(
         original_training_options=init_kwargs,
     )
     target_state = LayoutDetrForConditionalGeneration(config).state_dict()
-    if config.architecture == "vendor":
+    if config.architecture == "reference":
         remapped = source_state
     else:
         remapped = {

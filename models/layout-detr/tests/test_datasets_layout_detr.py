@@ -6,12 +6,12 @@ import pytest
 from layout_detr.datasets import (
     label2id_for_ad_banner,
     load_ad_banner_dataset,
-    normalize_vendor_annotation,
+    normalize_ad_banner_annotation,
 )
 
 
-def test_normalize_vendor_annotation_ltrb_to_xywh():
-    row = normalize_vendor_annotation(
+def test_normalize_ad_banner_annotation_ltrb_to_xywh():
+    row = normalize_ad_banner_annotation(
         {
             "xyxy_word_fit": [10, 20, 30, 60],
             "label": "button",
@@ -26,7 +26,7 @@ def test_normalize_vendor_annotation_ltrb_to_xywh():
     assert row["bbox"] == pytest.approx([0.2, 0.2, 0.2, 0.2])
 
 
-def test_dataset_loader_local_vendor_json(tmp_path):
+def test_dataset_loader_local_ad_banner_json(tmp_path):
     payload = [{"label": "header", "str": "Sale"}]
     (tmp_path / "sample.json").write_text(json.dumps(payload), encoding="utf-8")
 
@@ -38,14 +38,14 @@ def test_dataset_loader_local_vendor_json(tmp_path):
             load_ad_banner_dataset(
                 tmp_path,
                 split="train",
-                source=cast(Literal["vendor"], "hf"),
+                source=cast(Literal["ad_banner"], "hf"),
             )
         )
 
 
-def test_normalize_vendor_annotation_rejects_unknown_label():
+def test_normalize_ad_banner_annotation_rejects_unknown_label():
     with pytest.raises(ValueError):
-        normalize_vendor_annotation(
+        normalize_ad_banner_annotation(
             {
                 "xyxy_word_fit": [0, 0, 1, 1],
                 "label": "missing",
