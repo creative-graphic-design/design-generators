@@ -59,9 +59,9 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
     def __init__(self, config: LayoutDetrConfig) -> None:
         """Initialize LayoutDETR layers."""
         super().__init__(config)
-        self._is_vendor_architecture = config.architecture == "vendor"
-        if self._is_vendor_architecture:  # pragma: no cover
-            self._init_vendor_layers(config)
+        self._is_reference_architecture = config.architecture == "reference"
+        if self._is_reference_architecture:  # pragma: no cover
+            self._init_reference_layers(config)
         else:
             self._init_lightweight_layers(config)
         self.post_init()
@@ -98,12 +98,14 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             nn.Linear(config.hidden_dim, 4),
         )
 
-    def _init_vendor_layers(self, config: LayoutDetrConfig) -> None:  # pragma: no cover
+    def _init_reference_layers(
+        self, config: LayoutDetrConfig
+    ) -> None:  # pragma: no cover
         self.backbone = _build_backbone(config.backbone_name)
         self.input_proj = nn.Conv2d(self.backbone.num_channels, config.hidden_dim, 1)
         self.fc_z = nn.Linear(config.z_dim * config.max_seq_length, config.bert_f_dim)
         self.emb_label = nn.Embedding(config.num_bbox_labels, config.bert_f_dim)
-        self.text_encoder = _build_vendor_bert_model(
+        self.text_encoder = _build_reference_bert_model(
             config,
             num_hidden_layers=config.bert_num_encoder_layers,
             encoder_width=config.bert_f_dim,
@@ -112,7 +114,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             text_encoder=True,
         )
         self.enc_text_len = nn.Embedding(config.max_text_length, config.bert_f_dim)
-        self.fc_in = _VendorMLP(
+        self.fc_in = _ReferenceMLP(
             input_dim=config.bert_f_dim * 4,
             hidden_dim=config.bert_f_dim,
             output_dim=config.hidden_dim,
@@ -126,7 +128,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             num_encoder_layers=6,
             num_decoder_layers=6,
         )
-        self.bbox_embed = _VendorMLP(
+        self.bbox_embed = _ReferenceMLP(
             input_dim=config.hidden_dim,
             hidden_dim=config.hidden_dim,
             output_dim=4,
@@ -136,7 +138,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             config.hidden_dim, config.z_dim * config.max_seq_length
         )
         self.fc_out_cls = nn.Linear(config.hidden_dim, config.num_bbox_labels)
-        self.text_decoder = _build_vendor_bert_lm_head(
+        self.text_decoder = _build_reference_bert_lm_head(
             config,
             num_hidden_layers=config.bert_num_decoder_layers,
             encoder_width=512,
@@ -188,8 +190,8 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         text_attention_mask = text_attention_mask.to(device=device, dtype=torch.bool)
         layout_mask = layout_mask.to(device=device, dtype=torch.bool)
 
-        if self._is_vendor_architecture:
-            bbox, hidden = self._forward_vendor(
+        if self._is_reference_architecture:
+            bbox, hidden = self._forward_reference(
                 pixel_values=pixel_values,
                 input_ids=input_ids,
                 text_attention_mask=text_attention_mask,
@@ -235,7 +237,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             hidden_states=hidden,
         )
 
-    def _forward_vendor(  # pragma: no cover
+    def _forward_reference(  # pragma: no cover
         self,
         *,
         pixel_values: Float[torch.Tensor, "batch channels height width"],
@@ -446,7 +448,7 @@ def _build_backbone(name: str) -> _Joiner:  # pragma: no cover
     return model
 
 
-class _VendorMLP(nn.Module):  # pragma: no cover
+class _ReferenceMLP(nn.Module):  # pragma: no cover
     def __init__(
         self,
         *,
@@ -726,7 +728,7 @@ def _bert_config(
     return bert_config
 
 
-def _build_vendor_bert_model(
+def _build_reference_bert_model(
     config: LayoutDetrConfig,
     *,
     num_hidden_layers: int,
@@ -734,20 +736,20 @@ def _build_vendor_bert_model(
     add_pooling_layer: bool,
     use_cross_attention: bool,
     text_encoder: bool = False,
-) -> "_VendorBertModel":  # pragma: no cover
+) -> "_ReferenceBertModel":  # pragma: no cover
     bert_config = _bert_config(
         config,
         num_hidden_layers=num_hidden_layers,
         encoder_width=encoder_width,
         use_cross_attention=use_cross_attention,
     )
-    model = _VendorBertModel(bert_config, add_pooling_layer=add_pooling_layer)
+    model = _ReferenceBertModel(bert_config, add_pooling_layer=add_pooling_layer)
     if text_encoder:
         model.config.is_decoder = False
     return model
 
 
-def _build_vendor_bert_lm_head(
+def _build_reference_bert_lm_head(
     config: LayoutDetrConfig,
     *,
     num_hidden_layers: int,
@@ -760,7 +762,7 @@ def _build_vendor_bert_lm_head(
         use_cross_attention=True,
     )
     model = BertLMHeadModel(bert_config)
-    model.bert.embeddings = _VendorBertEmbeddings(bert_config)  # ty: ignore[invalid-assignment]
+    model.bert.embeddings = _ReferenceBertEmbeddings(bert_config)  # ty: ignore[invalid-assignment]
     for layer in model.bert.encoder.layer:
         cross_attention = cast(
             _BertLayerWithCrossAttentionProtocol, layer
@@ -770,7 +772,7 @@ def _build_vendor_bert_lm_head(
     return model
 
 
-class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
+class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.word_embeddings = nn.Embedding(
@@ -826,16 +828,16 @@ class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
 
 
 @dataclass
-class _VendorBertOutput(ModelOutput):  # pragma: no cover
+class _ReferenceBertOutput(ModelOutput):  # pragma: no cover
     last_hidden_state: Float[torch.Tensor, "batch tokens hidden"]
 
 
-class _VendorBertModel(nn.Module):  # pragma: no cover
+class _ReferenceBertModel(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, add_pooling_layer: bool = False) -> None:
         super().__init__()
         self.config = config
-        self.embeddings = _VendorBertEmbeddings(config)
-        self.encoder = _VendorBertEncoder(config)
+        self.embeddings = _ReferenceBertEmbeddings(config)
+        self.encoder = _ReferenceBertEncoder(config)
         self.pooler = (
             None
             if not add_pooling_layer
@@ -854,7 +856,7 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
         encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None = None,
         encoder_attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         **_: object,
-    ) -> _VendorBertOutput | tuple[Float[torch.Tensor, "batch tokens hidden"]]:
+    ) -> _ReferenceBertOutput | tuple[Float[torch.Tensor, "batch tokens hidden"]]:
         input_shape = input_ids.size()
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=input_ids.device)
@@ -882,7 +884,7 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
         )
         if not return_dict:
             return (hidden_states,)
-        return _VendorBertOutput(last_hidden_state=hidden_states)
+        return _ReferenceBertOutput(last_hidden_state=hidden_states)
 
     def _extended_attention_mask(
         self,
@@ -909,11 +911,11 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
         return (1.0 - extended) * -10000.0
 
 
-class _VendorBertEncoder(nn.Module):  # pragma: no cover
+class _ReferenceBertEncoder(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.layer = nn.ModuleList(
-            [_VendorBertLayer(config) for _ in range(config.num_hidden_layers)]
+            [_ReferenceBertLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.gradient_checkpointing = False
 
@@ -937,17 +939,17 @@ class _VendorBertEncoder(nn.Module):  # pragma: no cover
         return hidden_states
 
 
-class _VendorBertLayer(nn.Module):  # pragma: no cover
+class _ReferenceBertLayer(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.attention = _VendorBertAttention(config)
+        self.attention = _ReferenceBertAttention(config)
         if config.add_cross_attention:
-            self.crossattention = _VendorBertAttention(
+            self.crossattention = _ReferenceBertAttention(
                 config,
                 is_cross_attention=True,
             )
-        self.intermediate = _VendorBertIntermediate(config)
-        self.output = _VendorBertOutputLayer(config)
+        self.intermediate = _ReferenceBertIntermediate(config)
+        self.output = _ReferenceBertOutputLayer(config)
 
     def forward(
         self,
@@ -974,11 +976,11 @@ class _VendorBertLayer(nn.Module):  # pragma: no cover
         return self.output(intermediate_output, attention_output)
 
 
-class _VendorBertAttention(nn.Module):  # pragma: no cover
+class _ReferenceBertAttention(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, is_cross_attention: bool = False) -> None:
         super().__init__()
-        self.self = _VendorBertSelfAttention(config, is_cross_attention)
-        self.output = _VendorBertSelfOutput(config)
+        self.self = _ReferenceBertSelfAttention(config, is_cross_attention)
+        self.output = _ReferenceBertSelfOutput(config)
         self.pruned_heads: set[int] = set()
 
     def forward(
@@ -996,7 +998,7 @@ class _VendorBertAttention(nn.Module):  # pragma: no cover
         return self.output(self_output, hidden_states)
 
 
-class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
+class _ReferenceBertSelfAttention(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, is_cross_attention: bool) -> None:
         super().__init__()
         self.num_attention_heads = config.num_attention_heads
@@ -1050,7 +1052,7 @@ class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
         return context_layer.view(*new_shape)
 
 
-class _VendorBertSelfOutput(nn.Module):  # pragma: no cover
+class _ReferenceBertSelfOutput(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
@@ -1067,7 +1069,7 @@ class _VendorBertSelfOutput(nn.Module):  # pragma: no cover
         return self.LayerNorm(hidden_states + input_tensor)
 
 
-class _VendorBertIntermediate(nn.Module):  # pragma: no cover
+class _ReferenceBertIntermediate(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
@@ -1079,7 +1081,7 @@ class _VendorBertIntermediate(nn.Module):  # pragma: no cover
         return self.intermediate_act_fn(self.dense(hidden_states))
 
 
-class _VendorBertOutputLayer(nn.Module):  # pragma: no cover
+class _ReferenceBertOutputLayer(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)

@@ -96,7 +96,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         return dict(self._token_to_id)
 
     def _tokenize(self, text: str, **kwargs: object) -> list[str]:
-        """Split a vendor layout token string on whitespace."""
+        """Split a LayoutDiffusion token string on whitespace."""
         _ = kwargs
         return text.strip().split()
 
@@ -154,7 +154,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
     ) -> dict[str, Shaped[torch.Tensor, "..."]]:
-        """Encode public layout tensors into vendor token ids.
+        """Encode public layout tensors into LayoutDiffusion token ids.
 
         Args:
             bbox: Boxes shaped ``(B, S, 4)``.
@@ -284,7 +284,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         generator: torch.Generator | None = None,
         device: torch.device | None = None,
     ) -> Int[torch.Tensor, "batch tokens"]:
-        """Build the vendor sampling start template.
+        """Build the LayoutDiffusion sampling start template.
 
         Args:
             batch_size: Number of samples.
@@ -360,7 +360,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
     def token_ids_to_text(
         self, input_ids: Int[torch.Tensor, "batch tokens"]
     ) -> list[str]:
-        """Convert token ids to vendor text lines."""
+        """Convert token ids to LayoutDiffusion text lines."""
         if input_ids.ndim == 1:
             input_ids = input_ids.unsqueeze(0)
         return [
@@ -369,7 +369,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         ]
 
     def text_to_token_ids(self, lines: list[str]) -> Int[torch.Tensor, "batch tokens"]:
-        """Convert vendor text lines into padded token ids."""
+        """Convert LayoutDiffusion text lines into padded token ids."""
         rows = []
         for line in lines:
             ids = [self._convert_token_to_id(token) for token in line.strip().split()]
