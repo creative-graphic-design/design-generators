@@ -101,6 +101,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
+    "TMM 2024": "purple",
 }
 MODEL_OVERVIEW_DATASET_LABELS = {
     "ad_banner": "Ad Banner",

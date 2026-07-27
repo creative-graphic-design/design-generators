@@ -1,0 +1,44 @@
+[project]
+name = "posterllava"
+version = "0.1.0"
+description = "PosterLLaVA processor and inference recipe for poster layout generation."
+requires-python = ">=3.11"
+dependencies = [
+    "huggingface-hub>=0.24",
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "pillow>=10",
+    "posgen",
+    "torch>=2.1",
+    "transformers[torch,vision]>=5.0.0",
+]
+
+[project.optional-dependencies]
+vendor = [
+    "accelerate>=1.1",
+    "bitsandbytes>=0.41",
+    "peft>=0.4",
+    "timm>=0.9",
+]
+download = [
+    "huggingface-hub>=0.24",
+]
+hub = [
+    "huggingface-hub>=0.24",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+posgen = { workspace = true }
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-aware-layout-generation"
+conditions = ["content_image"]
+datasets = ["ad_banner", "cgl", "posterlayout", "pku_posterlayout"]
+
+[tool.pytest.ini_options]
+markers = [
+    "vendor_parity: requires PosterLLaVA original-code dependencies, local checkpoint assets, and a selected GPU",
+]
