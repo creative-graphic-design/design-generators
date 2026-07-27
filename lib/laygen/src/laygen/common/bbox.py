@@ -1,5 +1,7 @@
 """Bounding-box conversion and quantization helpers for layout packages."""
 
+from __future__ import annotations
+
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, assert_never
 
@@ -11,13 +13,7 @@ else:
     try:
         import torch
     except ImportError:
-
-        class _TorchStub:
-            Tensor = object
-            device = object
-            dtype = object
-
-        torch = _TorchStub()
+        pass
 
 
 class BoxFormat(StrEnum):
