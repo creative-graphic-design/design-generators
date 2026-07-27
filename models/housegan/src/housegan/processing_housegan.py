@@ -14,6 +14,7 @@ from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     ltrb_to_xywh,
     normalize_box_format,
@@ -142,7 +143,7 @@ class HouseGanProcessor(ProcessorMixin):
                     | Float[np.ndarray, "... 4"]
                     | Sequence[Sequence[Sequence[float]]]
                     | Sequence[Sequence[float]]
-                    | Sequence[object],
+                    | Sequence[ArrayLikeInput],
                     bbox,
                 ),
                 labels=cast(
@@ -150,7 +151,7 @@ class HouseGanProcessor(ProcessorMixin):
                     | Int[np.ndarray, "..."]
                     | Sequence[Sequence[int]]
                     | Sequence[int]
-                    | Sequence[object],
+                    | Sequence[ArrayLikeInput],
                     labels,
                 ),
                 mask=cast(
@@ -158,7 +159,7 @@ class HouseGanProcessor(ProcessorMixin):
                     | Bool[np.ndarray, "..."]
                     | Sequence[Sequence[bool]]
                     | Sequence[bool]
-                    | Sequence[object]
+                    | Sequence[ArrayLikeInput]
                     | None,
                     mask,
                 ),

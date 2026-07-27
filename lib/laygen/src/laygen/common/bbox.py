@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, Any, assert_never  # noqa: TID251 - torch.as_tensor accepts legacy array-like inputs from model adapters.
+from typing import TYPE_CHECKING, TypeAlias, assert_never
 
 from jaxtyping import Bool, Float, Int
 
@@ -24,6 +24,10 @@ class BoxFormat(StrEnum):
     xywh = auto()
     ltwh = auto()
     ltrb = auto()
+
+
+ArrayLikeScalar: TypeAlias = int | float | bool
+ArrayLikeInput: TypeAlias = ArrayLikeScalar | Sequence["ArrayLikeInput"]
 
 
 def normalize_box_format(box_format: BoxFormat | str) -> BoxFormat:
@@ -158,17 +162,17 @@ def prepare_layout_tensors(
     | Float[np.ndarray, "... 4"]
     | Sequence[Sequence[Sequence[float]]]
     | Sequence[Sequence[float]]
-    | Sequence[Any],
+    | Sequence[ArrayLikeInput],
     labels: Int[torch.Tensor, "..."]
     | Int[np.ndarray, "..."]
     | Sequence[Sequence[int]]
     | Sequence[int]
-    | Sequence[Any],
+    | Sequence[ArrayLikeInput],
     mask: Bool[torch.Tensor, "..."]
     | Bool[np.ndarray, "..."]
     | Sequence[Sequence[bool]]
     | Sequence[bool]
-    | Sequence[Any]
+    | Sequence[ArrayLikeInput]
     | None = None,
     box_format: BoxFormat | str = BoxFormat.xywh,
     normalized: bool = True,
