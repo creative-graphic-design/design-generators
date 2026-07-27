@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Any, Literal, Self, cast  # noqa: TID251 - narrows guarded optional public payloads for shared tensor preparation.
+from typing import Literal, Self, cast
 
+import numpy as np
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import (
@@ -136,9 +137,31 @@ class HouseGanProcessor(ProcessorMixin):
         relation_payload = relations
         if relation_payload is None and bbox is not None and labels is not None:
             bbox_t, labels_t, _ = prepare_layout_tensors(
-                bbox=cast(Any, bbox),
-                labels=cast(Any, labels),
-                mask=cast(Any, mask),
+                bbox=cast(
+                    Float[torch.Tensor, "... 4"]
+                    | Float[np.ndarray, "... 4"]
+                    | Sequence[Sequence[Sequence[float]]]
+                    | Sequence[Sequence[float]]
+                    | Sequence[object],
+                    bbox,
+                ),
+                labels=cast(
+                    Int[torch.Tensor, "..."]
+                    | Int[np.ndarray, "..."]
+                    | Sequence[Sequence[int]]
+                    | Sequence[int]
+                    | Sequence[object],
+                    labels,
+                ),
+                mask=cast(
+                    Bool[torch.Tensor, "..."]
+                    | Bool[np.ndarray, "..."]
+                    | Sequence[Sequence[bool]]
+                    | Sequence[bool]
+                    | Sequence[object]
+                    | None,
+                    mask,
+                ),
                 box_format=normalize_box_format(box_format),
                 normalized=normalized,
                 canvas_size=canvas_size or self.canvas_size,

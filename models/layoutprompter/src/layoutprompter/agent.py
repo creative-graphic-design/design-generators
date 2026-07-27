@@ -12,7 +12,7 @@ from typing import Final, assert_never
 
 import numpy as np
 from jaxtyping import Bool, Float, Int
-from laygen.agents import BaseLayoutAgent, ModelLike
+from laygen.agents import BaseLayoutAgent, LayoutOutputDict, ModelLike
 from laygen.common import (
     BoxFormat,
     ConditionType,
@@ -290,7 +290,7 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.DATACLASS,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutOutputDict:
         """Expose the shared generation signature for LayoutPrompter.
 
         Args:
