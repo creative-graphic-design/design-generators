@@ -71,7 +71,7 @@ LayoutDM package-local training currently has exact S0-S2 numeric parity on a fi
 
 PubLayNet is finalized at training-seed n=3 by project decision; the attempted n=8 expansion was stopped after the n=3 early verdict. PubLayNet ours-initfix has lower FID than the original-code run (`delta=-0.5308`, Welch `t=-2.9589`, `p=0.0426`, no FID range overlap), so this result should not be described as statistically identical. The difference is in the favorable direction, and Alignment, Overlap, and mIoU do not show a significant gap (`p>0.18` with overlapping ranges). The overall S5 verdict is complete: RICO25 is statistically reproduced at n=8, and PubLayNet is accepted at n=3 with no over-FID regression or vendor-worse reproduction failure.
 
-RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The vendor conditional names are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`) even though the FID ranges overlap; therefore the category-conditioned result should be documented as close but not strict FID equality. The overall conditional-mode verdict is substantiated at n=8 with that caveat, with no broad failure across completion, refinement, `maximum_iou`, or `DocSim`.
+RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The vendor conditional names are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`, bootstrap 95% CI `[+0.0304, +0.2190]`) even though the FID ranges overlap; therefore the category-conditioned result is close but not strict FID equality. A same-weight route-identity check reloaded vendor seed 42975 through the package denoiser, re-exported it to the vendor checkpoint format, and then ran the same vendor `trainer.test cond=c` settings (`temperature=1.0`, `num_timesteps=100`, `sampling=random`, and vendor mask construction). The direct and re-export paths produced identical 4,218-layout outputs by SHA256, so the residual is not a conditioning-route, setting, or export bug. The best supported interpretation is that `cond=c` is sensitive to small trained-weight endpoint differences: the +0.1217 FID gap is near the same-method run-to-run floor estimated from the existing c-mode seeds, while completion, refinement, and unconditional generation remain equivalent.
 
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
@@ -91,7 +91,7 @@ RICO25 and PubLayNet metrics use the vendor `cond=unconditional`, `num_uncond_sa
 | RICO25 | `refinement` | vendor | training-seed n=8 | 4.6356 ± 0.1029 | 0.3404 ± 0.0011 | 0.1971 ± 0.0002 | conditional S5 supported |
 | RICO25 | `refinement` | ours | training-seed n=8 initfix | 4.7018 ± 0.1922 | 0.3409 ± 0.0022 | 0.1973 ± 0.0002 | conditional S5 supported |
 
-RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
+RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). Same-method c-FID spread from the existing eight seeds is of comparable scale: exact 4-vs-4 within-method splits have mean absolute gaps of `0.0652` for ours and `0.0519` for vendor, with p90 `0.1376` and `0.1018`; same-method bootstrap absolute-gap p95 is `0.1062` for ours and `0.0812` for vendor, and ours p97.5 is `0.1210`. For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
 
 Evidence locations:
 
@@ -101,6 +101,7 @@ Evidence locations:
 .cache/layout-dm/converted/
 .cache/layout-dm/full-run/eval/rico25_conditional_n3/summary_n8_conditional_metrics.csv
 .cache/layout-dm/full-run/eval/rico25_conditional_n3/summary_n8_conditional_stats.csv
+.cache/layout-dm/full-run/eval/rico25_c_route_identity/
 ```
 
 ## Reproducing These Results
