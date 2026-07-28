@@ -16,6 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "scikit-learn>=1.0",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
+]
 convert = [
     "huggingface-hub>=0.24",
     "pyyaml>=6",
@@ -38,6 +44,8 @@ vendor = [
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
@@ -47,5 +55,13 @@ datasets = ["rico25", "publaynet"]
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original LayoutDM weights and vendor dependencies",
+]
+
+[tool.coverage.run]
+omit = [
+    "models/layout-dm/src/layout_dm/training/*",
+    "src/layout_dm/training/*",
+    "*/src/layout_dm/training/*",
 ]

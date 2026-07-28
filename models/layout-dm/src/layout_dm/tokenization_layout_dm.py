@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import math
+import pickle
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
@@ -174,6 +176,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         config_data = dict(self.config.config)
         config_data["id2label"] = {str(k): v for k, v in self.config.id2label.items()}
         config_data["cluster_centers"] = None
+        config_data["cluster_centers_path"] = None
         layout_config_file.write_text(
             json.dumps(config_data, indent=2, sort_keys=True), encoding="utf-8"
         )
@@ -406,7 +409,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         mapping = self._mapping(key)["full"].to(log_probs.device)
         out = torch.full(
             (log_probs.shape[0], self.config.vocab_size, log_probs.shape[-1]),
-            -70.0,
+            math.log(1.0e-30),
             device=log_probs.device,
             dtype=log_probs.dtype,
         )
@@ -433,11 +436,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return vocab
 
     def _centers(self, key: str, device: torch.device) -> Float[torch.Tensor, "bins"]:
-        centers = (
-            None
-            if self.config.cluster_centers is None
-            else self.config.cluster_centers.get(key)
-        )
+        centers = self._cluster_centers().get(key)
         if centers is None:
             delta = 1.0 / self.config.num_bin_bboxes
             start, stop = (0.0, 1.0 - delta) if key in {"x", "y"} else (delta, 1.0)
@@ -445,6 +444,18 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 start, stop, self.config.num_bin_bboxes, dtype=torch.float64
             ).tolist()
         return torch.tensor(centers, device=device, dtype=torch.float64).flatten()
+
+    def _cluster_centers(self) -> dict[str, list[float]]:
+        if self.config.cluster_centers is not None:
+            return self.config.cluster_centers
+        if self.config.cluster_centers_path is None:
+            return {}
+        centers = _load_cluster_centers_file(
+            Path(self.config.cluster_centers_path),
+            num_bin_bboxes=self.config.num_bin_bboxes,
+        )
+        self.config.cluster_centers = centers
+        return centers
 
     def _encode_bbox(
         self, bbox: Float[torch.Tensor, "batch elements 4"]
@@ -549,6 +560,7 @@ def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
         bbox_quantization=_string(config.get("bbox_quantization"), "kmeans"),
         special_tokens=_string_tuple(config.get("special_tokens"), ("pad", "mask")),
         cluster_centers=_cluster_centers_or_none(config.get("cluster_centers")),
+        cluster_centers_path=_optional_string(config.get("cluster_centers_path")),
         hidden_size=_integer(config.get("hidden_size"), 464),
         num_attention_heads=_integer(config.get("num_attention_heads"), 8),
         num_hidden_layers=_integer(config.get("num_hidden_layers"), 4),
@@ -624,6 +636,23 @@ def _cluster_centers(value: Mapping[object, object]) -> dict[str, list[float]]:
         if isinstance(items, str) or not isinstance(items, Sequence):
             raise TypeError("Cluster center values must be numeric sequences")
         centers[_string(key)] = [_floating(item, 0.0) for item in items]
+    return centers
+
+
+def _load_cluster_centers_file(
+    path: Path, *, num_bin_bboxes: int
+) -> dict[str, list[float]]:
+    with path.open("rb") as f:
+        models = pickle.load(f)
+    if not isinstance(models, Mapping):
+        raise TypeError("Cluster center file must contain a mapping")
+    centers: dict[str, list[float]] = {}
+    for key in ("x", "y", "w", "h"):
+        model = models[f"{key}-{num_bin_bboxes}"]
+        values = torch.as_tensor(
+            getattr(model, "cluster_centers_"), dtype=torch.float64
+        )
+        centers[key] = sorted(float(item) for item in values.flatten().tolist())
     return centers
 
 

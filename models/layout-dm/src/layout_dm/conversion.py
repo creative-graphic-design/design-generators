@@ -14,6 +14,12 @@ from laygen.common.labels import DatasetName
 
 def remap_denoiser_key(key: str) -> str:
     """Map an original checkpoint key to the converted denoiser key."""
+    if key.startswith("model.transformer."):
+        return key.removeprefix("model.")
+    if key.startswith("model.backbone."):
+        return key.removeprefix("model.backbone.")
+    if key.startswith("model.model."):
+        return key.removeprefix("model.model.")
     if not key.startswith("model.module.transformer."):
         raise KeyError(key)
     return key.removeprefix("model.module.")
@@ -25,11 +31,21 @@ def split_original_state_dict(
     """Extract converted denoiser weights from an original state dict."""
     denoiser: dict[str, Shaped[torch.Tensor, "..."]] = {}
     for key, value in state_dict.items():
-        if key.startswith("model.module.transformer."):
+        if key.startswith(
+            (
+                "model.module.transformer.",
+                "model.transformer.",
+                "model.backbone.",
+                "model.model.",
+            )
+        ):
             denoiser[remap_denoiser_key(key)] = value
         elif (
             "_log_" in key
             or key.startswith("model.module.Lt_")
+            or key.startswith("model.diffusion_scheduler.")
+            or key.startswith("diffusion_scheduler.")
+            or key in {"lt_history", "lt_count"}
             or key == "model.module.zero_vector"
         ):
             continue

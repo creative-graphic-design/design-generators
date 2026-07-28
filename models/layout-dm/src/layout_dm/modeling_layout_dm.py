@@ -38,6 +38,16 @@ __all__ = [
 ]
 
 
+def _init_layoutdm_weights(module: nn.Module) -> None:
+    if isinstance(module, (nn.Linear, nn.Embedding)):
+        module.weight.data.normal_(mean=0.0, std=0.02)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
+    elif isinstance(module, nn.LayerNorm) and module.elementwise_affine:
+        module.bias.data.zero_()
+        module.weight.data.fill_(1.0)
+
+
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
     return clone_module_list(module, n)
 
@@ -157,6 +167,7 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
             dropout=dropout,
             timestep_type=timestep_type,
         )
+        self.apply(_init_layoutdm_weights)
 
     def forward(
         self,
