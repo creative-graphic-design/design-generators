@@ -517,6 +517,14 @@ def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
         )
         == "[training](training-reproduction/)"
     )
+    assert (
+        gen_ref_pages.rewrite_repo_relative_links(
+            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt)]"
+            "(models/posterllama/REPRODUCING.md)"
+        )
+        == "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt)]"
+        "(api/models/posterllama/reproducing/)"
+    )
 
 
 def test_gen_ref_pages_rejects_unknown_model_metadata_values(

@@ -8,6 +8,12 @@
 
 - TODO
 
+## Shared Library Changes
+
+<!-- Required when touching cross-cutting paths such as `lib/*/src`, `docs/**`, or `.agents/skills/**`. Explain why the shared change belongs in this PR; otherwise write `N/A`. -->
+
+- TODO
+
 ## Verification
 
 <!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. -->

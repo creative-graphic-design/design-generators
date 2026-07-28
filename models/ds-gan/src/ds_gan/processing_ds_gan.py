@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, Literal, cast
 
@@ -12,7 +13,12 @@ from PIL import Image
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
-from laygen.common.bbox import BoxFormat, normalize_boxes, prepare_layout_tensors
+from laygen.common.bbox import (
+    ArrayLikeInput,
+    BoxFormat,
+    normalize_boxes,
+    prepare_layout_tensors,
+)
 from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
@@ -149,13 +155,13 @@ class DSGANProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
