@@ -71,6 +71,8 @@ LayoutDM package-local training currently has exact S0-S2 numeric parity on a fi
 
 PubLayNet is finalized at training-seed n=3 by project decision; the attempted n=8 expansion was stopped after the n=3 early verdict. PubLayNet ours-initfix has lower FID than the original-code run (`delta=-0.5308`, Welch `t=-2.9589`, `p=0.0426`, no FID range overlap), so this result should not be described as statistically identical. The difference is in the favorable direction, and Alignment, Overlap, and mIoU do not show a significant gap (`p>0.18` with overlapping ranges). The overall S5 verdict is complete: RICO25 is statistically reproduced at n=8, and PubLayNet is accepted at n=3 with no over-FID regression or vendor-worse reproduction failure.
 
+RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The vendor conditional names are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`) even though the FID ranges overlap; therefore the category-conditioned result should be documented as close but not strict FID equality. The overall conditional-mode verdict is substantiated at n=8 with that caveat, with no broad failure across completion, refinement, `maximum_iou`, or `DocSim`.
+
 | Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
 | RICO25 | vendor | training-seed n=8 | 7.1055 ± 0.3673 | 0.0019 ± 0.0004 | 0.8438 ± 0.0115 | 0.1941 ± 0.0050 | S5 RICO25 complete |
@@ -80,12 +82,25 @@ PubLayNet is finalized at training-seed n=3 by project decision; the attempted n
 
 RICO25 and PubLayNet metrics use the vendor `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the vendor `LayoutGAN++` variants; mIoU is reported from the vendor `average_iou-VTN` output. Standard deviations use population standard deviation over the reported training seeds.
 
+| Dataset | Condition | System | Stat scope | FID | maximum_iou | DocSim | Status |
+| --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| RICO25 | `c` | vendor | training-seed n=8 | 3.3863 ± 0.0825 | 0.2763 ± 0.0025 | 0.1673 ± 0.0004 | close; category FID caveat |
+| RICO25 | `c` | ours | training-seed n=8 initfix | 3.5080 ± 0.1088 | 0.2739 ± 0.0016 | 0.1670 ± 0.0004 | close; category FID caveat |
+| RICO25 | `partial` | vendor | training-seed n=8 | 8.1341 ± 0.6067 | 0.5945 ± 0.0096 | 0.0918 ± 0.0020 | conditional S5 supported |
+| RICO25 | `partial` | ours | training-seed n=8 initfix | 8.1523 ± 0.3817 | 0.6029 ± 0.0098 | 0.0921 ± 0.0023 | conditional S5 supported |
+| RICO25 | `refinement` | vendor | training-seed n=8 | 4.6356 ± 0.1029 | 0.3404 ± 0.0011 | 0.1971 ± 0.0002 | conditional S5 supported |
+| RICO25 | `refinement` | ours | training-seed n=8 initfix | 4.7018 ± 0.1922 | 0.3409 ± 0.0022 | 0.1973 ± 0.0002 | conditional S5 supported |
+
+RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
+
 Evidence locations:
 
 ```text
 .cache/layout-dm/training-runs/
 .cache/layout-dm/full-run/
 .cache/layout-dm/converted/
+.cache/layout-dm/full-run/eval/rico25_conditional_n3/summary_n8_conditional_metrics.csv
+.cache/layout-dm/full-run/eval/rico25_conditional_n3/summary_n8_conditional_stats.csv
 ```
 
 ## Reproducing These Results
