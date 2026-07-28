@@ -73,23 +73,20 @@ PubLayNet is finalized at training-seed n=3 by project decision; the attempted n
 
 RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The vendor conditional names are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`, bootstrap 95% CI `[+0.0304, +0.2190]`) even though the FID ranges overlap; therefore the category-conditioned result is close but not strict FID equality. A same-weight route-identity check reloaded vendor seed 42975 through the package denoiser, re-exported it to the vendor checkpoint format, and then ran the same vendor `trainer.test cond=c` settings (`temperature=1.0`, `num_timesteps=100`, `sampling=random`, and vendor mask construction). The direct and re-export paths produced identical 4,218-layout outputs by SHA256, so the residual is not a conditioning-route, setting, or export bug. The best supported interpretation is that `cond=c` is sensitive to small trained-weight endpoint differences: the +0.1217 FID gap is near the same-method run-to-run floor estimated from the existing c-mode seeds, while completion, refinement, and unconditional generation remain equivalent.
 
-| Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Status |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | vendor | training-seed n=8 | 7.1055 ± 0.3673 | 0.0019 ± 0.0004 | 0.8438 ± 0.0115 | 0.1941 ± 0.0050 | S5 RICO25 complete |
-| RICO25 | ours | training-seed n=8 initfix | 7.2307 ± 0.2632 | 0.0022 ± 0.0006 | 0.8379 ± 0.0169 | 0.1931 ± 0.0028 | S5 RICO25 complete |
-| PubLayNet | vendor | training-seed n=3 | 12.0617 ± 0.1665 | 0.0020 ± 0.0001 | 0.1295 ± 0.0040 | 0.0759 ± 0.0040 | S5 PubLayNet complete |
-| PubLayNet | ours | training-seed n=3 initfix | 11.5308 ± 0.1915 | 0.0021 ± 0.0002 | 0.1240 ± 0.0008 | 0.0727 ± 0.0033 | S5 PubLayNet complete |
+| Dataset | Scope | Vendor FID | Ours FID | Δ FID | Welch p | Alignment vendor → ours | Overlap vendor → ours | mIoU vendor → ours | Verdict |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| RICO25 | n=8 initfix | 7.1055 ± 0.3673 | 7.2307 ± 0.2632 | +0.1252 | 0.4768 | 0.0019 → 0.0022 | 0.8438 → 0.8379 | 0.1941 → 0.1931 | statistically equivalent |
+| PubLayNet | n=3 initfix | 12.0617 ± 0.1665 | 11.5308 ± 0.1915 | -0.5308 | 0.0426 | 0.0020 → 0.0021 | 0.1295 → 0.1240 | 0.0759 → 0.0727 | ours lower-FID side; no over-FID regression |
 
 RICO25 and PubLayNet metrics use the vendor `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the vendor `LayoutGAN++` variants; mIoU is reported from the vendor `average_iou-VTN` output. Standard deviations use population standard deviation over the reported training seeds.
 
-| Dataset | Condition | System | Stat scope | FID | maximum_iou | DocSim | Status |
-| --- | --- | --- | --- | ---: | ---: | ---: | --- |
-| RICO25 | `c` | vendor | training-seed n=8 | 3.3863 ± 0.0825 | 0.2763 ± 0.0025 | 0.1673 ± 0.0004 | close; category FID caveat |
-| RICO25 | `c` | ours | training-seed n=8 initfix | 3.5080 ± 0.1088 | 0.2739 ± 0.0016 | 0.1670 ± 0.0004 | close; category FID caveat |
-| RICO25 | `partial` | vendor | training-seed n=8 | 8.1341 ± 0.6067 | 0.5945 ± 0.0096 | 0.0918 ± 0.0020 | conditional S5 supported |
-| RICO25 | `partial` | ours | training-seed n=8 initfix | 8.1523 ± 0.3817 | 0.6029 ± 0.0098 | 0.0921 ± 0.0023 | conditional S5 supported |
-| RICO25 | `refinement` | vendor | training-seed n=8 | 4.6356 ± 0.1029 | 0.3404 ± 0.0011 | 0.1971 ± 0.0002 | conditional S5 supported |
-| RICO25 | `refinement` | ours | training-seed n=8 initfix | 4.7018 ± 0.1922 | 0.3409 ± 0.0022 | 0.1973 ± 0.0002 | conditional S5 supported |
+| Mode | Vendor FID | Ours FID | Δ FID | Welch p | maximum_iou vendor → ours | DocSim vendor → ours | Verdict |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `c` | 3.3863 ± 0.0825 | 3.5080 ± 0.1088 | +0.1217 | 0.0346 | 0.2763 → 0.2739 | 0.1673 → 0.1670 | close, but not strict FID equality; route is identical |
+| `partial` | 8.1341 ± 0.6067 | 8.1523 ± 0.3817 | +0.0182 | 0.9477 | 0.5945 → 0.6029 | 0.0918 → 0.0921 | equivalent |
+| `refinement` | 4.6356 ± 0.1029 | 4.7018 ± 0.1922 | +0.0662 | 0.4392 | 0.3404 → 0.3409 | 0.1971 → 0.1973 | equivalent |
+
+Overall S5 verdict: the original RICO25 high-FID failure was caused by the denoiser initialization scheme and is resolved by matching the original `normal_(0, 0.02)` initialization. RICO25 unconditional generation is statistically equivalent at n=8. PubLayNet is accepted at n=3 because the FID difference is in the lower-FID direction for ours, with no over-FID regression. Conditional RICO25 completion and refinement are equivalent; category-conditioned `cond=c` remains close but not strictly FID-equal, and route identity shows this is a trained-weight endpoint residual rather than a conditioning-path or export bug.
 
 RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). Same-method c-FID spread from the existing eight seeds is of comparable scale: exact 4-vs-4 within-method splits have mean absolute gaps of `0.0652` for ours and `0.0519` for vendor, with p90 `0.1376` and `0.1018`; same-method bootstrap absolute-gap p95 is `0.1062` for ours and `0.0812` for vendor, and ours p97.5 is `0.1210`. For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
 
