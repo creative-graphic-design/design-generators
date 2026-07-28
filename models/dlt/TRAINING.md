@@ -41,14 +41,15 @@ been run.
 
 ## Reproduction Results
 
-S5 compares a released PubLayNet checkpoint with an independently trained package
+S5 compares a reference PubLayNet checkpoint trained from scratch with the
+vendor implementation using seed `42` against an independently trained package
 checkpoint using the same PubLayNet validation split, `all` conditioning, and
 evaluation seeds `42`, `43`, and `44`. Lower is better for FID, overlap,
 alignment, IoU, and loss.
 
 | Dataset | Status | Checkpoints | Loss mean | FID | Overlap | Alignment | IoU | Conclusion |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| PubLayNet | S5 practical reproduction, stochastic residual disclosed | released epoch 799 vs package `final-epoch799.ckpt` | released `1.8069 +/- 0.0228`; package `1.8068 +/- 0.0223`; delta `-0.0001` | released `2.3806 +/- 0.0546`; package `2.4858 +/- 0.0528`; delta `+0.1051` | released `0.0241 +/- 0.0003`; package `0.0266 +/- 0.0002`; delta `+0.0024` | released `0.0102 +/- 0.0000`; package `0.0105 +/- 0.0000`; delta `+0.0003` | released `0.0034 +/- 0.0001`; package `0.0035 +/- 0.0001`; delta `+0.0000` | The train recipe reproduces the loss definition and sampling path. Generation retains small one-directional offsets that are attributable to independent from-scratch stochastic training divergence rather than a fixable package bug. |
+| PubLayNet | S5 practical reproduction, stochastic residual disclosed | vendor seed-42 epoch 799 vs package `final-epoch799.ckpt` | vendor `1.8069 +/- 0.0228`; package `1.8068 +/- 0.0223`; delta `-0.0001` | vendor `2.3806 +/- 0.0546`; package `2.4858 +/- 0.0528`; delta `+0.1051` | vendor `0.0241 +/- 0.0003`; package `0.0266 +/- 0.0002`; delta `+0.0024` | vendor `0.0102 +/- 0.0000`; package `0.0105 +/- 0.0000`; delta `+0.0003` | vendor `0.0034 +/- 0.0001`; package `0.0035 +/- 0.0001`; delta `+0.0000` | The train recipe reproduces the loss definition and sampling path. Generation retains small one-directional offsets that are attributable to independent from-scratch stochastic training divergence rather than a fixable package bug. |
 | RICO13 | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending full vendor/package training pair. |
 | Magazine | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
 
@@ -83,7 +84,7 @@ evaluated package checkpoint is `final-epoch799.ckpt`, which records
 `epoch=800`, `global_step=1994400`, scheduler `last_epoch=1994400`, and final
 learning rate `0.0`; the earlier `checkpoint.ckpt` / `last.ckpt` pair is an
 epoch-495 best-train-loss checkpoint and gives substantially worse generation
-metrics. Loading the released weights through the package checkpoint format and
+metrics. Loading the vendor seed-42 weights through the package checkpoint format and
 running the same S5 evaluator produced zero deltas for all reported metrics on
 all three seeds, which clears the package sampling and evaluator paths.
 
@@ -118,7 +119,7 @@ diagnosis_json: .cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json
 ```
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu> uv run --package dlt --extra training --extra vendor \
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
   python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
   --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt \
   --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv \

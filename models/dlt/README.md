@@ -136,13 +136,14 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 | --- | ---: | --- | --- |
 | Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
 | Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
-| PubLayNet S5 full checkpoint evaluation | 3 seeds | released epoch 799 vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000` |
+| PubLayNet S5 full checkpoint evaluation | 3 seeds | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000` |
 
 PubLayNet S5 is not metric-identical and should not be read as bit-level
 training parity. The validation loss definition matches exactly, the final
 checkpoint is the correct scheduler-aligned comparison target, no EMA state is
-present, and released weights routed through the package sampling path produce
-zero S5 deltas on all three seeds. The remaining generation offsets are
+present, and the original-implementation reference weights routed through the
+package sampling path produce zero S5 deltas on all three seeds. The remaining
+generation offsets are
 consistent across seeds (`overlap_pred` `+10.1%` relative,
 `alignment_pred` `+2.6%`, and FID `+4.4%`) and are attributed to independent
 from-scratch stochastic training divergence. See [TRAINING.md](TRAINING.md) for
