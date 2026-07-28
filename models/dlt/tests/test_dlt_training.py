@@ -1,4 +1,5 @@
 from functools import partial
+from types import SimpleNamespace
 from typing import TypedDict, cast
 
 import h5py
@@ -11,7 +12,14 @@ from dlt.training.config import DLTSeedMode
 
 pytest.importorskip("lightning")
 
-from dlt.training.callbacks import consume_reference_epoch_sampling_rng
+from lightning.pytorch import LightningModule, Trainer
+
+from dlt.training.callbacks import (
+    DLTReferenceEpochSamplingCallback,
+    _reference_condition_sample,
+    _sample_from_model,
+    consume_reference_epoch_sampling_rng,
+)
 from dlt.training.datamodule import DLTDataModule
 from dlt.training.dataset import H5DLTDataset, SyntheticDLTDataset, collate_dlt_batch
 from dlt.training.lightning_module import (
@@ -30,6 +38,55 @@ class _SchedulerConfig(TypedDict):
 class _OptimizerSchedulerConfig(TypedDict):
     optimizer: torch.optim.AdamW
     lr_scheduler: _SchedulerConfig
+
+
+class _TinyReferenceDataset:
+    max_num_comp = 4
+
+    def __len__(self) -> int:
+        return 2
+
+    def get_data_by_ix(
+        self, index: int
+    ) -> tuple[np.ndarray, np.ndarray, list[int], str]:
+        del index
+        box = np.asarray(
+            [[-1.0, -1.0, 0.5, 0.5], [0.0, 0.0, 0.25, 0.25]], dtype=np.float32
+        )
+        cat = np.asarray([1, 5], dtype=np.int64)
+        return box, cat, [0, 1], "tiny"
+
+
+class _TinySamplingModel(torch.nn.Module):
+    def forward(self, sample, noisy_batch, *, timesteps):
+        del sample, timesteps
+        box = noisy_batch["box"] * 0.0
+        logits = torch.zeros(
+            noisy_batch["cat"].shape[0], noisy_batch["cat"].shape[1], 7
+        )
+        return box, logits
+
+
+class _TinySchedulerOutput:
+    def __init__(self, sample: torch.Tensor) -> None:
+        self.prev_sample = sample
+        self.pred_original_sample = sample
+
+
+class _TinyScheduler:
+    def __init__(self, *, num_cont_steps: int = 1) -> None:
+        self.num_cont_steps = num_cont_steps
+
+    def step_jointly(self, cont_output, cat_output, timestep, sample):
+        del cat_output, timestep
+        cat = torch.zeros(sample.shape[0], sample.shape[1], dtype=torch.long)
+        return _TinySchedulerOutput(cont_output), {"cat": cat}
+
+
+class _TinySamplingModule(SimpleNamespace):
+    @property
+    def device(self) -> str:
+        return "cpu"
 
 
 def tiny_training_module() -> DLTTrainingModule:
@@ -250,3 +307,77 @@ def test_reference_epoch_sampling_callback_consumes_rng(tmp_path) -> None:
 
     assert not torch.equal(before, after)
     assert module.model.training
+
+
+@pytest.mark.training
+def test_reference_epoch_sampling_callback_requires_validation_dataset() -> None:
+    callback = DLTReferenceEpochSamplingCallback(num_samples=1)
+    with pytest.raises(RuntimeError, match="prepared val_dataset"):
+        callback.on_train_epoch_end(
+            cast(Trainer, SimpleNamespace(datamodule=SimpleNamespace())),
+            cast(LightningModule, _TinySamplingModule()),
+        )
+
+
+@pytest.mark.training
+def test_reference_epoch_sampling_rejects_too_many_samples() -> None:
+    module = _TinySamplingModule(
+        model=_TinySamplingModel(),
+        scheduler=_TinyScheduler(),
+        dlt_config=SimpleNamespace(categories_num=7),
+    )
+    with pytest.raises(ValueError, match="num_samples cannot exceed"):
+        consume_reference_epoch_sampling_rng(
+            cast(LightningModule, module), _TinyReferenceDataset(), num_samples=3
+        )
+
+
+@pytest.mark.training
+def test_reference_epoch_sampling_preserves_eval_mode() -> None:
+    model = _TinySamplingModel()
+    model.eval()
+    module = _TinySamplingModule(
+        model=model,
+        scheduler=_TinyScheduler(),
+        dlt_config=SimpleNamespace(categories_num=7),
+    )
+
+    consume_reference_epoch_sampling_rng(
+        cast(LightningModule, module), _TinyReferenceDataset(), num_samples=1
+    )
+
+    assert not model.training
+
+
+@pytest.mark.training
+def test_reference_condition_sample_covers_mask_variants() -> None:
+    dataset = _TinyReferenceDataset()
+    samples = [
+        _reference_condition_sample(
+            dataset, 0, sample_index, device=torch.device("cpu")
+        )
+        for sample_index in range(5)
+    ]
+
+    assert torch.equal(samples[0]["mask_box"][0, :2, :2], torch.ones(2, 2))
+    assert torch.equal(samples[1]["mask_box"][0, :2, 2:], torch.ones(2, 2))
+    assert torch.equal(samples[2]["mask_box"][0, :2], torch.ones(2, 4))
+    assert samples[3]["mask_box"].shape == (1, 4, 4)
+    assert torch.equal(samples[4]["mask_cat"][0, :2], torch.ones(2))
+    assert torch.equal(samples[4]["mask_box"][0, :2], torch.ones(2, 4))
+
+
+@pytest.mark.training
+def test_sample_from_model_rejects_zero_step_scheduler() -> None:
+    sample = _reference_condition_sample(
+        _TinyReferenceDataset(), 0, 4, device=torch.device("cpu")
+    )
+
+    with pytest.raises(RuntimeError, match="did not run"):
+        _sample_from_model(
+            sample,
+            _TinySamplingModel(),
+            _TinyScheduler(num_cont_steps=0),
+            categories_num=7,
+            device=torch.device("cpu"),
+        )
