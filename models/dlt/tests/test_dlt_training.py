@@ -11,8 +11,9 @@ from dlt.training.config import DLTSeedMode
 
 pytest.importorskip("lightning")
 
+from dlt.training.callbacks import consume_reference_epoch_sampling_rng
 from dlt.training.datamodule import DLTDataModule
-from dlt.training.dataset import SyntheticDLTDataset, collate_dlt_batch
+from dlt.training.dataset import H5DLTDataset, SyntheticDLTDataset, collate_dlt_batch
 from dlt.training.lightning_module import (
     DLTTrainingModule,
     DLTWarmupCosineSchedulerFactory,
@@ -191,3 +192,61 @@ def test_datamodule_reads_h5_layouts(tmp_path) -> None:
     assert batch["mask"].sum() == 2
     assert torch.all(batch["box"][0, :2] >= -2.0)
     assert torch.all(batch["box"][0, :2] <= 2.0)
+
+    h5_dataset = H5DLTDataset(tmp_path / "publaynet_train.h5", max_num_comp=4)
+    box, cat, order, key = h5_dataset.get_data_by_ix(0)
+    assert key == "0"
+    assert sorted(order) == [0, 1]
+    assert box.shape == (2, 4)
+    assert cat.shape == (2,)
+
+
+@pytest.mark.training
+def test_reference_epoch_sampling_callback_consumes_rng(tmp_path) -> None:
+    for name in ("publaynet_train.h5", "publaynet_val.h5"):
+        with h5py.File(tmp_path / name, "w") as data:
+            for index in range(2):
+                group = data.create_group(str(index))
+                group.create_dataset(
+                    "bbox",
+                    data=np.asarray(
+                        [[0.0, 0.0, 0.5, 0.25], [0.25, 0.25, 0.25, 0.25]],
+                        dtype=np.float32,
+                    ),
+                )
+                group.create_dataset(
+                    "categories", data=np.asarray([1, 5], dtype=np.int64)
+                )
+                group.create_dataset("length", data=np.asarray(2, dtype=np.int64))
+
+    module = DLTTrainingModule(
+        config=DLTConfig(
+            dataset_name="publaynet",
+            max_num_comp=4,
+            categories_num=7,
+            latent_dim=32,
+            num_layers=1,
+            num_heads=4,
+            cond_emb_size=12,
+            cat_emb_size=8,
+            num_cont_timesteps=2,
+            num_discrete_steps=2,
+        ),
+        optimizer=partial(torch.optim.AdamW, lr=0.0001),
+    )
+    module.train()
+    data = DLTDataModule(
+        batch_size=1,
+        data_path=str(tmp_path),
+        max_num_comp=4,
+        categories_num=7,
+    )
+    data.setup("fit")
+    assert isinstance(data.val_dataset, H5DLTDataset)
+    torch.manual_seed(123)
+    before = torch.random.get_rng_state()
+    consume_reference_epoch_sampling_rng(module, data.val_dataset, num_samples=1)
+    after = torch.random.get_rng_state()
+
+    assert not torch.equal(before, after)
+    assert module.model.training

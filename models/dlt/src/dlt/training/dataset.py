@@ -84,8 +84,32 @@ class H5DLTDataset(Dataset[DLTExample]):
 
     def __getitem__(self, index: int) -> DLTExample:
         """Return one DLT training sample."""
+        box, cat, _, _ = self.get_data_by_ix(index)
+        mask_box, mask_cat = _mask_instance(box.shape)
+        box, cat, mask_box, mask_cat = _pad_instance(
+            box, cat, mask_box, mask_cat, self.max_num_comp
+        )
+        return {
+            "box": torch.tensor(box, dtype=torch.float32),
+            "box_cond": torch.tensor(box.copy(), dtype=torch.float32),
+            "cat": torch.tensor(cat, dtype=torch.long),
+            "mask": torch.tensor(cat != 0, dtype=torch.bool),
+            "mask_box": torch.tensor(mask_box, dtype=torch.long),
+            "mask_cat": torch.tensor(mask_cat, dtype=torch.long),
+        }
+
+    def get_data_by_ix(
+        self, index: int
+    ) -> tuple[
+        Float[np.ndarray, "elements 4"],
+        Int[np.ndarray, "elements"],
+        list[int],
+        str,
+    ]:
+        """Return one unpadded layout with reference-style element shuffling."""
         with h5py.File(self.path, "r") as data:
-            row = data[self.keys[index]]
+            key = self.keys[index]
+            row = data[key]
             box = np.asarray(row["bbox"], dtype=np.float32)
             cat = np.asarray(row["categories"], dtype=int)
             length = int(row["length"][()])
@@ -100,18 +124,7 @@ class H5DLTDataset(Dataset[DLTExample]):
         box = box[order]
         cat = cat[order]
         box = _ltwh_to_scaled_xywh(box)
-        mask_box, mask_cat = _mask_instance(box.shape)
-        box, cat, mask_box, mask_cat = _pad_instance(
-            box, cat, mask_box, mask_cat, self.max_num_comp
-        )
-        return {
-            "box": torch.tensor(box, dtype=torch.float32),
-            "box_cond": torch.tensor(box.copy(), dtype=torch.float32),
-            "cat": torch.tensor(cat, dtype=torch.long),
-            "mask": torch.tensor(cat != 0, dtype=torch.bool),
-            "mask_box": torch.tensor(mask_box, dtype=torch.long),
-            "mask_cat": torch.tensor(mask_cat, dtype=torch.long),
-        }
+        return box, cat.astype(np.int64), order, str(key)
 
 
 def _ltwh_to_scaled_xywh(

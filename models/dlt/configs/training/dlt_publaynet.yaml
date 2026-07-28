@@ -1,6 +1,13 @@
 trainer:
   devices: 1
   gradient_clip_val: 1.0
+  max_epochs: 800
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+  callbacks:
+    - class_path: dlt.training.callbacks.DLTReferenceEpochSamplingCallback
+      init_args:
+        num_samples: 5
 model:
   class_path: dlt.training.lightning_module.DLTTrainingModule
   init_args:
@@ -25,6 +32,7 @@ data:
   class_path: dlt.training.datamodule.DLTDataModule
   init_args:
     batch_size: 64
+    num_workers: 4
     max_num_comp: 9
     categories_num: 7
     shuffle_train: true

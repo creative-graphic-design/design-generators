@@ -1,6 +1,10 @@
 trainer:
   devices: 1
   gradient_clip_val: 1.0
+  callbacks:
+    - class_path: dlt.training.callbacks.DLTReferenceEpochSamplingCallback
+      init_args:
+        num_samples: 5
 model:
   class_path: dlt.training.lightning_module.DLTTrainingModule
   init_args:
