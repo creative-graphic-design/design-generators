@@ -37,6 +37,16 @@ def test_check_readme_links_accepts_repo_root_relative_docs_link(
     assert check_readme_links.check_readme_links(tmp_path) == 0
 
 
+def test_check_readme_links_accepts_package_training_link(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    (tmp_path / "README.md").write_text(
+        "See [LayoutDM training](models/layout-dm/TRAINING.md).\n",
+        encoding="utf-8",
+    )
+
+    assert check_readme_links.check_readme_links(tmp_path) == 0
+
+
 def test_check_readme_links_rejects_parent_relative_docs_link(tmp_path: Path) -> None:
     check_readme_links = load_check_readme_links()
     readme = tmp_path / "lib" / "traingen-parity" / "README.md"

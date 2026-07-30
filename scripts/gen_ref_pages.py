@@ -1195,7 +1195,9 @@ def write_reproducing_pages(packages: list[ApiPackage]) -> None:
             "\n".join(
                 [
                     *frontmatter,
-                    reproducing_path.read_text(encoding="utf-8").rstrip(),
+                    rewrite_repo_relative_links(
+                        reproducing_path.read_text(encoding="utf-8").rstrip()
+                    ),
                     "",
                 ]
             ),
@@ -1217,7 +1219,9 @@ def write_training_pages(packages: list[ApiPackage]) -> None:
             "\n".join(
                 [
                     *frontmatter,
-                    training_path.read_text(encoding="utf-8").rstrip(),
+                    rewrite_repo_relative_links(
+                        training_path.read_text(encoding="utf-8").rstrip()
+                    ),
                     "",
                 ]
             ),

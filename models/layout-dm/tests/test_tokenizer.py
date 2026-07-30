@@ -1,3 +1,7 @@
+import pickle
+from types import SimpleNamespace
+
+import pytest
 import torch
 from transformers import PreTrainedTokenizer
 
@@ -61,6 +65,26 @@ def test_tokenizer_save_load_standard_files(tmp_path):
     loaded = LayoutDMTokenizer.from_pretrained(tmp_path)
     assert loaded.get_vocab() == tokenizer.get_vocab()
     assert loaded._centers("x", torch.device("cpu")).dtype == torch.float64
+
+
+def test_tokenizer_loads_cluster_centers_from_path(tmp_path):
+    cluster_path = tmp_path / "centers.pkl"
+    models = {
+        f"{key}-4": SimpleNamespace(cluster_centers_=torch.tensor([[0.4], [0.1]]))
+        for key in ("x", "y", "w", "h")
+    }
+    with cluster_path.open("wb") as f:
+        pickle.dump(models, f)
+    cfg = LayoutDMConfig(
+        dataset_name="publaynet",
+        bbox_quantization="kmeans",
+        num_bin_bboxes=4,
+        cluster_centers_path=str(cluster_path),
+    )
+    tokenizer = LayoutDMTokenizer(cfg)
+    assert tokenizer._centers("x", torch.device("cpu")).tolist()[:2] == pytest.approx(
+        [0.1, 0.4]
+    )
 
 
 def test_tokenizer_rejects_text_call():

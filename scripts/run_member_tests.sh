@@ -6,7 +6,8 @@
 #   The default mode matches CI and enforces member coverage. Set
 #   `MEMBER_TEST_COVERAGE=0` to keep local pre-commit runs coverage-free.
 #   Set `MEMBER_TEST_COVERAGE_XML_DIR` to write pytest-cov XML for CI Codecov
-#   upload.
+#   upload. Known test extras such as training are enabled when the member
+#   declares them.
 #   Set `MEMBER_TEST_XDIST_JOBS` to a positive integer to run pytest with
 #   xdist. The default is off so CI member coverage semantics stay unchanged.
 # @arg $1 member_dir Workspace member directory such as `models/layout-dm`.

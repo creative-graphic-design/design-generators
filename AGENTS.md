@@ -236,6 +236,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Docs and READMEs link the first mention of external projects and repositories.
   Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
   unless that page defines them in place or links directly to the definition.
+- Environment-specific documentation must distinguish observed verification
+  conditions from general requirements. Write "the currently verified setup is
+  ..." or equivalent when only one machine/GPU/driver combination has been
+  tested; do not present that setup as the package's inherent training
+  environment.
 - Package READMEs reference repository docs with repo-root-relative links such as
   `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
 - Hub model cards are generated through `laygen.common.model_card` using the

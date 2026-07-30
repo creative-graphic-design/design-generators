@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -162,13 +163,89 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         """Compute the LayoutDM posterior transition distribution."""
         if self.per_var_full_ids is not None:
             return self._constrained_q_posterior(log_x_start, log_x_t, t)
-        t = t.clamp(0, self.num_timesteps - 1)
-        keep = (
-            self.schedules["full"][3].to(t.device).gather(0, t).exp().reshape(-1, 1, 1)
+        return self._vanilla_q_posterior(log_x_start, log_x_t, t)
+
+    def _vanilla_q_posterior(
+        self,
+        log_x_start: Float[torch.Tensor, "batch vocab tokens"],
+        log_x_t: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
+        """Compute the vanilla mask-and-replace posterior transition."""
+        batch_size = log_x_start.size(0)
+        index_x_t = log_onehot_to_index(log_x_t)
+        mask = (index_x_t == self.mask_token_id).unsqueeze(1)
+        log_one = torch.zeros(
+            batch_size, 1, 1, device=log_x_t.device, dtype=log_x_t.dtype
         )
-        return torch.logaddexp(
-            log_x_start + keep.log(), log_x_t + torch.log1p(-keep).clamp_min(-70.0)
-        ).clamp(-70.0, 0.0)
+        log_zero = torch.log(log_one + 1.0e-30).expand(-1, -1, log_x_t.shape[-1])
+
+        log_qt = self._vanilla_q_pred(log_x_t, t)[:, :-1, :]
+        log_cumprod_ct = _extract(
+            self.schedules["full"][5].to(t.device), t, log_x_start.shape
+        )
+        ct_cumprod = log_cumprod_ct.expand(-1, self.vocab_size - 1, -1)
+        log_qt = (~mask) * log_qt + mask * ct_cumprod
+
+        log_qt_one = self._vanilla_q_pred_one_timestep(log_x_t, t)
+        log_qt_one = torch.cat((log_qt_one[:, :-1, :], log_zero), dim=1)
+        log_ct = _extract(self.schedules["full"][2].to(t.device), t, log_x_start.shape)
+        ct_vector = torch.cat(
+            (log_ct.expand(-1, self.vocab_size - 1, -1), log_one), dim=1
+        )
+        log_qt_one = (~mask) * log_qt_one + mask * ct_vector
+
+        q = torch.cat((log_x_start[:, :-1, :] - log_qt, log_zero), dim=1)
+        q_log_sum_exp = torch.logsumexp(q, dim=1, keepdim=True)
+        q = q - q_log_sum_exp
+        return (self._vanilla_q_pred(q, t - 1) + log_qt_one + q_log_sum_exp).clamp(
+            -70.0, 0.0
+        )
+
+    def _vanilla_q_pred_one_timestep(
+        self,
+        log_x_t: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
+        """Apply one vanilla forward noising transition."""
+        log_at, log_bt, log_ct = (
+            self.schedules["full"][i].to(t.device) for i in range(3)
+        )
+        log_at = _extract(log_at, t, log_x_t.shape)
+        log_bt = _extract(log_bt, t, log_x_t.shape)
+        log_ct = _extract(log_ct, t, log_x_t.shape)
+        log_1_min_ct = _log_1_min_a(log_ct)
+        return torch.cat(
+            [
+                log_add_exp(log_x_t[:, :-1, :] + log_at, log_bt),
+                log_add_exp(log_x_t[:, -1:, :] + log_1_min_ct, log_ct),
+            ],
+            dim=1,
+        )
+
+    def _vanilla_q_pred(
+        self,
+        log_x_start: Float[torch.Tensor, "batch vocab tokens"],
+        t: Int[torch.Tensor, "batch"],
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
+        """Apply the cumulative vanilla forward noising transition."""
+        t = (t + (self.num_timesteps + 1)) % (self.num_timesteps + 1)
+        log_cumprod_at, log_cumprod_bt, log_cumprod_ct = (
+            self.schedules["full"][i].to(t.device) for i in range(3, 6)
+        )
+        log_cumprod_at = _extract(log_cumprod_at, t, log_x_start.shape)
+        log_cumprod_bt = _extract(log_cumprod_bt, t, log_x_start.shape)
+        log_cumprod_ct = _extract(log_cumprod_ct, t, log_x_start.shape)
+        log_1_min_cumprod_ct = _log_1_min_a(log_cumprod_ct)
+        return torch.cat(
+            [
+                log_add_exp(log_x_start[:, :-1, :] + log_cumprod_at, log_cumprod_bt),
+                log_add_exp(
+                    log_x_start[:, -1:, :] + log_1_min_cumprod_ct, log_cumprod_ct
+                ),
+            ],
+            dim=1,
+        )
 
     def _constrained_q_posterior(
         self,
@@ -289,7 +366,7 @@ class LayoutDMScheduler(SchedulerMixin, ConfigMixin):
         full_ids = self._full_ids(key, inputs.device)
         outputs = torch.full(
             (inputs.shape[0], self.vocab_size, inputs.shape[-1]),
-            -70.0,
+            math.log(1.0e-30),
             device=inputs.device,
             dtype=inputs.dtype,
         )
