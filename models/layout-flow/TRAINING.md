@@ -68,6 +68,15 @@ Training configs live under `models/layout-flow/configs/training`.
 | S4 | Validation and scheduler behavior | Confirms package-local validation metrics can drive scheduler behavior when those metrics are implemented. |
 | S5 | Full-run statistical comparison | Compares full RICO25 and PubLayNet learning behavior against the vendor training setup. |
 
+## Stage Evidence
+
+| Stage | Command | Artifact | Result |
+| --- | --- | --- | --- |
+| S0 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Static state parity is exact on a synthetic PubLayNet-shaped batch. |
+| S1 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Fixed-batch pre-optimizer trace parity is exact on a synthetic PubLayNet-shaped batch. |
+| S2 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | One optimizer-step parity is exact on a synthetic PubLayNet-shaped batch. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra training traingen fit --config models/layout-flow/configs/training/layoutflow_<rico25\|publaynet>.yaml --model.init_args.scheduler=null --model.init_args.fid_calc_every_n=0 --trainer.accelerator=gpu --trainer.devices=1 --trainer.max_epochs=1000` | `.cache/layout-flow/full-run/` | RICO25 is statistically equivalent at training-seed n=3; PubLayNet is acceptable at training-seed n=3. |
+
 ## Reproduction Results
 
 LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent on training-seed n=3: FID 5.7111 +/- 0.7459 ours vs. 6.3907 +/- 0.8031 vendor, mIoU 0.5562 +/- 0.0102 ours vs. 0.5631 +/- 0.0200 vendor; PubLayNet is acceptable on training-seed n=3: FID 13.6507 +/- 1.1766 ours vs. 13.9420 +/- 2.4765 vendor, mIoU 0.4151 +/- 0.0014 ours vs. 0.4229 +/- 0.0092 vendor.
