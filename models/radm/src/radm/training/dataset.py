@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import SupportsFloat, cast
+from typing import SupportsFloat, TypeAlias, cast
 
 import numpy as np
 from jaxtyping import Bool, Float, Int
@@ -23,6 +23,18 @@ from .config import (
     DEFAULT_TEXT_FEATURE_DIM,
     RADMTextFeaturePolicy,
     RADMTrainingSplit,
+)
+
+RowValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | bytes
+    | None
+    | Image.Image
+    | list["RowValue"]
+    | dict[str, "RowValue"]
 )
 
 
@@ -87,7 +99,7 @@ class CGLV2ParquetDataset(Dataset[RADMTrainingExample]):
         self._files = self._discover_files()
         self._lengths = self._read_lengths()
         self._table_file: Path | None = None
-        self._table_rows: list[Mapping[str, object]] | None = None
+        self._table_rows: list[Mapping[str, RowValue]] | None = None
 
     def __len__(self) -> int:
         """Return number of available examples."""
@@ -151,19 +163,19 @@ class CGLV2ParquetDataset(Dataset[RADMTrainingExample]):
             offset -= length
         raise IndexError(index)
 
-    def _row(self, path: Path, index: int) -> Mapping[str, object]:
+    def _row(self, path: Path, index: int) -> Mapping[str, RowValue]:
         if self._table_file != path:
             import pyarrow.parquet as pq
 
             table = pq.read_table(path)
-            rows = cast(list[Mapping[str, object]], table.to_pylist())
+            rows = cast(list[Mapping[str, RowValue]], table.to_pylist())
             self._table_file = path
             self._table_rows = rows
         if self._table_rows is None:
             raise RuntimeError("Parquet table was not loaded")
         return self._table_rows[index]
 
-    def _image_from_row(self, row: Mapping[str, object]) -> Image.Image:
+    def _image_from_row(self, row: Mapping[str, RowValue]) -> Image.Image:
         for key in ("inpainted_poster", "image", "canvas", "original_poster"):
             value = row.get(key)
             if value is not None:
@@ -171,7 +183,7 @@ class CGLV2ParquetDataset(Dataset[RADMTrainingExample]):
         raise KeyError("CGL-v2 row does not contain an image column")
 
     def _annotations_from_row(
-        self, row: Mapping[str, object], *, width: int, height: int
+        self, row: Mapping[str, RowValue], *, width: int, height: int
     ) -> tuple[Float[torch.Tensor, "elements 4"], Int[torch.Tensor, "elements"]]:
         raw_annotations = row.get("annotations")
         rows = _sequence_rows(raw_annotations)
@@ -204,7 +216,7 @@ class CGLV2ParquetDataset(Dataset[RADMTrainingExample]):
         return boxes_xyxy, torch.tensor(labels, dtype=torch.long)
 
     def _text_from_row(
-        self, row: Mapping[str, object]
+        self, row: Mapping[str, RowValue]
     ) -> tuple[Float[torch.Tensor, "text text_dim"], Bool[torch.Tensor, "text 1"]]:
         values = torch.zeros(
             self.max_text_num, self.text_feature_dim, dtype=torch.float32
@@ -254,7 +266,7 @@ def collate_radm_training_batch(
     )
 
 
-def _decode_image(value: object) -> Image.Image:
+def _decode_image(value: RowValue) -> Image.Image:
     if isinstance(value, Image.Image):
         return value
     if isinstance(value, Mapping):
@@ -271,31 +283,31 @@ def _decode_image(value: object) -> Image.Image:
     raise TypeError(f"Unsupported image value: {type(value).__name__}")
 
 
-def _sequence_rows(value: object) -> list[Mapping[str, object]]:
+def _sequence_rows(value: RowValue) -> list[Mapping[str, RowValue]]:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         return [
-            cast(Mapping[str, object], item)
+            cast(Mapping[str, RowValue], item)
             for item in value
             if isinstance(item, Mapping)
         ]
     if isinstance(value, Mapping):
         lengths = [
-            len(cast(Sequence[object], column))
+            len(cast(Sequence[RowValue], column))
             for column in value.values()
             if isinstance(column, Sequence) and not isinstance(column, (str, bytes))
         ]
         if not lengths:
             return []
-        rows: list[Mapping[str, object]] = []
+        rows: list[Mapping[str, RowValue]] = []
         for index in range(min(lengths)):
-            row: dict[str, object] = {}
+            row: dict[str, RowValue] = {}
             for key, column in value.items():
                 if isinstance(column, Sequence) and not isinstance(
                     column, (str, bytes)
                 ):
-                    row[str(key)] = column[index]
+                    row[str(key)] = cast(Sequence[RowValue], column)[index]
                 else:
-                    row[str(key)] = column
+                    row[str(key)] = cast(RowValue, column)
             rows.append(row)
         return rows
     return []

@@ -26,11 +26,6 @@ models/ltnet/src/ltnet/processing_ltnet.py	Mapping[str, object]	item = cast(Mapp
 models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for edge in cast(Sequence[object], edges):
 models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for node in cast(Sequence[object], nodes):
 models/postero/src/postero/records.py	Mapping[str, object]	return cast(Mapping[str, object], value)
-models/radm/src/radm/processing_radm.py	Mapping[str, object]	return cast(Mapping[str, object], json.loads(text))
-models/radm/src/radm/processing_radm.py	dict[str, Any]	config = RADMConfig.from_config(cast(dict[str, Any], config_payload))
-models/radm/src/radm/training/dataset.py	Mapping[str, object]	cast(Mapping[str, object], item)
-models/radm/src/radm/training/dataset.py	Sequence[object]	len(cast(Sequence[object], column))
-models/radm/src/radm/training/dataset.py	list[Mapping[str, object]]	rows = cast(list[Mapping[str, object]], table.to_pylist())
 models/ralf/src/ralf/datasets.py	list[object]	values = list(cast(list[object], labels))
 models/ralf/src/ralf/modeling_ralf.py	Mapping[str, list[object]] | None	Mapping[str, list[object]] | None, kwargs.get("relationship_table")
 models/ralf/src/ralf/modeling_ralf.py	list[object]	for element in cast(list[object], relation)

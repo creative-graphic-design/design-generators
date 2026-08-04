@@ -263,32 +263,6 @@ models/postero/src/postero/records.py	object	value: object, *, id2label: Mapping
 models/postero/src/postero/schemas.py	dict[str, object]	def _intermediates(self) -> dict[str, object]:
 models/postero/src/postero/vendor_parity.py	dict[str, object]	def implementation_reference() -> dict[str, object]:
 models/postero/src/postero/vendor_parity.py	object	def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
-models/radm/src/radm/configuration_radm.py	Mapping[str, object] | None	conversion_report: Mapping[str, object] | None = None,
-models/radm/src/radm/conversion.py	Mapping[str, object]	def inspect_checkpoint_payload(payload: Mapping[str, object]) -> dict[str, object]:
-models/radm/src/radm/conversion.py	Mapping[str, object]	payload: Mapping[str, object],
-models/radm/src/radm/conversion.py	dict[str, object]	def inspect_checkpoint_payload(payload: Mapping[str, object]) -> dict[str, object]:
-models/radm/src/radm/datasets.py	Sequence[Mapping[str, object]]	annotations: Sequence[Mapping[str, object]],
-models/radm/src/radm/pipeline_radm.py	Bool[torch.Tensor, 'batch elements'] | Bool[np.ndarray, 'batch elements'] | Sequence[object] | None	mask: Bool[torch.Tensor, "batch elements"]
-models/radm/src/radm/pipeline_radm.py	Bool[torch.Tensor, 'batch text 1'] | object | None	text_mask: Bool[torch.Tensor, "batch text 1"] | object | None = None,
-models/radm/src/radm/pipeline_radm.py	Float[torch.Tensor, 'batch elements 4'] | Float[np.ndarray, 'batch elements 4'] | Sequence[object] | None	bbox: Float[torch.Tensor, "batch elements 4"]
-models/radm/src/radm/pipeline_radm.py	Float[torch.Tensor, 'batch text text_dim'] | object | None	text_features: Float[torch.Tensor, "batch text text_dim"]
-models/radm/src/radm/pipeline_radm.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
-models/radm/src/radm/pipeline_radm.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
-models/radm/src/radm/processing_radm.py	Bool[torch.Tensor, 'batch text 1'] | object | None	text_mask: Bool[torch.Tensor, "batch text 1"] | object | None = None,
-models/radm/src/radm/processing_radm.py	Float[torch.Tensor, 'batch text text_dim'] | object | None	text_features: Float[torch.Tensor, "batch text text_dim"]
-models/radm/src/radm/processing_radm.py	LayoutGenerationOutput | dict[str, object]	) -> LayoutGenerationOutput | dict[str, object]:
-models/radm/src/radm/processing_radm.py	Mapping[str, object]	def _read_processor_metadata(root: Path, config_name: str) -> Mapping[str, object]:
-models/radm/src/radm/processing_radm.py	Mapping[str, object] | None	content: Mapping[str, object] | None = None,
-models/radm/src/radm/processing_radm.py	Mapping[str, object] | None	extra_intermediates: Mapping[str, object] | None = None,
-models/radm/src/radm/processing_radm.py	object	value: object,
-models/radm/src/radm/training/dataset.py	Mapping[str, object]	def _image_from_row(self, row: Mapping[str, object]) -> Image.Image:
-models/radm/src/radm/training/dataset.py	Mapping[str, object]	def _row(self, path: Path, index: int) -> Mapping[str, object]:
-models/radm/src/radm/training/dataset.py	Mapping[str, object]	self, row: Mapping[str, object]
-models/radm/src/radm/training/dataset.py	Mapping[str, object]	self, row: Mapping[str, object], *, width: int, height: int
-models/radm/src/radm/training/dataset.py	list[Mapping[str, object]]	def _sequence_rows(value: object) -> list[Mapping[str, object]]:
-models/radm/src/radm/training/dataset.py	object	def _decode_image(value: object) -> Image.Image:
-models/radm/src/radm/training/dataset.py	object	def _sequence_rows(value: object) -> list[Mapping[str, object]]:
-models/radm/src/radm/training/lightning_module.py	Mapping[str, object]	def configure_optimizers(self) -> Mapping[str, object]:
 models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	original_config: Mapping[str, object] | None = None,
 models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	original_hydra_config: Mapping[str, object] | None = None,
 models/ralf/src/ralf/configuration_ralf.py	Mapping[str, object] | None	retrieval_metadata: Mapping[str, object] | None = None,

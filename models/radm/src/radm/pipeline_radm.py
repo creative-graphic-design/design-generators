@@ -21,6 +21,14 @@ from .modeling_radm import RADMDenoiser
 from .processing_radm import RADMProcessor
 from .scheduling_radm import RADMScheduler
 
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+NestedFloatSequence = (
+    Sequence[float] | Sequence[Sequence[float]] | Sequence[Sequence[Sequence[float]]]
+)
+NestedBoolSequence = (
+    Sequence[bool] | Sequence[Sequence[bool]] | Sequence[Sequence[Sequence[bool]]]
+)
+
 
 class RADMPipeline(DiffusionPipeline):
     """Generate poster layouts with a RADM proposal diffusion pipeline."""
@@ -53,11 +61,27 @@ class RADMPipeline(DiffusionPipeline):
         self,
         images: ImageInput | Sequence[ImageInput] | None = None,
         *,
-        content: Mapping[str, object] | None = None,
-        text_features: Float[torch.Tensor, "batch text text_dim"]
-        | object
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | Float[torch.Tensor, "batch text text_dim"]
+            | Float[np.ndarray, "batch text text_dim"]
+            | Bool[torch.Tensor, "batch text 1"]
+            | Bool[np.ndarray, "batch text 1"]
+            | NestedFloatSequence
+            | NestedBoolSequence
+            | JsonValue,
+        ]
         | None = None,
-        text_mask: Bool[torch.Tensor, "batch text 1"] | object | None = None,
+        text_features: Float[torch.Tensor, "batch text text_dim"]
+        | Float[np.ndarray, "batch text text_dim"]
+        | NestedFloatSequence
+        | None = None,
+        text_mask: Bool[torch.Tensor, "batch text 1"]
+        | Bool[np.ndarray, "batch text 1"]
+        | NestedBoolSequence
+        | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
@@ -68,11 +92,11 @@ class RADMPipeline(DiffusionPipeline):
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | Sequence[object]
+        | Sequence[Sequence[float]]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[Sequence[bool]]
         | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
@@ -84,7 +108,30 @@ class RADMPipeline(DiffusionPipeline):
         class_threshold: float | None = None,
         nms_threshold: float | None = None,
         return_raw_predictions: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | Mapping[int, str]
+            | Mapping[
+                str,
+                str
+                | int
+                | float
+                | bool
+                | None
+                | Float[torch.Tensor, "..."]
+                | Int[torch.Tensor, "..."]
+                | Bool[torch.Tensor, "..."]
+                | list[Float[torch.Tensor, "..."]],
+            ]
+            | list[Float[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Generate normalized poster layout boxes and labels.
 
         Args:
