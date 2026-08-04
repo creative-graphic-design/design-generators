@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import cast
+from collections.abc import Mapping, Sequence
+from typing import TypeAlias, cast
 
 import torch
 from jaxtyping import Float
@@ -13,6 +13,16 @@ from .modeling_radm import RADMDenoiser
 from .pipeline_radm import RADMPipeline
 from .processing_radm import RADMProcessor
 from .scheduling_radm import RADMScheduler
+
+CheckpointPayloadValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | Sequence["CheckpointPayloadValue"]
+    | Mapping[str, "CheckpointPayloadValue"]
+)
 
 
 def build_pipeline(config: RADMConfig) -> RADMPipeline:
@@ -46,7 +56,12 @@ def build_pipeline(config: RADMConfig) -> RADMPipeline:
     )
 
 
-def inspect_checkpoint_payload(payload: Mapping[str, object]) -> dict[str, object]:
+def inspect_checkpoint_payload(
+    payload: Mapping[
+        str,
+        CheckpointPayloadValue | Mapping[str, Float[torch.Tensor, "..."]],
+    ],
+) -> dict[str, int | bool | list[str]]:
     """Summarize a Detectron2-style RADM checkpoint payload.
 
     Args:
@@ -102,7 +117,10 @@ def convert_original_state_dict(
 
 
 def _find_state_dict(
-    payload: Mapping[str, object],
+    payload: Mapping[
+        str,
+        CheckpointPayloadValue | Mapping[str, Float[torch.Tensor, "..."]],
+    ],
 ) -> Mapping[str, Float[torch.Tensor, "..."]]:
     for key in ("model", "state_dict", "ema_state"):
         value = payload.get(key)

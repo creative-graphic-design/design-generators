@@ -6,10 +6,11 @@ from collections.abc import Mapping, Sequence
 import json
 from os import PathLike
 from pathlib import Path
-from typing import Any, Literal, Self, cast  # noqa: TID251 - Diffusers ConfigMixin expects dict[str, Any].
+from typing import Literal, Self, cast
 
+import numpy as np
 import torch
-from jaxtyping import Bool, Float
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
 from transformers.tokenization_utils_base import BatchEncoding
@@ -20,6 +21,14 @@ from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from .configuration_radm import RADMConfig
 from .image_processing_radm import RADMImageProcessor
 from .postprocessing import select_predictions, xyxy_to_xywh_normalized
+
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+NestedFloatSequence = (
+    Sequence[float] | Sequence[Sequence[float]] | Sequence[Sequence[Sequence[float]]]
+)
+NestedBoolSequence = (
+    Sequence[bool] | Sequence[Sequence[bool]] | Sequence[Sequence[Sequence[bool]]]
+)
 
 
 class RADMProcessor(ProcessorMixin):
@@ -122,7 +131,7 @@ class RADMProcessor(ProcessorMixin):
             if isinstance(raw_id2label, Mapping)
             else None
         )
-        config = RADMConfig.from_config(cast(dict[str, Any], config_payload))
+        config = RADMConfig.from_config(cast(dict[str, JsonValue], config_payload))
         image_processor = RADMImageProcessor.from_pretrained(root)
         return cls(
             image_processor=image_processor,
@@ -134,11 +143,27 @@ class RADMProcessor(ProcessorMixin):
         self,
         images: ImageInput | Sequence[ImageInput] | None = None,
         *,
-        content: Mapping[str, object] | None = None,
-        text_features: Float[torch.Tensor, "batch text text_dim"]
-        | object
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | Float[torch.Tensor, "batch text text_dim"]
+            | Float[np.ndarray, "batch text text_dim"]
+            | Bool[torch.Tensor, "batch text 1"]
+            | Bool[np.ndarray, "batch text 1"]
+            | NestedFloatSequence
+            | NestedBoolSequence
+            | JsonValue,
+        ]
         | None = None,
-        text_mask: Bool[torch.Tensor, "batch text 1"] | object | None = None,
+        text_features: Float[torch.Tensor, "batch text text_dim"]
+        | Float[np.ndarray, "batch text text_dim"]
+        | NestedFloatSequence
+        | None = None,
+        text_mask: Bool[torch.Tensor, "batch text 1"]
+        | Bool[np.ndarray, "batch text 1"]
+        | NestedBoolSequence
+        | None = None,
         batch_size: int = 1,
         return_tensors: Literal["pt"] = "pt",
         **kwargs: object,
@@ -167,17 +192,34 @@ class RADMProcessor(ProcessorMixin):
         resolved_images = images or content.get("image") or content.get("images")
         if resolved_images is None:
             raise ValueError("RADM requires images or content['image']")
-        encoded = self.image_processor.preprocess(resolved_images, return_tensors="pt")
+        encoded = self.image_processor.preprocess(
+            cast(ImageInput | Sequence[ImageInput], resolved_images),
+            return_tensors="pt",
+        )
         resolved_batch = int(encoded["pixel_values"].shape[0])
         features = self._text_features(
             text_features
             if text_features is not None
-            else content.get("text_features"),
+            else cast(
+                Float[torch.Tensor, "batch text text_dim"]
+                | Float[np.ndarray, "batch text text_dim"]
+                | NestedFloatSequence
+                | None,
+                content.get("text_features"),
+            ),
             batch_size=resolved_batch,
             device=encoded["pixel_values"].device,
         )
         mask = self._text_mask(
-            text_mask if text_mask is not None else content.get("text_mask"),
+            text_mask
+            if text_mask is not None
+            else cast(
+                Bool[torch.Tensor, "batch text 1"]
+                | Bool[np.ndarray, "batch text 1"]
+                | NestedBoolSequence
+                | None,
+                content.get("text_mask"),
+            ),
             batch_size=resolved_batch,
             text_count=features.shape[1],
             device=features.device,
@@ -219,8 +261,43 @@ class RADMProcessor(ProcessorMixin):
         nms_threshold: float,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        extra_intermediates: Mapping[str, object] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        extra_intermediates: Mapping[
+            str,
+            str
+            | int
+            | float
+            | bool
+            | None
+            | Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | list[Float[torch.Tensor, "..."]],
+        ]
+        | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | Mapping[int, str]
+            | Mapping[
+                str,
+                str
+                | int
+                | float
+                | bool
+                | None
+                | Float[torch.Tensor, "..."]
+                | Int[torch.Tensor, "..."]
+                | Bool[torch.Tensor, "..."]
+                | list[Float[torch.Tensor, "..."]],
+            ]
+            | list[Float[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Decode denoiser predictions into the common layout schema.
 
         Args:
@@ -270,7 +347,10 @@ class RADMProcessor(ProcessorMixin):
 
     def _text_features(
         self,
-        value: object,
+        value: Float[torch.Tensor, "batch text text_dim"]
+        | Float[np.ndarray, "batch text text_dim"]
+        | NestedFloatSequence
+        | None,
         *,
         batch_size: int,
         device: torch.device,
@@ -294,7 +374,10 @@ class RADMProcessor(ProcessorMixin):
 
     def _text_mask(
         self,
-        value: object,
+        value: Bool[torch.Tensor, "batch text 1"]
+        | Bool[np.ndarray, "batch text 1"]
+        | NestedBoolSequence
+        | None,
         *,
         batch_size: int,
         text_count: int,
@@ -320,6 +403,6 @@ def _processor_root(
     return root / subfolder
 
 
-def _read_processor_metadata(root: Path, config_name: str) -> Mapping[str, object]:
+def _read_processor_metadata(root: Path, config_name: str) -> Mapping[str, JsonValue]:
     text = (root / config_name).read_text(encoding="utf-8")
-    return cast(Mapping[str, object], json.loads(text))
+    return cast(Mapping[str, JsonValue], json.loads(text))

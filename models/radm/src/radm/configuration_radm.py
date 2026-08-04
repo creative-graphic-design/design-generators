@@ -8,6 +8,7 @@ from typing import Final
 
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 
+from laygen.common.serialization import YamlValue
 from posgen.common.labels import (
     DatasetName,
     id2label_for_dataset,
@@ -128,7 +129,7 @@ class RADMConfig(ConfigMixin):
         denoiser_subfolder: str = "denoiser",
         scheduler_subfolder: str = "scheduler",
         processor_subfolder: str = "processor",
-        conversion_report: Mapping[str, object] | None = None,
+        conversion_report: Mapping[str, YamlValue] | None = None,
         checkpoint_status: str = "RADM README confirms datasets only; no released checkpoint is published",
         license_status: str = "checked original source has no license file",
     ) -> None:

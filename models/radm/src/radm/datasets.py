@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import SupportsFloat, SupportsInt, cast
+from typing import SupportsFloat, SupportsInt, TypeAlias, cast
 
 from jaxtyping import Float, Int
 from laygen.common.bbox import ltwh_to_xywh
 import torch
+
+CocoAnnotationValue: TypeAlias = (
+    str | int | float | bool | None | Sequence[SupportsFloat]
+)
 
 
 @dataclass(frozen=True)
@@ -21,7 +25,7 @@ class RADMAnnotation:
 
 
 def normalize_coco_annotations(
-    annotations: Sequence[Mapping[str, object]],
+    annotations: Sequence[Mapping[str, CocoAnnotationValue]],
     *,
     canvas_size: tuple[int, int],
 ) -> tuple[

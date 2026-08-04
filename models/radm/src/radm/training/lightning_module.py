@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Mapping
+from typing import TypeAlias
 
 import torch
 from jaxtyping import Bool, Float
@@ -34,6 +35,11 @@ from .config import (
 )
 from .dataset import RADMTrainingBatch
 from .losses import RADMLossOutput, radm_losses
+
+OptimizerConfig: TypeAlias = Mapping[
+    str,
+    torch.optim.Optimizer | Mapping[str, torch.optim.lr_scheduler.LRScheduler | str],
+]
 
 try:
     from lightning.pytorch import LightningModule as _LightningModule
@@ -104,7 +110,7 @@ class RADMTrainingModule(_LightningModule):
         if stream_warning is not None:
             stream_warning(False)
 
-    def configure_optimizers(self) -> Mapping[str, object]:
+    def configure_optimizers(self) -> OptimizerConfig:
         """Return AdamW plus MultiStepLR for the reference schedule."""
         optimizer = torch.optim.AdamW(
             self.parameters(),
