@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import IO, Literal, TypedDict, cast
 
@@ -13,7 +13,7 @@ from PIL import Image
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
-from laygen.common.bbox import BoxFormat, prepare_layout_tensors
+from laygen.common.bbox import ArrayLikeInput, BoxFormat, prepare_layout_tensors
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from posgen.common.labels import (
     DatasetName,
@@ -135,13 +135,19 @@ class CGBDMProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "..."]
         | Float[np.ndarray, "..."]
-        | list[CGBDMInputValue],
+        | Sequence[Sequence[Sequence[float]]]
+        | Sequence[Sequence[float]]
+        | Sequence[ArrayLikeInput],
         labels: Int[torch.Tensor, "..."]
         | Int[np.ndarray, "..."]
-        | list[CGBDMInputValue],
+        | Sequence[Sequence[int]]
+        | Sequence[int]
+        | Sequence[ArrayLikeInput],
         mask: Bool[torch.Tensor, "..."]
         | Bool[np.ndarray, "..."]
-        | list[CGBDMInputValue]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | Sequence[ArrayLikeInput]
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import json
 from os import PathLike
 from pathlib import Path
@@ -14,6 +14,7 @@ from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     ltwh_to_xywh,
     prepare_layout_tensors,
@@ -165,15 +166,15 @@ class FlexDmProcessor(ProcessorMixin):
         condition_type: ConditionType | str = ConditionType.completion,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,

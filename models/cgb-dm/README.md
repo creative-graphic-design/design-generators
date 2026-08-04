@@ -64,8 +64,8 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training and S5 parity complete; Hub publish deferred |
-| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 parity complete; Hub publish deferred |
+| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training complete; S5 recipe instability documented; Hub publish deferred |
+| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 practical parity complete; Hub publish deferred |
 
 ## Uses
 
@@ -138,17 +138,17 @@ uv run --package cgb-dm --extra training \
 
 ### Parity Results
 
-The gated vendor parity suite requires local CGB-DM assets and `PARITY_REQUIRE=1`.
+The gated original-implementation agreement suite requires local CGB-DM assets and `PARITY_REQUIRE=1`.
 
 | Dataset | Stage | Cases | Criterion | Result |
 | --- | --- | ---: | --- | --- |
-| PKU PosterLayout | real vendor S0-S2 training-step parity | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
-| PKU PosterLayout | S5 full-run metrics | 3 seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; qualitative regime matches, but `unds` and `occ` show systematic ~1-2% absolute differences | pass with caveat: `val=1.000000 +/- 0.000000`, `ove=0.003293 +/- 0.000801`, `undl=0.999345 +/- 0.000284`, `unds=0.991428 +/- 0.001467` (+0.019043 package-reference), `occ=0.116661 +/- 0.000648` (-0.010835), `rea=0.014180 +/- 0.000295` (-0.001515) |
+| PKU PosterLayout | original-code S0-S2 training-step agreement | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
+| PKU PosterLayout | S5 full-run metrics | 3 evaluation seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; seed-variance matrix shows recipe-side seed/trajectory instability | not a practical-parity claim: original seed42 and package seed42 are non-collapsed, original seed43 collapses with no underlay, and package seed43/44 also collapse; `undl`/`unds` are undefined when no underlay is generated |
 | CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are in practical parity | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/cgb-dm/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](models/cgb-dm/REPRODUCING.md) for the commands that download original assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 ## License
 
@@ -161,6 +161,9 @@ The original implementation is Apache-2.0. This package is Apache-2.0.
   title = {CGB-DM: Content and Graphic Balance Layout Generation with Transformer-based Diffusion Model},
   author = {Li, Yu and Chen, Yifan and Liu, Gongye and Yin, Fei and Bai, Qingyan and Wu, Jie and Wang, Hongfa and Chu, Ruihang and Yang, Yujiu},
   year = {2024},
+  eprint = {2407.15233},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
   url = "https://arxiv.org/abs/2407.15233"
 }
 ```

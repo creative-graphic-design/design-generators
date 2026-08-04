@@ -53,6 +53,10 @@ def filled_body(reference: str = "Refs #127") -> str:
     )
 
 
+def filled_body_with_shared_library_changes(reason: str) -> str:
+    return filled_body() + f"\n## Shared Library Changes\n\n- {reason}\n"
+
+
 def completion_body(*, draft: bool = False, completion_gate: str) -> str:
     checklist = "\n".join(f"- [x] {item}" for item in REQUIRED_CHECKLIST_ITEMS)
     draft_note = "\n\nDraft only.\n" if draft else "\n"
@@ -253,6 +257,58 @@ def test_completion_gate_allows_legacy_ready_body_without_section() -> None:
     )
 
 
+def test_guarded_cross_cutting_paths_include_lib_src_docs_and_agent_skills() -> None:
+    changed_files = [
+        "lib/laygen/src/laygen/common/vendor.py",
+        "docs/getting-started.md",
+        ".agents/skills/model-conversion/SKILL.md",
+        "models/ltnet/README.md",
+    ]
+
+    assert check_pr_issue_reference.guarded_cross_cutting_paths(changed_files) == [
+        "lib/laygen/src/laygen/common/vendor.py",
+        "docs/getting-started.md",
+        ".agents/skills/model-conversion/SKILL.md",
+    ]
+
+
+def test_shared_library_change_errors_require_reason_for_docs_changes() -> None:
+    errors = check_pr_issue_reference.shared_library_change_errors(
+        filled_body(),
+        ["docs/getting-started.md"],
+    )
+
+    assert errors == [
+        "PRs changing cross-cutting paths must explain the rationale in "
+        "`## Shared Library Changes`: docs/getting-started.md"
+    ]
+
+
+def test_shared_library_change_errors_require_reason_for_agent_skill_changes() -> None:
+    errors = check_pr_issue_reference.shared_library_change_errors(
+        filled_body() + "\n## Shared Library Changes\n\n- N/A\n",
+        [".agents/skills/model-conversion/references/model-readme-template.md"],
+    )
+
+    assert errors == [
+        "PRs changing cross-cutting paths must explain the rationale in "
+        "`## Shared Library Changes`: "
+        ".agents/skills/model-conversion/references/model-readme-template.md"
+    ]
+
+
+def test_shared_library_change_errors_accept_actionable_reason() -> None:
+    assert (
+        check_pr_issue_reference.shared_library_change_errors(
+            filled_body_with_shared_library_changes(
+                "Shared template wording changed to keep model READMEs consistent."
+            ),
+            [".agents/skills/model-conversion/references/model-readme-template.md"],
+        )
+        == []
+    )
+
+
 def test_main_fails_without_implementation_issue(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -281,3 +337,23 @@ def test_main_passes_with_implementation_issue(
 
     assert check_pr_issue_reference.main(["--body-file", str(body_path)]) == 0
     assert "#127" in capsys.readouterr().out
+
+
+def test_main_fails_for_guarded_docs_change_without_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    body_path = tmp_path / "body.md"
+    body_path.write_text(filled_body(), encoding="utf-8")
+
+    assert (
+        check_pr_issue_reference.main(
+            [
+                "--body-file",
+                str(body_path),
+                "--changed-file",
+                "docs/training-reproduction.md",
+            ]
+        )
+        == 1
+    )
+    assert "Shared Library Changes" in capsys.readouterr().err

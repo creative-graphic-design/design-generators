@@ -42,6 +42,7 @@ DOCS_MODEL_TASK_COLORS = {
     frozenset({"content-agnostic-layout-generation"}): "2f80ed",
     frozenset({"content-aware-layout-generation"}): "eb5757",
     frozenset({"layout-evaluation"}): "6b7280",
+    frozenset({"saliency-detection"}): "009688",
     frozenset(
         {"content-agnostic-layout-generation", "content-aware-layout-generation"}
     ): "9b51e0",
@@ -89,6 +90,131 @@ def test_model_readme_contracts() -> None:
 
 def test_readme_badge_contracts() -> None:
     _run_script("scripts/check_readme_badges.py")
+
+
+def test_citation_contract_accepts_matching_arxiv_metadata() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{yang2024posterllava,
+  title = {PosterLLaVa: Constructing a Unified Multi-modal Layout Generator},
+  author = {Tao Yang and Yingmin Luo},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2406.02884"
+}
+```
+"""
+
+    check_model_readmes._assert_citation_bibtex(Path("models/example/README.md"), text)
+
+
+def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2303.08137},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2303.08137"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="Citation arXiv ids"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  url = "https://arxiv.org/abs/2406.02884"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="missing required fields"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_rejects_eprint_url_mismatch() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2406.02884)
+
+## Citation
+
+```bibtex
+@misc{example2024,
+  title = {Example},
+  author = {Example Author},
+  year = {2024},
+  eprint = {2406.02884},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CV},
+  url = "https://arxiv.org/abs/2303.08137"
+}
+```
+"""
+
+    with pytest.raises(AssertionError, match="does not match url"):
+        check_model_readmes._assert_citation_bibtex(
+            Path("models/example/README.md"), text
+        )
+
+
+def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for Example
+
+[Paper](https://arxiv.org/abs/2303.08137)
+
+## Citation
+
+```bibtex
+@inproceedings{example2023,
+  title = {Example},
+  author = {Example Author},
+  booktitle = {Proceedings of Example Conference},
+  year = {2023}
+}
+```
+"""
+
+    check_model_readmes._assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 def test_static_v1_badges_reject_double_hyphen_query_values(tmp_path: Path) -> None:
@@ -147,6 +273,27 @@ def test_root_models_table_rejects_metadata_columns(
 
     with pytest.raises(AssertionError, match="Model, Venue, Ckpt, Train"):
         check_model_readmes._root_model_slugs(readme)
+
+
+def test_model_readme_reproducibility_accepts_repo_root_link(tmp_path: Path) -> None:
+    check_model_readmes = _load_check_model_readmes()
+    readme = tmp_path / "models" / "layout-dm" / "README.md"
+    readme.parent.mkdir(parents=True)
+    readme.write_text(
+        """# Model Card for LayoutDM
+
+## Reproducibility
+
+See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for commands.
+
+## Environmental Impact
+""",
+        encoding="utf-8",
+    )
+
+    check_model_readmes._assert_readme_reproducibility_link(
+        readme, readme.read_text(encoding="utf-8")
+    )
 
 
 def test_readme_badge_policy_derives_model_label_from_alt_prefix(
@@ -451,3 +598,25 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
         [("laygen", "lib/laygen")],
         "Install",
     )
+
+
+def test_model_install_contract_requires_workspace_model_dependencies() -> None:
+    check_model_readmes = _load_check_model_readmes()
+    text = """# Model Card for SmartText
+
+## How to Get Started with the Model
+
+```bash
+pip install \\
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \\
+  "smarttext @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/smarttext"
+```
+
+## Training Details
+"""
+
+    with pytest.raises(AssertionError, match="models/basnet"):
+        check_model_readmes._assert_model_pip_install_snippet(
+            REPO_ROOT / "models" / "smarttext" / "README.md",
+            text,
+        )

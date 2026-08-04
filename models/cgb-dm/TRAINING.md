@@ -1,13 +1,14 @@
 # Training CGB-DM
 
-CGB-DM training is reproducible with the package implementation when it uses the
-reference architecture, reference dataset encoding, and raw-internal S5
-evaluation protocol. The PKU PosterLayout package checkpoint trained for 500
-epochs reproduces the qualitative S5 metric regime but is not statistically
-equivalent to the reference run: `val` is `1.000000 +/- 0.000000` for both runs,
-while package underlay saliency is `0.991428 +/- 0.001467` against reference
-`0.972385 +/- 0.000736`, and package occlusion is `0.116661 +/- 0.000648`
-against reference `0.127496 +/- 0.000878` over seeds 1, 2, and 3.
+CGB-DM training is reproducible enough to support CGL practical parity with the
+package implementation under the reference architecture, reference dataset
+encoding, and raw-internal S5 evaluation protocol. PKU PosterLayout is not a
+practical-parity claim: the seed-variance matrix shows recipe-side
+seed/trajectory instability, because the original implementation itself
+collapses to no-underlay layouts under an alternate training seed while both
+the original and package seed42 runs remain non-collapsed. This matches the
+trajectory-sensitivity risk tracked in
+[issue #148](https://github.com/creative-graphic-design/design-generators/issues/148).
 
 The reproducible package run uses:
 
@@ -21,6 +22,20 @@ The reproducible package run uses:
 - S5 evaluation on the PKU validation split with 1,000 samples per seed, raw
   internal `argmax` class ids, and raw generated boxes passed to the original
   metric formulas.
+
+## Stage Evidence
+
+The rows below point to existing local evidence only. Generated checkpoints,
+sample tensors, and full-run metric summaries stay outside git under `.cache/`.
+
+| Stage | Command | Artifact | Result |
+| --- | --- | --- | --- |
+| S0 | `PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz pytest models/cgb-dm/tests/vendor_parity/test_cgb_dm_training_parity.py -m vendor_parity -k s0 -rs` | `.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | PKU source-order manifest replay matches the original loader rows. |
+| S1 | `PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz pytest models/cgb-dm/tests/vendor_parity/test_cgb_dm_training_parity.py -m vendor_parity -k s1 -rs` | `.cache/cgb-dm/reference/metadata.json` | Fixed-batch forward and training trace checks pass locally. |
+| S2 | `PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz pytest models/cgb-dm/tests/vendor_parity/test_cgb_dm_training_parity.py -m vendor_parity -k s2 -rs` | `.cache/cgb-dm/reference/metadata.json` | One optimizer step matches gradients, Adam state, and post-step parameters within documented tolerances. |
+| S3 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra training --with tensorboard --with jsonargparse[signatures]>=4.27.7 python -m traingen.lightning.cli fit --config models/cgb-dm/configs/training/cgb_dm_pku_posterlayout.yaml --seed_everything 1 --trainer.accelerator gpu --trainer.devices 1 --trainer.default_root_dir .cache/cgb-dm/full-run/ours-pku/pku_full_ours_20260724_013039` | `.cache/cgb-dm/full-run/ours-pku/pku_full_ours_20260724_013039/run_metadata.json` | Full LightningCLI launch metadata records the package training command, GPU, config, and startup verification. |
+| S4 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py --dataset pku_posterlayout --data-root .cache/cgb-dm/datasets/pku/split --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | `.cache/cgb-dm/reference/pku_posterlayout_train_manifest.json` | Regenerated PKU source-order metadata is available for deterministic loader/order replay. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz python models/cgb-dm/scripts/evaluate_full_run.py --backend ours --repo-root "$PWD" --data-root .cache/cgb-dm/datasets/pku/split --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed --gpu 0 --seeds 1 2 3` | `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/pku-seed-variance-matrix.json` | PKU S5 verdict is recipe-side seed/trajectory instability; CGL S5 practical parity is recorded separately in `.cache/cgb-dm/full-run/s5-eval-cgl-comparison.json`. |
 
 ## Package Training
 
@@ -138,7 +153,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --checkpoint .cache/cgb-dm/full-run/ours-pku-fixed/pku_full_ours_archfixed_20260724_122952/lightning_logs/version_0/checkpoints/epoch=499-step=121000.ckpt \
-  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed \
   --gpu 0 \
   --seeds 1 2 3
 ```
@@ -152,18 +167,21 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --checkpoint .cache/cgb-dm/full-run/vendor-pku/checkpoints/pku_full_vendor_20260723_224914/Epoch500_cgbdm_weights.pth \
-  --output-dir .cache/cgb-dm/full-run/s5-eval-reference-pku-val \
+  --output-dir .cache/cgb-dm/full-run/s5-eval-vendor-pku-val-fast \
   --gpu 0 \
   --seeds 1 2 3
 ```
 
-## PKU S5 Results
+## Reproduction Results
+
+### PKU S5 Results
 
 Both evaluations use the PKU `pku.yaml` validation path (`val/inpaint`) with
-1,000 samples per seed. The qualitative metric regime matches the reference run,
-but package underlay saliency (`unds`, +0.019043) and occlusion (`occ`,
--0.010835) differ by about 1-2% absolute and are systematic at roughly 10 sigma;
-`rea` is also lower by -0.001515.
+1,000 samples per evaluation seed. The package seed42 checkpoint and original
+seed42 checkpoint are both non-collapsed, but the seed-variance matrix changes
+the PKU conclusion from practical parity to recipe-side seed/trajectory
+instability: the original implementation also collapses under alternate seed43,
+so no-underlay collapse is not package-only behavior.
 
 | Metric | Reference mean +/- std (n=3) | Package mean +/- std (n=3) |
 | --- | ---: | ---: |
@@ -174,12 +192,41 @@ but package underlay saliency (`unds`, +0.019043) and occlusion (`occ`,
 | `occ` | 0.127496 +/- 0.000878 | 0.116661 +/- 0.000648 |
 | `rea` | 0.015695 +/- 0.000349 | 0.014180 +/- 0.000295 |
 
+The matrix below was regenerated from existing dumps using evaluation seeds 1,
+2, and 3 for each row. `undl`/`unds` reported as `NaN` means the metric is
+undefined because no underlay was generated.
+
+| Run | System | Nonpad/sample | Underlay total | Underlay/sample | Samples with underlay | `unds` | Label |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| original_seed42 | original implementation | 3.742000 | 2028 | 0.676000 | 1756 | 0.972385 | non-collapsed |
+| original_seed43 | original implementation | 0.863000 | 0 | 0.000000 | 0 | NaN | collapsed/no-underlay |
+| package_seed42 | package | 3.364667 | 1865 | 0.621667 | 1644 | 0.991428 | non-collapsed |
+| package_seed43 | package | 0.816000 | 0 | 0.000000 | 0 | NaN | collapsed/no-underlay |
+| package_seed44 | package | 0.849667 | 0 | 0.000000 | 0 | NaN | collapsed/no-underlay |
+
+Regeneration metadata:
+
+- Seeds: matrix rows use evaluation seeds 1, 2, and 3; training/run labels cover
+  seed42, seed43, and seed44 where available.
+- Script: `.cache/cgb-dm/pku-replicate/summarize_pku_variance_matrix.py`.
+- Artifacts:
+  `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/pku-seed-variance-matrix.json`
+  and
+  `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/pku-seed-variance-matrix.md`.
+- Source summaries:
+  `.cache/cgb-dm/full-run/s5-eval-vendor-pku-val-fast/summary.json`,
+  `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/vendor-seed43/summary.json`,
+  `.cache/cgb-dm/full-run/s5-eval-ours-pku-val-archfixed/summary.json`,
+  `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/seed43-package-replicate/summary.json`,
+  and
+  `.cache/cgb-dm/full-run/s5-evaluation-pku-seed-variance/seed44-package-replicate/summary.json`.
+
 The reference full training log emitted `val=1.000000`, `ove=0.002727`,
 `undl=0.996477`, `unds=0.978788`, `occ=0.127215`, and `rea=0.015321` after
 epoch 500. The standalone reference and package S5 runs above reload final
 checkpoints and resample seeds 1, 2, and 3 with the same metric formulas.
 
-## CGL Status
+### CGL Status
 
 CGL uses the same reference architecture and raw-internal evaluation protocol.
 Both evaluations use the CGL `cgl.yaml` validation path (`val/inpaint`) with
@@ -216,7 +263,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with p
   --seeds 1 2 3
 ```
 
-## CGL S5 Results
+### CGL S5 Results
 
 | Metric | Reference mean +/- std (n=3) | Package mean +/- std (n=3) | Package - reference |
 | --- | ---: | ---: | ---: |

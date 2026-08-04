@@ -10,21 +10,23 @@ from os import PathLike
 from typing import TYPE_CHECKING, NoReturn, Protocol, TypeAlias, cast
 
 import numpy as np
-from jaxtyping import Bool, Float, Int
-
-from laygen.common.typing import NumpyLayoutBBoxes, NumpyLayoutLabels, NumpyLayoutMask
+from jaxtyping import Bool, Float, Int, Shaped
 
 if TYPE_CHECKING:
     import torch
 
-    ArrayLike: TypeAlias = np.ndarray | torch.Tensor
-    LayoutBBoxes: TypeAlias = (
-        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
-    )
-    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
-    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
-else:
-    ArrayLike: TypeAlias = object
+ConfigScalar: TypeAlias = str | int | float | bool | None
+ConfigValue: TypeAlias = (
+    ConfigScalar | Sequence["ConfigValue"] | Mapping[str, "ConfigValue"]
+)
+
+
+class ConfigAttributes(Protocol):
+    """Attribute-backed config accepted by parity test helpers."""
+
+    def __getattribute__(self, name: str, /) -> ConfigValue:
+        """Return a constructor-compatible config field."""
+        ...
 
 
 def parity_require_enabled() -> bool:
@@ -90,17 +92,25 @@ class LayoutOutputLike(Protocol):
     """Duck-typed layout output protocol used by shared test helpers."""
 
     @property
-    def bbox(self) -> LayoutBBoxes:
+    def bbox(
+        self,
+    ) -> (
+        Float[np.ndarray, "batch elements 4"] | Float[torch.Tensor, "batch elements 4"]
+    ):
         """Layout boxes shaped ``(batch, elements, 4)``."""
         ...
 
     @property
-    def labels(self) -> LayoutLabels:
+    def labels(
+        self,
+    ) -> Int[np.ndarray, "batch elements"] | Int[torch.Tensor, "batch elements"]:
         """Layout labels shaped ``(batch, elements)``."""
         ...
 
     @property
-    def mask(self) -> LayoutMask:
+    def mask(
+        self,
+    ) -> Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"]:
         """Valid-element mask shaped ``(batch, elements)``."""
         ...
 
@@ -110,13 +120,21 @@ class LayoutOutputLike(Protocol):
         ...
 
 
-def assert_mask_valid(mask: ArrayLike) -> None:
+def assert_mask_valid(
+    mask: Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"],
+) -> None:
     """Assert that a valid-element mask has the public mask schema."""
     assert str(getattr(mask, "dtype")) in {"bool", "torch.bool"}
     assert getattr(mask, "ndim") == 2
 
 
-def assert_normalized_xywh(bbox: ArrayLike, mask: ArrayLike | None = None) -> None:
+def assert_normalized_xywh(
+    bbox: Float[np.ndarray, "batch elements 4"]
+    | Float[torch.Tensor, "batch elements 4"],
+    mask: Bool[np.ndarray, "batch elements"]
+    | Bool[torch.Tensor, "batch elements"]
+    | None = None,
+) -> None:
     """Assert that boxes are normalized center ``xywh`` tensors."""
     if isinstance(bbox, np.ndarray):
         assert np.issubdtype(bbox.dtype, np.floating)
@@ -189,7 +207,7 @@ def load_torch_checkpoint_state_dict(
     state_dict_key: str | None = None,
     map_location: str | dict[str, str] | "torch.device" | None = None,
     weights_only: bool | None = None,
-) -> dict[str, "torch.Tensor"]:
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
     """Load a PyTorch checkpoint and return its model state dictionary.
 
     Args:
@@ -214,15 +232,15 @@ def load_torch_checkpoint_state_dict(
         )
     if state_dict_key is not None:
         checkpoint_data = checkpoint_data[state_dict_key]
-    return cast("dict[str, torch.Tensor]", checkpoint_data)
+    return cast('dict[str, Shaped[torch.Tensor, "..."]]', checkpoint_data)
 
 
 def strip_torch_state_dict_prefix(
-    state_dict: Mapping[str, "torch.Tensor"],
+    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]],
     *,
     strip_prefix: str,
     include_prefix: str | None = None,
-) -> "OrderedDict[str, torch.Tensor]":
+) -> OrderedDict[str, Shaped[torch.Tensor, "..."]]:
     """Return a state dict with a wrapper prefix removed.
 
     Args:
@@ -242,12 +260,12 @@ def strip_torch_state_dict_prefix(
 
 
 def vendor_backbone_kwargs(
-    config: object,
+    config: Mapping[str, ConfigValue] | ConfigAttributes,
     fields: Sequence[str],
     *,
     aliases: Mapping[str, str] | None = None,
-    overrides: Mapping[str, object] | None = None,
-) -> dict[str, object]:
+    overrides: Mapping[str, ConfigValue] | None = None,
+) -> dict[str, ConfigValue]:
     """Build checkpoint-backbone constructor kwargs from a config object.
 
     Args:
@@ -261,14 +279,14 @@ def vendor_backbone_kwargs(
     """
     aliases = aliases or {}
     overrides = overrides or {}
-    kwargs: dict[str, object] = {}
+    kwargs: dict[str, ConfigValue] = {}
     for field in fields:
         if field in overrides:
             kwargs[field] = overrides[field]
             continue
         source_field = aliases.get(field, field)
         if isinstance(config, Mapping):
-            kwargs[field] = cast("Mapping[str, object]", config)[source_field]
+            kwargs[field] = cast("Mapping[str, ConfigValue]", config)[source_field]
         else:
             kwargs[field] = getattr(config, source_field)
     return kwargs
@@ -276,7 +294,7 @@ def vendor_backbone_kwargs(
 
 def install_jaxtyping_runtime_hook(
     modules: Sequence[str],
-) -> AbstractContextManager[object]:
+) -> AbstractContextManager[None]:
     """Install the test-only jaxtyping runtime checker for target modules.
 
     Args:

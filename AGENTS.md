@@ -44,6 +44,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   the vendor/original implementation in identifiers, docstrings, comments, or
   config names; vendor references belong only in conversion modules,
   `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- `laygen.common.vendor` is the narrow shared-library exception for resolving
+  parity submodule checkouts; keep it documented in
+  `scripts/check_src_vendor_language.py` if it remains in package source.
 - Tensor and array annotations in package source (`models/*/src`, `lib/*/src`)
   must use fully qualified jaxtyping shaped types such as
   `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations
@@ -233,6 +236,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Docs and READMEs link the first mention of external projects and repositories.
   Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
   unless that page defines them in place or links directly to the definition.
+- Environment-specific documentation must distinguish observed verification
+  conditions from general requirements. Write "the currently verified setup is
+  ..." or equivalent when only one machine/GPU/driver combination has been
+  tested; do not present that setup as the package's inherent training
+  environment.
 - Package READMEs reference repository docs with repo-root-relative links such as
   `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
 - Hub model cards are generated through `laygen.common.model_card` using the
@@ -248,6 +256,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   [training reproduction protocol](docs/training-reproduction.md) for S0-S5
   evidence, topology guards, dataset coverage, seed policy, and evidence
   recording.
+- Do not run or claim S5 full-run training reproduction before S0-S4 stage
+  evidence exists; S5-only results are rejected by
+  `scripts/check_training_stage_evidence.py`.
 - PRs for models whose only weight path is self-training stay draft until S5 is
   confirmed for every claimed dataset; partial coverage must be stated in the
   package `TRAINING.md`, README, and PR body.

@@ -67,6 +67,7 @@ MODEL_OVERVIEW_TASK_BADGE_COLORS = {
     frozenset({"content-agnostic-layout-generation"}): "2f80ed",
     frozenset({"content-aware-layout-generation"}): "eb5757",
     frozenset({"layout-evaluation"}): "6b7280",
+    frozenset({"saliency-detection"}): "009688",
     frozenset(
         {"content-agnostic-layout-generation", "content-aware-layout-generation"}
     ): "9b51e0",
@@ -76,6 +77,7 @@ MODEL_OVERVIEW_TASK_LEGEND = {
     "content-aware": "eb5757",
     "layout-evaluation": "6b7280",
     "mixed": "9b51e0",
+    "saliency": "009688",
 }
 MODEL_OVERVIEW_RUNTIME_BADGES = {
     "diffusers": ("red", "huggingface"),
@@ -87,6 +89,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
     "arXiv 2024": "b31b1b",
+    "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
     "CVPR 2024": "0076a8",
@@ -99,6 +102,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "ICLR 2024": "00a88f",
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
+    "TMM 2024": "purple",
 }
 MODEL_OVERVIEW_DATASET_LABELS = {
     "ad_banner": "Ad Banner",
@@ -151,6 +155,7 @@ TASK_TAGS = frozenset(
         "content-agnostic-layout-generation",
         "content-aware-layout-generation",
         "layout-evaluation",
+        "saliency-detection",
     }
 )
 
@@ -286,7 +291,7 @@ def rewrite_repo_relative_links(markdown: str) -> str:
         return f"[{label}]({site_page_for_repo_link(link)})"
 
     markdown = re.sub(
-        r"\[(?P<label>!\[[^\]]+\]\([^)]+\))\]\((?P<link>[^):#][^)]+)\)",
+        r"\[(?P<label>!\[[^\]]*\]\([^)]+\))\]\((?P<link>[^):#][^)]+)\)",
         replace,
         markdown,
     )
@@ -892,6 +897,7 @@ def render_model_overview_task_legend() -> str:
                 "content-aware": "🎨",
                 "layout-evaluation": "📊",
                 "mixed": "🔀",
+                "saliency": "🖼️",
             }[message],
             message=message,
             color=color,

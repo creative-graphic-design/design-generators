@@ -8,3 +8,5 @@ def test_config_derived_sizes():
     assert cfg.pad_token_id == 133
     assert cfg.mask_token_id == 134
     assert cfg.max_token_length == 125
+    assert cfg.bbox_quantization == "kmeans"
+    assert cfg.q_type == "constrained"
