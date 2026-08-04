@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import json
 from os import PathLike
 from pathlib import Path
@@ -9,10 +10,11 @@ from typing import Literal, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
-from laygen.common.bbox import BoxFormat, prepare_layout_tensors
+from laygen.common.bbox import ArrayLikeInput, BoxFormat, prepare_layout_tensors
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -58,10 +60,19 @@ class LayoutActionProcessor(ProcessorMixin):
         self,
         *,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        bbox: torch.Tensor | np.ndarray | list[object] | None = None,
-        labels: torch.Tensor | np.ndarray | list[object] | None = None,
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -176,7 +187,7 @@ class LayoutActionProcessor(ProcessorMixin):
 
     def post_process_layouts(
         self,
-        sequences: torch.Tensor,
+        sequences: Int[torch.Tensor, "batch tokens"],
         *,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
@@ -190,9 +201,9 @@ class LayoutActionProcessor(ProcessorMixin):
         if return_intermediates:
             intermediates = {"actions": decoded.get("actions")}
         output = LayoutGenerationOutput(
-            bbox=cast(torch.Tensor, decoded["bbox"]),
-            labels=cast(torch.Tensor, decoded["labels"]),
-            mask=cast(torch.Tensor, decoded["mask"]),
+            bbox=cast(Float[torch.Tensor, "batch elements 4"], decoded["bbox"]),
+            labels=cast(Int[torch.Tensor, "batch elements"], decoded["labels"]),
+            mask=cast(Bool[torch.Tensor, "batch elements"], decoded["mask"]),
             id2label=dict(cast(dict[int, str], self.config.id2label)),
             sequences=sequences.detach().cpu(),
             intermediates=intermediates,
@@ -240,7 +251,7 @@ class LayoutActionProcessor(ProcessorMixin):
         )
         return cls(tokenizer=tokenizer)
 
-    def _labels_to_ids(self, labels: object) -> torch.Tensor:
+    def _labels_to_ids(self, labels: object) -> Int[torch.Tensor, "batch elements"]:
         if isinstance(labels, torch.Tensor):
             return labels.long()
         label_array = np.asarray(labels, dtype=object)
@@ -251,7 +262,9 @@ class LayoutActionProcessor(ProcessorMixin):
         return torch.as_tensor(vectorized(label_array), dtype=torch.long)
 
     def _prefix_elements(
-        self, num_elements: int | list[int] | torch.Tensor | None, mask: torch.Tensor
+        self,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None,
+        mask: Bool[torch.Tensor, "batch elements"],
     ) -> int:
         if num_elements is None:
             valid_counts = mask.sum(dim=1)

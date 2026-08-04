@@ -8,6 +8,12 @@
 
 - TODO
 
+## Shared Library Changes
+
+<!-- Required when touching cross-cutting paths such as `lib/*/src`, `docs/**`, or `.agents/skills/**`. Explain why the shared change belongs in this PR; otherwise write `N/A`. -->
+
+- TODO
+
 ## Verification
 
 <!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. -->
@@ -28,6 +34,14 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 - [ ] Kept the PR description current as the single summary of this PR and kept progress reports out of PR comments.
 - [ ] README reproducibility steps are copy-pasteable commands, if README docs changed.
 - [ ] Documented any deviations from the plan, checklist, or repository conventions below.
+
+## Completion Gate
+
+<!-- Draft PRs may leave these pending. Ready-for-review PRs must either satisfy each item, or keep an actionable blocker/reason in the item text. -->
+
+- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.
+- [ ] Training S5 reproduction complete, or N/A: <reason>.
+- [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
 
 ## Deviations / Follow-ups
 

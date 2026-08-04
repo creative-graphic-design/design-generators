@@ -9,7 +9,7 @@ from typing import Protocol, cast
 
 import torch
 import torch.nn.functional as F
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from torch import nn
 from torchvision.models import resnet50
 from torchvision.models._utils import IntermediateLayerGetter
@@ -59,9 +59,9 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
     def __init__(self, config: LayoutDetrConfig) -> None:
         """Initialize LayoutDETR layers."""
         super().__init__(config)
-        self._is_vendor_architecture = config.architecture == "vendor"
-        if self._is_vendor_architecture:  # pragma: no cover
-            self._init_vendor_layers(config)
+        self._is_reference_architecture = config.architecture == "reference"
+        if self._is_reference_architecture:  # pragma: no cover
+            self._init_reference_layers(config)
         else:
             self._init_lightweight_layers(config)
         self.post_init()
@@ -98,12 +98,14 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             nn.Linear(config.hidden_dim, 4),
         )
 
-    def _init_vendor_layers(self, config: LayoutDetrConfig) -> None:  # pragma: no cover
+    def _init_reference_layers(
+        self, config: LayoutDetrConfig
+    ) -> None:  # pragma: no cover
         self.backbone = _build_backbone(config.backbone_name)
         self.input_proj = nn.Conv2d(self.backbone.num_channels, config.hidden_dim, 1)
         self.fc_z = nn.Linear(config.z_dim * config.max_seq_length, config.bert_f_dim)
         self.emb_label = nn.Embedding(config.num_bbox_labels, config.bert_f_dim)
-        self.text_encoder = _build_vendor_bert_model(
+        self.text_encoder = _build_reference_bert_model(
             config,
             num_hidden_layers=config.bert_num_encoder_layers,
             encoder_width=config.bert_f_dim,
@@ -112,7 +114,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             text_encoder=True,
         )
         self.enc_text_len = nn.Embedding(config.max_text_length, config.bert_f_dim)
-        self.fc_in = _VendorMLP(
+        self.fc_in = _ReferenceMLP(
             input_dim=config.bert_f_dim * 4,
             hidden_dim=config.bert_f_dim,
             output_dim=config.hidden_dim,
@@ -126,7 +128,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             num_encoder_layers=6,
             num_decoder_layers=6,
         )
-        self.bbox_embed = _VendorMLP(
+        self.bbox_embed = _ReferenceMLP(
             input_dim=config.hidden_dim,
             hidden_dim=config.hidden_dim,
             output_dim=4,
@@ -136,7 +138,7 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             config.hidden_dim, config.z_dim * config.max_seq_length
         )
         self.fc_out_cls = nn.Linear(config.hidden_dim, config.num_bbox_labels)
-        self.text_decoder = _build_vendor_bert_lm_head(
+        self.text_decoder = _build_reference_bert_lm_head(
             config,
             num_hidden_layers=config.bert_num_decoder_layers,
             encoder_width=512,
@@ -154,7 +156,14 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         latents: Float[torch.Tensor, "batch elements latent"],
         text_lengths: Int[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
-    ) -> LayoutDetrModelOutput | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> (
+        LayoutDetrModelOutput
+        | tuple[
+            Float[torch.Tensor, "batch elements 4"],
+            Int[torch.Tensor, "batch elements"],
+            Bool[torch.Tensor, "batch elements"],
+        ]
+    ):
         """Run the LayoutDETR conditional forward pass."""
         return_dict = (
             self.config.use_return_dict if return_dict is None else return_dict
@@ -181,8 +190,8 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         text_attention_mask = text_attention_mask.to(device=device, dtype=torch.bool)
         layout_mask = layout_mask.to(device=device, dtype=torch.bool)
 
-        if self._is_vendor_architecture:
-            bbox, hidden = self._forward_vendor(
+        if self._is_reference_architecture:
+            bbox, hidden = self._forward_reference(
                 pixel_values=pixel_values,
                 input_ids=input_ids,
                 text_attention_mask=text_attention_mask,
@@ -228,17 +237,20 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
             hidden_states=hidden,
         )
 
-    def _forward_vendor(  # pragma: no cover
+    def _forward_reference(  # pragma: no cover
         self,
         *,
-        pixel_values: torch.Tensor,
-        input_ids: torch.Tensor,
-        text_attention_mask: torch.Tensor,
-        labels: torch.Tensor,
-        layout_mask: torch.Tensor,
-        latents: torch.Tensor,
-        text_lengths: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        pixel_values: Float[torch.Tensor, "batch channels height width"],
+        input_ids: Int[torch.Tensor, "batch elements tokens"],
+        text_attention_mask: Bool[torch.Tensor, "batch elements tokens"],
+        labels: Int[torch.Tensor, "batch elements"],
+        layout_mask: Bool[torch.Tensor, "batch elements"],
+        latents: Float[torch.Tensor, "batch elements latent"],
+        text_lengths: Int[torch.Tensor, "batch elements"] | None = None,
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements 4"],
+        Float[torch.Tensor, "batch elements hidden"],
+    ]:
         bg_nested = _NestedTensor(
             pixel_values,
             torch.zeros(
@@ -288,11 +300,20 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
 
 
 class _NestedTensor:  # pragma: no cover
-    def __init__(self, tensors: torch.Tensor, mask: torch.Tensor) -> None:
+    def __init__(
+        self,
+        tensors: Float[torch.Tensor, "batch channels height width"],
+        mask: Bool[torch.Tensor, "batch height width"],
+    ) -> None:
         self.tensors = tensors
         self.mask = mask
 
-    def decompose(self) -> tuple[torch.Tensor, torch.Tensor]:
+    def decompose(
+        self,
+    ) -> tuple[
+        Float[torch.Tensor, "batch channels height width"],
+        Bool[torch.Tensor, "batch height width"],
+    ]:
         return self.tensors, self.mask
 
 
@@ -304,11 +325,17 @@ class _FrozenBatchNorm2d(nn.Module):  # pragma: no cover
         self.register_buffer("running_mean", torch.zeros(channels))
         self.register_buffer("running_var", torch.ones(channels))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        weight = cast(torch.Tensor, self.weight).reshape(1, -1, 1, 1)
-        bias = cast(torch.Tensor, self.bias).reshape(1, -1, 1, 1)
-        running_var = cast(torch.Tensor, self.running_var).reshape(1, -1, 1, 1)
-        running_mean = cast(torch.Tensor, self.running_mean).reshape(1, -1, 1, 1)
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch channels height width"]:
+        weight = cast(Shaped[torch.Tensor, "..."], self.weight).reshape(1, -1, 1, 1)
+        bias = cast(Shaped[torch.Tensor, "..."], self.bias).reshape(1, -1, 1, 1)
+        running_var = cast(Shaped[torch.Tensor, "..."], self.running_var).reshape(
+            1, -1, 1, 1
+        )
+        running_mean = cast(Shaped[torch.Tensor, "..."], self.running_mean).reshape(
+            1, -1, 1, 1
+        )
         scale = weight * (running_var + 1e-5).rsqrt()
         return x * scale + (bias - running_mean * scale)
 
@@ -358,7 +385,9 @@ class _PositionEmbeddingSine(nn.Module):  # pragma: no cover
         self.normalize = normalize
         self.scale = 2 * math.pi if scale is None else scale
 
-    def forward(self, tensor_list: _NestedTensor) -> torch.Tensor:
+    def forward(
+        self, tensor_list: _NestedTensor
+    ) -> Float[torch.Tensor, "batch channels height width"]:
         x = tensor_list.tensors
         mask = tensor_list.mask
         not_mask = ~mask
@@ -397,7 +426,9 @@ class _Joiner(nn.Module):  # pragma: no cover
     def forward(
         self,
         tensor_list: _NestedTensor,
-    ) -> tuple[list[_NestedTensor], list[torch.Tensor]]:
+    ) -> tuple[
+        list[_NestedTensor], list[Float[torch.Tensor, "batch channels height width"]]
+    ]:
         backbone = cast(nn.Module, self._modules["0"])
         position_embedding = cast(nn.Module, self._modules["1"])
         xs = backbone(tensor_list)
@@ -417,7 +448,7 @@ def _build_backbone(name: str) -> _Joiner:  # pragma: no cover
     return model
 
 
-class _VendorMLP(nn.Module):  # pragma: no cover
+class _ReferenceMLP(nn.Module):  # pragma: no cover
     def __init__(
         self,
         *,
@@ -438,7 +469,7 @@ class _VendorMLP(nn.Module):  # pragma: no cover
             )
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
         for index, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if index < self.num_layers - 1 else layer(x)
         return x
@@ -481,12 +512,15 @@ class _DetrTransformer(nn.Module):  # pragma: no cover
     def forward(
         self,
         *,
-        src: torch.Tensor,
-        mask: torch.Tensor,
-        pos_embed: torch.Tensor,
-        tgt: torch.Tensor,
-        tgt_key_padding_mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        src: Float[torch.Tensor, "batch channels height width"],
+        mask: Bool[torch.Tensor, "batch height width"],
+        pos_embed: Float[torch.Tensor, "batch channels height width"],
+        tgt: Float[torch.Tensor, "sequence batch hidden"],
+        tgt_key_padding_mask: Bool[torch.Tensor, "batch elements"],
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements hidden"],
+        Float[torch.Tensor, "batch channels height width"],
+    ]:
         batch_size, channels, height, width = src.shape
         src_flat = src.flatten(2).permute(2, 0, 1)
         pos_flat = pos_embed.flatten(2).permute(2, 0, 1)
@@ -520,10 +554,10 @@ class _DetrTransformerEncoder(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_key_padding_mask: torch.Tensor,
-        pos: torch.Tensor,
-    ) -> torch.Tensor:
+        src: Float[torch.Tensor, "sequence batch hidden"],
+        src_key_padding_mask: Bool[torch.Tensor, "batch sequence"],
+        pos: Float[torch.Tensor, "sequence batch hidden"],
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         output = src
         for layer in self.layers:
             output = layer(
@@ -551,12 +585,12 @@ class _DetrTransformerDecoder(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        tgt: torch.Tensor,
-        memory: torch.Tensor,
-        tgt_key_padding_mask: torch.Tensor,
-        memory_key_padding_mask: torch.Tensor,
-        pos: torch.Tensor,
-    ) -> torch.Tensor:
+        tgt: Float[torch.Tensor, "sequence batch hidden"],
+        memory: Float[torch.Tensor, "sequence batch hidden"],
+        tgt_key_padding_mask: Bool[torch.Tensor, "batch elements"],
+        memory_key_padding_mask: Bool[torch.Tensor, "batch sequence"],
+        pos: Float[torch.Tensor, "sequence batch hidden"],
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         output = tgt
         for layer in self.layers:
             output = layer(
@@ -590,15 +624,18 @@ class _DetrTransformerEncoderLayer(nn.Module):  # pragma: no cover
         self.normalize_before = False
 
     @staticmethod
-    def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None) -> torch.Tensor:
+    def with_pos_embed(
+        tensor: Float[torch.Tensor, "sequence batch hidden"],
+        pos: Float[torch.Tensor, "sequence batch hidden"] | None,
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         return tensor if pos is None else tensor + pos
 
     def forward(
         self,
-        src: torch.Tensor,
-        src_key_padding_mask: torch.Tensor,
-        pos: torch.Tensor,
-    ) -> torch.Tensor:
+        src: Float[torch.Tensor, "sequence batch hidden"],
+        src_key_padding_mask: Bool[torch.Tensor, "batch sequence"],
+        pos: Float[torch.Tensor, "sequence batch hidden"],
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         q = k = self.with_pos_embed(src, pos)
         src2 = self.self_attn(q, k, value=src, key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
@@ -632,17 +669,20 @@ class _DetrTransformerDecoderLayer(nn.Module):  # pragma: no cover
         self.normalize_before = False
 
     @staticmethod
-    def with_pos_embed(tensor: torch.Tensor, pos: torch.Tensor | None) -> torch.Tensor:
+    def with_pos_embed(
+        tensor: Float[torch.Tensor, "sequence batch hidden"],
+        pos: Float[torch.Tensor, "sequence batch hidden"] | None,
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         return tensor if pos is None else tensor + pos
 
     def forward(
         self,
-        tgt: torch.Tensor,
-        memory: torch.Tensor,
-        tgt_key_padding_mask: torch.Tensor,
-        memory_key_padding_mask: torch.Tensor,
-        pos: torch.Tensor,
-    ) -> torch.Tensor:
+        tgt: Float[torch.Tensor, "sequence batch hidden"],
+        memory: Float[torch.Tensor, "sequence batch hidden"],
+        tgt_key_padding_mask: Bool[torch.Tensor, "batch elements"],
+        memory_key_padding_mask: Bool[torch.Tensor, "batch sequence"],
+        pos: Float[torch.Tensor, "sequence batch hidden"],
+    ) -> Float[torch.Tensor, "sequence batch hidden"]:
         q = k = tgt
         tgt2 = self.self_attn(q, k, value=tgt, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
@@ -688,7 +728,7 @@ def _bert_config(
     return bert_config
 
 
-def _build_vendor_bert_model(
+def _build_reference_bert_model(
     config: LayoutDetrConfig,
     *,
     num_hidden_layers: int,
@@ -696,20 +736,20 @@ def _build_vendor_bert_model(
     add_pooling_layer: bool,
     use_cross_attention: bool,
     text_encoder: bool = False,
-) -> "_VendorBertModel":  # pragma: no cover
+) -> "_ReferenceBertModel":  # pragma: no cover
     bert_config = _bert_config(
         config,
         num_hidden_layers=num_hidden_layers,
         encoder_width=encoder_width,
         use_cross_attention=use_cross_attention,
     )
-    model = _VendorBertModel(bert_config, add_pooling_layer=add_pooling_layer)
+    model = _ReferenceBertModel(bert_config, add_pooling_layer=add_pooling_layer)
     if text_encoder:
         model.config.is_decoder = False
     return model
 
 
-def _build_vendor_bert_lm_head(
+def _build_reference_bert_lm_head(
     config: LayoutDetrConfig,
     *,
     num_hidden_layers: int,
@@ -722,7 +762,7 @@ def _build_vendor_bert_lm_head(
         use_cross_attention=True,
     )
     model = BertLMHeadModel(bert_config)
-    model.bert.embeddings = _VendorBertEmbeddings(bert_config)  # ty: ignore[invalid-assignment]
+    model.bert.embeddings = _ReferenceBertEmbeddings(bert_config)  # ty: ignore[invalid-assignment]
     for layer in model.bert.encoder.layer:
         cross_attention = cast(
             _BertLayerWithCrossAttentionProtocol, layer
@@ -732,7 +772,7 @@ def _build_vendor_bert_lm_head(
     return model
 
 
-class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
+class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.word_embeddings = nn.Embedding(
@@ -759,12 +799,12 @@ class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        input_ids: torch.Tensor | None = None,
-        token_type_ids: torch.Tensor | None = None,
-        position_ids: torch.Tensor | None = None,
-        inputs_embeds: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        token_type_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        position_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        inputs_embeds: Float[torch.Tensor, "batch tokens hidden"] | None = None,
         past_key_values_length: int = 0,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         del token_type_ids
         if input_ids is not None:
             input_shape = input_ids.size()
@@ -774,7 +814,7 @@ class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
             raise ValueError("input_ids or inputs_embeds must be provided")
         seq_length = input_shape[1]
         if position_ids is None:
-            position_ids = cast(torch.Tensor, self.position_ids)[
+            position_ids = cast(Int[torch.Tensor, "batch tokens"], self.position_ids)[
                 :,
                 past_key_values_length : seq_length + past_key_values_length,
             ]
@@ -788,16 +828,16 @@ class _VendorBertEmbeddings(nn.Module):  # pragma: no cover
 
 
 @dataclass
-class _VendorBertOutput(ModelOutput):  # pragma: no cover
-    last_hidden_state: torch.Tensor
+class _ReferenceBertOutput(ModelOutput):  # pragma: no cover
+    last_hidden_state: Float[torch.Tensor, "batch tokens hidden"]
 
 
-class _VendorBertModel(nn.Module):  # pragma: no cover
+class _ReferenceBertModel(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, add_pooling_layer: bool = False) -> None:
         super().__init__()
         self.config = config
-        self.embeddings = _VendorBertEmbeddings(config)
-        self.encoder = _VendorBertEncoder(config)
+        self.embeddings = _ReferenceBertEmbeddings(config)
+        self.encoder = _ReferenceBertEncoder(config)
         self.pooler = (
             None
             if not add_pooling_layer
@@ -809,14 +849,14 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        input_ids: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        input_ids: Int[torch.Tensor, "batch tokens"],
+        attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         return_dict: bool = True,
         mode: str = "multimodal",
-        encoder_hidden_states: torch.Tensor | None = None,
-        encoder_attention_mask: torch.Tensor | None = None,
+        encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None = None,
+        encoder_attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         **_: object,
-    ) -> _VendorBertOutput | tuple[torch.Tensor]:
+    ) -> _ReferenceBertOutput | tuple[Float[torch.Tensor, "batch tokens hidden"]]:
         input_shape = input_ids.size()
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=input_ids.device)
@@ -844,13 +884,13 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
         )
         if not return_dict:
             return (hidden_states,)
-        return _VendorBertOutput(last_hidden_state=hidden_states)
+        return _ReferenceBertOutput(last_hidden_state=hidden_states)
 
     def _extended_attention_mask(
         self,
-        attention_mask: torch.Tensor,
+        attention_mask: Bool[torch.Tensor, "batch tokens"],
         input_shape: torch.Size,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch heads query key"]:
         if attention_mask.dim() == 3:
             extended = attention_mask[:, None, :, :]
         elif attention_mask.dim() == 2:
@@ -862,30 +902,32 @@ class _VendorBertModel(nn.Module):  # pragma: no cover
         extended = extended.to(dtype=next(self.parameters()).dtype)
         return (1.0 - extended) * -10000.0
 
-    def _invert_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+    def _invert_attention_mask(
+        self, attention_mask: Bool[torch.Tensor, "batch tokens"]
+    ) -> Float[torch.Tensor, "batch heads query key"]:
         extended = attention_mask[:, None, None, :].to(
             dtype=next(self.parameters()).dtype
         )
         return (1.0 - extended) * -10000.0
 
 
-class _VendorBertEncoder(nn.Module):  # pragma: no cover
+class _ReferenceBertEncoder(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.layer = nn.ModuleList(
-            [_VendorBertLayer(config) for _ in range(config.num_hidden_layers)]
+            [_ReferenceBertLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.gradient_checkpointing = False
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
         *,
-        attention_mask: torch.Tensor,
-        encoder_hidden_states: torch.Tensor | None,
-        encoder_attention_mask: torch.Tensor | None,
+        attention_mask: Float[torch.Tensor, "batch heads query key"],
+        encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None,
+        encoder_attention_mask: Float[torch.Tensor, "batch heads query key"] | None,
         mode: str,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         for layer in self.layer:
             hidden_states = layer(
                 hidden_states,
@@ -897,27 +939,27 @@ class _VendorBertEncoder(nn.Module):  # pragma: no cover
         return hidden_states
 
 
-class _VendorBertLayer(nn.Module):  # pragma: no cover
+class _ReferenceBertLayer(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
-        self.attention = _VendorBertAttention(config)
+        self.attention = _ReferenceBertAttention(config)
         if config.add_cross_attention:
-            self.crossattention = _VendorBertAttention(
+            self.crossattention = _ReferenceBertAttention(
                 config,
                 is_cross_attention=True,
             )
-        self.intermediate = _VendorBertIntermediate(config)
-        self.output = _VendorBertOutputLayer(config)
+        self.intermediate = _ReferenceBertIntermediate(config)
+        self.output = _ReferenceBertOutputLayer(config)
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
         *,
-        attention_mask: torch.Tensor,
-        encoder_hidden_states: torch.Tensor | None,
-        encoder_attention_mask: torch.Tensor | None,
+        attention_mask: Float[torch.Tensor, "batch heads query key"],
+        encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None,
+        encoder_attention_mask: Float[torch.Tensor, "batch heads query key"] | None,
         mode: str,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         attention_output = self.attention(
             hidden_states,
             attention_mask=attention_mask,
@@ -934,20 +976,20 @@ class _VendorBertLayer(nn.Module):  # pragma: no cover
         return self.output(intermediate_output, attention_output)
 
 
-class _VendorBertAttention(nn.Module):  # pragma: no cover
+class _ReferenceBertAttention(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, is_cross_attention: bool = False) -> None:
         super().__init__()
-        self.self = _VendorBertSelfAttention(config, is_cross_attention)
-        self.output = _VendorBertSelfOutput(config)
+        self.self = _ReferenceBertSelfAttention(config, is_cross_attention)
+        self.output = _ReferenceBertSelfOutput(config)
         self.pruned_heads: set[int] = set()
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
         *,
-        attention_mask: torch.Tensor | None,
-        encoder_hidden_states: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        attention_mask: Float[torch.Tensor, "batch heads query key"] | None,
+        encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None = None,
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         self_output = self.self(
             hidden_states,
             attention_mask=attention_mask,
@@ -956,7 +998,7 @@ class _VendorBertAttention(nn.Module):  # pragma: no cover
         return self.output(self_output, hidden_states)
 
 
-class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
+class _ReferenceBertSelfAttention(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig, is_cross_attention: bool) -> None:
         super().__init__()
         self.num_attention_heads = config.num_attention_heads
@@ -976,7 +1018,9 @@ class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
         )
         self.save_attention = False
 
-    def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
+    def transpose_for_scores(
+        self, x: Float[torch.Tensor, "batch tokens hidden"]
+    ) -> Shaped[torch.Tensor, "..."]:
         new_shape = x.size()[:-1] + (
             self.num_attention_heads,
             self.attention_head_size,
@@ -985,11 +1029,11 @@ class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
         *,
-        attention_mask: torch.Tensor | None,
-        encoder_hidden_states: torch.Tensor | None,
-    ) -> torch.Tensor:
+        attention_mask: Float[torch.Tensor, "batch heads query key"] | None,
+        encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None,
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         query_layer = self.transpose_for_scores(self.query(hidden_states))
         key_value_states = (
             hidden_states if encoder_hidden_states is None else encoder_hidden_states
@@ -1008,7 +1052,7 @@ class _VendorBertSelfAttention(nn.Module):  # pragma: no cover
         return context_layer.view(*new_shape)
 
 
-class _VendorBertSelfOutput(nn.Module):  # pragma: no cover
+class _ReferenceBertSelfOutput(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
@@ -1017,25 +1061,27 @@ class _VendorBertSelfOutput(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        input_tensor: torch.Tensor,
-    ) -> torch.Tensor:
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
+        input_tensor: Float[torch.Tensor, "batch tokens hidden"],
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
         return self.LayerNorm(hidden_states + input_tensor)
 
 
-class _VendorBertIntermediate(nn.Module):  # pragma: no cover
+class _ReferenceBertIntermediate(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         self.intermediate_act_fn = F.gelu
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, hidden_states: Float[torch.Tensor, "batch tokens hidden"]
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         return self.intermediate_act_fn(self.dense(hidden_states))
 
 
-class _VendorBertOutputLayer(nn.Module):  # pragma: no cover
+class _ReferenceBertOutputLayer(nn.Module):  # pragma: no cover
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
@@ -1044,16 +1090,16 @@ class _VendorBertOutputLayer(nn.Module):  # pragma: no cover
 
     def forward(
         self,
-        hidden_states: torch.Tensor,
-        input_tensor: torch.Tensor,
-    ) -> torch.Tensor:
+        hidden_states: Float[torch.Tensor, "batch tokens hidden"],
+        input_tensor: Float[torch.Tensor, "batch tokens hidden"],
+    ) -> Float[torch.Tensor, "batch tokens hidden"]:
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
         return self.LayerNorm(hidden_states + input_tensor)
 
 
 def _normalize_2nd_moment(
-    x: torch.Tensor,
+    x: Shaped[torch.Tensor, "..."],
     eps: float = 1e-8,
-) -> torch.Tensor:  # pragma: no cover
+) -> Shaped[torch.Tensor, "..."]:  # pragma: no cover
     return x * (x.square().mean(dim=1, keepdim=True) + eps).rsqrt()

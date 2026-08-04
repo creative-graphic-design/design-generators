@@ -1,8 +1,9 @@
 """Typed LayoutGPT request and response schemas."""
 
-from typing import Final
+from collections.abc import Mapping
+from typing import Final, cast
 
-from laygen.agents import layout_items_to_output
+from laygen.agents import LayoutAuxValue, layout_items_to_output
 from laygen.modeling_outputs import LayoutGenerationOutput
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -92,7 +93,7 @@ class LayoutGPTOutput(BaseModel):
         return layout_items_to_output(
             self.items,
             id2label=self.id2label,
-            intermediates=intermediates,
+            intermediates=cast(Mapping[str, LayoutAuxValue], intermediates),
         )
 
 

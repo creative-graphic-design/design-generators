@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     prepare_layout_tensors,
 )
@@ -108,18 +110,18 @@ class LaceProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode a public layout batch.
 
         Args:
@@ -211,8 +213,11 @@ class LaceProcessor(ProcessorMixin):
         return bbox, labels, mask
 
     def encode(
-        self, bbox: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor | None = None
-    ) -> torch.Tensor:
+        self,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+    ) -> Float[torch.Tensor, "batch padded_elements channels"]:
         """Encode normalized boxes and labels into the LACE latent range.
 
         Args:
@@ -233,7 +238,7 @@ class LaceProcessor(ProcessorMixin):
         return torch.cat((one_hot, bbox_in), dim=-1)
 
     def decode(
-        self, layout: torch.Tensor, clamp: bool = True
+        self, layout: Float[torch.Tensor, "batch elements channels"], clamp: bool = True
     ) -> LayoutGenerationOutput:
         """Decode a LACE layout tensor into public output fields.
 

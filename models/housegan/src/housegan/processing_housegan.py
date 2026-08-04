@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
 from typing import Literal, Self, cast
 
+import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     ltrb_to_xywh,
     normalize_box_format,
@@ -135,9 +138,31 @@ class HouseGanProcessor(ProcessorMixin):
         relation_payload = relations
         if relation_payload is None and bbox is not None and labels is not None:
             bbox_t, labels_t, _ = prepare_layout_tensors(
-                bbox=bbox,
-                labels=labels,
-                mask=mask,
+                bbox=cast(
+                    Float[torch.Tensor, "... 4"]
+                    | Float[np.ndarray, "... 4"]
+                    | Sequence[Sequence[Sequence[float]]]
+                    | Sequence[Sequence[float]]
+                    | Sequence[ArrayLikeInput],
+                    bbox,
+                ),
+                labels=cast(
+                    Int[torch.Tensor, "..."]
+                    | Int[np.ndarray, "..."]
+                    | Sequence[Sequence[int]]
+                    | Sequence[int]
+                    | Sequence[ArrayLikeInput],
+                    labels,
+                ),
+                mask=cast(
+                    Bool[torch.Tensor, "..."]
+                    | Bool[np.ndarray, "..."]
+                    | Sequence[Sequence[bool]]
+                    | Sequence[bool]
+                    | Sequence[ArrayLikeInput]
+                    | None,
+                    mask,
+                ),
                 box_format=normalize_box_format(box_format),
                 normalized=normalized,
                 canvas_size=canvas_size or self.canvas_size,
@@ -199,11 +224,11 @@ class HouseGanProcessor(ProcessorMixin):
 
     def post_process_masks(
         self,
-        masks: torch.Tensor,
+        masks: Float[torch.Tensor, "elements height width"],
         *,
-        labels: torch.LongTensor,
-        edges: torch.LongTensor | None = None,
-        node_features: torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "elements"],
+        edges: Int[torch.Tensor, "edges 3"] | None = None,
+        node_features: Float[torch.Tensor, "elements room_labels"] | None = None,
         scene_graph: object | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
@@ -245,7 +270,11 @@ class HouseGanProcessor(ProcessorMixin):
         )
 
 
-def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor:
+def mask_to_ltrb(
+    masks: Float[torch.Tensor, "elements height width"],
+    *,
+    threshold: float = 0.0,
+) -> Float[torch.Tensor, "elements 4"]:
     """Convert thresholded masks to inclusive-exclusive ``ltrb`` boxes."""
     boxes: list[list[float]] = []
     for mask in masks.detach().cpu():
@@ -261,7 +290,7 @@ def mask_to_ltrb(masks: torch.Tensor, *, threshold: float = 0.0) -> torch.Tensor
     return torch.tensor(boxes, dtype=torch.float32, device=masks.device)
 
 
-def _xywh_to_ltrb_list(bbox: torch.Tensor) -> list[list[float]]:
+def _xywh_to_ltrb_list(bbox: Float[torch.Tensor, "elements 4"]) -> list[list[float]]:
     x, y, w, h = bbox.unbind(dim=-1)
     ltrb = torch.stack((x - w / 2, y - h / 2, x + w / 2, y + h / 2), dim=-1)
     return cast(list[list[float]], ltrb.detach().cpu().tolist())

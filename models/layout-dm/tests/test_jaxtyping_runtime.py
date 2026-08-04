@@ -76,3 +76,37 @@ def test_denoiser_without_hook_accepts_output_annotation_mismatches() -> None:
         assert LayoutDMDenoiserOutput(logits=torch.zeros(1, 2)).logits.shape == (1, 2)
         """
     )
+
+
+def test_conditioning_hook_liveness_rejects_token_dtype_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["layout_dm.conditioning"], "beartype.beartype"):
+            from layout_dm.conditioning import LayoutDMCondition
+
+        LayoutDMCondition(
+            input_ids=torch.zeros(1, 2, dtype=torch.float32),
+            mask=torch.ones(1, 2, dtype=torch.bool),
+            type="c",
+        )
+        """,
+        "LayoutDMCondition.__init__",
+    )
+
+
+def test_scheduler_hook_liveness_rejects_prev_sample_rank_mismatch() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["layout_dm.scheduling_layout_dm"], "beartype.beartype"):
+            from layout_dm.scheduling_layout_dm import LayoutDMSchedulerOutput
+
+        LayoutDMSchedulerOutput(prev_sample=torch.zeros(1, 2))
+        """,
+        "LayoutDMSchedulerOutput.__init__",
+    )

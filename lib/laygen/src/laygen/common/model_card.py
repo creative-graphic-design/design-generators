@@ -526,7 +526,7 @@ def _parity_table(metrics: Sequence[ParityMetricInput]) -> str:
     return "\n".join(rows)
 
 
-def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
+def _metric_dict(metric: ParityMetricInput) -> ParityMetricRow:
     if isinstance(metric, ParityMetric):
         return {
             ParityMetricKey.dataset.value: metric.dataset,
@@ -535,7 +535,7 @@ def _metric_dict(metric: ParityMetricInput) -> dict[str, object]:
             ParityMetricKey.logits_max_abs.value: metric.logits_max_abs,
             ParityMetricKey.logits_max_rel.value: metric.logits_max_rel,
         }
-    return dict(metric)
+    return cast(ParityMetricRow, dict(metric))
 
 
 _LAYOUTDM_BIBTEX: Final[str] = r"""

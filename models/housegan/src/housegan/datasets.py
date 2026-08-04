@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 import numpy as np
+from jaxtyping import Float, Shaped
 
 from .graph_schema import (
     HouseGanRelation,
@@ -23,7 +24,7 @@ TARGET_SETS: dict[str, tuple[int, int]] = {
 }
 
 
-def load_housegan_numpy(path: str | Path) -> np.ndarray:
+def load_housegan_numpy(path: str | Path) -> Shaped[np.ndarray, "..."]:
     """Load a local House-GAN ``.npy`` asset without downloading data."""
     return np.load(Path(path), allow_pickle=True)
 
@@ -68,7 +69,7 @@ def split_target_set(
 
 
 def build_edges_from_bboxes(
-    bbox_ltrb: np.ndarray,
+    bbox_ltrb: Float[np.ndarray, "elements 4"],
     *,
     threshold: float = 0.03,
 ) -> list[HouseGanRelation]:

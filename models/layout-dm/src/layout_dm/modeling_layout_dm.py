@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Literal, TypeAlias
+from typing import Callable, Literal
 
 import torch
 import torch.nn.functional as F
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.utils import BaseOutput
-from jaxtyping import Float, Int
+from jaxtyping import Float, Int, Shaped
 from torch import nn
 
 from laygen.nn import (
@@ -23,8 +23,6 @@ from laygen.nn import (
     get_activation,
 )
 
-TimestepType: TypeAlias = Literal["adalayernorm", "adalayernorm_abs"]
-
 __all__ = [
     "AdaLayerNorm",
     "Block",
@@ -33,7 +31,6 @@ __all__ = [
     "LayoutDMDenoiser",
     "LayoutDMDenoiserOutput",
     "SinusoidalPosEmb",
-    "TimestepType",
     "TransformerEncoder",
     "_activation",
     "_gelu2",
@@ -41,17 +38,27 @@ __all__ = [
 ]
 
 
+def _init_layoutdm_weights(module: nn.Module) -> None:
+    if isinstance(module, (nn.Linear, nn.Embedding)):
+        module.weight.data.normal_(mean=0.0, std=0.02)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
+    elif isinstance(module, nn.LayerNorm) and module.elementwise_affine:
+        module.bias.data.zero_()
+        module.weight.data.fill_(1.0)
+
+
 def _get_clones(module: nn.Module, n: int) -> nn.ModuleList:
     return clone_module_list(module, n)
 
 
-def _gelu2(x: torch.Tensor) -> torch.Tensor:
+def _gelu2(x: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
     return get_activation("gelu2")(x)
 
 
 def _activation(
-    name: str | Callable[[torch.Tensor], torch.Tensor],
-) -> Callable[[torch.Tensor], torch.Tensor]:
+    name: str | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]],
+) -> Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]]:
     return get_activation(name)
 
 
@@ -68,7 +75,8 @@ class CategoricalTransformer(nn.Module):
         num_hidden_layers: int,
         intermediate_size: int,
         dropout: float = 0.0,
-        timestep_type: TimestepType | None = "adalayernorm",
+        timestep_type: Literal["adalayernorm", "adalayernorm_abs"]
+        | None = "adalayernorm",
     ) -> None:
         """Initialize the categorical transformer denoiser backbone."""
         super().__init__()
@@ -96,7 +104,7 @@ class CategoricalTransformer(nn.Module):
         self,
         input_ids: Int[torch.Tensor, "batch tokens"],
         timestep: Int[torch.Tensor, "batch"] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Predict logits for flattened LayoutDM token ids."""
         hidden = self.cat_emb(input_ids)
         hidden = self.drop(hidden + self.pos_emb(hidden))
@@ -144,7 +152,8 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
         num_hidden_layers: int = 4,
         intermediate_size: int = 1856,
         dropout: float = 0.0,
-        timestep_type: TimestepType | None = "adalayernorm",
+        timestep_type: Literal["adalayernorm", "adalayernorm_abs"]
+        | None = "adalayernorm",
     ) -> None:
         """Initialize the categorical transformer denoiser."""
         super().__init__()
@@ -158,6 +167,7 @@ class LayoutDMDenoiser(ModelMixin, ConfigMixin):
             dropout=dropout,
             timestep_type=timestep_type,
         )
+        self.apply(_init_layoutdm_weights)
 
     def forward(
         self,

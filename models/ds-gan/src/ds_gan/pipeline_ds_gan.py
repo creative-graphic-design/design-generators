@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import ClassVar, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_shared_condition_type,
@@ -192,27 +193,45 @@ class DSGANPipeline(LayoutGenerationPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        images: ImageInput | list[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | list[ImageInput]
+        | Float[torch.Tensor, "..."]
+        | None = None,
         *,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: torch.Tensor | list[object] | None = None,
-        bbox: torch.Tensor | list[object] | None = None,
-        mask: torch.Tensor | list[object] | None = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        saliency: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-        saliency_pfpnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-        saliency_basnet: ImageInput | list[ImageInput] | torch.Tensor | None = None,
-        pixel_values: torch.Tensor | None = None,
-        initial_layout: torch.Tensor | None = None,
+        saliency: ImageInput
+        | list[ImageInput]
+        | Float[torch.Tensor, "..."]
+        | None = None,
+        saliency_pfpnet: ImageInput
+        | list[ImageInput]
+        | Float[torch.Tensor, "..."]
+        | None = None,
+        saliency_basnet: ImageInput
+        | list[ImageInput]
+        | Float[torch.Tensor, "..."]
+        | None = None,
+        pixel_values: Float[torch.Tensor, "batch 4 height width"] | None = None,
+        initial_layout: Float[torch.Tensor, "batch elements 2 4"] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
         """Generate layouts from content images and saliency maps.
 

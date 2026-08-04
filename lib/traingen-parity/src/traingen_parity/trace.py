@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
 import torch
-from jaxtyping import Float
+from jaxtyping import Float, Shaped
 
 from .determinism import RNGState, restore_rng_state
 
@@ -18,8 +18,8 @@ class TrainingStepModule(Protocol):
     """Protocol for objects that expose a Lightning-like training step."""
 
     def training_step(
-        self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self, batch: dict[str, Shaped[torch.Tensor, "..."]], batch_idx: int
+    ) -> Shaped[torch.Tensor, "..."]:
         """Run one training step."""
 
 
@@ -41,12 +41,12 @@ class StepTrace:
     """Named tensor trace from a training step."""
 
     name: str
-    tensors: dict[str, torch.Tensor]
+    tensors: dict[str, Shaped[torch.Tensor, "..."]]
     summaries: dict[str, TensorSummary]
     metadata: TraceMetadata
 
 
-def tensor_sha256(tensor: torch.Tensor) -> str:
+def tensor_sha256(tensor: Shaped[torch.Tensor, "..."]) -> str:
     """Return a SHA-256 digest for tensor bytes on CPU.
 
     Args:
@@ -66,7 +66,7 @@ def tensor_sha256(tensor: torch.Tensor) -> str:
     return hashlib.sha256(array.tobytes()).hexdigest()
 
 
-def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
+def summarize_tensor(tensor: Shaped[torch.Tensor, "..."]) -> TensorSummary:
     """Build a deterministic tensor summary.
 
     Args:
@@ -103,7 +103,7 @@ def summarize_tensor(tensor: torch.Tensor) -> TensorSummary:
 
 def build_step_trace(
     name: str,
-    tensors: dict[str, torch.Tensor],
+    tensors: dict[str, Shaped[torch.Tensor, "..."]],
     *,
     metadata: TraceMetadata | None = None,
 ) -> StepTrace:
@@ -135,7 +135,7 @@ def build_step_trace(
 
 def trace_training_step(
     module: TrainingStepModule,
-    batch: dict[str, torch.Tensor],
+    batch: dict[str, Shaped[torch.Tensor, "..."]],
     rng_state: RNGState | None,
     trace_points: tuple[str, ...],
 ) -> StepTrace:

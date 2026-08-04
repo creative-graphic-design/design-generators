@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from typing import Protocol, TypedDict, cast
 
 import torch
+from jaxtyping import Bool, Shaped
 
 from .configuration_layout_detr import LayoutDetrConfig
 from .modeling_layout_detr import LayoutDetrForConditionalGeneration
@@ -43,7 +44,7 @@ class _LegacyModuleProtocol(Protocol):
 class _VendorGeneratorStateProtocol(Protocol):
     """Protocol for the loaded vendor generator state-dict surface."""
 
-    def state_dict(self) -> Mapping[str, torch.Tensor]: ...
+    def state_dict(self) -> Mapping[str, Shaped[torch.Tensor, "..."]]: ...
 
 
 def remap_generator_key(source_key: str) -> str:
@@ -63,9 +64,9 @@ def remap_generator_key(source_key: str) -> str:
 
 
 def build_conversion_report(
-    source_state: Mapping[str, torch.Tensor],
-    target_state: Mapping[str, torch.Tensor],
-    remapped_state: Mapping[str, torch.Tensor],
+    source_state: Mapping[str, Shaped[torch.Tensor, "..."]],
+    target_state: Mapping[str, Shaped[torch.Tensor, "..."]],
+    remapped_state: Mapping[str, Shaped[torch.Tensor, "..."]],
     *,
     custom_op_import_required: bool,
 ) -> LayoutDetrConversionReport:
@@ -100,7 +101,7 @@ def extract_generator_state(
     vendor_root: str | Path,
     device: str = "cpu",
 ) -> tuple[
-    dict[str, torch.Tensor], LayoutDetrConfig, LayoutDetrConversionReport
+    dict[str, Shaped[torch.Tensor, "..."]], LayoutDetrConfig, LayoutDetrConversionReport
 ]:  # pragma: no cover
     """Extract ``G_ema`` from the original LayoutDETR pickle.
 
@@ -122,7 +123,7 @@ def extract_generator_state(
     init_kwargs = dict(getattr(generator, "init_kwargs", {}) or {})
     config = LayoutDetrConfig(
         z_dim=int(getattr(generator, "z_dim", init_kwargs.get("z_dim", 4))),
-        architecture="vendor",
+        architecture="reference",
         text_vocab_size=30_524,
         bert_num_heads=4,
         bert_num_decoder_layers=2,
@@ -134,7 +135,7 @@ def extract_generator_state(
         original_training_options=init_kwargs,
     )
     target_state = LayoutDetrForConditionalGeneration(config).state_dict()
-    if config.architecture == "vendor":
+    if config.architecture == "reference":
         remapped = source_state
     else:
         remapped = {
@@ -218,8 +219,8 @@ def _find_pruneable_heads_and_indices(
     n_heads: int,
     head_size: int,
     already_pruned_heads: set[int],
-) -> tuple[set[int], torch.Tensor]:  # pragma: no cover
-    mask = torch.ones(n_heads, head_size)
+) -> tuple[set[int], Shaped[torch.Tensor, "indices"]]:  # pragma: no cover
+    mask: Bool[torch.Tensor, "..."] = torch.ones(n_heads, head_size, dtype=torch.bool)
     heads = set(heads) - already_pruned_heads
     for head in heads:
         adjusted_head = head - sum(
@@ -227,7 +228,7 @@ def _find_pruneable_heads_and_indices(
         )
         mask[adjusted_head] = 0
     mask = mask.view(-1).contiguous().eq(1)
-    index = torch.arange(len(mask))[mask].long()
+    index: Shaped[torch.Tensor, "indices"] = torch.arange(len(mask))[mask].long()
     return heads, index
 
 
@@ -252,7 +253,7 @@ def _patch_legacy_unpickler(legacy: _LegacyModuleProtocol) -> None:  # pragma: n
 
 def strict_load_converted_state(
     model: LayoutDetrForConditionalGeneration,
-    state: Mapping[str, torch.Tensor],
+    state: Mapping[str, Shaped[torch.Tensor, "..."]],
 ) -> LayoutDetrConversionReport:
     """Strict-load a remapped state dict and return diagnostics."""
     report = build_conversion_report(

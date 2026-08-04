@@ -48,6 +48,7 @@ nav:
   - Getting Started: getting-started.md
   - Models: models.md
   - Conventions: conventions.md
+  - Training Reproduction: training-reproduction.md
   - Extending: extending.md
   - API Reference: api/
 

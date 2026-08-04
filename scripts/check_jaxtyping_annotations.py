@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
 ALIAS_BASELINE_PATH = ROOT / "scripts" / "jaxtyping_alias_baseline.txt"
+OBJECT_BASELINE_PATH = ROOT / "scripts" / "object_annotation_baseline.txt"
+WEAK_CAST_BASELINE_PATH = ROOT / "scripts" / "weak_cast_type_baseline.txt"
 SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
 
 JAXTYPING_SHAPED_TYPES = {
@@ -82,11 +84,46 @@ class AliasViolation:
 
 
 @dataclass(frozen=True)
+class ObjectAnnotationViolation:
+    """An object annotation violation in a function signature."""
+
+    path: str
+    annotation: str
+    line: str
+
+    def as_baseline_entry(self) -> str:
+        """Return a stable baseline entry for this violation."""
+        return f"{self.path}\t{self.annotation}\t{self.line}"
+
+
+@dataclass(frozen=True)
+class WeakCastTypeViolation:
+    """A weak top-type reference hidden inside a cast target type."""
+
+    path: str
+    annotation: str
+    line: str
+
+    def as_baseline_entry(self) -> str:
+        """Return a stable baseline entry for this violation."""
+        return f"{self.path}\t{self.annotation}\t{self.line}"
+
+
+@dataclass(frozen=True)
 class AnnotationRecord:
     """An annotation expression and its source line."""
 
     node: ast.AST
     line: str
+
+
+@dataclass(frozen=True)
+class FunctionAnnotationRecord:
+    """A function signature annotation expression and its source line."""
+
+    node: ast.AST
+    line: str
+    is_keyword_variadic: bool = False
 
 
 @dataclass(frozen=True)
@@ -219,6 +256,53 @@ def contains_raw_annotation(node: ast.AST, resolver: ImportResolver) -> bool:
     )
 
 
+def is_object_type(node: ast.AST, resolver: ImportResolver) -> bool:
+    """Return whether a node is a bare object type annotation."""
+    name = dotted_name(node)
+    if name is None:
+        return False
+    resolved = resolver.resolve(name)
+    return name == "object" or resolved == "builtins.object"
+
+
+def is_any_type(node: ast.AST, resolver: ImportResolver) -> bool:
+    """Return whether a node is a bare ``Any`` type reference."""
+    name = dotted_name(node)
+    if name is None:
+        return False
+    resolved = resolver.resolve(name)
+    return name == "Any" or resolved == "typing.Any"
+
+
+def contains_weak_top_type(node: ast.AST, resolver: ImportResolver) -> bool:
+    """Return whether a type expression contains bare ``object`` or ``Any``."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        parsed = parse_string_annotation(node)
+        if parsed is None:
+            return False
+        return contains_weak_top_type(parsed, resolver)
+    if is_object_type(node, resolver) or is_any_type(node, resolver):
+        return True
+    return any(
+        contains_weak_top_type(child, resolver) for child in ast.iter_child_nodes(node)
+    )
+
+
+def contains_object_annotation(node: ast.AST, resolver: ImportResolver) -> bool:
+    """Return whether an annotation contains a disallowed object reference."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        parsed = parse_string_annotation(node)
+        if parsed is None:
+            return False
+        return contains_object_annotation(parsed, resolver)
+    if is_object_type(node, resolver):
+        return True
+    return any(
+        contains_object_annotation(child, resolver)
+        for child in ast.iter_child_nodes(node)
+    )
+
+
 def rendered_annotation(node: ast.AST) -> ast.AST:
     """Return a parseable annotation expression for display and matching."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -316,6 +400,73 @@ class AnnotationVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+class FunctionAnnotationVisitor(ast.NodeVisitor):
+    """Collect function parameter and return annotation expressions."""
+
+    def __init__(self, lines: list[str]) -> None:
+        self.lines = lines
+        self.annotations: list[FunctionAnnotationRecord] = []
+
+    def append_annotation(
+        self, node: ast.AST, *, is_keyword_variadic: bool = False
+    ) -> None:
+        """Append a signature annotation with the source line that introduced it."""
+        self.annotations.append(
+            FunctionAnnotationRecord(
+                node,
+                line_for_node(self.lines, node),
+                is_keyword_variadic=is_keyword_variadic,
+            )
+        )
+
+    def append_arguments(self, args: ast.arguments) -> None:
+        """Append annotations from a function argument list."""
+        for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]:
+            if arg.annotation is not None:
+                self.append_annotation(arg.annotation)
+        if args.vararg is not None and args.vararg.annotation is not None:
+            self.append_annotation(args.vararg.annotation)
+        if args.kwarg is not None and args.kwarg.annotation is not None:
+            self.append_annotation(args.kwarg.annotation, is_keyword_variadic=True)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        """Collect function parameter and return annotations."""
+        self.append_arguments(node.args)
+        if node.returns is not None:
+            self.append_annotation(node.returns)
+        self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        """Collect async function parameter and return annotations."""
+        self.append_arguments(node.args)
+        if node.returns is not None:
+            self.append_annotation(node.returns)
+        self.generic_visit(node)
+
+
+class CastTypeVisitor(ast.NodeVisitor):
+    """Collect ``typing.cast`` target type expressions."""
+
+    def __init__(self, lines: list[str], resolver: ImportResolver) -> None:
+        self.lines = lines
+        self.resolver = resolver
+        self.cast_types: list[AnnotationRecord] = []
+
+    def visit_Call(self, node: ast.Call) -> None:
+        """Collect the first argument to resolved ``typing.cast`` calls."""
+        name = dotted_name(node.func)
+        if name is not None and self.resolver.resolve(name) == "typing.cast":
+            if node.args:
+                cast_type = node.args[0]
+                self.cast_types.append(
+                    AnnotationRecord(
+                        cast_type,
+                        line_for_node(self.lines, cast_type),
+                    )
+                )
+        self.generic_visit(node)
+
+
 def raw_annotation_violations(root: Path) -> list[AnnotationViolation]:
     """Return raw tensor annotation violations under package source roots."""
     violations: list[AnnotationViolation] = []
@@ -331,6 +482,54 @@ def raw_annotation_violations(root: Path) -> list[AnnotationViolation]:
                 continue
             violations.append(
                 AnnotationViolation(
+                    rel_path,
+                    normalize_annotation(record.node),
+                    record.line,
+                )
+            )
+    return violations
+
+
+def object_annotation_violations(root: Path) -> list[ObjectAnnotationViolation]:
+    """Return object annotation violations under package source roots."""
+    violations: list[ObjectAnnotationViolation] = []
+    for path in source_files(root):
+        rel_path = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=rel_path)
+        resolver = ImportResolver.from_tree(tree)
+        visitor = FunctionAnnotationVisitor(text.splitlines())
+        visitor.visit(tree)
+        for record in visitor.annotations:
+            if record.is_keyword_variadic:
+                continue
+            if not contains_object_annotation(record.node, resolver):
+                continue
+            violations.append(
+                ObjectAnnotationViolation(
+                    rel_path,
+                    normalize_annotation(record.node),
+                    record.line,
+                )
+            )
+    return violations
+
+
+def weak_cast_type_violations(root: Path) -> list[WeakCastTypeViolation]:
+    """Return weak top-type references in cast target types."""
+    violations: list[WeakCastTypeViolation] = []
+    for path in source_files(root):
+        rel_path = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        tree = ast.parse(text, filename=rel_path)
+        resolver = ImportResolver.from_tree(tree)
+        visitor = CastTypeVisitor(text.splitlines(), resolver)
+        visitor.visit(tree)
+        for record in visitor.cast_types:
+            if not contains_weak_top_type(record.node, resolver):
+                continue
+            violations.append(
+                WeakCastTypeViolation(
                     rel_path,
                     normalize_annotation(record.node),
                     record.line,
@@ -395,6 +594,21 @@ def current_alias_entries(root: Path) -> set[str]:
     """Return current jaxtyping alias entries."""
     return {
         violation.as_baseline_entry() for violation in jaxtyping_alias_violations(root)
+    }
+
+
+def current_object_entries(root: Path) -> set[str]:
+    """Return current function object annotation entries."""
+    return {
+        violation.as_baseline_entry()
+        for violation in object_annotation_violations(root)
+    }
+
+
+def current_weak_cast_entries(root: Path) -> set[str]:
+    """Return current weak cast target type entries."""
+    return {
+        violation.as_baseline_entry() for violation in weak_cast_type_violations(root)
     }
 
 
@@ -482,6 +696,46 @@ def check_jaxtyping_aliases(root: Path, baseline_path: Path) -> int:
     return 1
 
 
+def check_object_annotations(root: Path, baseline_path: Path) -> int:
+    """Check current function object annotations against the shrink-only baseline."""
+    current = current_object_entries(root)
+    baseline = baseline_entries(baseline_path)
+    reference = baseline_reference_entries(root, baseline_path)
+    baseline_additions = sorted(baseline - reference) if reference is not None else []
+    unexpected = sorted(current - baseline)
+    if not baseline_additions and not unexpected:
+        return 0
+    if baseline_additions:
+        print("New object annotation baseline entries:", file=sys.stderr)
+        for entry in baseline_additions:
+            print(f"  + {entry}", file=sys.stderr)
+    if unexpected:
+        print("New object annotations in function signatures:", file=sys.stderr)
+        for entry in unexpected:
+            print(f"  + {entry}", file=sys.stderr)
+    return 1
+
+
+def check_weak_cast_types(root: Path, baseline_path: Path) -> int:
+    """Check weak cast target types against the shrink-only baseline."""
+    current = current_weak_cast_entries(root)
+    baseline = baseline_entries(baseline_path)
+    reference = baseline_reference_entries(root, baseline_path)
+    baseline_additions = sorted(baseline - reference) if reference is not None else []
+    unexpected = sorted(current - baseline)
+    if not baseline_additions and not unexpected:
+        return 0
+    if baseline_additions:
+        print("New weak cast type baseline entries:", file=sys.stderr)
+        for entry in baseline_additions:
+            print(f"  + {entry}", file=sys.stderr)
+    if unexpected:
+        print("New bare object/Any references in cast target types:", file=sys.stderr)
+        for entry in unexpected:
+            print(f"  + {entry}", file=sys.stderr)
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the jaxtyping annotation checker."""
     parser = argparse.ArgumentParser()
@@ -494,10 +748,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_baseline:
         write_baseline(BASELINE_PATH, current_entries(ROOT))
         write_baseline(ALIAS_BASELINE_PATH, current_alias_entries(ROOT))
+        write_baseline(OBJECT_BASELINE_PATH, current_object_entries(ROOT))
+        write_baseline(WEAK_CAST_BASELINE_PATH, current_weak_cast_entries(ROOT))
         return 0
     raw_status = check_jaxtyping_annotations(ROOT, BASELINE_PATH)
     alias_status = check_jaxtyping_aliases(ROOT, ALIAS_BASELINE_PATH)
-    return raw_status or alias_status
+    object_status = check_object_annotations(ROOT, OBJECT_BASELINE_PATH)
+    weak_cast_status = check_weak_cast_types(ROOT, WEAK_CAST_BASELINE_PATH)
+    return raw_status or alias_status or object_status or weak_cast_status
 
 
 if __name__ == "__main__":

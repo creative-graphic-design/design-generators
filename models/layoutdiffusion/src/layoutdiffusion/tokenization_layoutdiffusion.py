@@ -6,10 +6,10 @@ import json
 from collections.abc import Mapping
 from os import PathLike
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedTokenizer
 
 from laygen.common.bbox import (
@@ -96,7 +96,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         return dict(self._token_to_id)
 
     def _tokenize(self, text: str, **kwargs: object) -> list[str]:
-        """Split a vendor layout token string on whitespace."""
+        """Split a LayoutDiffusion token string on whitespace."""
         _ = kwargs
         return text.strip().split()
 
@@ -121,7 +121,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode layout tensors into token ids.
 
         Args:
@@ -153,8 +153,8 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, torch.Tensor]:
-        """Encode public layout tensors into vendor token ids.
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+        """Encode public layout tensors into LayoutDiffusion token ids.
 
         Args:
             bbox: Boxes shaped ``(B, S, 4)``.
@@ -230,10 +230,10 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
 
     def decode_layout(
         self,
-        input_ids: torch.Tensor,
+        input_ids: Int[torch.Tensor, "batch tokens"],
         *,
         output_box_format: Literal["xywh", "ltrb"] = "xywh",
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Decode token ids into public layout tensors.
 
         Args:
@@ -278,13 +278,13 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         self,
         *,
         batch_size: int,
-        num_elements: torch.Tensor | list[int] | int | None = None,
-        labels: torch.Tensor | None = None,
+        num_elements: Int[torch.Tensor, "batch"] | list[int] | int | None = None,
+        labels: Int[torch.Tensor, "batch elements"] | None = None,
         condition_type: str = "unconditional",
         generator: torch.Generator | None = None,
         device: torch.device | None = None,
-    ) -> torch.Tensor:
-        """Build the vendor sampling start template.
+    ) -> Int[torch.Tensor, "batch tokens"]:
+        """Build the LayoutDiffusion sampling start template.
 
         Args:
             batch_size: Number of samples.
@@ -357,8 +357,10 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                 )
         return input_ids
 
-    def token_ids_to_text(self, input_ids: torch.Tensor) -> list[str]:
-        """Convert token ids to vendor text lines."""
+    def token_ids_to_text(
+        self, input_ids: Int[torch.Tensor, "batch tokens"]
+    ) -> list[str]:
+        """Convert token ids to LayoutDiffusion text lines."""
         if input_ids.ndim == 1:
             input_ids = input_ids.unsqueeze(0)
         return [
@@ -366,8 +368,8 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
             for row in input_ids.cpu().long()
         ]
 
-    def text_to_token_ids(self, lines: list[str]) -> torch.Tensor:
-        """Convert vendor text lines into padded token ids."""
+    def text_to_token_ids(self, lines: list[str]) -> Int[torch.Tensor, "batch tokens"]:
+        """Convert LayoutDiffusion text lines into padded token ids."""
         rows = []
         for line in lines:
             ids = [self._convert_token_to_id(token) for token in line.strip().split()]
@@ -420,17 +422,21 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         **kwargs: object,
     ) -> "LayoutDiffusionTokenizer":
         """Load tokenizer from a pipeline root or tokenizer directory."""
-        path = Path(path)
-        if (path / "tokenizer").is_dir():
-            path = path / "tokenizer"
+        load_path = Path(path)
+        tokenizer_dir = load_path / "tokenizer"
+        if tokenizer_dir.is_dir():
+            load_path = tokenizer_dir
+        load_kwargs = {
+            "cache_dir": cache_dir,
+            "force_download": force_download,
+            "local_files_only": local_files_only,
+            "token": token,
+            "revision": revision,
+        }
         return super().from_pretrained(
-            path,
+            load_path,
             *args,
-            cache_dir=cache_dir,
-            force_download=force_download,
-            local_files_only=local_files_only,
-            token=token,
-            revision=revision,
+            **load_kwargs,
             **kwargs,
         )
 
@@ -442,12 +448,12 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         kwargs: dict[str, object],
     ) -> LayoutDiffusionConfig:
         layout_config = kwargs.pop("layout_config", None)
+        if layout_config is None and layout_config_file is None:
+            raise ValueError("LayoutDiffusionTokenizer requires layout_config_file")
         if layout_config is None:
-            if layout_config_file is None:
-                raise ValueError("LayoutDiffusionTokenizer requires layout_config_file")
-            layout_config = json.loads(
-                Path(layout_config_file).read_text(encoding="utf-8")
-            )
+            config_file = Path(cast(str | Path, layout_config_file))
+            config_text = config_file.read_text(encoding="utf-8")
+            layout_config = json.loads(config_text)
         if not isinstance(layout_config, Mapping):
             raise TypeError("layout_config must be a mapping")
         return _config_from_mapping(
