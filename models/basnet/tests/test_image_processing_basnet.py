@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from PIL import Image
+from typing import Literal, cast
 
 from basnet import BASNetImageProcessor
 
@@ -36,10 +37,11 @@ def test_processor_postprocesses_png_space_saliency():
 
 def test_processor_rejects_bad_return_tensors_and_batch_sizes():
     processor = BASNetImageProcessor()
+    bad_return_tensors = cast(Literal["pt"], "np")
     try:
         processor.preprocess(
             Image.new("RGB", (8, 8)),
-            return_tensors="np",
+            return_tensors=bad_return_tensors,
         )
     except ValueError as exc:
         assert "return_tensors" in str(exc)
