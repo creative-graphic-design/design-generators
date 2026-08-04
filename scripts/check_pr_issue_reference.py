@@ -6,17 +6,67 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
+COMPLETION_GATE_EFFECTIVE_AT = datetime(2026, 7, 25, tzinfo=UTC)
 ISSUE_REF_RE = re.compile(
     r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|refs?|references?)\s+"
     r"(?:https://github\.com/creative-graphic-design/design-generators/issues/)?#?(\d+)"
 )
 CHECKLIST_HEADING_RE = re.compile(r"(?im)^## Checklist\s*$")
+COMPLETION_GATE_HEADING_RE = re.compile(r"(?im)^## Completion Gate\s*$")
+SHARED_LIBRARY_HEADING_RE = re.compile(r"(?im)^## Shared Library Changes\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
+PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
+
+
+class PullRequestMetadata(NamedTuple):
+    """Pull request metadata read from a GitHub Actions event."""
+
+    body: str
+    draft: bool
+    created_at: datetime | None
+
+
+class CompletionRequirement(NamedTuple):
+    """A ready-for-review completion gate requirement."""
+
+    name: str
+    prefix: str
+    allowed_justification: str | None
+    justification_label: str | None
+
+
+COMPLETION_REQUIREMENTS = (
+    CompletionRequirement(
+        name="vendor parity",
+        prefix="Vendor parity verified, or gated-pending:",
+        allowed_justification="gated-pending:",
+        justification_label="a named blocker",
+    ),
+    CompletionRequirement(
+        name="training S5",
+        prefix="Training S5 reproduction complete, or N/A:",
+        allowed_justification="N/A:",
+        justification_label="a reason",
+    ),
+    CompletionRequirement(
+        name="pre-PR adversarial review",
+        prefix=(
+            "Pre-PR adversarial review completed "
+            "(reviewer spawned before opening the PR; findings resolved)"
+        ),
+        allowed_justification=None,
+        justification_label=None,
+    ),
+)
 
 
 def issue_references(body: str) -> set[int]:
@@ -34,13 +84,46 @@ def valid_issue_references(
 
 def read_body_from_event(event_path: Path) -> str:
     """Read the pull request body from a GitHub Actions event payload."""
+    return read_pull_request_metadata_from_event(event_path).body
+
+
+def _parse_github_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def read_pull_request_metadata_from_event(event_path: Path) -> PullRequestMetadata:
+    """Read pull request metadata from a GitHub Actions event payload."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
-    return str(payload.get("pull_request", {}).get("body") or "")
+    pull_request = payload.get("pull_request", {})
+    if not isinstance(pull_request, dict):
+        pull_request = {}
+    return PullRequestMetadata(
+        body=str(pull_request.get("body") or ""),
+        draft=bool(pull_request.get("draft", False)),
+        created_at=_parse_github_datetime(pull_request.get("created_at")),
+    )
 
 
 def checklist_section(body: str) -> str | None:
     """Return the PR checklist section body, excluding the heading."""
-    heading = CHECKLIST_HEADING_RE.search(body)
+    return section_body(body, CHECKLIST_HEADING_RE)
+
+
+def completion_gate_section(body: str) -> str | None:
+    """Return the PR completion gate section body, excluding the heading."""
+    return section_body(body, COMPLETION_GATE_HEADING_RE)
+
+
+def shared_library_section(body: str) -> str | None:
+    """Return the shared-library/cross-cutting section body, excluding the heading."""
+    return section_body(body, SHARED_LIBRARY_HEADING_RE)
+
+
+def section_body(body: str, heading_re: re.Pattern[str]) -> str | None:
+    """Return a markdown section body, excluding the heading."""
+    heading = heading_re.search(body)
     if heading is None:
         return None
     next_section = SECTION_HEADING_RE.search(body, heading.end())
@@ -88,23 +171,154 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
     return errors
 
 
+def _has_actionable_justification(text: str, marker: str) -> bool:
+    _, _, reason = text.partition(marker)
+    cleaned = PLACEHOLDER_RE.sub("", reason).strip(" .:-")
+    return bool(cleaned)
+
+
+def _find_completion_item(
+    section: str, requirement: CompletionRequirement
+) -> tuple[bool, str] | None:
+    for match in CHECKBOX_RE.finditer(section):
+        text = match.group("text")
+        if text.startswith(requirement.prefix):
+            return match.group("state").lower() == "x", text
+    return None
+
+
+def _legacy_body_without_completion_gate(
+    created_at: datetime | None,
+) -> bool:
+    return created_at is not None and created_at < COMPLETION_GATE_EFFECTIVE_AT
+
+
+def completion_gate_errors(
+    body: str,
+    *,
+    draft: bool,
+    created_at: datetime | None = None,
+) -> list[str]:
+    """Return ready-for-review completion gate validation errors."""
+    if draft:
+        return []
+
+    section = completion_gate_section(body)
+    if section is None:
+        if _legacy_body_without_completion_gate(created_at):
+            return []
+        return [
+            "Ready-for-review PRs must include a `## Completion Gate` section. "
+            "Complete the items or convert the PR back to draft."
+        ]
+
+    errors: list[str] = []
+    for requirement in COMPLETION_REQUIREMENTS:
+        item = _find_completion_item(section, requirement)
+        if item is None:
+            errors.append(
+                f"Ready-for-review PRs must include the completion item for "
+                f"{requirement.name}: `{requirement.prefix}`. Complete it or "
+                "convert the PR back to draft."
+            )
+            continue
+
+        checked, text = item
+        marker = requirement.allowed_justification
+        if checked:
+            continue
+        if marker is not None and _has_actionable_justification(text, marker):
+            continue
+        if requirement.justification_label is None:
+            errors.append(
+                f"Ready-for-review PRs must check `{requirement.prefix}` or "
+                "convert the PR back to draft."
+            )
+        else:
+            errors.append(
+                f"Ready-for-review PRs must complete `{requirement.prefix}` with "
+                f"{requirement.justification_label} or convert the PR back to draft."
+            )
+    return errors
+
+
+def _is_guarded_cross_cutting_path(path: str) -> bool:
+    return (
+        path.startswith("docs/")
+        or path.startswith(".agents/skills/")
+        or (path.startswith("lib/") and "/src/" in path)
+    )
+
+
+def guarded_cross_cutting_paths(changed_files: list[str]) -> list[str]:
+    """Return changed files that require cross-cutting-change rationale."""
+    return [path for path in changed_files if _is_guarded_cross_cutting_path(path)]
+
+
+def changed_files_from_git(base: str, head: str) -> list[str]:
+    """Return changed file paths between two revisions."""
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{base}...{head}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def _has_actionable_section_text(section: str) -> bool:
+    cleaned_lines = [
+        PLACEHOLDER_RE.sub("", line).strip(" -.\t")
+        for line in section.splitlines()
+        if line.strip()
+    ]
+    return any(line and not NON_ACTIONABLE_RE.match(line) for line in cleaned_lines)
+
+
+def shared_library_change_errors(
+    body: str,
+    changed_files: list[str],
+) -> list[str]:
+    """Return errors for cross-cutting changes without PR-body rationale."""
+    guarded_paths = guarded_cross_cutting_paths(changed_files)
+    if not guarded_paths:
+        return []
+
+    section = shared_library_section(body)
+    if section is not None and _has_actionable_section_text(section):
+        return []
+
+    return [
+        "PRs changing cross-cutting paths must explain the rationale in "
+        "`## Shared Library Changes`: " + ", ".join(guarded_paths)
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     """Validate that a PR body links an issue and fills the checklist."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--body-file", type=Path)
+    parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--changed-file", action="append", default=[])
+    parser.add_argument("--base")
+    parser.add_argument("--head")
     args = parser.parse_args(argv)
 
     if args.body_file is not None:
-        body = args.body_file.read_text(encoding="utf-8")
+        metadata = PullRequestMetadata(
+            body=args.body_file.read_text(encoding="utf-8"),
+            draft=args.draft,
+            created_at=None,
+        )
     else:
         event_path = os.environ.get("GITHUB_EVENT_PATH")
         if not event_path:
             print("GITHUB_EVENT_PATH is required outside --body-file.", file=sys.stderr)
             return 2
-        body = read_body_from_event(Path(event_path))
+        metadata = read_pull_request_metadata_from_event(Path(event_path))
 
     errors: list[str] = []
-    references = valid_issue_references(body)
+    references = valid_issue_references(metadata.body)
     if not references:
         errors.append(
             "PR body must include `Closes #N` or `Refs #N` for the implementation "
@@ -114,7 +328,20 @@ def main(argv: list[str] | None = None) -> int:
     template_path = (
         Path(__file__).resolve().parents[1] / ".github" / ("PULL_REQUEST_TEMPLATE.md")
     )
-    errors.extend(checklist_errors(body, required_checklist_items(template_path)))
+    errors.extend(
+        checklist_errors(metadata.body, required_checklist_items(template_path))
+    )
+    errors.extend(
+        completion_gate_errors(
+            metadata.body,
+            draft=metadata.draft,
+            created_at=metadata.created_at,
+        )
+    )
+    changed_files = list(args.changed_file)
+    if args.base and args.head:
+        changed_files.extend(changed_files_from_git(args.base, args.head))
+    errors.extend(shared_library_change_errors(metadata.body, changed_files))
 
     if errors:
         print("\n".join(errors), file=sys.stderr)

@@ -7,9 +7,10 @@ import hashlib
 import json
 from os import PathLike
 from pathlib import Path
-from typing import Literal, Self, cast
+from typing import Literal, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
 from transformers.tokenization_utils_base import BatchEncoding
@@ -78,7 +79,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         revision: str = "main",
         subfolder: str | None = None,
         **kwargs: object,
-    ) -> Self:
+    ) -> "LayoutDetrProcessor":
         """Load processor metadata from a checkpoint directory."""
         del cache_dir, force_download, local_files_only, token, revision, kwargs
         root = _processor_root(pretrained_model_name_or_path, subfolder=subfolder)
@@ -107,15 +108,21 @@ class LayoutDetrProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        images: ImageInput | Sequence[ImageInput] | torch.Tensor | None = None,
+        images: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch channels height width"]
+        | None = None,
         content: Mapping[str, object] | None = None,
         prompt: str | Sequence[str] | None = None,
         texts: Sequence[Sequence[str]] | Sequence[str] | None = None,
-        labels: torch.Tensor
+        labels: Int[torch.Tensor, "batch elements"]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
         condition_type: str = "content_image",
         background_preprocessing: BackgroundPreprocessing
         | str = BackgroundPreprocessing.none,
@@ -193,9 +200,9 @@ class LayoutDetrProcessor(ProcessorMixin):
 
     def post_process_layouts(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
         *,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
@@ -239,7 +246,10 @@ class LayoutDetrProcessor(ProcessorMixin):
     def _tokenize_rows(
         self,
         text_rows: list[list[str]],
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[
+        Int[torch.Tensor, "batch elements tokens"],
+        Bool[torch.Tensor, "batch elements tokens"],
+    ]:
         batch_ids = []
         batch_mask = []
         for row in text_rows:
@@ -266,7 +276,11 @@ class LayoutDetrProcessor(ProcessorMixin):
         text_rows: list[list[str]],
         label_rows: list[list[int]],
         mask_rows: list[list[bool]],
-    ) -> tuple[torch.Tensor, torch.Tensor, list[list[str]]]:
+    ) -> tuple[
+        Int[torch.Tensor, "batch elements"],
+        Bool[torch.Tensor, "batch elements"],
+        list[list[str]],
+    ]:
         labels = []
         masks = []
         texts = []
@@ -307,7 +321,7 @@ def _hash_token_ids(text: str, max_length: int, vocab_size: int) -> list[int]:
 def _pad_text_lengths(
     text_rows: list[list[str]],
     max_seq_length: int,
-) -> torch.Tensor:
+) -> Int[torch.Tensor, "batch elements"]:
     rows = []
     for row in text_rows:
         lengths = [len(text) for text in row[:max_seq_length]]
@@ -356,7 +370,10 @@ def _normalize_label_sequence(
 
 
 def _normalize_mask_rows(
-    mask: torch.Tensor | Sequence[Sequence[bool]] | Sequence[bool] | None,
+    mask: Bool[torch.Tensor, "batch elements"]
+    | Sequence[Sequence[bool]]
+    | Sequence[bool]
+    | None,
     label_rows: list[list[int]],
 ) -> list[list[bool]]:
     if mask is None:

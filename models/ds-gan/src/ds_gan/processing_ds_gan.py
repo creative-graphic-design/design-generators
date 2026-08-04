@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, Literal, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int, Shaped
 from PIL import Image
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
-from laygen.common.bbox import BoxFormat, normalize_boxes, prepare_layout_tensors
+from laygen.common.bbox import (
+    ArrayLikeInput,
+    BoxFormat,
+    normalize_boxes,
+    prepare_layout_tensors,
+)
 from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
@@ -105,10 +112,10 @@ class DSGANProcessor(ProcessorMixin):
     def decode(
         self,
         *,
-        class_probs: torch.Tensor,
-        bbox: torch.Tensor,
+        class_probs: Float[torch.Tensor, "batch elements 4"],
+        bbox: Float[torch.Tensor, "batch elements 4"],
         output_type: Literal["dataclass", "dict"] = "dataclass",
-        scores: torch.Tensor | None = None,
+        scores: Float[torch.Tensor, "batch elements"] | None = None,
         intermediates: object | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         """Decode raw DS-GAN class probabilities and boxes.
@@ -146,14 +153,21 @@ class DSGANProcessor(ProcessorMixin):
     def encode_layout(
         self,
         *,
-        bbox: torch.Tensor | np.ndarray | list[object],
-        labels: torch.Tensor | np.ndarray | list[object],
-        mask: torch.Tensor | np.ndarray | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[ArrayLikeInput],
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput],
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         max_elem: int = 32,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode public boxes/labels into the internal layout tensor.
 
         Args:
@@ -188,12 +202,16 @@ class DSGANProcessor(ProcessorMixin):
 
     def pad(
         self,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
         *,
         max_elem: int,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[
+        Float[torch.Tensor, "batch padded_elements 4"],
+        Int[torch.Tensor, "batch padded_elements"],
+        Bool[torch.Tensor, "batch padded_elements"],
+    ]:
         """Pad layout tensors to DS-GAN ``max_elem`` slots."""
         if bbox.shape[1] > max_elem:
             raise ValueError(f"DS-GAN supports at most {max_elem} elements")
@@ -239,7 +257,7 @@ class DSGANProcessor(ProcessorMixin):
         )
         if len(first) != batch_size or len(second) != batch_size:
             raise ValueError("saliency batch size must match images")
-        merged: list[torch.Tensor] = []
+        merged: list[Float[torch.Tensor, "1 height width"]] = []
         for left, right in zip(first, second, strict=True):
             if left is None:
                 merged.append(_to_l_tensor(right, self.image_size))
@@ -266,14 +284,18 @@ def _ensure_batch(value: object) -> list[object]:
     return [value]
 
 
-def _to_rgb_tensor(image: object, image_size: tuple[int, int]) -> torch.Tensor:
+def _to_rgb_tensor(
+    image: object, image_size: tuple[int, int]
+) -> Float[torch.Tensor, "3 height width"]:
     tensor = _to_tensor(image, image_size=image_size, mode="RGB")
     if tensor.shape[0] != 3:
         raise ValueError("RGB image must have three channels")
     return tensor
 
 
-def _to_l_tensor(image: object | None, image_size: tuple[int, int]) -> torch.Tensor:
+def _to_l_tensor(
+    image: object | None, image_size: tuple[int, int]
+) -> Float[torch.Tensor, "1 height width"]:
     if image is None:
         return torch.zeros(1, *image_size, dtype=torch.float32)
     tensor = _to_tensor(image, image_size=image_size, mode="L")
@@ -287,7 +309,7 @@ def _to_tensor(
     *,
     image_size: tuple[int, int],
     mode: Literal["RGB", "L"],
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "channels height width"]:
     if isinstance(image, torch.Tensor):
         tensor = image.detach().clone().float()
         if tensor.ndim == 2:
@@ -320,7 +342,7 @@ def _merge_saliency_native(
     left: object,
     right: object,
     image_size: tuple[int, int],
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "1 height width"]:
     left_pil = _to_pil(left).convert("L")
     right_pil = _to_pil(right).convert("L")
     if left_pil.size != right_pil.size:
@@ -349,7 +371,7 @@ def annotations_from_pku_example(
     example: dict[str, object],
     *,
     max_elem: int = 32,
-) -> dict[str, torch.Tensor | tuple[int, int]]:
+) -> dict[str, Shaped[torch.Tensor, "..."] | tuple[int, int]]:
     """Convert a PKU PosterLayout dataset row into public layout tensors.
 
     The adapter filters ``INVALID`` annotations, converts pixel ``ltrb`` boxes
@@ -429,7 +451,7 @@ def _canvas_size_from_example(example: dict[str, object]) -> tuple[int, int]:
 
 def _designseq_reorder(
     model_labels: list[int],
-    boxes: torch.Tensor,
+    boxes: Float[torch.Tensor, "elements 4"],
     *,
     max_elem: int,
 ) -> list[int]:
@@ -442,7 +464,7 @@ def _designseq_reorder(
 
 def _fallback_reorder(
     model_labels: list[int],
-    boxes: torch.Tensor,
+    boxes: Float[torch.Tensor, "elements 4"],
     *,
     max_elem: int,
 ) -> list[int]:

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import numpy as np
+from jaxtyping import Shaped
 
 
 class _TensorFlowTrain(Protocol):
@@ -55,7 +56,7 @@ def list_tf_checkpoint_variables(
 
 def load_tf_checkpoint_variables(
     checkpoint_prefix: str | Path,
-) -> dict[str, np.ndarray]:
+) -> dict[str, Shaped[np.ndarray, "..."]]:
     """Load all TensorFlow checkpoint variables into NumPy arrays."""
     tf = _load_tensorflow()
     return {

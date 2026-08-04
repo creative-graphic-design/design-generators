@@ -16,13 +16,17 @@ from transformers.modeling_outputs import Seq2SeqLMOutput
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 
 
-def generate_square_subsequent_mask(size: int, device: torch.device) -> torch.Tensor:
+def generate_square_subsequent_mask(
+    size: int, device: torch.device
+) -> Float[torch.Tensor, "target target"]:
     """Create the causal decoder mask used by the checkpoint model."""
     mask = (torch.triu(torch.ones(size, size, device=device)) == 1).transpose(0, 1)
     return mask.float().masked_fill(mask == 0, -math.inf).masked_fill(mask == 1, 0.0)
 
 
-def top_k_logits(logits: torch.Tensor, k: int) -> torch.Tensor:
+def top_k_logits(
+    logits: Float[torch.Tensor, "batch vocab"], k: int
+) -> Float[torch.Tensor, "batch vocab"]:
     """Mask logits outside the top-k set."""
     if k <= 0 or k >= logits.size(-1):
         return logits
@@ -154,8 +158,8 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         return enc_hs, enc_padding_mask
 
     def prepare_decoder_input_ids_from_labels(
-        self, labels: torch.Tensor
-    ) -> torch.Tensor:
+        self, labels: Int[torch.Tensor, "batch tokens"]
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Shift labels right and prepend BOS."""
         bos = labels.new_full((labels.size(0), 1), self.bos_token_id)
         return torch.cat([bos, labels[:, :-1]], dim=1)
@@ -168,7 +172,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         decoder_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
         task_ids: Int[torch.Tensor, "batch"] | None = None,
         return_dict: bool | None = None,
-    ) -> Seq2SeqLMOutput | tuple[torch.Tensor, ...]:
+    ) -> Seq2SeqLMOutput | tuple[Float[torch.Tensor, "..."], ...]:
         """Run teacher-forced LayoutFormer++ decoding."""
         if attention_mask is None:
             attention_mask = input_ids.ne(self.pad_token_id)
@@ -213,7 +217,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         top_k: int = 10,
         temperature: float = 0.7,
         generation_constraint_fn: Callable[
-            [int, int, torch.Tensor], tuple[list[int], int | None]
+            [int, int, Int[torch.Tensor, "tokens"]], tuple[list[int], int | None]
         ]
         | None = None,
         task_ids: Int[torch.Tensor, "batch"] | None = None,
@@ -228,7 +232,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         bsz = input_ids.size(0)
         stop = input_ids.new_zeros(bsz, dtype=torch.bool)
         pred_ids = input_ids.new_full((bsz, 1), self.bos_token_id)
-        outs: list[torch.Tensor] = []
+        outs: list[Int[torch.Tensor, "batch"]] = []
         for idx in range(max_length):
             dec_input = self.dec_pos_embedding(
                 self.dec_embedding(pred_ids).permute(1, 0, 2)

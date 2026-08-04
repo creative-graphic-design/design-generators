@@ -5,11 +5,15 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from jaxtyping import Bool, Float
 
 from laygen.common.bbox import xywh_to_ltrb
 
 
-def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+def _pairwise_iou_xywh(
+    bbox_xywh: Float[torch.Tensor, "batch elements 4"],
+    mask: Bool[torch.Tensor, "batch elements"],
+) -> Float[torch.Tensor, "batch elements elements"]:
     bbox_ltrb = xywh_to_ltrb(torch.abs(bbox_xywh))
     n_box = bbox_ltrb.shape[1]
     area = (bbox_ltrb[:, :, 2] - bbox_ltrb[:, :, 0]) * (
@@ -28,7 +32,10 @@ def _pairwise_iou_xywh(bbox_xywh: torch.Tensor, mask: torch.Tensor) -> torch.Ten
     return iou * select_mask
 
 
-def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+def _layout_alignment_matrix(
+    bbox: Float[torch.Tensor, "batch elements 4"],
+    mask: Bool[torch.Tensor, "batch elements"],
+) -> Float[torch.Tensor, "batch elements 6 elements"]:
     bbox_ltrb = xywh_to_ltrb(bbox).permute(2, 0, 1)
     xl, yt, xr, yb = bbox_ltrb
     bbox_t = bbox.permute(2, 0, 1)
@@ -43,14 +50,17 @@ def _layout_alignment_matrix(bbox: torch.Tensor, mask: torch.Tensor) -> torch.Te
 
 
 def beautify_layout(
-    bbox: torch.Tensor,
-    mask: torch.Tensor,
+    bbox: Float[torch.Tensor, "batch elements 4"],
+    mask: Bool[torch.Tensor, "batch elements"],
     overlap_weight: float = 1.0,
     alignment_weight: float = 1.0,
     xy_only: bool = False,
     num_steps: int = 1000,
     lr: float = 1e-4,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[
+    Float[torch.Tensor, "batch elements 4"],
+    Bool[torch.Tensor, "batch elements"],
+]:
     """Optimize generated boxes with overlap and alignment penalties.
 
     Args:

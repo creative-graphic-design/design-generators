@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from os import PathLike
 from typing import Literal
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     prepare_layout_tensors,
 )
@@ -67,19 +69,19 @@ class LayoutDMProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object],
+        | Sequence[ArrayLikeInput],
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Process a layout batch into model input tensors.
 
         Args:

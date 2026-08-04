@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from jaxtyping import Bool, Float, Int
 import matplotlib.pyplot as plt
 import torch
 from matplotlib.axes import Axes
@@ -13,9 +14,9 @@ from .bbox import xywh_to_ltrb
 
 
 def render_layout(
-    bbox: torch.Tensor,
-    labels: torch.Tensor,
-    mask: torch.Tensor,
+    bbox: Float[torch.Tensor, "elements 4"],
+    labels: Int[torch.Tensor, "elements"],
+    mask: Bool[torch.Tensor, "elements"],
     id2label: dict[int, str],
     *,
     ax: Axes | None = None,

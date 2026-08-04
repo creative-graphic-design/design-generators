@@ -12,6 +12,8 @@ from transformers import BaseImageProcessor
 from transformers.image_processing_utils import BatchFeature
 from transformers.image_utils import ImageInput
 
+from basnet import BASNetImageProcessor
+
 from .configuration_smarttext import SmartTextConfig
 
 
@@ -122,27 +124,15 @@ class SmartTextImageProcessor(BaseImageProcessor):
         Returns:
             Batch feature with ``basnet_pixel_values`` shaped ``(B, 3, 256, 256)``.
         """
-        if return_tensors != "pt":
-            raise ValueError(
-                "SmartTextImageProcessor only supports return_tensors='pt'"
-            )
-        tensors = []
-        sizes = []
-        for image in _ensure_pil_batch(images):
-            width, height = image.size
-            sizes.append((height, width))
-            rgb = image.convert("RGB")
-            array = _resize_basnet_rgb(rgb)
-            max_value = float(array.max())
-            array = array / max_value
-            mean = np.asarray(self.rgb_mean, dtype=array.dtype)
-            std = np.asarray(self.rgb_std, dtype=array.dtype)
-            array = (array - mean) / std
-            tensors.append(torch.from_numpy(array.transpose(2, 0, 1)))
+        basnet = BASNetImageProcessor(
+            input_size=256,
+            rgb_mean=self.rgb_mean,
+            rgb_std=self.rgb_std,
+        ).preprocess(images, return_tensors=return_tensors)
         return BatchFeature(
             {
-                "basnet_pixel_values": torch.stack(tensors).float(),
-                "image_sizes": torch.tensor(sizes, dtype=torch.long),
+                "basnet_pixel_values": basnet["pixel_values"],
+                "image_sizes": basnet["image_sizes"],
             }
         )
 
@@ -175,13 +165,3 @@ def _to_pil(image: ImageInput) -> Image.Image:
             array = array * 255.0
         return Image.fromarray(array.astype(np.uint8)).convert("RGB")
     raise TypeError(f"Unsupported image input: {type(image)!r}")
-
-
-def _resize_basnet_rgb(image: Image.Image) -> np.ndarray:
-    raw = np.asarray(image)
-    try:
-        from skimage import transform  # type: ignore[import-not-found]
-    except ModuleNotFoundError:
-        resized = image.resize((256, 256), Image.Resampling.BILINEAR)
-        return np.asarray(resized, dtype=np.float32)
-    return transform.resize(raw, (256, 256), mode="constant")

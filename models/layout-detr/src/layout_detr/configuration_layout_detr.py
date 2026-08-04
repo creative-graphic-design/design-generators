@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
-from typing import Final, cast
+from typing import Final, Literal, cast
 
 from transformers import PretrainedConfig
 
@@ -51,7 +51,7 @@ class LayoutDetrConfig(PretrainedConfig):
         backbone_name: str = "resnet50",
         image_mean: Sequence[float] = (0.485, 0.456, 0.406),
         image_std: Sequence[float] = (0.229, 0.224, 0.225),
-        architecture: str = "lightweight",
+        architecture: Literal["lightweight", "reference"] = "lightweight",
         model_subfolder: str = "model",
         processor_subfolder: str = "processor",
         original_training_options: Mapping[str, object] | None = None,
@@ -95,7 +95,7 @@ class LayoutDetrConfig(PretrainedConfig):
 
     @property
     def num_bbox_labels(self) -> int:
-        """Return the vendor bbox-label count."""
+        """Return the model bbox-label count."""
         return self.num_labels
 
     @property

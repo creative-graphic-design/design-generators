@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Final, TypedDict, cast
 
 import torch
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedTokenizer
 from transformers.utils import cached_file
 
@@ -19,9 +20,9 @@ TOKENIZER_CONFIG_FILE: Final[str] = "layout_action_tokenizer_config.json"
 class DecodedActions(TypedDict):
     """Decoded action-token details."""
 
-    option: torch.Tensor
-    object: torch.Tensor
-    value: torch.Tensor
+    option: Int[torch.Tensor, "batch elements 4"]
+    object: Int[torch.Tensor, "batch elements 4"]
+    value: Int[torch.Tensor, "batch elements 4"]
 
 
 class LayoutActionTokenizer(PreTrainedTokenizer):
@@ -171,7 +172,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
             config = LayoutActionConfig(**json.load(f)["config"])
         return cls(config=config)
 
-    def quantize_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
+    def quantize_bbox(
+        self, bbox: Float[torch.Tensor, "... 4"]
+    ) -> Int[torch.Tensor, "... 4"]:
         """Quantize normalized center ``xywh`` boxes with checkpoint binning."""
         return (
             bbox.clamp(0.0, 1.0)
@@ -181,7 +184,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
             .clamp(0, self.config.size - 1)
         )
 
-    def continuize_bbox(self, quantized_bbox: torch.Tensor) -> torch.Tensor:
+    def continuize_bbox(
+        self, quantized_bbox: Int[torch.Tensor, "... 4"]
+    ) -> Float[torch.Tensor, "... 4"]:
         """Decode quantized boxes to normalized center ``xywh`` values."""
         return quantized_bbox.float().clamp(0, self.config.size - 1) / (
             self.config.size - 1
@@ -190,10 +195,10 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
     def encode_layout(
         self,
         *,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> torch.Tensor:
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Encode public normalized layouts to padded action-token sequences.
 
         Args:
@@ -214,10 +219,10 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
     def encode_action_layout(
         self,
         *,
-        quantized_bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> torch.Tensor:
+        quantized_bbox: Int[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"],
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Encode already quantized boxes to action tokens."""
         batch = quantized_bbox.shape[0]
         sequences = torch.full(
@@ -230,7 +235,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         for batch_idx in range(batch):
             cursor = 1
             valid = torch.nonzero(mask[batch_idx], as_tuple=False).flatten()
-            encoded_boxes: list[torch.Tensor] = []
+            encoded_boxes: list[Int[torch.Tensor, "4"]] = []
             for elem_idx in valid[: self.config.max_elements]:
                 label_id = int(labels[batch_idx, elem_idx].item())
                 qbox = quantized_bbox[batch_idx, elem_idx].long()
@@ -248,7 +253,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         return sequences
 
     def _encode_action_triples(
-        self, qbox: torch.Tensor, previous_boxes: list[torch.Tensor]
+        self, qbox: Int[torch.Tensor, "4"], previous_boxes: list[Int[torch.Tensor, "4"]]
     ) -> list[tuple[int, int, int]]:
         """Encode one quantized box with checkpoint copy/margin/generate precedence."""
         if not previous_boxes:
@@ -314,25 +319,29 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 raise ValueError("LayoutAction action selection produced no option")
         return triples
 
-    def _latest_back_reference(self, hits: torch.Tensor) -> int:
+    def _latest_back_reference(self, hits: Bool[torch.Tensor, "elements"]) -> int:
         hit_indices = torch.nonzero(hits, as_tuple=False).flatten()
         if hit_indices.numel() == 0:
             raise ValueError("Expected at least one back-reference hit")
         return int(hits.numel() - hit_indices[-1].item())
 
-    def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+    def decode_layout(
+        self, input_ids: Int[torch.Tensor, "batch_or_tokens ..."]
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Decode action-token sequences to public layout tensors."""
         return cast(
-            dict[str, torch.Tensor],
+            dict[str, Shaped[torch.Tensor, "..."]],
             self.decode_action_tokens(input_ids, return_actions=False),
         )
 
     def decode_action_tokens(
         self,
-        input_ids: torch.Tensor,
+        input_ids: Int[torch.Tensor, "batch_or_tokens ..."],
         *,
         return_actions: bool = False,
-    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+    ) -> dict[
+        str, Shaped[torch.Tensor, "..."] | dict[str, Shaped[torch.Tensor, "..."]]
+    ]:
         """Decode action tokens and optionally return raw action details."""
         ids = input_ids.long()
         if ids.ndim == 1:
@@ -350,7 +359,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 : (tokens.numel() // self.config.element_token_width)
                 * self.config.element_token_width
             ]
-            boxes: list[torch.Tensor] = []
+            boxes: list[Int[torch.Tensor, "4"]] = []
             out_idx = 0
             for start in range(0, usable.numel(), self.config.element_token_width):
                 if out_idx >= self.config.max_elements:
@@ -414,7 +423,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 labels[batch_idx, out_idx] = label_id
                 mask[batch_idx, out_idx] = True
                 out_idx += 1
-        result: dict[str, torch.Tensor | dict[str, torch.Tensor]] = {
+        result: dict[
+            str, Shaped[torch.Tensor, "..."] | dict[str, Shaped[torch.Tensor, "..."]]
+        ] = {
             "bbox": bbox.clamp(0.0, 1.0),
             "labels": labels,
             "mask": mask,
@@ -423,7 +434,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
             result["actions"] = {"option": option, "object": obj, "value": value}
         return result
 
-    def _trim_special_tokens(self, input_ids: torch.Tensor) -> torch.Tensor:
+    def _trim_special_tokens(
+        self, input_ids: Int[torch.Tensor, "tokens"]
+    ) -> Int[torch.Tensor, "tokens"]:
         tokens = input_ids.detach().cpu()
         bos = torch.nonzero(tokens == self.config.bos_token_id, as_tuple=False)
         if bos.numel() > 0:

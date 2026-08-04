@@ -9,25 +9,14 @@ guarantees are provided by ``laygen.common.testing.assert_layout_output_schema``
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TYPE_CHECKING, cast
 
 from jaxtyping import Bool, Float, Int
 from transformers.utils import ModelOutput
 
-from laygen.common.typing import (
-    NumpyLayoutBBoxes,
-    NumpyLayoutLabels,
-    NumpyLayoutMask,
-)
-
 if TYPE_CHECKING:
+    import numpy as np
     import torch
-
-    LayoutBBoxes: TypeAlias = (
-        NumpyLayoutBBoxes | Float[torch.Tensor, "batch elements 4"]
-    )
-    LayoutLabels: TypeAlias = NumpyLayoutLabels | Int[torch.Tensor, "batch elements"]
-    LayoutMask: TypeAlias = NumpyLayoutMask | Bool[torch.Tensor, "batch elements"]
 
 
 @dataclass
@@ -57,9 +46,21 @@ class LayoutGenerationOutput(ModelOutput):
         (1, 1, 4)
     """
 
-    bbox: LayoutBBoxes
-    labels: LayoutLabels = cast("LayoutLabels", None)
-    mask: LayoutMask = cast("LayoutMask", None)
+    bbox: (
+        Float[np.ndarray, "batch elements 4"] | Float[torch.Tensor, "batch elements 4"]
+    )
+    labels: Int[np.ndarray, "batch elements"] | Int[torch.Tensor, "batch elements"] = (
+        cast(
+            'Int[np.ndarray, "batch elements"] | Int[torch.Tensor, "batch elements"]',
+            None,
+        )
+    )
+    mask: Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"] = (
+        cast(
+            'Bool[np.ndarray, "batch elements"] | Bool[torch.Tensor, "batch elements"]',
+            None,
+        )
+    )
     id2label: dict[int, str] = cast(dict[int, str], None)
     sequences: object | None = None
     scores: object | None = None

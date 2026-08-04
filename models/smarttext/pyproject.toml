@@ -5,6 +5,7 @@ description = "Transformers-style SmartText text placement components."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "basnet",
     "jaxtyping>=0.3",
     "laygen",
     "numpy>=1.24",
@@ -24,6 +25,7 @@ vendor = ["opencv-python>=4.8", "pyyaml>=6", "scikit-image>=0.21"]
 cuda-ext = []
 
 [tool.uv.sources]
+basnet = { workspace = true }
 laygen = { workspace = true }
 
 [tool.pytest.ini_options]

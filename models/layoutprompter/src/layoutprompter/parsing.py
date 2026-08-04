@@ -6,7 +6,7 @@ import re
 from typing import assert_never
 
 import numpy as np
-from numpy.typing import NDArray
+from jaxtyping import Float, Int
 from laygen.agents import BaseResponseParser
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -75,7 +75,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def parse_vendor_compatible(
         self, prediction: str
-    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+    ) -> tuple[Int[np.ndarray, "elements"], Float[np.ndarray, "elements 4"]]:
         """Parse string output as checkpoint-compatible normalized top-left ``xywh``."""
         if self.output_format is PromptFormat.SEQ:
             labels, pixel_ltwh = self._extract_from_seq_vendor(prediction)
@@ -89,7 +89,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def _extract_from_structured(
         self, prediction: LayoutPrompterOutput
-    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+    ) -> tuple[Int[np.ndarray, "elements"], Float[np.ndarray, "elements 4"]]:
         labels: list[int] = []
         bboxes: list[list[int]] = []
         for element in prediction.elements:
@@ -106,7 +106,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def _extract_from_html(
         self, prediction: str
-    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+    ) -> tuple[Int[np.ndarray, "elements"], Float[np.ndarray, "elements 4"]]:
         labels = re.findall(r'<div class="(.*?)"', prediction)[1:]
         left = re.findall(r"left:\s*(\d+)px", prediction)[1:]
         top = re.findall(r"top:\s*(\d+)px", prediction)[1:]
@@ -133,7 +133,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def _extract_from_seq(
         self, prediction: str
-    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+    ) -> tuple[Int[np.ndarray, "elements"], Float[np.ndarray, "elements 4"]]:
         labels = sorted(self.label2id, key=len, reverse=True)
         pattern = (
             r"("
@@ -157,7 +157,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
     def _extract_from_seq_vendor(
         self, prediction: str
-    ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
+    ) -> tuple[Int[np.ndarray, "elements"], Float[np.ndarray, "elements 4"]]:
         labels = sorted(self.label2id, key=len, reverse=True)
         pattern = (
             r"("
@@ -181,8 +181,8 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
 
 
 def _normalize_ltwh(
-    pixel_ltwh: NDArray[np.float32], *, canvas_size: tuple[int, int]
-) -> NDArray[np.float32]:
+    pixel_ltwh: Float[np.ndarray, "elements 4"], *, canvas_size: tuple[int, int]
+) -> Float[np.ndarray, "elements 4"]:
     if pixel_ltwh.size == 0:
         return np.empty((0, 4), dtype=np.float32)
     width, height = canvas_size

@@ -13,7 +13,7 @@ def layout_flow_losses(
     *,
     geom_dim: int = 4,
     geom_l1_weight: float = 0.2,
-) -> dict[str, torch.Tensor]:
+) -> dict[str, Float[torch.Tensor, ""]]:
     """Compute the LayoutFlow training losses.
 
     Args:

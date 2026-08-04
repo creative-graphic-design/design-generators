@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, TypeAlias, TypedDict, assert_never, cast
+from typing import ClassVar, TypedDict, assert_never, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -27,26 +27,16 @@ from .modeling_layoutvae import normalize_output_type
 from .processing_layoutvae import LayoutVAEProcessor
 
 Id2Label = dict[int, str] | dict[str, str]
-InputLabelsTensor: TypeAlias = Int[torch.Tensor, "..."]
-LabelSetTensor: TypeAlias = Float[torch.Tensor, "batch internal_labels"]
-PublicBboxTensor: TypeAlias = Float[torch.Tensor, "batch elements 4"]
-PublicLabelTensor: TypeAlias = Int[torch.Tensor, "batch elements"]
-PublicMaskTensor: TypeAlias = Bool[torch.Tensor, "batch elements"]
-NumElementsTensor: TypeAlias = Int[torch.Tensor, "batch"]
-CountLatentsTensor: TypeAlias = Float[torch.Tensor, "batch internal_labels latent"]
-BboxLatentsTensor: TypeAlias = Float[torch.Tensor, "batch elements latent"]
-BboxNoiseTensor: TypeAlias = Float[torch.Tensor, "batch elements 4"]
-ClassCountsTensor: TypeAlias = Float[torch.Tensor, "batch internal_labels"]
 
 
 @dataclass(frozen=True)
 class GenerationOptions:
     """Common generation options accepted by the pipeline."""
 
-    bbox: PublicBboxTensor | None = None
-    labels: PublicLabelTensor | None = None
-    mask: PublicMaskTensor | None = None
-    num_elements: int | list[int] | NumElementsTensor | None = None
+    bbox: Float[torch.Tensor, "batch elements 4"] | None = None
+    labels: Int[torch.Tensor, "batch elements"] | None = None
+    mask: Bool[torch.Tensor, "batch elements"] | None = None
+    num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None
     box_format: BoxFormat | str = BoxFormat.xywh
     normalized: bool = True
     canvas_size: tuple[int, int] | None = None
@@ -60,9 +50,9 @@ class GenerationOptions:
 class GenerationOptionsKwargs(TypedDict, total=False):
     """Keyword dictionary used to avoid repeated call-site scaffolding."""
 
-    bbox: PublicBboxTensor | None
-    mask: PublicMaskTensor | None
-    num_elements: int | list[int] | NumElementsTensor | None
+    bbox: Float[torch.Tensor, "batch elements 4"] | None
+    mask: Bool[torch.Tensor, "batch elements"] | None
+    num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None
     box_format: BoxFormat | str
     normalized: bool
     canvas_size: tuple[int, int] | None
@@ -85,11 +75,20 @@ def _resolve_device(device: int | torch.device) -> torch.device:
 
 def _pop_generation_options(model_inputs: dict[str, object]) -> GenerationOptions:
     return GenerationOptions(
-        bbox=cast(PublicBboxTensor | None, model_inputs.pop("bbox", None)),
-        labels=cast(PublicLabelTensor | None, model_inputs.pop("labels", None)),
-        mask=cast(PublicMaskTensor | None, model_inputs.pop("mask", None)),
+        bbox=cast(
+            Float[torch.Tensor, "batch elements 4"] | None,
+            model_inputs.pop("bbox", None),
+        ),
+        labels=cast(
+            Int[torch.Tensor, "batch elements"] | None,
+            model_inputs.pop("labels", None),
+        ),
+        mask=cast(
+            Bool[torch.Tensor, "batch elements"] | None,
+            model_inputs.pop("mask", None),
+        ),
         num_elements=cast(
-            int | list[int] | NumElementsTensor | None,
+            int | list[int] | Int[torch.Tensor, "batch"] | None,
             model_inputs.pop("num_elements", None),
         ),
         box_format=cast(
@@ -226,7 +225,10 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         if labels is None:
             raise ValueError("labels are required for LayoutVAEPipeline")
         encoded = self.processor(
-            cast(list[list[str | int]] | list[str | int] | InputLabelsTensor, labels)
+            cast(
+                list[list[str | int]] | list[str | int] | Int[torch.Tensor, "..."],
+                labels,
+            )
         )
         encoded.update(preprocess_parameters)
         return encoded
@@ -241,14 +243,20 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         )
         options = _pop_generation_options(model_inputs)
         count_latents = cast(
-            CountLatentsTensor | None, model_inputs.pop("count_latents", None)
+            Float[torch.Tensor, "batch internal_labels latent"] | None,
+            model_inputs.pop("count_latents", None),
         )
         bbox_latents = cast(
-            BboxLatentsTensor | None, model_inputs.pop("bbox_latents", None)
+            Float[torch.Tensor, "batch elements latent"] | None,
+            model_inputs.pop("bbox_latents", None),
         )
-        bbox_noise = cast(BboxNoiseTensor | None, model_inputs.pop("bbox_noise", None))
+        bbox_noise = cast(
+            Float[torch.Tensor, "batch elements 4"] | None,
+            model_inputs.pop("bbox_noise", None),
+        )
         class_counts = cast(
-            ClassCountsTensor | None, model_inputs.pop("class_counts", None)
+            Float[torch.Tensor, "batch internal_labels"] | None,
+            model_inputs.pop("class_counts", None),
         )
         if model_inputs:
             unknown = ", ".join(sorted(model_inputs))
@@ -277,26 +285,27 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         self,
         labels: list[list[str | int]]
         | list[str | int]
-        | InputLabelsTensor
+        | Int[torch.Tensor, "..."]
         | None = None,
         *,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.label,
-        bbox: PublicBboxTensor | None = None,
-        mask: PublicMaskTensor | None = None,
-        num_elements: int | list[int] | NumElementsTensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-        count_latents: CountLatentsTensor | None = None,
-        bbox_latents: BboxLatentsTensor | None = None,
-        bbox_noise: BboxNoiseTensor | None = None,
-        class_counts: ClassCountsTensor | None = None,
+        count_latents: Float[torch.Tensor, "batch internal_labels latent"]
+        | None = None,
+        bbox_latents: Float[torch.Tensor, "batch elements latent"] | None = None,
+        bbox_noise: Float[torch.Tensor, "batch elements 4"] | None = None,
+        class_counts: Float[torch.Tensor, "batch internal_labels"] | None = None,
     ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
         """Generate PubLayNet layouts from label conditions.
 
@@ -351,7 +360,9 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         option_kwargs["return_intermediates"] = return_intermediates
         options = _make_generation_options(option_kwargs)
         return self._generate(
-            label_set=cast(LabelSetTensor, encoded["label_set"]),
+            label_set=cast(
+                Float[torch.Tensor, "batch internal_labels"], encoded["label_set"]
+            ),
             condition_type=condition_type,
             options=options,
             count_latents=count_latents,
@@ -363,13 +374,13 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
     def _generate(
         self,
         *,
-        label_set: LabelSetTensor,
+        label_set: Float[torch.Tensor, "batch internal_labels"],
         condition_type: ConditionType | str,
         options: GenerationOptions,
-        count_latents: CountLatentsTensor | None,
-        bbox_latents: BboxLatentsTensor | None,
-        bbox_noise: BboxNoiseTensor | None,
-        class_counts: ClassCountsTensor | None,
+        count_latents: Float[torch.Tensor, "batch internal_labels latent"] | None,
+        bbox_latents: Float[torch.Tensor, "batch elements latent"] | None,
+        bbox_noise: Float[torch.Tensor, "batch elements 4"] | None,
+        class_counts: Float[torch.Tensor, "batch internal_labels"] | None,
     ) -> LayoutGenerationOutput | dict[str, object]:
         _ = (
             options.bbox,

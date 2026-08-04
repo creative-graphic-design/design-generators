@@ -9,13 +9,14 @@ import torch
 from diffusers import ConfigMixin, SchedulerMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
+from jaxtyping import Float
 
 
 @dataclass
 class LayoutFlowSchedulerOutput(BaseOutput):
     """Output of one LayoutFlow Euler scheduler step."""
 
-    prev_sample: torch.Tensor
+    prev_sample: Float[torch.Tensor, "batch elements channels"]
 
 
 class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
@@ -62,8 +63,10 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
         self.timesteps = torch.linspace(start, end, steps, device=device)
 
     def scale_model_input(
-        self, sample: torch.Tensor, timestep: torch.Tensor | float
-    ) -> torch.Tensor:
+        self,
+        sample: Float[torch.Tensor, "batch elements channels"],
+        timestep: Float[torch.Tensor, ""] | Float[torch.Tensor, "batch"] | float,
+    ) -> Float[torch.Tensor, "batch elements channels"]:
         """Return the sample unchanged for Diffusers scheduler compatibility."""
         del timestep
         return sample
@@ -71,34 +74,46 @@ class LayoutFlowEulerScheduler(SchedulerMixin, ConfigMixin):
     @overload
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor | float,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch elements channels"],
+        timestep: Float[torch.Tensor, ""] | Float[torch.Tensor, "batch"] | float,
+        sample: Float[torch.Tensor, "batch elements channels"],
         *,
-        next_timestep: torch.Tensor | float | None = None,
+        next_timestep: Float[torch.Tensor, ""]
+        | Float[torch.Tensor, "batch"]
+        | float
+        | None = None,
         return_dict: Literal[True] = True,
     ) -> LayoutFlowSchedulerOutput: ...
 
     @overload
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor | float,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch elements channels"],
+        timestep: Float[torch.Tensor, ""] | Float[torch.Tensor, "batch"] | float,
+        sample: Float[torch.Tensor, "batch elements channels"],
         *,
-        next_timestep: torch.Tensor | float | None = None,
+        next_timestep: Float[torch.Tensor, ""]
+        | Float[torch.Tensor, "batch"]
+        | float
+        | None = None,
         return_dict: Literal[False],
-    ) -> tuple[torch.Tensor]: ...
+    ) -> tuple[Float[torch.Tensor, "batch elements channels"]]: ...
 
     def step(
         self,
-        model_output: torch.Tensor,
-        timestep: torch.Tensor | float,
-        sample: torch.Tensor,
+        model_output: Float[torch.Tensor, "batch elements channels"],
+        timestep: Float[torch.Tensor, ""] | Float[torch.Tensor, "batch"] | float,
+        sample: Float[torch.Tensor, "batch elements channels"],
         *,
-        next_timestep: torch.Tensor | float | None = None,
+        next_timestep: Float[torch.Tensor, ""]
+        | Float[torch.Tensor, "batch"]
+        | float
+        | None = None,
         return_dict: bool = True,
-    ) -> LayoutFlowSchedulerOutput | tuple[torch.Tensor]:
+    ) -> (
+        LayoutFlowSchedulerOutput
+        | tuple[Float[torch.Tensor, "batch elements channels"]]
+    ):
         """Advance the sample with one Euler step.
 
         Args:

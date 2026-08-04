@@ -7,6 +7,7 @@ import shutil
 import sys
 
 import torch
+from jaxtyping import Shaped
 
 from .configuration_layoutvae import LayoutVAEConfig
 from .modeling_layoutvae import LayoutVAEModel
@@ -22,8 +23,8 @@ DISALLOWED_OUTPUT_NAMES = {
 def load_original_state_dicts(
     source_root: str | Path,
 ) -> tuple[
-    dict[str, torch.Tensor],
-    dict[str, torch.Tensor],
+    dict[str, Shaped[torch.Tensor, "..."]],
+    dict[str, Shaped[torch.Tensor, "..."]],
 ]:
     """Load original checkpoint state dictionaries through a pickle shim."""
     count, bbox = load_original_modules(source_root)
@@ -96,8 +97,8 @@ def build_default_config() -> LayoutVAEConfig:
 
 def convert_state_dicts(
     *,
-    count_state_dict: dict[str, torch.Tensor],
-    bbox_state_dict: dict[str, torch.Tensor],
+    count_state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+    bbox_state_dict: dict[str, Shaped[torch.Tensor, "..."]],
     output_dir: str | Path,
 ) -> Path:
     """Convert count and box state dictionaries into HF files.

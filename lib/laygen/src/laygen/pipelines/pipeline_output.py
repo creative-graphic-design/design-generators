@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+from jaxtyping import Bool, Float, Int
+
+if TYPE_CHECKING:
+    import torch
 
 try:
     from diffusers.utils import BaseOutput
@@ -11,8 +16,6 @@ except ImportError as exc:  # pragma: no cover - packaging/environment issue
     raise ImportError(
         "laygen.pipelines.pipeline_output requires the diffusers dependency."
     ) from exc
-
-from laygen.common.typing import TorchLayoutBBoxes, TorchLayoutLabels, TorchLayoutMask
 
 
 @dataclass
@@ -42,9 +45,13 @@ class LayoutGenerationOutput(BaseOutput):
         torch.Size([1, 1, 4])
     """
 
-    bbox: TorchLayoutBBoxes
-    labels: TorchLayoutLabels = cast(TorchLayoutLabels, None)
-    mask: TorchLayoutMask = cast(TorchLayoutMask, None)
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"] = cast(
+        'Int[torch.Tensor, "batch elements"]', None
+    )
+    mask: Bool[torch.Tensor, "batch elements"] = cast(
+        'Bool[torch.Tensor, "batch elements"]', None
+    )
     id2label: dict[int, str] = cast(dict[int, str], None)
     sequences: object | None = None
     scores: object | None = None

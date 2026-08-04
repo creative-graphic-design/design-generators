@@ -1,0 +1,50 @@
+seed_everything: 42975
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  benchmark: false
+  max_epochs: 1
+  limit_train_batches: 2
+  limit_val_batches: 0
+  gradient_clip_val: 1.0
+  num_sanity_val_steps: 0
+model:
+  class_path: layout_dm.training.LayoutDMTrainingModule
+  init_args:
+    config:
+      class_path: layout_dm.LayoutDMConfig
+      init_args:
+        dataset_name: rico25
+        max_seq_length: 25
+        num_timesteps: 100
+        bbox_quantization: kmeans
+        q_type: constrained
+        cluster_centers_path: .cache/layout-dm/original/download/clustering_weights/rico25_max25_kmeans_train_clusters.pkl
+    learning_rate: 0.0005
+    weight_decay: 0.1
+    auxiliary_loss_weight: 0.1
+    adaptive_auxiliary_loss: true
+    time_sampler: importance
+    scheduler: reduce_on_plateau
+    seed_mode: deterministic
+data:
+  class_path: layout_dm.training.LayoutDMDataModule
+  init_args:
+    dataset_name: rico25
+    config:
+      class_path: layout_dm.LayoutDMConfig
+      init_args:
+        dataset_name: rico25
+        max_seq_length: 25
+        num_timesteps: 100
+        bbox_quantization: kmeans
+        q_type: constrained
+        cluster_centers_path: .cache/layout-dm/original/download/clustering_weights/rico25_max25_kmeans_train_clusters.pkl
+    batch_size: 256
+    max_seq_length: 25
+    num_workers: 0
+    box_format: xywh
+    normalized: true
+    train_transforms: [RandomOrder]

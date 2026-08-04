@@ -3,11 +3,40 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, is_dataclass
+from dataclasses import Field, asdict, is_dataclass
 from enum import Enum
+from typing import ClassVar, Protocol, TypeAlias, cast
 
 
-def sanitize_for_yaml(value: object) -> object:
+YamlScalar: TypeAlias = str | int | float | bool | bytes | None
+YamlValue: TypeAlias = YamlScalar | list["YamlValue"] | dict[YamlScalar, "YamlValue"]
+YamlInputMapping: TypeAlias = (
+    Mapping[str, object]
+    | Mapping[int, object]
+    | Mapping[float, object]
+    | Mapping[bool, object]
+    | Mapping[bytes, object]
+    | Mapping[Enum, object]
+)
+
+
+class DataclassInstance(Protocol):
+    """Dataclass instance accepted by ``dataclasses.asdict``."""
+
+    __dataclass_fields__: ClassVar[Mapping[str, Field["YamlInputValue"]]]
+
+
+YamlInputValue: TypeAlias = (
+    YamlScalar
+    | bytearray
+    | Enum
+    | DataclassInstance
+    | YamlInputMapping
+    | Sequence[object]
+)
+
+
+def sanitize_for_yaml(value: YamlInputValue) -> YamlValue:
     """Convert enum-rich metadata into objects accepted by ``yaml.safe_dump``.
 
     Args:
@@ -26,12 +55,19 @@ def sanitize_for_yaml(value: object) -> object:
     if isinstance(value, Enum):
         return str(value.value)
     if is_dataclass(value) and not isinstance(value, type):
-        return sanitize_for_yaml(asdict(value))
+        return sanitize_for_yaml(cast(YamlInputValue, asdict(value)))
+    if isinstance(value, bytearray):
+        return bytes(value)
     if isinstance(value, Mapping):
-        return {
-            sanitize_for_yaml(key): sanitize_for_yaml(item)
-            for key, item in value.items()
-        }
+        return cast(
+            YamlValue,
+            {
+                sanitize_for_yaml(cast(YamlInputValue, key)): sanitize_for_yaml(
+                    cast(YamlInputValue, item)
+                )
+                for key, item in value.items()
+            },
+        )
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
-        return [sanitize_for_yaml(item) for item in value]
-    return value
+        return [sanitize_for_yaml(cast(YamlInputValue, item)) for item in value]
+    return cast(YamlScalar, value)

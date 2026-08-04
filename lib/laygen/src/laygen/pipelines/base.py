@@ -24,6 +24,10 @@ from transformers import PretrainedConfig, set_seed
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 
+class PipelineComponent(Protocol):
+    """Loaded component; operation-specific capabilities are checked later."""
+
+
 class PipelineComponentLoader(Protocol):
     """Callable that loads one pipeline component from a checkpoint path."""
 
@@ -33,7 +37,7 @@ class PipelineComponentLoader(Protocol):
         *,
         local_files_only: bool = False,
         subfolder: str | None = None,
-    ) -> object:
+    ) -> PipelineComponent:
         """Load a component.
 
         Args:
@@ -55,7 +59,7 @@ class SavePretrainedWithMainProcess(Protocol):
         save_directory: str | Path,
         *,
         is_main_process: bool = True,
-    ) -> object:
+    ) -> None | tuple[str, ...]:
         """Save a component and accept the common main-process flag.
 
         Args:
@@ -71,7 +75,7 @@ class SavePretrainedWithMainProcess(Protocol):
 class SavePretrainedPlain(Protocol):
     """Component protocol for processor-like `save_pretrained` methods."""
 
-    def save_pretrained(self, save_directory: str | Path) -> object:
+    def save_pretrained(self, save_directory: str | Path) -> None | tuple[str, ...]:
         """Save a component.
 
         Args:
@@ -91,7 +95,7 @@ class TorchMovable(Protocol):
         *,
         device: torch.device | None = None,
         dtype: torch.dtype | None = None,
-    ) -> object:
+    ) -> Self:
         """Move a component.
 
         Args:
@@ -256,7 +260,7 @@ class LayoutGenerationPipeline(ABC):
         *,
         local_files_only: bool = False,
         config: PretrainedConfig | None = None,
-        components: Mapping[str, object] | None = None,
+        components: Mapping[str, PipelineComponent] | None = None,
     ) -> Self:
         """Load a pipeline from a checkpoint root and declared subfolders.
 
@@ -319,9 +323,9 @@ class LayoutGenerationPipeline(ABC):
         config: PretrainedConfig,
         *,
         local_files_only: bool,
-        components: Mapping[str, object],
-    ) -> dict[str, object | None]:
-        loaded: dict[str, object | None] = {}
+        components: Mapping[str, PipelineComponent],
+    ) -> dict[str, PipelineComponent | None]:
+        loaded: dict[str, PipelineComponent | None] = {}
         for name, spec in cls.component_specs.items():
             if name in components:
                 loaded[name] = components[name]
@@ -361,7 +365,7 @@ class LayoutGenerationPipeline(ABC):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, PipelineComponent | None],
     ) -> Self:
         """Build a pipeline from a root config and loaded components.
 
@@ -472,12 +476,12 @@ class LayoutGenerationPipeline(ABC):
             return None
         return torch.Generator(device=generator_device).manual_seed(seed)
 
-    def _pipeline_component_values(self) -> tuple[object, ...]:
-        values: list[object] = []
+    def _pipeline_component_values(self) -> tuple[PipelineComponent, ...]:
+        values: list[PipelineComponent] = []
         for spec in self.component_specs.values():
             component = getattr(self, spec.attribute_name, None)
             if component is not None:
-                values.append(cast(object, component))
+                values.append(cast(PipelineComponent, component))
         return tuple(values)
 
     @abstractmethod
@@ -491,6 +495,7 @@ class LayoutGenerationPipeline(ABC):
 
 __all__ = [
     "LayoutGenerationPipeline",
+    "PipelineComponent",
     "PipelineComponentLoader",
     "PipelineComponentSpec",
     "model_processor_component_specs",

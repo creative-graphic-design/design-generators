@@ -1,14 +1,17 @@
 """Transformers tokenizer for LayoutDM discrete layout sequences."""
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
 import json
+import math
+import pickle
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedTokenizer
 
 from .configuration_layout_dm import LayoutDMConfig
@@ -111,7 +114,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
         labels: Int[torch.Tensor, "batch elements"] | list[object],
         mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
-    ) -> dict[str, torch.Tensor]:
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode structured layout tensors.
 
         Args:
@@ -173,6 +176,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         config_data = dict(self.config.config)
         config_data["id2label"] = {str(k): v for k, v in self.config.id2label.items()}
         config_data["cluster_centers"] = None
+        config_data["cluster_centers_path"] = None
         layout_config_file.write_text(
             json.dumps(config_data, indent=2, sort_keys=True), encoding="utf-8"
         )
@@ -256,10 +260,13 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def encode_layout(
         self,
         *,
-        bbox: torch.Tensor,
-        labels: torch.Tensor,
-        mask: torch.Tensor | None = None,
-    ) -> dict[str, torch.Tensor]:
+        bbox: Float[torch.Tensor, "elements 4"]
+        | Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "elements"] | Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "elements"]
+        | Bool[torch.Tensor, "batch elements"]
+        | None = None,
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode normalized layout tensors into flattened token sequences.
 
         Args:
@@ -331,7 +338,9 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             "mask": mask.repeat_interleave(5, dim=1),
         }
 
-    def decode_layout(self, input_ids: torch.Tensor) -> dict[str, torch.Tensor]:
+    def decode_layout(
+        self, input_ids: Int[torch.Tensor, "batch tokens"]
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Decode flattened token sequences into public layout tensors.
 
         Args:
@@ -353,7 +362,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         bbox = bbox.masked_fill(~mask.unsqueeze(-1), 0.0)
         return {"bbox": bbox.float(), "labels": labels, "mask": mask}
 
-    def token_mask(self) -> torch.Tensor:
+    def token_mask(self) -> Bool[torch.Tensor, "tokens vocab"]:
         """Return the valid vocabulary mask for every flattened token position."""
         mask = torch.zeros(
             self.config.max_token_length, self.config.vocab_size, dtype=torch.bool
@@ -369,19 +378,23 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 mask[pos, special_start:] = True
         return mask
 
-    def full_to_partial_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+    def full_to_partial_ids(
+        self, ids: Int[torch.Tensor, "batch tokens"], key: str
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Map full vocabulary bbox ids to per-variable partial ids."""
         mapping = self._mapping(key)
         return _bucketize(ids, mapping["full"], mapping["partial"])
 
-    def partial_to_full_ids(self, ids: torch.Tensor, key: str) -> torch.Tensor:
+    def partial_to_full_ids(
+        self, ids: Int[torch.Tensor, "batch tokens"], key: str
+    ) -> Int[torch.Tensor, "batch tokens"]:
         """Map per-variable partial ids to full vocabulary bbox ids."""
         mapping = self._mapping(key)
         return _bucketize(ids, mapping["partial"], mapping["full"])
 
     def full_to_partial_log_probs(
-        self, log_probs: torch.Tensor, key: str
-    ) -> torch.Tensor:
+        self, log_probs: Float[torch.Tensor, "batch vocab tokens"], key: str
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Gather full-vocabulary log probabilities into a partial bbox space."""
         mapping = self._mapping(key)["full"].to(log_probs.device)
         index = mapping.reshape(1, -1, 1).expand(
@@ -390,13 +403,13 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         return torch.gather(log_probs, dim=1, index=index)
 
     def partial_to_full_log_probs(
-        self, log_probs: torch.Tensor, key: str
-    ) -> torch.Tensor:
+        self, log_probs: Float[torch.Tensor, "batch vocab tokens"], key: str
+    ) -> Float[torch.Tensor, "batch vocab tokens"]:
         """Scatter partial bbox log probabilities into the full vocabulary."""
         mapping = self._mapping(key)["full"].to(log_probs.device)
         out = torch.full(
             (log_probs.shape[0], self.config.vocab_size, log_probs.shape[-1]),
-            -70.0,
+            math.log(1.0e-30),
             device=log_probs.device,
             dtype=log_probs.dtype,
         )
@@ -422,12 +435,8 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         vocab["mask"] = self.config.mask_token_id
         return vocab
 
-    def _centers(self, key: str, device: torch.device) -> torch.Tensor:
-        centers = (
-            None
-            if self.config.cluster_centers is None
-            else self.config.cluster_centers.get(key)
-        )
+    def _centers(self, key: str, device: torch.device) -> Float[torch.Tensor, "bins"]:
+        centers = self._cluster_centers().get(key)
         if centers is None:
             delta = 1.0 / self.config.num_bin_bboxes
             start, stop = (0.0, 1.0 - delta) if key in {"x", "y"} else (delta, 1.0)
@@ -436,7 +445,21 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             ).tolist()
         return torch.tensor(centers, device=device, dtype=torch.float64).flatten()
 
-    def _encode_bbox(self, bbox: torch.Tensor) -> torch.Tensor:
+    def _cluster_centers(self) -> dict[str, list[float]]:
+        if self.config.cluster_centers is not None:
+            return self.config.cluster_centers
+        if self.config.cluster_centers_path is None:
+            return {}
+        centers = _load_cluster_centers_file(
+            Path(self.config.cluster_centers_path),
+            num_bin_bboxes=self.config.num_bin_bboxes,
+        )
+        self.config.cluster_centers = centers
+        return centers
+
+    def _encode_bbox(
+        self, bbox: Float[torch.Tensor, "batch elements 4"]
+    ) -> Int[torch.Tensor, "batch elements 4"]:
         bbox = bbox.to(dtype=torch.float64)
         pieces = []
         for i, key in enumerate(("x", "y", "w", "h")):
@@ -476,7 +499,9 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             pieces.append(ids + offset)
         return torch.stack(pieces, dim=-1)
 
-    def _decode_bbox(self, bbox_ids: torch.Tensor) -> torch.Tensor:
+    def _decode_bbox(
+        self, bbox_ids: Int[torch.Tensor, "batch elements 4"]
+    ) -> Float[torch.Tensor, "batch elements 4"]:
         ids = bbox_ids.clone()
         pieces = []
         for i, key in enumerate(("x", "y", "w", "h")):
@@ -498,7 +523,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             pieces.append(values)
         return torch.stack(pieces, dim=-1).clamp(0.0, 1.0).float()
 
-    def _mapping(self, key: str) -> dict[str, torch.Tensor]:
+    def _mapping(self, key: str) -> dict[str, Int[torch.Tensor, "vocab"]]:
         if key == "c":
             full = list(range(self.config.num_categories)) + [
                 self.pad_token_id,
@@ -514,8 +539,10 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
 
 
 def _bucketize(
-    inputs: torch.Tensor, from_ids: torch.Tensor, to_ids: torch.Tensor
-) -> torch.Tensor:
+    inputs: Shaped[torch.Tensor, "..."],
+    from_ids: Int[torch.Tensor, "source_vocab"],
+    to_ids: Int[torch.Tensor, "source_vocab"],
+) -> Shaped[torch.Tensor, "..."]:
     from_ids = from_ids.to(inputs.device)
     to_ids = to_ids.to(inputs.device)
     index = torch.bucketize(inputs.reshape(-1), from_ids)
@@ -533,6 +560,7 @@ def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
         bbox_quantization=_string(config.get("bbox_quantization"), "kmeans"),
         special_tokens=_string_tuple(config.get("special_tokens"), ("pad", "mask")),
         cluster_centers=_cluster_centers_or_none(config.get("cluster_centers")),
+        cluster_centers_path=_optional_string(config.get("cluster_centers_path")),
         hidden_size=_integer(config.get("hidden_size"), 464),
         num_attention_heads=_integer(config.get("num_attention_heads"), 8),
         num_hidden_layers=_integer(config.get("num_hidden_layers"), 4),
@@ -608,6 +636,23 @@ def _cluster_centers(value: Mapping[object, object]) -> dict[str, list[float]]:
         if isinstance(items, str) or not isinstance(items, Sequence):
             raise TypeError("Cluster center values must be numeric sequences")
         centers[_string(key)] = [_floating(item, 0.0) for item in items]
+    return centers
+
+
+def _load_cluster_centers_file(
+    path: Path, *, num_bin_bboxes: int
+) -> dict[str, list[float]]:
+    with path.open("rb") as f:
+        models = pickle.load(f)
+    if not isinstance(models, Mapping):
+        raise TypeError("Cluster center file must contain a mapping")
+    centers: dict[str, list[float]] = {}
+    for key in ("x", "y", "w", "h"):
+        model = models[f"{key}-{num_bin_bboxes}"]
+        values = torch.as_tensor(
+            getattr(model, "cluster_centers_"), dtype=torch.float64
+        )
+        centers[key] = sorted(float(item) for item in values.flatten().tolist())
     return centers
 
 

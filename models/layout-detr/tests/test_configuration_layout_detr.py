@@ -25,6 +25,7 @@ def test_config_defaults_match_plan():
 
 def test_config_round_trip_preserves_metadata(tmp_path):
     config = LayoutDetrConfig(
+        architecture="reference",
         original_training_options={"background_size": 256},
         conversion_report={"loaded_key_count": 3},
     )
@@ -34,3 +35,4 @@ def test_config_round_trip_preserves_metadata(tmp_path):
 
     assert loaded.original_training_options == {"background_size": 256}
     assert loaded.conversion_report == {"loaded_key_count": 3}
+    assert loaded.architecture == "reference"

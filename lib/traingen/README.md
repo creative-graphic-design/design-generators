@@ -32,7 +32,7 @@ Run a model-agnostic LightningCLI from a training YAML that declares
 
 ```bash
 uv run --package layout-flow --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-flow/configs/training/smoke.yaml
 ```
 

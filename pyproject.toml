@@ -12,6 +12,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = [
+    "basnet",
     "coarse-to-fine",
     "ds-gan",
     "flex-dm",
@@ -22,7 +23,7 @@ dependencies = [
     "layout-fid",
     "layout-flow",
     "layout-gpt",
-    "layout-transformer",
+    "ltnet",
     "layout-action",
     "layoutvae",
     "lace",
@@ -33,6 +34,8 @@ dependencies = [
     "laygen",
     "layoutformerpp",
     "parse-then-place",
+    "posterllama",
+    "posterllava",
     "postero",
     "posgen",
     "radm",
@@ -71,6 +74,7 @@ dev = [
     "pylint>=4.0.0",
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0,<4",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
@@ -87,6 +91,10 @@ docs = [
 # These conflicts can be removed once the TF/vendor runtime supports protobuf>=5
 # or the pydantic-ai/logfire stacks no longer require protobuf>=5.
 conflicts = [
+    [
+        { package = "basnet", extra = "vendor" },
+        { package = "housegan", extra = "vendor" },
+    ],
     [
         { package = "design-generators", extra = "llm-agent" },
         { package = "flex-dm", extra = "vendor-tf" },
@@ -160,6 +168,18 @@ conflicts = [
         { package = "flex-dm", extra = "convert" },
     ],
     [
+        { package = "posterllava" },
+        { package = "posterllava", extra = "vendor" },
+    ],
+    [
+        { package = "posterllava", extra = "vendor" },
+        { package = "ds-gan" },
+    ],
+    [
+        { package = "posterllava", extra = "vendor" },
+        { package = "ralf" },
+    ],
+    [
         { package = "ds-gan" },
         { package = "layout-detr", extra = "vendor" },
     ],
@@ -188,6 +208,7 @@ detectron2 = ["torch"]
 members = ["lib/*", "models/*"]
 
 [tool.uv.sources]
+basnet = { workspace = true }
 coarse-to-fine = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
@@ -198,7 +219,7 @@ layoutdiffusion = { workspace = true }
 layout-fid = { workspace = true }
 layout-flow = { workspace = true }
 layout-gpt = { workspace = true }
-layout-transformer = { workspace = true }
+ltnet = { workspace = true }
 layout-action = { workspace = true }
 layoutvae = { workspace = true }
 lace = { workspace = true }
@@ -209,6 +230,8 @@ layousyn = { workspace = true }
 laygen = { workspace = true }
 layoutformerpp = { workspace = true }
 parse-then-place = { workspace = true }
+posterllama = { workspace = true }
+posterllava = { workspace = true }
 postero = { workspace = true }
 posgen = { workspace = true }
 radm = { workspace = true }

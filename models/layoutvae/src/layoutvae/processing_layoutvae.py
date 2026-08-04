@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, TypeAlias, cast
+from typing import Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -15,12 +15,6 @@ from laygen.common.labels import normalize_dataset_name
 from .configuration_layoutvae import Id2LabelMapping
 
 INTERNAL_EMPTY_LABEL_ID = 0
-InputLabelsTensor: TypeAlias = Int[torch.Tensor, "..."]
-MaybeUnbatchedLabelTensor: TypeAlias = Int[torch.Tensor, "..."]
-MaybeUnbatchedBboxTensor: TypeAlias = Float[torch.Tensor, "... 4"]
-PublicBboxTensor: TypeAlias = Float[torch.Tensor, "batch elements 4"]
-PublicLabelTensor: TypeAlias = Int[torch.Tensor, "batch elements"]
-PublicMaskTensor: TypeAlias = Bool[torch.Tensor, "batch elements"]
 
 
 class LayoutVAEProcessor(ProcessorMixin):
@@ -74,7 +68,7 @@ class LayoutVAEProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        labels: list[list[str | int]] | list[str | int] | InputLabelsTensor,
+        labels: list[list[str | int]] | list[str | int] | Int[torch.Tensor, "..."],
         *,
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
@@ -133,9 +127,9 @@ class LayoutVAEProcessor(ProcessorMixin):
 
     def batch_decode(
         self,
-        bbox: PublicBboxTensor,
-        labels: PublicLabelTensor,
-        mask: PublicMaskTensor | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"],
+        labels: Int[torch.Tensor, "batch elements"],
+        mask: Bool[torch.Tensor, "batch elements"] | None = None,
     ) -> list[list[dict[str, object]]]:
         """Decode layout tensors into records.
 
@@ -177,17 +171,19 @@ class LayoutVAEProcessor(ProcessorMixin):
         return records
 
     def _ensure_batched(
-        self, labels: MaybeUnbatchedLabelTensor, bbox: MaybeUnbatchedBboxTensor
-    ) -> tuple[PublicLabelTensor, PublicBboxTensor]:
+        self, labels: Int[torch.Tensor, "..."], bbox: Float[torch.Tensor, "... 4"]
+    ) -> tuple[
+        Int[torch.Tensor, "batch elements"], Float[torch.Tensor, "batch elements 4"]
+    ]:
         if labels.ndim != 1:
             return labels, bbox
         return labels.unsqueeze(0), bbox.unsqueeze(0)
 
     def _prepare_mask(
         self,
-        mask: PublicMaskTensor | object | None,
+        mask: Bool[torch.Tensor, "batch elements"] | None,
         shape: torch.Size,
-    ) -> PublicMaskTensor:
+    ) -> Bool[torch.Tensor, "batch elements"]:
         if mask is None:
             return torch.ones(shape, dtype=torch.bool)
         mask_t = torch.as_tensor(mask, dtype=torch.bool)
@@ -195,7 +191,7 @@ class LayoutVAEProcessor(ProcessorMixin):
 
     def _normalize_rows(
         self,
-        labels: list[list[str | int]] | list[str | int] | InputLabelsTensor,
+        labels: list[list[str | int]] | list[str | int] | Int[torch.Tensor, "..."],
     ) -> list[list[str | int]]:
         if isinstance(labels, torch.Tensor):
             if labels.ndim == 0 or labels.ndim > 2:

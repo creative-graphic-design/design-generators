@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import assert_never
 
 import torch
+from jaxtyping import Bool, Int
 
 from laygen.common import ConditionType, normalize_condition_type
 
@@ -17,9 +18,9 @@ class LayoutDiffusionCondition:
     """Internal condition container used by the scheduler and pipeline."""
 
     type: ConditionType
-    input_ids: torch.Tensor | None = None
-    mask: torch.Tensor | None = None
-    num_elements: torch.Tensor | None = None
+    input_ids: Int[torch.Tensor, "batch tokens"] | None = None
+    mask: Bool[torch.Tensor, "batch elements"] | None = None
+    num_elements: Int[torch.Tensor, "batch"] | None = None
     start_step: int | None = None
 
 
@@ -27,9 +28,9 @@ def build_condition(
     tokenizer: LayoutDiffusionTokenizer,
     *,
     condition_type: ConditionType | str,
-    input_ids: torch.Tensor | None = None,
-    labels: torch.Tensor | None = None,
-    num_elements: torch.Tensor | None = None,
+    input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+    labels: Int[torch.Tensor, "batch elements"] | None = None,
+    num_elements: Int[torch.Tensor, "batch"] | None = None,
 ) -> LayoutDiffusionCondition | None:
     """Build a LayoutDiffusion condition from processed inputs.
 

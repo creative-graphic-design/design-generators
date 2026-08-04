@@ -321,7 +321,7 @@ class LayoutGANPPModel(PreTrainedModel):
         generator: torch.Generator | None,
         device: torch.device,
         dtype: torch.dtype,
-    ) -> torch.Tensor:
+    ) -> Float[torch.Tensor, "batch elements latent"]:
         if generator is None and seed is not None:
             generator = torch.Generator(device=device).manual_seed(seed)
         return torch.randn(shape, generator=generator, device=device, dtype=dtype)

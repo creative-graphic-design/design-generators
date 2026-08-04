@@ -8,7 +8,7 @@ from typing import Final, assert_never
 
 import torch
 from diffusers import DiffusionPipeline
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
@@ -144,7 +144,7 @@ class LacePipeline(DiffusionPipeline):
         scheduler: LaceScheduler,
         processor: LaceProcessor,
     ) -> None:
-        """Initialize a LACE pipeline."""
+        """Attach the converted LACE denoiser, scheduler, and processor."""
         super().__init__()
         self.register_modules(model=model, scheduler=scheduler)
         self.model = model
@@ -154,12 +154,10 @@ class LacePipeline(DiffusionPipeline):
 
     @property
     def components(self) -> dict[str, object]:
-        """Return serializable pipeline components."""
-        return {
-            "model": self.model,
-            "scheduler": self.scheduler,
-            "processor": self.processor,
-        }
+        """Expose modules and processor metadata for Diffusers serialization."""
+        return dict(
+            model=self.model, scheduler=self.scheduler, processor=self.processor
+        )
 
     @torch.no_grad()
     def __call__(
@@ -183,7 +181,7 @@ class LacePipeline(DiffusionPipeline):
         beautify_alignment_weight: float = 1.0,
         output_type: PipelineOutputType | str = PipelineOutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."]]:
         """Run LACE denoising and return generated layouts.
 
         Args:
@@ -355,10 +353,10 @@ class LacePipeline(DiffusionPipeline):
     def _build_fix_mask(
         self,
         condition_type: ConditionType,
-        real_layout: torch.Tensor | None,
+        real_layout: Float[torch.Tensor, "batch elements channels"] | None,
         completion_ratio: float,
         generator: torch.Generator | None,
-    ) -> torch.Tensor | None:
+    ) -> Bool[torch.Tensor, "batch elements channels"] | None:
         """Build the fixed-channel mask for conditional generation."""
         if real_layout is None or condition_type is ConditionType.refinement:
             return None
