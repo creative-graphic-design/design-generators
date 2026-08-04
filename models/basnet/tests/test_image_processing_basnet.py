@@ -37,7 +37,10 @@ def test_processor_postprocesses_png_space_saliency():
 def test_processor_rejects_bad_return_tensors_and_batch_sizes():
     processor = BASNetImageProcessor()
     try:
-        processor.preprocess(Image.new("RGB", (8, 8)), return_tensors="np")
+        processor.preprocess(
+            Image.new("RGB", (8, 8)),
+            return_tensors="np",
+        )
     except ValueError as exc:
         assert "return_tensors" in str(exc)
     else:
