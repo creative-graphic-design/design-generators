@@ -89,9 +89,9 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ### Reproducibility
 
-Model-specific reproduction commands live in each package's `REPRODUCING.md`, covering vendor asset download, reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
+Model-specific reproduction commands live in each package's `REPRODUCING.md`, covering source asset download, reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
 
-Converted checkpoint directories and vendor fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+Converted checkpoint directories and reference fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
 
 ### Training
 

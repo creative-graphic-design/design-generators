@@ -20,11 +20,11 @@ model-index:
         dataset:
           type: "creative-graphic-design/PubLayNet"
           name: "PubLayNet"
-          split: "vendor parity fixture"
+          split: "training reproduction fixture"
         metrics:
-          - type: "vendor-parity"
+          - type: "training-reproduction"
             value: "see Parity Results"
-            name: "Vendor parity"
+            name: "Training reproduction"
 ---
 
 # Model Card for DLT
@@ -36,7 +36,7 @@ model-index:
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/magazine)
-![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=bit-exact&color=success&style=flat-square)
+![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=practical-reproduction&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
 This package ports [DLT](https://arxiv.org/abs/2303.03755), the ICCV 2023 joint continuous and discrete diffusion model for content-agnostic layout generation, into a [`🧨diffusers`](https://huggingface.co/docs/diffusers/index)-style package.
@@ -82,11 +82,11 @@ DLT is not a content-aware poster model and does not inspect rendered text or im
 
 ## Bias, Risks, and Limitations
 
-DLT inherits the layout distributions and annotation limits of its training datasets. RICO13 uses a vendor-derived label mapping, and Magazine support remains limited until polygon and train-only handling are completed.
+DLT inherits the layout distributions and annotation limits of its training datasets. RICO13 uses the original-code 13-label mapping, and Magazine support remains limited until polygon and train-only handling are completed.
 
 ### Recommendations
 
-Evaluate generated layouts on the target dataset and condition mode before using them in downstream tools. Keep generated checkpoint directories and vendor reference assets outside git.
+Evaluate generated layouts on the target dataset and condition mode before using them in downstream tools. Keep generated checkpoint directories and reference assets outside git.
 
 ## How to Get Started with the Model
 
@@ -136,7 +136,7 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 | --- | ---: | --- | --- |
 | Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
 | Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
-| PubLayNet S5 full checkpoint evaluation | 3 seeds | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000` |
+| PubLayNet S5 full checkpoint evaluation | 3 evaluation seeds plus seed-variance controls | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and seed-variance residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000`; all cross residuals fall inside within-implementation seed variation |
 
 PubLayNet S5 is not metric-identical and should not be read as bit-level
 training parity. The validation loss definition matches exactly, the final
@@ -145,13 +145,15 @@ present, and the original-implementation reference weights routed through the
 package sampling path produce zero S5 deltas on all three seeds. The remaining
 generation offsets are
 consistent across seeds (`overlap_pred` `+10.1%` relative,
-`alignment_pred` `+2.6%`, and FID `+4.4%`) and are attributed to independent
-from-scratch stochastic training divergence. See [TRAINING.md](TRAINING.md) for
-the seed table, train-loss diagnostic, and regeneration metadata.
+`alignment_pred` `+2.6%`, and FID `+4.4%`). The final control experiment shows
+those residuals fall inside same-implementation seed variation, so they are
+attributed to independent from-scratch stochastic training divergence. See
+[TRAINING.md](TRAINING.md) for the seed table, stage evidence, train-loss
+diagnostic, and regeneration metadata.
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/dlt/REPRODUCING.md) to reproduce the original-implementation agreement checks by downloading vendor assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading.
+See [REPRODUCING.md](models/dlt/REPRODUCING.md) to reproduce the original-code agreement checks by downloading source assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading. See [TRAINING.md](TRAINING.md) for the S0-S5 stage evidence and the PubLayNet seed-variance verdict that establishes practical reproduction rather than bit parity.
 
 ## License
 

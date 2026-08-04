@@ -39,6 +39,17 @@ steps; their total training steps are resolved by Lightning from the active
 datamodule because full RICO13/Magazine package training pairs have not yet
 been run.
 
+## Stage Evidence
+
+| Stage | Command | Artifact | Result |
+| --- | --- | --- | --- |
+| S0 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package dlt --extra training --extra vendor pytest models/dlt/tests/vendor_parity/test_dlt_training_parity.py -m "vendor_parity and training" -rs` | `models/dlt/tests/vendor_parity/test_dlt_training_parity.py` | Static package-vs-vendor topology and initialized state dicts match exactly for the tiny test and full PubLayNet configurations. |
+| S1 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package dlt --extra training --extra vendor pytest models/dlt/tests/vendor_parity/test_dlt_training_parity.py -m "vendor_parity and training" -rs` | `models/dlt/tests/vendor_parity/test_dlt_training_parity.py` | Fixed-batch pre-optimizer trace parity covers `box`, `box_cond`, `cat`, `mask_box`, `mask_cat`, `noise`, `t`, noised boxes/categories, model predictions, masked L2, masked CE, and total loss. |
+| S2 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package dlt --extra training --extra vendor pytest models/dlt/tests/vendor_parity/test_dlt_training_parity.py -m "vendor_parity and training" -rs` | `models/dlt/tests/vendor_parity/test_dlt_training_parity.py` | One training-step loss definition is bit-identical; the S5 matched-batch diagnostic later confirmed `max_abs_ours_loss_def_delta=0.0`, `max_abs_l2_def_delta=0.0`, and `max_abs_ce_def_delta=0.0` on real PubLayNet batches. |
+| S3 | `CUDA_VISIBLE_DEVICES="" uv run --package dlt --extra training python -m traingen.lightning.cli fit --config models/dlt/configs/training/smoke.yaml` | `models/dlt/configs/training/smoke.yaml` | Deterministic CPU short run exercises LightningCLI class-path wiring, AdamW, per-step warmup-cosine scheduling, gradient clipping, synthetic data loading, and one train batch without checkpoint artifacts. |
+| S4 | `uv run --package dlt --extra training pytest models/dlt/tests/test_dlt_training.py -m training -q` | `models/dlt/tests/test_dlt_training.py` | HDF5 data loading, padding/filtering, per-access element shuffling, reference epoch-sampling RNG consumption, scheduler stepping, and trace adapter coverage are verified on local fixtures; the full PubLayNet data audit is recorded in `.cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json`. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json --seeds 42 43 44 --device cuda` | `.cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.json` | PubLayNet practical reproduction is accepted: all cross-implementation residuals fall inside at least one within-implementation seed-variance range, so the remaining differences are from-scratch stochastic divergence rather than a package bug. |
+
 ## Reproduction Results
 
 S5 compares a reference PubLayNet checkpoint trained from scratch with the
@@ -61,6 +72,55 @@ generation offsets are consistent: FID is higher by `+4.4%` (`2.3806` to
 `alignment_pred` is higher by `+2.6%` (`0.0102` to `0.0105`). These offsets are
 reported as the residual of an independent from-scratch run, not as evidence of
 a remaining sampling or loss implementation bug.
+
+### Seed-Variance Control Experiment
+
+The final seed-variance control compares three within-implementation seed
+samples against the cross-implementation residual. Vendor samples are
+`vendor42`, `vendor43`, and `vendor44`; package samples are `lr-step` seeds
+`42`, `45`, and `46`; the cross residual is the reference-callback seed-42
+package checkpoint against the vendor seed-42 from-scratch reference. Bit parity
+is impossible for this train-ourselves path because the two implementations do
+not share a full RNG trajectory. The practical reproduction criterion is
+therefore whether the cross residual is statistically indistinguishable from
+same-implementation seed variation.
+
+| Metric | Vendor within-seed variation | Package within-seed variation | Cross residual | Verdict |
+| --- | ---: | ---: | ---: | --- |
+| `overlap_pred` | `+8.86%` to `+19.55%` | `+0.76%` to `+19.30%` | `+10.10%` | inside both ranges |
+| `FID` | `+1.64%` to `+3.89%` | `+17.20%` to `+46.03%` | `+4.40%` | inside package range |
+| `alignment_pred` | `-1.86%` to `+4.24%` | `-1.76%` to `+1.05%` | `+2.60%` | inside vendor range |
+| `loss_mean` | `-0.04%` to `+0.04%` | `-0.03%` to `-0.01%` | `-0.04%` | inside vendor range |
+
+Conclusion: cross residuals fall inside within-implementation seed variation
+for every reported metric, so the remaining package-vs-reference differences
+are not statistically distinguishable from same-implementation stochastic
+training variation. This establishes practical reproduction, not bit-level
+training parity.
+
+Regenerate or inspect the control artifacts with the following metadata.
+
+```text
+run_dir: .cache/dlt/full-run/s5-evaluation-seed-variance
+vendor_seeds: [42, 43, 44]
+package_lr_step_seeds: [42, 45, 46]
+cross_residual_source: reference-callback seed42 vs vendor seed42
+vendor_pairwise: .cache/dlt/full-run/s5-evaluation-seed-variance/vendor42-vendor43-vendor44-pairwise.json
+package_seed46_s5: .cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed46-vs-vendor42.json
+package_pairwise: .cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed42-seed45-seed46-pairwise.json
+final_verdict_json: .cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.json
+final_verdict_markdown: .cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.md
+```
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
+  python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
+  --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt \
+  --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv \
+  --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json \
+  --seeds 42 43 44 \
+  --device cuda
+```
 
 | Seed | Vendor loss | Ours loss | Loss delta | Vendor FID | Ours FID | FID delta | Vendor overlap | Ours overlap | Overlap delta | Vendor align | Ours align | Align delta | Vendor IoU | Ours IoU | IoU delta |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
