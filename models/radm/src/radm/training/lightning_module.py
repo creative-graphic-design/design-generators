@@ -93,6 +93,17 @@ class RADMTrainingModule(_LightningModule):
         self.ota_k = int(ota_k)
         self.latest_step_trace: dict[str, Float[torch.Tensor, "..."]] = {}
 
+    def on_fit_start(self) -> None:
+        """Apply runtime settings that keep long distributed runs readable."""
+        torch.set_float32_matmul_precision("high")
+        stream_warning = getattr(
+            torch.autograd.graph,
+            "set_warn_on_accumulate_grad_stream_mismatch",
+            None,
+        )
+        if stream_warning is not None:
+            stream_warning(False)
+
     def configure_optimizers(self) -> Mapping[str, object]:
         """Return AdamW plus MultiStepLR for the reference schedule."""
         optimizer = torch.optim.AdamW(
@@ -176,7 +187,13 @@ class RADMTrainingModule(_LightningModule):
             gamma=self.gamma,
             ota_k=self.ota_k,
         )
-        self.log("val_loss", losses.train_loss, on_step=False, on_epoch=True)
+        self.log(
+            "val_loss",
+            losses.train_loss,
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
+        )
         return losses.train_loss
 
     def _log_losses(self, losses: RADMLossOutput) -> None:

@@ -36,10 +36,13 @@ data:
     data_root: data/radm/cgl-dataset-v2
     train_split: train
     val_split: validation
-    batch_size: 16
+    batch_size: 4
     image_size: 800
     max_elements: 100
     max_text_num: 20
     text_feature_dim: 768
-    num_workers: 0
+    num_workers: 8
+    pin_memory: true
+    persistent_workers: true
+    prefetch_factor: 2
     text_feature_policy: hf

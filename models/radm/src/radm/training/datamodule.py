@@ -12,6 +12,8 @@ from .config import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_DATA_ROOT,
     DEFAULT_MAX_TEXT_NUM,
+    DEFAULT_NUM_WORKERS,
+    DEFAULT_PREFETCH_FACTOR,
     DEFAULT_TEXT_FEATURE_DIM,
     RADMTextFeaturePolicy,
     RADMTrainingSplit,
@@ -46,7 +48,10 @@ class RADMDataModule(_LightningDataModule):
         max_elements: int = 100,
         max_text_num: int = DEFAULT_MAX_TEXT_NUM,
         text_feature_dim: int = DEFAULT_TEXT_FEATURE_DIM,
-        num_workers: int = 0,
+        num_workers: int = DEFAULT_NUM_WORKERS,
+        pin_memory: bool = True,
+        persistent_workers: bool = True,
+        prefetch_factor: int | None = DEFAULT_PREFETCH_FACTOR,
         max_train_samples: int | None = None,
         max_val_samples: int | None = None,
         text_feature_policy: RADMTextFeaturePolicy | str = RADMTextFeaturePolicy.hf,
@@ -62,6 +67,9 @@ class RADMDataModule(_LightningDataModule):
         self.max_text_num = int(max_text_num)
         self.text_feature_dim = int(text_feature_dim)
         self.num_workers = int(num_workers)
+        self.pin_memory = bool(pin_memory)
+        self.persistent_workers = bool(persistent_workers)
+        self.prefetch_factor = prefetch_factor
         self.max_train_samples = max_train_samples
         self.max_val_samples = max_val_samples
         self.text_feature_policy = text_feature_policy
@@ -112,6 +120,8 @@ class RADMDataModule(_LightningDataModule):
     ) -> DataLoader[RADMTrainingBatch]:
         if dataset is None:
             raise RuntimeError("Dataset has not been initialized")
+        persistent_workers = self.persistent_workers and self.num_workers > 0
+        prefetch_factor = self.prefetch_factor if self.num_workers > 0 else None
         return cast(
             DataLoader[RADMTrainingBatch],
             DataLoader(
@@ -119,6 +129,9 @@ class RADMDataModule(_LightningDataModule):
                 batch_size=self.batch_size,
                 shuffle=shuffle,
                 num_workers=self.num_workers,
+                pin_memory=self.pin_memory,
+                persistent_workers=persistent_workers,
+                prefetch_factor=prefetch_factor,
                 collate_fn=partial(
                     collate_radm_training_batch,
                     max_elements=self.max_elements,
