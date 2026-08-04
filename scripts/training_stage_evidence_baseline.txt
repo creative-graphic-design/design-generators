@@ -1,0 +1,6 @@
+# Existing training stage-evidence gaps that predate the checker.
+# This is a shrink-only burn-down list: do not add new S5 claims here.
+# Remove entries as durable rerunnable evidence is recorded in TRAINING.md.
+models/layout-dm/TRAINING.md	S3	S5 result claim requires a complete evidence row for this stage
+models/layout-flow/TRAINING.md	S3	S5 result claim requires a complete evidence row for this stage
+models/layout-flow/TRAINING.md	S4	S5 result claim requires a complete evidence row for this stage
