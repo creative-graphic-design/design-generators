@@ -98,6 +98,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   not replace the template when creating PRs with `gh pr create --body`.
 - Priority labels select the work lane; status labels move in this order:
   `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
+- Complete draft PRs must be marked ready for review or carry a `## Draft Reason`
+  section; `scripts/check_draft_prs.py` enforces this daily.
 - When creating any issue, set both the milestone and the native Priority issue
   field; do not leave either unset. Set the native Priority field through
   GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
