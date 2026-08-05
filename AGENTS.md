@@ -255,9 +255,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Launch training through the `traingen` console script with the model member and
   training extra selected:
   `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
-- Plain root `uv run traingen fit` can work when no member extras are needed;
-  prefer the member-scoped command above over `python -m traingen.lightning.cli`
-  when training depends on package extras or workspace source mapping.
+- `traingen fit` requires the training extra; use the member-scoped command
+  above instead of root `uv run traingen fit` or
+  `python -m traingen.lightning.cli` when launching package training.
 - Training-first packages follow the canonical
   [training reproduction protocol](docs/training-reproduction.md) for S0-S5
   evidence, topology guards, dataset coverage, seed policy, and evidence

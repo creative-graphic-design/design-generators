@@ -11,6 +11,7 @@ from pathlib import Path
 from check_training_stage_evidence import (
     baseline_entries,
     iter_heading_sections,
+    iter_unfenced_lines,
     is_table_delimiter,
     print_entries,
     split_markdown_row,
@@ -39,6 +40,7 @@ TERMINAL_STATUSES = {
 NON_TERMINAL_STATUS_RE = re.compile(r"^(not-yet-run|blocked)\s+\((.+)\)$")
 PLACEHOLDER_RE = re.compile(r"^<.*>$|^(?:tbd|todo|pending|n/a|na|-)$", re.I)
 DATASET_COLUMN_NAMES = ("dataset", "checkpoint")
+MISSING_README_TARGET = "README Supported Checkpoints"
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,7 @@ def normalize_header(value: str) -> str:
 def normalize_cell(value: str) -> str:
     """Normalize Markdown table cell text."""
     value = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", value)
-    value = re.sub(r"<[^>]+>", "", value)
+    value = re.sub(r"<(https?://[^>\s]+)>", r"\1", value)
     value = value.replace("`", "")
     return re.sub(r"\s+", " ", value).strip()
 
@@ -77,9 +79,24 @@ def normalize_status(value: str) -> str:
     return re.sub(r"\s+", " ", normalize_cell(value).lower())
 
 
-def heading_names(text: str) -> set[str]:
-    """Return all Markdown heading names."""
-    return {heading.lower() for heading, _ in iter_heading_sections(text)}
+def heading_sections(text: str) -> dict[str, tuple[int, list[str]]]:
+    """Return first matching heading sections keyed by heading name."""
+    lines = list(iter_unfenced_lines(text))
+    sections: dict[str, tuple[int, list[str]]] = {}
+    for index, line in enumerate(lines):
+        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+        if match is None:
+            continue
+        level = len(match.group(1))
+        heading = match.group(2).strip()
+        content: list[str] = []
+        for section_line in lines[index + 1 :]:
+            section_match = re.match(r"^(#{1,6})\s+(.+?)\s*$", section_line)
+            if section_match is not None and len(section_match.group(1)) <= level:
+                break
+            content.append(section_line)
+        sections.setdefault(heading.lower(), (level, content))
+    return sections
 
 
 def section_lines(text: str, heading_name: str) -> list[str]:
@@ -90,15 +107,18 @@ def section_lines(text: str, heading_name: str) -> list[str]:
     return []
 
 
-def first_table(lines: Iterable[str]) -> tuple[list[str], list[list[str]]]:
-    """Return normalized headers and rows for the first Markdown table."""
+def iter_tables(lines: Iterable[str]) -> Iterable[tuple[list[str], list[list[str]]]]:
+    """Yield normalized headers and rows for Markdown tables."""
     table_started = False
     headers: list[str] = []
     rows: list[list[str]] = []
     for line in lines:
         if not line.lstrip().startswith("|"):
             if table_started:
-                break
+                yield headers, rows
+                table_started = False
+                headers = []
+                rows = []
             continue
         cells = split_markdown_row(line)
         if not table_started:
@@ -108,27 +128,41 @@ def first_table(lines: Iterable[str]) -> tuple[list[str], list[list[str]]]:
         if is_table_delimiter(line):
             continue
         rows.append(cells)
-    return headers, rows
+    if table_started:
+        yield headers, rows
 
 
-def supported_checkpoint_datasets(readme_path: Path) -> set[str]:
-    """Return datasets claimed by the README Supported Checkpoints table."""
+def first_table(lines: Iterable[str]) -> tuple[list[str], list[list[str]]]:
+    """Return normalized headers and rows for the first Markdown table."""
+    return next(iter(iter_tables(lines)), ([], []))
+
+
+def supported_checkpoint_datasets(readme_path: Path) -> tuple[set[str], str | None]:
+    """Return README checkpoint datasets or a reason they could not be read."""
     if not readme_path.is_file():
-        return set()
+        return set(), "README.md is missing"
     text = readme_path.read_text(encoding="utf-8")
     lines = section_lines(text, SUPPORTED_CHECKPOINTS_HEADING)
-    headers, rows = first_table(lines)
-    for column_name in DATASET_COLUMN_NAMES:
-        normalized_column = normalize_header(column_name)
-        if normalized_column not in headers:
-            continue
-        column_index = headers.index(normalized_column)
-        return {
-            normalize_dataset(row[column_index])
-            for row in rows
-            if len(row) > column_index and normalize_dataset(row[column_index])
-        }
-    return set()
+    if not lines:
+        return set(), "README.md missing Supported Checkpoints section"
+    saw_table = False
+    for headers, rows in iter_tables(lines):
+        saw_table = True
+        for column_name in DATASET_COLUMN_NAMES:
+            normalized_column = normalize_header(column_name)
+            if normalized_column not in headers:
+                continue
+            column_index = headers.index(normalized_column)
+            datasets = {
+                normalize_dataset(row[column_index])
+                for row in rows
+                if len(row) > column_index and normalize_dataset(row[column_index])
+            }
+            if datasets:
+                return datasets, None
+    if not saw_table:
+        return set(), "README Supported Checkpoints section has no table"
+    return set(), "README Supported Checkpoints tables have no dataset column"
 
 
 def reproduction_result_rows(text: str) -> tuple[list[str], list[list[str]]]:
@@ -138,14 +172,31 @@ def reproduction_result_rows(text: str) -> tuple[list[str], list[list[str]]]:
 
 def is_valid_status(value: str) -> bool:
     """Return whether a Reproduction Results status uses the allowed enum."""
+    raw_status = value.strip().strip("`").strip()
     status = normalize_status(value)
     if status in TERMINAL_STATUSES:
         return True
     match = NON_TERMINAL_STATUS_RE.fullmatch(status)
     if match is None:
         return False
+    raw_match = NON_TERMINAL_STATUS_RE.fullmatch(raw_status.lower())
     detail = match.group(2).strip()
-    return bool(detail) and PLACEHOLDER_RE.fullmatch(detail) is None
+    raw_detail = raw_match.group(2).strip() if raw_match is not None else detail
+    if not detail or detail in {"#", "()"}:
+        return False
+    if is_placeholder_detail(raw_detail):
+        return False
+    return True
+
+
+def is_placeholder_detail(value: str) -> bool:
+    """Return whether a status detail is a placeholder rather than evidence."""
+    detail = value.strip()
+    if re.fullmatch(r"<https?://[^>\s]+>", detail) is not None:
+        return False
+    return PLACEHOLDER_RE.fullmatch(detail) is not None or bool(
+        re.search(r"<[^>]+>", detail)
+    )
 
 
 def violations_for_training_doc(path: Path, root: Path) -> list[TrainingDocViolation]:
@@ -155,14 +206,33 @@ def violations_for_training_doc(path: Path, root: Path) -> list[TrainingDocViola
     package_dir = path.parent
     violations: list[TrainingDocViolation] = []
 
-    headings = heading_names(text)
+    sections = heading_sections(text)
     for section in REQUIRED_SECTIONS:
-        if section.lower() not in headings:
+        section_key = section.lower()
+        if section_key not in sections:
             violations.append(
                 TrainingDocViolation(
                     relative_path,
                     section,
                     "missing required TRAINING.md section",
+                )
+            )
+            continue
+        level, lines = sections[section_key]
+        if level != 2:
+            violations.append(
+                TrainingDocViolation(
+                    relative_path,
+                    section,
+                    "required TRAINING.md section must use level-2 heading",
+                )
+            )
+        if not any(line.strip() for line in lines):
+            violations.append(
+                TrainingDocViolation(
+                    relative_path,
+                    section,
+                    "required TRAINING.md section must not be empty",
                 )
             )
 
@@ -210,7 +280,18 @@ def violations_for_training_doc(path: Path, root: Path) -> list[TrainingDocViola
                 )
             )
 
-    claimed_datasets = supported_checkpoint_datasets(package_dir / README_NAME)
+    claimed_datasets, readme_reason = supported_checkpoint_datasets(
+        package_dir / README_NAME
+    )
+    if readme_reason is not None:
+        violations.append(
+            TrainingDocViolation(
+                relative_path,
+                MISSING_README_TARGET,
+                readme_reason,
+            )
+        )
+        return violations
     missing_datasets = sorted(claimed_datasets.difference(result_datasets))
     for dataset in missing_datasets:
         violations.append(
