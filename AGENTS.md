@@ -252,6 +252,12 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   and LightningCLI with YAML configs plus CLI overrides.
 - Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the
   model package.
+- Launch training through the `traingen` console script with the model member and
+  training extra selected:
+  `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
+- Plain root `uv run traingen fit` can work when no member extras are needed;
+  prefer the member-scoped command above over `python -m traingen.lightning.cli`
+  when training depends on package extras or workspace source mapping.
 - Training-first packages follow the canonical
   [training reproduction protocol](docs/training-reproduction.md) for S0-S5
   evidence, topology guards, dataset coverage, seed policy, and evidence
