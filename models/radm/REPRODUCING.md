@@ -28,6 +28,56 @@ If the local CUDA toolkit does not match the installed PyTorch CUDA build, use
 `CUDA_VISIBLE_DEVICES="" uv sync --package radm --extra vendor` to build
 Detectron2 without CUDA extensions for the architecture-parity check.
 
+## Regenerate the Vendor Reference Checkpoint
+
+The helper below materializes CGL-v2 ralf-style Parquet shards into the COCO
+tree expected by the checked RADM training script, then launches the original
+Detectron2 trainer with fixed seed and explicit GPU selection. It writes only
+one rolling checkpoint plus `radm_cgl_vendor_final.pth` below
+`$RADM_CACHE_ROOT/vendor-runs`; when `RADM_CACHE_ROOT` is unset, the scripts use
+`$HOME/.cache/radm`.
+
+For a launch-plan check on a tiny materialized subset:
+
+```bash
+models/radm/scripts/train_vendor_reference.sh \
+  --gpu 0 \
+  --num-gpus 1 \
+  --seed 0 \
+  --max-iter 20 \
+  --plan-only \
+  --overwrite
+```
+
+For the full CGL-v2 S5-aligned vendor reference run:
+
+```bash
+models/radm/scripts/train_vendor_reference.sh \
+  --gpu 0,1,2,3 \
+  --num-gpus 4 \
+  --seed 0 \
+  --max-iter 250000 \
+  --run-id radm-cgl-v2-vendor-s5 \
+  --full-data \
+  --overwrite
+```
+
+After the run completes, use the final checkpoint as the original checkpoint for
+reference generation and conversion:
+
+```bash
+mkdir -p .cache/radm/original
+cp "${RADM_CACHE_ROOT:-$HOME/.cache/radm}/vendor-runs/radm-cgl-v2-vendor-s5/radm_cgl_vendor_final.pth" \
+  .cache/radm/original/radm_cgl.pth
+```
+
+The package-side train-ourselves entrypoint uses the `traingen` console script:
+
+```bash
+uv run --package radm --extra training traingen fit \
+  --config models/radm/configs/training/s5_cgl_v2.yaml
+```
+
 ## Inspect Local Assets
 
 ```bash
