@@ -256,6 +256,9 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   [training reproduction protocol](docs/training-reproduction.md) for S0-S5
   evidence, topology guards, dataset coverage, seed policy, and evidence
   recording.
+- Package `TRAINING.md` files must follow
+  [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and
+  pass `scripts/check_training_doc_template.py`.
 - Do not run or claim S5 full-run training reproduction before S0-S4 stage
   evidence exists; S5-only results are rejected by
   `scripts/check_training_stage_evidence.py`.

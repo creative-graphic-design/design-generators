@@ -57,6 +57,19 @@ Training configs live under `models/layout-flow/configs/training`.
 
 `default` preserves the LayoutFlow training seed policy used by regular runs. `deterministic` applies the `traingen-parity` determinism controls for fixed-batch trace and optimizer-step checks.
 
+## Scheduler and Recipe Notes
+
+Full RICO25 and PubLayNet runs disable the plateau scheduler and package-local
+FID validation (`scheduler=null`, `fid_calc_every_n=0`) until package-local FID
+validation is implemented. Deterministic configs preserve fixed-batch trace and
+optimizer-step parity controls before recipe changes are used for full runs.
+
+## Seed Policy
+
+RICO25 and PubLayNet S5 evidence is reported at `training-seed n=3` with
+training seeds `42975`, `42976`, and `42977`. Evaluation uses fixed seed `42975`
+for the recorded vendor-protocol summaries.
+
 ## Validation Stages
 
 | Stage | Scope | Purpose |
@@ -83,14 +96,18 @@ LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent
 
 The RICO25 and PubLayNet numbers use training seeds `42975`, `42976`, and `42977`, epoch 1000, and fixed evaluation seed `42975`.
 
-| Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | vendor | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
-| RICO25 | ours | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
-| PubLayNet | vendor | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
-| PubLayNet | ours | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
+| Dataset | System | Status | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| RICO25 | vendor | `s5-practical-reproduction` | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
+| RICO25 | ours | `s5-practical-reproduction` | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
+| PubLayNet | vendor | `s5-practical-reproduction` | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
+| PubLayNet | ours | `s5-practical-reproduction` | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
+
+## Regeneration Metadata
 
 Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5077346498), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, and `.cache/layout-flow/full-run/eval-publaynet/training-seed-n3-vendor-protocol/summary_mean_std.csv`.
+
+## Training Commands
 
 ### Reproducing These Results
 
