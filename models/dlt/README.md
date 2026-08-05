@@ -137,23 +137,24 @@ Training uses [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) thr
 | Scheduler mapping and transition matrices | 1 synthetic config | exact tensor equality | local unit test passed |
 | Fixed training step | 1 synthetic batch | finite scalar loss and trace fields | local training test passed |
 | PubLayNet S5 full checkpoint evaluation | 3 evaluation seeds plus seed-variance controls | reference checkpoint trained from scratch with the original implementation vs independently trained package `final-epoch799.ckpt`; validation loss, sampling path, and seed-variance residual diagnostics disclosed | practical training reproduction: loss delta `-0.0001`, FID delta `+0.1051`, overlap delta `+0.0024`, alignment delta `+0.0003`, IoU delta `+0.0000`; all cross residuals fall inside within-implementation seed variation |
+| RICO13 S5 full checkpoint evaluation | 3 evaluation seeds | vendor seed-42 checkpoint trained from scratch with the original implementation vs independently trained package seed-42 `final-epoch799.ckpt`; validation loss, sampling path, and PubLayNet seed-variance reference diagnostics disclosed | practical training reproduction: loss delta `-0.0049`, FID delta `-0.0103`, overlap delta `-0.0167`, alignment delta `-0.0001`, IoU delta `-0.0225`; residuals are small, sign-reversing across seeds, and inside PubLayNet seed-variance reference ranges |
 
-PubLayNet S5 is not metric-identical and should not be read as bit-level
-training parity. The validation loss definition matches exactly, the final
-checkpoint is the correct scheduler-aligned comparison target, no EMA state is
-present, and the original-implementation reference weights routed through the
-package sampling path produce zero S5 deltas on all three seeds. The remaining
-generation offsets are
-consistent across seeds (`overlap_pred` `+10.1%` relative,
-`alignment_pred` `+2.6%`, and FID `+4.4%`). The final control experiment shows
-those residuals fall inside same-implementation seed variation, so they are
-attributed to independent from-scratch stochastic training divergence. See
-[TRAINING.md](TRAINING.md) for the seed table, stage evidence, train-loss
-diagnostic, and regeneration metadata.
+PubLayNet and RICO13 S5 are not metric-identical and should not be read as
+bit-level training parity. PubLayNet's validation loss definition matches
+exactly, the final checkpoint is the correct scheduler-aligned comparison
+target, no EMA state is present, and the original-implementation reference
+weights routed through the package sampling path produce zero S5 deltas on all
+three seeds. PubLayNet's remaining generation offsets are consistent across
+seeds (`overlap_pred` `+10.1%` relative, `alignment_pred` `+2.6%`, and FID
+`+4.4%`) and fall inside same-implementation seed variation. RICO13's residuals
+are smaller (`overlap_pred` `-3.95%` relative, `alignment_pred` `-1.91%`, and
+FID `-0.29%`) and reverse sign across seeds for FID, alignment, and loss. See
+[TRAINING.md](TRAINING.md) for the seed tables, stage evidence, train-loss
+diagnostics, valid-box filter alignment, and regeneration metadata.
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/dlt/REPRODUCING.md) to reproduce the original-code agreement checks by downloading source assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading. See [TRAINING.md](TRAINING.md) for the S0-S5 stage evidence and the PubLayNet seed-variance verdict that establishes practical reproduction rather than bit parity.
+See [REPRODUCING.md](models/dlt/REPRODUCING.md) to reproduce the original-code agreement checks by downloading source assets, generating reference metadata on one GPU, running parity checks, converting checkpoints, and smoke-testing local loading. See [TRAINING.md](TRAINING.md) for the S0-S5 stage evidence and the PubLayNet/RICO13 verdicts that establish practical reproduction on two datasets; Magazine remains gated until polygon and train-only handling is amended.
 
 ## License
 
