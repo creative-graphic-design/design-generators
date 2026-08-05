@@ -157,9 +157,6 @@ def build_layout_model_card(
     Returns:
         Renderable ``huggingface_hub.ModelCard`` instance.
 
-    Raises:
-        ValueError: If model-card metadata validation fails.
-
     Examples:
         >>> card = layoutdm_model_card(dataset="rico25")
         >>> card.data.to_dict()["library_name"]
