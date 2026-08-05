@@ -133,11 +133,19 @@ def _patch_rolling_checkpointer(train_net_module) -> None:
     original = train_net_module.hooks.PeriodicCheckpointer
 
     def rolling_periodic_checkpointer(checkpointer, period, **kwargs):
-        kwargs.setdefault("max_to_keep", 1)
-        kwargs.setdefault("file_prefix", "model_rolling")
+        kwargs["max_to_keep"] = 1
+        kwargs["file_prefix"] = "model_rolling"
         return original(checkpointer, period, **kwargs)
 
     train_net_module.hooks.PeriodicCheckpointer = rolling_periodic_checkpointer
+
+
+def _run_train_net_main(train_args, vendor_root: str) -> object:
+    sys.path.insert(0, vendor_root)
+    import train_net  # type: ignore[import-not-found]
+
+    _patch_rolling_checkpointer(train_net)
+    return train_net.main(train_args)
 
 
 def _copy_final_checkpoint(output_dir: Path) -> Path | None:
@@ -178,7 +186,6 @@ def main() -> None:
     sys.path.insert(0, str(args.vendor_root.resolve()))
     import train_net  # type: ignore[import-not-found]
 
-    _patch_rolling_checkpointer(train_net)
     train_args = SimpleNamespace(
         config_file=str(args.vendor_root / "configs" / "radm.yaml"),
         dist_url="auto",
@@ -190,12 +197,12 @@ def main() -> None:
         resume=args.resume,
     )
     train_net.launch(
-        train_net.main,
+        _run_train_net_main,
         args.num_gpus,
         num_machines=1,
         machine_rank=0,
         dist_url="auto",
-        args=(train_args,),
+        args=(train_args, str(args.vendor_root.resolve())),
     )
     final_path = _copy_final_checkpoint(output_dir)
     if final_path is not None:
