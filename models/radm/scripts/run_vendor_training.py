@@ -10,6 +10,16 @@ import sys
 from types import SimpleNamespace
 
 
+def _patch_pillow_compat() -> None:
+    from PIL import Image
+
+    if not hasattr(Image, "LINEAR"):
+        setattr(Image, "LINEAR", Image.Resampling.BILINEAR)
+
+
+_patch_pillow_compat()
+
+
 DEFAULT_VENDOR_ROOT = Path("vendor/radm")
 DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "radm"
 DEFAULT_DATA_ROOT = DEFAULT_CACHE_ROOT / "vendor-data" / "cgl-v2"
@@ -140,13 +150,6 @@ def _copy_final_checkpoint(output_dir: Path) -> Path | None:
     if checkpoints[-1] != final_path:
         shutil.copy2(checkpoints[-1], final_path)
     return final_path
-
-
-def _patch_pillow_compat() -> None:
-    from PIL import Image
-
-    if not hasattr(Image, "LINEAR"):
-        setattr(Image, "LINEAR", Image.Resampling.BILINEAR)
 
 
 def main() -> None:
