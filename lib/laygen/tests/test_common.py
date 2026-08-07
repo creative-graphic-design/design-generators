@@ -773,3 +773,87 @@ def test_vendor_parity_missing_assets_fail_when_required(monkeypatch):
     assert "fixture is missing" in message
     assert ".cache/example/reference.pt" in message
     assert "Regeneration hint:" in message
+
+
+def test_training_step_helpers_log_and_trace():
+    from laygen.common.training import (
+        LAYOUTDIFFUSION_TRAINING_TRACE_POINTS,
+        finish_training_step,
+        log_training_losses,
+        log_validation_loss,
+        sum_loss_values,
+    )
+
+    assert "train_loss" in LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
+    assert "kl_loss" in LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
+
+    losses = {"kl_loss": torch.tensor(2.0), "aux_loss": torch.tensor(0.5)}
+    assert sum_loss_values(losses).item() == pytest.approx(2.5)
+
+    class RecordingLogger:
+        def __init__(self):
+            self.records = []
+
+        def log(
+            self,
+            name,
+            value,
+            *,
+            prog_bar=False,
+            on_step=None,
+            on_epoch=None,
+            batch_size=None,
+        ):
+            self.records.append((name, float(value), prog_bar, batch_size))
+
+    logger = RecordingLogger()
+    log_training_losses(logger, losses, torch.tensor(2.5), batch_size=4)
+    names = [record[0] for record in logger.records]
+    assert names == ["kl_loss", "aux_loss", "train_loss"]
+    assert logger.records[-1][2] is True
+    assert all(record[3] == 4 for record in logger.records)
+
+    logger = RecordingLogger()
+    trace = {"t": torch.tensor([1, 2])}
+    total, updated = finish_training_step(logger, losses, trace, batch_size=2)
+    assert total.item() == pytest.approx(2.5)
+    assert torch.equal(updated["train_loss"], total.detach())
+    assert torch.equal(updated["t"], trace["t"])
+    assert [record[0] for record in logger.records][-1] == "train_loss"
+
+    logger = RecordingLogger()
+    log_validation_loss(logger, torch.tensor(1.25), batch_size=8)
+    assert logger.records == [("val_loss", 1.25, True, 8)]
+
+
+def test_sample_categorical_top_p_branches():
+    from laygen.common.discrete import SamplingMode, sample_categorical
+
+    logits = torch.tensor([[4.0, 3.0, -10.0, -12.0]])
+    generator = torch.Generator().manual_seed(7)
+    top_p_ids = sample_categorical(
+        logits,
+        sampling=SamplingMode.top_p,
+        top_p=0.5,
+        generator=generator,
+    )
+    assert top_p_ids.item() == 0
+
+    generator = torch.Generator().manual_seed(7)
+    combined_ids = sample_categorical(
+        logits,
+        sampling=SamplingMode.top_k_top_p,
+        top_k=2,
+        top_p=0.5,
+        generator=generator,
+    )
+    assert combined_ids.item() == 0
+
+    generator = torch.Generator().manual_seed(7)
+    passthrough_ids = sample_categorical(
+        logits,
+        sampling=SamplingMode.top_p,
+        top_p=1.0,
+        generator=generator,
+    )
+    assert passthrough_ids.shape == (1,)
