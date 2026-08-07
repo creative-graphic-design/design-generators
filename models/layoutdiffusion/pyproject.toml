@@ -32,6 +32,7 @@ vendor = [
     "pycocotools",
     "pytorch-fid",
     "scipy",
+    "seaborn",
 ]
 
 [tool.uv.sources]
