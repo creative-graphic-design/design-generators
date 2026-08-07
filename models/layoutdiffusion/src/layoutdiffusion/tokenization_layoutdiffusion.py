@@ -10,20 +10,18 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
-from transformers import PreTrainedTokenizer
-
 from laygen.common.bbox import (
     BoxFormat,
     clamp_boxes,
-    ltwh_to_xywh,
     ltrb_to_xywh,
-    normalize_boxes,
+    ltwh_to_xywh,
     normalize_box_format,
+    normalize_boxes,
     xywh_to_ltrb,
 )
+from transformers import PreTrainedTokenizer
 
 from .configuration_layoutdiffusion import LayoutDiffusionConfig
-from .labels import public_id_to_vendor_label, vendor_label_to_public_id
 
 
 class LayoutDiffusionTokenizer(PreTrainedTokenizer):
@@ -121,7 +119,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    ) -> dict[str, Shaped[torch.Tensor, ...]]:
         """Encode layout tensors into token ids.
 
         Args:
@@ -153,7 +151,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    ) -> dict[str, Shaped[torch.Tensor, ...]]:
         """Encode public layout tensors into LayoutDiffusion token ids.
 
         Args:
@@ -209,9 +207,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                 if elem_idx > 0:
                     input_ids[batch_idx, cursor] = self.config.special_token_ids["|"]
                     cursor += 1
-                label = public_id_to_vendor_label(
-                    self.config.dataset_name, int(labels[batch_idx, source_idx].item())
-                )
+                label = self.config.id2label[int(labels[batch_idx, source_idx].item())]
                 token_ids = [self._token_to_id[label]]
                 token_ids.extend(
                     self._token_to_id[str(int(v))]
@@ -233,7 +229,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         input_ids: Int[torch.Tensor, "batch tokens"],
         *,
         output_box_format: Literal["xywh", "ltrb"] = "xywh",
-    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    ) -> dict[str, Shaped[torch.Tensor, ...]]:
         """Decode token ids into public layout tensors.
 
         Args:
@@ -259,7 +255,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
             masks = torch.zeros(self.config.max_num_elements, dtype=torch.bool)
             for i, element in enumerate(elements[: self.config.max_num_elements]):
                 label, *coords = element
-                labels[i] = vendor_label_to_public_id(self.config.dataset_name, label)
+                labels[i] = self.config.label2id[label]
                 ltrb = torch.tensor([int(v) for v in coords], dtype=torch.float32) / 127
                 boxes[i] = ltrb_to_xywh(ltrb) if output_box_format == "xywh" else ltrb
                 masks[i] = True
@@ -335,9 +331,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
             for batch_idx in range(batch_size):
                 for elem_idx in range(min(label_ids.shape[1], int(counts[batch_idx]))):
                     pos = 1 + elem_idx * 6
-                    label = public_id_to_vendor_label(
-                        self.config.dataset_name, int(label_ids[batch_idx, elem_idx])
-                    )
+                    label = self.config.id2label[int(label_ids[batch_idx, elem_idx])]
                     input_ids[batch_idx, pos] = self._token_to_id[label]
                 coord_noise = (
                     torch.randint(
@@ -372,7 +366,12 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         """Convert LayoutDiffusion text lines into padded token ids."""
         rows = []
         for line in lines:
-            ids = [self._convert_token_to_id(token) for token in line.strip().split()]
+            tokens = line.strip().split()
+            if tokens[:1] != ["START"]:
+                tokens = ["START", *tokens]
+            if tokens[-1:] != ["END"]:
+                tokens = [*tokens, "END"]
+            ids = [self._convert_token_to_id(token) for token in tokens]
             ids = ids[: self.config.max_token_length]
             ids.extend(
                 [self.config.pad_token_id] * (self.config.max_token_length - len(ids))
@@ -420,7 +419,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         token: str | bool | None = None,
         revision: str = "main",
         **kwargs: object,
-    ) -> "LayoutDiffusionTokenizer":
+    ) -> LayoutDiffusionTokenizer:
         """Load tokenizer from a pipeline root or tokenizer directory."""
         load_path = Path(path)
         tokenizer_dir = load_path / "tokenizer"

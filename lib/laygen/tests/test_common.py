@@ -1,15 +1,13 @@
-from dataclasses import MISSING, dataclass, fields
-from pathlib import Path
 import subprocess
 import sys
 import textwrap
+from dataclasses import MISSING, dataclass, fields
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
 import torch
 import yaml
-from transformers.utils import ModelOutput
-
 from laygen.common.bbox import (
     BoxFormat,
     denormalize_boxes,
@@ -32,11 +30,16 @@ from laygen.common.discrete import (
     gumbel_noise_like,
     index_to_log_onehot,
     log_add_exp,
+    log_categorical,
     log_onehot_to_index,
     log_sample_categorical,
+    multinomial_kl,
     normalize_sampling_mode,
     sample_categorical,
+    sample_time_importance,
+    sample_time_uniform,
     top_k_logits,
+    update_loss_history,
 )
 from laygen.common.enums import normalize_enum_value
 from laygen.common.labels import (
@@ -46,6 +49,11 @@ from laygen.common.labels import (
     labels_for_dataset,
     max_elements_for_dataset,
     normalize_dataset_name,
+)
+from laygen.common.layout_keys import (
+    LAYOUT_ANNOTATION_KEYS,
+    LAYOUT_BBOX_KEYS,
+    LAYOUT_LABEL_KEYS,
 )
 from laygen.common.model_card import layoutdm_model_card
 from laygen.common.serialization import sanitize_for_yaml
@@ -62,6 +70,7 @@ from laygen.common.testing import (
 from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
 from laygen.modeling_outputs import LayoutGenerationOutput
+from transformers.utils import ModelOutput
 
 
 def test_bbox_conversions_roundtrip():
@@ -215,6 +224,91 @@ def test_discrete_log_onehot_roundtrip():
     assert torch.equal(log_onehot_to_index(index_to_log_onehot(ids, 3)), ids)
     with pytest.raises(ValueError, match="exceeds vocab_size"):
         index_to_log_onehot(torch.tensor([[3]]), 3)
+
+
+def test_discrete_training_loss_helpers_match_categorical_formulas():
+    log_prob1 = torch.log(
+        torch.tensor(
+            [
+                [[0.7, 0.2], [0.3, 0.8]],
+                [[0.4, 0.6], [0.6, 0.4]],
+            ]
+        )
+    )
+    log_prob2 = torch.log(
+        torch.tensor(
+            [
+                [[0.5, 0.5], [0.5, 0.5]],
+                [[0.25, 0.75], [0.75, 0.25]],
+            ]
+        )
+    )
+
+    expected_kl = (log_prob1.exp() * (log_prob1 - log_prob2)).sum(dim=1)
+    torch.testing.assert_close(multinomial_kl(log_prob1, log_prob2), expected_kl)
+    torch.testing.assert_close(
+        log_categorical(log_prob1, log_prob2), (log_prob1.exp() * log_prob2).sum(dim=1)
+    )
+    torch.testing.assert_close(
+        multinomial_kl(log_prob1, log_prob1), torch.zeros_like(expected_kl)
+    )
+
+
+def test_discrete_time_sampling_and_history_update():
+    generator = torch.Generator().manual_seed(0)
+    t, pt = sample_time_uniform(
+        4,
+        num_timesteps=5,
+        device=torch.device("cpu"),
+        generator=generator,
+    )
+    assert t.shape == (4,)
+    torch.testing.assert_close(pt, torch.full((4,), 0.2))
+
+    lt_history = torch.arange(1, 6, dtype=torch.float32)
+    lt_count = torch.full((5,), 11.0)
+    generator = torch.Generator().manual_seed(1)
+    t_imp, pt_imp = sample_time_importance(
+        6,
+        num_timesteps=5,
+        lt_history=lt_history,
+        lt_count=lt_count,
+        generator=generator,
+    )
+    expected_weights = torch.sqrt(lt_history + 1e-10) + 0.0001
+    expected_weights[0] = expected_weights[1]
+    expected_pt_all = expected_weights / expected_weights.sum()
+    assert t_imp.shape == (6,)
+    torch.testing.assert_close(pt_imp, expected_pt_all.gather(0, t_imp))
+
+    fallback_t, fallback_pt = sample_time_importance(
+        3,
+        num_timesteps=5,
+        lt_history=lt_history,
+        lt_count=torch.zeros(5),
+        generator=torch.Generator().manual_seed(2),
+    )
+    assert fallback_t.shape == (3,)
+    torch.testing.assert_close(fallback_pt, torch.full((3,), 0.2))
+
+    history = torch.zeros(5)
+    count = torch.zeros(5)
+    update_loss_history(torch.tensor([2.0, 4.0]), torch.tensor([1, 1]), history, count)
+    torch.testing.assert_close(history, torch.tensor([0.0, 1.6, 0.0, 0.0, 0.0]))
+    torch.testing.assert_close(count, torch.tensor([0.0, 2.0, 0.0, 0.0, 0.0]))
+
+
+def test_layout_extraction_keys_are_shared():
+    assert LAYOUT_BBOX_KEYS == ("bbox", "bboxes", "boxes")
+    assert LAYOUT_LABEL_KEYS == (
+        "labels",
+        "label",
+        "category",
+        "categories",
+        "type",
+        "class_id",
+    )
+    assert LAYOUT_ANNOTATION_KEYS == ("annotations", "objects", "elements", "children")
 
 
 def test_discrete_sampling_helpers_cover_modes():

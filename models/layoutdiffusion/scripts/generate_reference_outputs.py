@@ -23,7 +23,6 @@ from layoutdiffusion.conversion import (
     validate_checkpoint_artifacts,
 )
 
-
 DATASETS = {
     "rico25": "discrete_gaussian_pow2.5_aux_lex_ltrb_200_fine_4e5",
     "publaynet": "gaussian_refine_pow2.5_aux_lex_ltrb_200_5e5_pub",
@@ -90,6 +89,16 @@ def main() -> None:
             device=args.device,
             sample_steps=args.sample_steps,
         )
+        generate_command = (
+            "uv run --package layoutdiffusion --extra vendor --with spacy --with pyyaml "
+            "--with sacremoses python "
+            "models/layoutdiffusion/scripts/generate_reference_outputs.py"
+        )
+        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if cuda_visible_devices is not None:
+            generate_command = (
+                f"CUDA_VISIBLE_DEVICES={cuda_visible_devices} {generate_command}"
+            )
         metadata = {
             "dataset": dataset,
             "source_url": "https://huggingface.co/Junyi42/layoutdiffusion",
@@ -107,11 +116,7 @@ def main() -> None:
                 "index q_mats with t.detach().cpu() before moving to CUDA",
                 "index q_onestep_mats with t.detach().cpu() before moving to CUDA",
             ],
-            "commands": {
-                "generate": "CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion "
-                "--extra vendor --with spacy --with pyyaml --with sacremoses "
-                "python models/layoutdiffusion/scripts/generate_reference_outputs.py",
-            },
+            "commands": {"generate": generate_command},
         }
         (reference_dir / "meta.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8"

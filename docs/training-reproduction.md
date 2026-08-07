@@ -42,6 +42,16 @@ To separate benign training stochasticity from a training-loop or orchestration 
 
 Parity thresholds are per-dataset. Trajectory-sensitive metrics such as saliency and occlusion can make a model practical-parity on one dataset and qualitative-with-caveat on another. The CGB-DM reproduction recorded this pattern for CGL versus PKU, where CGL reached practical parity while PKU retained saliency/occlusion caveats despite passing S0-S2 step checks; use [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148) as the reference example.
 
+### Activation Thresholds
+
+Any activation threshold or warmup gate in the loss, sampler, optimizer, EMA, AMP, or scheduler path must be crossed inside S1-S3 evidence on both systems, or S0 must prove that the original run configuration never crosses it in real runs. Tiny-config evidence that never reaches a gate does not validate the gated branch.
+
+### Real-Scale Lockstep Probe
+
+Before the first S5 launch, and after any training-path change, run a full-scale lockstep probe on GPU. Copy original initial weights into the package model, stream identical batches, reseed RNG identically before each system step, and run at least 300 optimizer steps at the real model and dataset scale.
+
+Record per-step loss, gradient norm, maximum parameter difference, and sampler state to JSONL. Report the first step where relative loss difference exceeds `1e-3`, the state that differed at that step, and why any first divergence is attributable to floating-point noise only. Keep the probe script under `.cache` or gated `tests/vendor_parity` tooling, and do not commit generated artifacts.
+
 ### Vendor Stack Modes
 
 Choose the adapter that matches the original implementation and state the mode in `TRAINING.md`.
@@ -54,18 +64,27 @@ Choose the adapter that matches the original implementation and state the mode i
 
 Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside gated vendor-parity tests and documentation.
 
+### Effective-Behavior Rule
+
+The reproduction target is the original code's effective runtime behavior under its documented run command on the reference hardware, not the code's apparent intent. Before writing S1 fixtures, enumerate every state-dependent or device-dependent branch in the original training step, including loss-aware samplers, importance samplers, EMA warmups, AMP scale state, schedule gates, and buffer `.to(device)` update patterns.
+
+For every enumerated branch, add an S0 assertion proving which branch executes in the original run configuration. If the original has a defect that silently disables a feature, the defect is part of the reproduction target; document it in `TRAINING.md` and codify it in an S0 regression assertion so it cannot silently un-break.
+
 ## Topology Guard
 
 Package-model topology parity is a hard S0/S1 requirement. The package model must be in the training loop for every package-side check. Injecting the original model into a package trainer verifies only wrapper order; it is not package parity.
 
-Every training-first package must assert all of the following before S1/S2 can be trusted:
+Every training-first package must include a named `test_s0_*` topology test before S1/S2 can be trusted. The test must assert all of the following mechanically:
 
-- Parameter count equality between the original model and package model for the active dataset/config.
-- State-dict key coverage under an explicit name map, including rejection of missing and unexpected keys.
-- Same-seed forward equality for the original model and package model on the same encoded inputs, timesteps or noise, masks, and conditioning state.
+- Parameter-count equality between the original model and package model for the active dataset/config.
+- State-dict key coverage under an explicit name map, with missing keys rejected and every extra key explicitly enumerated and justified in an allowlist. Silent tolerance of unexpected keys is prohibited.
+- Same-seed same-input forward equality with original weights copied into the package model, using the same encoded inputs, timesteps or noise, masks, and conditioning state.
+- Schedule and derived-buffer equality at real dataset scale for every claimed dataset, not only tiny configs.
+- Optimizer, EMA, and sampler static-state equality, including proof of which sampler branch is active in both systems.
+- Tokenizer and dataset static-value equality, including vocab size, sequence length, and special ids.
 - The S1/S2 package trace is produced by the package model, not by an original model object injected into the package wrapper.
 
-If any topology guard fails, stop the S-stage claim at the failing check, document the mismatch in `TRAINING.md`, and do not launch S5 as evidence of reproduction.
+Trace-surface checks and fixture-existence checks do not count as S0. If any topology guard fails, stop the S-stage claim at the failing check, document the mismatch in `TRAINING.md`, and do not launch S5 as evidence of reproduction.
 
 ### Scheduler Cadence Guard
 
@@ -196,3 +215,9 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
 ```
 
 The coordinator rerun must use the package model in the loop, include the topology guard, and confirm that every claimed dataset has the stated S5 status. An all-skip vendor-parity run is not a pass.
+
+### Regression Rule
+
+After any change to the training path, including modules, losses, samplers, configs, or data pipelines, staged evidence at or above the lowest affected stage is void. Rerun the ladder from that stage with `PARITY_REQUIRE=1` before any S5 launch or relaunch; fixing the path and immediately relaunching S5 is prohibited.
+
+If a package run degenerates while the original self-recovers, or if a checkpoint resume degenerates again, stop consuming compute on resumes and restarts. Run the real-scale lockstep probe before launching another S5 attempt.

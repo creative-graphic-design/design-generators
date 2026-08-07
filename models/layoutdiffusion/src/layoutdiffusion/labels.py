@@ -6,7 +6,7 @@ from typing import Final
 
 from laygen.common.labels import DatasetName, normalize_dataset_name
 
-VENDOR_RICO25_LABELS: Final[tuple[str, ...]] = (
+LAYOUTDIFFUSION_RICO25_LABELS: Final[tuple[str, ...]] = (
     "Text",
     "Image",
     "Icon",
@@ -33,7 +33,7 @@ VENDOR_RICO25_LABELS: Final[tuple[str, ...]] = (
     "Number_Stepper",
     "Date_Picker",
 )
-VENDOR_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
+LAYOUTDIFFUSION_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
     "text",
     "title",
     "list",
@@ -42,8 +42,10 @@ VENDOR_PUBLAYNET_LABELS: Final[tuple[str, ...]] = (
 )
 
 
-def vendor_labels_for_dataset(dataset_name: DatasetName | str) -> tuple[str, ...]:
-    """Return LayoutDiffusion checkpoint label strings in checkpoint order.
+def layoutdiffusion_labels_for_dataset(
+    dataset_name: DatasetName | str,
+) -> tuple[str, ...]:
+    """Return LayoutDiffusion label strings in checkpoint order.
 
     Args:
         dataset_name: Dataset name or alias.
@@ -55,23 +57,23 @@ def vendor_labels_for_dataset(dataset_name: DatasetName | str) -> tuple[str, ...
         ValueError: If the dataset is unsupported.
 
     Examples:
-        >>> vendor_labels_for_dataset("publaynet")[0]
+        >>> layoutdiffusion_labels_for_dataset("publaynet")[0]
         'text'
     """
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.rico25:
-        return VENDOR_RICO25_LABELS
+        return LAYOUTDIFFUSION_RICO25_LABELS
     if dataset is DatasetName.publaynet:
-        return VENDOR_PUBLAYNET_LABELS
+        return LAYOUTDIFFUSION_PUBLAYNET_LABELS
     raise ValueError(f"Unsupported LayoutDiffusion dataset_name: {dataset_name}")
 
 
 def default_id2label(dataset_name: DatasetName | str) -> dict[int, str]:
     """Return the public id-to-label mapping for LayoutDiffusion."""
-    return dict(enumerate(vendor_labels_for_dataset(dataset_name)))
+    return dict(enumerate(layoutdiffusion_labels_for_dataset(dataset_name)))
 
 
-def normalize_vendor_label(label: str) -> str:
+def normalize_layoutdiffusion_label(label: str) -> str:
     """Normalize public spelling to the internal vocabulary spelling.
 
     Args:
@@ -83,13 +85,13 @@ def normalize_vendor_label(label: str) -> str:
     return label.replace(" ", "_")
 
 
-def vendor_label_to_public_id(dataset_name: DatasetName | str, label: str) -> int:
+def label_to_public_id(dataset_name: DatasetName | str, label: str) -> int:
     """Map a checkpoint label string to a dataset-local public id."""
-    labels = vendor_labels_for_dataset(dataset_name)
-    normalized = normalize_vendor_label(label)
+    labels = layoutdiffusion_labels_for_dataset(dataset_name)
+    normalized = normalize_layoutdiffusion_label(label)
     return labels.index(normalized)
 
 
-def public_id_to_vendor_label(dataset_name: DatasetName | str, label_id: int) -> str:
+def public_id_to_label(dataset_name: DatasetName | str, label_id: int) -> str:
     """Map a public dataset-local label id to a checkpoint label string."""
-    return vendor_labels_for_dataset(dataset_name)[int(label_id)]
+    return layoutdiffusion_labels_for_dataset(dataset_name)[int(label_id)]

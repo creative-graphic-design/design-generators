@@ -23,6 +23,7 @@ class LayoutDiffusionConfig(ConfigMixin):
         noise_schedule: Reference diffusion schedule name.
         num_channels: OpenAI timestep embedding dimension.
         bert_config_name: Name of the BERT config used by the checkpoint.
+        max_position_embeddings: BERT position embedding count.
         hidden_size: Transformer hidden size.
         num_hidden_layers: BERT encoder layer count.
         num_attention_heads: Attention head count.
@@ -58,6 +59,7 @@ class LayoutDiffusionConfig(ConfigMixin):
         noise_schedule: str = "gaussian_refine_pow2.5",
         num_channels: int = 128,
         bert_config_name: str = "bert-base-uncased",
+        max_position_embeddings: int = 512,
         hidden_size: int = 768,
         num_hidden_layers: int = 12,
         num_attention_heads: int = 12,
@@ -83,6 +85,7 @@ class LayoutDiffusionConfig(ConfigMixin):
         self.noise_schedule = noise_schedule
         self.num_channels = num_channels
         self.bert_config_name = bert_config_name
+        self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
