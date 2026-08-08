@@ -11,6 +11,7 @@ from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     clamp_boxes,
     denormalize_boxes,
@@ -46,15 +47,15 @@ class LayoutFlowProcessor(ProcessorMixin):
         *,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         batch_size: int = 1,

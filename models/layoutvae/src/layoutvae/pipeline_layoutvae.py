@@ -5,13 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, TypedDict, assert_never, cast
+from typing import TYPE_CHECKING, ClassVar, TypedDict, assert_never, cast
 
 import torch
-from jaxtyping import Bool, Float, Int
-from transformers import PretrainedConfig
-from transformers.tokenization_utils_base import BatchEncoding
-
+from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -20,13 +17,52 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from transformers import PretrainedConfig
+from transformers.tokenization_utils_base import BatchEncoding
+
+if TYPE_CHECKING:
+    from laygen.pipelines.base import PipelineComponent
+else:
+    PipelineComponent = object
+
 
 from .configuration_layoutvae import LayoutVAEConfig
-from .modeling_layoutvae import LayoutVAEModel, LayoutVAEModelOutput, OutputType
-from .modeling_layoutvae import normalize_output_type
+from .modeling_layoutvae import (
+    LayoutVAEModel,
+    LayoutVAEModelOutput,
+    OutputType,
+    normalize_output_type,
+)
 from .processing_layoutvae import LayoutVAEProcessor
 
 Id2Label = dict[int, str] | dict[str, str]
+if TYPE_CHECKING:
+    LayoutVAEParam = (
+        bool
+        | int
+        | str
+        | list[int]
+        | tuple[int, int]
+        | torch.Generator
+        | BoxFormat
+        | ConditionType
+        | OutputType
+        | Float[torch.Tensor, "..."]
+        | Int[torch.Tensor, "..."]
+        | Bool[torch.Tensor, "..."]
+        | None
+    )
+    LayoutVAEOutputDict = dict[
+        str,
+        Shaped[torch.Tensor, "..."]
+        | dict[int, str]
+        | dict[str, Shaped[torch.Tensor, "..."] | ConditionType | None]
+        | None,
+    ]
+
+else:
+    LayoutVAEParam = object
+    LayoutVAEOutputDict = object
 
 
 @dataclass(frozen=True)
@@ -73,7 +109,9 @@ def _resolve_device(device: int | torch.device) -> torch.device:
     return device
 
 
-def _pop_generation_options(model_inputs: dict[str, object]) -> GenerationOptions:
+def _pop_generation_options(
+    model_inputs: dict[str, LayoutVAEParam],
+) -> GenerationOptions:
     return GenerationOptions(
         bbox=cast(
             Float[torch.Tensor, "batch elements 4"] | None,
@@ -118,7 +156,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutVAEModel:
     if subfolder is not None:
         return LayoutVAEModel.from_pretrained(
             pretrained_model_name_or_path,
@@ -136,7 +174,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutVAEProcessor:
     if subfolder is not None:
         return LayoutVAEProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -203,8 +241,8 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
-    ) -> "LayoutVAEPipeline":
+        components: Mapping[str, PipelineComponent | None],
+    ) -> LayoutVAEPipeline:
         """Build a pipeline from loaded root components."""
         return cls(
             config=cast(LayoutVAEConfig, config),
@@ -213,12 +251,19 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         )
 
     def _sanitize_parameters(
-        self, **kwargs: object
-    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        self, **kwargs: LayoutVAEParam
+    ) -> tuple[
+        dict[str, LayoutVAEParam], dict[str, LayoutVAEParam], dict[str, LayoutVAEParam]
+    ]:
         return {}, kwargs, {}
 
     def preprocess(
-        self, input_: object = None, **preprocess_parameters: object
+        self,
+        input_: list[list[str | int]]
+        | list[str | int]
+        | Int[torch.Tensor, ...]
+        | None = None,
+        **preprocess_parameters: LayoutVAEParam,
     ) -> BatchEncoding:
         """Encode labels into model inputs."""
         labels = preprocess_parameters.pop("labels", input_)
@@ -234,8 +279,8 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         return encoded
 
     def _forward(
-        self, model_inputs: dict[str, object], **forward_params: object
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        self, model_inputs: dict[str, LayoutVAEParam], **forward_params: LayoutVAEParam
+    ) -> LayoutGenerationOutput | LayoutVAEOutputDict:
         del forward_params
         label_set = torch.as_tensor(model_inputs.pop("label_set"), dtype=torch.float32)
         condition_type = cast(
@@ -273,9 +318,9 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
 
     def postprocess(
         self,
-        model_outputs: LayoutGenerationOutput | dict[str, object],
+        model_outputs: LayoutGenerationOutput | LayoutVAEOutputDict,
         **kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutVAEOutputDict:
         """Return generated layouts unchanged."""
         del kwargs
         return model_outputs
@@ -285,7 +330,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         self,
         labels: list[list[str | int]]
         | list[str | int]
-        | Int[torch.Tensor, "..."]
+        | Int[torch.Tensor, ...]
         | None = None,
         *,
         batch_size: int = 1,
@@ -306,7 +351,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         bbox_latents: Float[torch.Tensor, "batch elements latent"] | None = None,
         bbox_noise: Float[torch.Tensor, "batch elements 4"] | None = None,
         class_counts: Float[torch.Tensor, "batch internal_labels"] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | LayoutVAEOutputDict:  # ty: ignore[invalid-method-override]
         """Generate PubLayNet layouts from label conditions.
 
         Args:
@@ -381,7 +426,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         bbox_latents: Float[torch.Tensor, "batch elements latent"] | None,
         bbox_noise: Float[torch.Tensor, "batch elements 4"] | None,
         class_counts: Float[torch.Tensor, "batch internal_labels"] | None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutVAEOutputDict:
         _ = (
             options.bbox,
             options.labels,

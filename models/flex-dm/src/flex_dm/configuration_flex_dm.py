@@ -8,6 +8,17 @@ from typing import Literal, NotRequired, TypedDict, cast
 from transformers import PretrainedConfig
 
 
+FlexDmConfigValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["FlexDmConfigValue"]
+    | dict[str, "FlexDmConfigValue"]
+)
+
+
 class FlexDmDatasetName(StrEnum):
     """Dataset names supported by the Flex-DM MFP checkpoints."""
 
@@ -121,8 +132,8 @@ class FlexDmConfig(PretrainedConfig):
         dropout: float = 0.1,
         layer_norm_epsilon: float = 1e-3,
         l2: float | None = 1e-2,
-        original_args: dict[str, object] | None = None,
-        conversion_report: dict[str, object] | None = None,
+        original_args: dict[str, FlexDmConfigValue] | None = None,
+        conversion_report: dict[str, FlexDmConfigValue] | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize a Flex-DM config."""

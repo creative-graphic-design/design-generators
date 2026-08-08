@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import Protocol, cast
+
+from jaxtyping import Bool, Float, Int
+import torch
 
 from layout_dm import LayoutDMPipeline
+
+
+class _LayoutDMOutputProtocol(Protocol):
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,7 +31,7 @@ def main() -> None:
     for path in args.path:
         pipe = LayoutDMPipeline.from_pretrained(path)
         out = cast(
-            Any,
+            _LayoutDMOutputProtocol,
             pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic"),
         )
         assert out.bbox.shape[-1] == 4

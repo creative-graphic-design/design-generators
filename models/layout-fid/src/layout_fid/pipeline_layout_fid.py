@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
 from typing import cast
 
 import numpy as np
 import torch
-from jaxtyping import Float
+from jaxtyping import Bool, Float, Int
 
+from laygen.common.bbox import ArrayLikeInput
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_layout_fid import LayoutFIDStatsSplit, normalize_stats_split
@@ -66,10 +67,32 @@ class LayoutFIDEvaluator:
     def extract_features(
         self,
         *,
-        layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
-        bbox: object | None = None,
-        labels: object | None = None,
-        mask: object | None = None,
+        layouts: LayoutGenerationOutput
+        | Mapping[
+            str,
+            Float[torch.Tensor, "batch elements 4"]
+            | Float[np.ndarray, "batch elements 4"]
+            | Int[torch.Tensor, "batch elements"]
+            | Int[np.ndarray, "batch elements"]
+            | Bool[torch.Tensor, "batch elements"]
+            | Bool[np.ndarray, "batch elements"]
+            | Mapping[int, str]
+            | Mapping[str, str]
+            | None,
+        ]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
         box_format: str = "xywh",
         normalized: bool = True,
@@ -104,7 +127,20 @@ class LayoutFIDEvaluator:
     def compute_statistics(
         self,
         *,
-        layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
+        layouts: LayoutGenerationOutput
+        | Mapping[
+            str,
+            Float[torch.Tensor, "batch elements 4"]
+            | Float[np.ndarray, "batch elements 4"]
+            | Int[torch.Tensor, "batch elements"]
+            | Int[np.ndarray, "batch elements"]
+            | Bool[torch.Tensor, "batch elements"]
+            | Bool[np.ndarray, "batch elements"]
+            | Mapping[int, str]
+            | Mapping[str, str]
+            | None,
+        ]
+        | None = None,
         features: Float[torch.Tensor, "batch channels"]
         | Float[np.ndarray, "batch channels"]
         | None = None,
@@ -124,12 +160,45 @@ class LayoutFIDEvaluator:
     def compute_fid(
         self,
         *,
-        layouts: LayoutGenerationOutput | Mapping[str, object] | None = None,
+        layouts: LayoutGenerationOutput
+        | Mapping[
+            str,
+            Float[torch.Tensor, "batch elements 4"]
+            | Float[np.ndarray, "batch elements 4"]
+            | Int[torch.Tensor, "batch elements"]
+            | Int[np.ndarray, "batch elements"]
+            | Bool[torch.Tensor, "batch elements"]
+            | Bool[np.ndarray, "batch elements"]
+            | Mapping[int, str]
+            | Mapping[str, str]
+            | None,
+        ]
+        | None = None,
         features: Float[torch.Tensor, "batch channels"]
         | Float[np.ndarray, "batch channels"]
         | None = None,
-        statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
-        reference_statistics: LayoutFIDStatistics | Mapping[str, object] | None = None,
+        statistics: LayoutFIDStatistics
+        | Mapping[
+            str,
+            Float[np.ndarray, "..."]
+            | list[float]
+            | list[list[float]]
+            | str
+            | int
+            | None,
+        ]
+        | None = None,
+        reference_statistics: LayoutFIDStatistics
+        | Mapping[
+            str,
+            Float[np.ndarray, "..."]
+            | list[float]
+            | list[list[float]]
+            | str
+            | int
+            | None,
+        ]
+        | None = None,
         reference_split: LayoutFIDStatsSplit | str = "test",
         **layout_kwargs: object,
     ) -> float:
@@ -143,9 +212,21 @@ class LayoutFIDEvaluator:
             )
         reference = (
             LayoutFIDStatistics.from_mapping(
-                cast(Mapping[str, object], reference_statistics)
+                cast(
+                    Mapping[
+                        str,
+                        Float[np.ndarray, "..."]
+                        | list[float]
+                        | list[list[float]]
+                        | str
+                        | int
+                        | None,
+                    ],
+                    reference_statistics,
+                )
             )
-            if isinstance(reference_statistics, Mapping)
+            if reference_statistics is not None
+            and not isinstance(reference_statistics, LayoutFIDStatistics)
             else reference_statistics
         )
         if reference is None:
@@ -157,8 +238,21 @@ class LayoutFIDEvaluator:
                     f"Reference statistics split is not loaded: {split}"
                 ) from exc
         candidate = (
-            LayoutFIDStatistics.from_mapping(cast(Mapping[str, object], statistics))
-            if isinstance(statistics, Mapping)
+            LayoutFIDStatistics.from_mapping(
+                cast(
+                    Mapping[
+                        str,
+                        Float[np.ndarray, "..."]
+                        | list[float]
+                        | list[list[float]]
+                        | str
+                        | int
+                        | None,
+                    ],
+                    statistics,
+                )
+            )
+            if not isinstance(statistics, LayoutFIDStatistics)
             else statistics
         )
         return compute_layout_fid_from_statistics(candidate, reference)
@@ -166,31 +260,86 @@ class LayoutFIDEvaluator:
     @staticmethod
     def _layout_kwargs(
         *,
-        layouts: LayoutGenerationOutput | Mapping[str, object] | None,
-        bbox: object | None,
-        labels: object | None,
-        mask: object | None,
+        layouts: LayoutGenerationOutput
+        | Mapping[
+            str,
+            Float[torch.Tensor, "batch elements 4"]
+            | Float[np.ndarray, "batch elements 4"]
+            | Int[torch.Tensor, "batch elements"]
+            | Int[np.ndarray, "batch elements"]
+            | Bool[torch.Tensor, "batch elements"]
+            | Bool[np.ndarray, "batch elements"]
+            | Mapping[int, str]
+            | Mapping[str, str]
+            | None,
+        ]
+        | None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None,
         id2label: Mapping[int, str] | Mapping[str, str] | None,
         box_format: str,
         normalized: bool,
         canvas_size: tuple[int, int] | None,
-    ) -> dict[str, object]:
+    ) -> dict[
+        str,
+        Float[torch.Tensor, "batch elements 4"]
+        | Float[np.ndarray, "batch elements 4"]
+        | Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Bool[torch.Tensor, "batch elements"]
+        | Bool[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | Mapping[int, str]
+        | Mapping[str, str]
+        | str
+        | bool
+        | tuple[int, int]
+        | None,
+    ]:
         if layouts is not None and any(
             value is not None for value in (bbox, labels, mask)
         ):
             raise ValueError("Pass either layouts or explicit bbox/labels/mask")
         if layouts is not None:
-            bbox = layouts["bbox"] if isinstance(layouts, Mapping) else layouts.bbox
-            labels = (
-                layouts["labels"] if isinstance(layouts, Mapping) else layouts.labels
-            )
-            mask = layouts.get("mask") if isinstance(layouts, Mapping) else layouts.mask
-            id2label = cast(
-                Mapping[int, str] | Mapping[str, str] | None,
-                layouts.get("id2label")
-                if isinstance(layouts, Mapping)
-                else layouts.id2label,
-            )
+            if isinstance(layouts, LayoutGenerationOutput):
+                bbox = layouts.bbox
+                labels = layouts.labels
+                mask = layouts.mask
+                id2label = layouts.id2label
+            else:
+                bbox = cast(
+                    Float[torch.Tensor, "batch elements 4"]
+                    | Float[np.ndarray, "batch elements 4"]
+                    | Sequence[ArrayLikeInput],
+                    layouts["bbox"],
+                )
+                labels = cast(
+                    Int[torch.Tensor, "batch elements"]
+                    | Int[np.ndarray, "batch elements"]
+                    | Sequence[ArrayLikeInput],
+                    layouts["labels"],
+                )
+                mask = cast(
+                    Bool[torch.Tensor, "batch elements"]
+                    | Bool[np.ndarray, "batch elements"]
+                    | Sequence[ArrayLikeInput]
+                    | None,
+                    layouts.get("mask"),
+                )
+                id2label = cast(
+                    Mapping[int, str] | Mapping[str, str] | None,
+                    layouts.get("id2label"),
+                )
         if bbox is None or labels is None:
             raise ValueError("bbox and labels are required")
         return {

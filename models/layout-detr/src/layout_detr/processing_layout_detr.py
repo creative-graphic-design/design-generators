@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
 from transformers.tokenization_utils_base import BatchEncoding
@@ -90,7 +90,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         id2label_payload = payload.get("id2label")
         if id2label_payload is not None and not isinstance(id2label_payload, dict):
             raise TypeError("processor id2label payload must be a dictionary")
-        config = LayoutDetrConfig.from_dict(config_payload)  # ty: ignore[invalid-argument-type]
+        config = LayoutDetrConfig.from_dict(config_payload)
         image_processor = LayoutDetrImageProcessor.from_pretrained(root)
         return cls(
             image_processor=image_processor,
@@ -98,7 +98,14 @@ class LayoutDetrProcessor(ProcessorMixin):
             id2label=cast(Mapping[int | str, str] | None, id2label_payload),
         )
 
-    def _metadata_payload(self) -> dict[str, object]:
+    def _metadata_payload(
+        self,
+    ) -> dict[
+        str,
+        Mapping[str, Shaped[torch.Tensor, "..."] | int | str | float | bool | None]
+        | dict[int, str]
+        | str,
+    ]:
         return {
             "config": self.config.to_dict(),
             "id2label": self.id2label,
@@ -112,7 +119,16 @@ class LayoutDetrProcessor(ProcessorMixin):
         | Sequence[ImageInput]
         | Float[torch.Tensor, "batch channels height width"]
         | None = None,
-        content: Mapping[str, object] | None = None,
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | Sequence[Sequence[str]]
+            | Sequence[str]
+            | Sequence[Sequence[int | str]]
+            | Sequence[int | str],
+        ]
+        | None = None,
         prompt: str | Sequence[str] | None = None,
         texts: Sequence[Sequence[str]] | Sequence[str] | None = None,
         labels: Int[torch.Tensor, "batch elements"]
@@ -155,7 +171,14 @@ class LayoutDetrProcessor(ProcessorMixin):
         text_rows = _normalize_text_rows(
             cast(Sequence[Sequence[str]] | Sequence[str], resolved_texts)
         )
-        label_rows = self._normalize_label_rows(resolved_labels)
+        label_rows = self._normalize_label_rows(
+            cast(
+                Int[torch.Tensor, "batch elements"]
+                | Sequence[Sequence[int | str]]
+                | Sequence[int | str],
+                resolved_labels,
+            )
+        )
         if len(text_rows) != len(label_rows):
             raise ValueError("texts and labels must have the same batch size")
         if len(text_rows) == 1 and batch_size > 1:
@@ -206,8 +229,18 @@ class LayoutDetrProcessor(ProcessorMixin):
         *,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        intermediates: dict[str, object] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        intermediates: dict[str, Shaped[torch.Tensor, "..."] | list[list[str]] | str]
+        | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[str, Shaped[torch.Tensor, "..."] | list[list[str]] | str]
+            | None,
+        ]
+    ):
         """Return generated boxes in the shared layout output schema."""
         payload = LayoutGenerationOutput(
             bbox=bbox,
@@ -222,7 +255,12 @@ class LayoutDetrProcessor(ProcessorMixin):
             raise ValueError(f"Unsupported output_type: {output_type}")
         return payload
 
-    def _normalize_label_rows(self, labels: object) -> list[list[int]]:
+    def _normalize_label_rows(
+        self,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Sequence[Sequence[int | str]]
+        | Sequence[int | str],
+    ) -> list[list[int]]:
         if isinstance(labels, torch.Tensor):
             tensor = labels.detach().cpu().long()
             if tensor.ndim == 1:
@@ -339,12 +377,35 @@ def _processor_root(
     return root / subfolder if subfolder is not None else root
 
 
-def _write_processor_payload(path: Path, payload: Mapping[str, object]) -> None:
+def _write_processor_payload(
+    path: Path,
+    payload: Mapping[
+        str,
+        Mapping[str, Shaped[torch.Tensor, "..."] | int | str | float | bool | None]
+        | Mapping[int, str]
+        | str,
+    ],
+) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _read_processor_payload(path: Path) -> dict[str, object]:
-    return cast(dict[str, object], json.loads(path.read_text(encoding="utf-8")))
+def _read_processor_payload(
+    path: Path,
+) -> dict[
+    str,
+    Mapping[str, Shaped[torch.Tensor, "..."] | int | str | float | bool | None]
+    | dict[str, str]
+    | str,
+]:
+    return cast(
+        dict[
+            str,
+            Mapping[str, Shaped[torch.Tensor, "..."] | int | str | float | bool | None]
+            | dict[str, str]
+            | str,
+        ],
+        json.loads(path.read_text(encoding="utf-8")),
+    )
 
 
 def _normalize_text_rows(

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal, Self, cast
 
 import torch
-from jaxtyping import Float
+from jaxtyping import Float, Shaped
 from PIL import Image, ImageFont
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
@@ -19,6 +19,7 @@ from laygen.common.bbox import normalize_boxes
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .candidate_generation import (
+    CandidateBoxRow,
     SmartTextCandidate,
     candidate_from_reference_json,
 )
@@ -139,12 +140,25 @@ class SmartTextProcessor(ProcessorMixin):
         | Float[torch.Tensor, "batch channels height width"]
         | None = None,
         *,
-        content: Mapping[str, object] | None = None,
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | str
+            | Sequence[str]
+            | Float[torch.Tensor, "batch height width"]
+            | Sequence[CandidateBoxRow]
+            | Sequence[Sequence[CandidateBoxRow]],
+        ]
+        | None = None,
         prompt: str | Sequence[str] | None = None,
         text: str | Sequence[str] | None = None,
-        saliency: Float[torch.Tensor, "batch height width"] | object | None = None,
-        candidate_boxes: Sequence[Mapping[str, object]]
-        | Sequence[Sequence[Mapping[str, object]]]
+        saliency: ImageInput
+        | Sequence[ImageInput]
+        | Float[torch.Tensor, "batch height width"]
+        | None = None,
+        candidate_boxes: Sequence[CandidateBoxRow]
+        | Sequence[Sequence[CandidateBoxRow]]
         | None = None,
         font: str | Path | ImageFont.FreeTypeFont | ImageFont.ImageFont | None = None,
         return_tensors: Literal["pt"] = "pt",
@@ -178,7 +192,14 @@ class SmartTextProcessor(ProcessorMixin):
             resolved_images = content.get("images")
         if resolved_images is None:
             raise ValueError("SmartText requires an image/content payload")
-        image_rows = _ensure_image_list(resolved_images)
+        image_rows = _ensure_image_list(
+            cast(
+                ImageInput
+                | Sequence[ImageInput]
+                | Float[torch.Tensor, "batch channels height width"],
+                resolved_images,
+            )
+        )
         prompt_rows = _resolve_prompt_rows(
             prompt=prompt,
             text=text,
@@ -216,8 +237,32 @@ class SmartTextProcessor(ProcessorMixin):
         top_k: int = 3,
         score_normalization: Literal["mos", "raw"] = "mos",
         text_color: str | None = None,
-        intermediates: dict[str, object] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        intermediates: dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | str
+            | list[SmartTextCandidate]
+            | list[int]
+            | None,
+        ]
+        | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[
+                str,
+                Shaped[torch.Tensor, "..."]
+                | str
+                | list[SmartTextCandidate]
+                | list[int]
+                | None,
+            ]
+            | None,
+        ]
+    ):
         """Decode sorted candidates into the shared layout schema.
 
         Args:
@@ -287,7 +332,11 @@ class SmartTextProcessor(ProcessorMixin):
         raise ValueError(f"Unsupported output_type: {output_type}")
 
 
-def _ensure_image_list(images: object) -> list[Image.Image]:
+def _ensure_image_list(
+    images: ImageInput
+    | Sequence[ImageInput]
+    | Float[torch.Tensor, "batch channels height width"],
+) -> list[Image.Image]:
     if isinstance(images, Image.Image):
         return [images.convert("RGB")]
     if isinstance(images, torch.Tensor):
@@ -312,7 +361,16 @@ def _resolve_prompt_rows(
     *,
     prompt: str | Sequence[str] | None,
     text: str | Sequence[str] | None,
-    content: Mapping[str, object],
+    content: Mapping[
+        str,
+        ImageInput
+        | Sequence[ImageInput]
+        | str
+        | Sequence[str]
+        | Float[torch.Tensor, "batch height width"]
+        | Sequence[CandidateBoxRow]
+        | Sequence[Sequence[CandidateBoxRow]],
+    ],
     batch_size: int,
 ) -> list[str]:
     payload = prompt if prompt is not None else text
@@ -331,8 +389,8 @@ def _resolve_prompt_rows(
 
 
 def _decode_candidate_payload(
-    candidate_boxes: Sequence[Mapping[str, object]]
-    | Sequence[Sequence[Mapping[str, object]]]
+    candidate_boxes: Sequence[CandidateBoxRow]
+    | Sequence[Sequence[CandidateBoxRow]]
     | None,
 ) -> list[SmartTextCandidate] | None:
     if candidate_boxes is None:
@@ -343,10 +401,10 @@ def _decode_candidate_payload(
     if isinstance(first, Mapping):
         return [
             candidate_from_reference_json(
-                cast(Sequence[Mapping[str, object]], candidate_boxes)
+                cast(Sequence[CandidateBoxRow], candidate_boxes)
             )
         ]
     return [
-        candidate_from_reference_json(cast(Sequence[Mapping[str, object]], row))
+        candidate_from_reference_json(cast(Sequence[CandidateBoxRow], row))
         for row in candidate_boxes
     ]

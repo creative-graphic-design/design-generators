@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from enum import StrEnum, auto
-from typing import Final, cast
+from typing import Final, TypedDict, cast
 
 from transformers import PretrainedConfig
 
@@ -15,6 +15,25 @@ from .data import (
 )
 
 ELEMENT_TOKEN_WIDTH: Final[int] = 13
+
+
+class AssetManifestFile(TypedDict):
+    """One inventoried original asset."""
+
+    size: int
+    sha256: str
+
+
+class LayoutActionAssetManifest(TypedDict, total=False):
+    """Original LayoutAction asset manifest."""
+
+    source: str
+    google_drive_folder_id: str
+    files: dict[str, AssetManifestFile]
+    missing_required: list[str]
+    missing_optional: list[str]
+    checkpoint: str
+    checkpoint_sha256: str
 
 
 class LayoutActionSamplingMode(StrEnum):
@@ -89,7 +108,10 @@ class LayoutActionConfig(PretrainedConfig):
         default_top_k: int = 5,
         default_temperature: float = 1.0,
         original_dataset_name: str | None = None,
-        original_asset_manifest: Mapping[str, object] | None = None,
+        original_asset_manifest: Mapping[
+            str, str | int | list[str] | dict[str, AssetManifestFile]
+        ]
+        | None = None,
         model_type: str | None = None,
         transformers_version: str | None = None,
         **kwargs: object,

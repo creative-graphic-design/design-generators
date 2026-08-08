@@ -9,12 +9,23 @@ import pickle
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
+from typing import TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedTokenizer
 
+from laygen.common.bbox import ArrayLikeInput
+
 from .configuration_layout_dm import LayoutDMConfig
+
+LayoutDMConfigScalar: TypeAlias = str | int | float | bool | None
+LayoutDMConfigValue: TypeAlias = (
+    LayoutDMConfigScalar
+    | Sequence[str]
+    | Mapping[str, Sequence[int | float]]
+    | Mapping[int | str, str]
+)
 
 KEY_MULT_DICT = {
     "x-y-w-h": {"y": 1, "w": 2, "h": 3},
@@ -52,7 +63,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
 
     def __init__(
         self,
-        config: LayoutDMConfig | Mapping[str, object] | None = None,
+        config: LayoutDMConfig | Mapping[str, LayoutDMConfigValue] | None = None,
         *,
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
@@ -66,7 +77,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             config = self._load_config(
                 layout_config_file=layout_config_file,
                 cluster_centers_file=cluster_centers_file,
-                kwargs=kwargs,
+                kwargs=cast(dict[str, LayoutDMConfigValue], kwargs),
             )
         else:
             config = _layout_config_from_mapping(config)
@@ -111,9 +122,11 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def __call__(
         self,
         *,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
-        labels: Int[torch.Tensor, "batch elements"] | list[object],
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | Sequence[ArrayLikeInput],
+        labels: Int[torch.Tensor, "batch elements"] | Sequence[ArrayLikeInput],
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
     ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         """Encode structured layout tensors.
 
@@ -193,7 +206,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
     def from_pretrained(
         cls,
         path: str | PathLike[str],
-        *args: object,
+        *args: str | PathLike[str] | bool,
         cache_dir: str | PathLike[str] | None = None,
         force_download: bool = False,
         local_files_only: bool = False,
@@ -236,7 +249,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         *,
         layout_config_file: str | Path | None,
         cluster_centers_file: str | Path | None,
-        kwargs: dict[str, object],
+        kwargs: dict[str, LayoutDMConfigValue],
     ) -> LayoutDMConfig:
         layout_config = kwargs.pop("layout_config", None)
         if layout_config is None:
@@ -549,7 +562,9 @@ def _bucketize(
     return to_ids[index].reshape(inputs.shape).to(inputs.device)
 
 
-def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
+def _layout_config_from_mapping(
+    config: Mapping[str, LayoutDMConfigValue],
+) -> LayoutDMConfig:
     return LayoutDMConfig(
         dataset_name=_string(config["dataset_name"]),
         id2label=_id2label(config.get("id2label")),
@@ -576,7 +591,7 @@ def _layout_config_from_mapping(config: Mapping[str, object]) -> LayoutDMConfig:
     )
 
 
-def _string(value: object, default: str | None = None) -> str:
+def _string(value: LayoutDMConfigValue, default: str | None = None) -> str:
     if value is None and default is not None:
         return default
     if isinstance(value, str):
@@ -584,13 +599,15 @@ def _string(value: object, default: str | None = None) -> str:
     raise TypeError(f"Expected string value, got {type(value).__name__}")
 
 
-def _optional_string(value: object, default: str | None = None) -> str | None:
+def _optional_string(
+    value: LayoutDMConfigValue, default: str | None = None
+) -> str | None:
     if value is None:
         return default
     return _string(value)
 
 
-def _integer(value: object, default: int) -> int:
+def _integer(value: LayoutDMConfigValue, default: int) -> int:
     if value is None:
         return default
     if isinstance(value, int):
@@ -598,7 +615,7 @@ def _integer(value: object, default: int) -> int:
     raise TypeError(f"Expected integer value, got {type(value).__name__}")
 
 
-def _floating(value: object, default: float) -> float:
+def _floating(value: LayoutDMConfigValue, default: float) -> float:
     if value is None:
         return default
     if isinstance(value, int | float):
@@ -606,31 +623,38 @@ def _floating(value: object, default: float) -> float:
     raise TypeError(f"Expected numeric value, got {type(value).__name__}")
 
 
-def _string_tuple(value: object, default: tuple[str, ...]) -> tuple[str, ...]:
+def _string_tuple(
+    value: LayoutDMConfigValue, default: tuple[str, ...]
+) -> tuple[str, ...]:
     if value is None:
         return default
     if isinstance(value, str) or not isinstance(value, Sequence):
         raise TypeError(f"Expected string sequence, got {type(value).__name__}")
-    return tuple(_string(item) for item in value)
+    return tuple(_string(item) for item in cast(Sequence[str], value))
 
 
-def _id2label(value: object) -> dict[int | str, str] | None:
+def _id2label(value: LayoutDMConfigValue) -> dict[int | str, str] | None:
     if value is None:
         return None
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected id2label mapping, got {type(value).__name__}")
-    return {_label_id(key): _string(item) for key, item in value.items()}
+    id2label = cast(Mapping[int | str, str], value)
+    return {_label_id(key): _string(item) for key, item in id2label.items()}
 
 
-def _cluster_centers_or_none(value: object) -> dict[str, list[float]] | None:
+def _cluster_centers_or_none(
+    value: LayoutDMConfigValue,
+) -> dict[str, list[float]] | None:
     if value is None:
         return None
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected cluster center mapping, got {type(value).__name__}")
-    return _cluster_centers({key: item for key, item in value.items()})
+    return _cluster_centers(cast(Mapping[str, Sequence[int | float]], value))
 
 
-def _cluster_centers(value: Mapping[object, object]) -> dict[str, list[float]]:
+def _cluster_centers(
+    value: Mapping[str, Sequence[int | float]],
+) -> dict[str, list[float]]:
     centers: dict[str, list[float]] = {}
     for key, items in value.items():
         if isinstance(items, str) or not isinstance(items, Sequence):
@@ -656,7 +680,7 @@ def _load_cluster_centers_file(
     return centers
 
 
-def _label_id(value: object) -> int:
+def _label_id(value: int | str) -> int:
     if isinstance(value, int):
         return value
     if isinstance(value, str):

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import cast
+
+from laygen.modeling_outputs import LayoutGenerationOutput
 
 from coarse_to_fine import (
     CoarseToFineForLayoutGeneration,
@@ -27,7 +29,7 @@ def main() -> None:
         model = CoarseToFineForLayoutGeneration.from_pretrained(path)
         processor = CoarseToFineProcessor.from_pretrained(path)
         pipe = CoarseToFinePipeline(model=model, processor=processor)
-        out = cast(Any, pipe(batch_size=1, seed=0))
+        out = cast(LayoutGenerationOutput, pipe(batch_size=1, seed=0))
         assert out.bbox.shape == (1, 20, 4)
         assert out.labels.shape == (1, 20)
         assert bool(out.mask.any())

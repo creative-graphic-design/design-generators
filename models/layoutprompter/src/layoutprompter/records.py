@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from collections.abc import Sequence
 from enum import StrEnum, auto
-from typing import TypeAlias
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
-from jaxtyping import Float, Int
+from jaxtyping import Bool, Float, Int
 from typing_extensions import NotRequired, TypedDict
 
 
@@ -64,16 +64,30 @@ class LayoutRecord(TypedDict, total=False):
     ]
 
 
-LayoutRecordInput: TypeAlias = LayoutRecord | Mapping[str, object]
+LayoutRecordScalar = str | int | float | bool | None
+if TYPE_CHECKING:
+    LayoutRecordPayload = (
+        Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Bool[np.ndarray, "..."]
+        | Sequence["LayoutRecordPayload"]
+    )
+else:
+    LayoutRecordPayload = object
+
+LayoutRecordValue = LayoutRecordScalar | LayoutRecordPayload
+LayoutRecordInput = (
+    LayoutRecord | Mapping[str, LayoutRecordValue] | Mapping[str, object]
+)
 
 
-def record_value(data: LayoutRecordInput, key: LayoutRecordKey) -> object:
+def record_value(data: LayoutRecordInput, key: LayoutRecordKey) -> LayoutRecordValue:
     """Return a layout-record value by enum key."""
-    return data[key.value]
+    return cast(LayoutRecordValue, data[key.value])
 
 
 def optional_record_value(
-    data: LayoutRecordInput, key: LayoutRecordKey, default: object
-) -> object:
+    data: LayoutRecordInput, key: LayoutRecordKey, default: LayoutRecordValue
+) -> LayoutRecordValue:
     """Return a layout-record value by enum key, or a default."""
-    return data.get(key.value, default)
+    return cast(LayoutRecordValue, data.get(key.value, default))

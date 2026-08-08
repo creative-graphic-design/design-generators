@@ -6,22 +6,22 @@ import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Final, Literal, TypedDict
+from typing import Final, Literal, TypedDict, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int, Shaped
-from transformers import ProcessorMixin
-
+from jaxtyping import Bool, Float, Int
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     clamp_boxes,
     ltrb_to_xywh,
-    normalize_boxes,
     normalize_box_format,
+    normalize_boxes,
     xywh_to_ltrb,
 )
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from transformers import ProcessorMixin
 
 LAYOUSYN_CONCEPT_EMBEDS_KEY: Final[str] = "concept_embeds"
 LAYOUSYN_CONCEPT_MASK_KEY: Final[str] = "concept_padding_mask"
@@ -44,6 +44,32 @@ class LayouSynBatch(TypedDict):
     label_texts: list[list[str]]
     id2label: dict[int, str]
     id2label_per_example: list[dict[int, str]]
+
+
+class LayouSynIntermediateValue(TypedDict, total=False):
+    """Optional auxiliary payload passed into post-processing."""
+
+    trajectory: list[Float[torch.Tensor, "batch elements 4"]]
+    raw: bool
+
+
+class LayouSynOutputIntermediates(TypedDict):
+    """LayouSyn auxiliary output metadata."""
+
+    label_texts: list[list[str]]
+    id2label_per_example: list[dict[int, str]] | None
+    reference_layout_type: str
+    intermediates: LayouSynIntermediateValue | None
+
+
+class LayouSynOutputDict(TypedDict, total=False):
+    """Dictionary form of LayouSyn public output."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    intermediates: LayouSynOutputIntermediates | None
 
 
 class LayouSynProcessor(ProcessorMixin):
@@ -85,7 +111,7 @@ class LayouSynProcessor(ProcessorMixin):
         self.id2label = id2label
         self.open_vocabulary = open_vocabulary
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, str | int | bool | dict[int, str] | None]:
         """Serialize processor metadata."""
         return {
             "layout_type": self.layout_type,
@@ -126,7 +152,7 @@ class LayouSynProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         **kwargs: object,
-    ) -> "LayouSynProcessor":
+    ) -> LayouSynProcessor:
         """Load processor metadata from a local directory."""
         del cache_dir, force_download, local_files_only, token, revision
         path = Path(pretrained_model_name_or_path) / cls.config_name
@@ -149,11 +175,11 @@ class LayouSynProcessor(ProcessorMixin):
         id2label: dict[int, str] | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -231,8 +257,8 @@ class LayouSynProcessor(ProcessorMixin):
         id2label_per_example: list[dict[int, str]] | None = None,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        intermediates: object | None = None,
-    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
+        intermediates: LayouSynIntermediateValue | None = None,
+    ) -> LayoutGenerationOutput | LayouSynOutputDict:
         """Convert generated reference coordinates into the public schema."""
         sample = ((sample.clamp(-1, 1) + 1.0) / 2.0).float()
         if self.layout_type == "xyxy":
@@ -273,7 +299,7 @@ class LayouSynProcessor(ProcessorMixin):
             intermediates=payload,
         )
         if output_type == "dict":
-            return dict(output)
+            return cast(LayouSynOutputDict, dict(output))
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
         return output
@@ -289,8 +315,8 @@ class LayouSynProcessor(ProcessorMixin):
         self,
         labels: Sequence[str]
         | Sequence[Sequence[str]]
-        | Int[torch.Tensor, "..."]
-        | Int[np.ndarray, "..."]
+        | Int[torch.Tensor, ...]
+        | Int[np.ndarray, ...]
         | None,
         *,
         id2label: dict[int, str] | None,
@@ -340,7 +366,10 @@ class LayouSynProcessor(ProcessorMixin):
         self,
         labels: list[list[str]],
         *,
-        mask: Bool[torch.Tensor, "..."] | Bool[np.ndarray, "..."] | list[object] | None,
+        mask: Bool[torch.Tensor, ...]
+        | Bool[np.ndarray, ...]
+        | Sequence[ArrayLikeInput]
+        | None,
     ) -> Bool[torch.Tensor, "batch elements"]:
         if mask is not None:
             mask_t = torch.as_tensor(mask, dtype=torch.bool)
@@ -433,7 +462,9 @@ class LayouSynProcessor(ProcessorMixin):
 
     def _normalize_optional_bbox(
         self,
-        bbox: Float[torch.Tensor, "... 4"] | Float[np.ndarray, "... 4"] | list[object],
+        bbox: Float[torch.Tensor, "... 4"]
+        | Float[np.ndarray, "... 4"]
+        | Sequence[ArrayLikeInput],
         *,
         box_format: BoxFormat | str,
         normalized: bool,

@@ -78,7 +78,7 @@ class CoarseToFineProcessor(ProcessorMixin):
             id2label=id2label,
         )
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, str | int | dict[str, str]]:
         """Serialize processor state to a JSON-compatible dictionary."""
         return {
             "processor_class": self.processor_class,
@@ -319,7 +319,17 @@ class CoarseToFineProcessor(ProcessorMixin):
         hierarchy: CoarseToFineHierarchy,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | None,
+        ]
+    ):
         """Convert decoded hierarchy tensors to the shared output schema."""
         output = flatten_hierarchy(
             hierarchy,

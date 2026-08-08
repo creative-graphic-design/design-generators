@@ -128,7 +128,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str | PathLike[str],
-        *inputs: object,
+        *inputs: str,
         cache_dir: str | PathLike[str] | None = None,
         force_download: bool = False,
         local_files_only: bool = False,

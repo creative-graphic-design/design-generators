@@ -184,6 +184,6 @@ class LayoutFIDConfig(PretrainedConfig):
         """Return the layout FID feature dimension."""
         return self.d_model
 
-    def _get_generation_parameters(self) -> dict[str, object]:
+    def _get_generation_parameters(self) -> dict[str, str]:
         """Return no generation parameters for this evaluator config."""
         return {}

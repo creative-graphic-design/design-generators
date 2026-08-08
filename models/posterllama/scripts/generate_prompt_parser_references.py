@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import cast
+from typing import TypedDict, cast
 
 import torch
 from posterllama import PosterLlamaConfig, PosterLlamaProcessor
@@ -21,6 +21,28 @@ CONDITION_TO_SOURCE_KEY = {
     "refinement": "cond_cate_pos_to_size",
     "unconditional": "unconditional",
 }
+
+
+class ParserIntermediates(TypedDict, total=False):
+    """Parser diagnostics used by the reference generator."""
+
+    bbox_ltwh: list[tuple[float, float, float, float]]
+
+
+ParserDictValue = (
+    torch.Tensor
+    | dict[int, str]
+    | ParserIntermediates
+    | list[str]
+    | list[tuple[float, float, float, float]]
+    | tuple[int, int]
+    | str
+    | int
+    | float
+    | bool
+    | None
+)
+
 PARSER_MARKUP = (
     '<body> <svg width="100" height="200"> '
     '<rect data-category="Text", x="10", y="20", width="30", height="40"/> '
@@ -98,9 +120,10 @@ def main() -> None:
         output_type="dict",
         return_intermediates=True,
     )
-    parsed_dict = cast(dict[str, object], parsed)
+    parsed_dict = cast(dict[str, ParserDictValue], parsed)
     labels = cast(torch.Tensor, parsed_dict["labels"]).tolist()
-    bbox_ltwh = cast(dict[str, object], parsed_dict["intermediates"])["bbox_ltwh"]
+    intermediates = cast(ParserIntermediates, parsed_dict["intermediates"])
+    bbox_ltwh = intermediates["bbox_ltwh"]
     if bbox_ltwh != [tuple(item) for item in source_bbox]:
         raise AssertionError("Parser bbox mismatch")
     if labels != [source_labels]:

@@ -25,6 +25,13 @@ AD_BANNER_LABELS: Final[tuple[str, ...]] = (
 AdBannerAnnotationValue: TypeAlias = str | int | float | Sequence[int | float]
 
 
+class LayoutDetrDatasetRow(TypedDict):
+    """One local Ad Banner JSON file row."""
+
+    path: str
+    elements: Sequence[Mapping[str, AdBannerAnnotationValue]]
+
+
 class NormalizedAdBannerAnnotation(TypedDict):
     """Normalized Ad Banner annotation row."""
 
@@ -80,7 +87,7 @@ def load_ad_banner_dataset(
     *,
     split: Literal["train", "validation"],
     source: Literal["ad_banner"] = "ad_banner",
-) -> Iterable[dict[str, object]]:
+) -> Iterable[LayoutDetrDatasetRow]:
     """Iterate a local Ad Banner directory without downloading assets.
 
     TODO: switch this adapter to a ``creative-graphic-design`` Hugging Face
@@ -96,4 +103,7 @@ def load_ad_banner_dataset(
     for path in json_paths:
         payload = json.loads(path.read_text(encoding="utf-8"))
         rows = payload if isinstance(payload, list) else payload.get("elements", [])
-        yield {"path": str(path), "elements": rows}
+        yield {
+            "path": str(path),
+            "elements": cast(Sequence[Mapping[str, AdBannerAnnotationValue]], rows),
+        }

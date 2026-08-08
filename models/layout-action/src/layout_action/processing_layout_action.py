@@ -6,11 +6,11 @@ from collections.abc import Sequence
 import json
 from os import PathLike
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, TypedDict, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 from transformers.tokenization_utils_base import BatchEncoding
 
@@ -22,6 +22,19 @@ from .configuration_layout_action import LayoutActionConfig
 from .tokenization_layout_action import LayoutActionTokenizer
 
 OutputType = Literal["dataclass", "dict"]
+
+
+class LayoutActionOutputDict(TypedDict, total=False):
+    """Dictionary form of the LayoutAction public output."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    sequences: Int[torch.Tensor, "batch tokens"]
+    intermediates: dict[str, dict[str, Shaped[torch.Tensor, "..."]] | None] | None
+
+
 PROCESSOR_CONFIG_FILE = "processor_config.json"
 SUPPORTED_CONDITIONS = {
     ConditionType.unconditional,
@@ -191,7 +204,7 @@ class LayoutActionProcessor(ProcessorMixin):
         *,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutActionOutputDict:
         """Decode generated sequences to the common output schema."""
         decoded = self.tokenizer.decode_action_tokens(
             sequences.detach().cpu(),
@@ -209,7 +222,7 @@ class LayoutActionProcessor(ProcessorMixin):
             intermediates=intermediates,
         )
         if output_type == "dict":
-            return dict(output)
+            return cast(LayoutActionOutputDict, dict(output))
         if output_type == "dataclass":
             return output
         raise ValueError(f"Unsupported output_type: {output_type}")
@@ -251,7 +264,12 @@ class LayoutActionProcessor(ProcessorMixin):
         )
         return cls(tokenizer=tokenizer)
 
-    def _labels_to_ids(self, labels: object) -> Int[torch.Tensor, "batch elements"]:
+    def _labels_to_ids(
+        self,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Int[np.ndarray, "batch elements"]
+        | Sequence[ArrayLikeInput],
+    ) -> Int[torch.Tensor, "batch elements"]:
         if isinstance(labels, torch.Tensor):
             return labels.long()
         label_array = np.asarray(labels, dtype=object)

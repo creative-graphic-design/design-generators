@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Final
+from typing import Final, TypeAlias
 
 from transformers import PretrainedConfig
 
@@ -27,6 +27,9 @@ DEFAULT_RELATION_ID2LABEL: Final[dict[int, str]] = {
 }
 
 Id2LabelMapping = Mapping[int, str] | Mapping[str, str]
+HouseGanConversionReport: TypeAlias = dict[
+    str, int | str | tuple[str, ...] | list[str] | dict[str, tuple[int, ...]]
+]
 
 
 class HouseGanConfig(PretrainedConfig):
@@ -77,7 +80,7 @@ class HouseGanConfig(PretrainedConfig):
         postprocess_threshold: float = 0.0,
         bbox_source: str = "generated_mask",
         source_checkpoint: str | None = None,
-        conversion_report: dict[str, object] | None = None,
+        conversion_report: HouseGanConversionReport | None = None,
         license_note: str = "GPL-3.0 with upstream research-purpose notice",
         **kwargs: object,
     ) -> None:

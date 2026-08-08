@@ -13,16 +13,14 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 from types import ModuleType
-from typing import Any, TypeAlias  # noqa: TID251  # Dynamic evaluate/vendor module payloads.
+from typing import Any  # noqa: TID251  # Dynamic evaluate/vendor module payloads.
 
 import evaluate
 import numpy as np
-import numpy.typing as npt
+from jaxtyping import Bool, Float, Int
 from PIL import Image
 import torch
 
-
-NDArray: TypeAlias = npt.NDArray[Any]
 VENDOR_ROOT_ENV = "DESIGN_GENERATORS_VENDOR_ROOT"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_VENDOR_ROOT = Path(os.environ.get(VENDOR_ROOT_ENV, REPO_ROOT / "vendor"))
@@ -131,7 +129,9 @@ def _load_posterllama_eval(vendor_root: Path) -> ModuleType:
     return module
 
 
-def _random_bboxes(rng: np.random.Generator, shape: tuple[int, int]) -> NDArray:
+def _random_bboxes(
+    rng: np.random.Generator, shape: tuple[int, int]
+) -> Float[np.ndarray, "batch elements 4"]:
     widths = rng.uniform(0.08, 0.34, size=shape)
     heights = rng.uniform(0.08, 0.34, size=shape)
     centers_x = rng.uniform(widths / 2, 1.0 - widths / 2)
@@ -185,7 +185,9 @@ def make_fixture(seed: int = 183) -> dict[str, Any]:
     }
 
 
-def make_feature_fixture(seed: int = 183) -> dict[str, NDArray]:
+def make_feature_fixture(
+    seed: int = 183,
+) -> dict[str, Float[np.ndarray, "batch features"]]:
     """Create deterministic feature arrays for PRDC/FID metrics."""
     rng = np.random.default_rng(seed)
     feats_real = rng.normal(size=(8, 6)).astype(np.float64)
@@ -229,7 +231,9 @@ def make_poster_fixture() -> dict[str, Any]:
     return {"predictions": predictions, "gold_labels": labels}
 
 
-def _poster_pixel_boxes(predictions: NDArray) -> list[list[list[int]]]:
+def _poster_pixel_boxes(
+    predictions: Float[np.ndarray, "batch elements 4"],
+) -> list[list[list[int]]]:
     pixels = predictions.copy()
     pixels[:, :, ::2] *= CANVAS_WIDTH
     pixels[:, :, 1::2] *= CANVAS_HEIGHT
@@ -271,7 +275,9 @@ def _write_media_fixture(root: Path, count: int) -> dict[str, list[str]]:
 
 
 def _to_layouts(
-    bbox: NDArray, labels: NDArray, mask: NDArray
+    bbox: Float[np.ndarray, "batch elements 4"],
+    labels: Int[np.ndarray, "batch elements"],
+    mask: Bool[np.ndarray, "batch elements"],
 ) -> list[dict[str, list[Any]]]:
     layouts = []
     for batch_index in range(bbox.shape[0]):
@@ -287,7 +293,7 @@ def _to_layouts(
 
 def _to_vendor_layouts(
     layouts: list[dict[str, list[Any]]],
-) -> list[tuple[NDArray, NDArray]]:
+) -> list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]]:
     return [
         (
             np.asarray(layout["bboxes"], dtype=np.float64),
@@ -297,7 +303,7 @@ def _to_vendor_layouts(
     ]
 
 
-def _as_float_array(value: Any) -> NDArray:
+def _as_float_array(value: Any) -> Float[np.ndarray, "batch elements 4"]:
     if isinstance(value, torch.Tensor):
         return value.detach().cpu().numpy().astype(np.float64)
     return np.asarray(value, dtype=np.float64)

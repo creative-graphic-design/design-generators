@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
-from typing import Final, Literal, cast
+from typing import Final, Literal, TypeAlias, cast
 
 from transformers import PretrainedConfig
 
@@ -22,6 +22,7 @@ class BackgroundPreprocessing(StrEnum):
 
 
 DEFAULT_ID2LABEL: Final[dict[int, str]] = id2label_for_ad_banner()
+LayoutDetrMetadataValue: TypeAlias = str | int | float | bool | None | Sequence[float]
 
 
 class LayoutDetrConfig(PretrainedConfig):
@@ -47,15 +48,15 @@ class LayoutDetrConfig(PretrainedConfig):
         bert_num_heads: int = 4,
         max_text_length: int = 256,
         text_vocab_size: int = 30_522,
-        med_config: Mapping[str, object] | None = None,
+        med_config: Mapping[str, LayoutDetrMetadataValue] | None = None,
         backbone_name: str = "resnet50",
         image_mean: Sequence[float] = (0.485, 0.456, 0.406),
         image_std: Sequence[float] = (0.229, 0.224, 0.225),
         architecture: Literal["lightweight", "reference"] = "lightweight",
         model_subfolder: str = "model",
         processor_subfolder: str = "processor",
-        original_training_options: Mapping[str, object] | None = None,
-        conversion_report: Mapping[str, object] | None = None,
+        original_training_options: Mapping[str, LayoutDetrMetadataValue] | None = None,
+        conversion_report: Mapping[str, LayoutDetrMetadataValue] | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize LayoutDETR configuration."""

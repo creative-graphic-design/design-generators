@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Literal
 from typing import Protocol, cast
 
@@ -16,10 +16,30 @@ from .configuration_ralf import RalfDatasetName
 from .retrieval import RalfRetrievedBatch
 
 
+class _SizeLike(Protocol):
+    """Object exposing image size metadata."""
+
+    size: tuple[int, int]
+
+
+RalfDatasetScalar = str | int | float | bool | None
+RalfDatasetSequence = (
+    Sequence[RalfDatasetScalar] | Sequence[Sequence[RalfDatasetScalar]]
+)
+RalfDatasetValue = (
+    RalfDatasetScalar
+    | RalfDatasetSequence
+    | Mapping[str, RalfDatasetSequence]
+    | _SizeLike
+)
+RalfSampleMapping = Mapping[str, object]
+RalfNormalizedSample = dict[str, object]
+
+
 class _IndexableDataset(Protocol):
     """Minimal protocol for an indexable dataset."""
 
-    def __getitem__(self, index: int) -> Mapping[str, object]:
+    def __getitem__(self, index: int) -> RalfSampleMapping:
         """Return one dataset row."""
 
 
@@ -42,9 +62,11 @@ def _remap_retrieval_labels(
 
 
 def _labels_to_tensor(
-    labels: object, dataset: DatasetName
+    labels: Sequence[int | str] | Int[torch.Tensor, "elements"], dataset: DatasetName
 ) -> Int[torch.Tensor, "elements"]:
-    values = list(cast(list[object], labels))
+    if isinstance(labels, torch.Tensor):
+        return labels.long()
+    values = list(labels)
     if values and isinstance(values[0], str):
         label2id = RALF_STYLE_LABEL2ID[dataset]
         return torch.tensor(
@@ -54,8 +76,8 @@ def _labels_to_tensor(
 
 
 def normalize_org_sample(
-    sample: Mapping[str, object], dataset_name: DatasetName | str
-) -> dict[str, object]:
+    sample: RalfSampleMapping, dataset_name: DatasetName | str
+) -> RalfNormalizedSample:
     """Normalize one org-dataset sample to RALF-style fields.
 
     Args:
@@ -70,7 +92,10 @@ def normalize_org_sample(
     """
     dataset = normalize_dataset_name(dataset_name)
     if {"label", "center_x", "center_y", "width", "height"}.issubset(sample):
-        labels = _labels_to_tensor(sample["label"], dataset)
+        labels = _labels_to_tensor(
+            cast(Sequence[int | str] | Int[torch.Tensor, "elements"], sample["label"]),
+            dataset,
+        )
         bbox = torch.stack(
             [
                 torch.as_tensor(sample["center_x"], dtype=torch.float32),
@@ -128,7 +153,7 @@ def load_ralf_dataset(
     split: str,
     *,
     source: Literal["hf_org"] = "hf_org",
-) -> object:
+) -> _IndexableDataset:
     """Load a RALF-compatible dataset lazily.
 
     Args:
@@ -152,16 +177,27 @@ def load_ralf_dataset(
         ) from exc
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.cgl:
-        return load_dataset(
-            "creative-graphic-design/CGL-Dataset", name="ralf-style", split=split
+        return cast(
+            _IndexableDataset,
+            load_dataset(
+                "creative-graphic-design/CGL-Dataset", name="ralf-style", split=split
+            ),
         )
     if dataset is DatasetName.cgl_v2:
-        return load_dataset(
-            "creative-graphic-design/CGL-Dataset-v2", name="ralf-style", split=split
+        return cast(
+            _IndexableDataset,
+            load_dataset(
+                "creative-graphic-design/CGL-Dataset-v2", name="ralf-style", split=split
+            ),
         )
     if dataset is DatasetName.pku_posterlayout:
-        return load_dataset(
-            "creative-graphic-design/PKU-PosterLayout", name="ralf-style", split=split
+        return cast(
+            _IndexableDataset,
+            load_dataset(
+                "creative-graphic-design/PKU-PosterLayout",
+                name="ralf-style",
+                split=split,
+            ),
         )
     raise ValueError(f"Unsupported RALF dataset: {dataset_name}")
 

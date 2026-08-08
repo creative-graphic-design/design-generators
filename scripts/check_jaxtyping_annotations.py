@@ -15,7 +15,13 @@ BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
 ALIAS_BASELINE_PATH = ROOT / "scripts" / "jaxtyping_alias_baseline.txt"
 OBJECT_BASELINE_PATH = ROOT / "scripts" / "object_annotation_baseline.txt"
 WEAK_CAST_BASELINE_PATH = ROOT / "scripts" / "weak_cast_type_baseline.txt"
-SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
+SCAN_GLOBS = (
+    "models/*/src/**/*.py",
+    "lib/*/src/**/*.py",
+    "models/*/scripts/**/*.py",
+    "lib/*/scripts/**/*.py",
+    "scripts/**/*.py",
+)
 
 JAXTYPING_SHAPED_TYPES = {
     "Bool",

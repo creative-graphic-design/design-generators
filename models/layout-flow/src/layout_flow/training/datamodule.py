@@ -4,14 +4,23 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from lightning.pytorch import LightningDataModule
+import torch
+from jaxtyping import Shaped
 from torch.utils.data import DataLoader
 
 from laygen.common.bbox import BoxFormat
 
 from .config import LayoutFlowTrainingDatasetName, LayoutFlowTrainingSplit
 from .dataset import LayoutFlowH5Dataset, collate_layout_flow_batch
+
+if TYPE_CHECKING:
+    LayoutFlowBatch = dict[str, Shaped[torch.Tensor, "..."] | str]
+
+else:
+    LayoutFlowBatch = object
 
 
 class LayoutFlowDataModule(LightningDataModule):
@@ -53,19 +62,19 @@ class LayoutFlowDataModule(LightningDataModule):
         if stage in {None, "test"}:
             self.test_dataset = self._dataset("test")
 
-    def train_dataloader(self) -> DataLoader[object]:
+    def train_dataloader(self) -> DataLoader[LayoutFlowBatch]:
         """Return the training dataloader."""
         if self.train_dataset is None:
             self.setup("fit")
         return self._loader(self.train_dataset, shuffle=True)
 
-    def val_dataloader(self) -> DataLoader[object]:
+    def val_dataloader(self) -> DataLoader[LayoutFlowBatch]:
         """Return the validation dataloader."""
         if self.val_dataset is None:
             self.setup("fit")
         return self._loader(self.val_dataset, shuffle=False)
 
-    def test_dataloader(self) -> DataLoader[object]:
+    def test_dataloader(self) -> DataLoader[LayoutFlowBatch]:
         """Return the test dataloader."""
         if self.test_dataset is None:
             self.setup("test")
@@ -83,7 +92,7 @@ class LayoutFlowDataModule(LightningDataModule):
 
     def _loader(
         self, dataset: LayoutFlowH5Dataset | None, *, shuffle: bool
-    ) -> DataLoader[object]:
+    ) -> DataLoader[LayoutFlowBatch]:
         if dataset is None:
             raise RuntimeError("Dataset has not been initialized")
         return DataLoader(

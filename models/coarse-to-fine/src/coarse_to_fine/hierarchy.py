@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, cast
+from typing import Final, TypeAlias, cast
 
 import torch
 import torch.nn.functional as F
@@ -21,6 +21,7 @@ from .geometry import (
 )
 
 INVALID_GROUP_INDEX: Final[int] = -1
+GroupTree: TypeAlias = "list[int | GroupTree]"
 
 
 @dataclass
@@ -58,14 +59,14 @@ def _sort_boxes(
 
 def _group_bbox(
     sorted_bbox_with_idx: list[tuple[Float[torch.Tensor, "4"], int]], *, direction: str
-) -> list[object]:
+) -> GroupTree:
     if len(sorted_bbox_with_idx) == 1:
-        return [sorted_bbox_with_idx[0][1]]
+        return [int(sorted_bbox_with_idx[0][1])]
     next_direction = "x" if direction == "y" else "y"
     idx_d1 = 1 if direction == "y" else 0
     idx_d2 = 3 if direction == "y" else 2
     new_bboxes = sorted(sorted_bbox_with_idx, key=lambda item: float(item[0][idx_d1]))
-    root: list[object] = []
+    root: GroupTree = []
     end = new_bboxes[0][0][idx_d2]
     begin_idx = 0
     for idx in range(1, len(new_bboxes)):
@@ -83,29 +84,26 @@ def _group_bbox(
     return root
 
 
-def _bottom_two_layers(
-    group_tree: list[object], out: list[list[int]]
-) -> list[list[int]]:
+def _leaf_values(group_tree: GroupTree) -> list[int]:
+    return [
+        item
+        for node in group_tree
+        for item in (_leaf_values(node) if isinstance(node, list) else [int(node)])
+    ]
+
+
+def _bottom_two_layers(group_tree: GroupTree, out: list[list[int]]) -> list[list[int]]:
     flag = all(not isinstance(group, list) or len(group) == 1 for group in group_tree)
     if flag:
-        if isinstance(group_tree[0], list):
-            out.append(
-                [
-                    int(cast(int, group[0]))
-                    for group in group_tree
-                    if isinstance(group, list)
-                ]
-            )
-        else:
-            out.append([int(cast(int, group)) for group in group_tree])
+        out.append(_leaf_values(group_tree))
         return out
     for group in group_tree:
         if isinstance(group, list) and len(group) != 1:
-            _bottom_two_layers(cast(list[object], group), out)
+            _bottom_two_layers(group, out)
         elif isinstance(group, list):
-            out.append([int(cast(int, group[0]))])
+            out.append(_leaf_values(group))
         else:
-            out.append([int(cast(int, group))])
+            out.append([int(group)])
     return out
 
 

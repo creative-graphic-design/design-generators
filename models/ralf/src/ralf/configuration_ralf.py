@@ -29,6 +29,16 @@ RalfTaskName = Literal["uncond", "c", "cwh", "partial", "refinement", "relation"
 RalfLayoutVariable = Literal["label", "width", "height", "center_x", "center_y"]
 RalfGeometryKey = Literal["center_x", "center_y", "width", "height"]
 RalfReturnTensor = Literal["pt"]
+RalfConfigValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["RalfConfigValue"]
+    | dict[str, "RalfConfigValue"]
+)
+RalfConfigMetadata = Mapping[str, RalfConfigValue]
 
 DEFAULT_VAR_ORDER: Final[tuple[RalfLayoutVariable, ...]] = (
     "label",
@@ -117,9 +127,9 @@ class RalfConfig(PretrainedConfig):
         image_channels: int = 4,
         image_size: tuple[int, int] | list[int] | None = None,
         sort_order: Sequence[str] = ("label", "lexicographic"),
-        retrieval_metadata: Mapping[str, object] | None = None,
-        original_config: Mapping[str, object] | None = None,
-        original_hydra_config: Mapping[str, object] | None = None,
+        retrieval_metadata: RalfConfigMetadata | None = None,
+        original_config: RalfConfigMetadata | None = None,
+        original_hydra_config: RalfConfigMetadata | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize configuration values."""

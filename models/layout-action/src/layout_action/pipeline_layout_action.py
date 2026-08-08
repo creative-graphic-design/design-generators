@@ -9,8 +9,6 @@ from typing import ClassVar, Literal, cast
 import numpy as np
 import torch
 from jaxtyping import Bool, Float, Int
-from transformers import PretrainedConfig
-
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -19,10 +17,16 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.pipelines.base import PipelineComponent
+from transformers import PretrainedConfig
 
 from .configuration_layout_action import LayoutActionConfig
 from .modeling_layout_action import LayoutActionForCausalLM
-from .processing_layout_action import LayoutActionProcessor, OutputType
+from .processing_layout_action import (
+    LayoutActionOutputDict,
+    LayoutActionProcessor,
+    OutputType,
+)
 
 
 def _load_model_component(
@@ -30,7 +34,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PipelineComponent:
     if subfolder is not None:
         return LayoutActionForCausalLM.from_pretrained(
             pretrained_model_name_or_path,
@@ -48,7 +52,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PipelineComponent:
     if subfolder is not None:
         return LayoutActionProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -109,8 +113,8 @@ class LayoutActionPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
-    ) -> "LayoutActionPipeline":
+        components: Mapping[str, PipelineComponent | None],
+    ) -> LayoutActionPipeline:
         """Build a pipeline from loaded components."""
         return cls(
             config=cast(LayoutActionConfig, config),
@@ -148,7 +152,7 @@ class LayoutActionPipeline(LayoutGenerationPipeline):
         sampling: Literal["greedy", "multinomial", "top_k"] = "top_k",
         temperature: float = 1.0,
         top_k: int | None = 5,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | LayoutActionOutputDict:  # ty: ignore[invalid-method-override]
         """Generate a layout through the public LayoutAction interface."""
         encoded = self.processor(
             condition_type=condition_type,

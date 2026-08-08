@@ -87,7 +87,7 @@ def read_body_from_event(event_path: Path) -> str:
     return read_pull_request_metadata_from_event(event_path).body
 
 
-def _parse_github_datetime(value: object) -> datetime | None:
+def _parse_github_datetime(value: str | None) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     return datetime.fromisoformat(value.replace("Z", "+00:00"))

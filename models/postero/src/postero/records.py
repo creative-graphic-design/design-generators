@@ -8,6 +8,9 @@ from typing import cast
 from pydantic import BaseModel, ConfigDict, Field
 
 
+JSONValue = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
+
+
 class AvailableRegion(BaseModel):
     """One available poster area in pixel ``ltrb`` coordinates."""
 
@@ -56,7 +59,7 @@ class PosterORecord(BaseModel):
 
 
 def record_from_mapping(
-    row: Mapping[str, object], *, id2label: Mapping[int, str]
+    row: Mapping[str, JSONValue], *, id2label: Mapping[int, str]
 ) -> PosterORecord:
     """Build a ``PosterORecord`` from a lightweight mapping.
 
@@ -94,9 +97,9 @@ def record_from_mapping(
     )
 
 
-def record_to_mapping(record: PosterORecord) -> dict[str, object]:
+def record_to_mapping(record: PosterORecord) -> dict[str, JSONValue]:
     """Serialize a record to a JSON-compatible mapping."""
-    return record.model_dump(mode="json")
+    return cast(dict[str, JSONValue], record.model_dump(mode="json"))
 
 
 def labels_for_record(record: PosterORecord) -> list[int | str]:
@@ -105,7 +108,7 @@ def labels_for_record(record: PosterORecord) -> list[int | str]:
 
 
 def _element_from_mapping(
-    value: object, *, id2label: Mapping[int, str]
+    value: JSONValue | PosterLayoutElement, *, id2label: Mapping[int, str]
 ) -> PosterLayoutElement:
     if isinstance(value, PosterLayoutElement):
         return value
@@ -124,7 +127,7 @@ def _element_from_mapping(
     )
 
 
-def _bbox(value: object) -> tuple[float, float, float, float]:
+def _bbox(value: JSONValue | Sequence[JSONValue]) -> tuple[float, float, float, float]:
     values = [_float(item) for item in _sequence(value)]
     if len(values) != 4:
         msg = "bbox values must contain four numbers"
@@ -132,7 +135,7 @@ def _bbox(value: object) -> tuple[float, float, float, float]:
     return (values[0], values[1], values[2], values[3])
 
 
-def _canvas_size(value: object) -> tuple[int, int]:
+def _canvas_size(value: JSONValue | Sequence[JSONValue]) -> tuple[int, int]:
     values = [int(_float(item)) for item in _sequence(value)]
     if len(values) != 2:
         msg = "canvas_size values must contain width and height"
@@ -140,23 +143,25 @@ def _canvas_size(value: object) -> tuple[int, int]:
     return (values[0], values[1])
 
 
-def _float(value: object) -> float:
+def _float(value: JSONValue) -> float:
     return float(cast(float | int | str, value))
 
 
-def _sequence(value: object) -> Sequence[object]:
+def _sequence(value: JSONValue | Sequence[JSONValue]) -> Sequence[JSONValue]:
     if value is None:
         return ()
     if isinstance(value, Sequence) and not isinstance(value, str):
-        return value
+        return cast(Sequence[JSONValue], value)
     msg = f"Expected a sequence, got {type(value).__name__}"
     raise TypeError(msg)
 
 
-def _mapping(value: object) -> Mapping[str, object]:
+def _mapping(
+    value: JSONValue | Mapping[str, JSONValue] | None,
+) -> Mapping[str, JSONValue]:
     if value is None:
         return {}
     if isinstance(value, Mapping):
-        return cast(Mapping[str, object], value)
+        return cast(Mapping[str, JSONValue], value)
     msg = f"Expected a mapping, got {type(value).__name__}"
     raise TypeError(msg)

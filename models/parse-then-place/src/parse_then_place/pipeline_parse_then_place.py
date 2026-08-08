@@ -8,16 +8,21 @@ from typing import ClassVar, Literal, Protocol, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
-from transformers import AutoModelForSeq2SeqLM, PreTrainedModel  # ty: ignore[possibly-missing-import]
-from transformers import PretrainedConfig
-
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
+from transformers import (
+    AutoModelForSeq2SeqLM,  # ty: ignore[possibly-missing-import]
+    PretrainedConfig,
+    PreTrainedModel,
+)
 
 from .configuration_parse_then_place import ParseThenPlaceConfig
-from .processing_parse_then_place import ParseThenPlaceProcessor
+from .processing_parse_then_place import (
+    ParseThenPlaceOutputDict,
+    ParseThenPlaceProcessor,
+)
 
 
 class _GenerationModel(Protocol):
@@ -37,16 +42,22 @@ def _load_seq2seq_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> PreTrainedModel:
     if subfolder is not None:
-        return AutoModelForSeq2SeqLM.from_pretrained(
+        return cast(
+            PreTrainedModel,
+            AutoModelForSeq2SeqLM.from_pretrained(
+                pretrained_model_name_or_path,
+                local_files_only=local_files_only,
+                subfolder=subfolder,
+            ),
+        )
+    return cast(
+        PreTrainedModel,
+        AutoModelForSeq2SeqLM.from_pretrained(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
-            subfolder=subfolder,
-        )
-    return AutoModelForSeq2SeqLM.from_pretrained(
-        pretrained_model_name_or_path,
-        local_files_only=local_files_only,
+        ),
     )
 
 
@@ -55,7 +66,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> ParseThenPlaceProcessor:
     if subfolder is not None:
         return ParseThenPlaceProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -122,9 +133,9 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         processor: ParseThenPlaceProcessor | None = None,
         local_files_only: bool = False,
         config: ParseThenPlaceConfig | PretrainedConfig | None = None,
-    ) -> "ParseThenPlacePipeline":  # ty: ignore[invalid-method-override]
+    ) -> ParseThenPlacePipeline:  # ty: ignore[invalid-method-override]
         """Load a composite pipeline from a root directory."""
-        components: dict[str, object] = {}
+        components: dict[str, PreTrainedModel | ParseThenPlaceProcessor] = {}
         if parser is not None:
             components["parser"] = parser
         if placement is not None:
@@ -151,8 +162,8 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
-    ) -> "ParseThenPlacePipeline":
+        components: Mapping[str, PreTrainedModel | ParseThenPlaceProcessor | None],
+    ) -> ParseThenPlacePipeline:
         """Build a pipeline from loaded config and components."""
         return cls(
             config=cast(ParseThenPlaceConfig, config),
@@ -221,9 +232,13 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.text,
-        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | list[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | list[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | list[ArrayLikeInput] | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -235,7 +250,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         layout_text: str | list[str] | list[list[str]] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | ParseThenPlaceOutputDict:  # ty: ignore[invalid-method-override]
         """Generate a layout from natural-language text."""
         _ = (
             batch_size,

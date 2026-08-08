@@ -24,9 +24,17 @@ from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_flex_dm import FlexDmColumnSpec, FlexDmConfig
-from .data_specs import build_column_specs, id2label_from_vocabulary
+from .data_specs import (
+    FlexDmVocabularyValue,
+    build_column_specs,
+    id2label_from_vocabulary,
+)
 from .masking import build_feature_masks, filter_padding, get_seq_mask
 from .modeling_flex_dm import FlexDmModelOutput
+
+FlexDmValue = (
+    str | int | float | bool | None | list["FlexDmValue"] | dict[str, "FlexDmValue"]
+)
 
 
 class FlexDmDiscretizerSpec(TypedDict):
@@ -54,7 +62,7 @@ class FlexDmProcessor(ProcessorMixin):
         self,
         *,
         config: FlexDmConfig,
-        vocabulary: dict[str, object] | None = None,
+        vocabulary: dict[str, FlexDmValue] | None = None,
         discretizers: dict[str, FlexDmDiscretizerSpec] | None = None,
     ) -> None:
         """Initialize metadata-only processor state."""
@@ -131,7 +139,7 @@ class FlexDmProcessor(ProcessorMixin):
         data = json.loads((root / "processor_config.json").read_text())
         return cls(
             config=FlexDmConfig.from_dict(data["config"]),
-            vocabulary=cast(dict[str, object], data.get("vocabulary", {})),
+            vocabulary=cast(dict[str, FlexDmValue], data.get("vocabulary", {})),
             discretizers=cast(
                 dict[str, FlexDmDiscretizerSpec], data.get("discretizers", {})
             ),
@@ -142,15 +150,19 @@ class FlexDmProcessor(ProcessorMixin):
         cls,
         *,
         dataset_name: str,
-        vocabulary: dict[str, object],
+        vocabulary: dict[str, FlexDmValue],
         checkpoint_variant: str = "ours-exp-ft",
     ) -> "FlexDmProcessor":
         """Build config and processor metadata from vocabulary."""
         id2label = cast(
-            dict[int | str, str], id2label_from_vocabulary(dataset_name, vocabulary)
+            dict[int | str, str],
+            id2label_from_vocabulary(
+                dataset_name, cast(dict[str, FlexDmVocabularyValue], vocabulary)
+            ),
         )
         input_columns = build_column_specs(
-            dataset_name=dataset_name, vocabulary=vocabulary
+            dataset_name=dataset_name,
+            vocabulary=cast(dict[str, FlexDmVocabularyValue], vocabulary),
         )
         config = FlexDmConfig(
             dataset_name=dataset_name,
@@ -180,13 +192,20 @@ class FlexDmProcessor(ProcessorMixin):
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-        attributes: Mapping[str, object] | None = None,
-        content: Mapping[str, object] | None = None,
+        attributes: Mapping[str, FlexDmValue] | None = None,
+        content: Mapping[str, FlexDmValue] | None = None,
         feature_group: str | None = None,
         target_indices: Int[torch.Tensor, "..."] | None = None,
         batch_size: int = 1,
         return_tensors: Literal["pt"] = "pt",
-    ) -> dict[str, object]:
+    ) -> dict[
+        str,
+        dict[str, Shaped[torch.Tensor, "..."] | Bool[torch.Tensor, "..."]]
+        | Shaped[torch.Tensor, "..."]
+        | ConditionType
+        | str
+        | None,
+    ]:
         """Convert public layout fields into Flex-DM model tensors."""
         if return_tensors != "pt":
             raise ValueError("FlexDmProcessor only supports return_tensors='pt'")
@@ -273,8 +292,8 @@ class FlexDmProcessor(ProcessorMixin):
         bbox: Float[torch.Tensor, "batch elements 4"],
         labels: Int[torch.Tensor, "batch elements"],
         mask: Bool[torch.Tensor, "batch elements"],
-        attributes: Mapping[str, object] | None,
-        content: Mapping[str, object] | None,
+        attributes: Mapping[str, FlexDmValue] | None,
+        content: Mapping[str, FlexDmValue] | None,
     ) -> dict[str, Shaped[torch.Tensor, "..."]]:
         ltwh = xywh_to_ltwh(bbox).clamp(0.0, 1.0)
         inputs: dict[str, Shaped[torch.Tensor, "..."]] = {}
@@ -297,7 +316,7 @@ class FlexDmProcessor(ProcessorMixin):
         self,
         key: str,
         column: FlexDmColumnSpec,
-        value: object,
+        value: FlexDmValue,
         mask: Bool[torch.Tensor, "batch elements"],
     ) -> Shaped[torch.Tensor, "batch elements channels"]:
         batch, seq_len = mask.shape
@@ -337,7 +356,16 @@ class FlexDmProcessor(ProcessorMixin):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         refinement_input: Mapping[str, Shaped[torch.Tensor, "..."]] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Decode Flex-DM model outputs to the common layout schema."""
         decoded = self._decode_logits(outputs.logits, original_inputs, masks)
         ltwh = torch.cat([decoded[key].float() for key in GEOMETRY_KEYS], dim=-1)

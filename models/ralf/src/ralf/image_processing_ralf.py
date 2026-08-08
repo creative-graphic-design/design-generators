@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import torch
@@ -12,6 +12,10 @@ from PIL import Image
 from transformers import BatchFeature
 from transformers.image_processing_utils import BaseImageProcessor
 from transformers.image_utils import ImageInput
+
+RalfImageProcessorConfigValue = (
+    str | int | float | bool | None | tuple[int, int] | list[str] | list[int]
+)
 
 
 def _as_list(value: ImageInput | Sequence[ImageInput]) -> list[ImageInput]:
@@ -134,8 +138,8 @@ class RalfImageProcessor(BaseImageProcessor):
             tensor_type=return_tensors,
         )
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> dict[str, RalfImageProcessorConfigValue]:
         """Serialize image processor metadata."""
-        data = super().to_dict()
+        data = cast(dict[str, RalfImageProcessorConfigValue], super().to_dict())
         data["image_size"] = self.image_size
         return data

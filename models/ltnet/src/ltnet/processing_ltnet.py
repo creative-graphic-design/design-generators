@@ -26,13 +26,15 @@ from .tokenization_ltnet import LTNetRelationTokenizer
 
 
 OutputType = Literal["dataclass", "dict"]
+SceneGraphItemValue = str | int | float | Sequence[float] | None
+SceneGraphItemMapping = Mapping[str, SceneGraphItemValue]
 SceneGraphMapping = Mapping[
     str,
     str
     | int
     | float
     | Sequence[float]
-    | Sequence[Mapping[str, str | int | float | Sequence[float]]]
+    | Sequence[SceneGraphItemMapping]
     | Mapping[int | str, str],
 ]
 
@@ -189,15 +191,15 @@ class LTNetProcessor(ProcessorMixin):
         nodes = scene_graph.get("nodes", scene_graph.get("objects", ()))
         edges = scene_graph.get("edges", scene_graph.get("relations", ()))
         normalized_objects: list[LayoutObject] = []
-        for node in cast(Sequence[object], nodes):
-            item = cast(Mapping[str, object], node)
+        for node in cast(Sequence[SceneGraphItemMapping], nodes):
+            item = node
             node_id = cast(int | str, item["id"])
             label = cast(int | str, item.get("label_id", item.get("label")))
             bbox = cast(tuple[float, float, float, float] | None, item.get("bbox"))
             normalized_objects.append(LayoutObject(id=node_id, label=label, bbox=bbox))
         normalized_relations: list[LayoutRelation] = []
-        for edge in cast(Sequence[object], edges):
-            item = cast(Mapping[str, object], edge)
+        for edge in cast(Sequence[SceneGraphItemMapping], edges):
+            item = edge
             subject = cast(int | str, item.get("source", item.get("subject")))
             predicate = cast(int | str, item.get("predicate_id", item.get("predicate")))
             target = cast(int | str, item.get("target", item.get("object")))

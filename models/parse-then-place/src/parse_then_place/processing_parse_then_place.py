@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import Final, Literal, TypedDict, cast
+from typing import TYPE_CHECKING, Final, Literal, TypedDict, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -42,6 +42,21 @@ _LAYOUT_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?P<width>-?\d+)\s+(?P<height>-?\d+)"
 )
 _WHITESPACE_RE: Final[re.Pattern[str]] = re.compile(r"\s+")
+if TYPE_CHECKING:
+    ParseThenPlaceOutputDict = dict[
+        str,
+        Float[torch.Tensor, "batch elements 4"]
+        | Int[torch.Tensor, "batch elements"]
+        | Bool[torch.Tensor, "batch elements"]
+        | dict[int, str]
+        | dict[str, list[str] | list[list[str]] | str | tuple[int, int]]
+        | None,
+    ]
+
+else:
+    ParseThenPlaceOutputDict = object
+
+
 _DOUBLE_QUOTED_RE: Final[re.Pattern[str]] = re.compile(r'".*?"')
 _SINGLE_QUOTED_RE: Final[re.Pattern[str]] = re.compile(r"'.*?'")
 
@@ -282,7 +297,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         output_candidate: Literal["first", "all", "best"] = "first",
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | ParseThenPlaceOutputDict:
         """Parse generated ``label left top width height`` text into schema."""
         candidate_groups = self._normalize_layout_text_groups(layout_text)
         selected = self._select_candidates(candidate_groups, output_candidate)

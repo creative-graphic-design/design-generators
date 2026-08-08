@@ -31,7 +31,18 @@ class LayoutFIDStatistics:
     num_samples: int | None = None
 
     @classmethod
-    def from_mapping(cls, values: Mapping[str, object]) -> "LayoutFIDStatistics":
+    def from_mapping(
+        cls,
+        values: Mapping[
+            str,
+            Float[np.ndarray, "..."]
+            | list[float]
+            | list[list[float]]
+            | str
+            | int
+            | None,
+        ],
+    ) -> "LayoutFIDStatistics":
         """Create statistics from a mapping."""
         mu = np.asarray(values["mu"], dtype=np.float64)
         sigma = np.asarray(values["sigma"], dtype=np.float64)
@@ -145,8 +156,16 @@ def calculate_frechet_distance(
 
 
 def compute_layout_fid_from_statistics(
-    candidate: LayoutFIDStatistics | Mapping[str, object],
-    reference: LayoutFIDStatistics | Mapping[str, object],
+    candidate: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
+    reference: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
 ) -> float:
     """Compute layout FID from two statistics objects."""
     candidate_stats = _coerce_statistics(candidate)
@@ -209,7 +228,11 @@ def compute_layout_fid(
     model: "LayoutFIDModel",
     processor: "LayoutFIDProcessor",
     *,
-    reference_statistics: LayoutFIDStatistics | Mapping[str, object],
+    reference_statistics: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
     batch_size: int = 512,
     **layout_kwargs: object,
 ) -> float:
@@ -244,7 +267,11 @@ def _as_numpy(
 
 
 def _coerce_statistics(
-    stats: LayoutFIDStatistics | Mapping[str, object],
+    stats: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
 ) -> LayoutFIDStatistics:
     if isinstance(stats, LayoutFIDStatistics):
         return stats
