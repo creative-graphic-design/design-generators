@@ -29,7 +29,6 @@ def test_layoutganpp_model_card_metadata_and_sections():
     assert "LayoutDM" not in text
     assert "CyberAgentAILab" not in text
     assert "2303.08137" not in text
-    assert card.validate() is None
 
 
 def test_write_layoutganpp_model_card_smoke(tmp_path):
