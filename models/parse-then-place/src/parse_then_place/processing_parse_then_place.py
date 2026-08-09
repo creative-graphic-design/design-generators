@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Final, Literal, TypedDict, cast
+from typing import Final, Literal, Protocol, TypedDict, cast, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Int
-from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
-
 from laygen.common.bbox import normalize_boxes
 from laygen.modeling_outputs import LayoutGenerationOutput
+from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
 
 from .labels import (
     ParseThenPlaceDatasetName,
@@ -42,19 +41,25 @@ _LAYOUT_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(?P<width>-?\d+)\s+(?P<height>-?\d+)"
 )
 _WHITESPACE_RE: Final[re.Pattern[str]] = re.compile(r"\s+")
-if TYPE_CHECKING:
-    ParseThenPlaceOutputDict = dict[
-        str,
-        Float[torch.Tensor, "batch elements 4"]
-        | Int[torch.Tensor, "batch elements"]
-        | Bool[torch.Tensor, "batch elements"]
-        | dict[int, str]
-        | dict[str, list[str] | list[list[str]] | str | tuple[int, int]]
-        | None,
-    ]
 
-else:
-    ParseThenPlaceOutputDict = object
+
+@runtime_checkable
+class TensorLike(Protocol):
+    """Runtime-safe protocol for tensor-like processor dictionary values."""
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Return tensor-like dimensions."""
+        ...
+
+
+ParseThenPlaceOutputDict = dict[
+    str,
+    TensorLike
+    | dict[int, str]
+    | dict[str, list[str] | list[list[str]] | str | tuple[int, int]]
+    | None,
+]
 
 
 _DOUBLE_QUOTED_RE: Final[re.Pattern[str]] = re.compile(r'".*?"')
@@ -103,7 +108,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         *,
         canvas_size: tuple[int, int] | None = None,
         id2label: dict[int, str] | None = None,
-    ) -> "ParseThenPlaceProcessor":
+    ) -> ParseThenPlaceProcessor:
         """Construct metadata-only processor for tests and local smoke checks."""
         return cls(
             parser_tokenizer=None,
@@ -304,8 +309,8 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         parsed_groups = [self._parse_layout_text(item) for item in selected]
         max_len = max((len(item) for item in parsed_groups), default=0) or 1
         bbox_rows: list[Float[torch.Tensor, "elements 4"]] = []
-        label_rows: list[Int[torch.Tensor, "elements"]] = []
-        mask_rows: list[Bool[torch.Tensor, "elements"]] = []
+        label_rows: list[Int[torch.Tensor, ...]] = []
+        mask_rows: list[Bool[torch.Tensor, ...]] = []
         for parsed in parsed_groups:
             labels = torch.tensor([item["label"] for item in parsed], dtype=torch.long)
             boxes = torch.tensor([item["bbox"] for item in parsed], dtype=torch.float32)

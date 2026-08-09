@@ -17,11 +17,10 @@ import types
 from collections.abc import Iterable, Sequence
 from itertools import permutations
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, cast
+from typing import Final, Protocol, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.vendor import vendor_root
 from layoutprompter.enums import LayoutPrompterDataset, LayoutPrompterTask, PromptFormat
 from layoutprompter.records import LayoutRecordInput
@@ -36,23 +35,31 @@ _PARITY_DATASET: Final[LayoutPrompterDataset] = LayoutPrompterDataset.webui
 _PARITY_TASK: Final[LayoutPrompterTask] = LayoutPrompterTask.gent
 _PARITY_FORMAT: Final[PromptFormat] = PromptFormat.SEQ
 VendorScalar = str | int | float | bool | None
-if TYPE_CHECKING:
-    VendorRecordValue = (
-        VendorScalar
-        | Shaped[torch.Tensor, "..."]
-        | Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Bool[np.ndarray, "..."]
-        | list["VendorRecordValue"]
-        | dict[str, "VendorRecordValue"]
-    )
-    VendorRecord = dict[str, VendorRecordValue]
-    GoldenValue = VendorRecordValue
 
-else:
-    VendorRecordValue = object
-    VendorRecord = dict
-    GoldenValue = object
+
+class VendorArrayLike(Protocol):
+    """Runtime-safe protocol for vendor tensor and array payloads."""
+
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+
+    def tolist(self) -> list[VendorScalar] | list[list[VendorScalar]]: ...
+
+
+class ScipyOptimizeStub(Protocol):
+    """Stub surface needed by the LayoutPrompter vendor selection module."""
+
+    linear_sum_assignment: object
+
+
+VendorRecordValue = (
+    VendorScalar
+    | VendorArrayLike
+    | list["VendorRecordValue"]
+    | dict[str, "VendorRecordValue"]
+)
+VendorRecord = dict[str, VendorRecordValue]
+GoldenValue = VendorRecordValue
 
 
 def generate_golden() -> dict[str, GoldenValue]:
@@ -128,7 +135,8 @@ def _install_vendor_stubs() -> None:
     sys.modules.setdefault("cv2", types.ModuleType("cv2"))
     scipy_module = types.ModuleType("scipy")
     scipy_optimize = types.ModuleType("scipy.optimize")
-    setattr(scipy_optimize, "linear_sum_assignment", _linear_sum_assignment)
+    scipy_optimize_stub = cast(ScipyOptimizeStub, scipy_optimize)
+    scipy_optimize_stub.linear_sum_assignment = _linear_sum_assignment
     sys.modules.setdefault("scipy", scipy_module)
     sys.modules.setdefault("scipy.optimize", scipy_optimize)
 
@@ -139,7 +147,6 @@ def _vendor_fixture_records() -> tuple[list[VendorRecord], VendorRecord]:
 
 
 def _torch_record(record: LayoutRecordInput) -> VendorRecord:
-    import numpy as np
 
     converted: VendorRecord = {}
     for key, value in record.items():
