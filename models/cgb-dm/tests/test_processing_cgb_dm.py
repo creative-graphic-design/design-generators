@@ -1,3 +1,5 @@
+from typing import Literal, cast
+
 import torch
 from PIL import Image
 
@@ -70,8 +72,9 @@ def test_processor_output_type_error_and_pixel_boxes():
         canvas_size=(100, 100),
     )
     assert encoded["bbox"].shape == (1, 1, 4)
+    bad_output_type = cast(Literal["dataclass", "dict"], "bad")
     try:
-        processor.decode(encoded["layout"], output_type="bad")
+        processor.decode(encoded["layout"], output_type=bad_output_type)
     except ValueError as exc:
         assert "Unsupported output_type" in str(exc)
     else:

@@ -7,12 +7,12 @@ import random
 import numpy as np
 import torch
 
-SeedMetadataValue = object
+from .config import CGBDMSeedMode
 
 
-def apply_seed_mode(mode: str, seed: int = 1) -> dict[str, SeedMetadataValue]:
+def apply_seed_mode(mode: CGBDMSeedMode, seed: int = 1) -> dict[str, str | int | bool]:
     """Apply CGB-DM seed behavior and return metadata."""
-    metadata: dict[str, SeedMetadataValue] = {"mode": mode, "seed": seed}
+    metadata: dict[str, str | int | bool] = {"mode": mode, "seed": seed}
     if mode == "deterministic":
         random.seed(seed)
         np.random.seed(seed)

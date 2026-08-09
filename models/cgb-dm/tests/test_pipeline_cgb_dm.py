@@ -2,6 +2,7 @@ from typing import cast
 
 import pytest
 import torch
+from jaxtyping import Bool, Float, Int
 
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -62,9 +63,21 @@ def test_pipeline_conditioning_dict_output_and_save_pretrained(tmp_path):
         output_type="dict",
         return_intermediates=True,
     )
-    output = cast(dict[str, object], output)
-    bbox = cast(torch.Tensor, output["bbox"])
-    trajectory = cast(list[torch.Tensor], output["trajectory"])
+    output = cast(
+        dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[Float[torch.Tensor, "..."]]
+            | dict[str, str | Float[torch.Tensor, "..."] | None]
+            | None,
+        ],
+        output,
+    )
+    bbox = cast(Float[torch.Tensor, "..."], output["bbox"])
+    trajectory = cast(list[Float[torch.Tensor, "..."]], output["trajectory"])
     assert bbox.shape == (1, 2, 4)
     assert trajectory[0].shape == (1, 2, 8)
 

@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import Final
+from pathlib import Path
+from typing import IO, Final
 
+import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
+from PIL import Image
 
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .modeling_cgb_dm import CGBDMTransformerModel
@@ -35,9 +38,6 @@ _SUPPORTED_CONDITION_TYPES: Final[frozenset[ConditionType]] = frozenset(
         ConditionType.refinement,
     }
 )
-
-CGBDMInputValue = object
-CGBDMOutputValue = object
 
 
 def normalize_condition_type(
@@ -120,7 +120,9 @@ class CGBDMPipeline(DiffusionPipeline):
         self.model.eval()
 
     @property
-    def components(self) -> dict[str, CGBDMOutputValue]:
+    def components(
+        self,
+    ) -> dict[str, CGBDMTransformerModel | CGBDMScheduler | CGBDMProcessor]:
         """Return serializable pipeline components."""
         return {
             "model": self.model,
@@ -132,20 +134,63 @@ class CGBDMPipeline(DiffusionPipeline):
     def __call__(
         self,
         *,
-        image: CGBDMInputValue | None = None,
-        content: dict[str, CGBDMInputValue] | None = None,
-        saliency: CGBDMInputValue | None = None,
-        saliency_isnet: CGBDMInputValue | None = None,
-        saliency_basnet: CGBDMInputValue | None = None,
+        image: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | None = None,
+        content: dict[
+            str,
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes],
+        ]
+        | None = None,
+        saliency: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | None = None,
+        saliency_isnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | None = None,
+        saliency_basnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | None = None,
         saliency_box: Float[torch.Tensor, "..."] | None = None,
         pixel_values: Float[torch.Tensor, "batch channels height width"] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: Int[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
-        bbox: Float[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
-        mask: Bool[torch.Tensor, "..."] | list[CGBDMInputValue] | None = None,
+        labels: Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
+        | list[list[int]]
+        | list[int]
+        | list[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "..."]
+        | Float[np.ndarray, "..."]
+        | list[list[list[float]]]
+        | list[list[float]]
+        | list[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Bool[np.ndarray, "..."]
+        | list[list[bool]]
+        | list[bool]
+        | list[ArrayLikeInput]
+        | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "..."] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -154,7 +199,19 @@ class CGBDMPipeline(DiffusionPipeline):
         completion_ratio: float = 0.2,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[Float[torch.Tensor, "..."]]
+            | dict[str, str | Float[torch.Tensor, "..."] | None]
+            | None,
+        ]
+    ):
         """Run DDIM sampling and return generated layouts.
 
         Args:
@@ -295,8 +352,20 @@ class CGBDMPipeline(DiffusionPipeline):
         sample: Float[torch.Tensor, "..."],
         output_type: OutputType,
         trajectory: list[Float[torch.Tensor, "..."]],
-        intermediates: CGBDMOutputValue | None,
-    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
+        intermediates: dict[str, str | Float[torch.Tensor, "..."] | None] | None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[Float[torch.Tensor, "..."]]
+            | dict[str, str | Float[torch.Tensor, "..."] | None]
+            | None,
+        ]
+    ):
         decoded = self.processor.decode(
             sample.detach().cpu(),
             output_type="dataclass",

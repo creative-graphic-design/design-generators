@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
+import torch
+from jaxtyping import Float
 from torch.utils.data import DataLoader
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
 from cgb_dm.processing_cgb_dm import CGBDMProcessor
 
+from .config import CGBDMDataSource
 from .dataset import CGBDMOriginalDataset, CGBDMSyntheticDataset
-
-CGBDMConfigValue = object
-CGBDMBatchValue = object
 
 try:
     from lightning.pytorch import LightningDataModule
@@ -26,13 +28,23 @@ class CGBDMDataModule(LightningDataModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, CGBDMConfigValue],
-        source: str = "synthetic",
+        config: CGBDMConfig
+        | dict[
+            str,
+            str
+            | int
+            | tuple[int, int]
+            | list[int]
+            | list[str]
+            | dict[int | str, str]
+            | None,
+        ],
+        source: CGBDMDataSource = "synthetic",
         data_root: str | None = None,
         batch_size: int = 2,
         num_workers: int = 0,
         source_order_manifest: str | None = None,
-        original_encoding: str = "reference",
+        original_encoding: Literal["public", "reference"] = "reference",
     ) -> None:
         """Initialize data module options."""
         super().__init__()
@@ -83,7 +95,7 @@ class CGBDMDataModule(LightningDataModule):
         self.train_dataset = CGBDMSyntheticDataset(**kwargs)
         self.val_dataset = CGBDMSyntheticDataset(length=2, **kwargs)
 
-    def train_dataloader(self) -> DataLoader[dict[str, CGBDMBatchValue]]:
+    def train_dataloader(self) -> DataLoader[dict[str, Float[torch.Tensor, "..."]]]:
         """Return the training dataloader."""
         return DataLoader(
             self.train_dataset,
@@ -92,7 +104,7 @@ class CGBDMDataModule(LightningDataModule):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> DataLoader[dict[str, CGBDMBatchValue]]:
+    def val_dataloader(self) -> DataLoader[dict[str, Float[torch.Tensor, "..."]]]:
         """Return the validation dataloader."""
         return DataLoader(
             self.val_dataset,

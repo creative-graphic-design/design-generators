@@ -61,7 +61,16 @@ def test_datamodule_synthetic_batch():
 
 
 def test_datamodule_original_requires_root_and_optimizer_injection():
-    config: dict[str, object] = {
+    config: dict[
+        str,
+        str
+        | int
+        | tuple[int, int]
+        | list[int]
+        | list[str]
+        | dict[int | str, str]
+        | None,
+    ] = {
         "max_seq_length": 2,
         "image_size": (32, 32),
         "dim_model": 16,
@@ -93,7 +102,16 @@ def test_datamodule_original_requires_root_and_optimizer_injection():
 
 
 def test_training_helpers_cover_tuple_adapter_and_plain_optimizer():
-    config: dict[str, object] = {
+    config: dict[
+        str,
+        str
+        | int
+        | tuple[int, int]
+        | list[int]
+        | list[str]
+        | dict[int | str, str]
+        | None,
+    ] = {
         "max_seq_length": 2,
         "image_size": (32, 32),
         "dim_model": 16,

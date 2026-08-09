@@ -16,9 +16,8 @@ from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
 from cgb_dm.scheduling_cgb_dm import CGBDMScheduler
 from laygen.common import ConditionType
 
+from .config import CGBDMCondition, CGBDMSeedMode
 from .losses import denoising_mse
-
-CGBDMConfigValue = object
 
 if TYPE_CHECKING:
     from lightning.pytorch import LightningModule
@@ -33,7 +32,13 @@ else:
         LightningModule = nn.Module
         OptimizerCallable = Callable[[Iterable[nn.Parameter]], Optimizer]
         LRSchedulerCallable = Callable[[Optimizer], LRScheduler]
-        OptimizerLRScheduler = Optimizer | dict[str, CGBDMConfigValue]
+        OptimizerLRScheduler = (
+            Optimizer
+            | dict[
+                str,
+                Optimizer | LRScheduler,
+            ]
+        )
 
 
 class CGBDMTrainingModule(LightningModule):
@@ -42,12 +47,22 @@ class CGBDMTrainingModule(LightningModule):
     def __init__(
         self,
         *,
-        config: CGBDMConfig | dict[str, CGBDMConfigValue],
+        config: CGBDMConfig
+        | dict[
+            str,
+            str
+            | int
+            | tuple[int, int]
+            | list[int]
+            | list[str]
+            | dict[int | str, str]
+            | None,
+        ],
         optimizer: OptimizerCallable | None = None,
         lr_scheduler: LRSchedulerCallable | None = None,
         model: CGBDMTransformerModel | None = None,
-        condition_type: str = "content_image",
-        seed_mode: str = "default",
+        condition_type: CGBDMCondition = "content_image",
+        seed_mode: CGBDMSeedMode = "default",
     ) -> None:
         """Initialize model, scheduler, and optimizer settings."""
         super().__init__()

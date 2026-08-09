@@ -70,7 +70,7 @@ class CGBDMOriginalDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
         self,
         root: str | Path,
         *,
-        split: Literal["train", "val", "test"] | str = "train",
+        split: Literal["train", "val", "test"] = "train",
         processor: CGBDMProcessor | None = None,
         name_manifest: str | Path | list[str] | tuple[str, ...] | None = None,
         encoding: Literal["public", "reference"] = "public",

@@ -47,7 +47,7 @@ def load_state_dict(path: str | Path) -> dict[str, Float[torch.Tensor, "..."]]:
     if isinstance(checkpoint, Mapping):
         raw = checkpoint.get("state_dict", checkpoint)
         if isinstance(raw, Mapping):
-            return {str(k): cast(torch.Tensor, v) for k, v in raw.items()}
+            return {str(k): cast(Float[torch.Tensor, "..."], v) for k, v in raw.items()}
     raise TypeError("Expected a state_dict-like checkpoint")
 
 

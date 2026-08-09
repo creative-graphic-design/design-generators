@@ -25,8 +25,6 @@ CGBDM_LAYOUT_KEY = "layout"
 CGBDM_BBOX_KEY = "bbox"
 CGBDM_LABELS_KEY = "labels"
 CGBDM_MASK_KEY = "mask"
-CGBDMInputValue = object
-CGBDMOutputValue = object
 
 
 class CGBDMEncodedLayout(TypedDict):
@@ -85,11 +83,47 @@ class CGBDMProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: CGBDMInputValue | None = None,
+        images: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None = None,
         *,
-        saliency: CGBDMInputValue | None = None,
-        saliency_isnet: CGBDMInputValue | None = None,
-        saliency_basnet: CGBDMInputValue | None = None,
+        saliency: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None = None,
+        saliency_isnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None = None,
+        saliency_basnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None = None,
         saliency_box: Float[torch.Tensor, "..."] | None = None,
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
@@ -221,10 +255,21 @@ class CGBDMProcessor(ProcessorMixin):
         self,
         layout: Float[torch.Tensor, "batch elements channels"],
         *,
-        output_type: Literal["dataclass", "dict"] | str = "dataclass",
+        output_type: Literal["dataclass", "dict"] = "dataclass",
         scores: Float[torch.Tensor, "..."] | None = None,
-        intermediates: CGBDMOutputValue | None = None,
-    ) -> LayoutGenerationOutput | dict[str, CGBDMOutputValue]:
+        intermediates: dict[str, str | Float[torch.Tensor, "..."] | None] | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[str, str | Float[torch.Tensor, "..."] | None]
+            | None,
+        ]
+    ):
         """Decode internal layout tensors into the public schema."""
         bbox = (layout[:, :, self.num_labels :].clamp(-1.0, 1.0) / 2 + 0.5).cpu()
         class_logits = layout[:, :, : self.num_labels]
@@ -257,19 +302,67 @@ class CGBDMProcessor(ProcessorMixin):
         self,
         batch_size: int,
         *,
-        saliency: CGBDMInputValue | None,
-        saliency_isnet: CGBDMInputValue | None,
-        saliency_basnet: CGBDMInputValue | None,
-    ) -> list[CGBDMInputValue | None]:
+        saliency: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None,
+        saliency_isnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None,
+        saliency_basnet: Float[torch.Tensor, "..."]
+        | Image.Image
+        | str
+        | bytes
+        | Path
+        | IO[bytes]
+        | Sequence[
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+        ]
+        | None,
+    ) -> list[
+        Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes] | None
+    ]:
         if saliency is not None:
             rows = _ensure_batch(saliency)
             if len(rows) != batch_size:
                 raise ValueError("saliency batch size must match images")
-            return rows
+            return cast(
+                list[
+                    Float[torch.Tensor, "..."]
+                    | Image.Image
+                    | str
+                    | bytes
+                    | Path
+                    | IO[bytes]
+                    | None
+                ],
+                rows,
+            )
         if saliency_isnet is None and saliency_basnet is None:
             return [None] * batch_size
         return cast(
-            list[CGBDMInputValue | None],
+            list[
+                Float[torch.Tensor, "..."]
+                | Image.Image
+                | str
+                | bytes
+                | Path
+                | IO[bytes]
+                | None
+            ],
             [
                 _merge_saliency_pair(left, right, self.image_size)
                 for left, right in zip(
@@ -281,7 +374,18 @@ class CGBDMProcessor(ProcessorMixin):
         )
 
 
-def _ensure_batch(value: CGBDMInputValue | None) -> list[CGBDMInputValue]:
+def _ensure_batch(
+    value: Float[torch.Tensor, "..."]
+    | Image.Image
+    | str
+    | bytes
+    | Path
+    | IO[bytes]
+    | Sequence[
+        Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+    ]
+    | None,
+) -> list[Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]]:
     if value is None:
         raise ValueError("images or pixel_values are required")
     if isinstance(value, torch.Tensor):
@@ -292,23 +396,62 @@ def _ensure_batch(value: CGBDMInputValue | None) -> list[CGBDMInputValue]:
     if isinstance(value, Image.Image):
         return [value]
     if isinstance(value, list | tuple):
-        return list(value)
-    return [value]
+        return cast(
+            list[
+                Float[torch.Tensor, "..."]
+                | Image.Image
+                | str
+                | bytes
+                | Path
+                | IO[bytes]
+            ],
+            list(value),
+        )
+    return [
+        cast(
+            Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes],
+            value,
+        )
+    ]
 
 
 def _optional_batch(
-    value: CGBDMInputValue | None, batch_size: int
-) -> list[CGBDMInputValue | None]:
+    value: Float[torch.Tensor, "..."]
+    | Image.Image
+    | str
+    | bytes
+    | Path
+    | IO[bytes]
+    | Sequence[
+        Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]
+    ]
+    | None,
+    batch_size: int,
+) -> list[
+    Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes] | None
+]:
     if value is None:
         return [None] * batch_size
     rows = _ensure_batch(value)
     if len(rows) != batch_size:
         raise ValueError("saliency batch size must match images")
-    return rows
+    return cast(
+        list[
+            Float[torch.Tensor, "..."]
+            | Image.Image
+            | str
+            | bytes
+            | Path
+            | IO[bytes]
+            | None
+        ],
+        rows,
+    )
 
 
 def _to_rgb_tensor(
-    value: CGBDMInputValue, image_size: tuple[int, int]
+    value: Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes],
+    image_size: tuple[int, int],
 ) -> Float[torch.Tensor, "channels height width"]:
     if isinstance(value, torch.Tensor):
         tensor = value.float()
@@ -336,7 +479,8 @@ def _to_rgb_tensor(
 
 
 def _to_l_tensor(
-    value: CGBDMInputValue, image_size: tuple[int, int]
+    value: Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes],
+    image_size: tuple[int, int],
 ) -> Float[torch.Tensor, "1 height width"]:
     if isinstance(value, torch.Tensor):
         tensor = value.float()
@@ -390,11 +534,24 @@ def _saliency_box_from_tensor(
 
 
 def _merge_saliency_pair(
-    left: CGBDMInputValue | None,
-    right: CGBDMInputValue | None,
+    left: Float[torch.Tensor, "..."]
+    | Image.Image
+    | str
+    | bytes
+    | Path
+    | IO[bytes]
+    | None,
+    right: Float[torch.Tensor, "..."]
+    | Image.Image
+    | str
+    | bytes
+    | Path
+    | IO[bytes]
+    | None,
     image_size: tuple[int, int],
 ) -> Float[torch.Tensor, "1 height width"]:
     if left is None:
+        assert right is not None
         return _to_l_tensor(right, image_size)
     if right is None:
         return _to_l_tensor(left, image_size)

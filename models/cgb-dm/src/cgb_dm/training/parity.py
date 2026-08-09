@@ -6,12 +6,11 @@ from collections.abc import Mapping
 import json
 import os
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
+import torch
+from jaxtyping import Float
 from cgb_dm.data import CGBDMOriginalDataset
-
-CGBDMBatch = Mapping[str, object] | tuple[object, object, object]
-CGBDMBatchMapping = Mapping[str, object]
 
 
 class CGBDMStepTraceAdapter:
@@ -30,17 +29,24 @@ class CGBDMStepTraceAdapter:
         "loss",
     )
 
-    def comparable_batch(self, batch: CGBDMBatch) -> CGBDMBatchMapping:
+    def comparable_batch(
+        self,
+        batch: Mapping[str, Float[torch.Tensor, "..."]]
+        | tuple[
+            Float[torch.Tensor, "..."],
+            Float[torch.Tensor, "..."],
+            Float[torch.Tensor, "..."],
+        ],
+    ) -> Mapping[str, Float[torch.Tensor, "..."]]:
         """Normalize dict or tuple batches to comparable tensor mappings."""
-        if not isinstance(batch, Mapping):
+        if isinstance(batch, tuple):
             image, layout, saliency_box = batch
-            result: dict[str, object] = {
-                "pixel_values": image,
-                "layout": layout,
-                "saliency_box": saliency_box,
-            }
+            result: dict[str, Float[torch.Tensor, "..."]] = {}
+            result["pixel_values"] = cast(Float[torch.Tensor, "..."], image)
+            result["layout"] = cast(Float[torch.Tensor, "..."], layout)
+            result["saliency_box"] = cast(Float[torch.Tensor, "..."], saliency_box)
             return result
-        return cast(CGBDMBatchMapping, batch)
+        return batch
 
 
 def capture_source_order(data_root: str | Path, *, split: str = "train") -> list[str]:
@@ -84,7 +90,10 @@ def load_source_order_manifest(path: str | Path) -> list[str]:
 
 
 def build_reference_dataset(
-    data_root: str | Path, *, manifest: str | Path, split: str = "train"
+    data_root: str | Path,
+    *,
+    manifest: str | Path,
+    split: Literal["train", "val", "test"] = "train",
 ) -> CGBDMOriginalDataset:
     """Build a CGB-DM dataset that replays captured source order and encoding."""
     return CGBDMOriginalDataset(

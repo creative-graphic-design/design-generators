@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum, auto
+from typing import Literal
 
 import numpy as np
 import torch
@@ -78,7 +79,7 @@ def make_ddim_timesteps(
     *,
     num_ddim_timesteps: int,
     num_ddpm_timesteps: int,
-    mode: str = "uniform",
+    mode: Literal["uniform", "refine"] = "uniform",
 ) -> Int[np.ndarray, "timesteps"]:
     """Create DDIM timestep ids using CGB-DM discretization rules."""
     if mode == "uniform":
