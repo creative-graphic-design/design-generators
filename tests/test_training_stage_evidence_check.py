@@ -62,6 +62,50 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
     assert duplicates == set()
 
 
+def test_parse_stage_evidence_ignores_fenced_heading_and_table() -> None:
+    evidence, duplicates = check_training_stage_evidence.parse_stage_evidence(
+        f"""
+```markdown
+## Stage Evidence
+
+| Stage | Command | Artifact | Result |
+| --- | --- | --- | --- |
+| S0 | placeholder | placeholder | placeholder |
+```
+
+{complete_stage_evidence_table()}
+"""
+    )
+
+    assert sorted(evidence) == ["S0", "S1", "S2", "S3", "S4", "S5"]
+    assert evidence["S0"].command == "`uv run pytest s0`"
+    assert duplicates == set()
+
+
+def test_fenced_reproduction_results_heading_does_not_satisfy_gate(
+    tmp_path: Path,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+```markdown
+## Reproduction Results
+```
+
+S5 verdict is accepted.
+
+{complete_stage_evidence_table()}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\t*\tS5 result claim requires a Reproduction Results heading"
+    }
+
+
 def test_s5_claim_with_complete_stage_evidence_passes(tmp_path: Path) -> None:
     write_training_md(
         tmp_path,

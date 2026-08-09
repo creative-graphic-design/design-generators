@@ -1,43 +1,88 @@
 # Training DLT
 
-DLT training uses the shared class-path-driven LightningCLI entry point. The package does not define `dlt.training.cli`.
+DLT training uses the shared class-path-driven LightningCLI entry point. The
+package does not define `dlt.training.cli`. PubLayNet and RICO13 have accepted
+S5 practical reproduction with stochastic residuals disclosed; Magazine remains
+gated until polygon and train-only handling is amended.
 
-## Smoke
+Run commands from the repository root. Generated checkpoints, result JSON,
+converted local pipelines, and downloaded assets stay outside git under
+`.cache/dlt/`.
 
-```bash
-uv run --package dlt --extra training \
-  python -m traingen.lightning.cli fit \
-  --config models/dlt/configs/training/smoke.yaml
-```
+## Install
 
-## PubLayNet
-
-```bash
-uv run --package dlt --extra training \
-  python -m traingen.lightning.cli fit \
-  --config models/dlt/configs/training/dlt_publaynet.yaml
-```
-
-## RICO13
+Install the package-local training dependencies.
 
 ```bash
-uv run --package dlt --extra training \
-  python -m traingen.lightning.cli fit \
-  --config models/dlt/configs/training/dlt_rico13.yaml
+uv sync --package dlt --extra training
 ```
 
-Magazine remains gated until polygon and train-only handling is amended.
+Install the `vendor` extra only when rerunning original-code parity checks or
+S5 evaluators.
 
-## Scheduler Recipe
+```bash
+uv sync --package dlt --extra training --extra vendor
+```
+
+## Data
+
+| Dataset | Source | Config or path |
+| --- | --- | --- |
+| PubLayNet | `creative-graphic-design/PubLayNet` | PubLayNet HDF5 training data under `.cache/dlt/`; validation uses `all` conditioning with batch size 64. |
+| RICO13 | `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` and the DLT label mapping | RICO13 valid-box-filtered data; the aligned preparation kept `train=19204` and `val=1129` records for both vendor and package paths. |
+| Magazine | `creative-graphic-design/magazine` | Gated until polygon and train-only handling is amended. |
+
+## Configs
+
+Training configs live under `models/dlt/configs/training`.
+
+| Config | Dataset | Seed mode | Purpose |
+| --- | --- | --- | --- |
+| `smoke.yaml` | synthetic/local smoke | deterministic smoke | Local CPU LightningCLI class-path, optimizer, scheduler, clipping, and synthetic loader smoke. |
+| `dlt_publaynet.yaml` | PubLayNet | default | Full PubLayNet package training. |
+| `dlt_publaynet_deterministic.yaml` | PubLayNet | deterministic | Deterministic PubLayNet diagnostics. |
+| `dlt_rico13.yaml` | RICO13 | default | Full RICO13 package training. |
+| `dlt_rico13_deterministic.yaml` | RICO13 | deterministic | Deterministic RICO13 diagnostics. |
+| `dlt_magazine.yaml` | Magazine | default | Gated Magazine recipe, pending polygon/train-only handling. |
+
+## Scheduler and Recipe Notes
 
 All class-path training configs use AdamW, per-step warmup-cosine scheduling,
-and `gradient_clip_val=1.0`. The PubLayNet configs pin `num_warmup_steps=100000`
-and `num_training_steps=1994400`, matching the evaluated S5 checkpoint's
-`global_step=1994400` and scheduler `last_epoch=1994400`. RICO13 uses the
-vendor warmup of `10000` steps and Magazine uses the vendor warmup of `2000`
-steps; their total training steps are resolved by Lightning from the active
-datamodule. Full PubLayNet and RICO13 package training pairs have been
-evaluated; Magazine remains gated until polygon/train-only handling is amended.
+and `gradient_clip_val=1.0`. The PubLayNet configs pin
+`num_warmup_steps=100000` and `num_training_steps=1994400`, matching the
+evaluated S5 checkpoint's `global_step=1994400` and scheduler
+`last_epoch=1994400`. RICO13 uses the vendor warmup of `10000` steps and
+Magazine uses the vendor warmup of `2000` steps; their total training steps are
+resolved by Lightning from the active datamodule.
+
+PubLayNet and RICO13 package training pairs have been evaluated. Magazine
+remains gated until polygon/train-only handling is amended.
+
+## Seed Policy
+
+PubLayNet S5 compares a reference PubLayNet checkpoint trained from scratch
+with the vendor implementation using seed `42` against an independently trained
+package checkpoint using the same PubLayNet validation split, `all`
+conditioning, and evaluation seeds `42`, `43`, and `44`. The final
+seed-variance control compares vendor samples `vendor42`, `vendor43`, and
+`vendor44` against package `lr-step` seeds `42`, `45`, and `46`.
+
+RICO13 S5 compares the vendor seed-42 `checkpoint-799` against the package
+seed-42 `final-epoch799.ckpt` on the RICO13 validation split, `all`
+conditioning, and sampling seeds `42`, `43`, and `44`.
+
+Magazine has no S5 run yet.
+
+## Validation Stages
+
+| Stage | Scope | Purpose |
+| --- | --- | --- |
+| S0 | Static config and initialized state parity | Confirm package-vs-vendor topology and initialized state dicts for tiny test and full PubLayNet configurations. |
+| S1 | Fixed-batch pre-optimizer trace parity | Confirm prepared inputs, noise/timestep sampling, model predictions, masked losses, and total loss. |
+| S2 | One optimizer-step parity | Confirm loss definition parity and real-batch PubLayNet diagnostic deltas. |
+| S3 | Short deterministic multi-batch run | Exercise LightningCLI class-path wiring, AdamW, per-step warmup-cosine scheduling, clipping, synthetic data loading, and one train batch. |
+| S4 | Deterministic loader stream | Verify HDF5 loading, padding/filtering, shuffling, scheduler stepping, and trace adapter coverage. |
+| S5 | Full-run statistical comparison | Accept PubLayNet and RICO13 practical reproduction; keep Magazine gated. |
 
 ## Stage Evidence
 
@@ -52,26 +97,25 @@ evaluated; Magazine remains gated until polygon/train-only handling is amended.
 
 ## Reproduction Results
 
-S5 compares a reference PubLayNet checkpoint trained from scratch with the
-vendor implementation using seed `42` against an independently trained package
-checkpoint using the same PubLayNet validation split, `all` conditioning, and
-evaluation seeds `42`, `43`, and `44`. Lower is better for FID, overlap,
-alignment, IoU, and loss.
+PubLayNet and RICO13 S5 are accepted as practical reproduction, not bit-level
+training parity. PubLayNet cross residuals fall inside within-implementation
+seed variation for every reported metric. RICO13 residuals are small,
+sign-reversing across seeds, and inside the PubLayNet seed-variance reference
+ranges. Magazine remains not yet run.
 
-| Dataset | Status | Checkpoints | Loss mean | FID | Overlap | Alignment | IoU | Conclusion |
-| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| PubLayNet | S5 practical reproduction, stochastic residual disclosed | vendor seed-42 epoch 799 vs package `final-epoch799.ckpt` | vendor `1.8069 +/- 0.0228`; package `1.8068 +/- 0.0223`; delta `-0.0001` | vendor `2.3806 +/- 0.0546`; package `2.4858 +/- 0.0528`; delta `+0.1051` | vendor `0.0241 +/- 0.0003`; package `0.0266 +/- 0.0002`; delta `+0.0024` | vendor `0.0102 +/- 0.0000`; package `0.0105 +/- 0.0000`; delta `+0.0003` | vendor `0.0034 +/- 0.0001`; package `0.0035 +/- 0.0001`; delta `+0.0000` | The train recipe reproduces the loss definition and sampling path. Generation retains small one-directional offsets that are attributable to independent from-scratch stochastic training divergence rather than a fixable package bug. |
-| RICO13 | S5 practical reproduction, stochastic residual disclosed | vendor seed-42 epoch 799 vs package seed-42 `final-epoch799.ckpt` | vendor `1.8105 +/- 0.0444`; package `1.8056 +/- 0.0399`; delta `-0.0049` | vendor `3.4915 +/- 0.1143`; package `3.4812 +/- 0.1450`; delta `-0.0103` | vendor `0.4241 +/- 0.0197`; package `0.4073 +/- 0.0149`; delta `-0.0167` | vendor `0.0062 +/- 0.0000`; package `0.0061 +/- 0.0002`; delta `-0.0001` | vendor `0.2201 +/- 0.0071`; package `0.1976 +/- 0.0042`; delta `-0.0225` | The train recipe reproduces the RICO13 validation behavior in practice: mean residuals are small relative to PubLayNet seed-variance controls, and per-seed signs reverse for FID, alignment, and loss rather than showing a systematic one-way offset. |
-| Magazine | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
+| Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
+| --- | --- | --- | --- | --- | --- | --- |
+| PubLayNet | vendor seed-42 reference vs package `final-epoch799.ckpt` | `s5-practical-reproduction` | evaluation-seed n=3 plus seed-variance controls | vendor FID `2.3806 +/- 0.0546`; package FID `2.4858 +/- 0.0528`; delta `+0.1051`; overlap delta `+0.0024`; alignment delta `+0.0003`; IoU delta `+0.0000` | vendor loss `1.8069 +/- 0.0228`; package loss `1.8068 +/- 0.0223`; delta `-0.0001`; matched-batch loss definition deltas are `0.0` for total, L2, and CE. | `.cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json`; `.cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.json`; `.cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json` |
+| RICO13 | vendor seed-42 checkpoint vs package seed-42 `final-epoch799.ckpt` | `s5-practical-reproduction` | evaluation-seed n=3 | vendor FID `3.4915 +/- 0.1143`; package FID `3.4812 +/- 0.1450`; delta `-0.0103`; overlap delta `-0.0167`; alignment delta `-0.0001`; IoU delta `-0.0225` | vendor loss `1.8105 +/- 0.0444`; package loss `1.8056 +/- 0.0399`; delta `-0.0049`; per-seed signs reverse for FID, alignment, and loss. | `.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json`; `.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package-summary.md` |
+| Magazine | not run | `not-yet-run (#60)` | not yet run | not yet run | not yet run | Pending vendor support and polygon/train-only handling. |
 
-The PubLayNet S5 run is not metric-identical, and it should not be described as
-bit-level training parity. For seed `42`, the validation loss mean is lower by
-`-0.04%` (`1.8391` to `1.8383`). Across seeds `42`, `43`, and `44`, the summary
-generation offsets are consistent: FID is higher by `+4.4%` (`2.3806` to
-`2.4858`), `overlap_pred` is higher by `+10.1%` (`0.0241` to `0.0266`), and
-`alignment_pred` is higher by `+2.6%` (`0.0102` to `0.0105`). These offsets are
-reported as the residual of an independent from-scratch run, not as evidence of
-a remaining sampling or loss implementation bug.
+PubLayNet's validation loss mean is lower by `-0.04%` for seed `42`
+(`1.8391` to `1.8383`). Across seeds `42`, `43`, and `44`, FID is higher by
+`+4.4%` (`2.3806` to `2.4858`), `overlap_pred` is higher by `+10.1%`
+(`0.0241` to `0.0266`), and `alignment_pred` is higher by `+2.6%` (`0.0102`
+to `0.0105`). These offsets are reported as the residual of an independent
+from-scratch run, not as evidence of a remaining sampling or loss
+implementation bug.
 
 ### Seed-Variance Control Experiment
 
@@ -79,11 +123,9 @@ The final seed-variance control compares three within-implementation seed
 samples against the cross-implementation residual. Vendor samples are
 `vendor42`, `vendor43`, and `vendor44`; package samples are `lr-step` seeds
 `42`, `45`, and `46`; the cross residual is the reference-callback seed-42
-package checkpoint against the vendor seed-42 from-scratch reference. Bit parity
-is impossible for this train-ourselves path because the two implementations do
-not share a full RNG trajectory. The practical reproduction criterion is
-therefore whether the cross residual is statistically indistinguishable from
-same-implementation seed variation.
+package checkpoint against the vendor seed-42 from-scratch reference. Bit
+parity is impossible for this train-ourselves path because the two
+implementations do not share a full RNG trajectory.
 
 | Metric | Vendor within-seed variation | Package within-seed variation | Cross residual | Verdict |
 | --- | ---: | ---: | ---: | --- |
@@ -98,29 +140,7 @@ are not statistically distinguishable from same-implementation stochastic
 training variation. This establishes practical reproduction, not bit-level
 training parity.
 
-Regenerate or inspect the control artifacts with the following metadata.
-
-```text
-run_dir: .cache/dlt/full-run/s5-evaluation-seed-variance
-vendor_seeds: [42, 43, 44]
-package_lr_step_seeds: [42, 45, 46]
-cross_residual_source: reference-callback seed42 vs vendor seed42
-vendor_pairwise: .cache/dlt/full-run/s5-evaluation-seed-variance/vendor42-vendor43-vendor44-pairwise.json
-package_seed46_s5: .cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed46-vs-vendor42.json
-package_pairwise: .cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed42-seed45-seed46-pairwise.json
-final_verdict_json: .cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.json
-final_verdict_markdown: .cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.md
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
-  --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt \
-  --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv \
-  --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json \
-  --seeds 42 43 44 \
-  --device cuda
-```
+PubLayNet per-seed S5 rows:
 
 | Seed | Vendor loss | Ours loss | Loss delta | Vendor FID | Ours FID | FID delta | Vendor overlap | Ours overlap | Overlap delta | Vendor align | Ours align | Align delta | Vendor IoU | Ours IoU | IoU delta |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -129,76 +149,19 @@ CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vend
 | 44 | `1.7889` | `1.7896` | `+0.0006` | `2.3993` | `2.4208` | `+0.0216` | `0.0237` | `0.0264` | `+0.0027` | `0.0103` | `0.0105` | `+0.0002` | `0.0034` | `0.0035` | `+0.0001` |
 
 The per-epoch train-loss rows are instantaneous stochastic training-step logs,
-not synchronized epoch means. The S5 diagnostic recomputed both final
-checkpoints on the same 128 PubLayNet batches, noise, and timesteps and found
-bit-identical package-vs-reference loss definitions
-(`max_abs_ours_loss_def_delta=0.0`, `max_abs_l2_def_delta=0.0`, and
-`max_abs_ce_def_delta=0.0`). The same-batch train-loss distributions are close:
-reference mean `0.8764726606`, package mean `0.8752792128`, and mean delta
-`-0.0011934477`, while the per-batch standard deviation is about `0.175`. The
-visible sparse train-loss curve difference is therefore a single-batch logging
-artifact.
+not synchronized epoch means. The same-batch train-loss distributions are
+close: reference mean `0.8764726606`, package mean `0.8752792128`, and mean
+delta `-0.0011934477`, while the per-batch standard deviation is about `0.175`.
+The visible sparse train-loss curve difference is therefore a single-batch
+logging artifact.
 
-### RICO13 S5 Evaluation
-
-The RICO13 S5 run compares the vendor seed-42 `checkpoint-799` against the
-package seed-42 `final-epoch799.ckpt` on the RICO13 validation split, `all`
-conditioning, and sampling seeds `42`, `43`, and `44`. The package mean is lower
-than the vendor mean for the headline metrics: `overlap_pred` by `-3.95%`
-(`0.42409` to `0.40735`), FID by `-0.29%` (`3.4915` to `3.4812`),
-`alignment_pred` by `-1.91%` (`0.006199` to `0.006080`), and loss mean by
-`-0.27%` (`1.81045` to `1.80560`). Per-seed signs reverse for FID
-(`+4.87%`, `-0.99%`, `-4.64%`), `alignment_pred` (`+1.30%`, `-5.40%`,
-`-1.60%`), and loss mean (`-0.19%`, `-0.77%`, `+0.18%`), so the run does not
-show a systematic residual.
-
-The RICO13 residuals are inside the previously recorded PubLayNet seed-variance
+RICO13 residuals are inside the previously recorded PubLayNet seed-variance
 reference ranges: `overlap_pred` is within the about `+/-20%` relative range,
 FID is within the tens-of-percent package seed variation range, and
-`alignment_pred` is within the about `+/-4%` range. This establishes practical
-reproduction for RICO13, not bit-level training parity.
-
-The RICO13 data preparation was aligned before evaluation: the valid-box filter
-kept `train=19204` and `val=1129` records for both the vendor path and the
-package path.
-
-Regenerate or inspect the RICO13 S5 artifacts with the following metadata.
-
-```text
-run_dir: .cache/dlt/full-run/s5-evaluation-rico13
-dataset: rico13
-data_prep_valid_box_filter:
-  vendor: {train: 19204, val: 1129}
-  package: {train: 19204, val: 1129}
-vendor_seed: 42
-package_seed: 42
-sampling_seeds: [42, 43, 44]
-condition: all
-batch_size: 64
-fid_checkpoint: .cache/dlt/fid/layoutnet_rico.pth.tar
-reference_checkpoint: .cache/dlt/full-run/vendor-rico13/checkpoints/checkpoint-799
-package_checkpoint: .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt
-result_json: .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json
-summary_markdown: .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package-summary.md
-```
-
-```bash
-CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
-  --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt \
-  --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json \
-  --seeds 42 43 44 \
-  --device cuda
-```
-
-The residual investigation found no EMA snapshot or EMA state keys. The
-evaluated package checkpoint is `final-epoch799.ckpt`, which records
-`epoch=800`, `global_step=1994400`, scheduler `last_epoch=1994400`, and final
-learning rate `0.0`; the earlier `checkpoint.ckpt` / `last.ckpt` pair is an
-epoch-495 best-train-loss checkpoint and gives substantially worse generation
-metrics. Loading the vendor seed-42 weights through the package checkpoint format and
-running the same S5 evaluator produced zero deltas for all reported metrics on
-all three seeds, which clears the package sampling and evaluator paths.
+`alignment_pred` is within the about `+/-4%` range. Loading the vendor seed-42
+weights through the package checkpoint format and running the same S5 evaluator
+produced zero deltas for all reported metrics on all three seeds, which clears
+the package sampling and evaluator paths.
 
 The PubLayNet HDF5 training data also matches the JSON source by image id for
 normalized LTWH boxes, category ids, filtering, and dataset order. The only
@@ -208,8 +171,29 @@ construction-time element shuffle and one per-access shuffle, while
 permutations is still a uniform permutation, so this is distribution-equivalent
 to the package loader and only prevents bit-level RNG-trajectory parity.
 
-Reproduce the recorded S5 result with the following metadata. Generated
-checkpoints, result JSON, and downloaded assets stay outside git.
+## Regeneration Metadata
+
+The paths below are non-committed local evidence locations and rerun metadata
+needed to regenerate the recorded PubLayNet and RICO13 results.
+
+```text
+.cache/dlt/reference/
+.cache/dlt/converted/
+.cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json
+.cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt
+.cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv
+.cache/dlt/full-run/vendor-publaynet/checkpoints/checkpoint-799
+.cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json
+.cache/dlt/full-run/s5-evaluation-seed-variance/vendor42-vendor43-vendor44-pairwise.json
+.cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed42-seed45-seed46-pairwise.json
+.cache/dlt/full-run/s5-evaluation-seed-variance/ours-lr-step-seed46-vs-vendor42.json
+.cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.json
+.cache/dlt/full-run/s5-evaluation-seed-variance/final-verdict.md
+.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json
+.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package-summary.md
+.cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt
+.cache/dlt/full-run/vendor-rico13/checkpoints/checkpoint-799
+```
 
 ```text
 training_config_sha256:
@@ -230,6 +214,71 @@ result_json: .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results
 diagnosis_json: .cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json
 ```
 
+```text
+run_dir: .cache/dlt/full-run/s5-evaluation-rico13
+dataset: rico13
+data_prep_valid_box_filter:
+  vendor: {train: 19204, val: 1129}
+  package: {train: 19204, val: 1129}
+vendor_seed: 42
+package_seed: 42
+sampling_seeds: [42, 43, 44]
+condition: all
+batch_size: 64
+fid_checkpoint: .cache/dlt/fid/layoutnet_rico.pth.tar
+reference_checkpoint: .cache/dlt/full-run/vendor-rico13/checkpoints/checkpoint-799
+package_checkpoint: .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt
+result_json: .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json
+summary_markdown: .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package-summary.md
+```
+
+## Training Commands
+
+Run the smoke training config.
+
+```bash
+uv run --package dlt --extra training \
+  traingen fit \
+  --config models/dlt/configs/training/smoke.yaml
+```
+
+Train PubLayNet.
+
+```bash
+uv run --package dlt --extra training \
+  traingen fit \
+  --config models/dlt/configs/training/dlt_publaynet.yaml
+```
+
+Train RICO13.
+
+```bash
+uv run --package dlt --extra training \
+  traingen fit \
+  --config models/dlt/configs/training/dlt_rico13.yaml
+```
+
+Run vendor parity checks.
+
+```bash
+PARITY_REQUIRE=1 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
+  pytest models/dlt/tests/vendor_parity -m vendor_parity
+```
+
+Regenerate the PubLayNet vendor reference metadata.
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
+  python models/dlt/scripts/generate_vendor_reference.py \
+  --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
+  --workdir dlt-publaynet \
+  --epoch 799 \
+  --condition all \
+  --output-metadata .cache/dlt/reference/publaynet-all.json
+```
+
+Re-run the accepted PubLayNet S5 evaluation.
+
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
   python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
@@ -238,4 +287,28 @@ CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vend
   --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json \
   --seeds 42 43 44 \
   --device cuda
+```
+
+Re-run the RICO13 S5 evaluation.
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
+  python .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
+  --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt \
+  --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json \
+  --seeds 42 43 44 \
+  --device cuda
+```
+
+Convert and smoke-test a local checkpoint directory.
+
+```bash
+uv run --package dlt \
+  python models/dlt/scripts/convert_original_checkpoint.py \
+  --dataset publaynet \
+  --checkpoint-dir .cache/dlt/original/checkpoint-799 \
+  --output-dir .cache/dlt/converted/publaynet
+uv run --package dlt \
+  python models/dlt/scripts/smoke_from_pretrained.py \
+  --path .cache/dlt/converted/publaynet
 ```

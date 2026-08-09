@@ -94,6 +94,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: training-doc-template
+        name: training doc template
+        entry: uv run --package design-generators python scripts/check_training_doc_template.py
+        language: system
+        pass_filenames: false
+
       - id: readme-links
         name: README repository links
         entry: uv run --package design-generators python scripts/check_readme_links.py
