@@ -87,7 +87,7 @@ additional retraining.
 | S1 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Fixed-batch pre-optimizer trace parity covers timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss. |
 | S2 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | One optimizer-step parity covers gradients, clipped gradients, optimizer state, post-step params, and learning rate. |
 | S4 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `.cache/layout-dm/original-data` | Tokenizer/loader row encoding parity and preprocessed stream reader parity are recorded for local fixtures. |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training python -m traingen.lightning.cli fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/` | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training traingen fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/` | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression. |
 
 ## Reproduction Results
 
@@ -137,7 +137,7 @@ Run the local CI training checks.
 uv run --package layout-dm --extra training --with pytest pytest \
   models/layout-dm/tests -m "not vendor_parity and not integration" -q
 CUDA_VISIBLE_DEVICES="" uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/smoke.yaml
 ```
 
@@ -155,7 +155,7 @@ Start a regular RICO25 package-local training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/layoutdm_rico25.yaml \
   --data.init_args.dataset_source=processed \
   --data.init_args.processed_data_dir=.cache/layout-dm/original-data \
@@ -167,7 +167,7 @@ Start a regular PubLayNet package-local training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/layoutdm_publaynet.yaml \
   --data.init_args.dataset_source=processed \
   --data.init_args.processed_data_dir=.cache/layout-dm/original-data \
