@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal, cast
 
@@ -30,15 +31,15 @@ def load_housegan_numpy(path: str | Path) -> Shaped[np.ndarray, "..."]:
 
 
 def normalize_graph_row(
-    row: object,
+    row: tuple[Sequence[int], Sequence[Sequence[float]]],
     *,
     canvas_size: tuple[int, int] = (256, 256),
 ) -> HouseGanSceneGraph:
     """Convert one ``[room_types, ltrb_boxes]`` row to a scene graph."""
     del canvas_size
-    room_types, room_bbs = cast(tuple[object, object], row)
+    room_types, room_bbs = row
     bboxes = np.asarray(room_bbs, dtype=np.float32) / 256.0
-    labels = [int(value) - 1 for value in cast(list[int], room_types)]
+    labels = [int(value) - 1 for value in room_types]
     nodes = tuple(
         HouseGanRoomNode(
             id=index,

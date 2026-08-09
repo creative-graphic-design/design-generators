@@ -2,12 +2,9 @@ from pathlib import Path
 from typing import cast
 
 import torch
-from pytest import MonkeyPatch
-
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.pipelines import LayoutGenerationPipeline
-
 from layoutformerpp import (
     LayoutFormerPPConfig,
     LayoutFormerPPForConditionalGeneration,
@@ -15,6 +12,7 @@ from layoutformerpp import (
     LayoutFormerPPProcessor,
     LayoutGenerationOutput,
 )
+from pytest import MonkeyPatch
 
 
 def test_save_load_smoke(tmp_path: Path) -> None:
@@ -74,7 +72,9 @@ def test_pipeline_passes_public_condition_arguments_to_processor(
                 kwargs.get("condition_type", ConditionType.unconditional),
             ),
             labels=cast(list[list[int | str]] | None, kwargs.get("labels")),
-            bbox=kwargs.get("bbox"),
+            bbox=cast(
+                torch.Tensor | list[list[int | float]] | None, kwargs.get("bbox")
+            ),
             mask=cast(
                 torch.Tensor | list[list[bool]] | list[bool] | None,
                 kwargs.get("mask"),

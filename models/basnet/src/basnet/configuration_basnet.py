@@ -44,7 +44,7 @@ class BASNetConfig(PretrainedConfig):
         rgb_std: Sequence[float] = (0.229, 0.224, 0.225),
         conversion_report: Mapping[str, str | int | float | bool | list[str]]
         | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize BASNet configuration."""
         if input_size <= 0:

@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import ClassVar, Protocol, cast, runtime_checkable
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
@@ -23,6 +23,14 @@ from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 from .configuration_ds_gan import DSGANConfig
 from .modeling_ds_gan import DSGANModel, DSGANModelOutput, random_initial_layout
 from .processing_ds_gan import DSGANProcessor
+
+
+DSGANComponent = DSGANModel | DSGANProcessor
+
+
+@runtime_checkable
+class DSGANPipelineComponent(Protocol):
+    """Runtime-checkable loaded pipeline component marker."""
 
 
 class OutputType(StrEnum):
@@ -88,7 +96,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> DSGANModel:
     if subfolder is not None:
         return DSGANModel.from_pretrained(
             pretrained_model_name_or_path,
@@ -106,7 +114,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> DSGANProcessor:
     if subfolder is not None:
         return DSGANProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -181,7 +189,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, DSGANPipelineComponent | None],
     ) -> "DSGANPipeline":
         """Build a pipeline from loaded root components."""
         return cls(
@@ -191,7 +199,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         images: ImageInput
         | list[ImageInput]
@@ -232,7 +240,16 @@ class DSGANPipeline(LayoutGenerationPipeline):
         | None = None,
         pixel_values: Float[torch.Tensor, "batch 4 height width"] | None = None,
         initial_layout: Float[torch.Tensor, "batch elements 2 4"] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."] | ConditionType | str | bool]
+            | None,
+        ]
+    ):
         """Generate layouts from content images and saliency maps.
 
         Args:

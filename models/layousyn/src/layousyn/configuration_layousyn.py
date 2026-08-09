@@ -21,6 +21,22 @@ class LayouSynModelShape(TypedDict):
     num_heads: int
 
 
+class LayouSynReferenceConfig(TypedDict):
+    """Reference repository JSON config payload."""
+
+    model: str
+    in_channel: int
+    concept_in_channel: int
+    y_in_channel: int | None
+    max_in_len: int
+    max_y_len: int | None
+    scale: float
+    noise_schedule: str
+    layout_type: LayoutType
+    diffusion_steps: int
+    t5_size: str | None
+
+
 _MODEL_SHAPES: Final[dict[str, LayouSynModelShape]] = {
     "DiT-XS": {"hidden_size": 192, "depth": 6, "num_heads": 6},
     "DiT-S": {"hidden_size": 256, "depth": 8, "num_heads": 8},
@@ -169,7 +185,7 @@ class LayouSynConfig(ConfigMixin):
             diffusion_steps=data.get("diffusion_steps", 1000),
         )
 
-    def to_reference_dict(self) -> dict[str, object]:
+    def to_reference_dict(self) -> LayouSynReferenceConfig:
         """Return the config keys expected by the original repository."""
         return {
             "model": self.model_name,

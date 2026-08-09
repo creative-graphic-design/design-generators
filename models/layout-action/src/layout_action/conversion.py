@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 import hashlib
 import json
 from pathlib import Path
+from typing import TypedDict, cast
 
 import torch
 from jaxtyping import Shaped
@@ -24,6 +25,36 @@ class StateDictKeyReport:
     target_key: str
     source_shape: tuple[int, ...]
     loaded: bool
+
+
+class StateDictKeyReportDict(TypedDict):
+    """Serialized source-to-target state-dict mapping result."""
+
+    source_key: str
+    target_key: str
+    source_shape: tuple[int, ...]
+    loaded: bool
+
+
+class LayoutActionConversionReport(TypedDict):
+    """Serialized LayoutAction conversion report."""
+
+    checkpoint: str
+    checkpoint_sha256: str
+    config: dict[
+        str,
+        str
+        | int
+        | float
+        | bool
+        | dict[int, str]
+        | dict[str, int]
+        | dict[str, str | int | list[str] | dict[str, str | int]]
+        | None,
+    ]
+    keys: list[StateDictKeyReportDict]
+    missing_keys: list[str]
+    unexpected_keys: list[str]
 
 
 def remap_layout_action_key(key: str) -> str:
@@ -70,7 +101,7 @@ def convert_layout_action_checkpoint(
     output_dir: str | Path,
     config: LayoutActionConfig,
     strict: bool = True,
-) -> dict[str, object]:
+) -> LayoutActionConversionReport:
     """Convert a raw vendor ``.pth`` checkpoint to HF-style files.
 
     Args:
@@ -101,14 +132,27 @@ def convert_layout_action_checkpoint(
         "checkpoint_sha256": checkpoint_sha256,
     }
     config.save_pretrained(out_dir)
-    conversion_report = {
-        "checkpoint": str(checkpoint_path),
-        "checkpoint_sha256": checkpoint_sha256,
-        "config": config.to_dict(),
-        "keys": [asdict(row) for row in report],
-        "missing_keys": list(missing),
-        "unexpected_keys": list(unexpected),
-    }
+    conversion_report = LayoutActionConversionReport(
+        checkpoint=str(checkpoint_path),
+        checkpoint_sha256=checkpoint_sha256,
+        config=cast(
+            dict[
+                str,
+                str
+                | int
+                | float
+                | bool
+                | dict[int, str]
+                | dict[str, int]
+                | dict[str, str | int | list[str] | dict[str, str | int]]
+                | None,
+            ],
+            config.to_dict(),
+        ),
+        keys=[cast(StateDictKeyReportDict, asdict(row)) for row in report],
+        missing_keys=list(missing),
+        unexpected_keys=list(unexpected),
+    )
     with (out_dir / "conversion_report.json").open("w", encoding="utf-8") as f:
         json.dump(conversion_report, f, indent=2, sort_keys=True)
     return conversion_report

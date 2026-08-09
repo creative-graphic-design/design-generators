@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Final, TypedDict, cast
+from typing import Final, Protocol, TypedDict, cast
 
 import torch
 import yaml
@@ -22,6 +22,25 @@ _CRELLO_DATASET_ALIASES: Final[frozenset[str]] = frozenset(
     ("crello", CRELLO_BBOX_DATASET)
 )
 _DEFAULT_VAR_ORDER: Final[str] = "c-x-y-w-h"
+
+
+class _LayoutDMTokenizerLike(Protocol):
+    """Nested LayoutDM tokenizer surface needed for compatibility checks."""
+
+    config: object
+
+
+class _LayoutDMSchedulerLike(Protocol):
+    """Nested LayoutDM scheduler surface needed for compatibility checks."""
+
+    config: object
+
+
+class LayoutDMPipelineLike(Protocol):
+    """Nested LayoutDM pipeline surface needed during conversion."""
+
+    tokenizer: _LayoutDMTokenizerLike
+    scheduler: _LayoutDMSchedulerLike
 
 
 class CompatibilityKey(StrEnum):
@@ -134,7 +153,7 @@ def corrector_config_from_original(
     dataset: str,
     config_path: str | Path,
     state_dict: dict[str, Shaped[torch.Tensor, "..."]],
-    layout_dm: object,
+    layout_dm: LayoutDMPipelineLike,
 ) -> LayoutCorrectorConfig:
     """Build a Layout-Corrector config from original files.
 
@@ -194,7 +213,7 @@ def build_corrector_from_original(
     *,
     dataset: str,
     checkpoint_dir: str | Path,
-    layout_dm: object,
+    layout_dm: LayoutDMPipelineLike,
 ) -> LayoutCorrectorModel:
     """Build a `LayoutCorrectorModel` from an original checkpoint directory.
 
@@ -240,7 +259,7 @@ def discover_seed_dirs(job_dir: str | Path) -> list[Path]:
 
 def validate_layout_dm_compatibility(
     *,
-    layout_dm: object,
+    layout_dm: LayoutDMPipelineLike,
     corrector_config: LayoutCorrectorConfig,
 ) -> None:
     """Validate that a corrector config matches its nested LayoutDM pipeline.

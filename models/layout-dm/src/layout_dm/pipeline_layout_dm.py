@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -11,7 +12,7 @@ from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common import ConditionType, normalize_condition_type
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.discrete import log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -22,6 +23,22 @@ from .processing_layout_dm import LayoutDMProcessor
 from .sampling import LayoutDMSamplingConfig
 from .scheduling_layout_dm import LayoutDMScheduler
 from .tokenization_layout_dm import LayoutDMTokenizer
+
+LayoutDMPipelineKwarg = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | Path
+    | torch.dtype
+    | torch.device
+    | LayoutDMDenoiser
+    | LayoutDMScheduler
+    | LayoutDMTokenizer
+    | LayoutDMProcessor
+    | Mapping[str, str]
+)
 
 
 class LayoutDMPipeline(DiffusionPipeline):
@@ -35,7 +52,8 @@ class LayoutDMPipeline(DiffusionPipeline):
             when omitted.
 
     Examples:
-        >>> from pathlib import Path
+        >>> from collections.abc import Mapping, Sequence
+    from pathlib import Path
         >>> path = Path(".cache/layout-dm/converted/layoutdm-rico25")
         >>> path.exists()  # doctest: +SKIP
         True
@@ -73,15 +91,15 @@ class LayoutDMPipeline(DiffusionPipeline):
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
@@ -94,7 +112,7 @@ class LayoutDMPipeline(DiffusionPipeline):
         top_p: float = 0.9,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        **model_kwargs: object,
+        **model_kwargs: str | int | float | bool | None,
     ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."]]:
         """Run unconditional or conditional layout generation.
 
@@ -220,13 +238,15 @@ class LayoutDMPipeline(DiffusionPipeline):
 
     generate = __call__
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(
+        self, save_directory: str | Path, **kwargs: LayoutDMPipelineKwarg
+    ) -> None:
         """Save the pipeline and tokenizer to a Diffusers directory."""
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+        cls, pretrained_model_name_or_path: str | Path, **kwargs: LayoutDMPipelineKwarg
     ) -> "LayoutDMPipeline":
         """Load a LayoutDM pipeline from a local directory or Hub repo.
 

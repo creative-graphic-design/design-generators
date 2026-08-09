@@ -6,9 +6,11 @@ import argparse
 import json
 from pathlib import Path
 from types import MethodType
+from collections.abc import Sequence
 from typing import Protocol, cast
 
 import torch
+from jaxtyping import Bool, Float, Int
 from PIL import Image
 from transformers import BertTokenizerFast
 from transformers.tokenization_utils_base import BatchEncoding
@@ -22,7 +24,9 @@ from layout_detr.vendor_state import (
 
 
 class _VendorTokenizerProtocol(Protocol):
-    def __call__(self, *args: object, **kwargs: object) -> BatchEncoding: ...
+    def __call__(
+        self, *args: Sequence[str] | str, **kwargs: str | int | bool
+    ) -> BatchEncoding: ...
 
 
 class _VendorGeneratorProtocol(Protocol):
@@ -90,7 +94,16 @@ def main() -> None:
         (1, config.max_seq_length, config.z_dim),
         generator=generator,
     )
-    inputs = {**dict(encoded), "latents": latents}
+    inputs = cast(
+        dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | list[list[str]],
+        ],
+        {**dict(encoded), "latents": latents},
+    )
     loaded_generator, custom_op_import_required = load_vendor_generator(
         args.checkpoint,
         vendor_root=args.vendor_root,
@@ -154,7 +167,10 @@ def _tokenize_vendor_texts(
     text_rows: list[list[str]],
     max_seq_length: int,
     max_text_length: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[
+    Int[torch.Tensor, "batch elements tokens"],
+    Bool[torch.Tensor, "batch elements tokens"],
+]:
     flat_texts = [
         text
         for row in text_rows
@@ -206,9 +222,9 @@ def _patch_vendor_bert_runtime(module: torch.nn.Module) -> None:
 
 def _vendor_get_head_mask(
     self: torch.nn.Module,
-    head_mask: torch.Tensor | None,
+    head_mask: Float[torch.Tensor, "..."] | None,
     num_hidden_layers: int,
-) -> list[torch.Tensor | None]:
+) -> list[Float[torch.Tensor, "..."] | None]:
     del self
     if head_mask is None:
         return [None] * num_hidden_layers
@@ -227,8 +243,10 @@ def _vendor_get_head_mask(
 
 def _vendor_invert_attention_mask(
     self: torch.nn.Module,
-    encoder_attention_mask: torch.Tensor,
-) -> torch.Tensor:
+    encoder_attention_mask: Float[torch.Tensor, "..."]
+    | Int[torch.Tensor, "..."]
+    | Bool[torch.Tensor, "..."],
+) -> Float[torch.Tensor, "..."]:
     dtype = next(self.parameters()).dtype
     if encoder_attention_mask.dim() == 2:
         encoder_attention_mask = encoder_attention_mask[:, None, None, :]
@@ -240,9 +258,15 @@ def _vendor_invert_attention_mask(
 def _run_vendor_forward(
     vendor_generator: _VendorGeneratorProtocol,
     *,
-    inputs: dict[str, object],
+    inputs: dict[
+        str,
+        Float[torch.Tensor, "..."]
+        | Int[torch.Tensor, "..."]
+        | Bool[torch.Tensor, "..."]
+        | list[list[str]],
+    ],
     device: torch.device,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "batch elements 4"]:
     from training.networks_detr import (  # type: ignore[import-not-found]
         merge_lists,
         nested_tensor_from_tensor_list,
@@ -297,7 +321,21 @@ def _run_vendor_forward(
     return vendor_generator.bbox_embed(hidden).sigmoid()
 
 
-def _cpu_tensors(inputs: dict[str, object]) -> dict[str, object]:
+def _cpu_tensors(
+    inputs: dict[
+        str,
+        Float[torch.Tensor, "..."]
+        | Int[torch.Tensor, "..."]
+        | Bool[torch.Tensor, "..."]
+        | list[list[str]],
+    ],
+) -> dict[
+    str,
+    Float[torch.Tensor, "..."]
+    | Int[torch.Tensor, "..."]
+    | Bool[torch.Tensor, "..."]
+    | list[list[str]],
+]:
     result = {}
     for key, value in inputs.items():
         result[key] = value.detach().cpu() if torch.is_tensor(value) else value

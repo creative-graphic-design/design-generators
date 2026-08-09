@@ -1,7 +1,5 @@
 """Evaluate CGB-DM full-run checkpoints with the original metric formulas."""
 
-from __future__ import annotations
-
 import argparse
 import importlib
 import json
@@ -9,17 +7,17 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any  # noqa: TID251 - evaluation CLI bridges dynamic reference imports.
+from typing import Protocol, TypedDict, cast
 
 import numpy as np
 import torch
 import yaml
+from cgb_dm.configuration_cgb_dm import cgb_dm_config_for_dataset
+from cgb_dm.conversion import build_pipeline_from_checkpoint
+from jaxtyping import Bool, Float, Int
 from PIL import Image
 from torch.utils.data import DataLoader
 from transformers import set_seed
-
-from cgb_dm.configuration_cgb_dm import cgb_dm_config_for_dataset
-from cgb_dm.conversion import build_pipeline_from_checkpoint
 
 
 @dataclass(frozen=True)
@@ -43,6 +41,172 @@ DATASET_EVAL_SPECS = {
         fixture_dataset_name="cgl",
     ),
 }
+
+
+class ConfigPathsSplit(Protocol):
+    """Reference split paths consumed by the metric implementation."""
+
+    sal_dir: str
+    sal_sub_dir: str
+    inp_dir: str
+
+
+class ConfigPaths(Protocol):
+    """Reference path container consumed by the metric implementation."""
+
+    test: ConfigPathsSplit
+
+
+class EvalConfig(Protocol):
+    """Dynamic reference config attributes used by this evaluator."""
+
+    width: int
+    height: int
+    n_head: int
+    d_model: int
+    feature_dim: int
+    num_class: int
+    n_layers: int
+    max_elem: int
+    num_workers: int
+    test_batch_size: int
+    imgname_order_dir: str
+    paths: ConfigPaths
+
+
+class EvalProcessor(Protocol):
+    """Processor attributes used by package-side sampling."""
+
+    max_seq_length: int
+    seq_dim: int
+    num_labels: int
+
+
+class SchedulerStep(Protocol):
+    """Scheduler step output consumed by this evaluator."""
+
+    prev_sample: Float[torch.Tensor, "batch elements features"]
+
+
+class EvalScheduler(Protocol):
+    """Scheduler surface used by package-side sampling."""
+
+    timesteps: Float[torch.Tensor, "steps"] | Int[torch.Tensor, "steps"]
+
+    def set_timesteps(
+        self, num_inference_steps: int | None, *, device: torch.device
+    ) -> None:
+        """Initialize inference timesteps."""
+
+    def initial_sample(
+        self,
+        batch_size: int,
+        max_seq_length: int,
+        seq_dim: int,
+        *,
+        device: torch.device,
+        generator: torch.Generator,
+    ) -> Float[torch.Tensor, "batch elements features"]:
+        """Return the initial denoising sample."""
+
+    def step(
+        self,
+        model_output: Float[torch.Tensor, "batch elements features"],
+        timestep: Int[torch.Tensor, "batch"],
+        sample: Float[torch.Tensor, "batch elements features"],
+        _step_index: int,
+        *,
+        generator: torch.Generator,
+    ) -> SchedulerStep:
+        """Run one scheduler step."""
+
+
+class ModelOutput(Protocol):
+    """Model output consumed by scheduler sampling."""
+
+    sample: Float[torch.Tensor, "batch elements features"]
+
+
+class EvalModel(Protocol):
+    """Model call surface used by package-side sampling."""
+
+    def __call__(
+        self,
+        sample: Float[torch.Tensor, "batch elements features"],
+        image: Float[torch.Tensor, "batch channels height width"],
+        sal_box: Float[torch.Tensor, "batch ..."],
+        timestep: Int[torch.Tensor, "batch"],
+    ) -> ModelOutput:
+        """Return predicted denoising sample."""
+
+
+class EvalPipeline(Protocol):
+    """Pipeline surface used for package-side evaluation."""
+
+    model: EvalModel
+    scheduler: EvalScheduler
+    processor: EvalProcessor
+
+
+class DiffusionModel(Protocol):
+    """Reference diffusion surface used for original-side evaluation."""
+
+    model: torch.nn.Module
+
+    def reverse_ddim(
+        self,
+        image: Float[torch.Tensor, "batch channels height width"],
+        sal_box: Float[torch.Tensor, "batch ..."],
+        cfg: EvalConfig,
+        *,
+        save_inter: bool,
+    ) -> tuple[
+        Float[torch.Tensor, "batch elements 4"],
+        Int[torch.Tensor, "batch elements 1"],
+        Float[torch.Tensor, "..."] | None,
+    ]:
+        """Return generated boxes and classes."""
+        del save_inter
+        raise NotImplementedError
+
+
+class Cv2Module(Protocol):
+    """Small OpenCV surface required for unreadability metrics."""
+
+    COLOR_RGB2GRAY: int
+
+    def setNumThreads(self, count: int) -> None:
+        """Set OpenCV thread count."""
+
+    def cvtColor(
+        self, image: Float[np.ndarray, "height width channels"], code: int
+    ) -> Float[np.ndarray, "height width"]:
+        """Convert an image between color spaces."""
+
+    def Sobel(
+        self,
+        image: Float[np.ndarray, "height width"],
+        _ddepth: int,
+        _dx: int,
+        _dy: int,
+    ) -> Float[np.ndarray, "height width"]:
+        """Compute one Sobel derivative."""
+
+
+class MetricRecord(TypedDict):
+    """One seeded CGB-DM metric record."""
+
+    seed: int
+    num_samples: int
+    metrics: dict[str, float]
+
+
+class MetricSummary(TypedDict):
+    """CGB-DM metric mean/std summary."""
+
+    runs: list[MetricRecord]
+    mean: dict[str, float]
+    std: dict[str, float]
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,7 +244,7 @@ def main() -> None:
     dataloader_mod = importlib.import_module("data_process.dataloader")
     util_mod = importlib.import_module("utils.util")
 
-    cv2 = importlib.import_module("cv2")
+    cv2 = cast(Cv2Module, importlib.import_module("cv2"))
     cv2.setNumThreads(1)
     torch.set_num_threads(8)
 
@@ -91,37 +255,43 @@ def main() -> None:
     raw_config["paths"]["base"] = str(Path(args.data_root).resolve())
     raw_config["imgname_order_dir"] = str(output_dir / "image_name_order")
     Path(raw_config["imgname_order_dir"]).mkdir(parents=True, exist_ok=True)
-    cfg = util_mod.Config(util_mod.process_paths(raw_config))
+    cfg = cast(EvalConfig, util_mod.Config(util_mod.process_paths(raw_config)))
 
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
     if device.type == "cuda":
         torch.cuda.set_device(device)
 
-    pipe = None
-    diffusion_model = None
+    pipe: EvalPipeline | None = None
+    diffusion_model: DiffusionModel | None = None
     if args.backend == "ours":
-        pipe = build_pipeline_from_checkpoint(
-            args.checkpoint,
-            config=cgb_dm_config_for_dataset(dataset_spec.package_dataset_name),
-        ).to(device)
+        pipe = cast(
+            EvalPipeline,
+            build_pipeline_from_checkpoint(
+                args.checkpoint,
+                config=cgb_dm_config_for_dataset(dataset_spec.package_dataset_name),
+            ).to(device),
+        )
     else:
         diffusion_cls = importlib.import_module("cgbdm.diffusion").Diffusion
-        diffusion_model = diffusion_cls(
-            num_timesteps=1000,
-            ddim_num_steps=100,
-            n_head=cfg.n_head,
-            dim_model=cfg.d_model,
-            feature_dim=cfg.feature_dim,
-            seq_dim=cfg.num_class + 4,
-            num_layers=cfg.n_layers,
-            device=device,
-            max_elem=cfg.max_elem,
+        diffusion_model = cast(
+            DiffusionModel,
+            diffusion_cls(
+                num_timesteps=1000,
+                ddim_num_steps=100,
+                n_head=cfg.n_head,
+                dim_model=cfg.d_model,
+                feature_dim=cfg.feature_dim,
+                seq_dim=cfg.num_class + 4,
+                num_layers=cfg.n_layers,
+                device=device,
+                max_elem=cfg.max_elem,
+            ),
         )
         model_weights = torch.load(args.checkpoint, map_location=device)
         diffusion_model.model.load_state_dict(model_weights)
         diffusion_model.model.eval()
 
-    results: list[dict[str, Any]] = []
+    results: list[MetricRecord] = []
     for seed in args.seeds:
         set_seed(seed)
         cfg.imgname_order_dir = str(
@@ -148,7 +318,7 @@ def main() -> None:
         img_names = torch.load(cfg.imgname_order_dir, weights_only=False)
         img_names = img_names[: test_output.shape[0]]
         metrics = compute_metrics(img_names, test_output, cfg, cv2=cv2)
-        record = {
+        record: MetricRecord = {
             "seed": seed,
             "num_samples": int(test_output.shape[0]),
             "metrics": {key: float(value) for key, value in metrics.items()},
@@ -171,14 +341,19 @@ def main() -> None:
 def _generate_samples(
     *,
     backend: str,
-    pipe: Any,
-    diffusion_model: Any,
-    testing_dl: DataLoader[Any],
-    cfg: Any,
+    pipe: EvalPipeline | None,
+    diffusion_model: DiffusionModel | None,
+    testing_dl: DataLoader[
+        tuple[
+            Float[torch.Tensor, "batch channels height width"],
+            Float[torch.Tensor, "batch ..."],
+        ]
+    ],
+    cfg: EvalConfig,
     device: torch.device,
     seed: int,
-) -> torch.Tensor:
-    sample_output: list[torch.Tensor] = []
+) -> Float[torch.Tensor, "samples elements features"]:
+    sample_output: list[Float[torch.Tensor, "batch elements features"]] = []
     count = 0
     generator = torch.Generator(device=device).manual_seed(seed)
     with torch.no_grad():
@@ -186,6 +361,8 @@ def _generate_samples(
             image = image.to(device)
             sal_box = sal_box.to(device)
             if backend == "ours":
+                if pipe is None:
+                    raise ValueError("Package pipeline is required for backend='ours'")
                 pipe.scheduler.set_timesteps(None, device=device)
                 sample = pipe.scheduler.initial_sample(
                     image.shape[0],
@@ -218,6 +395,10 @@ def _generate_samples(
                 )
                 sample_output.append(torch.cat([labels, boxes], dim=2).cpu())
             else:
+                if diffusion_model is None:
+                    raise ValueError(
+                        "Reference diffusion model is required for backend='reference'"
+                    )
                 bbox, cls, _ = diffusion_model.reverse_ddim(
                     image, sal_box, cfg, save_inter=False
                 )
@@ -228,7 +409,11 @@ def _generate_samples(
 
 
 def compute_metrics(
-    img_names: list[str], test_output: torch.Tensor, cfg: Any, *, cv2: Any
+    img_names: list[str],
+    test_output: Float[torch.Tensor, "samples elements features"],
+    cfg: EvalConfig,
+    *,
+    cv2: Cv2Module,
 ) -> dict[str, float]:
     """Compute the original validity, overlap, underlay, occlusion, and readability metrics."""
     metric_mod = importlib.import_module("utils.metric")
@@ -255,13 +440,13 @@ def compute_metrics(
 
 
 def _box_mask(
-    clses: torch.Tensor,
-    boxes: torch.Tensor,
+    clses: Int[torch.Tensor, "elements ..."],
+    boxes: Int[torch.Tensor, "elements 4"],
     *,
     height: int,
     width: int,
     class_id: int | None = None,
-) -> np.ndarray:
+) -> Bool[np.ndarray, "height width"]:
     cls = np.asarray(clses.cpu(), dtype=int).reshape(-1)
     box = np.asarray(boxes.cpu(), dtype=int)
     selected = box[cls > 0] if class_id is None else box[cls == class_id]
@@ -277,7 +462,10 @@ def _box_mask(
 
 
 def _occlusion_cal(
-    img_names: list[str], clses: torch.Tensor, boxes: torch.Tensor, cfg: Any
+    img_names: list[str],
+    clses: Int[torch.Tensor, "samples elements ..."],
+    boxes: Int[torch.Tensor, "samples elements 4"],
+    cfg: EvalConfig,
 ) -> float:
     total = 0.0
     image_size = (cfg.width, cfg.height)
@@ -299,11 +487,11 @@ def _occlusion_cal(
 
 def _unreadability_cal(
     img_names: list[str],
-    clses: torch.Tensor,
-    boxes: torch.Tensor,
-    cfg: Any,
+    clses: Int[torch.Tensor, "samples elements ..."],
+    boxes: Int[torch.Tensor, "samples elements 4"],
+    cfg: EvalConfig,
     *,
-    cv2: Any,
+    cv2: Cv2Module,
 ) -> float:
     values: list[float] = []
     image_size = (cfg.width, cfg.height)
@@ -328,9 +516,9 @@ def _unreadability_cal(
     return float(np.mean(np.asarray(values, dtype=np.float64)))
 
 
-def _summarize(results: list[dict[str, Any]]) -> dict[str, Any]:
+def _summarize(results: list[MetricRecord]) -> MetricSummary:
     metric_keys = sorted(results[0]["metrics"]) if results else []
-    summary: dict[str, Any] = {"runs": results, "mean": {}, "std": {}}
+    summary: MetricSummary = {"runs": results, "mean": {}, "std": {}}
     for key in metric_keys:
         values = torch.tensor(
             [run["metrics"][key] for run in results], dtype=torch.float64

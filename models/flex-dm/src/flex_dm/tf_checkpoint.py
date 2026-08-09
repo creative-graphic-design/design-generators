@@ -16,7 +16,9 @@ class _TensorFlowTrain(Protocol):
     ) -> list[tuple[str, tuple[int, ...]]]:
         """Return TensorFlow checkpoint variable names and shapes."""
 
-    def load_variable(self, checkpoint_prefix: str, name: str) -> object:
+    def load_variable(
+        self, checkpoint_prefix: str, name: str
+    ) -> Shaped[np.ndarray, "..."]:
         """Load one TensorFlow checkpoint variable."""
 
 

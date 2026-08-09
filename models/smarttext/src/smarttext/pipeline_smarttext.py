@@ -6,10 +6,10 @@ from collections.abc import Mapping, Sequence
 import copy
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 import torch
-from jaxtyping import Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from PIL import ImageFont
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
@@ -22,12 +22,23 @@ from laygen.common.conditions import (
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
-from .candidate_generation import generate_candidates, prepare_scorer_batch
+from .candidate_generation import (
+    CandidateBoxRow,
+    SmartTextCandidate,
+    generate_candidates,
+    prepare_scorer_batch,
+)
 from .color import choose_text_color
 from .configuration_smarttext import SmartTextConfig
 from .modeling_basnet import SmartTextBASNet
 from .modeling_smarttext import SmartTextScorer
 from .processing_smarttext import SmartTextProcessor
+
+
+if TYPE_CHECKING:
+    from laygen.pipelines.base import PipelineComponent
+else:
+    PipelineComponent = object
 
 
 class OutputType(StrEnum):
@@ -68,7 +79,7 @@ def _load_scorer_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> SmartTextScorer:
     if subfolder is None:
         return SmartTextScorer.from_pretrained(
             pretrained_model_name_or_path,
@@ -86,7 +97,7 @@ def _load_saliency_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> SmartTextBASNet:
     if subfolder is None:
         return SmartTextBASNet.from_pretrained(
             pretrained_model_name_or_path,
@@ -104,7 +115,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> SmartTextProcessor:
     if subfolder is None:
         return SmartTextProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -186,7 +197,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, PipelineComponent | None],
     ) -> "SmartTextPipeline":
         """Build a SmartText pipeline from loaded components."""
         return cls(
@@ -197,23 +208,42 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         images: ImageInput
         | Sequence[ImageInput]
         | Float[torch.Tensor, "batch channels height width"]
         | None = None,
         *,
-        content: Mapping[str, object] | None = None,
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | str
+            | Sequence[str]
+            | Float[torch.Tensor, "batch height width"]
+            | Sequence[CandidateBoxRow]
+            | Sequence[Sequence[CandidateBoxRow]],
+        ]
+        | None = None,
         prompt: str | Sequence[str] | None = None,
         text: str | Sequence[str] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.content_image,
-        labels: object = None,
-        bbox: object = None,
-        mask: object = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Sequence[Sequence[int]]
+        | Sequence[int]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[Sequence[Sequence[float]]]
+        | Sequence[Sequence[float]]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -229,12 +259,28 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         | Sequence[ImageInput]
         | Float[torch.Tensor, "batch height width"]
         | None = None,
-        candidate_boxes: Sequence[Mapping[str, object]]
-        | Sequence[Sequence[Mapping[str, object]]]
+        candidate_boxes: Sequence[CandidateBoxRow]
+        | Sequence[Sequence[CandidateBoxRow]]
         | None = None,
         return_text_lines: bool = False,
         score_normalization: Literal["mos", "raw"] = "mos",
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[
+                str,
+                Shaped[torch.Tensor, "..."]
+                | str
+                | list[int]
+                | list[SmartTextCandidate]
+                | None,
+            ]
+            | None,
+        ]
+    ):
         """Generate text placement boxes for content images.
 
         Args:

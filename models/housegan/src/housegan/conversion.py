@@ -8,7 +8,7 @@ from pathlib import Path
 
 import torch
 
-from .configuration_housegan import HouseGanConfig
+from .configuration_housegan import HouseGanConfig, HouseGanConversionReport
 from .modeling_housegan import HouseGanGenerator
 from .pipeline_housegan import HouseGanPipeline
 from .processing_housegan import HouseGanProcessor
@@ -30,7 +30,7 @@ def convert_original_checkpoint(
     output_dir: str | Path,
     target_set: str = "D",
     checkpoint_step: int = 200000,
-) -> dict[str, object]:
+) -> HouseGanConversionReport:
     """Convert a raw House-GAN generator state dict into HF files."""
     checkpoint_path = Path(checkpoint)
     raw_state = torch.load(checkpoint_path, map_location="cpu")

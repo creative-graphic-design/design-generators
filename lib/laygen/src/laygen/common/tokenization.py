@@ -19,7 +19,7 @@ def build_token_maps(
     """Build token/id maps from a JSON vocabulary file or synthetic token list."""
     if vocab_file is not None:
         with Path(vocab_file).open() as f:
-            raw_vocab = cast(dict[str, object], json.load(f))
+            raw_vocab = cast(dict[str, str | int], json.load(f))
         if numeric_id_vocab and all(str(key).isdigit() for key in raw_vocab):
             id2token = {int(key): str(value) for key, value in raw_vocab.items()}
             return {value: key for key, value in id2token.items()}, id2token
@@ -87,7 +87,9 @@ class WhitespaceTokenizerMixin:
         """Return token-to-id mapping."""
         return dict(self._token2id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(
+        self, text: str, **kwargs: str | int | float | bool | None
+    ) -> list[str]:
         _ = kwargs
         return split_whitespace_tokens(text)
 

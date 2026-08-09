@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import torch
-from jaxtyping import Float
+from jaxtyping import Bool, Float, Int
+
+from laygen.common.bbox import ArrayLikeInput
 
 
 if TYPE_CHECKING:
@@ -31,7 +33,18 @@ class LayoutFIDStatistics:
     num_samples: int | None = None
 
     @classmethod
-    def from_mapping(cls, values: Mapping[str, object]) -> "LayoutFIDStatistics":
+    def from_mapping(
+        cls,
+        values: Mapping[
+            str,
+            Float[np.ndarray, "..."]
+            | list[float]
+            | list[list[float]]
+            | str
+            | int
+            | None,
+        ],
+    ) -> "LayoutFIDStatistics":
         """Create statistics from a mapping."""
         mu = np.asarray(values["mu"], dtype=np.float64)
         sigma = np.asarray(values["sigma"], dtype=np.float64)
@@ -145,8 +158,16 @@ def calculate_frechet_distance(
 
 
 def compute_layout_fid_from_statistics(
-    candidate: LayoutFIDStatistics | Mapping[str, object],
-    reference: LayoutFIDStatistics | Mapping[str, object],
+    candidate: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
+    reference: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
 ) -> float:
     """Compute layout FID from two statistics objects."""
     candidate_stats = _coerce_statistics(candidate)
@@ -209,9 +230,27 @@ def compute_layout_fid(
     model: "LayoutFIDModel",
     processor: "LayoutFIDProcessor",
     *,
-    reference_statistics: LayoutFIDStatistics | Mapping[str, object],
+    reference_statistics: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
     batch_size: int = 512,
-    **layout_kwargs: object,
+    **layout_kwargs: Float[torch.Tensor, "batch elements 4"]
+    | Float[np.ndarray, "batch elements 4"]
+    | Int[torch.Tensor, "batch elements"]
+    | Int[np.ndarray, "batch elements"]
+    | Bool[torch.Tensor, "batch elements"]
+    | Bool[np.ndarray, "batch elements"]
+    | Sequence[ArrayLikeInput]
+    | Mapping[int, str]
+    | Mapping[str, str]
+    | str
+    | bool
+    | tuple[int, int]
+    | int
+    | torch.device
+    | None,
 ) -> float:
     """Compute layout FID directly from model, processor, and layout tensors."""
     features: list[Float[torch.Tensor, "batch channels"]] = []
@@ -244,7 +283,11 @@ def _as_numpy(
 
 
 def _coerce_statistics(
-    stats: LayoutFIDStatistics | Mapping[str, object],
+    stats: LayoutFIDStatistics
+    | Mapping[
+        str,
+        Float[np.ndarray, "..."] | list[float] | list[list[float]] | str | int | None,
+    ],
 ) -> LayoutFIDStatistics:
     if isinstance(stats, LayoutFIDStatistics):
         return stats

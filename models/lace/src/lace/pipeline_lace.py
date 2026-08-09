@@ -153,7 +153,9 @@ class LacePipeline(DiffusionPipeline):
         self.model.eval()
 
     @property
-    def components(self) -> dict[str, object]:
+    def components(
+        self,
+    ) -> dict[str, LaceTransformerModel | LaceScheduler | LaceProcessor]:
         """Expose modules and processor metadata for Diffusers serialization."""
         return dict(
             model=self.model, scheduler=self.scheduler, processor=self.processor

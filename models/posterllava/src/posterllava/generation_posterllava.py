@@ -97,7 +97,7 @@ class StopStringCriteria(StoppingCriteria):
         self,
         input_ids: Int[torch.Tensor, "batch tokens"],
         scores: Float[torch.Tensor, "batch vocab"],
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> bool:
         """Return whether any batch item has reached a stop string."""
         _ = scores, kwargs

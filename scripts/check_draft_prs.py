@@ -11,6 +11,9 @@ import sys
 from dataclasses import dataclass
 from typing import Protocol, cast
 
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject = dict[str, JsonValue]
+
 DRAFT_REASON_HEADING_RE = re.compile(r"(?im)^## Draft Reason\s*$")
 SECTION_HEADING_RE = re.compile(r"(?m)^#{1,6}\s+")
 HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -122,7 +125,7 @@ class GhCliClient:
             )
         return result.stdout
 
-    def _graphql(self, query: str, **variables: object) -> dict[str, object]:
+    def _graphql(self, query: str, **variables: JsonValue) -> JsonObject:
         command = ["gh", "api", "graphql", "-f", f"query={query}"]
         for key, value in variables.items():
             if value is None:
@@ -140,7 +143,7 @@ class GhCliClient:
         *,
         body: str | None = None,
         paginate: bool = False,
-    ) -> object:
+    ) -> JsonValue:
         command = ["gh", "api", "-X", method]
         if paginate:
             command.append("--paginate")
@@ -345,53 +348,53 @@ class GhCliClient:
         )
 
 
-def _object(value: object) -> dict[str, object]:
+def _object(value: JsonValue) -> JsonObject:
     if not isinstance(value, dict):
         return {}
-    return cast("dict[str, object]", value)
+    return cast("JsonObject", value)
 
 
-def _required_object(value: object, path: str) -> dict[str, object]:
+def _required_object(value: JsonValue, path: str) -> JsonObject:
     if not isinstance(value, dict):
         raise ValueError(f"GitHub API response is missing object `{path}`")
-    return cast("dict[str, object]", value)
+    return cast("JsonObject", value)
 
 
-def _repository(payload: dict[str, object]) -> dict[str, object]:
+def _repository(payload: JsonObject) -> JsonObject:
     data = _required_object(payload.get("data"), "data")
     return _required_object(data.get("repository"), "data.repository")
 
 
-def _int_value(value: object) -> int:
+def _int_value(value: JsonValue) -> int:
     if isinstance(value, int | str):
         return int(value)
     return 0
 
 
-def _repository_field(payload: dict[str, object], field: str) -> dict[str, object]:
+def _repository_field(payload: JsonObject, field: str) -> JsonObject:
     repository = _repository(payload)
     return _required_object(repository.get(field), f"data.repository.{field}")
 
 
-def _pull_request_field(payload: dict[str, object]) -> dict[str, object]:
+def _pull_request_field(payload: JsonObject) -> JsonObject:
     repository = _repository(payload)
     return _required_object(
         repository.get("pullRequest"), "data.repository.pullRequest"
     )
 
 
-def _nodes(connection: dict[str, object]) -> list[dict[str, object]]:
+def _nodes(connection: JsonObject) -> list[JsonObject]:
     nodes = connection.get("nodes")
     if not isinstance(nodes, list):
         return []
     return [_object(node) for node in nodes]
 
 
-def _page_info(connection: dict[str, object]) -> dict[str, object]:
+def _page_info(connection: JsonObject) -> JsonObject:
     return _required_object(connection.get("pageInfo"), "pageInfo")
 
 
-def _pull_request_from_node(node: dict[str, object]) -> PullRequest:
+def _pull_request_from_node(node: JsonObject) -> PullRequest:
     return PullRequest(
         number=_int_value(node.get("number")),
         title=str(node.get("title") or ""),
@@ -406,7 +409,7 @@ def _pull_request_from_node(node: dict[str, object]) -> PullRequest:
     )
 
 
-def _check_context_from_node(node: dict[str, object]) -> CheckContext:
+def _check_context_from_node(node: JsonObject) -> CheckContext:
     kind = str(node.get("__typename") or "")
     return CheckContext(
         kind=kind,
@@ -483,11 +486,12 @@ def latest_status_contexts(contexts: list[CheckContext]) -> list[CheckContext]:
             continue
         existing_incomplete = check_context_incomplete(existing)
         context_incomplete = check_context_incomplete(context)
-        if context_incomplete and not existing_incomplete:
-            latest_by_name[context.name] = context
-        elif context_incomplete == existing_incomplete and _context_time_key(
-            context
-        ) >= _context_time_key(existing):
+        if (
+            context_incomplete
+            and not existing_incomplete
+            or context_incomplete == existing_incomplete
+            and _context_time_key(context) >= _context_time_key(existing)
+        ):
             latest_by_name[context.name] = context
     return list(latest_by_name.values())
 

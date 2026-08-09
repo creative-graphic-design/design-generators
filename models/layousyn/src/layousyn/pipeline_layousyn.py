@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -10,9 +11,8 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
-
 from laygen.common import ConditionType, normalize_condition_type
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .modeling_layousyn import LayouSynDiTModel
@@ -25,6 +25,7 @@ from .processing_layousyn import (
     LAYOUSYN_ID2LABEL_KEY,
     LAYOUSYN_LABEL_TEXTS_KEY,
     LAYOUSYN_PER_EXAMPLE_ID2LABEL_KEY,
+    LayouSynOutputDict,
     LayouSynProcessor,
 )
 from .scheduling_layousyn import LayouSynScheduler
@@ -66,7 +67,9 @@ class LayouSynPipeline(DiffusionPipeline):
         self.processor = processor
 
     @property
-    def components(self) -> dict[str, object]:
+    def components(
+        self,
+    ) -> dict[str, LayouSynDiTModel | LayouSynScheduler | LayouSynProcessor]:
         """Return serializable pipeline components."""
         return {
             "model": self.model,
@@ -77,7 +80,7 @@ class LayouSynPipeline(DiffusionPipeline):
     def save_pretrained(
         self,
         save_directory: str | os.PathLike[str],
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save pipeline components plus processor metadata."""
         super().save_pretrained(save_directory, **kwargs)
@@ -87,8 +90,8 @@ class LayouSynPipeline(DiffusionPipeline):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str | os.PathLike[str],
-        **kwargs: object,
-    ) -> "LayouSynPipeline":
+        **kwargs: str | int | float | bool | None,
+    ) -> LayouSynPipeline:
         """Load pipeline and restore local processor metadata."""
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
         if not isinstance(pipe, cls):
@@ -113,16 +116,17 @@ class LayouSynPipeline(DiffusionPipeline):
         condition_type: ConditionType | str = ConditionType.text,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object]
+        | list[str]
+        | list[list[str]]
         | None = None,
         id2label: dict[int, str] | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
@@ -138,7 +142,7 @@ class LayouSynPipeline(DiffusionPipeline):
         caption_padding_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         concept_embeds: Float[torch.Tensor, "batch elements embedding_dim"]
         | None = None,
-    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."] | object]:
+    ) -> LayoutGenerationOutput | LayouSynOutputDict:
         """Run LayouSyn denoising.
 
         Args:
@@ -256,8 +260,8 @@ class LayouSynPipeline(DiffusionPipeline):
     generate = __call__
 
     def _cfg_model_kwargs(
-        self, model_kwargs: dict[str, Shaped[torch.Tensor, "..."]], batch_size: int
-    ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+        self, model_kwargs: dict[str, Shaped[torch.Tensor, ...]], batch_size: int
+    ) -> dict[str, Shaped[torch.Tensor, ...]]:
         y_null = (
             self.model.y_embedder.y_embedding.to(self.device)
             .unsqueeze(0)

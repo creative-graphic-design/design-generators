@@ -6,12 +6,15 @@ from collections.abc import Mapping
 from enum import StrEnum, auto
 from typing import Final
 
-from transformers import PretrainedConfig
-
 from posgen.common.labels import (
     DatasetName,
     id2label_for_dataset,
     normalize_dataset_name,
+)
+from transformers import PretrainedConfig
+
+PosterLlavaConfigValue = (
+    str | int | float | bool | None | list[str] | list[int] | dict[str, str]
 )
 
 
@@ -142,7 +145,7 @@ class PosterLlavaConfig(PretrainedConfig):
         model_subfolder: str = "model",
         tokenizer_subfolder: str = "tokenizer",
         image_processor_subfolder: str = "image_processor",
-        **kwargs: object,
+        **kwargs: PosterLlavaConfigValue,
     ) -> None:
         """Initialize PosterLLaVA recipe configuration."""
         super().__init__(**kwargs)  # ty: ignore[invalid-argument-type]

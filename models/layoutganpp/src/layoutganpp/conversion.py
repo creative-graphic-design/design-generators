@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
 from collections.abc import Mapping
+from types import SimpleNamespace
 from typing import cast
 
 from laygen.common.labels import max_elements_for_dataset
@@ -11,7 +13,11 @@ from .configuration_layoutganpp import LayoutGANPPConfig
 from .datasets import id2label_for_dataset, normalize_dataset_name
 
 
-def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
+CheckpointArgValue = str | int | float | bool | None
+CheckpointArgs = Mapping[str, CheckpointArgValue] | Namespace | SimpleNamespace
+
+
+def config_from_checkpoint_args(args: CheckpointArgs) -> LayoutGANPPConfig:
     """Build a config from original LayoutGAN++ checkpoint arguments.
 
     Args:
@@ -53,13 +59,13 @@ def config_from_checkpoint_args(args: object) -> LayoutGANPPConfig:
     )
 
 
-def _checkpoint_values(args: object) -> Mapping[str, object]:
+def _checkpoint_values(args: CheckpointArgs) -> Mapping[str, CheckpointArgValue]:
     if isinstance(args, Mapping):
-        return cast(Mapping[str, object], args)
+        return cast(Mapping[str, CheckpointArgValue], args)
     return vars(args)
 
 
-def _required_int(values: Mapping[str, object], key: str) -> int:
+def _required_int(values: Mapping[str, CheckpointArgValue], key: str) -> int:
     value = values[key]
     if isinstance(value, int):
         return value

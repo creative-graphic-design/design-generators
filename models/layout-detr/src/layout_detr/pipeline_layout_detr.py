@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
@@ -29,12 +29,18 @@ from .postprocessing import PostprocessingMode, apply_postprocessing
 from .processing_layout_detr import LayoutDetrProcessor
 
 
+if TYPE_CHECKING:
+    from laygen.pipelines.base import PipelineComponent
+else:
+    PipelineComponent = object
+
+
 def _load_model_component(
     pretrained_model_name_or_path: str | Path,
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutDetrForConditionalGeneration:
     if subfolder is not None:
         return LayoutDetrForConditionalGeneration.from_pretrained(
             pretrained_model_name_or_path,
@@ -52,7 +58,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutDetrProcessor:
     if subfolder is not None:
         return LayoutDetrProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -111,7 +117,7 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, PipelineComponent | None],
     ) -> "LayoutDetrPipeline":
         """Build a pipeline from saved components."""
         return cls(
@@ -128,7 +134,16 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         | Shaped[torch.Tensor, "..."]
         | None = None,
         *,
-        content: Mapping[str, object] | None = None,
+        content: Mapping[
+            str,
+            ImageInput
+            | Sequence[ImageInput]
+            | Sequence[Sequence[str]]
+            | Sequence[str]
+            | Sequence[Sequence[int | str]]
+            | Sequence[int | str],
+        ]
+        | None = None,
         prompt: str | Sequence[str] | None = None,
         texts: Sequence[Sequence[str]] | Sequence[str] | None = None,
         batch_size: int = 1,

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke script prints dynamic output.
+from typing import cast
 
 from dlt import DLTPipeline
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,7 +23,8 @@ def main() -> None:
     for path in args.path:
         pipe = DLTPipeline.from_pretrained(path)
         out = cast(
-            Any, pipe(batch_size=1, num_elements=2, seed=0, num_inference_steps=2)
+            LayoutGenerationOutput,
+            pipe(batch_size=1, num_elements=2, seed=0, num_inference_steps=2),
         )
         print(path.name, out.bbox.shape, out.labels.shape, type(out).__name__)
 

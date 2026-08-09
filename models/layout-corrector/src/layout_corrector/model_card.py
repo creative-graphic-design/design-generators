@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from enum import StrEnum, auto
 from typing import Final
 
 from huggingface_hub import ModelCard
-from laygen.common.model_card import ParityMetric, build_layout_model_card
+from laygen.common.model_card import (
+    ParityMetric,
+    ParityMetricInput,
+    build_layout_model_card,
+)
 
 from .configuration_layout_corrector import CRELLO_BBOX_DATASET
 
@@ -42,7 +46,7 @@ _DATASET_IDS: Final[dict[LayoutCorrectorCardDataset, str]] = {
 def layout_corrector_model_card(
     *,
     dataset: str,
-    parity_metrics: Sequence[ParityMetric | Mapping[str, object]] | None = None,
+    parity_metrics: Sequence[ParityMetricInput] | None = None,
 ) -> ModelCard:
     """Build the Layout-Corrector model card for a converted checkpoint."""
     dataset_name = _normalize_model_card_dataset(dataset)

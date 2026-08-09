@@ -6,11 +6,60 @@ import argparse
 import hashlib
 import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import Protocol
 
 import numpy as np
+from jaxtyping import Shaped
+
+
+FlexDmScriptValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["FlexDmScriptValue"]
+    | dict[str, "FlexDmScriptValue"]
+)
+FlexDmLookupKwarg = str | int | float | bool | None | Sequence[str]
+FlexDmVendorColumn = Mapping[str, str | bool | int]
+
+
+class _TensorLike(Protocol):
+    """TensorFlow-like value that can be materialized as NumPy."""
+
+    @property
+    def shape(self) -> Sequence[int]: ...
+
+    def numpy(self) -> Shaped[np.ndarray, "..."]: ...
+
+
+class _TensorDatasetLike(Protocol):
+    """TensorFlow dataset iterator used by vendor scripts."""
+
+    def __iter__(self) -> _TensorDatasetLike: ...
+
+    def get_next(self) -> dict[str, _TensorLike]: ...
+
+
+class _VendorModelLike(Protocol):
+    """Vendor MFP wrapper attributes used by the bounded fixture writer."""
+
+    input_columns: Mapping[str, FlexDmVendorColumn]
+    context: str | None
+    model: FlexDmModelCallable
+
+
+class FlexDmModelCallable(Protocol):
+    """Callable TensorFlow model wrapper."""
+
+    def __call__(
+        self, inputs: Mapping[str, _TensorLike], *, training: bool
+    ) -> dict[str, _TensorLike]: ...
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,14 +92,18 @@ def install_tf_compat_shim() -> None:
     preprocessing = ModuleType("tensorflow.keras.layers.experimental.preprocessing")
 
     class StringLookup(tf.keras.layers.StringLookup):  # type: ignore[misc]
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(
+            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
+        ) -> None:
             super().__init__(*args, **_normalize_lookup_kwargs(kwargs))
 
         def vocab_size(self) -> int:
             return int(self.vocabulary_size())
 
     class IntegerLookup(tf.keras.layers.IntegerLookup):  # type: ignore[misc]
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(
+            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
+        ) -> None:
             super().__init__(*args, **_normalize_lookup_kwargs(kwargs))
 
         def vocab_size(self) -> int:
@@ -64,7 +117,9 @@ def install_tf_compat_shim() -> None:
     sys.modules["tensorflow.keras.layers.experimental.preprocessing"] = preprocessing
 
 
-def _normalize_lookup_kwargs(kwargs: dict[str, object]) -> dict[str, object]:
+def _normalize_lookup_kwargs(
+    kwargs: dict[str, FlexDmLookupKwarg],
+) -> dict[str, FlexDmLookupKwarg]:
     normalized = dict(kwargs)
     if "mask_value" in normalized:
         normalized["mask_token"] = normalized.pop("mask_value")
@@ -179,10 +234,10 @@ def _build_eval_inputs(
     *,
     task: str,
     group: tuple[str, tuple[str, ...]],
-    model: object,
-    dataset: object,
-    input_columns: dict[str, object],
-) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    model: _VendorModelLike,
+    dataset: _TensorDatasetLike,
+    input_columns: Mapping[str, FlexDmVendorColumn],
+) -> tuple[dict[str, _TensorLike], dict[str, _TensorLike], dict[str, _TensorLike]]:
     import tensorflow as tf
     from mfp.models.architecture.mask import get_seq_mask
     from mfp.models.masking import get_initial_masks
@@ -219,12 +274,14 @@ def _build_eval_inputs(
 
 def _run_reference_forward(
     *,
-    model: object,
-    example: dict[str, object],
-    masks: dict[str, object],
-    modified_inputs: dict[str, object],
+    model: _VendorModelLike,
+    example: dict[str, _TensorLike],
+    masks: dict[str, _TensorLike],
+    modified_inputs: dict[str, _TensorLike],
     num_iter: int,
-) -> tuple[dict[str, object], list[tuple[dict[str, object], dict[str, object]]]]:
+) -> tuple[
+    dict[str, _TensorLike], list[tuple[dict[str, _TensorLike], dict[str, _TensorLike]]]
+]:
     if num_iter <= 1:
         outputs = model.model(modified_inputs, training=False)
         return outputs, [(dict(modified_inputs), outputs)]
@@ -246,9 +303,9 @@ def _run_reference_forward(
         masks[key].numpy().astype("int").sum(-1) for key in categorical_keys
     )
     num_update_per_iter = (num_masked / num_iter).round().astype("int")
-    final_outputs = {}
-    outputs = {}
-    trace = []
+    final_outputs: dict[str, _TensorLike] = {}
+    outputs: dict[str, _TensorLike] = {}
+    trace: list[tuple[dict[str, _TensorLike], dict[str, _TensorLike]]] = []
     for index in range(num_iter):
         outputs = model.model(modified_inputs, training=False)
         trace.append((dict(modified_inputs), dict(outputs)))
@@ -303,15 +360,15 @@ def _write_forward_case(
     dataset_name: str,
     task: str,
     num_iter: int,
-    example: dict[str, object],
-    masks: dict[str, object],
-    modified_inputs: dict[str, object],
-    outputs: dict[str, object],
-    trace: list[tuple[dict[str, object], dict[str, object]]],
+    example: dict[str, _TensorLike],
+    masks: dict[str, _TensorLike],
+    modified_inputs: dict[str, _TensorLike],
+    outputs: dict[str, _TensorLike],
+    trace: list[tuple[dict[str, _TensorLike], dict[str, _TensorLike]]],
     checkpoint_hash: str,
-    generation_args: dict[str, object],
-) -> dict[str, object]:
-    arrays: dict[str, np.ndarray] = {}
+    generation_args: dict[str, FlexDmScriptValue],
+) -> dict[str, FlexDmScriptValue]:
+    arrays: dict[str, Shaped[np.ndarray, "..."]] = {}
     arrays["metadata__checkpoint_sha256"] = np.asarray(checkpoint_hash)
     arrays["metadata__generation_args"] = np.asarray(
         json.dumps(generation_args, sort_keys=True)
@@ -406,8 +463,8 @@ def main() -> None:
     model.load_weights(str(checkpoint))
     attribute_groups = get_attribute_groups(input_columns.keys())
 
-    results: dict[str, object] = {}
-    forward_cases: list[dict[str, object]] = []
+    results: dict[str, FlexDmScriptValue] = {}
+    forward_cases: list[dict[str, FlexDmScriptValue]] = []
     for task in args.tasks.split(","):
         task_results = {}
         for num_iter in [int(item) for item in args.num_iter.split(",")]:

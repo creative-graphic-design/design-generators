@@ -14,6 +14,9 @@ from layout_gpt.enums import LayoutGPTSetting, coerce_enum
 
 EmbeddingProvider = Callable[[str], Sequence[float]]
 DEFAULT_FIXED_RANDOM_SEED: Final[int] = 42
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | Sequence["JsonValue"] | Mapping[str, "JsonValue"]
+VendorRecord = Mapping[str, object]
 
 
 @dataclass(frozen=True)
@@ -23,11 +26,11 @@ class LayoutExample:
     id: int | str
     prompt: str
     objects: tuple[tuple[str, tuple[float, float, float, float]], ...]
-    metadata: dict[str, object]
+    metadata: dict[str, JsonValue]
 
     @classmethod
     def from_vendor_record(
-        cls, record: Mapping[str, object], *, setting: str | LayoutGPTSetting
+        cls, record: VendorRecord, *, setting: str | LayoutGPTSetting
     ) -> LayoutExample:
         """Build an exemplar from the original NSR-1K JSON record."""
         normalized_setting = coerce_enum(setting, LayoutGPTSetting)
@@ -58,7 +61,7 @@ class LayoutExample:
             id=cast(int | str, record["id"]),
             prompt=str(record["prompt"]),
             objects=objects,
-            metadata=dict(record),
+            metadata=cast(dict[str, JsonValue], dict(record)),
         )
 
 
@@ -66,7 +69,7 @@ def load_nsr_examples(
     path: str | Path, *, setting: str | LayoutGPTSetting
 ) -> list[LayoutExample]:
     """Load LayoutGPT NSR-1K examples from a reference-style JSON file."""
-    records = cast(Sequence[Mapping[str, object]], json.loads(Path(path).read_text()))
+    records = cast(Sequence[VendorRecord], json.loads(Path(path).read_text()))
     return [
         LayoutExample.from_vendor_record(record, setting=setting) for record in records
     ]

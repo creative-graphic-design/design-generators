@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Literal, cast
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import BatchEncoding, ProcessorMixin
+from transformers.image_utils import ImageInput
 
 from laygen.common.bbox import BoxFormat, normalize_boxes, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
@@ -20,6 +21,14 @@ from .configuration_ralf import RalfConfig, RalfReturnTensor
 from .image_processing_ralf import RalfImageProcessor
 from .retrieval import RalfRetrievedBatch
 from .tokenization_ralf import RalfLayoutTokenizer
+
+RalfScalar = str | int | float | bool | None
+RalfSequenceInput = (
+    Sequence[RalfScalar]
+    | Sequence[Sequence[RalfScalar]]
+    | Sequence[Sequence[Sequence[RalfScalar]]]
+)
+RalfRetrievalValue = RalfScalar | RalfSequenceInput | Mapping[str, RalfSequenceInput]
 
 
 class RalfProcessor(ProcessorMixin):
@@ -54,7 +63,7 @@ class RalfProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save local RALF processor components.
 
@@ -99,7 +108,7 @@ class RalfProcessor(ProcessorMixin):
         revision: str = "main",
         *,
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "RalfProcessor":
         """Load local RALF processor components without Auto registration."""
         _ = (cache_dir, force_download, token, revision, kwargs)
@@ -122,7 +131,7 @@ class RalfProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> RalfImageProcessor:
         """Load the local image processor for `ProcessorMixin.from_pretrained`."""
         _ = (sub_processor_type, kwargs)
@@ -136,7 +145,7 @@ class RalfProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> RalfLayoutTokenizer:
         """Load the local layout tokenizer for `ProcessorMixin.from_pretrained`."""
         _ = sub_processor_type
@@ -205,7 +214,7 @@ class RalfProcessor(ProcessorMixin):
 
     def _coerce_bbox(
         self,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None,
+        bbox: Float[torch.Tensor, "..."] | RalfSequenceInput | None,
         *,
         labels: Int[torch.Tensor, "batch elements"],
         box_format: BoxFormat | str,
@@ -237,27 +246,41 @@ class RalfProcessor(ProcessorMixin):
     def __call__(
         self,
         *,
-        images: object = None,
-        saliency: object = None,
+        images: ImageInput | Sequence[ImageInput] | None = None,
+        saliency: ImageInput | Sequence[ImageInput] | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: Int[torch.Tensor, "..."]
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        bbox: Float[torch.Tensor, "..."] | RalfSequenceInput | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[bool]
+        | Sequence[Sequence[bool]]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-        retrieved_layouts: Mapping[str, object] | None = None,
-        retrieved_images: object = None,
-        retrieved_saliency: object = None,
+        retrieved_layouts: Mapping[
+            str, RalfRetrievalValue | Shaped[torch.Tensor, "..."]
+        ]
+        | None = None,
+        retrieved_images: RalfSequenceInput | Shaped[torch.Tensor, "..."] | None = None,
+        retrieved_saliency: RalfSequenceInput
+        | Shaped[torch.Tensor, "..."]
+        | None = None,
         retrieved_indexes: Int[torch.Tensor, "batch candidates"]
         | Sequence[Sequence[int]]
         | None = None,
-        retrieval: Mapping[str, object] | None = None,
-        relations: object = None,
+        retrieval: Mapping[
+            str,
+            RalfRetrievalValue
+            | Shaped[torch.Tensor, "..."]
+            | Mapping[str, Shaped[torch.Tensor, "..."]],
+        ]
+        | None = None,
+        relations: Mapping[str, RalfRetrievalValue] | None = None,
         batch_size: int = 1,
         return_tensors: RalfReturnTensor = "pt",
     ) -> BatchEncoding:
@@ -333,28 +356,46 @@ class RalfProcessor(ProcessorMixin):
         )
         if explicit_layouts is not None:
             output["retrieval"] = self._build_retrieval_batch(
-                explicit_layouts,
-                retrieved_images
-                if retrieved_images is not None
-                else retrieval_payload.get("images"),
-                retrieved_saliency
-                if retrieved_saliency is not None
-                else retrieval_payload.get("saliency"),
-                retrieved_indexes
-                if retrieved_indexes is not None
-                else retrieval_payload.get("ids"),
+                cast(
+                    Mapping[str, RalfRetrievalValue | Shaped[torch.Tensor, "..."]]
+                    | RalfSequenceInput
+                    | Shaped[torch.Tensor, "..."],
+                    explicit_layouts,
+                ),
+                cast(
+                    Shaped[torch.Tensor, "..."] | RalfSequenceInput | None,
+                    retrieved_images
+                    if retrieved_images is not None
+                    else retrieval_payload.get("images"),
+                ),
+                cast(
+                    Shaped[torch.Tensor, "..."] | RalfSequenceInput | None,
+                    retrieved_saliency
+                    if retrieved_saliency is not None
+                    else retrieval_payload.get("saliency"),
+                ),
+                cast(
+                    Int[torch.Tensor, "batch candidates"]
+                    | Sequence[Sequence[int]]
+                    | None,
+                    retrieved_indexes
+                    if retrieved_indexes is not None
+                    else retrieval_payload.get("ids"),
+                ),
             )
         return output
 
     def _build_retrieval_batch(
         self,
-        layouts: object,
-        images: object,
-        saliency: object,
-        indexes: object,
+        layouts: Mapping[str, RalfRetrievalValue | Shaped[torch.Tensor, "..."]]
+        | RalfSequenceInput
+        | Shaped[torch.Tensor, "..."],
+        images: Shaped[torch.Tensor, "..."] | RalfSequenceInput | None,
+        saliency: Shaped[torch.Tensor, "..."] | RalfSequenceInput | None,
+        indexes: Int[torch.Tensor, "batch candidates"] | Sequence[Sequence[int]] | None,
     ) -> RalfRetrievedBatch:
         data = cast(
-            Mapping[str, object],
+            Mapping[str, RalfRetrievalValue | Shaped[torch.Tensor, "..."]],
             layouts if isinstance(layouts, Mapping) else {"bbox": layouts},
         )
         bbox = torch.as_tensor(data["bbox"], dtype=torch.float32)
@@ -388,8 +429,18 @@ class RalfProcessor(ProcessorMixin):
         sequences: Int[torch.Tensor, "batch tokens"],
         *,
         output_type: Literal["dataclass", "dict"] = "dataclass",
-        intermediates: dict[str, object] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        intermediates: dict[str, Mapping[str, Shaped[torch.Tensor, "..."] | str]]
+        | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Decode generated token ids to the common output schema."""
         decoded = self.layout_tokenizer.decode_layout(sequences.cpu())
         output = LayoutGenerationOutput(

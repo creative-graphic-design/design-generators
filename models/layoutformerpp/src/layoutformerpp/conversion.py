@@ -9,7 +9,11 @@ import torch
 from jaxtyping import Shaped
 from huggingface_hub import ModelCard
 from laygen.common import ConditionType, DatasetName
-from laygen.common.model_card import ParityMetric, build_layout_model_card
+from laygen.common.model_card import (
+    ParityMetric,
+    ParityMetricInput,
+    build_layout_model_card,
+)
 
 from .tasks import (
     LayoutFormerPPTask,
@@ -75,7 +79,7 @@ def layoutformerpp_model_card(
     *,
     dataset: DatasetName | str,
     task: LayoutFormerPPTask | ConditionType | str,
-    parity_metrics: list[ParityMetric | dict[str, object]] | None = None,
+    parity_metrics: list[ParityMetricInput] | None = None,
 ) -> ModelCard:
     """Build a Hub model card for one LayoutFormer++ checkpoint."""
     normalized_dataset = normalize_layoutformerpp_dataset(dataset)
@@ -155,7 +159,7 @@ def write_layoutformerpp_model_card(
     *,
     dataset: DatasetName | str,
     task: LayoutFormerPPTask | ConditionType | str,
-    parity_metrics: list[ParityMetric | dict[str, object]] | None = None,
+    parity_metrics: list[ParityMetricInput] | None = None,
 ) -> Path:
     """Write the checkpoint README model card next to converted weights."""
     output_dir.mkdir(parents=True, exist_ok=True)

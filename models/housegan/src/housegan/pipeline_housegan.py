@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, TypeAlias, cast
+from typing import TYPE_CHECKING, ClassVar, TypeAlias, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
 from laygen.common.bbox import BoxFormat
@@ -21,9 +21,19 @@ from laygen.pipelines import (
 )
 
 from .configuration_housegan import HouseGanConfig
-from .graph_schema import HouseGanSceneGraph
+from .graph_schema import (
+    HouseGanRelationPayload,
+    HouseGanSceneGraph,
+    HouseGanSceneGraphPayload,
+)
 from .modeling_housegan import HouseGanGenerator
 from .processing_housegan import HouseGanProcessor, OutputType
+
+
+if TYPE_CHECKING:
+    from laygen.pipelines.base import PipelineComponent
+else:
+    PipelineComponent = object
 
 NestedBoolList: TypeAlias = list[bool] | list[list[bool]]
 NestedFloatList: TypeAlias = list[float] | list[list[float]] | list[list[list[float]]]
@@ -35,7 +45,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> HouseGanGenerator:
     if subfolder is None:
         return HouseGanGenerator.from_pretrained(
             pretrained_model_name_or_path,
@@ -53,7 +63,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> HouseGanProcessor:
     if subfolder is None:
         return HouseGanProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -110,7 +120,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, PipelineComponent | None],
     ) -> "HouseGanPipeline":
         """Build a pipeline from loaded model and processor components."""
         return cls(
@@ -120,7 +130,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         *,
         batch_size: int = 1,
@@ -145,14 +155,23 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
         scene_graph: HouseGanSceneGraph
-        | Mapping[str, object]
-        | list[Mapping[str, object]]
+        | HouseGanSceneGraphPayload
+        | list[HouseGanSceneGraphPayload]
         | None = None,
-        relations: object | None = None,
+        relations: Sequence[HouseGanRelationPayload] | None = None,
         latents: Float[torch.Tensor, "elements latent"] | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[dict[str, str | int | float | bool | None]]
+            | None,
+        ]
+    ):
         """Generate a floorplan layout from room relation constraints."""
         del num_elements, num_inference_steps
         if batch_size < 1:
@@ -212,13 +231,15 @@ class HouseGanPipeline(LayoutGenerationPipeline):
 
 def _expand_graph_batch(
     scene_graph: HouseGanSceneGraph
-    | Mapping[str, object]
-    | list[Mapping[str, object]]
+    | HouseGanSceneGraphPayload
+    | list[HouseGanSceneGraphPayload]
     | None,
     batch_size: int,
-) -> list[HouseGanSceneGraph | Mapping[str, object] | None]:
+) -> list[HouseGanSceneGraph | HouseGanSceneGraphPayload | None]:
     if isinstance(scene_graph, list):
-        return cast(list[HouseGanSceneGraph | Mapping[str, object] | None], scene_graph)
+        return cast(
+            list[HouseGanSceneGraph | HouseGanSceneGraphPayload | None], scene_graph
+        )
     return [scene_graph for _ in range(batch_size)]
 
 
@@ -226,7 +247,16 @@ def _merge_outputs(
     outputs: list[LayoutGenerationOutput],
     *,
     output_type: OutputType,
-) -> LayoutGenerationOutput | dict[str, object]:
+) -> (
+    LayoutGenerationOutput
+    | dict[
+        str,
+        Shaped[torch.Tensor, "..."]
+        | dict[int, str]
+        | list[dict[str, str | int | float | bool | None]]
+        | None,
+    ]
+):
     if len(outputs) == 1:
         output = outputs[0]
     else:

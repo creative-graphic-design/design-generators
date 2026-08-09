@@ -1,8 +1,9 @@
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
-from layoutganpp.conversion import config_from_checkpoint_args
+from layoutganpp.conversion import CheckpointArgs, config_from_checkpoint_args
 from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
 
 
@@ -34,7 +35,7 @@ def test_config_from_checkpoint_mapping_and_bad_args():
     )
     assert config.dataset_name == "rico13"
     with pytest.raises(TypeError):
-        config_from_checkpoint_args(object())
+        config_from_checkpoint_args(cast(CheckpointArgs, object()))
 
 
 def test_state_dict_uses_vendor_generator_keys():

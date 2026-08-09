@@ -57,7 +57,7 @@ def main() -> None:
     print(json.dumps(manifest, indent=2, sort_keys=True))
 
 
-def _file_record(path: Path, file_id: str) -> dict[str, object]:
+def _file_record(path: Path, file_id: str) -> dict[str, str | bool | int]:
     if not path.exists():
         return {"file_id": file_id, "path": str(path), "exists": False}
     digest = hashlib.sha256()

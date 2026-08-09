@@ -26,7 +26,7 @@ class LayoutDetrImageProcessor(BaseImageProcessor):
         background_size: int = 256,
         image_mean: Sequence[float] = (0.485, 0.456, 0.406),
         image_std: Sequence[float] = (0.229, 0.224, 0.225),
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize image normalization settings."""
         super().__init__(**kwargs)
@@ -51,7 +51,7 @@ class LayoutDetrImageProcessor(BaseImageProcessor):
         | str = BackgroundPreprocessing.none,
         canvas_size: tuple[int, int] | None = None,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> BatchFeature:
         """Preprocess a background image or batch.
 

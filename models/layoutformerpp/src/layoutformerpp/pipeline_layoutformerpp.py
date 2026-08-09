@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import ClassVar, cast
+from typing import ClassVar, TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Int
-from transformers import PretrainedConfig
-
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -18,11 +16,22 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.pipelines.base import PipelineComponent
+from transformers import PretrainedConfig
+from transformers.pipelines.base import GenericTensor
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
 from .processing_layoutformerpp import LayoutFormerPPProcessor
 from .tasks import OutputType
+
+LayoutFormerPPOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor | dict[int, str] | dict[str, GenericTensor | str | BoxFormat] | None,
+]
+LayoutFormerPPBBoxInput: TypeAlias = (
+    GenericTensor | list[list[int | float]] | list[list[list[int | float]]] | None
+)
 
 
 def _load_model_component(
@@ -30,7 +39,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutFormerPPForConditionalGeneration:
     if subfolder is not None:
         return LayoutFormerPPForConditionalGeneration.from_pretrained(
             pretrained_model_name_or_path,
@@ -48,7 +57,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> LayoutFormerPPProcessor:
     if subfolder is not None:
         return LayoutFormerPPProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -109,8 +118,8 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
-    ) -> "LayoutFormerPPPipeline":
+        components: Mapping[str, PipelineComponent | None],
+    ) -> LayoutFormerPPPipeline:
         """Build a pipeline from loaded root components."""
         return cls(
             config=cast(LayoutFormerPPConfig, config),
@@ -128,7 +137,7 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         labels: list[list[int | str]]
         | Int[torch.Tensor, "batch elements"]
         | None = None,
-        bbox: object = None,
+        bbox: LayoutFormerPPBBoxInput = None,
         mask: Bool[torch.Tensor, "batch elements"] | None = None,
         relations: list[list[tuple[int, int, int, int, int]]]
         | Int[torch.Tensor, "batch relations relation_attrs"]
@@ -144,7 +153,7 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
         do_sample: bool | None = None,
         top_k: int = 10,
         temperature: float = 0.7,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | LayoutFormerPPOutputDict:  # ty: ignore[invalid-method-override]
         """Generate layouts by encoding conditions, generating ids, and decoding.
 
         Args:

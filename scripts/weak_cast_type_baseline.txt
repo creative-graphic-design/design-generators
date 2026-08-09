@@ -2,38 +2,3 @@
 # These casts sit at dynamic data boundaries such as JSON, dataset rows,
 # vendor/config payloads, and framework component dictionaries. Do not add
 # entries for new code; replace new cast targets with precise local types.
-lib/laygen/src/laygen/common/tokenization.py	dict[str, object]	raw_vocab = cast(dict[str, object], json.load(f))
-lib/traingen-parity/src/traingen_parity/determinism.py	tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object]	tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object],
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	list[object]	_bottom_two_layers(cast(list[object], group), out)
-models/ds-gan/src/ds_gan/conversion.py	Mapping[str, object]	return cast(Mapping[str, object], args)
-models/ds-gan/src/ds_gan/processing_ds_gan.py	dict[str, object]	annotations = cast(dict[str, object], example.get("annotations", example))
-models/ds-gan/src/ds_gan/processing_ds_gan.py	list[object | None]	return cast(list[object | None], merged)
-models/ds-gan/src/ds_gan/processing_ds_gan.py	list[object]	raw_boxes = cast(list[object], annotations["box_elem"])
-models/ds-gan/src/ds_gan/processing_ds_gan.py	list[object]	raw_labels = cast(list[object], annotations["cls_elem"])
-models/flex-dm/src/flex_dm/data_specs.py	Mapping[str, Mapping[str, object]]	columns = cast(Mapping[str, Mapping[str, object]], spec["columns"])
-models/flex-dm/src/flex_dm/processing_flex_dm.py	dict[str, object]	vocabulary=cast(dict[str, object], data.get("vocabulary", {})),
-models/housegan/src/housegan/datasets.py	tuple[object, object]	room_types, room_bbs = cast(tuple[object, object], row)
-models/housegan/src/housegan/graph_schema.py	Mapping[str, object]	item = cast(Mapping[str, object], raw_node)
-models/housegan/src/housegan/graph_schema.py	Mapping[str, object] | None	attributes=cast(Mapping[str, object] | None, item.get("attributes")),
-models/housegan/src/housegan/graph_schema.py	Sequence[object]	Sequence[object],
-models/housegan/src/housegan/graph_schema.py	Sequence[object]	for item in cast(Sequence[object], raw_relations):
-models/housegan/src/housegan/graph_schema.py	Sequence[object]	return [cast(int | str, item) for item in cast(Sequence[object], values)]
-models/housegan/src/housegan/graph_schema.py	Sequence[object]	values = list(cast(Sequence[object], item))
-models/housegan/src/housegan/pipeline_housegan.py	list[HouseGanSceneGraph | Mapping[str, object] | None]	return cast(list[HouseGanSceneGraph | Mapping[str, object] | None], scene_graph)
-models/layout-detr/src/layout_detr/processing_layout_detr.py	dict[str, object]	return cast(dict[str, object], json.loads(path.read_text(encoding="utf-8")))
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	Mapping[str, object]	LayoutFIDStatistics.from_mapping(cast(Mapping[str, object], statistics))
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	Mapping[str, object]	cast(Mapping[str, object], reference_statistics)
-models/layout-gpt/src/layout_gpt/exemplars.py	Sequence[Mapping[str, object]]	records = cast(Sequence[Mapping[str, object]], json.loads(Path(path).read_text()))
-models/ltnet/src/ltnet/processing_ltnet.py	Mapping[str, object]	item = cast(Mapping[str, object], edge)
-models/ltnet/src/ltnet/processing_ltnet.py	Mapping[str, object]	item = cast(Mapping[str, object], node)
-models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for edge in cast(Sequence[object], edges):
-models/ltnet/src/ltnet/processing_ltnet.py	Sequence[object]	for node in cast(Sequence[object], nodes):
-models/layoutganpp/src/layoutganpp/conversion.py	Mapping[str, object]	return cast(Mapping[str, object], args)
-models/postero/src/postero/records.py	Mapping[str, object]	return cast(Mapping[str, object], value)
-models/ralf/src/ralf/datasets.py	list[object]	values = list(cast(list[object], labels))
-models/ralf/src/ralf/modeling_ralf.py	Mapping[str, list[object]] | None	Mapping[str, list[object]] | None, kwargs.get("relationship_table")
-models/ralf/src/ralf/modeling_ralf.py	list[object]	for element in cast(list[object], relation)
-models/ralf/src/ralf/pipeline_ralf.py	Mapping[str, list[object]] | None	Mapping[str, list[object]] | None,
-models/ralf/src/ralf/processing_ralf.py	Mapping[str, object]	Mapping[str, object],
-models/smarttext/src/smarttext/processing_smarttext.py	Sequence[Mapping[str, object]]	candidate_from_reference_json(cast(Sequence[Mapping[str, object]], row))
-models/smarttext/src/smarttext/processing_smarttext.py	Sequence[Mapping[str, object]]	cast(Sequence[Mapping[str, object]], candidate_boxes)

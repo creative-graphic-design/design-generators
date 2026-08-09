@@ -10,7 +10,7 @@ from typing import Literal, Self, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import BatchEncoding, ProcessorMixin
 
 from laygen.common.bbox import (
@@ -25,7 +25,9 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_housegan import HouseGanConfig
 from .graph_schema import (
+    HouseGanRelationPayload,
     HouseGanSceneGraph,
+    HouseGanSceneGraphPayload,
     complete_signed_edges,
     graph_to_node_features,
     normalize_scene_graph,
@@ -70,7 +72,7 @@ class HouseGanProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata."""
         del push_to_hub, kwargs
@@ -99,7 +101,7 @@ class HouseGanProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> Self:
         """Load processor metadata from ``processor_config.json``."""
         del cache_dir, force_download, local_files_only, token, revision, kwargs
@@ -121,11 +123,25 @@ class HouseGanProcessor(ProcessorMixin):
         self,
         *,
         condition_type: ConditionType | str = ConditionType.relation,
-        scene_graph: HouseGanSceneGraph | Mapping[str, object] | None = None,
-        relations: object | None = None,
-        labels: object | None = None,
-        bbox: object | None = None,
-        mask: object | None = None,
+        scene_graph: HouseGanSceneGraph | HouseGanSceneGraphPayload | None = None,
+        relations: Sequence[HouseGanRelationPayload] | None = None,
+        labels: Int[torch.Tensor, "..."]
+        | Int[np.ndarray, "..."]
+        | Sequence[Sequence[int]]
+        | Sequence[int]
+        | None = None,
+        bbox: Float[torch.Tensor, "... 4"]
+        | Float[np.ndarray, "... 4"]
+        | Sequence[Sequence[Sequence[float]]]
+        | Sequence[Sequence[float]]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Bool[np.ndarray, "..."]
+        | Sequence[Sequence[bool]]
+        | Sequence[bool]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -229,10 +245,19 @@ class HouseGanProcessor(ProcessorMixin):
         labels: Int[torch.Tensor, "elements"],
         edges: Int[torch.Tensor, "edges 3"] | None = None,
         node_features: Float[torch.Tensor, "elements room_labels"] | None = None,
-        scene_graph: object | None = None,
+        scene_graph: HouseGanSceneGraph | None = None,
         output_type: OutputType = "dataclass",
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | dict[str, Shaped[torch.Tensor, "..."] | HouseGanSceneGraph | None]
+            | None,
+        ]
+    ):
         """Convert generated room masks to public normalized boxes."""
         bbox_ltrb = mask_to_ltrb(masks, threshold=0.0)
         bbox_xywh = (

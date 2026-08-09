@@ -1,7 +1,5 @@
 """Diffusers pipeline for DLT layout generation."""
 
-from __future__ import annotations
-
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Self, assert_never, cast
@@ -9,7 +7,6 @@ from typing import Self, assert_never, cast
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
-
 from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
@@ -46,10 +43,6 @@ _SUPPORTED_CONDITION_TYPES = frozenset(
     {ConditionType.unconditional, ConditionType.label, ConditionType.label_size}
 )
 PipelineComponents = dict[str, object]
-PipelineOutputValue = (
-    torch.Tensor | dict[int, str] | list[torch.Tensor] | dict[str, str] | None
-)
-PipelineOutputDict = dict[str, PipelineOutputValue]
 
 
 def normalize_condition_type(
@@ -92,7 +85,19 @@ def _require_condition_inputs(
 
 def _format_pipeline_output(
     output: LayoutGenerationOutput, output_kind: OutputType
-) -> LayoutGenerationOutput | PipelineOutputDict:
+) -> (
+    LayoutGenerationOutput
+    | dict[
+        str,
+        Float[torch.Tensor, "..."]
+        | Int[torch.Tensor, "..."]
+        | Bool[torch.Tensor, "..."]
+        | dict[int, str]
+        | list[Float[torch.Tensor, "..."]]
+        | dict[str, str]
+        | None,
+    ]
+):
     """Convert a DLT output dataclass to the requested public container."""
     match output_kind:
         case OutputType.dataclass:
@@ -162,7 +167,19 @@ class DLTPipeline(DiffusionPipeline):
         temperature: float | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | PipelineOutputDict:
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Float[torch.Tensor, "..."]
+            | Int[torch.Tensor, "..."]
+            | Bool[torch.Tensor, "..."]
+            | dict[int, str]
+            | list[Float[torch.Tensor, "..."]]
+            | dict[str, str]
+            | None,
+        ]
+    ):
         """Run DLT joint denoising and return generated layouts.
 
         Args:

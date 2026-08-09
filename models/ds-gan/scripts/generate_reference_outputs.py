@@ -7,10 +7,11 @@ import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Final
+from typing import Final, Iterator
 
 import numpy as np
 import torch
+from jaxtyping import Float
 from PIL import Image
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
@@ -25,7 +26,7 @@ _VENDOR_MODEL: Final[Path] = Path("model.py")
 _BILINEAR: Final = Image.Resampling.BILINEAR
 
 
-class PosterLayoutTestCanvas(Dataset[torch.Tensor]):
+class PosterLayoutTestCanvas(Dataset[Float[torch.Tensor, "channels height width"]]):
     """Vendor-equivalent test canvas loader without CWD side effects."""
 
     def __init__(
@@ -44,7 +45,7 @@ class PosterLayoutTestCanvas(Dataset[torch.Tensor]):
         """Return the number of test canvases."""
         return len(self.image_paths)
 
-    def __getitem__(self, index: int) -> torch.Tensor:
+    def __getitem__(self, index: int) -> Float[torch.Tensor, "channels height width"]:
         """Return a vendor-preprocessed RGB plus saliency tensor."""
         image_path = self.image_paths[index]
         image = Image.open(image_path).convert("RGB")
@@ -167,7 +168,9 @@ def _prepare_model_weight_dir(asset_root: Path) -> None:
             target.symlink_to(Path("..") / filename)
 
 
-def _random_init(batch_size: int, max_elem: int) -> torch.Tensor:
+def _random_init(
+    batch_size: int, max_elem: int
+) -> Float[torch.Tensor, "batch elements two four"]:
     probs = np.array([0.1, 0.8, 1.0, 1.0])
     class_ids = torch.tensor(
         np.random.choice(4, size=(batch_size, max_elem, 1), p=probs / probs.sum())
@@ -183,7 +186,9 @@ def _random_init(batch_size: int, max_elem: int) -> torch.Tensor:
     return torch.concat([classes.unsqueeze(2), boxes], dim=2)
 
 
-def _pil_to_tensor(image: Image.Image, *, mode: str) -> torch.Tensor:
+def _pil_to_tensor(
+    image: Image.Image, *, mode: str
+) -> Float[torch.Tensor, "channels height width"]:
     resized = image.resize((240, 350), _BILINEAR)
     array = np.asarray(resized, dtype=np.float32) / 255.0
     if mode == "L":
@@ -192,7 +197,7 @@ def _pil_to_tensor(image: Image.Image, *, mode: str) -> torch.Tensor:
 
 
 @contextmanager
-def _pushd(path: Path):
+def _pushd(path: Path) -> Iterator[None]:
     previous = Path.cwd()
     os.chdir(path)
     try:

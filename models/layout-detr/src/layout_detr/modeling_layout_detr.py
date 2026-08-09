@@ -855,7 +855,7 @@ class _ReferenceBertModel(nn.Module):  # pragma: no cover
         mode: str = "multimodal",
         encoder_hidden_states: Float[torch.Tensor, "batch tokens hidden"] | None = None,
         encoder_attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
-        **_: object,
+        **_: str | int | float | bool | None,
     ) -> _ReferenceBertOutput | tuple[Float[torch.Tensor, "batch tokens hidden"]]:
         input_shape = input_ids.size()
         if attention_mask is None:

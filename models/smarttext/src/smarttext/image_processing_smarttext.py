@@ -39,7 +39,7 @@ class SmartTextImageProcessor(BaseImageProcessor):
         image_size: int = 256,
         rgb_mean: Sequence[float] = (0.485, 0.456, 0.406),
         rgb_std: Sequence[float] = (0.229, 0.224, 0.225),
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize image processor settings."""
         super().__init__(**kwargs)
@@ -64,7 +64,7 @@ class SmartTextImageProcessor(BaseImageProcessor):
         target_min_side: int | None = None,
         rgb_mean: Sequence[float] | None = None,
         rgb_std: Sequence[float] | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> BatchFeature:
         """Preprocess images for the SmartText scorer.
 

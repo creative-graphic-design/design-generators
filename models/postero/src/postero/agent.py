@@ -17,6 +17,7 @@ from laygen.common import (
     normalize_box_format,
     normalize_condition_type,
 )
+from laygen.common.bbox import ArrayLikeInput
 from laygen.modeling_outputs import LayoutGenerationOutput
 from pydantic_ai.settings import ModelSettings
 
@@ -186,8 +187,12 @@ class PosterOAgent(BaseLayoutAgent[RawPosterOResponse]):
         generator: torch.Generator | None = None,
         condition_type: str | ConditionType = ConditionType.content_image,
         labels: Int[torch.Tensor, "batch elements"] | list[int | str] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: str | BoxFormat = BoxFormat.xywh,
         normalized: bool = True,

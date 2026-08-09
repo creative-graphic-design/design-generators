@@ -1,16 +1,13 @@
 """Joint continuous/discrete scheduler for DLT pipelines."""
 
-from __future__ import annotations
-
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, cast
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from diffusers.configuration_utils import ConfigMixin
-from diffusers.configuration_utils import register_to_config
+from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler, DDPMSchedulerOutput
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
@@ -129,7 +126,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
     def add_noise_jointly(
         self,
         vec_cont: Float[torch.Tensor, "batch elements 4"],
-        vec_cat: dict[str, Float[torch.Tensor, "..."] | Int[torch.Tensor, "..."]],
+        vec_cat: Mapping[str, Float[torch.Tensor, "..."] | Int[torch.Tensor, "..."]],
         timesteps: Int[torch.Tensor, "batch"],
         noise: Float[torch.Tensor, "batch elements 4"],
         generator: torch.Generator | None = None,
