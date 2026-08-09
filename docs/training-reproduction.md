@@ -146,6 +146,12 @@ CUDA_VISIBLE_DEVICES="${gpus[0]}" setsid ./train-one-seed.sh &
 
 Each training-first package should include `models/<package>/TRAINING.md`. Its `Reproduction Results` section is the durable summary; issue comments and PR bodies may quote it, but they must not be the only place where the result lives.
 
+Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md)
+as the canonical `TRAINING.md` structure. The template fixes the required
+sections, `Reproduction Results` status vocabulary, regeneration metadata block,
+seed policy, and README supported-checkpoints cross-check surface enforced by
+`scripts/check_training_doc_template.py`.
+
 Per-model `TRAINING.md` files must be result-focused. Open with the conclusion,
 including the reproduction verdict, covered datasets, numeric metrics, and seed
 scope. Include only the reproducible training, evaluation, conversion, and smoke

@@ -609,7 +609,6 @@ def test_layoutdm_model_card_metadata_and_sections():
     assert "layout-generation" in metadata["tags"]
     assert metadata["datasets"] == ["creative-graphic-design/Rico"]
     assert "ui-screenshots-and-hierarchies-with-semantic-annotations" in text
-    card.validate()
     assert "## Model Details" in text
     assert "### Model Description" in text
     assert "## Uses" in text

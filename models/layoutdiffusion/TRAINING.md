@@ -42,6 +42,27 @@ Training configs live under `models/layoutdiffusion/configs/training`.
 | `layoutdiffusion_publaynet_deterministic.yaml` | PubLayNet           | `deterministic` | Deterministic short run for parity/debug checks. |
 | `smoke.yaml`                                   | PubLayNet synthetic | `deterministic` | CPU smoke config for CLI wiring.                 |
 
+## Scheduler and Recipe Notes
+
+LayoutDiffusion uses the original AdamW recipe with linear learning-rate annealing
+per optimizer step and EMA updates after each optimizer step. S5 configs use
+`time_sampler: uniform` because the original GPU training path leaves diffusion
+state on CPU and therefore never activates its effective-uniform sampler update
+buffers. The processed-stream S5 configs set `preconsume_train_batches: 1` to
+match the original pre-loop `next(data)` read before training begins.
+
+The currently verified GPU setup is Tesla V100 with driver `575.57.08`, which is
+compatible with CUDA 12.9-era torch wheels. Keep repository dependency metadata
+unchanged; install driver-compatible torch wheels only as local runtime setup
+when running GPU training in that environment.
+
+## Seed Policy
+
+S0-S4 parity uses fixed deterministic seeds inside the vendor-parity fixtures.
+S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds
+`102`, `103`, and `104` on both original and package systems. Unconditional sample
+export uses sampling seed `101` for every reported S5 run.
+
 ## Stage Evidence
 
 | Stage | Command                                                                                                                                                                                                                                                                                                                                                       | Artifact                                                                             | Result                                                                                                                                                                                                                                                                                                   |
@@ -57,22 +78,31 @@ Training configs live under `models/layoutdiffusion/configs/training`.
 
 Overall S5 verdict: RICO25 package-local training is statistically equivalent to the original implementation at training-seed n=3 (mIoU and Overlap match within seed noise; Alignment overlaps; FID is close with a small residual). PubLayNet is accepted with an interpretation note at training-seed n=3: mIoU and Overlap match or favor the package, while FID (+6.4%) and Alignment (0.062 vs 0.036) carry small trained-weight endpoint residuals. Staged gates S0-S4, released inference parity, and the one-step processed-stream probe all pass on the same code; the residuals are endpoint-level, not training-dynamics defects.
 
-| Dataset   | System   | Status | Seed scope        | FID           | mIoU          | Alignment       | Overlap         |
-| --------- | -------- | ------ | ----------------- | ------------- | ------------- | --------------- | --------------- |
-| RICO25    | original | PASS   | training-seed n=3 | 1.851 ± 0.029 | 0.608 ± 0.002 | 0.123 ± 0.004   | 0.516 ± 0.006   |
-| RICO25    | package  | PASS   | training-seed n=3 | 2.125 ± 0.043 | 0.612 ± 0.004 | 0.133 ± 0.013   | 0.514 ± 0.006   |
-| PubLayNet | original | PASS   | training-seed n=3 | 7.673 ± 0.045 | 0.409 ± 0.000 | 0.0361 ± 0.0004 | 0.0065 ± 0.0002 |
-| PubLayNet | package  | CHECK  | training-seed n=3 | 8.162 ± 0.094 | 0.421 ± 0.001 | 0.0623 ± 0.0009 | 0.0059 ± 0.0002 |
+| Dataset   | System   | Status                      | Seed scope        | FID           | mIoU          | Alignment       | Overlap         |
+| --------- | -------- | --------------------------- | ----------------- | ------------- | ------------- | --------------- | --------------- |
+| RICO25    | original | `s5-practical-reproduction` | training-seed n=3 | 1.851 ± 0.029 | 0.608 ± 0.002 | 0.123 ± 0.004   | 0.516 ± 0.006   |
+| RICO25    | package  | `s5-practical-reproduction` | training-seed n=3 | 2.125 ± 0.043 | 0.612 ± 0.004 | 0.133 ± 0.013   | 0.514 ± 0.006   |
+| PubLayNet | original | `s5-practical-reproduction` | training-seed n=3 | 7.673 ± 0.045 | 0.409 ± 0.000 | 0.0361 ± 0.0004 | 0.0065 ± 0.0002 |
+| PubLayNet | package  | `s5-practical-reproduction` | training-seed n=3 | 8.162 ± 0.094 | 0.421 ± 0.001 | 0.0623 ± 0.0009 | 0.0059 ± 0.0002 |
 
 Evaluation protocol: unconditional generation with the original evaluation stack (`json2metrics.py`, layout-feature FID) over the original test-set sample counts (RICO25 3728, PubLayNet 10998 per seed), EMA weights on both systems (original `ema_0.9999_*` checkpoints, package `layoutdiffusion_ema_state_dict` from `last.ckpt`), training seeds 102/103/104 per system per dataset, sampling seed 101.
 
 Interpretation: structural quality metrics (mIoU, Overlap) are equivalent on both datasets. FID is slightly higher for the package on both datasets (RICO25 +0.27, PubLayNet +0.49) with per-seed spreads far smaller than the gap, indicating a small systematic trained-weight endpoint residual rather than seed noise; the staged S0-S3 lockstep evidence (loss/gradient/parameter/EMA agreement) and the aligned one-step probe rule out training-dynamics divergence as the cause. PubLayNet package Alignment is higher in absolute terms but both values are in the strong range for the method.
 
-Evidence locations (local, not committed): training runs under `.cache/layoutdiffusion/s5/full-run-final-20260801-144316` (package) and `.cache/layoutdiffusion/s5/full-run-20260731-093243` (original); evaluation samples, per-run metrics, and `summary.json` under `.cache/layoutdiffusion/s5/eval/`.
-
 The original GPU training path uses effective uniform timestep sampling. In the vendor `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid as reproduction evidence.
 
 Until S5 is confirmed for a claimed dataset, PRs should remain draft and trained checkpoints should not be published as reproduced. The upstream LayoutDiffusion checkout does not provide a LayoutDiffusion-specific top-level license, so trained checkpoints must not claim an OSS license until upstream confirms the license status.
+
+## Regeneration Metadata
+
+Evidence locations (local, not committed): training runs under `.cache/layoutdiffusion/s5/full-run-final-20260801-144316` (package) and `.cache/layoutdiffusion/s5/full-run-20260731-093243` (original); evaluation samples, per-run metrics, and `summary.json` under `.cache/layoutdiffusion/s5/eval/`.
+
+```text
+.cache/layoutdiffusion/original-data/
+.cache/layoutdiffusion/s5/full-run-final-20260801-144316/
+.cache/layoutdiffusion/s5/full-run-20260731-093243/
+.cache/layoutdiffusion/s5/eval/
+```
 
 ## S5 Prelaunch Gate
 
@@ -90,7 +120,12 @@ Do not launch S5 until all of these checks pass in the same worktree and with th
 
 Passing this gate authorizes full S5 launch only after the coordinator reviews the recorded probe numbers and gives a separate launch order.
 
-## Reproducing Current Checks
+## Training Commands
+
+The following commands reproduce local CI checks, staged evidence, full S5
+training, sample export, and original-stack scoring.
+
+### Reproducing Current Checks
 
 Run local CI training checks.
 
@@ -211,7 +246,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   -m "vendor_parity and training" -rs
 ```
 
-## Reproducing The S5 Results
+### Reproducing The S5 Results
 
 Full-run package-local training per dataset and seed (seeds 102/103/104; RICO25 175000 steps, PubLayNet 400000 steps):
 

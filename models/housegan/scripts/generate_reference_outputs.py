@@ -7,19 +7,19 @@ import ast
 import hashlib
 import json
 import platform
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import cast
 
 import numpy as np
 import torch
-from torch import nn
 import torch.nn.functional as F
-from torch.nn.utils import spectral_norm
-
+import torch.version
 from housegan.configuration_housegan import HouseGanConfig
 from housegan.graph_schema import relation_from_bboxes
 from housegan.processing_housegan import HouseGanProcessor
+from torch import nn
+from torch.nn.utils import spectral_norm
 
 
 def main() -> None:

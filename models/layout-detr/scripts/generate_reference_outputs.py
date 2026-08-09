@@ -9,16 +9,16 @@ from types import MethodType
 from typing import Protocol, cast
 
 import torch
-from PIL import Image
-from transformers import BertTokenizerFast
-from transformers.tokenization_utils_base import BatchEncoding
-
+import torch.version
 from layout_detr import LayoutDetrProcessor
 from layout_detr.vendor_state import (
     extract_generator_state,
     load_vendor_generator,
     temporary_sys_path,
 )
+from PIL import Image
+from transformers import BertTokenizerFast
+from transformers.tokenization_utils_base import BatchEncoding
 
 
 class _VendorTokenizerProtocol(Protocol):
@@ -38,7 +38,7 @@ class _VendorGeneratorProtocol(Protocol):
     input_proj: torch.nn.Module
     bbox_embed: torch.nn.Module
 
-    def eval(self) -> "_VendorGeneratorProtocol": ...
+    def eval(self) -> _VendorGeneratorProtocol: ...
 
 
 def main() -> None:
