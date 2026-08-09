@@ -68,7 +68,7 @@ class SmartTextProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata and image-processor config.
 
@@ -103,7 +103,7 @@ class SmartTextProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> Self:
         """Load processor metadata from a local checkpoint directory.
 
@@ -162,7 +162,7 @@ class SmartTextProcessor(ProcessorMixin):
         | None = None,
         font: str | Path | ImageFont.FreeTypeFont | ImageFont.ImageFont | None = None,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> BatchEncoding:
         """Encode SmartText public inputs.
 

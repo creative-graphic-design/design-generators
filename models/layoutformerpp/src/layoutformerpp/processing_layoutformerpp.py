@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Literal, assert_never, cast
+from typing import Final, Literal, TypeAlias, assert_never, cast
 
 import torch
-from jaxtyping import Bool, Float, Int, Shaped
+from jaxtyping import Bool, Int
 from transformers import BatchEncoding, ProcessorMixin
+from transformers.pipelines.base import GenericTensor
 
 from laygen.common.bbox import BoxFormat, normalize_box_format, normalize_boxes
 from laygen.common.conditions import (
@@ -39,20 +40,13 @@ from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
 DEFAULT_DATASET: Final[DatasetName] = DatasetName.rico25
 DEFAULT_TASK: Final[LayoutFormerPPTask] = LayoutFormerPPTask.gen_t
-LayoutFormerPPBBoxInput = object
-if TYPE_CHECKING:
-    LayoutFormerPPOutputDict = dict[
-        str,
-        Float[torch.Tensor, "batch elements 4"]
-        | Int[torch.Tensor, "batch elements"]
-        | Bool[torch.Tensor, "batch elements"]
-        | Int[torch.Tensor, "batch tokens"]
-        | dict[int, str]
-        | dict[str, Shaped[torch.Tensor, "..."] | str | BoxFormat]
-        | None,
-    ]
-else:
-    LayoutFormerPPOutputDict = object
+LayoutFormerPPBBoxInput: TypeAlias = (
+    GenericTensor | list[list[int | float]] | list[list[list[int | float]]] | None
+)
+LayoutFormerPPOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor | dict[int, str] | dict[str, GenericTensor | str | BoxFormat] | None,
+]
 
 
 SupportedConditionType = Literal[
@@ -147,7 +141,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LayoutFormerPPTokenizer:
         """Load the local tokenizer for `ProcessorMixin.from_pretrained`."""
         _ = sub_processor_type

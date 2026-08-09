@@ -72,7 +72,7 @@ class HouseGanProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata."""
         del push_to_hub, kwargs
@@ -101,7 +101,7 @@ class HouseGanProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> Self:
         """Load processor metadata from ``processor_config.json``."""
         del cache_dir, force_download, local_files_only, token, revision, kwargs

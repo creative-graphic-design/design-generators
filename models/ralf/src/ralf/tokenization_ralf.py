@@ -44,7 +44,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         self,
         config: RalfConfig | None = None,
         tokenizer_config_file: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize tokenizer metadata and synthetic token strings."""
         if config is None and tokenizer_config_file is not None:
@@ -85,7 +85,9 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
             vocab[f"[{token}]"] = self.config.special_token_id(token)
         return vocab
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(
+        self, text: str, **kwargs: str | int | float | bool | None
+    ) -> list[str]:
         _ = kwargs
         return text.strip().split()
 
@@ -121,7 +123,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         legacy_format: bool | None = None,
         filename_prefix: str | None = None,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str, ...]:
         """Save tokenizer files and the paired `RalfConfig`.
 

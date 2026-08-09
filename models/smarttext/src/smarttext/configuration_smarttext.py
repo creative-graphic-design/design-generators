@@ -108,7 +108,7 @@ class SmartTextConfig(PretrainedConfig):
         original_options: Mapping[str, SmartTextMetadataValue] | None = None,
         conversion_report: Mapping[str, SmartTextMetadataValue | list[str]]
         | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize SmartText configuration."""
         raw_id2label = id2label or DEFAULT_ID2LABEL

@@ -166,6 +166,8 @@ def bad(
         "models/layout-dm/src/layout_dm/example.py\tdict[str, object]\t) -> dict[str, object]:",
         "models/layout-dm/src/layout_dm/example.py\tlist[object]\tvalues: list[object],",
         "models/layout-dm/src/layout_dm/example.py\tobject\t*args: object,",
+        "models/layout-dm/src/layout_dm/example.py\tobject\t**kwargs: object,",
+        "models/layout-dm/src/layout_dm/example.py\tobject\tdef ok(**kwargs: object) -> None:",
         "models/layout-dm/src/layout_dm/example.py\tobject\tvalue: object,",
     }
 

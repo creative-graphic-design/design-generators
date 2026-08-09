@@ -130,7 +130,7 @@ class LayouSynProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str]:
         """Save processor metadata."""
         del kwargs
@@ -151,7 +151,7 @@ class LayouSynProcessor(ProcessorMixin):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LayouSynProcessor:
         """Load processor metadata from a local directory."""
         del cache_dir, force_download, local_files_only, token, revision

@@ -130,7 +130,7 @@ class RalfConfig(PretrainedConfig):
         retrieval_metadata: RalfConfigMetadata | None = None,
         original_config: RalfConfigMetadata | None = None,
         original_hydra_config: RalfConfigMetadata | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize configuration values."""
         labels = (

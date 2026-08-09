@@ -114,7 +114,7 @@ class LayoutActionConfig(PretrainedConfig):
         | None = None,
         model_type: str | None = None,
         transformers_version: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize LayoutAction metadata and derived token ids."""
         _ = (model_type, transformers_version)

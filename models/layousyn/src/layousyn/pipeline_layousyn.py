@@ -80,7 +80,7 @@ class LayouSynPipeline(DiffusionPipeline):
     def save_pretrained(
         self,
         save_directory: str | os.PathLike[str],
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save pipeline components plus processor metadata."""
         super().save_pretrained(save_directory, **kwargs)
@@ -90,7 +90,7 @@ class LayouSynPipeline(DiffusionPipeline):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str | os.PathLike[str],
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LayouSynPipeline:
         """Load pipeline and restore local processor metadata."""
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)

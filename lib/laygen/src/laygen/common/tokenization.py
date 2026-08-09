@@ -87,7 +87,9 @@ class WhitespaceTokenizerMixin:
         """Return token-to-id mapping."""
         return dict(self._token2id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(
+        self, text: str, **kwargs: str | int | float | bool | None
+    ) -> list[str]:
         _ = kwargs
         return split_whitespace_tokens(text)
 

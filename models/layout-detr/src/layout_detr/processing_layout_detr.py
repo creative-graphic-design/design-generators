@@ -59,7 +59,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata and image-processor config."""
         del push_to_hub, kwargs
@@ -78,7 +78,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "LayoutDetrProcessor":
         """Load processor metadata from a checkpoint directory."""
         del cache_dir, force_download, local_files_only, token, revision, kwargs

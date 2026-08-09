@@ -37,6 +37,11 @@ class LayoutFIDStatsSplit(StrEnum):
     test = auto()
 
 
+LayoutFIDConfigValue = (
+    str | int | float | bool | None | list[str] | list[int] | dict[str, str]
+)
+
+
 DEFAULT_REFERENCE_STATS: Final[dict[str, str]] = {
     "val": "reference_stats/val.npz",
     "test": "reference_stats/test.npz",
@@ -145,7 +150,7 @@ class LayoutFIDConfig(PretrainedConfig):
         label_id_offset: int = 0,
         pad_label_id: int = 0,
         reference_stats: dict[str, str] | None = None,
-        **kwargs: object,
+        **kwargs: LayoutFIDConfigValue,
     ) -> None:
         """Initialize a layout FID checkpoint configuration."""
         super().__init__(**kwargs)  # ty: ignore[invalid-argument-type]

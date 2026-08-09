@@ -120,7 +120,7 @@ class LTNetProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LTNetRelationTokenizer:
         """Load tokenizer for ``ProcessorMixin.from_pretrained``."""
         _ = sub_processor_type
@@ -431,7 +431,7 @@ class LTNetProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str, ...]:
         """Save processor metadata and tokenizer files."""
         paths = super().save_pretrained(

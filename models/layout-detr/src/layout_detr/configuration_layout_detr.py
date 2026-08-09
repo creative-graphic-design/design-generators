@@ -57,7 +57,7 @@ class LayoutDetrConfig(PretrainedConfig):
         processor_subfolder: str = "processor",
         original_training_options: Mapping[str, LayoutDetrMetadataValue] | None = None,
         conversion_report: Mapping[str, LayoutDetrMetadataValue] | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize LayoutDETR configuration."""
         raw_id2label = id2label or DEFAULT_ID2LABEL

@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, TypedDict, assert_never, cast
+from typing import ClassVar, TypeAlias, TypedDict, assert_never, cast
 
 import torch
-from jaxtyping import Bool, Float, Int, Shaped
+from jaxtyping import Bool, Float, Int
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -17,14 +17,10 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.pipelines.base import PipelineComponent
 from transformers import PretrainedConfig
+from transformers.pipelines.base import GenericTensor
 from transformers.tokenization_utils_base import BatchEncoding
-
-if TYPE_CHECKING:
-    from laygen.pipelines.base import PipelineComponent
-else:
-    PipelineComponent = object
-
 
 from .configuration_layoutvae import LayoutVAEConfig
 from .modeling_layoutvae import (
@@ -35,34 +31,27 @@ from .modeling_layoutvae import (
 )
 from .processing_layoutvae import LayoutVAEProcessor
 
-Id2Label = dict[int, str] | dict[str, str]
-if TYPE_CHECKING:
-    LayoutVAEParam = (
-        bool
-        | int
-        | str
-        | list[int]
-        | tuple[int, int]
-        | torch.Generator
-        | BoxFormat
-        | ConditionType
-        | OutputType
-        | Float[torch.Tensor, "..."]
-        | Int[torch.Tensor, "..."]
-        | Bool[torch.Tensor, "..."]
-        | None
-    )
-    LayoutVAEOutputDict = dict[
-        str,
-        Shaped[torch.Tensor, "..."]
-        | dict[int, str]
-        | dict[str, Shaped[torch.Tensor, "..."] | ConditionType | None]
-        | None,
-    ]
-
-else:
-    LayoutVAEParam = object
-    LayoutVAEOutputDict = object
+Id2Label: TypeAlias = dict[int, str] | dict[str, str]
+LayoutVAEParam: TypeAlias = (
+    bool
+    | int
+    | str
+    | list[int]
+    | tuple[int, int]
+    | torch.Generator
+    | BoxFormat
+    | ConditionType
+    | OutputType
+    | GenericTensor
+    | None
+)
+LayoutVAEOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor
+    | dict[int, str]
+    | dict[str, GenericTensor | ConditionType | None]
+    | None,
+]
 
 
 @dataclass(frozen=True)
@@ -319,7 +308,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
     def postprocess(
         self,
         model_outputs: LayoutGenerationOutput | LayoutVAEOutputDict,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LayoutGenerationOutput | LayoutVAEOutputDict:
         """Return generated layouts unchanged."""
         del kwargs

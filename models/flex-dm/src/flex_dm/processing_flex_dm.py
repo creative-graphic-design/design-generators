@@ -94,7 +94,7 @@ class FlexDmProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata next to a converted checkpoint."""
         _ = (push_to_hub, kwargs)
@@ -129,7 +129,7 @@ class FlexDmProcessor(ProcessorMixin):
         revision: str = "main",
         *,
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "FlexDmProcessor":
         """Load processor metadata from a local converted checkpoint."""
         _ = (cache_dir, force_download, local_files_only, token, revision, kwargs)

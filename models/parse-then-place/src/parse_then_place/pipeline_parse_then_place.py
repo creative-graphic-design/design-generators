@@ -32,7 +32,7 @@ class _GenerationModel(Protocol):
         attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         max_length: int,
-        **generate_kwargs: object,
+        **generate_kwargs: str | int | float | bool | torch.Generator | None,
     ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate token ids."""
 
@@ -179,7 +179,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         attention_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         *,
         generation_max_length: int | None = None,
-        **generate_kwargs: object,
+        **generate_kwargs: str | int | float | bool | torch.Generator | None,
     ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate logical-form token ids with the parser stage."""
         if self.parser is None:
@@ -204,7 +204,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         temperature: float | None = None,
         do_sample: bool = True,
         generator: torch.Generator | None = None,
-        **generate_kwargs: object,
+        **generate_kwargs: str | float | bool | torch.Generator | None,
     ) -> Int[torch.Tensor, "batch tokens"]:
         """Generate layout token ids with the placement stage."""
         if self.placement is None:

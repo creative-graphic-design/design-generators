@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Literal, TypedDict, cast
 
 import numpy as np
@@ -22,6 +22,22 @@ from .processing_layoutdiffusion import LayoutDiffusionProcessor
 from .sampling import LayoutDiffusionSamplingConfig
 from .scheduling_layoutdiffusion import LayoutDiffusionScheduler
 from .tokenization_layoutdiffusion import LayoutDiffusionTokenizer
+
+LayoutDiffusionPipelineKwarg = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | Path
+    | torch.dtype
+    | torch.device
+    | LayoutDiffusionTransformer
+    | LayoutDiffusionScheduler
+    | LayoutDiffusionTokenizer
+    | LayoutDiffusionProcessor
+    | Mapping[str, str]
+)
 
 
 class LayoutDiffusionOutputDict(TypedDict, total=False):
@@ -108,7 +124,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         sampling: LayoutDiffusionSamplingConfig,
-        **model_kwargs: object,
+        **model_kwargs: str | int | float | bool | None,
     ) -> LayoutGenerationOutput | LayoutDiffusionOutputDict:
         """Run LayoutDiffusion generation.
 
@@ -254,13 +270,17 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
 
     generate = __call__
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(
+        self, save_directory: str | Path, **kwargs: LayoutDiffusionPipelineKwarg
+    ) -> None:
         """Save a Diffusers pipeline directory."""
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        **kwargs: LayoutDiffusionPipelineKwarg,
     ) -> "LayoutDiffusionPipeline":
         """Load a LayoutDiffusion pipeline and rebuild its processor."""
         tokenizer = kwargs.pop("tokenizer", None)

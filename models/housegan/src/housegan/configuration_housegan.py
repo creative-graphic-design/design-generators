@@ -82,7 +82,7 @@ class HouseGanConfig(PretrainedConfig):
         source_checkpoint: str | None = None,
         conversion_report: HouseGanConversionReport | None = None,
         license_note: str = "GPL-3.0 with upstream research-purpose notice",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize a House-GAN config."""
         kwargs.pop("label2id", None)

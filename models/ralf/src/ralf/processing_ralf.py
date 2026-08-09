@@ -63,7 +63,7 @@ class RalfProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save local RALF processor components.
 
@@ -108,7 +108,7 @@ class RalfProcessor(ProcessorMixin):
         revision: str = "main",
         *,
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "RalfProcessor":
         """Load local RALF processor components without Auto registration."""
         _ = (cache_dir, force_download, token, revision, kwargs)
@@ -131,7 +131,7 @@ class RalfProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> RalfImageProcessor:
         """Load the local image processor for `ProcessorMixin.from_pretrained`."""
         _ = (sub_processor_type, kwargs)
@@ -145,7 +145,7 @@ class RalfProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> RalfLayoutTokenizer:
         """Load the local layout tokenizer for `ProcessorMixin.from_pretrained`."""
         _ = sub_processor_type

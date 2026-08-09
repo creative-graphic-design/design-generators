@@ -182,12 +182,17 @@ def load_vendor_generator(
 class _LegacyTokenizerHelper:
     """Small unpickle-only stand-in for tokenizer helper classes removed upstream."""
 
-    def __init__(self, *args: str | int | bool | None, **kwargs: object) -> None:
+    def __init__(
+        self, *args: str | int | bool | None, **kwargs: str | int | float | bool | None
+    ) -> None:
         del args
         self.__dict__.update(kwargs)
 
     def tokenize(
-        self, text: str, *args: str | int | bool | None, **kwargs: object
+        self,
+        text: str,
+        *args: str | int | bool | None,
+        **kwargs: str | int | float | bool | None,
     ) -> list[str]:
         del args, kwargs
         return str(text).split()

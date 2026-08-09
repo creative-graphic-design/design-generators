@@ -14,9 +14,9 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final, Protocol, cast
 
-from laygen.common.vendor import vendor_root as resolve_vendor_root
 import torch
 from jaxtyping import Float
+from laygen.common.vendor import vendor_root as resolve_vendor_root
 from typing_extensions import TypedDict
 
 DEFAULT_SEED: Final[int] = 42
@@ -94,7 +94,9 @@ class ByteTokenizer:
 class VendorPromptFunction(Protocol):
     """Prompt function signature used by the vendor LayoutGPT script."""
 
-    __globals__: MutableMapping[str, VendorModuleValue]
+    __globals__: MutableMapping[
+        str, VendorModuleValue | Float[torch.Tensor, "examples dimensions"]
+    ]
 
     def __call__(
         self,
@@ -125,7 +127,6 @@ VendorModuleValue = (
     JsonValue
     | VendorRecord
     | random.Random
-    | torch.Tensor
     | ByteTokenizer
     | VendorArgs
     | VendorPromptFunction
@@ -153,7 +154,7 @@ class _ClipModelStub:
 
 
 class _CssUtilsStub(types.ModuleType):
-    def parseString(self, _text: str) -> JsonValue:  # noqa: N802
+    def parseString(self, _text: str) -> JsonValue:
         raise ValueError("force vendor fallback parser")
 
 
@@ -317,10 +318,10 @@ def _vendor_runtime(vendor_root: Path, filename: str) -> Iterator[None]:
         StubbedVendorModule.openai.value
     )
     transformers = types.ModuleType(StubbedVendorModule.transformers.value)
-    setattr(transformers, "StoppingCriteria", _StoppingCriteria)
-    setattr(transformers, "GPT2TokenizerFast", object)
-    setattr(transformers, "LlamaForCausalLM", object)
-    setattr(transformers, "LlamaTokenizer", object)
+    transformers.__dict__["StoppingCriteria"] = _StoppingCriteria
+    transformers.__dict__["GPT2TokenizerFast"] = object
+    transformers.__dict__["LlamaForCausalLM"] = object
+    transformers.__dict__["LlamaTokenizer"] = object
     sys.modules[StubbedVendorModule.transformers.value] = transformers
     sys.modules[StubbedVendorModule.cssutils.value] = _CssUtilsStub(
         StubbedVendorModule.cssutils.value

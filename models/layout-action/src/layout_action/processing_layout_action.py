@@ -231,7 +231,7 @@ class LayoutActionProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor and tokenizer metadata."""
         _ = (push_to_hub, kwargs)
@@ -250,7 +250,7 @@ class LayoutActionProcessor(ProcessorMixin):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "LayoutActionProcessor":
         """Load processor metadata from a checkpoint directory or Hub repo id."""
         tokenizer = LayoutActionTokenizer.from_pretrained(

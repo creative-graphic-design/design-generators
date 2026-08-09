@@ -10,22 +10,20 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
-from transformers import PreTrainedTokenizer
-
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
     clamp_boxes,
-    ltwh_to_xywh,
     ltrb_to_xywh,
-    normalize_boxes,
+    ltwh_to_xywh,
     normalize_box_format,
+    normalize_boxes,
     xywh_to_ltrb,
 )
+from transformers import PreTrainedTokenizer
 
 from .configuration_layoutdiffusion import LayoutDiffusionConfig
 from .labels import public_id_to_vendor_label, vendor_label_to_public_id
-
 
 LayoutDiffusionConfigValue = (
     str
@@ -76,7 +74,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         *,
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
-        **kwargs: object,
+        **kwargs: LayoutDiffusionConfigValue,
     ) -> None:
         """Initialize the tokenizer."""
         if isinstance(config, LayoutDiffusionConfig):
@@ -84,7 +82,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         elif config is None:
             config = self._load_config(
                 layout_config_file=layout_config_file,
-                kwargs=cast(dict[str, LayoutDiffusionConfigValue], kwargs),
+                kwargs=kwargs,
             )
         else:
             config = _config_from_mapping(config)
@@ -114,7 +112,9 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         """Return a copy of token-to-id vocabulary."""
         return dict(self._token_to_id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(
+        self, text: str, **kwargs: str | int | float | bool | None
+    ) -> list[str]:
         """Split a LayoutDiffusion token string on whitespace."""
         _ = kwargs
         return text.strip().split()
@@ -440,8 +440,8 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
-    ) -> "LayoutDiffusionTokenizer":
+        **kwargs: LayoutDiffusionConfigValue,
+    ) -> LayoutDiffusionTokenizer:
         """Load tokenizer from a pipeline root or tokenizer directory."""
         load_path = Path(path)
         tokenizer_dir = load_path / "tokenizer"

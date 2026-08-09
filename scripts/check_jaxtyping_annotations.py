@@ -295,13 +295,13 @@ def contains_weak_top_type(node: ast.AST, resolver: ImportResolver) -> bool:
 
 
 def contains_object_annotation(node: ast.AST, resolver: ImportResolver) -> bool:
-    """Return whether an annotation contains a disallowed object reference."""
+    """Return whether an annotation contains disallowed ``object`` or ``Any``."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         parsed = parse_string_annotation(node)
         if parsed is None:
             return False
         return contains_object_annotation(parsed, resolver)
-    if is_object_type(node, resolver):
+    if is_object_type(node, resolver) or is_any_type(node, resolver):
         return True
     return any(
         contains_object_annotation(child, resolver)
@@ -348,9 +348,11 @@ def alias_target_name(node: ast.AST) -> str | None:
 
 
 def is_type_alias_target(node: ast.AST) -> bool:
-    """Return whether an assignment target is a conventional type alias name."""
+    """Return whether an assignment target is likely a module-level type alias."""
     if isinstance(node, ast.Name):
-        return node.id.endswith("Tensor") or node.id.endswith("Array")
+        return node.id[:1].isupper() or node.id.endswith(
+            ("Tensor", "Array", "Input", "Output", "Payload", "Value")
+        )
     return dotted_name(node) == "TypeAlias"
 
 
@@ -507,8 +509,6 @@ def object_annotation_violations(root: Path) -> list[ObjectAnnotationViolation]:
         visitor = FunctionAnnotationVisitor(text.splitlines())
         visitor.visit(tree)
         for record in visitor.annotations:
-            if record.is_keyword_variadic:
-                continue
             if not contains_object_annotation(record.node, resolver):
                 continue
             violations.append(

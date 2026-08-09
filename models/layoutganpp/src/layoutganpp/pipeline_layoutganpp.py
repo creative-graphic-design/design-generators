@@ -20,10 +20,28 @@ from laygen.pipelines.base import PipelineComponent
 from tokenizers import Encoding
 from transformers import PretrainedConfig
 from transformers.tokenization_utils_base import BatchEncoding
+from transformers.pipelines.base import GenericTensor
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 from .modeling_layoutganpp import LayoutGANPPModel, LayoutGANPPOutputDict, OutputType
 from .processing_layoutganpp import LayoutGANPPProcessor
+
+LayoutGANPPPipelineKwarg = (
+    ConditionType
+    | OutputType
+    | BoxFormat
+    | str
+    | int
+    | bool
+    | list[int]
+    | tuple[int, int]
+    | Encoding
+    | list[Encoding]
+    | Mapping[str, str | int | bool | list[int] | None]
+    | torch.Generator
+    | GenericTensor
+    | None
+)
 
 
 def _load_model_component(
@@ -146,90 +164,14 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         )
 
     def _sanitize_parameters(
-        self, **kwargs: object
+        self, **kwargs: LayoutGANPPPipelineKwarg
     ) -> tuple[
-        dict[
-            str,
-            ConditionType
-            | OutputType
-            | BoxFormat
-            | str
-            | int
-            | bool
-            | list[int]
-            | tuple[int, int]
-            | Encoding
-            | list[Encoding]
-            | Mapping[str, str | int | bool | list[int] | None]
-            | torch.Generator
-            | Float[torch.Tensor, "batch elements 4"]
-            | Bool[torch.Tensor, "batch elements"]
-            | Int[torch.Tensor, "batch elements"]
-            | Float[torch.Tensor, "batch elements latent"]
-            | None,
-        ],
-        dict[
-            str,
-            ConditionType
-            | OutputType
-            | BoxFormat
-            | str
-            | int
-            | bool
-            | list[int]
-            | tuple[int, int]
-            | Encoding
-            | list[Encoding]
-            | Mapping[str, str | int | bool | list[int] | None]
-            | torch.Generator
-            | Float[torch.Tensor, "batch elements 4"]
-            | Bool[torch.Tensor, "batch elements"]
-            | Int[torch.Tensor, "batch elements"]
-            | Float[torch.Tensor, "batch elements latent"]
-            | None,
-        ],
-        dict[
-            str,
-            ConditionType
-            | OutputType
-            | BoxFormat
-            | str
-            | int
-            | bool
-            | list[int]
-            | tuple[int, int]
-            | Encoding
-            | list[Encoding]
-            | Mapping[str, str | int | bool | list[int] | None]
-            | torch.Generator
-            | Float[torch.Tensor, "batch elements 4"]
-            | Bool[torch.Tensor, "batch elements"]
-            | Int[torch.Tensor, "batch elements"]
-            | Float[torch.Tensor, "batch elements latent"]
-            | None,
-        ],
+        dict[str, LayoutGANPPPipelineKwarg],
+        dict[str, LayoutGANPPPipelineKwarg],
+        dict[str, LayoutGANPPPipelineKwarg],
     ]:
         sanitized = cast(
-            dict[
-                str,
-                ConditionType
-                | OutputType
-                | BoxFormat
-                | str
-                | int
-                | bool
-                | list[int]
-                | tuple[int, int]
-                | Encoding
-                | list[Encoding]
-                | Mapping[str, str | int | bool | list[int] | None]
-                | torch.Generator
-                | Float[torch.Tensor, "batch elements 4"]
-                | Bool[torch.Tensor, "batch elements"]
-                | Int[torch.Tensor, "batch elements"]
-                | Float[torch.Tensor, "batch elements latent"]
-                | None,
-            ],
+            dict[str, LayoutGANPPPipelineKwarg],
             kwargs,
         )
         return {}, sanitized, {}
@@ -240,7 +182,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         | list[str | int]
         | Int[torch.Tensor, "batch elements"]
         | None = None,
-        **preprocess_parameters: object,
+        **preprocess_parameters: LayoutGANPPPipelineKwarg,
     ) -> BatchEncoding:
         """Encode pipeline inputs into model inputs.
 
@@ -270,27 +212,8 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
 
     def _forward(
         self,
-        model_inputs: dict[
-            str,
-            ConditionType
-            | OutputType
-            | BoxFormat
-            | str
-            | int
-            | bool
-            | list[int]
-            | tuple[int, int]
-            | Encoding
-            | list[Encoding]
-            | Mapping[str, str | int | bool | list[int] | None]
-            | torch.Generator
-            | Float[torch.Tensor, "batch elements 4"]
-            | Bool[torch.Tensor, "batch elements"]
-            | Int[torch.Tensor, "batch elements"]
-            | Float[torch.Tensor, "batch elements latent"]
-            | None,
-        ],
-        **forward_params: object,
+        model_inputs: dict[str, LayoutGANPPPipelineKwarg],
+        **forward_params: LayoutGANPPPipelineKwarg,
     ) -> LayoutGenerationOutput | LayoutGANPPOutputDict:
         del forward_params
         labels = torch.as_tensor(model_inputs.pop("labels"), dtype=torch.long)
@@ -349,7 +272,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
     def postprocess(
         self,
         model_outputs: LayoutGenerationOutput | LayoutGANPPOutputDict,
-        **kwargs: object,
+        **kwargs: LayoutGANPPPipelineKwarg,
     ) -> LayoutGenerationOutput | LayoutGANPPOutputDict:
         """Return generated layouts from the pipeline output.
 

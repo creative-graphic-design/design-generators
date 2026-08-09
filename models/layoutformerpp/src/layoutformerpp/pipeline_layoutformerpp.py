@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import ClassVar, TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Int
@@ -16,30 +16,22 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.pipelines.base import PipelineComponent
 from transformers import PretrainedConfig
-
-if TYPE_CHECKING:
-    from laygen.pipelines.base import PipelineComponent
-else:
-    PipelineComponent = object
-
+from transformers.pipelines.base import GenericTensor
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 from .modeling_layoutformerpp import LayoutFormerPPForConditionalGeneration
 from .processing_layoutformerpp import LayoutFormerPPProcessor
 from .tasks import OutputType
 
-if TYPE_CHECKING:
-    from .processing_layoutformerpp import LayoutFormerPPOutputDict
-
-    LayoutFormerPPComponent = (
-        LayoutFormerPPForConditionalGeneration | LayoutFormerPPProcessor
-    )
-    LayoutFormerPPBBoxInput = object
-else:
-    LayoutFormerPPOutputDict = object
-    LayoutFormerPPComponent = object
-    LayoutFormerPPBBoxInput = object
+LayoutFormerPPOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor | dict[int, str] | dict[str, GenericTensor | str | BoxFormat] | None,
+]
+LayoutFormerPPBBoxInput: TypeAlias = (
+    GenericTensor | list[list[int | float]] | list[list[list[int | float]]] | None
+)
 
 
 def _load_model_component(

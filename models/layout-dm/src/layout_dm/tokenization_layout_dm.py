@@ -13,9 +13,8 @@ from typing import TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
-from transformers import PreTrainedTokenizer
-
 from laygen.common.bbox import ArrayLikeInput
+from transformers import PreTrainedTokenizer
 
 from .configuration_layout_dm import LayoutDMConfig
 
@@ -68,7 +67,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
         cluster_centers_file: str | Path | None = None,
-        **kwargs: object,
+        **kwargs: LayoutDMConfigValue,
     ) -> None:
         """Initialize a LayoutDM tokenizer from config or saved files."""
         if isinstance(config, LayoutDMConfig):
@@ -77,7 +76,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             config = self._load_config(
                 layout_config_file=layout_config_file,
                 cluster_centers_file=cluster_centers_file,
-                kwargs=cast(dict[str, LayoutDMConfigValue], kwargs),
+                kwargs=kwargs,
             )
         else:
             config = _layout_config_from_mapping(config)
@@ -148,8 +147,9 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         """Return a copy of the synthetic token-to-id vocabulary."""
         return dict(self._token_to_id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(self, text: str, **kwargs: str | float | bool | None) -> list[str]:
         """Reject text tokenization because LayoutDM consumes layouts."""
+        _ = text, kwargs
         raise TypeError("LayoutDMTokenizer does not tokenize text")
 
     def _convert_token_to_id(self, token: str) -> int:
@@ -212,8 +212,8 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
-    ) -> "LayoutDMTokenizer":
+        **kwargs: LayoutDMConfigValue,
+    ) -> LayoutDMTokenizer:
         """Load a tokenizer from a pipeline or tokenizer directory.
 
         Args:
@@ -673,9 +673,7 @@ def _load_cluster_centers_file(
     centers: dict[str, list[float]] = {}
     for key in ("x", "y", "w", "h"):
         model = models[f"{key}-{num_bin_bboxes}"]
-        values = torch.as_tensor(
-            getattr(model, "cluster_centers_"), dtype=torch.float64
-        )
+        values = torch.as_tensor(model.cluster_centers_, dtype=torch.float64)
         centers[key] = sorted(float(item) for item in values.flatten().tolist())
     return centers
 

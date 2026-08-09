@@ -8,6 +8,16 @@ from typing import Literal, cast
 from PIL import Image
 from transformers import BatchFeature, CLIPImageProcessor
 
+PosterLlavaProcessorScalar = str | int | float | bool | None
+PosterLlavaImageProcessorKwarg = (
+    PosterLlavaProcessorScalar
+    | tuple[int, int]
+    | list[int]
+    | list[float]
+    | dict[str, int]
+    | dict[str, float]
+)
+
 
 class PosterLlavaImageProcessor(CLIPImageProcessor):
     """CLIP image processor with PosterLLaVA square-padding behavior.
@@ -42,7 +52,7 @@ class PosterLlavaImageProcessor(CLIPImageProcessor):
         *,
         image_aspect_ratio: Literal["pad"] = "pad",
         return_tensors: str | None = "pt",
-        **kwargs: object,
+        **kwargs: PosterLlavaImageProcessorKwarg,
     ) -> BatchFeature:
         """Preprocess images with PosterLLaVA's square-padding policy.
 

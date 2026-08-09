@@ -92,7 +92,7 @@ class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         legacy_format: bool | None = None,
         filename_prefix: str | None = None,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str, ...]:
         """Save tokenizer files plus LayoutFormer++ tokenizer metadata."""
         _ = kwargs

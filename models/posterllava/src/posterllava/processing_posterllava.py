@@ -6,18 +6,21 @@ import json
 from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Any, Final, Literal, TypedDict, cast  # noqa: TID251  # Dynamic processor payloads.
+from typing import Final, Literal, Protocol, TypedDict, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
-from transformers import BatchEncoding, PreTrainedTokenizerBase, ProcessorMixin
-
 from laygen.common.bbox import BoxFormat, prepare_layout_tensors
 from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import (
     DatasetName,
     id2label_for_dataset,
     normalize_dataset_name,
+)
+from transformers import (
+    BatchEncoding,
+    PreTrainedTokenizerBase,
+    ProcessorMixin,
 )
 
 from .configuration_posterllava import (
@@ -32,6 +35,16 @@ from .generation_posterllava import IMAGE_TOKEN, tokenizer_image_token
 PROCESSOR_CONFIG_NAME: Final[str] = "processor_config.json"
 DEFAULT_CANVAS_SIZE: Final[tuple[int, int]] = (1, 1)
 DEFAULT_DOMAIN_NAME: Final[str] = "social media promotion poster with qbposter style"
+
+PosterLlavaJsonValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | Sequence["PosterLlavaJsonValue"]
+    | Mapping[str, "PosterLlavaJsonValue"]
+)
 
 
 class PosterLlavaJsonElement(TypedDict):
@@ -55,6 +68,31 @@ class PromptBundle(TypedDict):
     prompt: str
     initial_elements: list[PosterLlavaJsonElement]
     num_elements: int
+
+
+class PosterLlavaIntermediates(TypedDict, total=False):
+    """Optional PosterLLaVA parsing and prompt metadata."""
+
+    generated_text: list[str]
+    parsed_json: list[list[PosterLlavaJsonElement]]
+    parsed_elements: list[list[ParsedPosterLlavaElement]]
+    id2label_per_example: list[dict[int, str]]
+    prompts: list[str]
+
+
+class PosterLlavaOutputDict(TypedDict, total=False):
+    """Dictionary form of the PosterLLaVA layout output."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    sequences: Int[torch.Tensor, "batch generated_tokens"] | None
+    intermediates: PosterLlavaIntermediates | None
+
+
+class PosterLlavaImageProcessorComponent(Protocol):
+    """Runtime image processor component accepted by the recipe wrapper."""
 
 
 class PosterLlavaProcessor(ProcessorMixin):
@@ -82,7 +120,7 @@ class PosterLlavaProcessor(ProcessorMixin):
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase | None = None,
-        image_processor: Any | None = None,  # noqa: ANN401
+        image_processor: PosterLlavaImageProcessorComponent | None = None,
         dataset_name: DatasetName | str = DatasetName.ad_banner,
         canvas_size: tuple[int, int] = DEFAULT_CANVAS_SIZE,
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
@@ -111,7 +149,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         id2label: Mapping[int, str] | Mapping[str, str] | None = None,
         prompt_template: str = DEFAULT_PROMPT_TEMPLATE,
         default_domain_name: str = DEFAULT_DOMAIN_NAME,
-    ) -> "PosterLlavaProcessor":
+    ) -> PosterLlavaProcessor:
         """Construct a metadata-only processor for tests and local smoke checks.
 
         Args:
@@ -146,7 +184,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         *,
         subfolder: str | None = None,
         **kwargs: str | int | bool | list[int] | dict[str, str],
-    ) -> "PosterLlavaProcessor":
+    ) -> PosterLlavaProcessor:
         """Load processor metadata from a checkpoint directory.
 
         Args:
@@ -283,7 +321,8 @@ class PosterLlavaProcessor(ProcessorMixin):
         *,
         num_elements: int,
         canvas_size: tuple[int, int] | None = None,
-        elements: Sequence[Mapping[str, Any]] = (),
+        elements: Sequence[PosterLlavaJsonElement]
+        | Sequence[Mapping[str, PosterLlavaJsonValue]] = (),
         domain_name: str | None = None,
         conv_mode: ConversationMode | str = ConversationMode.llava_v0,
         prompt: str | None = None,
@@ -409,7 +448,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         return_intermediates: bool = False,
         sequences: Int[torch.Tensor, "batch generated_tokens"] | None = None,
         prompts: Sequence[str] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, Any]:
+    ) -> LayoutGenerationOutput | PosterLlavaOutputDict:
         """Decode generated text into the shared layout output schema.
 
         Args:
@@ -461,7 +500,7 @@ class PosterLlavaProcessor(ProcessorMixin):
             mask_rows.append(mask)
         raw_ltrb = torch.stack(bbox_rows)
         bbox = self._ltrb_to_xywh(raw_ltrb).clamp(0.0, 1.0)
-        intermediates: dict[str, Any] | None = None
+        intermediates: PosterLlavaIntermediates | None = None
         if return_intermediates:
             intermediates = {
                 "generated_text": texts,
@@ -484,7 +523,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         )
         mode = normalize_output_type(output_type)
         if mode is OutputType.dict:
-            return dict(output)
+            return cast(PosterLlavaOutputDict, dict(output))
         return output
 
     def _extract_json_array(self, text: str) -> str:

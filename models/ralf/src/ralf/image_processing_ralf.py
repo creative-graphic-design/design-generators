@@ -68,7 +68,9 @@ class RalfImageProcessor(BaseImageProcessor):
     model_input_names = ["pixel_values", "saliency"]
 
     def __init__(
-        self, image_size: tuple[int, int] | None = None, **kwargs: object
+        self,
+        image_size: tuple[int, int] | None = None,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize image resize metadata."""
         super().__init__(**kwargs)  # ty: ignore[invalid-argument-type]
@@ -79,7 +81,7 @@ class RalfImageProcessor(BaseImageProcessor):
         images: ImageInput | Sequence[ImageInput] | None,
         saliency: ImageInput | Sequence[ImageInput] | None = None,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> BatchFeature:
         """Convert images and saliency maps to tensors.
 

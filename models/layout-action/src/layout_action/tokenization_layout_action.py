@@ -46,7 +46,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         self,
         config: LayoutActionConfig | None = None,
         tokenizer_config_file: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize synthetic token strings."""
         if config is None and tokenizer_config_file is not None:
@@ -94,7 +94,9 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         """Return synthetic token strings mapped to ids."""
         return dict(self._token2id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(
+        self, text: str, **kwargs: str | int | float | bool | None
+    ) -> list[str]:
         _ = kwargs
         return text.strip().split()
 
@@ -134,7 +136,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "LayoutActionTokenizer":
         """Load tokenizer metadata through the standard Transformers resolver.
 

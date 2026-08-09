@@ -134,7 +134,7 @@ class FlexDmConfig(PretrainedConfig):
         l2: float | None = 1e-2,
         original_args: dict[str, FlexDmConfigValue] | None = None,
         conversion_report: dict[str, FlexDmConfigValue] | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize a Flex-DM config."""
         normalized_id2label = _normalize_id2label(id2label)

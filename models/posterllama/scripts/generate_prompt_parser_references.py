@@ -30,8 +30,7 @@ class ParserIntermediates(TypedDict, total=False):
 
 
 ParserDictValue = (
-    torch.Tensor
-    | dict[int, str]
+    dict[int, str]
     | ParserIntermediates
     | list[str]
     | list[tuple[float, float, float, float]]

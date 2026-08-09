@@ -93,7 +93,7 @@ class CoarseToFineProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> list[str]:
         """Save processor metadata next to a converted checkpoint."""
         _ = (push_to_hub, kwargs)
@@ -112,7 +112,7 @@ class CoarseToFineProcessor(ProcessorMixin):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "CoarseToFineProcessor":
         """Load processor metadata from a local ``save_pretrained`` directory."""
         _ = (cache_dir, force_download, local_files_only, token, revision, kwargs)
