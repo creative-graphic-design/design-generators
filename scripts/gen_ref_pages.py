@@ -88,6 +88,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "AAAI 2022": "2f5f8f",
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
+    "arXiv 2024": "b31b1b",
     "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
@@ -242,6 +243,8 @@ def site_page_for_repo_link(link: str) -> str:
     target = link.removeprefix("./")
     if target.startswith(("http://", "https://", "#", "mailto:")):
         return link
+    if target.startswith("api/"):
+        return target
     if target.startswith("models/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
@@ -263,6 +266,14 @@ def site_page_for_repo_link(link: str) -> str:
             )
             if reproducing_path is not None:
                 return docs_route(reproducing_path)
+    if target.startswith("models/") and target.endswith("/TRAINING.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            member_dir = ROOT / "models" / parts[1]
+            project_name = read_project_name(member_dir / "pyproject.toml")
+            training_path = training_page_path_for("Models", project_name, member_dir)
+            if training_path is not None:
+                return docs_route(training_path)
     if target.startswith("lib/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
@@ -291,7 +302,7 @@ def rewrite_repo_relative_links(markdown: str) -> str:
         markdown,
     )
     return re.sub(
-        r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
+        r"(?<!!)\[(?P<label>(?:!\[[^\]]*\]\([^)]+\)|[^\]])+)\]\((?P<link>[^):#][^)]+)\)",
         replace,
         markdown,
     )

@@ -57,6 +57,19 @@ Training configs live under `models/layout-flow/configs/training`.
 
 `default` preserves the LayoutFlow training seed policy used by regular runs. `deterministic` applies the `traingen-parity` determinism controls for fixed-batch trace and optimizer-step checks.
 
+## Scheduler and Recipe Notes
+
+Full RICO25 and PubLayNet runs disable the plateau scheduler and package-local
+FID validation (`scheduler=null`, `fid_calc_every_n=0`) until package-local FID
+validation is implemented. Deterministic configs preserve fixed-batch trace and
+optimizer-step parity controls before recipe changes are used for full runs.
+
+## Seed Policy
+
+RICO25 and PubLayNet S5 evidence is reported at `training-seed n=3` with
+training seeds `42975`, `42976`, and `42977`. Evaluation uses fixed seed `42975`
+for the recorded vendor-protocol summaries.
+
 ## Validation Stages
 
 | Stage | Scope | Purpose |
@@ -64,8 +77,8 @@ Training configs live under `models/layout-flow/configs/training`.
 | S0 | Static config and initialized state parity | Confirms the package-local Lightning module starts from the same state as the vendor training module. |
 | S1 | Fixed-batch pre-optimizer trace parity | Confirms batch preparation, condition masking, flow sampling, forward output, and loss tensors before optimizer mutation. |
 | S2 | One optimizer-step parity | Confirms one update produces matching parameter state. |
-| S3 | Scheduler-enabled short run | Confirms the scheduler-enabled training path is wired before validation metrics are available. |
-| S4 | Validation and scheduler behavior | Confirms package-local validation metrics can drive scheduler behavior when those metrics are implemented. |
+| S3 | Deterministic multi-batch short run | Confirms repeated loader, logging, accumulation, clipping, checkpoint writing, and scheduler configuration wiring over more than one batch. |
+| S4 | Deterministic loader stream | Confirms package-local train and validation loaders reproduce the vendor sample order, transform, mask, padding, and class ids under deterministic controls. |
 | S5 | Full-run statistical comparison | Compares full RICO25 and PubLayNet learning behavior against the vendor training setup. |
 
 ## Stage Evidence
@@ -75,6 +88,8 @@ Training configs live under `models/layout-flow/configs/training`.
 | S0 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Static state parity is exact on a synthetic PubLayNet-shaped batch. |
 | S1 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | Fixed-batch pre-optimizer trace parity is exact on a synthetic PubLayNet-shaped batch. |
 | S2 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 uv run --package layout-flow --extra training --extra vendor pytest models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-flow/tests/vendor_parity/test_layout_flow_training_parity.py` | One optimizer-step parity is exact on a synthetic PubLayNet-shaped batch. |
+| S3 | `CUDA_VISIBLE_DEVICES=2 CUBLAS_WORKSPACE_CONFIG=:4096:8 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning python models/layout-flow/scripts/training_stage_evidence.py s3-short-run` | `.cache/layout-flow/stage-evidence/s3-short-run/summary.json` | PASS on the PubLayNet fixture using GPU2 with seed 42975: 4 deterministic training steps, accumulation=2, gradient clipping=0.5, CSV logging, and three checkpoints were written; the scheduler probe records ReduceLROnPlateau monitor `FID_Layout` with frequency 20 while runtime scheduling remains disabled like current full-run commands. |
+| S4 | `PARITY_REQUIRE=1 PYTHONPATH=models/layout-flow/src:lib/laygen/src:lib/traingen-parity/src uv run --package layout-flow --no-sync --with 'diffusers[torch]>=0.36.0' --with 'transformers>=5.0.0' --with jaxtyping --with einops --with safetensors --with huggingface-hub --with h5py --with h5pickle --with lightning python models/layout-flow/scripts/training_stage_evidence.py s4-loader-stream` | `.cache/layout-flow/stage-evidence/s4-loader-stream/summary.json` | PASS on PubLayNet fixture with seed 314159: 4 shuffled train batches and 2 validation batches match vendor sample order, xywh transform, masks, padding, and class ids. |
 | S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-flow --extra training traingen fit --config models/layout-flow/configs/training/layoutflow_<rico25\|publaynet>.yaml --model.init_args.scheduler=null --model.init_args.fid_calc_every_n=0 --trainer.accelerator=gpu --trainer.devices=1 --trainer.max_epochs=1000` | `.cache/layout-flow/full-run/` | RICO25 is statistically equivalent at training-seed n=3; PubLayNet is acceptable at training-seed n=3. |
 
 ## Reproduction Results
@@ -83,14 +98,18 @@ LayoutFlow training reproduction is achieved. RICO25 is statistically equivalent
 
 The RICO25 and PubLayNet numbers use training seeds `42975`, `42976`, and `42977`, epoch 1000, and fixed evaluation seed `42975`.
 
-| Dataset | System | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | vendor | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
-| RICO25 | ours | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
-| PubLayNet | vendor | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
-| PubLayNet | ours | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
+| Dataset | System | Status | Stat scope | FID | Alignment | Overlap | mIoU | Loss evidence |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| RICO25 | vendor | `s5-practical-reproduction` | training-seed n=3 | 6.3907 +/- 0.8031 | 0.2236 +/- 0.0163 | 0.5735 +/- 0.0365 | 0.5631 +/- 0.0200 | - |
+| RICO25 | ours | `s5-practical-reproduction` | training-seed n=3 | 5.7111 +/- 0.7459 | 0.2359 +/- 0.0086 | 0.5730 +/- 0.0202 | 0.5562 +/- 0.0102 | - |
+| PubLayNet | vendor | `s5-practical-reproduction` | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
+| PubLayNet | ours | `s5-practical-reproduction` | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
+
+## Regeneration Metadata
 
 Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5077346498), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, and `.cache/layout-flow/full-run/eval-publaynet/training-seed-n3-vendor-protocol/summary_mean_std.csv`.
+
+## Training Commands
 
 ### Reproducing These Results
 
