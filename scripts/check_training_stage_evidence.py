@@ -52,6 +52,7 @@ ARTIFACT_PREFIXES = (
 )
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
+FENCE_START_RE = re.compile(r"^\s*(```|~~~)")
 CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
@@ -175,21 +176,52 @@ def is_table_delimiter(line: str) -> bool:
     return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
 
 
-def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
-    """Yield Markdown heading text with the lines inside that heading."""
-    current_heading: str | None = None
-    current_lines: list[str] = []
+def iter_unfenced_lines(text: str) -> Iterable[str]:
+    """Yield Markdown lines outside fenced code blocks."""
+    in_fence = False
+    fence_marker = ""
     for line in text.splitlines():
+        match = FENCE_START_RE.match(line)
+        if match:
+            marker = match.group(1)
+            if not in_fence:
+                in_fence = True
+                fence_marker = marker
+            elif marker == fence_marker:
+                in_fence = False
+                fence_marker = ""
+            continue
+        if not in_fence:
+            yield line
+
+
+def iter_heading_sections_with_level(
+    text: str,
+) -> Iterable[tuple[int, str, list[str]]]:
+    """Yield Markdown heading level, text, and section lines outside fences."""
+    current_heading: str | None = None
+    current_level: int | None = None
+    current_lines: list[str] = []
+    for line in iter_unfenced_lines(text):
         match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
         if match:
             if current_heading is not None:
-                yield current_heading, current_lines
+                assert current_level is not None
+                yield current_level, current_heading, current_lines
                 current_lines = []
+            current_level = len(match.group(1))
             current_heading = match.group(2).strip()
             continue
         if current_heading is not None:
             current_lines.append(line)
     if current_heading is not None:
+        assert current_level is not None
+        yield current_level, current_heading, current_lines
+
+
+def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
+    """Yield Markdown heading text with the lines inside that heading."""
+    for _, current_heading, current_lines in iter_heading_sections_with_level(text):
         yield current_heading, current_lines
 
 
