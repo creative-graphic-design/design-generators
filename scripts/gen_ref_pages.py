@@ -239,6 +239,8 @@ def site_page_for_repo_link(link: str) -> str:
     target = link.removeprefix("./")
     if target.startswith(("http://", "https://", "#", "mailto:")):
         return link
+    if target.startswith("api/"):
+        return target
     if target.startswith("models/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
@@ -296,7 +298,7 @@ def rewrite_repo_relative_links(markdown: str) -> str:
         markdown,
     )
     return re.sub(
-        r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
+        r"(?<!!)\[(?P<label>(?:!\[[^\]]*\]\([^)]+\)|[^\]])+)\]\((?P<link>[^):#][^)]+)\)",
         replace,
         markdown,
     )

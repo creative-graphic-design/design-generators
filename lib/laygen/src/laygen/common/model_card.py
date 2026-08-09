@@ -155,7 +155,8 @@ def build_layout_model_card(
         citation_apa: Optional APA-style citation.
 
     Returns:
-        Renderable ``huggingface_hub.ModelCard`` instance.
+        Rendered ``huggingface_hub.ModelCard`` instance with structured
+        metadata attached.
 
     Examples:
         >>> card = layoutdm_model_card(dataset="rico25")
