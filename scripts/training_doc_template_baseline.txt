@@ -1,16 +1,3 @@
 # Existing TRAINING.md template gaps that predate the checker.
 # This is a shrink-only burn-down list: do not add new template violations here.
 # Remove entries as TRAINING.md files adopt docs/templates/TRAINING.template.md.
-# Existing gaps from #167 CGB-DM after it landed on main.
-models/cgb-dm/TRAINING.md	Regeneration Metadata	missing required TRAINING.md section
-models/cgb-dm/TRAINING.md	Reproduction Results	missing Reproduction Results table
-models/cgb-dm/TRAINING.md	Scheduler and Recipe Notes	missing required TRAINING.md section
-models/cgb-dm/TRAINING.md	Seed Policy	missing required TRAINING.md section
-models/cgb-dm/TRAINING.md	Training Commands	missing required TRAINING.md section
-models/dlt/TRAINING.md	Magazine	Reproduction Results status is not an allowed enum value
-models/dlt/TRAINING.md	PubLayNet	Reproduction Results status is not an allowed enum value
-models/dlt/TRAINING.md	RICO13	Reproduction Results status is not an allowed enum value
-models/dlt/TRAINING.md	Regeneration Metadata	missing required TRAINING.md section
-models/dlt/TRAINING.md	Scheduler and Recipe Notes	missing required TRAINING.md section
-models/dlt/TRAINING.md	Seed Policy	missing required TRAINING.md section
-models/dlt/TRAINING.md	Training Commands	missing required TRAINING.md section
