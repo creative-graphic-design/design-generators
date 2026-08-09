@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import shutil
 import sys
 from collections.abc import Callable
 from collections.abc import Iterable
@@ -236,6 +237,7 @@ def run_s3_short_run(output_root: Path) -> Path:
 
     data_root = write_fixture(output_root)
     run_root = output_root / "s3-short-run"
+    shutil.rmtree(run_root, ignore_errors=True)
     apply_layout_flow_seed_mode("deterministic", seed=42975)
     pl.seed_everything(42975, workers=True)
     module = LayoutFlowTrainingModule(
