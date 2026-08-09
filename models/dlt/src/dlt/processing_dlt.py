@@ -1,16 +1,14 @@
 """Processor for DLT public layouts and internal tensors."""
 
-from __future__ import annotations
-
 from collections.abc import Sequence
+from typing import TypedDict, cast
 
 import numpy as np
 import torch
 from jaxtyping import Bool, Float, Int
-from transformers import ProcessorMixin
-
 from laygen.common.bbox import BoxFormat, prepare_layout_tensors
 from laygen.common.labels import DatasetName
+from transformers import ProcessorMixin
 
 from .configuration_dlt import default_id2label, normalize_dataset
 
@@ -20,7 +18,15 @@ LayoutInput = (
     | Sequence[Sequence[ScalarInput]]
     | Sequence[Sequence[Sequence[ScalarInput]]]
 )
-DLTProcessedBatch = dict[str, torch.Tensor]
+
+
+class DLTProcessedBatch(TypedDict):
+    """Padded DLT tensors consumed by the model and scheduler."""
+
+    box: Float[torch.Tensor, "batch elements 4"]
+    box_cond: Float[torch.Tensor, "batch elements 4"]
+    cat: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
 
 
 class DLTProcessor(ProcessorMixin):
@@ -110,12 +116,16 @@ class DLTProcessor(ProcessorMixin):
             labels_t = labels_t.to(device)
             mask_t = mask_t.to(device)
         bbox_t, labels_t, mask_t = self.pad(bbox_t, labels_t, mask_t)
-        return {
-            "box": self.public_to_internal_boxes(bbox_t) * mask_t.unsqueeze(-1),
-            "box_cond": self.public_to_internal_boxes(bbox_t) * mask_t.unsqueeze(-1),
-            "cat": self.public_to_internal_labels(labels_t, mask_t),
-            "mask": mask_t,
-        }
+        return cast(
+            DLTProcessedBatch,
+            {
+                "box": self.public_to_internal_boxes(bbox_t) * mask_t.unsqueeze(-1),
+                "box_cond": self.public_to_internal_boxes(bbox_t)
+                * mask_t.unsqueeze(-1),
+                "cat": self.public_to_internal_labels(labels_t, mask_t),
+                "mask": mask_t,
+            },
+        )
 
     def empty_condition(
         self,
@@ -133,12 +143,15 @@ class DLTProcessor(ProcessorMixin):
         mask = torch.ones(
             batch_size, self.max_num_comp, dtype=torch.bool, device=device
         )
-        return {
-            "box": self.public_to_internal_boxes(bbox),
-            "box_cond": self.public_to_internal_boxes(bbox),
-            "cat": self.public_to_internal_labels(labels, mask),
-            "mask": mask,
-        }
+        return cast(
+            DLTProcessedBatch,
+            {
+                "box": self.public_to_internal_boxes(bbox),
+                "box_cond": self.public_to_internal_boxes(bbox),
+                "cat": self.public_to_internal_labels(labels, mask),
+                "mask": mask,
+            },
+        )
 
     def pad(
         self,

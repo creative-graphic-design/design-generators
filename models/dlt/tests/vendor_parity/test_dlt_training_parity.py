@@ -1,13 +1,12 @@
-from functools import partial
 import importlib
-from pathlib import Path
 import sys
+from functools import partial
+from pathlib import Path
 
 import pytest
 import torch
-
 from dlt import DLTConfig
-from dlt.training.dataset import SyntheticDLTDataset, collate_dlt_batch
+from dlt.training.dataset import DLTExample, SyntheticDLTDataset, collate_dlt_batch
 from dlt.training.losses import masked_cross_entropy, masked_l2
 
 pytest.importorskip("lightning")
@@ -181,12 +180,27 @@ def test_dlt_real_vendor_s0_s2_training_trace_matches() -> None:
     vendor_model.eval()
     assert set(vendor_model.state_dict()) == set(module.model.state_dict())
 
+    module_batch: DLTExample = {
+        "box": batch["box"].clone(),
+        "box_cond": batch["box_cond"].clone(),
+        "cat": batch["cat"].clone(),
+        "mask": batch["mask"].clone(),
+        "mask_box": batch["mask_box"].clone(),
+        "mask_cat": batch["mask_cat"].clone(),
+    }
     torch.manual_seed(23)
-    module.training_step({key: value.clone() for key, value in batch.items()}, 0)
+    module.training_step(module_batch, 0)
     ours = module.latest_step_trace
 
     torch.manual_seed(23)
-    vendor_batch = {key: value.clone() for key, value in batch.items()}
+    vendor_batch: DLTExample = {
+        "box": batch["box"].clone(),
+        "box_cond": batch["box_cond"].clone(),
+        "cat": batch["cat"].clone(),
+        "mask": batch["mask"].clone(),
+        "mask_box": batch["mask_box"].clone(),
+        "mask_cat": batch["mask_cat"].clone(),
+    }
     noise = torch.randn(vendor_batch["box"].shape)
     timesteps = torch.randint(
         0, vendor_scheduler.num_cont_steps, (vendor_batch["box"].shape[0],)
