@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import torch
+from jaxtyping import Bool, Float, Int
 
 
 def _default_vendor_root() -> Path:
@@ -61,7 +62,14 @@ def _load_vendor_model(*, dataset: str, starter_dir: Path, device: torch.device)
     return model, tokenizer, train_cfg
 
 
-def _synthetic_layout(tokenizer) -> dict[str, torch.Tensor]:
+def _synthetic_layout(
+    tokenizer,
+) -> dict[
+    str,
+    Float[torch.Tensor, "batch elements 4"]
+    | Int[torch.Tensor, "batch elements"]
+    | Bool[torch.Tensor, "batch elements"],
+]:
     max_seq = tokenizer.max_seq_length
     labels = torch.arange(max_seq).remainder(tokenizer.N_category)
     bbox = torch.zeros(max_seq, 4, dtype=torch.float32)

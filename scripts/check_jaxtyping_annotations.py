@@ -15,7 +15,13 @@ BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
 ALIAS_BASELINE_PATH = ROOT / "scripts" / "jaxtyping_alias_baseline.txt"
 OBJECT_BASELINE_PATH = ROOT / "scripts" / "object_annotation_baseline.txt"
 WEAK_CAST_BASELINE_PATH = ROOT / "scripts" / "weak_cast_type_baseline.txt"
-SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
+SCAN_GLOBS = (
+    "models/*/src/**/*.py",
+    "lib/*/src/**/*.py",
+    "models/*/scripts/**/*.py",
+    "lib/*/scripts/**/*.py",
+    "scripts/**/*.py",
+)
 
 JAXTYPING_SHAPED_TYPES = {
     "Bool",
@@ -289,13 +295,13 @@ def contains_weak_top_type(node: ast.AST, resolver: ImportResolver) -> bool:
 
 
 def contains_object_annotation(node: ast.AST, resolver: ImportResolver) -> bool:
-    """Return whether an annotation contains a disallowed object reference."""
+    """Return whether an annotation contains disallowed ``object`` or ``Any``."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         parsed = parse_string_annotation(node)
         if parsed is None:
             return False
         return contains_object_annotation(parsed, resolver)
-    if is_object_type(node, resolver):
+    if is_object_type(node, resolver) or is_any_type(node, resolver):
         return True
     return any(
         contains_object_annotation(child, resolver)
@@ -342,10 +348,44 @@ def alias_target_name(node: ast.AST) -> str | None:
 
 
 def is_type_alias_target(node: ast.AST) -> bool:
-    """Return whether an assignment target is a conventional type alias name."""
+    """Return whether an assignment target is likely a module-level type alias."""
     if isinstance(node, ast.Name):
-        return node.id.endswith("Tensor") or node.id.endswith("Array")
+        return node.id[:1].isupper() or node.id.endswith(
+            ("Tensor", "Array", "Input", "Output", "Payload", "Value")
+        )
     return dotted_name(node) == "TypeAlias"
+
+
+def is_type_checking_guard(node: ast.AST, resolver: ImportResolver) -> bool:
+    """Return whether an expression is a ``typing.TYPE_CHECKING`` guard."""
+    name = dotted_name(node)
+    if name is None:
+        return False
+    return name == "TYPE_CHECKING" or resolver.resolve(name) == "typing.TYPE_CHECKING"
+
+
+def type_checking_shaped_alias_names(
+    body: Iterable[ast.stmt], resolver: ImportResolver
+) -> set[str]:
+    """Return shaped type aliases declared in a TYPE_CHECKING branch."""
+    aliases: set[str] = set()
+    for stmt in body:
+        if isinstance(stmt, ast.Assign) and contains_jaxtyping_shaped_subscript(
+            stmt.value, resolver
+        ):
+            for target in stmt.targets:
+                alias = alias_target_name(target)
+                if alias is not None:
+                    aliases.add(alias)
+        elif (
+            isinstance(stmt, ast.AnnAssign)
+            and stmt.value is not None
+            and contains_jaxtyping_shaped_subscript(stmt.value, resolver)
+        ):
+            alias = alias_target_name(stmt.target)
+            if alias is not None:
+                aliases.add(alias)
+    return aliases
 
 
 def normalize_annotation(node: ast.AST) -> str:
@@ -491,18 +531,17 @@ def raw_annotation_violations(root: Path) -> list[AnnotationViolation]:
 
 
 def object_annotation_violations(root: Path) -> list[ObjectAnnotationViolation]:
-    """Return object annotation violations under package source roots."""
+    """Return weak object/Any signature and alias-fallback violations."""
     violations: list[ObjectAnnotationViolation] = []
     for path in source_files(root):
         rel_path = path.relative_to(root).as_posix()
         text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
         tree = ast.parse(text, filename=rel_path)
         resolver = ImportResolver.from_tree(tree)
-        visitor = FunctionAnnotationVisitor(text.splitlines())
+        visitor = FunctionAnnotationVisitor(lines)
         visitor.visit(tree)
         for record in visitor.annotations:
-            if record.is_keyword_variadic:
-                continue
             if not contains_object_annotation(record.node, resolver):
                 continue
             violations.append(
@@ -512,6 +551,28 @@ def object_annotation_violations(root: Path) -> list[ObjectAnnotationViolation]:
                     record.line,
                 )
             )
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If) or not is_type_checking_guard(
+                node.test, resolver
+            ):
+                continue
+            shaped_aliases = type_checking_shaped_alias_names(node.body, resolver)
+            for fallback in node.orelse:
+                if not isinstance(
+                    fallback, ast.Assign
+                ) or not contains_object_annotation(fallback.value, resolver):
+                    continue
+                for target in fallback.targets:
+                    alias = alias_target_name(target)
+                    if alias not in shaped_aliases:
+                        continue
+                    violations.append(
+                        ObjectAnnotationViolation(
+                            rel_path,
+                            normalize_annotation(fallback.value),
+                            line_for_node(lines, fallback),
+                        )
+                    )
     return violations
 
 

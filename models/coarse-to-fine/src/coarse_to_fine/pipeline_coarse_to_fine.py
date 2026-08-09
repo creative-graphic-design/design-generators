@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Sequence
+from typing import TypeAlias, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -10,7 +11,7 @@ from transformers import Pipeline
 from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
 
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
@@ -18,6 +19,24 @@ from .hierarchy import decode_hierarchy_from_logits
 from .modeling_coarse_to_fine import CoarseToFineForLayoutGeneration
 from .processing_coarse_to_fine import CoarseToFineProcessor
 from .types import OutputType, normalize_output_type
+
+CoarseToFinePipelineParameter: TypeAlias = (
+    int
+    | bool
+    | str
+    | torch.Generator
+    | ConditionType
+    | BoxFormat
+    | OutputType
+    | tuple[int, int]
+    | GenericTensor
+    | Sequence[ArrayLikeInput]
+    | None
+)
+CoarseToFineOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor | dict[int, str] | dict[str, GenericTensor] | None,
+]
 
 
 class CoarseToFinePipeline(Pipeline):
@@ -36,12 +55,18 @@ class CoarseToFinePipeline(Pipeline):
         self.processor = processor
 
     def _sanitize_parameters(
-        self, **kwargs: object
-    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        self, **kwargs: CoarseToFinePipelineParameter
+    ) -> tuple[
+        dict[str, CoarseToFinePipelineParameter],
+        dict[str, CoarseToFinePipelineParameter],
+        dict[str, CoarseToFinePipelineParameter],
+    ]:
         return {}, kwargs, {}
 
     def preprocess(
-        self, input_: object, **preprocess_parameters: dict[str, object]
+        self,
+        input_: CoarseToFinePipelineParameter,
+        **preprocess_parameters: dict[str, CoarseToFinePipelineParameter],
     ) -> dict[str, GenericTensor]:
         """Satisfy the abstract pipeline API; direct calls bypass this path."""
         _ = (input_, preprocess_parameters)
@@ -50,16 +75,16 @@ class CoarseToFinePipeline(Pipeline):
     def _forward(
         self,
         input_tensors: dict[str, GenericTensor],
-        **forward_parameters: dict[str, object],
+        **forward_parameters: dict[str, CoarseToFinePipelineParameter],
     ) -> ModelOutput:
         _ = (input_tensors, forward_parameters)
         raise NotImplementedError("Use CoarseToFinePipeline.__call__ directly")
 
     def postprocess(
         self,
-        model_outputs: LayoutGenerationOutput | dict[str, object],
-        **kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        model_outputs: LayoutGenerationOutput | CoarseToFineOutputDict,
+        **kwargs: dict[str, CoarseToFinePipelineParameter],
+    ) -> LayoutGenerationOutput | CoarseToFineOutputDict:
         """Return model outputs without additional formatting."""
         _ = kwargs
         return model_outputs
@@ -71,9 +96,15 @@ class CoarseToFinePipeline(Pipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
@@ -82,7 +113,7 @@ class CoarseToFinePipeline(Pipeline):
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latent_z: Float[torch.Tensor, "1 batch latent"] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | CoarseToFineOutputDict:
         """Generate layouts through model decode and processor post-processing."""
         del labels, bbox, mask, num_elements
         del box_format, normalized, canvas_size, num_inference_steps

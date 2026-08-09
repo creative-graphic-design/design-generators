@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypedDict
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -11,6 +11,14 @@ from transformers.tokenization_utils_base import BatchEncoding
 
 from .configuration_layoutganpp import Id2LabelMapping
 from .datasets import DatasetName, id2label_for_dataset, normalize_dataset_name
+
+
+class DecodedLayoutGANPPRecord(TypedDict):
+    """One decoded LayoutGAN++ layout element."""
+
+    label: str
+    label_id: int
+    bbox: list[float]
 
 
 class LayoutGANPPProcessor(ProcessorMixin):
@@ -106,7 +114,7 @@ class LayoutGANPPProcessor(ProcessorMixin):
         bbox: Float[torch.Tensor, "batch elements 4"],
         labels: Int[torch.Tensor, "batch elements"],
         attention_mask: Bool[torch.Tensor, "batch elements"] | None = None,
-    ) -> list[list[dict[str, object]]]:
+    ) -> list[list[DecodedLayoutGANPPRecord]]:
         """Decode generated boxes and label IDs into records.
 
         Args:
@@ -139,9 +147,9 @@ class LayoutGANPPProcessor(ProcessorMixin):
             mask_t = torch.as_tensor(attention_mask, dtype=torch.bool)
             if mask_t.ndim == 1:
                 mask_t = mask_t.unsqueeze(0)
-        records = []
+        records: list[list[DecodedLayoutGANPPRecord]] = []
         for boxes, ids, mask in zip(bbox_t, labels_t, mask_t, strict=True):
-            row = []
+            row: list[DecodedLayoutGANPPRecord] = []
             for box, label_id in zip(boxes[mask], ids[mask], strict=True):
                 idx = int(label_id.item())
                 row.append(

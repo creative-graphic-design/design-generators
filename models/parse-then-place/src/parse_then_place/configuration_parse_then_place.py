@@ -35,7 +35,7 @@ class ParseThenPlaceConfig(PretrainedConfig):
         eos_token_id: int = 1,
         decoder_start_token_id: int = 0,
         is_encoder_decoder: bool = True,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize the composite checkpoint configuration."""
         dataset = normalize_dataset_name(dataset_name)

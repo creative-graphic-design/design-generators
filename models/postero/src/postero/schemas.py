@@ -13,6 +13,9 @@ from postero.config import PosterOConfig
 from postero.parser import ParseDiagnostics, ParsedPosterElement
 
 
+JSONValue = str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
+
+
 class RawPosterOResponse(BaseModel):
     """Structured model response before SVG parsing."""
 
@@ -63,7 +66,7 @@ class PosterOOutput(BaseModel):
             intermediates=self._intermediates() if return_intermediates else None,
         )
 
-    def _intermediates(self) -> dict[str, object]:
+    def _intermediates(self) -> dict[str, JSONValue]:
         return {
             "prompt": self.prompt,
             "raw_text": self.raw_text,

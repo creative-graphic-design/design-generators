@@ -24,6 +24,7 @@ from transformers import PretrainedConfig, set_seed
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 
+@runtime_checkable
 class PipelineComponent(Protocol):
     """Loaded component; operation-specific capabilities are checked later."""
 

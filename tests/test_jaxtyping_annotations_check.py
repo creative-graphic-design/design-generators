@@ -166,7 +166,39 @@ def bad(
         "models/layout-dm/src/layout_dm/example.py\tdict[str, object]\t) -> dict[str, object]:",
         "models/layout-dm/src/layout_dm/example.py\tlist[object]\tvalues: list[object],",
         "models/layout-dm/src/layout_dm/example.py\tobject\t*args: object,",
+        "models/layout-dm/src/layout_dm/example.py\tobject\t**kwargs: object,",
+        "models/layout-dm/src/layout_dm/example.py\tobject\tdef ok(**kwargs: object) -> None:",
         "models/layout-dm/src/layout_dm/example.py\tobject\tvalue: object,",
+    }
+
+
+def test_current_object_entries_detects_type_checking_object_fallbacks(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import torch
+from jaxtyping import Float
+
+if TYPE_CHECKING:
+    PublicBbox = Float[torch.Tensor, "batch 4"]
+else:
+    PublicBbox = object
+
+RuntimeValue = object
+lowercase_value = object
+""",
+    )
+
+    entries = check_jaxtyping_annotations.current_object_entries(tmp_path)
+
+    assert entries == {
+        "models/layout-dm/src/layout_dm/example.py\tobject\tPublicBbox = object",
     }
 
 

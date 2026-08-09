@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 
 from laygen.common.model_card import build_layout_model_card
 
@@ -10,7 +9,7 @@ from laygen.common.model_card import build_layout_model_card
 def build_smarttext_model_card(
     *,
     hub_id: str = "creative-graphic-design/smarttext-smt",
-    parity_results: Mapping[str, object] | None = None,
+    parity_results: dict[str, str | int | float | bool] | None = None,
 ) -> str:
     """Render a SmartText Hub model card.
 

@@ -20,7 +20,7 @@ from ralf import (
 )
 from ralf.configuration_ralf import RalfConfigTaskName
 from ralf.datasets import _IndexableDataset, build_retrieved_batch
-from ralf.modeling_ralf import TASK_BY_CONDITION
+from ralf.modeling_ralf import TASK_BY_CONDITION, RalfRelationshipTable
 
 
 def _reference_dir() -> Path:
@@ -378,7 +378,7 @@ def _retrieval_index_path(dataset_name: str) -> Path:
     )
 
 
-def _load_relationship_table() -> dict[str, list[object]]:  # pragma: no cover
+def _load_relationship_table() -> RalfRelationshipTable:  # pragma: no cover
     _ensure_vendor_path()
     relationship_path = (
         _cache_dir() / "pku_cgl_relationships_dic_using_canvas_sort_label_lexico.pt"
@@ -390,7 +390,7 @@ def _load_relationship_table() -> dict[str, list[object]]:  # pragma: no cover
             regeneration_hint="populate pku_cgl_relationships_dic_using_canvas_sort_label_lexico.pt under RALF_CACHE_DIR",
         )
     return cast(
-        dict[str, list[object]],
+        RalfRelationshipTable,
         torch.load(relationship_path, map_location="cpu", weights_only=False),
     )
 
@@ -491,7 +491,7 @@ def _local_condition_tokens(
     config: RalfConfig,
     task_name: str,
     condition: object,
-    relationship_table: dict[str, list[object]],
+    relationship_table: RalfRelationshipTable,
     seed: int,
 ) -> dict[str, torch.Tensor]:
     image = cast(torch.Tensor, getattr(condition, "image"))

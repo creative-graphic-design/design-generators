@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from laygen.agents import BaseExemplarSelector
+from layoutprompter.records import LayoutRecord
 from layoutprompter.selection import (
     ExemplarSelection,
     GenTypeExemplarSelection,
@@ -18,7 +19,7 @@ from layoutprompter.similarity import (
 )
 
 
-def _record(labels: list[int], bboxes: list[list[int]]) -> dict[str, object]:
+def _record(labels: list[int], bboxes: list[list[int]]) -> LayoutRecord:
     return {
         "labels": np.asarray(labels),
         "bboxes": np.asarray(bboxes),

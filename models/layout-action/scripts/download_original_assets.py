@@ -14,7 +14,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Final
+from typing import Final, TypedDict
 
 GOOGLE_DRIVE_FOLDER_ID: Final[str] = "1KU9q83gzKD2HGoBduN2CWC0LHUmDcFy0"
 EXPECTED_CHECKPOINTS: Final[tuple[str, ...]] = (
@@ -29,6 +29,23 @@ OPTIONAL_PROCESSED_DATA: Final[tuple[str, ...]] = (
     "processed_data/LayoutGAN++/rico/processed/val.pt",
     "processed_data/LayoutGAN++/publaynet/processed/test.pt",
 )
+
+
+class AssetFileRecord(TypedDict):
+    """One asset file in the original LayoutAction manifest."""
+
+    size: int
+    sha256: str
+
+
+class AssetManifest(TypedDict):
+    """Inventory of required and optional original assets."""
+
+    source: str
+    google_drive_folder_id: str
+    files: dict[str, AssetFileRecord]
+    missing_required: list[str]
+    missing_optional: list[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,9 +85,9 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inventory(root: Path) -> dict[str, object]:
+def inventory(root: Path) -> AssetManifest:
     """Build a deterministic asset manifest."""
-    files: dict[str, dict[str, object]] = {}
+    files: dict[str, AssetFileRecord] = {}
     missing_required: list[str] = []
     missing_optional: list[str] = []
     for rel in EXPECTED_CHECKPOINTS + OPTIONAL_CHECKPOINTS + OPTIONAL_PROCESSED_DATA:

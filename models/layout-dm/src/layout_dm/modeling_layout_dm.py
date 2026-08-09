@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Literal, cast
 
 import torch
 import torch.nn.functional as F
@@ -14,6 +15,7 @@ from jaxtyping import Float, Int, Shaped
 from torch import nn
 
 from laygen.nn import (
+    ActivationFn,
     AdaLayerNorm,
     Block,
     ElementPositionalEmbedding,
@@ -59,7 +61,10 @@ def _gelu2(x: Shaped[torch.Tensor, "..."]) -> Shaped[torch.Tensor, "..."]:
 def _activation(
     name: str | Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]],
 ) -> Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]]:
-    return get_activation(name)
+    return cast(
+        Callable[[Shaped[torch.Tensor, "..."]], Shaped[torch.Tensor, "..."]],
+        get_activation(name if isinstance(name, str) else cast(ActivationFn, name)),
+    )
 
 
 class CategoricalTransformer(nn.Module):

@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
-from typing import Final, cast
+from typing import Final, TypedDict, cast
 
 from laygen.common.labels import id2label_for_dataset as laygen_id2label_for_dataset
 from posgen.common.labels import id2label_for_dataset as posgen_id2label_for_dataset
 
 from .configuration_flex_dm import FlexDmColumnSpec, FlexDmDatasetName
+
+
+class FlexDmBuiltinColumn(TypedDict):
+    """Built-in dataset column metadata."""
+
+    dtype: str
+    shape: tuple[int, ...]
+    is_sequence: bool
+
+
+class FlexDmBuiltinSpec(TypedDict):
+    """Built-in dataset schema metadata."""
+
+    name: str
+    columns: dict[str, FlexDmBuiltinColumn]
+
+
+FlexDmVocabularyValue = int | Sequence[str] | Mapping[str, int]
 
 
 class FlexDmFeatureGroup(StrEnum):
@@ -53,7 +71,7 @@ def _normalize_dataset(dataset_name: FlexDmDatasetName | str) -> FlexDmDatasetNa
         raise ValueError(f"Unsupported Flex-DM dataset_name: {dataset_name}") from exc
 
 
-def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> dict[str, object]:
+def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> FlexDmBuiltinSpec:
     """Return a lightweight copy of the Flex-DM column schema.
 
     Args:
@@ -160,7 +178,7 @@ def _vocabulary_size(
     key: str,
     *,
     dataset_name: FlexDmDatasetName,
-    vocabulary: Mapping[str, object],
+    vocabulary: Mapping[str, FlexDmVocabularyValue],
 ) -> int:
     if key in ("left", "top", "width", "height"):
         return 64
@@ -192,7 +210,7 @@ def _lookup_vocabulary(
     key: str,
     *,
     dataset_name: FlexDmDatasetName,
-    vocabulary: Mapping[str, object],
+    vocabulary: Mapping[str, FlexDmVocabularyValue],
 ) -> tuple[str, ...]:
     raw = vocabulary.get(key)
     if isinstance(raw, Mapping):
@@ -209,18 +227,18 @@ def _lookup_vocabulary(
 def build_column_specs(
     *,
     dataset_name: FlexDmDatasetName | str,
-    vocabulary: Mapping[str, object],
+    vocabulary: Mapping[str, FlexDmVocabularyValue],
 ) -> dict[str, FlexDmColumnSpec]:
     """Build Flex-DM model column specs from vocabulary metadata."""
     dataset = _normalize_dataset(dataset_name)
     spec = load_builtin_spec(dataset)
-    columns = cast(Mapping[str, Mapping[str, object]], spec["columns"])
+    columns = spec["columns"]
     type_vocabulary = _lookup_vocabulary(
         "type", dataset_name=dataset, vocabulary=vocabulary
     )
     input_columns: dict[str, FlexDmColumnSpec] = {}
     for key, column in columns.items():
-        shape = tuple(cast(tuple[int, ...], column.get("shape", (1,))))
+        shape = tuple(column.get("shape", (1,)))
         dtype = str(column["dtype"])
         is_sequence = bool(column["is_sequence"])
         is_numerical = key in ("image_embedding", "text_embedding")
@@ -274,7 +292,7 @@ def build_column_specs(
 
 def id2label_from_vocabulary(
     dataset_name: FlexDmDatasetName | str,
-    vocabulary: Mapping[str, object],
+    vocabulary: Mapping[str, FlexDmVocabularyValue],
 ) -> dict[int, str]:
     """Resolve the public type-label mapping from vocabulary data."""
     dataset = _normalize_dataset(dataset_name)

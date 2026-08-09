@@ -1,10 +1,8 @@
 """Small DLT datasets used by smoke training configs and tests."""
 
-from __future__ import annotations
-
-from collections.abc import Iterator
-from pathlib import Path
 import random
+from pathlib import Path
+from typing import TypedDict
 
 import h5py
 import numpy as np
@@ -12,7 +10,36 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch.utils.data import Dataset
 
-DLTExample = dict[str, torch.Tensor]
+
+class DLTExample(TypedDict):
+    """One DLT training example with conditioning masks."""
+
+    box: Float[torch.Tensor, "elements 4"]
+    box_cond: Float[torch.Tensor, "elements 4"]
+    cat: Int[torch.Tensor, "elements"]
+    mask: Bool[torch.Tensor, "elements"]
+    mask_box: Int[torch.Tensor, "elements 4"]
+    mask_cat: Int[torch.Tensor, "elements"]
+
+
+class DLTStepTrace(TypedDict, total=False):
+    """Diagnostic tensors captured from one DLT training step."""
+
+    box: Float[torch.Tensor, "batch elements 4"]
+    box_cond: Float[torch.Tensor, "batch elements 4"]
+    cat: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    mask_box: Int[torch.Tensor, "batch elements 4"]
+    mask_cat: Int[torch.Tensor, "batch elements"]
+    noise: Float[torch.Tensor, "batch elements 4"]
+    t: Int[torch.Tensor, "batch"]
+    noised_box: Float[torch.Tensor, "batch elements 4"]
+    noised_cat: Int[torch.Tensor, "batch elements"]
+    pred_box: Float[torch.Tensor, "batch elements 4"]
+    pred_cat: Float[torch.Tensor, "batch elements categories"]
+    masked_l2: Float[torch.Tensor, ""]
+    masked_ce: Float[torch.Tensor, ""]
+    loss: Float[torch.Tensor, ""]
 
 
 class SyntheticDLTDataset(Dataset[DLTExample]):
@@ -261,5 +288,11 @@ def collate_dlt_batch(
     examples: list[DLTExample],
 ) -> DLTExample:
     """Stack DLT examples into one batch."""
-    keys: Iterator[str] = iter(examples[0])
-    return {key: torch.stack([example[key] for example in examples]) for key in keys}
+    return {
+        "box": torch.stack([example["box"] for example in examples]),
+        "box_cond": torch.stack([example["box_cond"] for example in examples]),
+        "cat": torch.stack([example["cat"] for example in examples]),
+        "mask": torch.stack([example["mask"] for example in examples]),
+        "mask_box": torch.stack([example["mask_box"] for example in examples]),
+        "mask_cat": torch.stack([example["mask_cat"] for example in examples]),
+    }

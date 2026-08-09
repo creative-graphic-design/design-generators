@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, cast
+from typing import Literal, TypedDict, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -15,6 +15,14 @@ from laygen.common.labels import normalize_dataset_name
 from .configuration_layoutvae import Id2LabelMapping
 
 INTERNAL_EMPTY_LABEL_ID = 0
+
+
+class DecodedLayoutRecord(TypedDict):
+    """One decoded LayoutVAE record."""
+
+    label: str
+    label_id: int
+    bbox: list[float]
 
 
 class LayoutVAEProcessor(ProcessorMixin):
@@ -130,7 +138,7 @@ class LayoutVAEProcessor(ProcessorMixin):
         bbox: Float[torch.Tensor, "batch elements 4"],
         labels: Int[torch.Tensor, "batch elements"],
         mask: Bool[torch.Tensor, "batch elements"] | None = None,
-    ) -> list[list[dict[str, object]]]:
+    ) -> list[list[DecodedLayoutRecord]]:
         """Decode layout tensors into records.
 
         Args:
@@ -155,9 +163,9 @@ class LayoutVAEProcessor(ProcessorMixin):
         labels_t = torch.as_tensor(labels, dtype=torch.long)
         labels_t, bbox_t = self._ensure_batched(labels_t, bbox_t)
         mask_t = self._prepare_mask(mask, labels_t.shape)
-        records = []
+        records: list[list[DecodedLayoutRecord]] = []
         for boxes, ids, valid in zip(bbox_t, labels_t, mask_t, strict=True):
-            row = []
+            row: list[DecodedLayoutRecord] = []
             for box, label_id in zip(boxes[valid], ids[valid], strict=True):
                 idx = int(label_id.item())
                 row.append(

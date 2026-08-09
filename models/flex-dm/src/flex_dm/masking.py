@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from typing import Final, Literal, Protocol, cast
+from collections.abc import Mapping
+from typing import Final, Literal, Protocol
 
 import torch
 from jaxtyping import Bool, Int, Shaped
@@ -19,7 +19,9 @@ NULL_VALUE: Final[float] = 0.0
 class _MutableLogitsOutput(Protocol):
     logits: dict[str, Shaped[torch.Tensor, "..."]]
 
-    def __setitem__(self, key: str, value: object) -> None: ...
+    def __setitem__(
+        self, key: str, value: dict[str, Shaped[torch.Tensor, "..."]]
+    ) -> None: ...
 
 
 def get_seq_mask(
@@ -171,15 +173,27 @@ def build_feature_masks(
     return masks
 
 
+class _DecodeModel(Protocol):
+    """Callable Flex-DM model used by iterative decoding."""
+
+    def __call__(
+        self,
+        *,
+        inputs: dict[str, Shaped[torch.Tensor, "..."]],
+        masks: dict[str, Bool[torch.Tensor, "..."]],
+        return_dict: bool,
+    ) -> _MutableLogitsOutput: ...
+
+
 def iterative_decode(
-    model: Callable[..., object],
+    model: _DecodeModel,
     *,
     inputs: dict[str, Shaped[torch.Tensor, "..."]],
     masks: dict[str, Bool[torch.Tensor, "..."]],
     num_iter: int,
     input_columns: Mapping[str, FlexDmColumnSpec],
     source_inputs: Mapping[str, Shaped[torch.Tensor, "..."]] | None = None,
-) -> object:
+) -> _MutableLogitsOutput:
     """Run a deterministic MaskGIT-like categorical decode loop.
 
     Args:
@@ -220,7 +234,7 @@ def iterative_decode(
     final_logits: dict[str, Shaped[torch.Tensor, "..."]] | None = None
     for index in range(num_iter):
         output = model(inputs=current_inputs, masks=current_masks, return_dict=True)
-        logits = output.logits  # ty: ignore[unresolved-attribute]
+        logits = output.logits
         if index == 0:
             final_logits = dict(logits)
         confidence = {
@@ -274,7 +288,7 @@ def iterative_decode(
     if output is None:
         raise ValueError("num_iter must be positive")
     if final_logits is not None:
-        output_any = cast(_MutableLogitsOutput, output)
+        output_any = output
         for key in ("image_embedding", "text_embedding"):
             if key in output_any.logits:
                 final_logits[key] = output_any.logits[key]

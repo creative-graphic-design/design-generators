@@ -138,7 +138,10 @@ class LayoutFormerPPConfig(PretrainedConfig):
         torch_dtype: str | None = None,
         dtype: str | None = None,
         tie_word_embeddings: bool = True,
-        task_specific_params: dict[str, object] | None = None,
+        task_specific_params: dict[
+            str, str | int | float | bool | list[str | int | float | bool]
+        ]
+        | None = None,
         name_or_path: str = "",
         _commit_hash: str | None = None,
         attn_implementation: str | None = None,
