@@ -1,0 +1,41 @@
+model:
+  class_path: cgb_dm.training.lightning_module.CGBDMTrainingModule
+  init_args:
+    config:
+      dataset_name: cgl
+      num_labels: 5
+      max_seq_length: 16
+      image_size: [384, 256]
+      dim_model: 512
+      n_head: 8
+      num_layers: 4
+      feature_dim: 1024
+    condition_type: content_image
+    seed_mode: default
+optimizer:
+  class_path: torch.optim.Adam
+  init_args:
+    lr: 0.0002
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+    weight_decay: 0.0
+    amsgrad: false
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.CosineAnnealingLR
+  init_args:
+    T_max: 500
+data:
+  class_path: cgb_dm.training.datamodule.CGBDMDataModule
+  init_args:
+    config:
+      dataset_name: cgl
+      num_labels: 5
+      max_seq_length: 16
+      image_size: [384, 256]
+    source: original_zip
+    data_root: .cache/cgb-dm/datasets/cgl/split
+    batch_size: 128
+    num_workers: 16
+trainer:
+  max_epochs: 500
+  gradient_clip_val: 1.0

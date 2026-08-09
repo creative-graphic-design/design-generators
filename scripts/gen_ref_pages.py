@@ -88,6 +88,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "AAAI 2022": "2f5f8f",
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
+    "arXiv 2024": "b31b1b",
     "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",

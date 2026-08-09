@@ -6,7 +6,7 @@
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
 ![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=27&color=purple&style=flat-square)
+![models](https://img.shields.io/static/v1?label=models&message=28&color=purple&style=flat-square)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
@@ -17,6 +17,7 @@ Framework, task, and dataset details are generated in the [Models documentation]
 | Model | Venue | Ckpt | Train |
 | --- | --- | --- | --- |
 | [`BASNet`](models/basnet/README.md) | ![venue: CVPR 2019](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202019&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/basnet/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+| [`CGB-DM`](models/cgb-dm/README.md) | ![venue: arXiv 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=arXiv%202024&color=b31b1b) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/cgb-dm/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/cgb-dm/TRAINING.md) |
 | [`Coarse-to-Fine`](models/coarse-to-fine/README.md) | ![venue: AAAI 2022](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=AAAI%202022&color=2f5f8f) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/coarse-to-fine/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
 | [`DLT`](models/dlt/README.md) | ![venue: ICCV 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202023&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/dlt/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/dlt/TRAINING.md) |
 | [`DS-GAN`](models/ds-gan/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/ds-gan/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
