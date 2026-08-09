@@ -122,6 +122,14 @@ EXPECTED_FRONTMATTER = {
         "license": "other",
         "datasets": ["creative-graphic-design/PKU-PosterLayout"],
     },
+    "dlt": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PubLayNet",
+            "RICO13",
+            "creative-graphic-design/magazine",
+        ],
+    },
     "flex-dm": {
         "license": "apache-2.0",
         "datasets": [
@@ -256,6 +264,7 @@ EXPECTED_FRONTMATTER = {
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "ds-gan": "DS-GAN",
+    "dlt": "DLT",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
     "lace": "LACE",
@@ -296,6 +305,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "postero": "https://github.com/theKinsley/PosterO-CVPR2025",
     "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
@@ -1005,6 +1015,8 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     expected = (
         "not-run"
         if "not run" in section
+        else "practical-reproduction"
+        if "practical training reproduction" in section
         else "cpu-contract"
         if "vendor-parity CPU comparison" in section
         else "tolerance-verified"

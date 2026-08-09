@@ -10,9 +10,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ROOT_REPO_BLOB_URL = (
-    "https://github.com/creative-graphic-design/design-generators/blob/main/"
-)
 BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
@@ -138,6 +135,7 @@ PAPER_LINKS = {
     ("arXiv", "2108.00871"): "https://arxiv.org/abs/2108.00871",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
+    ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
@@ -451,8 +449,6 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        if _is_root_readme(badge.path):
-            return f"{ROOT_REPO_BLOB_URL}lib/{badge.message}/README.md"
         return f"lib/{badge.message}/README.md"
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]
