@@ -16,7 +16,7 @@ from dlt.conversion import build_pipeline
 from dlt.modeling_dlt import DLT
 from dlt.scheduling_dlt import DLTJointDiffusionScheduler
 
-from .dataset import DLTExample
+from .dataset import DLTExample, DLTStepTrace
 from .losses import masked_cross_entropy, masked_l2
 
 
@@ -81,7 +81,7 @@ class DLTTrainingModule(LightningModule):
         pipe = build_pipeline(self.dlt_config)
         self.model: DLT = pipe.model
         self.scheduler: DLTJointDiffusionScheduler = pipe.scheduler
-        self.latest_step_trace: DLTExample = {}
+        self.latest_step_trace: DLTStepTrace = {}
 
     def training_step(
         self, batch: DLTExample, batch_idx: int
@@ -94,7 +94,7 @@ class DLTTrainingModule(LightningModule):
             0, self.scheduler.num_cont_steps, (batch["box"].shape[0],), device=device
         ).long()
         cont_vec, noisy_batch = self.scheduler.add_noise_jointly(
-            batch["box"], batch, timesteps, noise
+            batch["box"], {"cat": batch["cat"]}, timesteps, noise
         )
         noisy_batch["box"] = cont_vec
         boxes_predict, cls_predict = self.model(batch, noisy_batch, timesteps)

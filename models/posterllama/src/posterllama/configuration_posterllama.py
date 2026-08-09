@@ -12,6 +12,9 @@ from posgen.common.labels import id2label_for_dataset
 PosterLlamaDatasetName = Literal["cgl", "cgl_v2", "pku_posterlayout"]
 PosterLlamaVisionModelName = Literal["dino_v2", "eva_clip_g"]
 PosterLlamaLicenseStatus = Literal["unverified"]
+PosterLlamaConfigValue = (
+    str | int | float | bool | None | list[str] | list[int] | dict[str, str]
+)
 
 
 class PosterLlamaConfig(PretrainedConfig):
@@ -82,7 +85,7 @@ class PosterLlamaConfig(PretrainedConfig):
         checkpoint_license_status: PosterLlamaLicenseStatus = "unverified",
         processor_subfolder: str = "processor",
         runtime_subfolder: str = "runtime",
-        **kwargs: object,
+        **kwargs: PosterLlamaConfigValue,
     ) -> None:
         """Initialize configuration values."""
         labels = (

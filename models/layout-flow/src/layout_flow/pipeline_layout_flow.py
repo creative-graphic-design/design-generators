@@ -12,7 +12,7 @@ import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_layout_flow import LayoutFlowConfig
@@ -69,15 +69,15 @@ class LayoutFlowPipeline(DiffusionPipeline):
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | Sequence[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = "xywh",

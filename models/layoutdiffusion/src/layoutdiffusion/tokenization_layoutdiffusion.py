@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from os import PathLike
 from pathlib import Path
 from typing import Literal, cast
@@ -11,6 +11,7 @@ from typing import Literal, cast
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.bbox import (
+    ArrayLikeInput,
     BoxFormat,
     clamp_boxes,
     ltrb_to_xywh,
@@ -22,6 +23,20 @@ from laygen.common.bbox import (
 from transformers import PreTrainedTokenizer
 
 from .configuration_layoutdiffusion import LayoutDiffusionConfig
+
+LayoutDiffusionConfigValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | dict[str, int]
+    | dict[str, str]
+    | dict[int, str]
+    | list[int]
+    | list[float]
+    | list[str]
+)
 
 
 class LayoutDiffusionTokenizer(PreTrainedTokenizer):
@@ -52,18 +67,21 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
 
     def __init__(
         self,
-        config: LayoutDiffusionConfig | Mapping[str, object] | None = None,
+        config: LayoutDiffusionConfig
+        | Mapping[str, LayoutDiffusionConfigValue]
+        | None = None,
         *,
         vocab_file: str | Path | None = None,
         layout_config_file: str | Path | None = None,
-        **kwargs: object,
+        **kwargs: LayoutDiffusionConfigValue,
     ) -> None:
         """Initialize the tokenizer."""
         if isinstance(config, LayoutDiffusionConfig):
             pass
         elif config is None:
             config = self._load_config(
-                layout_config_file=layout_config_file, kwargs=kwargs
+                layout_config_file=layout_config_file,
+                kwargs=kwargs,
             )
         else:
             config = _config_from_mapping(config)
@@ -93,7 +111,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         """Return a copy of token-to-id vocabulary."""
         return dict(self._token_to_id)
 
-    def _tokenize(self, text: str, **kwargs: object) -> list[str]:
+    def _tokenize(self, text: str, **kwargs: str | float | bool | None) -> list[str]:
         """Split a LayoutDiffusion token string on whitespace."""
         _ = kwargs
         return text.strip().split()
@@ -113,9 +131,11 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
     def __call__(
         self,
         *,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object],
-        labels: Int[torch.Tensor, "batch elements"] | list[object],
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"] | Sequence[ArrayLikeInput],
+        labels: Int[torch.Tensor, "batch elements"] | Sequence[ArrayLikeInput],
+        mask: Bool[torch.Tensor, "batch elements"]
+        | Sequence[ArrayLikeInput]
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
@@ -412,13 +432,13 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
     def from_pretrained(
         cls,
         path: str | PathLike[str],
-        *args: object,
+        *args: str,
         cache_dir: str | PathLike[str] | None = None,
         force_download: bool = False,
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: LayoutDiffusionConfigValue,
     ) -> LayoutDiffusionTokenizer:
         """Load tokenizer from a pipeline root or tokenizer directory."""
         load_path = Path(path)
@@ -444,7 +464,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         cls,
         *,
         layout_config_file: str | Path | None,
-        kwargs: dict[str, object],
+        kwargs: dict[str, LayoutDiffusionConfigValue],
     ) -> LayoutDiffusionConfig:
         layout_config = kwargs.pop("layout_config", None)
         if layout_config is None and layout_config_file is None:
@@ -455,8 +475,9 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
             layout_config = json.loads(config_text)
         if not isinstance(layout_config, Mapping):
             raise TypeError("layout_config must be a mapping")
+        normalized = {str(key): value for key, value in layout_config.items()}
         return _config_from_mapping(
-            {str(key): value for key, value in layout_config.items()}
+            cast(Mapping[str, LayoutDiffusionConfigValue], normalized)
         )
 
     def _parse_elements(self, tokens: list[str]) -> list[list[str]]:
@@ -487,5 +508,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         return elements
 
 
-def _config_from_mapping(mapping: Mapping[str, object]) -> LayoutDiffusionConfig:
+def _config_from_mapping(
+    mapping: Mapping[str, LayoutDiffusionConfigValue],
+) -> LayoutDiffusionConfig:
     return LayoutDiffusionConfig(**dict(mapping))

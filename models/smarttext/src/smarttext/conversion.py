@@ -54,7 +54,7 @@ def convert_original_checkpoints(
     basnet_checkpoint: Path,
     output_dir: Path,
     config: SmartTextConfig,
-) -> dict[str, object]:
+) -> dict[str, str | int | list[str]]:
     """Convert raw SmartText checkpoints into a pipeline directory.
 
     Args:

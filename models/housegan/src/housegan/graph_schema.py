@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import cast
+from typing import TypeAlias, cast
 
+import numpy as np
 import torch
 from jaxtyping import Float, Int
 
@@ -38,11 +39,27 @@ class HouseGanSceneGraph:
     relations: tuple[HouseGanRelation, ...] | None = None
 
 
+HouseGanScalar: TypeAlias = str | int | float | bool | None
+HouseGanNodePayload: TypeAlias = Mapping[
+    str, HouseGanScalar | Sequence[float] | Mapping[str, HouseGanScalar]
+]
+HouseGanRelationPayload: TypeAlias = (
+    HouseGanRelation | Mapping[str, HouseGanScalar] | Sequence[HouseGanScalar]
+)
+HouseGanSceneGraphPayload: TypeAlias = Mapping[
+    str, Sequence[HouseGanNodePayload] | Sequence[HouseGanRelationPayload]
+]
+
+
 def normalize_scene_graph(
-    scene_graph: HouseGanSceneGraph | Mapping[str, object] | None,
+    scene_graph: HouseGanSceneGraph | HouseGanSceneGraphPayload | None,
     *,
-    labels: object | None,
-    relations: object | None,
+    labels: Int[torch.Tensor, "..."]
+    | Int[np.ndarray, "..."]
+    | Sequence[int | str]
+    | Sequence[Sequence[int | str]]
+    | None,
+    relations: Sequence[HouseGanRelationPayload] | None,
     id2label: Mapping[int, str],
 ) -> HouseGanSceneGraph:
     """Normalize public scene-graph payloads.
@@ -79,12 +96,12 @@ def normalize_scene_graph(
             relations=_normalize_relations(relations),
         )
     nodes_payload = cast(
-        Sequence[object],
+        Sequence[HouseGanNodePayload],
         scene_graph.get("nodes", scene_graph.get("rooms", ())),
     )
     nodes: list[HouseGanRoomNode] = []
     for index, raw_node in enumerate(nodes_payload):
-        item = cast(Mapping[str, object], raw_node)
+        item = raw_node
         raw_id = item.get("id", index)
         raw_label = item.get("label_id", item.get("label"))
         if raw_label is None:
@@ -96,14 +113,21 @@ def normalize_scene_graph(
                 id=int(cast(int | str, raw_id)),
                 label=cast(int | str, raw_label),
                 bbox=cast(tuple[float, float, float, float] | None, bbox),
-                attributes=cast(Mapping[str, object] | None, item.get("attributes")),
+                attributes=cast(
+                    Mapping[str, HouseGanScalar] | None, item.get("attributes")
+                ),
             )
         )
     edges = scene_graph.get("edges", scene_graph.get("relations", relations))
     if not nodes:
         raise ValueError("House-GAN relation graphs require at least one node")
     _ = id2label
-    return HouseGanSceneGraph(nodes=tuple(nodes), relations=_normalize_relations(edges))
+    return HouseGanSceneGraph(
+        nodes=tuple(nodes),
+        relations=_normalize_relations(
+            cast(Sequence[HouseGanRelationPayload] | None, edges)
+        ),
+    )
 
 
 def complete_signed_edges(
@@ -180,9 +204,16 @@ def relation_from_bboxes(
     return tuple(relations)
 
 
-def _to_label_sequence(labels: object) -> list[int | str]:
+def _to_label_sequence(
+    labels: Int[torch.Tensor, "..."]
+    | Int[np.ndarray, "..."]
+    | Sequence[int | str]
+    | Sequence[Sequence[int | str]],
+) -> list[int | str]:
     if isinstance(labels, torch.Tensor):
         values = labels.detach().cpu().tolist()
+    elif isinstance(labels, np.ndarray):
+        values = cast(Sequence[int | str] | Sequence[Sequence[int | str]], labels)
     else:
         values = labels
     if (
@@ -192,21 +223,26 @@ def _to_label_sequence(labels: object) -> list[int | str]:
         and not isinstance(values[0], str | bytes)
     ):
         values = values[0]
-    return [cast(int | str, item) for item in cast(Sequence[object], values)]
+    return [item for item in cast(Sequence[int | str], values)]
 
 
-def _normalize_relations(raw_relations: object | None) -> tuple[HouseGanRelation, ...]:
+def _normalize_relations(
+    raw_relations: Sequence[HouseGanRelationPayload] | None,
+) -> tuple[HouseGanRelation, ...]:
     if raw_relations is None:
         return ()
     relations: list[HouseGanRelation] = []
-    for item in cast(Sequence[object], raw_relations):
+    for item in raw_relations:
         if isinstance(item, HouseGanRelation):
             relations.append(item)
             continue
         if isinstance(item, Mapping):
             source = int(cast(int | str, item.get("source", item.get("subject"))))
             target = int(cast(int | str, item.get("target", item.get("object"))))
-            predicate = item.get("adjacent", item.get("predicate", item.get("sign")))
+            predicate = cast(
+                HouseGanScalar,
+                item.get("adjacent", item.get("predicate", item.get("sign"))),
+            )
             adjacent = _predicate_to_adjacent(predicate)
             relations.append(
                 HouseGanRelation(
@@ -217,7 +253,7 @@ def _normalize_relations(raw_relations: object | None) -> tuple[HouseGanRelation
                 )
             )
             continue
-        values = list(cast(Sequence[object], item))
+        values = list(cast(Sequence[HouseGanScalar], item))
         if len(values) != 3:
             raise ValueError("Relation tuples must have three values")
         source, middle, target = values
@@ -235,7 +271,7 @@ def _normalize_relations(raw_relations: object | None) -> tuple[HouseGanRelation
     return tuple(relations)
 
 
-def _predicate_to_adjacent(predicate: object) -> bool:
+def _predicate_to_adjacent(predicate: HouseGanScalar) -> bool:
     if isinstance(predicate, bool):
         return predicate
     if isinstance(predicate, int):

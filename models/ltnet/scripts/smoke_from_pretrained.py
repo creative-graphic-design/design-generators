@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import cast
 
+from laygen.modeling_outputs import LayoutGenerationOutput
 from ltnet import LayoutObject, LTNetPipeline
 
 
@@ -22,7 +23,7 @@ def main() -> None:
     for path in args.path:
         pipe = LTNetPipeline.from_pretrained(path, local_files_only=True)
         out = cast(
-            Any,
+            LayoutGenerationOutput,
             pipe(objects=[LayoutObject(id="object-1", label=0)], seed=0),
         )
         assert out.bbox.shape[-1] == 4

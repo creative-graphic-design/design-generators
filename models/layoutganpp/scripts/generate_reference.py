@@ -4,31 +4,37 @@ from __future__ import annotations
 
 import argparse
 import sys
+from argparse import Namespace
 from collections.abc import Mapping
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Final, cast
 
 import torch
+from jaxtyping import Bool, Int
 
 from laygen.common.vendor import vendor_root
 from layoutganpp.datasets import labels_for_dataset
 
 _VENDOR_MODEL: Final[Path] = Path("model") / "layoutganpp.py"
+CheckpointArgValue = str | int | float | bool | None
+CheckpointArgs = Mapping[str, CheckpointArgValue] | Namespace | SimpleNamespace
 
 
-def _arg(args: object, key: str) -> str:
+def _arg(args: CheckpointArgs, key: str) -> str:
     if isinstance(args, Mapping):
-        return str(cast(Mapping[str, object], args)[key])
-    return getattr(args, key)
+        values = cast(Mapping[str, CheckpointArgValue], args)
+        return str(values[key])
+    return str(getattr(args, key))
 
 
-def _arg_int(args: object, key: str) -> int:
+def _arg_int(args: CheckpointArgs, key: str) -> int:
     return int(_arg(args, key))
 
 
 def _synthetic_labels(
     *, batch_size: int, seq_len: int, num_labels: int, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[Int[torch.Tensor, "batch elements"], Bool[torch.Tensor, "batch elements"]]:
     labels = torch.arange(seq_len, dtype=torch.long, device=device).remainder(
         num_labels
     )

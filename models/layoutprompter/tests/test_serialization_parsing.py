@@ -11,12 +11,13 @@ from laygen.common.testing import (
     assert_normalized_xywh,
 )
 from layoutprompter.parsing import Parser
+from layoutprompter.records import LayoutRecord
 from layoutprompter.schemas import LayoutElement, LayoutPrompterOutput, PixelBBox
 from layoutprompter.serialization import build_prompt, create_serializer
 from layoutprompter.vendor_parity import fixture_records, parser_prediction
 
 
-def _sample() -> dict[str, object]:
+def _sample() -> LayoutRecord:
     return {
         "labels": np.asarray([0, 1]),
         "bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
@@ -31,11 +32,11 @@ def _sample() -> dict[str, object]:
 def test_seq_prompt_matches_vendor_strategy() -> None:
     """Seq prompts include preamble, exemplar input/output, and final constraint."""
     serializer = create_serializer("publaynet", "gent", "seq", "seq")
-    exemplar = {
+    exemplar: LayoutRecord = {
         "labels": np.asarray([0, 1]),
         "discrete_gold_bboxes": np.asarray([[10, 20, 30, 40], [50, 60, 20, 10]]),
     }
-    test_data = {
+    test_data: LayoutRecord = {
         "labels": np.asarray([0, 1]),
         "discrete_gold_bboxes": exemplar["discrete_gold_bboxes"],
     }

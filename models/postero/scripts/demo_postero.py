@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from postero import PosterOAgent, PosterOConfig
@@ -12,7 +12,7 @@ from postero.vendor_parity import fixture_records
 def main() -> None:
     """Run the offline demo."""
 
-    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(
             parts=[
                 TextPart(

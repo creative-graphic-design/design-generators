@@ -14,20 +14,41 @@ import pickle
 import random
 import sys
 from pathlib import Path
-from typing import Callable, Protocol, cast
+from typing import Protocol, cast
 
 import numpy as np
 import torch
 import yaml
+from jaxtyping import Shaped
 
 
 class _DatasetLike(Protocol):
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, ...]:
+    def __getitem__(self, index: int) -> tuple[Shaped[torch.Tensor, "..."], ...]:
         """Return one vendor dataset sample."""
 
 
 class _DataLoaderLike(Protocol):
     dataset: _DatasetLike
+
+
+VendorConfigValue = (
+    str
+    | int
+    | float
+    | bool
+    | list[str | int | float | bool]
+    | dict[str, "VendorConfigValue"]
+)
+
+
+class _BuildLoader(Protocol):
+    def __call__(
+        self, cfg: dict[str, VendorConfigValue], is_train: bool
+    ) -> tuple[_DataLoaderLike, None]: ...
+
+
+class _BuildModel(Protocol):
+    def __call__(self, cfg: dict[str, VendorConfigValue]) -> torch.nn.Module: ...
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,17 +74,15 @@ def parse_args() -> argparse.Namespace:
 
 def _load_vendor_modules(
     vendor_root: Path,
-) -> tuple[Callable[..., object], Callable[..., torch.nn.Module]]:
+) -> tuple[_BuildLoader, _BuildModel]:
     sys.path.insert(0, str(vendor_root))
     from loader import build_loader
     from model import build_model
 
-    return cast(Callable[..., object], build_loader), cast(
-        Callable[..., torch.nn.Module], build_model
-    )
+    return cast(_BuildLoader, build_loader), cast(_BuildModel, build_model)
 
 
-def _prepare_cfg(args: argparse.Namespace) -> dict[str, object]:
+def _prepare_cfg(args: argparse.Namespace) -> dict[str, VendorConfigValue]:
     with args.cfg_path.open() as f:
         cfg = yaml.safe_load(f)
     cfg["DATASETS"]["DATA_DIR_PATH"] = str(args.data_dir)
@@ -93,7 +112,7 @@ def main() -> None:
     _set_seed(args.seed)
     build_loader, build_model = _load_vendor_modules(args.vendor_root.resolve())
     cfg = _prepare_cfg(args)
-    dataloader, _ = cast(tuple[_DataLoaderLike, object], build_loader(cfg, True))
+    dataloader, _ = build_loader(cfg, True)
     dataset = dataloader.dataset
     vocab = getattr(dataset, "vocab", {})
     object_pred_vocab = vocab.get("object_pred_idx_to_name", {})

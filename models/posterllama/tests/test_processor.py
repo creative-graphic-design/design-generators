@@ -125,3 +125,63 @@ def test_num_elements_sequence_and_tensor() -> None:
 
     assert seq_prompt.count("<FILL_") == 0
     assert tensor_prompt.count("<FILL_") == 0
+
+
+def test_prompt_helpers_cover_default_and_sequence_paths() -> None:
+    processor = PosterLlamaProcessor.from_config(PosterLlamaConfig(canvas_size=None))
+
+    assert processor._resolve_canvas_size(None) == (360, 504)
+    assert processor._first_prompt(None) == ""
+    assert processor._first_prompt(("first", "second")) == "first"
+    assert processor._texts_line(None) == ""
+    assert processor._texts_line("single") == "single"
+    assert processor._texts_line(["title", "body"]) == "title | body"
+    assert processor._texts_line([["1", "body"]]) == "1 | body"
+    assert processor._num_elements(None) == 1
+    assert processor._num_elements((4, 5)) == 4
+
+
+def test_constraint_markup_fill_and_condition_variants() -> None:
+    processor = PosterLlamaProcessor.from_config(
+        PosterLlamaConfig(canvas_size=(100, 100), id2label={0: "text"})
+    )
+
+    label_only = processor._constraint_markup(
+        condition=ConditionType.label,
+        labels=["text"],
+        bbox=[[[0.1, 0.2, 0.3, 0.4]]],
+        mask=None,
+        num_elements=None,
+        box_format="xywh",
+        normalized=True,
+        canvas_size=(100, 100),
+    )
+    assert 'data-category="text"' in label_only
+    assert 'x="<FILL_1>"' in label_only
+
+    label_size = processor._constraint_markup(
+        condition=ConditionType.label_size,
+        labels=[0],
+        bbox=[[[0.1, 0.2, 0.3, 0.4]]],
+        mask=None,
+        num_elements=None,
+        box_format="xywh",
+        normalized=True,
+        canvas_size=(100, 100),
+    )
+    assert 'x="<FILL_1>"' in label_size
+    assert 'width="30"' in label_size or 'width="29"' in label_size
+
+    assert (
+        processor._constraint_markup(
+            condition=ConditionType.completion,
+            labels=None,
+            bbox=None,
+            mask=None,
+            num_elements=[2],
+            box_format="xywh",
+            normalized=True,
+            canvas_size=(100, 100),
+        ).count("<FILL_")
+        == 10
+    )

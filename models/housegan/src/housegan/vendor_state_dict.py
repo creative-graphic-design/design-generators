@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import torch
 from jaxtyping import Shaped
+
+from .configuration_housegan import HouseGanConversionReport
 
 
 @dataclass(frozen=True)
@@ -19,9 +21,14 @@ class ConversionReport:
     missing_keys: tuple[str, ...] = ()
     unexpected_keys: tuple[str, ...] = ()
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> HouseGanConversionReport:
         """Serialize report to JSON-compatible values."""
-        return asdict(self)
+        return {
+            "key_count": self.key_count,
+            "tensor_shapes": self.tensor_shapes,
+            "missing_keys": self.missing_keys,
+            "unexpected_keys": self.unexpected_keys,
+        }
 
 
 EXPECTED_PREFIXES = (

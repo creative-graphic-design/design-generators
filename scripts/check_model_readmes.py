@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 import tomllib
+from typing import TypeAlias
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -51,6 +52,15 @@ README_POLICY_DOCS = [
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
 ]
 LIB_READMES = sorted((REPO_ROOT / "lib").glob("*/README.md"))
+PyprojectValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | list["PyprojectValue"]
+    | dict[str, "PyprojectValue"]
+    | None
+)
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -347,7 +357,7 @@ def _bash_fences(text: str) -> list[str]:
     return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
 
 
-def _project_metadata(member_dir: Path) -> dict[str, object]:
+def _project_metadata(member_dir: Path) -> dict[str, PyprojectValue]:
     return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
 
 

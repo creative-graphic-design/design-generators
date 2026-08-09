@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 import sys
 from contextlib import contextmanager
@@ -32,7 +32,7 @@ class _LegacyUnpicklerProtocol(Protocol):
     """Protocol for the vendor unpickler class patched during conversion."""
 
     _layout_detr_compat_patched: bool
-    find_class: object
+    find_class: Callable[["_LegacyUnpicklerProtocol", str, str], type]
 
 
 class _LegacyModuleProtocol(Protocol):
@@ -44,7 +44,11 @@ class _LegacyModuleProtocol(Protocol):
 class _VendorGeneratorStateProtocol(Protocol):
     """Protocol for the loaded vendor generator state-dict surface."""
 
+    init_kwargs: Mapping[str, str | int | float | bool]
+
     def state_dict(self) -> Mapping[str, Shaped[torch.Tensor, "..."]]: ...
+
+    def to(self, device: str | torch.device) -> "_VendorGeneratorStateProtocol": ...
 
 
 def remap_generator_key(source_key: str) -> str:
@@ -115,10 +119,7 @@ def extract_generator_state(
         device=device,
     )
     source_state = {
-        key: value.detach().cpu()
-        for key, value in cast(_VendorGeneratorStateProtocol, generator)
-        .state_dict()
-        .items()
+        key: value.detach().cpu() for key, value in generator.state_dict().items()
     }
     init_kwargs = dict(getattr(generator, "init_kwargs", {}) or {})
     config = LayoutDetrConfig(
@@ -156,7 +157,7 @@ def load_vendor_generator(
     *,
     vendor_root: str | Path,
     device: str | torch.device = "cpu",
-) -> tuple[object, bool]:  # pragma: no cover
+) -> tuple[_VendorGeneratorStateProtocol, bool]:  # pragma: no cover
     """Load the original ``G_ema`` generator with conversion-only shims."""
     vendor_path = Path(vendor_root).resolve()
     before_modules = set(sys.modules)
@@ -167,7 +168,10 @@ def load_vendor_generator(
 
         _patch_legacy_unpickler(legacy)
         with dnnlib.util.open_url(str(pickle_path)) as handle:
-            generator = legacy.load_network_pkl(handle)["G_ema"].to(device)
+            generator = cast(
+                _VendorGeneratorStateProtocol,
+                legacy.load_network_pkl(handle)["G_ema"].to(device),
+            )
     custom_op_import_required = any(
         name.startswith("torch_utils.ops")
         for name in set(sys.modules).difference(before_modules)
@@ -178,11 +182,18 @@ def load_vendor_generator(
 class _LegacyTokenizerHelper:
     """Small unpickle-only stand-in for tokenizer helper classes removed upstream."""
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
+    def __init__(
+        self, *args: str | int | bool | None, **kwargs: str | int | float | bool | None
+    ) -> None:
         del args
         self.__dict__.update(kwargs)
 
-    def tokenize(self, text: object, *args: object, **kwargs: object) -> list[str]:
+    def tokenize(
+        self,
+        text: str,
+        *args: str | int | bool | None,
+        **kwargs: str | int | float | bool | None,
+    ) -> list[str]:
         del args, kwargs
         return str(text).split()
 
@@ -190,10 +201,10 @@ class _LegacyTokenizerHelper:
 class _LegacyTrie(_LegacyTokenizerHelper):
     """Unpickle-only stand-in for ``transformers.tokenization_utils.Trie``."""
 
-    def add(self, word: object) -> None:
+    def add(self, word: str) -> None:
         del word
 
-    def split(self, text: object) -> list[str]:
+    def split(self, text: str) -> list[str]:
         return [str(text)]
 
 
@@ -237,7 +248,7 @@ def _patch_legacy_unpickler(legacy: _LegacyModuleProtocol) -> None:  # pragma: n
         return
     original_find_class = legacy._LegacyUnpickler.find_class
 
-    def find_class(self: object, module: str, name: str) -> object:
+    def find_class(self: _LegacyUnpicklerProtocol, module: str, name: str) -> type:
         if module == "transformers.tokenization_utils" and name == "Trie":
             return _LegacyTrie
         if module == "transformers.models.bert.tokenization_bert" and name in {

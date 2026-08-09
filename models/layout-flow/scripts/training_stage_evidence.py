@@ -1,7 +1,5 @@
 """Generate LayoutFlow S3/S4 training reproduction evidence."""
 
-from __future__ import annotations
-
 import argparse
 import functools
 import json
@@ -9,14 +7,12 @@ import shutil
 import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import (
-    Any,  # noqa: TID251 - vendor batches and JSON artifacts are dynamic.
-    Final,
-    cast,
-)
+from typing import Final, TypedDict, TypeGuard, cast
 
 import numpy as np
 import torch
+from jaxtyping import Bool, Float, Int
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch.utils.data import DataLoader
 
 REPO_ROOT: Final[Path] = Path(__file__).resolve().parents[3]
@@ -24,6 +20,33 @@ DEFAULT_OUTPUT_ROOT: Final[Path] = (
     REPO_ROOT / ".cache" / "layout-flow" / "stage-evidence"
 )
 DEFAULT_VENDOR_ROOT: Final[Path] = REPO_ROOT / "vendor" / "layout-flow"
+
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+JsonObject = dict[str, JsonValue]
+
+
+class LayoutFlowBatch(TypedDict):
+    """Batched tensors emitted by package and vendor LayoutFlow loaders."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    type: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    length: Int[torch.Tensor, "batch"]
+    id: list[str]
+
+
+class SchedulerProbe(TypedDict):
+    """Scheduler metadata returned by Lightning configure_optimizers."""
+
+    scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
+    monitor: str
+    frequency: int
+
+
+class OptimizerProbe(TypedDict):
+    """Optimizer dictionary returned by Lightning configure_optimizers."""
+
+    lr_scheduler: SchedulerProbe
 
 
 def _write_split(path: Path, *, sample_count: int) -> None:
@@ -60,33 +83,39 @@ def write_fixture(output_root: Path) -> Path:
     return data_root
 
 
-def _json_default(value: object) -> object:
+def _json_default(value: JsonValue | Path | np.generic) -> JsonValue:
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, np.generic):
-        return value.item()
+        return cast(JsonValue, value.item())
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
+def _write_json(path: Path, payload: JsonObject) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True, default=_json_default) + "\n"
     )
 
 
-def _tensor_checksum(tensor: torch.Tensor) -> float:
+def _is_optimizer_probe(value: OptimizerLRScheduler) -> TypeGuard[OptimizerProbe]:
+    return isinstance(value, dict) and isinstance(value.get("lr_scheduler"), dict)
+
+
+def _tensor_checksum(
+    tensor: Float[torch.Tensor, "..."] | Int[torch.Tensor, "..."],
+) -> float:
     return float(tensor.detach().cpu().double().sum().item())
 
 
-def _batch_summary(batch: dict[str, Any]) -> dict[str, Any]:
-    summary = {
-        "bbox_shape": list(cast(torch.Tensor, batch["bbox"]).shape),
-        "bbox_checksum": round(_tensor_checksum(cast(torch.Tensor, batch["bbox"])), 8),
-        "length": cast(torch.Tensor, batch["length"]).cpu().tolist(),
-        "mask_true": int(cast(torch.Tensor, batch["mask"]).sum().item()),
-        "type": cast(torch.Tensor, batch["type"]).cpu().tolist(),
-        "type_checksum": int(cast(torch.Tensor, batch["type"]).sum().item()),
+def _batch_summary(batch: LayoutFlowBatch) -> JsonObject:
+    summary: JsonObject = {
+        "bbox_shape": [int(axis) for axis in batch["bbox"].shape],
+        "bbox_checksum": round(_tensor_checksum(batch["bbox"]), 8),
+        "length": cast(list[JsonValue], batch["length"].cpu().tolist()),
+        "mask_true": int(batch["mask"].sum().item()),
+        "type": cast(list[JsonValue], batch["type"].cpu().tolist()),
+        "type_checksum": int(batch["type"].sum().item()),
     }
     if "id" in batch:
         summary["id"] = list(batch["id"])
@@ -94,22 +123,22 @@ def _batch_summary(batch: dict[str, Any]) -> dict[str, Any]:
 
 
 def _assert_batch_equal(
-    package_batch: dict[str, Any],
-    vendor_batch: dict[str, Any],
+    package_batch: LayoutFlowBatch,
+    vendor_batch: LayoutFlowBatch,
     *,
     compare_ids: bool = False,
 ) -> None:
     del compare_ids
     for key in ("bbox", "type", "mask", "length"):
-        package_value = cast(torch.Tensor, package_batch[key])
-        vendor_value = cast(torch.Tensor, vendor_batch[key])
+        package_value = package_batch[key]
+        vendor_value = vendor_batch[key]
         if not torch.equal(package_value.cpu(), vendor_value.cpu()):
             raise AssertionError(f"Loader stream mismatch for {key}")
 
 
 def _vendor_loader_symbols(
     vendor_root: Path,
-) -> tuple[type[object], Callable[..., dict[str, Any]]]:
+) -> tuple[type, Callable[..., LayoutFlowBatch]]:
     marker = vendor_root / "src" / "datamodule" / "PubLayNet.py"
     if not marker.exists():
         raise FileNotFoundError(
@@ -118,13 +147,13 @@ def _vendor_loader_symbols(
     sys.path.insert(0, str(vendor_root))
     from src.datamodule.PubLayNet import PubLayNet, collate_fn
 
-    return PubLayNet, cast(Callable[..., dict[str, Any]], collate_fn)
+    return PubLayNet, cast(Callable[..., LayoutFlowBatch], collate_fn)
 
 
 def _stream_batches(
-    loader: Iterable[dict[str, Any]], *, limit: int
-) -> list[dict[str, Any]]:
-    batches: list[dict[str, Any]] = []
+    loader: Iterable[LayoutFlowBatch], *, limit: int
+) -> list[LayoutFlowBatch]:
+    batches: list[LayoutFlowBatch] = []
     for batch in loader:
         batches.append(batch)
         if len(batches) == limit:
@@ -204,8 +233,8 @@ def run_s4_loader_stream(output_root: Path, vendor_root: Path) -> Path:
         {
             "stage": "S4",
             "dataset": "publaynet",
-            "fixture": data_root.relative_to(REPO_ROOT),
-            "vendor_root": vendor_root.relative_to(REPO_ROOT),
+            "fixture": data_root.relative_to(REPO_ROOT).as_posix(),
+            "vendor_root": vendor_root.relative_to(REPO_ROOT).as_posix(),
             "seed": seed,
             "max_length": 5,
             "batch_size": 3,
@@ -309,10 +338,9 @@ def run_s3_short_run(output_root: Path) -> Path:
     if not checkpoint_files:
         raise AssertionError("No checkpoints were written")
 
-    scheduler_metadata: dict[str, Any] = {}
-    if isinstance(scheduler_probe, dict):
-        scheduler_mapping = cast(dict[str, Any], scheduler_probe)
-        scheduler_config = cast(dict[str, Any], scheduler_mapping["lr_scheduler"])
+    scheduler_metadata: JsonObject = {}
+    if _is_optimizer_probe(scheduler_probe):
+        scheduler_config = scheduler_probe["lr_scheduler"]
         scheduler_metadata = {
             "class": type(scheduler_config["scheduler"]).__name__,
             "monitor": scheduler_config["monitor"],
@@ -324,7 +352,7 @@ def run_s3_short_run(output_root: Path) -> Path:
         {
             "stage": "S3",
             "dataset": "publaynet",
-            "fixture": data_root.relative_to(REPO_ROOT),
+            "fixture": data_root.relative_to(REPO_ROOT).as_posix(),
             "seed": 42975,
             "accelerator": accelerator,
             "max_steps": trainer.max_steps,
@@ -336,7 +364,7 @@ def run_s3_short_run(output_root: Path) -> Path:
                 "disabled to match current full-run commands until package-local FID "
                 "validation is implemented"
             ),
-            "csv_metrics": metrics_path.relative_to(REPO_ROOT),
+            "csv_metrics": metrics_path.relative_to(REPO_ROOT).as_posix(),
             "checkpoints": checkpoint_files,
             "latest_trace_keys": sorted(module.latest_step_trace),
             "latest_train_loss": float(

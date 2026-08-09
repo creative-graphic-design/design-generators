@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
-from typing import Final, cast
+from typing import Final, TypeAlias, cast
 
 from transformers import PretrainedConfig
 
 DEFAULT_ID2LABEL: Final[dict[int, str]] = {0: "text"}
+SmartTextMetadataValue: TypeAlias = str | int | float | bool | None
 
 
 class SmartTextRegionMode(StrEnum):
@@ -104,9 +105,10 @@ class SmartTextConfig(PretrainedConfig):
         scorer_subfolder: str = "scorer",
         saliency_subfolder: str = "saliency_model",
         processor_subfolder: str = "processor",
-        original_options: Mapping[str, object] | None = None,
-        conversion_report: Mapping[str, object] | None = None,
-        **kwargs: object,
+        original_options: Mapping[str, SmartTextMetadataValue] | None = None,
+        conversion_report: Mapping[str, SmartTextMetadataValue | list[str]]
+        | None = None,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize SmartText configuration."""
         raw_id2label = id2label or DEFAULT_ID2LABEL

@@ -5,13 +5,15 @@ from __future__ import annotations
 import argparse
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import TypedDict, TypeGuard, cast
 
 import torch
+from jaxtyping import Float, Shaped
 from layoutdiffusion import LayoutDiffusionConfig
 from layoutdiffusion.training.config import LayoutDiffusionTrainingDatasetName
 from layoutdiffusion.training.datamodule import LayoutDiffusionDataModule
 from layoutdiffusion.training.lightning_module import LayoutDiffusionTrainingModule
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
 
 EVIDENCE_ROOT = Path(".cache/layoutdiffusion/training-evidence")
 
@@ -33,11 +35,28 @@ class GateEvidence(TypedDict):
     metadata: GateEvidenceMetadata
     trajectory: list[dict[str, float | int]]
     batch_heads: list[list[int]]
-    lt_history: torch.Tensor
-    lt_count: torch.Tensor
-    ema: dict[str, torch.Tensor]
-    model_state: dict[str, torch.Tensor]
-    optimizer_state: dict[str, object]
+    lt_history: Float[torch.Tensor, "steps"]
+    lt_count: Float[torch.Tensor, "steps"]
+    ema: dict[str, Shaped[torch.Tensor, ...]]
+    model_state: dict[str, Shaped[torch.Tensor, ...]]
+    optimizer_state: dict[
+        str,
+        int | float | str | list[dict[str, int | float | str | list[int]]],
+    ]
+
+
+class SchedulerConfig(TypedDict):
+    """Linear-annealing scheduler config returned by Lightning."""
+
+    scheduler: torch.optim.lr_scheduler.LRScheduler
+    interval: str
+
+
+class OptimizerConfig(TypedDict):
+    """Optimizer dictionary returned by Lightning configure_optimizers."""
+
+    optimizer: torch.optim.Optimizer
+    lr_scheduler: SchedulerConfig
 
 
 DATASET_SETTINGS: dict[LayoutDiffusionTrainingDatasetName, dict[str, int | float]] = {
@@ -48,6 +67,16 @@ DATASET_SETTINGS: dict[LayoutDiffusionTrainingDatasetName, dict[str, int | float
         "lr_anneal_steps": 400000,
     },
 }
+
+
+def _is_optimizer_config(value: OptimizerLRScheduler) -> TypeGuard[OptimizerConfig]:
+    return isinstance(value, dict) and isinstance(value.get("lr_scheduler"), dict)
+
+
+def _expect_optimizer_config(value: OptimizerLRScheduler) -> OptimizerConfig:
+    if not _is_optimizer_config(value):
+        raise TypeError("Expected optimizer and scheduler config")
+    return value
 
 
 def training_config(
@@ -112,17 +141,14 @@ def collect_package_evidence(
         processed_stream_rng_warmup=processed_data_dir is not None,
         num_workers=0,
     )
-    optimizer_config = cast(dict[str, object], module.configure_optimizers())
-    optimizer = cast(torch.optim.Optimizer, optimizer_config["optimizer"])
-    lr_scheduler_config = cast(dict[str, object], optimizer_config["lr_scheduler"])
-    lr_scheduler = cast(
-        torch.optim.lr_scheduler.LRScheduler, lr_scheduler_config["scheduler"]
-    )
+    optimizer_config = _expect_optimizer_config(module.configure_optimizers())
+    optimizer = optimizer_config["optimizer"]
+    lr_scheduler = optimizer_config["lr_scheduler"]["scheduler"]
     loader = iter(dm.train_dataloader())
     trajectory: list[dict[str, float | int]] = []
     batch_heads: list[list[int]] = []
     for step in range(steps):
-        batch = cast(dict[str, torch.Tensor], next(loader))
+        batch = cast(dict[str, Shaped[torch.Tensor, "..."]], next(loader))
         batch_heads.append(batch["input_ids"][:, :8].cpu().tolist())
         optimizer.zero_grad(set_to_none=True)
         loss = module.training_step(batch, step)

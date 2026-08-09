@@ -10,7 +10,6 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Shaped
-
 from layoutdiffusion import (
     LayoutDiffusionConfig,
     LayoutDiffusionPipeline,
@@ -166,29 +165,38 @@ def load_export_config(
 
 
 def select_transformer_state_dict(
-    checkpoint: Mapping[str, object], *, weights: Literal["ema", "raw"]
-) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    checkpoint: Mapping[
+        str, Shaped[torch.Tensor, ...] | Mapping[str, Shaped[torch.Tensor, ...]]
+    ],
+    *,
+    weights: Literal["ema", "raw"],
+) -> dict[str, Shaped[torch.Tensor, ...]]:
     """Select EMA or raw transformer weights from a Lightning checkpoint."""
+    checkpoint_mappings = cast(
+        Mapping[str, Mapping[str, Shaped[torch.Tensor, "..."]]], checkpoint
+    )
     if weights == "ema":
         for key in LEGACY_EMA_KEYS:
-            maybe_state = checkpoint.get(key)
-            if isinstance(maybe_state, Mapping):
-                return tensor_state_dict(cast(Mapping[object, object], maybe_state))
+            maybe_state = checkpoint_mappings.get(key)
+            if maybe_state is not None:
+                return tensor_state_dict(maybe_state)
         raise RuntimeError(
             "Checkpoint does not contain EMA weights. Re-run training with "
             f"{EMA_CHECKPOINT_KEY} support or pass --weights raw to export raw weights."
         )
-    raw_state = checkpoint.get("state_dict", checkpoint.get("model_state", checkpoint))
-    if not isinstance(raw_state, Mapping):
-        raise TypeError("Raw checkpoint state must be a mapping")
-    state_dict = tensor_state_dict(cast(Mapping[object, object], raw_state))
+    raw_state = checkpoint_mappings.get("state_dict")
+    if raw_state is None:
+        raw_state = checkpoint_mappings.get("model_state")
+    if raw_state is None:
+        raw_state = cast(Mapping[str, Shaped[torch.Tensor, "..."]], checkpoint)
+    state_dict = tensor_state_dict(raw_state)
     model_state = strip_prefix(state_dict, "model.")
     return model_state or state_dict
 
 
 def tensor_state_dict(
-    state: Mapping[object, object],
-) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    state: Mapping[str, Shaped[torch.Tensor, ...]],
+) -> dict[str, Shaped[torch.Tensor, ...]]:
     """Return only tensor entries from a state mapping."""
     return {
         str(key): value
@@ -198,8 +206,8 @@ def tensor_state_dict(
 
 
 def strip_prefix(
-    state_dict: Mapping[str, Shaped[torch.Tensor, "..."]], prefix: str
-) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    state_dict: Mapping[str, Shaped[torch.Tensor, ...]], prefix: str
+) -> dict[str, Shaped[torch.Tensor, ...]]:
     """Strip a module prefix from every matching state-dict key."""
     return {
         key.removeprefix(prefix): value

@@ -7,10 +7,11 @@ activation used by the LayoutDM, LACE, and LayoutFlow checkpoint backbones.
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import Callable, assert_never, cast
+from typing import Protocol, assert_never, cast, runtime_checkable
 
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float
 from transformers.activations import ACT2FN
 
 
@@ -27,7 +28,15 @@ class ActivationName(StrEnum):
     gelu2 = auto()
 
 
-ActivationFn = Callable[[torch.Tensor], torch.Tensor]
+@runtime_checkable
+class ActivationFn(Protocol):
+    """Callable activation function for tensor-valued feed-forward blocks."""
+
+    def __call__(
+        self,
+        input: Float[torch.Tensor, ...],
+    ) -> Float[torch.Tensor, ...]:
+        """Apply the activation to a tensor."""
 
 
 def normalize_activation(

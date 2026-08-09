@@ -8,9 +8,12 @@ import sys
 from pathlib import Path
 
 import torch
+from jaxtyping import Float
 
 
-def _public_xywh_from_vendor_xyxy(sample: torch.Tensor) -> torch.Tensor:
+def _public_xywh_from_vendor_xyxy(
+    sample: Float[torch.Tensor, "batch elements 4"],
+) -> Float[torch.Tensor, "batch elements 4"]:
     sample = ((sample.clamp(-1, 1) + 1.0) / 2.0).float()
     left, top, right, bottom = sample.unbind(dim=-1)
     fixed = torch.stack(

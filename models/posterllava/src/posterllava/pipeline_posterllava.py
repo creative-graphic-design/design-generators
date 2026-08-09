@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Protocol, TypeGuard, cast  # noqa: TID251  # Dynamic HF payloads.
+from typing import ClassVar, Literal, Protocol, TypeGuard, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -26,7 +26,25 @@ from .configuration_posterllava import (
 )
 from .generation_posterllava import build_stopping_criteria
 from .image_processing_posterllava import PosterLlavaImageProcessor
-from .processing_posterllava import PosterLlavaProcessor
+from .processing_posterllava import (
+    PosterLlavaImageProcessorComponent,
+    PosterLlavaOutputDict,
+    PosterLlavaProcessor,
+)
+
+PosterLlavaContentScalar = str | int | float | bool | None
+PosterLlavaContentValue = (
+    PosterLlavaContentScalar
+    | Image.Image
+    | Sequence["PosterLlavaContentValue"]
+    | Mapping[str, "PosterLlavaContentValue"]
+)
+PosterLlavaComponent = (
+    PreTrainedModel
+    | PreTrainedTokenizerBase
+    | PosterLlavaImageProcessorComponent
+    | PosterLlavaProcessor
+)
 
 
 class _CausalLMGenerationModel(Protocol):
@@ -54,7 +72,7 @@ class _ImagePreprocessor(Protocol):
         images: Sequence[Image.Image],
         *,
         return_tensors: str = "pt",
-    ) -> Mapping[str, Any]:
+    ) -> Mapping[str, Float[torch.Tensor, "batch channels height width"]]:
         """Preprocess images."""
 
 
@@ -117,14 +135,18 @@ def _load_processor_component(
 
 
 def _is_content_mapping(
-    content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
-) -> TypeGuard[Mapping[str, Any]]:
+    content: Mapping[str, PosterLlavaContentValue]
+    | Sequence[Mapping[str, PosterLlavaContentValue]]
+    | None,
+) -> TypeGuard[Mapping[str, PosterLlavaContentValue]]:
     return isinstance(content, Mapping)
 
 
 def _is_content_sequence(
-    content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
-) -> TypeGuard[Sequence[Mapping[str, Any]]]:
+    content: Mapping[str, PosterLlavaContentValue]
+    | Sequence[Mapping[str, PosterLlavaContentValue]]
+    | None,
+) -> TypeGuard[Sequence[Mapping[str, PosterLlavaContentValue]]]:
     return isinstance(content, Sequence)
 
 
@@ -185,7 +207,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
     processor: PosterLlavaProcessor
     model: PreTrainedModel | None
     tokenizer: PreTrainedTokenizerBase | None
-    image_processor: Any | None
+    image_processor: PosterLlavaImageProcessorComponent | None
 
     def __init__(
         self,
@@ -194,7 +216,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         *,
         model: PreTrainedModel | None = None,
         tokenizer: PreTrainedTokenizerBase | None = None,
-        image_processor: Any | None = None,  # noqa: ANN401
+        image_processor: PosterLlavaImageProcessorComponent | None = None,
     ) -> None:
         """Initialize the PosterLLaVA recipe pipeline."""
         super().__init__(config)
@@ -213,7 +235,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, Any | None],
+        components: Mapping[str, PosterLlavaComponent | None],
     ) -> "PosterLlavaPipeline":
         """Build a pipeline from loaded root config and components."""
         cfg = cast(PosterLlavaConfig, config)
@@ -225,9 +247,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
                 prompt_template=cfg.prompt_template,
             )
         tokenizer = cast(PreTrainedTokenizerBase | None, components.get("tokenizer"))
-        image_processor = cast(
-            ImageProcessingMixin | None, components.get("image_processor")
-        )
+        image_processor = components.get("image_processor")
         return cls(
             config=cfg,
             processor=processor,
@@ -241,7 +261,9 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         *,
         images: Image.Image | Sequence[Image.Image] | None = None,
         prompt: str | Sequence[str] | None = None,
-        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None = None,
+        content: Mapping[str, PosterLlavaContentValue]
+        | Sequence[Mapping[str, PosterLlavaContentValue]]
+        | None = None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
@@ -267,7 +289,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         num_beams: int | None = 1,
         conv_mode: ConversationMode | str | None = None,
         domain_name: str = "social media promotion poster with qbposter style",
-    ) -> LayoutGenerationOutput | dict[str, Any]:  # ty: ignore[invalid-method-override]
+    ) -> LayoutGenerationOutput | PosterLlavaOutputDict:  # ty: ignore[invalid-method-override]
         """Generate a poster layout from an image-conditioned prompt.
 
         Args:
@@ -381,7 +403,9 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         self,
         *,
         images: Image.Image | Sequence[Image.Image] | None,
-        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
+        content: Mapping[str, PosterLlavaContentValue]
+        | Sequence[Mapping[str, PosterLlavaContentValue]]
+        | None,
     ) -> list[Image.Image]:
         if images is None:
             if content is None:
@@ -400,7 +424,9 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         self,
         *,
         prompt: str | Sequence[str] | None,
-        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
+        content: Mapping[str, PosterLlavaContentValue]
+        | Sequence[Mapping[str, PosterLlavaContentValue]]
+        | None,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None,
         batch_size: int,
         labels: Int[torch.Tensor, "batch elements"] | Sequence[str | int] | None,
@@ -494,10 +520,12 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
 
     def _broadcast_content(
         self,
-        content: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None,
+        content: Mapping[str, PosterLlavaContentValue]
+        | Sequence[Mapping[str, PosterLlavaContentValue]]
+        | None,
         *,
         batch_size: int,
-    ) -> list[Mapping[str, Any]]:
+    ) -> list[Mapping[str, PosterLlavaContentValue]]:
         if content is None:
             return [{} for _ in range(batch_size)]
         if _is_content_mapping(content):
@@ -510,7 +538,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         self,
         *,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None,
-        content_items: Sequence[Mapping[str, Any]],
+        content_items: Sequence[Mapping[str, PosterLlavaContentValue]],
         batch_size: int,
     ) -> list[int]:
         if num_elements is None:
@@ -530,7 +558,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
     def _texts_for_index(
         self,
         texts: str | Sequence[str] | Sequence[Sequence[str]] | None,
-        content_items: Sequence[Mapping[str, Any]],
+        content_items: Sequence[Mapping[str, PosterLlavaContentValue]],
         idx: int,
     ) -> str | Sequence[str] | None:
         content_value = content_items[idx].get("texts", content_items[idx].get("text"))

@@ -3,10 +3,21 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import Protocol, cast
 
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from layout_corrector import LayoutCorrectorPipeline
+
+
+class _HasShape(Protocol):
+    """Tensor-like object with a printable shape."""
+
+    @property
+    def shape(self) -> Sequence[int]:
+        """Return tensor dimensions."""
+        ...
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,9 +32,11 @@ def main() -> None:
     args = parse_args()
     pipe = LayoutCorrectorPipeline.from_pretrained(args.path)
     out = cast(
-        Any, pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic")
+        LayoutGenerationOutput,
+        pipe(batch_size=1, seed=0, num_inference_steps=1, sampling="deterministic"),
     )
-    print(out.sequences.shape)
+    sequences = cast(_HasShape, out.sequences)
+    print(sequences.shape)
 
 
 if __name__ == "__main__":
