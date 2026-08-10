@@ -28,18 +28,10 @@ download = [
 hub = [
     "huggingface-hub>=0.24",
 ]
-training = [
-    "datasets>=4.0",
-    "pyarrow>=17",
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
-]
 
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }
-traingen = { workspace = true }
-traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
