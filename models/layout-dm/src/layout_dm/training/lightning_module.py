@@ -6,14 +6,19 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
-from lightning.pytorch import LightningModule
-from lightning.pytorch.utilities.types import OptimizerLRScheduler
-from torch import nn
-
 from laygen.common.discrete import (
     index_to_log_onehot,
     log_sample_categorical,
+    update_loss_history,
 )
+from laygen.common.training import (
+    finish_training_step,
+    log_validation_loss,
+    sum_loss_values,
+)
+from lightning.pytorch import LightningModule
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
+from torch import nn
 
 from ..configuration_layout_dm import LayoutDMConfig
 from ..modeling_layout_dm import LayoutDMDenoiser
@@ -261,7 +266,12 @@ class LayoutDMTrainingModule(LightningModule):
         at_zero = (t == 0).float()
         kl_loss = at_zero * decoder_nll + (1.0 - at_zero) * kl
 
-        self._update_loss_history(kl_loss, t)
+        update_loss_history(
+            kl_loss,
+            t,
+            cast(torch.Tensor, self.lt_history),
+            cast(torch.Tensor, self.lt_count),
+        )
 
         losses: dict[str, Float[torch.Tensor, ""]] = {"kl_loss": (kl_loss / pt).mean()}
         if self.auxiliary_loss_weight != 0 and is_train:
@@ -287,19 +297,6 @@ class LayoutDMTrainingModule(LightningModule):
         }
         return losses, trace
 
-    def _update_loss_history(
-        self, kl_loss: Float[torch.Tensor, "batch"], t: Int[torch.Tensor, "batch"]
-    ) -> None:
-        lt2 = kl_loss.pow(2)
-        lt_history = cast(torch.Tensor, self.lt_history)
-        lt_count = cast(torch.Tensor, self.lt_count)
-        lt2_prev = lt_history.gather(dim=0, index=t)
-        new_history = (0.1 * lt2 + 0.9 * lt2_prev).detach()
-        lt_history.scatter_(dim=0, index=t, src=new_history)
-        lt_count.scatter_add_(dim=0, index=t, src=torch.ones_like(lt2))
-
-    # -- lightning hooks ------------------------------------------------------
-
     def training_step(
         self, batch: dict[str, Shaped[torch.Tensor, "..."]], batch_idx: int
     ) -> Float[torch.Tensor, ""]:
@@ -307,18 +304,7 @@ class LayoutDMTrainingModule(LightningModule):
         del batch_idx
         seq = batch["input_ids"].long()
         losses, trace = self._diffusion_losses(seq, is_train=True)
-        total = torch.stack(tuple(losses.values())).sum()
-        for key, value in losses.items():
-            self.log(key, value, on_step=True, on_epoch=True, batch_size=1)
-        self.log(
-            "train_loss",
-            total,
-            prog_bar=True,
-            on_step=True,
-            on_epoch=True,
-            batch_size=1,
-        )
-        self.latest_step_trace = {**trace, "train_loss": total.detach()}
+        total, self.latest_step_trace = finish_training_step(self, losses, trace)
         return total
 
     def validation_step(
@@ -328,13 +314,6 @@ class LayoutDMTrainingModule(LightningModule):
         del batch_idx
         seq = batch["input_ids"].long()
         losses, _ = self._diffusion_losses(seq, is_train=True)
-        total = torch.stack(tuple(losses.values())).sum()
-        self.log(
-            "val_loss",
-            total,
-            prog_bar=True,
-            on_step=False,
-            on_epoch=True,
-            batch_size=1,
-        )
+        total = sum_loss_values(losses)
+        log_validation_loss(self, total)
         return total

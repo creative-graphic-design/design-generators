@@ -1,0 +1,56 @@
+seed_everything: 102
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  plugins:
+    - class_path: lightning.fabric.plugins.environments.LightningEnvironment
+  deterministic: true
+  max_epochs: 1
+  limit_train_batches: 1
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+model:
+  class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule
+  init_args:
+    config:
+      class_path: layoutdiffusion.LayoutDiffusionConfig
+      init_args:
+        dataset_name: publaynet
+        seq_length: 19
+        max_num_elements: 3
+        diffusion_steps: 10
+        num_channels: 8
+        hidden_size: 16
+        num_attention_heads: 4
+        num_hidden_layers: 1
+        intermediate_size: 32
+    learning_rate: 0.00005
+    weight_decay: 0.0
+    auxiliary_loss_weight: 0.001
+    time_sampler: uniform
+    scheduler: null
+    lr_anneal_steps: 4
+    ema_rate: 0.9999
+    seed_mode: deterministic
+data:
+  class_path: layoutdiffusion.training.LayoutDiffusionDataModule
+  init_args:
+    dataset_name: publaynet
+    config:
+      class_path: layoutdiffusion.LayoutDiffusionConfig
+      init_args:
+        dataset_name: publaynet
+        seq_length: 19
+        max_num_elements: 3
+        diffusion_steps: 10
+        num_channels: 8
+        hidden_size: 16
+        num_attention_heads: 4
+        num_hidden_layers: 1
+        intermediate_size: 32
+    batch_size: 4
+    max_num_elements: 3
+    num_workers: 0
+    synthetic_size: 4
+    train_transforms: [LexicographicOrder]

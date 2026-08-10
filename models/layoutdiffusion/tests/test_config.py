@@ -8,6 +8,7 @@ def test_config_derives_vocab_offsets() -> None:
     assert cfg.type_classes == 5
     assert cfg.coordinate_token_offset == 10
     assert cfg.max_token_length == 121
+    assert cfg.max_position_embeddings == 512
     assert cfg.refine_start_step == 60
 
 

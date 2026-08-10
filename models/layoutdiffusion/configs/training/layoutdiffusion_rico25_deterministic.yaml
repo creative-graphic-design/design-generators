@@ -1,0 +1,61 @@
+seed_everything: 102
+trainer:
+  accelerator: cpu
+  devices: 1
+  precision: 32-true
+  plugins:
+    - class_path: lightning.fabric.plugins.environments.LightningEnvironment
+  deterministic: true
+  max_epochs: 1
+  limit_train_batches: 2
+  limit_val_batches: 1
+  gradient_clip_val: 0.0
+  num_sanity_val_steps: 0
+model:
+  class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule
+  init_args:
+    config:
+      class_path: layoutdiffusion.LayoutDiffusionConfig
+      init_args:
+        dataset_name: rico25
+        seq_length: 121
+        diffusion_steps: 200
+        noise_schedule: gaussian_refine_pow2.5
+        num_channels: 128
+        dropout: 0.1
+        training_mode: discrete1
+        vocab_size: 159
+    vocab_file: .cache/layoutdiffusion/original-data/RICO_ltrb_lex/vocab.json
+    learning_rate: 0.00004
+    weight_decay: 0.0
+    auxiliary_loss_weight: 0.001
+    # Original GPU training never activates importance sampling (Lt buffers update a temporary copy), so faithful reproduction uses uniform.
+    time_sampler: uniform
+    scheduler: linear_anneal
+    lr_anneal_steps: 175000
+    ema_rate: 0.9999
+    seed_mode: deterministic
+data:
+  class_path: layoutdiffusion.training.LayoutDiffusionDataModule
+  init_args:
+    dataset_name: rico25
+    config:
+      class_path: layoutdiffusion.LayoutDiffusionConfig
+      init_args:
+        dataset_name: rico25
+        seq_length: 121
+        diffusion_steps: 200
+        noise_schedule: gaussian_refine_pow2.5
+        num_channels: 128
+        dropout: 0.1
+        training_mode: discrete1
+        vocab_size: 159
+    batch_size: 64
+    max_num_elements: 20
+    num_workers: 0
+    dataset_source: processed
+    processed_data_dir: .cache/layoutdiffusion/original-data
+    vocab_file: .cache/layoutdiffusion/original-data/RICO_ltrb_lex/vocab.json
+    preconsume_train_batches: 1
+    processed_stream_rng_warmup: true
+    train_transforms: [LexicographicOrder]
