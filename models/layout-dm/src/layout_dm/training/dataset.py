@@ -8,10 +8,14 @@ from typing import TYPE_CHECKING, Final, Protocol, TypeAlias, cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
-from torch.utils.data import Dataset as TorchDataset
-
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import label2id_for_dataset
+from laygen.common.layout_keys import (
+    LAYOUT_ANNOTATION_KEYS,
+    LAYOUT_BBOX_KEYS,
+    LAYOUT_LABEL_KEYS,
+)
+from torch.utils.data import Dataset as TorchDataset
 
 from ..configuration_layout_dm import LayoutDMConfig
 from ..processing_layout_dm import LayoutDMProcessor
@@ -50,21 +54,9 @@ _PROCESSED_SPLITS: Final[dict[str, str]] = {
     "validation": "val",
     "test": "test",
 }
-_BOX_KEYS: Final[tuple[str, ...]] = ("bbox", "bboxes", "boxes")
-_LABEL_KEYS: Final[tuple[str, ...]] = (
-    "labels",
-    "label",
-    "category",
-    "categories",
-    "type",
-    "class_id",
-)
-_ANNOTATION_KEYS: Final[tuple[str, ...]] = (
-    "annotations",
-    "objects",
-    "elements",
-    "children",
-)
+_BOX_KEYS: Final[tuple[str, ...]] = LAYOUT_BBOX_KEYS
+_LABEL_KEYS: Final[tuple[str, ...]] = LAYOUT_LABEL_KEYS
+_ANNOTATION_KEYS: Final[tuple[str, ...]] = LAYOUT_ANNOTATION_KEYS
 
 
 class LayoutDMDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."] | str]]):
@@ -411,8 +403,8 @@ def _processed_row(
     y_slices = slices.get("y")
     if not isinstance(x_slices, torch.Tensor) or not isinstance(y_slices, torch.Tensor):
         raise TypeError("processed LayoutDM split must contain x/y slice tensors")
-    x = getattr(data, "x")
-    y = getattr(data, "y")
+    x = data.x
+    y = data.y
     x_start, x_end = int(x_slices[index]), int(x_slices[index + 1])
     y_start, y_end = int(y_slices[index]), int(y_slices[index + 1])
     sample_id = _processed_sample_id(data.attr, index)

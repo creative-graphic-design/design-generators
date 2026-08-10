@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import assert_never
+from typing import TypedDict, assert_never, cast
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -40,6 +40,19 @@ class LayoutGANPPModelOutput(ModelOutput):
     labels: Int[torch.Tensor, "batch elements"] | None = None
     mask: Bool[torch.Tensor, "batch elements"] | None = None
     latents: Float[torch.Tensor, "batch elements latent"] | None = None
+
+
+class LayoutGANPPOutputDict(TypedDict, total=False):
+    """Dictionary form of LayoutGAN++ public output."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    intermediates: (
+        dict[str, ConditionType | Float[torch.Tensor, "batch elements latent"] | None]
+        | None
+    )
 
 
 class OutputType(StrEnum):
@@ -213,7 +226,7 @@ class LayoutGANPPModel(PreTrainedModel):
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
         latents: Float[torch.Tensor, "batch elements latent"] | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutGANPPOutputDict:
         """Generate layouts from label conditions.
 
         Args:
@@ -308,7 +321,7 @@ class LayoutGANPPModel(PreTrainedModel):
         )
         resolved_output_type = normalize_output_type(output_type)
         if resolved_output_type is OutputType.dict:
-            return dict(layout)
+            return cast(LayoutGANPPOutputDict, dict(layout))
         if resolved_output_type is OutputType.dataclass:
             return layout
         assert_never(resolved_output_type)

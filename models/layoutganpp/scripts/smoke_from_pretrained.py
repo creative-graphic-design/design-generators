@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import cast
 
+from laygen.modeling_outputs import LayoutGenerationOutput
 from layoutganpp import LayoutGANPPPipeline
 
 
@@ -37,7 +38,7 @@ def main() -> None:
     for path in args.path:
         dataset = _dataset_from_path(path)
         pipe = LayoutGANPPPipeline.from_pretrained(path)
-        out = cast(Any, pipe(labels=LABELS[dataset], seed=0))
+        out = cast(LayoutGenerationOutput, pipe(labels=LABELS[dataset], seed=0))
         print(dataset, tuple(out.bbox.shape))
 
 

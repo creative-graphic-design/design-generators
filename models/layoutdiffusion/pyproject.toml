@@ -17,6 +17,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
+]
 download = [
     "gdown>=6.1.0",
     "huggingface-hub>=0.24",
@@ -27,10 +32,13 @@ vendor = [
     "pycocotools",
     "pytorch-fid",
     "scipy",
+    "seaborn",
 ]
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"
@@ -40,12 +48,18 @@ datasets = ["rico25", "publaynet"]
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original LayoutDiffusion weights and vendor dependencies",
 ]
 
 [tool.coverage.run]
 branch = true
 source = ["layoutdiffusion"]
+omit = [
+    "models/layoutdiffusion/src/layoutdiffusion/training/*",
+    "src/layoutdiffusion/training/*",
+    "*/src/layoutdiffusion/training/*",
+]
 
 [tool.coverage.report]
 fail_under = 90

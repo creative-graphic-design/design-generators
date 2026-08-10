@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from collections.abc import Mapping, Sequence
+from typing import Literal, TypedDict, cast
 
 import numpy as np
 import torch
@@ -11,7 +12,7 @@ from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
 
 from laygen.common import ConditionType, normalize_condition_type
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -21,6 +22,34 @@ from .processing_layoutdiffusion import LayoutDiffusionProcessor
 from .sampling import LayoutDiffusionSamplingConfig
 from .scheduling_layoutdiffusion import LayoutDiffusionScheduler
 from .tokenization_layoutdiffusion import LayoutDiffusionTokenizer
+
+LayoutDiffusionPipelineKwarg = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | Path
+    | torch.dtype
+    | torch.device
+    | LayoutDiffusionTransformer
+    | LayoutDiffusionScheduler
+    | LayoutDiffusionTokenizer
+    | LayoutDiffusionProcessor
+    | Mapping[str, str]
+)
+
+
+class LayoutDiffusionOutputDict(TypedDict, total=False):
+    """Dictionary form of LayoutDiffusion public output."""
+
+    bbox: Float[torch.Tensor, "batch elements 4"]
+    labels: Int[torch.Tensor, "batch elements"]
+    mask: Bool[torch.Tensor, "batch elements"]
+    id2label: dict[int, str]
+    sequences: Int[torch.Tensor, "batch tokens"] | None
+    trajectory: list[Int[torch.Tensor, "batch tokens"]] | None
+    intermediates: dict[str, str] | None
 
 
 class LayoutDiffusionPipeline(DiffusionPipeline):
@@ -77,15 +106,15 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         condition_type: ConditionType | str = ConditionType.unconditional,
         labels: Int[torch.Tensor, "batch elements"]
         | Int[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         bbox: Float[torch.Tensor, "batch elements 4"]
         | Float[np.ndarray, "batch elements 4"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | Bool[np.ndarray, "batch elements"]
-        | list[object]
+        | Sequence[ArrayLikeInput]
         | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
@@ -95,8 +124,8 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         sampling: LayoutDiffusionSamplingConfig,
-        **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        **model_kwargs: str | int | float | bool | None,
+    ) -> LayoutGenerationOutput | LayoutDiffusionOutputDict:
         """Run LayoutDiffusion generation.
 
         Args:
@@ -231,23 +260,27 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         *,
         output: LayoutGenerationOutput,
         output_type: Literal["dataclass", "dict"],
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutDiffusionOutputDict:
         """Return the requested output container."""
         if output_type == "dict":
-            return dict(output)
+            return cast(LayoutDiffusionOutputDict, dict(output))
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
         return output
 
     generate = __call__
 
-    def save_pretrained(self, save_directory: str | Path, **kwargs: object) -> None:
+    def save_pretrained(
+        self, save_directory: str | Path, **kwargs: LayoutDiffusionPipelineKwarg
+    ) -> None:
         """Save a Diffusers pipeline directory."""
         super().save_pretrained(save_directory, **kwargs)
 
     @classmethod
     def from_pretrained(
-        cls, pretrained_model_name_or_path: str | Path, **kwargs: object
+        cls,
+        pretrained_model_name_or_path: str | Path,
+        **kwargs: LayoutDiffusionPipelineKwarg,
     ) -> "LayoutDiffusionPipeline":
         """Load a LayoutDiffusion pipeline and rebuild its processor."""
         tokenizer = kwargs.pop("tokenizer", None)

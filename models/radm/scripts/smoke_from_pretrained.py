@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow output unions dynamically.
+from typing import cast
 
 from PIL import Image
 
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from radm import RADMPipeline
 
 
@@ -24,7 +25,7 @@ def main() -> None:
     image = Image.new("RGB", (32, 32), "white")
     for path in args.path:
         pipe = RADMPipeline.from_pretrained(path)
-        out = cast(Any, pipe(image, seed=0, num_inference_steps=2))
+        out = cast(LayoutGenerationOutput, pipe(image, seed=0, num_inference_steps=2))
         print(path.name, out.bbox.shape, out.labels.shape, type(out).__name__)
 
 

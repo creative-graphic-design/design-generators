@@ -72,7 +72,7 @@ class CoarseToFineConfig(PretrainedConfig):
         public_box_format: BoxFormat | str = BoxFormat.xywh,
         vendor_label_offset: int = 1,
         eval_batch_size: int | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize Coarse-to-Fine config values."""
         normalized_dataset = normalize_dataset_name(dataset)

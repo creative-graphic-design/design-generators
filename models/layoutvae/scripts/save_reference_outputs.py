@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 
 import torch
+from jaxtyping import Float, Shaped
 from torch import nn
 
 from layoutvae.conversion import load_original_modules
@@ -23,46 +24,50 @@ def _sha256(path: Path) -> str:
 
 
 class _FixedLatents(nn.Module):
-    def __init__(self, latents: torch.Tensor) -> None:
+    def __init__(self, latents: Shaped[torch.Tensor, "..."]) -> None:
         super().__init__()
-        self.latents: torch.Tensor
+        self.latents: Shaped[torch.Tensor, "..."]
         self.register_buffer("latents", latents)
         self.index = 0
 
-    def forward(self, _inputs: object) -> torch.Tensor:
+    def forward(
+        self, _inputs: Shaped[torch.Tensor, "..."]
+    ) -> Shaped[torch.Tensor, "..."]:
         value = self.latents[:, self.index, :]
         self.index += 1
         return value
 
 
 class _FixedBboxNoise(nn.Module):
-    def __init__(self, noise: torch.Tensor) -> None:
+    def __init__(self, noise: Shaped[torch.Tensor, "..."]) -> None:
         super().__init__()
-        self.noise: torch.Tensor
+        self.noise: Shaped[torch.Tensor, "..."]
         self.register_buffer("noise", noise)
         self.index = 0
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, inputs: Shaped[torch.Tensor, "..."]
+    ) -> Shaped[torch.Tensor, "..."]:
         value = inputs + self.noise[:, self.index, :]
         self.index += 1
         return value
 
 
 class _FixedPoisson:
-    def __init__(self, samples: torch.Tensor) -> None:
+    def __init__(self, samples: Shaped[torch.Tensor, "..."]) -> None:
         self.samples = samples
         self.index = 0
 
-    def __call__(self, _rate: torch.Tensor) -> "_FixedPoisson":
+    def __call__(self, _rate: Shaped[torch.Tensor, "..."]) -> "_FixedPoisson":
         return self
 
-    def sample(self) -> torch.Tensor:
+    def sample(self) -> Shaped[torch.Tensor, "..."]:
         value = self.samples[:, self.index].view(-1, 1)
         self.index += 1
         return value
 
 
-def _fixed_inputs() -> dict[str, torch.Tensor]:
+def _fixed_inputs() -> dict[str, Float[torch.Tensor, "..."]]:
     return {
         "label_set": torch.tensor(
             [[0.0, 1.0, 0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0, 0.0, 0.0]]
@@ -79,8 +84,8 @@ def _fixed_inputs() -> dict[str, torch.Tensor]:
 
 
 def _labels_from_counts(
-    class_counts: torch.Tensor, *, max_box: int = 9
-) -> torch.Tensor:
+    class_counts: Shaped[torch.Tensor, "..."], *, max_box: int = 9
+) -> Shaped[torch.Tensor, "..."]:
     labels = torch.zeros(class_counts.shape[0], max_box, class_counts.shape[1])
     for batch_index, counts in enumerate(class_counts):
         position = 0
@@ -93,7 +98,9 @@ def _labels_from_counts(
     return labels
 
 
-def _normalize_counts(class_counts: torch.Tensor, *, max_box: int = 9) -> torch.Tensor:
+def _normalize_counts(
+    class_counts: Shaped[torch.Tensor, "..."], *, max_box: int = 9
+) -> Shaped[torch.Tensor, "..."]:
     counts = class_counts.clamp_min(0)
     denom = counts.sum(dim=1, keepdim=True).clamp_min(1)
     counts = torch.floor(max_box * (counts / denom))
@@ -105,10 +112,10 @@ def _normalize_counts(class_counts: torch.Tensor, *, max_box: int = 9) -> torch.
 
 def _run_original_count(
     count_module: nn.Module,
-    label_set: torch.Tensor,
-    count_latents: torch.Tensor,
-    count_samples: torch.Tensor,
-) -> torch.Tensor:
+    label_set: Shaped[torch.Tensor, "..."],
+    count_latents: Shaped[torch.Tensor, "..."],
+    count_samples: Shaped[torch.Tensor, "..."],
+) -> Shaped[torch.Tensor, "..."]:
     count_module.eval()
     count_module.rep = _FixedLatents(count_latents)
     module = sys.modules[count_module.__class__.__module__]
@@ -123,11 +130,11 @@ def _run_original_count(
 
 def _run_original_bbox(
     bbox_module: nn.Module,
-    class_counts: torch.Tensor,
-    class_labels: torch.Tensor,
-    bbox_latents: torch.Tensor,
-    bbox_noise: torch.Tensor,
-) -> torch.Tensor:
+    class_counts: Shaped[torch.Tensor, "..."],
+    class_labels: Shaped[torch.Tensor, "..."],
+    bbox_latents: Shaped[torch.Tensor, "..."],
+    bbox_noise: Shaped[torch.Tensor, "..."],
+) -> Shaped[torch.Tensor, "..."]:
     bbox_module.eval()
     bbox_module.rep = _FixedLatents(bbox_latents)
     bbox_module.rep_mul = _FixedBboxNoise(bbox_noise)

@@ -10,9 +10,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ROOT_REPO_BLOB_URL = (
-    "https://github.com/creative-graphic-design/design-generators/blob/main/"
-)
 BADGE_RE = re.compile(
     r"(?P<linked>\[)?!\[(?P<alt>[^\]]*)\]\((?P<url>https://(?:img\.shields\.io|codecov\.io)/[^)]+)\)"
     r"(?:\]\((?P<link>[^)]+)\))?"
@@ -76,6 +73,7 @@ ROOT_VENUE_BADGE_COLORS = {
     "AAAI 2022": "2f5f8f",
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
+    "arXiv 2024": "b31b1b",
     "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
@@ -139,6 +137,7 @@ PAPER_LINKS = {
     ("arXiv", "2108.00871"): "https://arxiv.org/abs/2108.00871",
     ("arXiv", "2208.08037"): "https://arxiv.org/abs/2208.08037",
     ("arXiv", "2212.09877"): "https://arxiv.org/abs/2212.09877",
+    ("arXiv", "2303.03755"): "https://arxiv.org/abs/2303.03755",
     ("arXiv", "2303.08137"): "https://arxiv.org/abs/2303.08137",
     ("arXiv", "2303.18248"): "https://arxiv.org/abs/2303.18248",
     ("arXiv", "2303.11589"): "https://arxiv.org/abs/2303.11589",
@@ -150,6 +149,7 @@ PAPER_LINKS = {
     ("arXiv", "2403.18187"): "https://arxiv.org/abs/2403.18187",
     ("arXiv", "2404.00995"): "https://arxiv.org/abs/2404.00995",
     ("arXiv", "2406.02884"): "https://arxiv.org/abs/2406.02884",
+    ("arXiv", "2407.15233"): "https://arxiv.org/abs/2407.15233",
     ("arXiv", "2409.16689"): "https://arxiv.org/abs/2409.16689",
     ("arXiv", "2505.04718"): "https://arxiv.org/abs/2505.04718",
     ("arXiv", "1907.10719"): "https://arxiv.org/abs/1907.10719",
@@ -453,8 +453,6 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        if _is_root_readme(badge.path):
-            return f"{ROOT_REPO_BLOB_URL}lib/{badge.message}/README.md"
         return f"lib/{badge.message}/README.md"
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]

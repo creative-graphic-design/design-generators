@@ -51,7 +51,7 @@ class LayoutVAEConfig(PretrainedConfig):
         bbox_normalized: bool = True,
         id2label: Id2LabelMapping | None = None,
         label2id: dict[str, int] | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize a LayoutVAE config.
 

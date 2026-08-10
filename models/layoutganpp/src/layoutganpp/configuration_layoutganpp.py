@@ -12,6 +12,9 @@ from laygen.common.labels import max_elements_for_dataset
 from .datasets import DatasetName, dataset_metadata, id2label_for_dataset
 
 Id2LabelMapping = Mapping[int, str] | Mapping[str, str]
+LayoutGANPPConfigValue = (
+    str | int | float | bool | None | list[str] | list[int] | dict[str, str]
+)
 
 
 class LayoutGANPPConfig(PretrainedConfig):
@@ -52,7 +55,7 @@ class LayoutGANPPConfig(PretrainedConfig):
         bbox_format: BoxFormat | str = BoxFormat.xywh,
         bbox_normalized: bool = True,
         max_position_embeddings: int | None = None,
-        **kwargs: object,
+        **kwargs: LayoutGANPPConfigValue,
     ) -> None:
         """Initialize a LayoutGAN++ config.
 

@@ -313,7 +313,7 @@ class DiTUCBlock(nn.Module):
         x: Float[torch.Tensor, "batch elements hidden"],
         x_padding_mask: Bool[torch.Tensor, "batch elements"],
         c: Float[torch.Tensor, "batch hidden"],
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> Float[torch.Tensor, "batch elements hidden"]:
         """Apply one unconditional block."""
         del kwargs

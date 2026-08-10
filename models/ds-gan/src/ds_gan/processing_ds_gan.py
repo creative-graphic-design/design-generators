@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final, Literal, cast
 
@@ -11,6 +11,7 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from PIL import Image
 from transformers import ProcessorMixin
+from transformers.image_utils import ImageInput
 from transformers.tokenization_utils_base import BatchEncoding
 
 from laygen.common.bbox import (
@@ -22,6 +23,17 @@ from laygen.common.bbox import (
 from laygen.modeling_outputs import LayoutGenerationOutput
 from posgen.common.labels import DatasetName, normalize_dataset_name
 
+DSGANImageInput = ImageInput | str | Path
+DSGANExampleScalar = str | int | float | bool | None
+DSGANExampleValue = (
+    DSGANExampleScalar
+    | ImageInput
+    | Sequence[DSGANExampleScalar]
+    | Sequence[Sequence[DSGANExampleScalar]]
+    | Mapping[
+        str, Sequence[DSGANExampleScalar] | Sequence[Sequence[DSGANExampleScalar]]
+    ]
+)
 PKU_DATASET_LABEL2ID: dict[str, int] = {"text": 0, "logo": 1, "underlay": 2}
 PKU_MODEL_LABEL2ID: dict[str, int] = {
     "no_object": 0,
@@ -69,11 +81,11 @@ class DSGANProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        images: object,
+        images: DSGANImageInput | Sequence[DSGANImageInput],
         *,
-        saliency: object | None = None,
-        saliency_pfpnet: object | None = None,
-        saliency_basnet: object | None = None,
+        saliency: DSGANImageInput | Sequence[DSGANImageInput] | None = None,
+        saliency_pfpnet: DSGANImageInput | Sequence[DSGANImageInput] | None = None,
+        saliency_basnet: DSGANImageInput | Sequence[DSGANImageInput] | None = None,
         return_tensors: Literal["pt"] = "pt",
     ) -> BatchEncoding:
         """Encode content images into ``pixel_values``.
@@ -116,8 +128,18 @@ class DSGANProcessor(ProcessorMixin):
         bbox: Float[torch.Tensor, "batch elements 4"],
         output_type: Literal["dataclass", "dict"] = "dataclass",
         scores: Float[torch.Tensor, "batch elements"] | None = None,
-        intermediates: object | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        intermediates: Mapping[str, Shaped[torch.Tensor, "..."] | str | bool]
+        | None = None,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."] | str | bool]
+            | None,
+        ]
+    ):
         """Decode raw DS-GAN class probabilities and boxes.
 
         Args:
@@ -234,15 +256,18 @@ class DSGANProcessor(ProcessorMixin):
         self,
         batch_size: int,
         *,
-        saliency: object | None,
-        saliency_pfpnet: object | None,
-        saliency_basnet: object | None,
-    ) -> list[object | None]:
+        saliency: DSGANImageInput | Sequence[DSGANImageInput] | None,
+        saliency_pfpnet: DSGANImageInput | Sequence[DSGANImageInput] | None,
+        saliency_basnet: DSGANImageInput | Sequence[DSGANImageInput] | None,
+    ) -> list[DSGANImageInput | Float[torch.Tensor, "1 height width"] | None]:
         if saliency is not None:
             rows = _ensure_batch(saliency)
             if len(rows) != batch_size:
                 raise ValueError("saliency batch size must match images")
-            return rows
+            return cast(
+                list[DSGANImageInput | Float[torch.Tensor, "1 height width"] | None],
+                rows,
+            )
         if saliency_pfpnet is None and saliency_basnet is None:
             return [None] * batch_size
         first = (
@@ -265,7 +290,9 @@ class DSGANProcessor(ProcessorMixin):
                 merged.append(_to_l_tensor(left, self.image_size))
             else:
                 merged.append(_merge_saliency_native(left, right, self.image_size))
-        return cast(list[object | None], merged)
+        return cast(
+            list[DSGANImageInput | Float[torch.Tensor, "1 height width"] | None], merged
+        )
 
 
 def processor_for_dataset(dataset_name: DatasetName | str) -> DSGANProcessor:
@@ -273,19 +300,21 @@ def processor_for_dataset(dataset_name: DatasetName | str) -> DSGANProcessor:
     return DSGANProcessor(dataset_name=dataset_name)
 
 
-def _ensure_batch(value: object) -> list[object]:
+def _ensure_batch(
+    value: DSGANImageInput | Sequence[DSGANImageInput],
+) -> list[DSGANImageInput]:
     if isinstance(value, torch.Tensor):
         if value.ndim in {2, 3}:
-            return [value]
+            return [cast(DSGANImageInput, value)]
         if value.ndim == 4:
             return [row for row in value]
     if isinstance(value, list):
-        return list(value)
-    return [value]
+        return cast(list[DSGANImageInput], list(value))
+    return [cast(DSGANImageInput, value)]
 
 
 def _to_rgb_tensor(
-    image: object, image_size: tuple[int, int]
+    image: DSGANImageInput, image_size: tuple[int, int]
 ) -> Float[torch.Tensor, "3 height width"]:
     tensor = _to_tensor(image, image_size=image_size, mode="RGB")
     if tensor.shape[0] != 3:
@@ -294,7 +323,8 @@ def _to_rgb_tensor(
 
 
 def _to_l_tensor(
-    image: object | None, image_size: tuple[int, int]
+    image: DSGANImageInput | Float[torch.Tensor, "1 height width"] | None,
+    image_size: tuple[int, int],
 ) -> Float[torch.Tensor, "1 height width"]:
     if image is None:
         return torch.zeros(1, *image_size, dtype=torch.float32)
@@ -305,7 +335,7 @@ def _to_l_tensor(
 
 
 def _to_tensor(
-    image: object,
+    image: DSGANImageInput | Float[torch.Tensor, "1 height width"],
     *,
     image_size: tuple[int, int],
     mode: Literal["RGB", "L"],
@@ -339,8 +369,8 @@ def _to_tensor(
 
 
 def _merge_saliency_native(
-    left: object,
-    right: object,
+    left: DSGANImageInput,
+    right: DSGANImageInput,
     image_size: tuple[int, int],
 ) -> Float[torch.Tensor, "1 height width"]:
     left_pil = _to_pil(left).convert("L")
@@ -351,7 +381,7 @@ def _merge_saliency_native(
     return _to_l_tensor(merged, image_size)
 
 
-def _to_pil(image: object) -> Image.Image:
+def _to_pil(image: DSGANImageInput) -> Image.Image:
     if isinstance(image, Image.Image):
         return image
     if isinstance(image, (str, Path)):
@@ -368,7 +398,7 @@ def _to_pil(image: object) -> Image.Image:
 
 
 def annotations_from_pku_example(
-    example: dict[str, object],
+    example: Mapping[str, DSGANExampleValue],
     *,
     max_elem: int = 32,
 ) -> dict[str, Shaped[torch.Tensor, "..."] | tuple[int, int]]:
@@ -378,9 +408,16 @@ def annotations_from_pku_example(
     to normalized center ``xywh``, derives canvas size from the image columns,
     and applies the reference ``designSeq.reorder`` ordering policy.
     """
-    annotations = cast(dict[str, object], example.get("annotations", example))
-    raw_labels = cast(list[object], annotations["cls_elem"])
-    raw_boxes = cast(list[object], annotations["box_elem"])
+    annotations = cast(
+        Mapping[
+            str, Sequence[str | int | float] | Sequence[Sequence[str | int | float]]
+        ],
+        example.get("annotations", example),
+    )
+    raw_labels = cast(Sequence[str | int | float], annotations["cls_elem"])
+    raw_boxes = cast(
+        Sequence[str | Sequence[int | float | str]], annotations["box_elem"]
+    )
     canvas_size = _canvas_size_from_example(example)
     model_labels: list[int] = []
     public_labels: list[int] = []
@@ -413,7 +450,7 @@ def annotations_from_pku_example(
     }
 
 
-def _parse_box(raw_box: object) -> list[float]:
+def _parse_box(raw_box: str | Sequence[int | float | str]) -> list[float]:
     if isinstance(raw_box, str):
         import ast
 
@@ -429,7 +466,9 @@ def _parse_box(raw_box: object) -> list[float]:
     return [left, top, right, bottom]
 
 
-def _canvas_size_from_example(example: dict[str, object]) -> tuple[int, int]:
+def _canvas_size_from_example(
+    example: Mapping[str, DSGANExampleValue],
+) -> tuple[int, int]:
     for key in ("image", "image_canvas", "canvas", "poster"):
         value = example.get(key)
         if isinstance(value, Image.Image):
@@ -438,7 +477,7 @@ def _canvas_size_from_example(example: dict[str, object]) -> tuple[int, int]:
             if value.ndim >= 2:
                 return int(value.shape[-1]), int(value.shape[-2])
         if value is not None:
-            pil = _to_pil(value)
+            pil = _to_pil(cast(DSGANImageInput, value))
             return pil.size
     width = example.get("width")
     height = example.get("height")

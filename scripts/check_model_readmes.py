@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 import tomllib
+from typing import TypeAlias
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -51,6 +52,15 @@ README_POLICY_DOCS = [
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
 ]
 LIB_READMES = sorted((REPO_ROOT / "lib").glob("*/README.md"))
+PyprojectValue: TypeAlias = (
+    str
+    | int
+    | float
+    | bool
+    | list["PyprojectValue"]
+    | dict[str, "PyprojectValue"]
+    | None
+)
 
 REQUIRED_HEADINGS = [
     "# Model Card for ",
@@ -118,9 +128,24 @@ EXPECTED_FRONTMATTER = {
             "creative-graphic-design/PubLayNet",
         ],
     },
+    "cgb-dm": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PKU-PosterLayout",
+            "creative-graphic-design/CGL-Dataset",
+        ],
+    },
     "ds-gan": {
         "license": "other",
         "datasets": ["creative-graphic-design/PKU-PosterLayout"],
+    },
+    "dlt": {
+        "license": "apache-2.0",
+        "datasets": [
+            "creative-graphic-design/PubLayNet",
+            "RICO13",
+            "creative-graphic-design/magazine",
+        ],
     },
     "flex-dm": {
         "license": "apache-2.0",
@@ -259,7 +284,9 @@ EXPECTED_FRONTMATTER = {
 
 EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
+    "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
+    "dlt": "DLT",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
     "lace": "LACE",
@@ -302,6 +329,8 @@ EXPECTED_REPOSITORY_LINKS = {
     "radm": "https://github.com/JD-GenX/RADM",
     "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
+    "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
+    "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",
     "flex-dm": "https://github.com/CyberAgentAILab/flex-dm",
@@ -334,7 +363,7 @@ def _bash_fences(text: str) -> list[str]:
     return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
 
 
-def _project_metadata(member_dir: Path) -> dict[str, object]:
+def _project_metadata(member_dir: Path) -> dict[str, PyprojectValue]:
     return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
 
 
@@ -1011,6 +1040,8 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     expected = (
         "not-run"
         if "not run" in section
+        else "practical-reproduction"
+        if "practical training reproduction" in section
         else "cpu-contract"
         if "vendor-parity CPU comparison" in section
         else "tolerance-verified"

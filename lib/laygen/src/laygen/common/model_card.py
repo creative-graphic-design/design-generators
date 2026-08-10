@@ -155,10 +155,8 @@ def build_layout_model_card(
         citation_apa: Optional APA-style citation.
 
     Returns:
-        Validated ``huggingface_hub.ModelCard`` instance.
-
-    Raises:
-        ValueError: If model-card metadata validation fails.
+        Rendered ``huggingface_hub.ModelCard`` instance with structured
+        metadata attached.
 
     Examples:
         >>> card = layoutdm_model_card(dataset="rico25")
@@ -322,7 +320,6 @@ def build_layout_model_card(
             "design-generators repository."
         ),
     )
-    card.validate()
     return card
 
 

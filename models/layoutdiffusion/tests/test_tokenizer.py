@@ -30,6 +30,17 @@ def test_tokenizer_filters_invalid_generated_elements() -> None:
     assert decoded["labels"][0, 0].item() == 0
 
 
+def test_text_to_token_ids_wraps_raw_processed_lines() -> None:
+    tokenizer = LayoutDiffusionTokenizer(
+        LayoutDiffusionConfig(dataset_name="publaynet")
+    )
+    ids = tokenizer.text_to_token_ids(["text 0 1 2 3"])
+    vocab = tokenizer.get_vocab()
+    assert ids[0, 0].item() == vocab["START"]
+    assert ids[0, 1].item() == vocab["text"]
+    assert ids[0, 6].item() == vocab["END"]
+
+
 def test_build_initial_tokens_preserves_label_condition() -> None:
     tokenizer = LayoutDiffusionTokenizer(
         LayoutDiffusionConfig(dataset_name="publaynet")

@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import tomllib
-from typing import cast
+from typing import TypeAlias, cast
 from urllib.parse import parse_qs, urlencode, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +88,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "AAAI 2022": "2f5f8f",
     "AAAI 2023": "2f5f8f",
     "ACM MM 2021": "0085ca",
+    "arXiv 2024": "b31b1b",
     "CVPR 2019": "0076a8",
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
@@ -154,6 +155,10 @@ MODEL_OVERVIEW_HF_DATASETS = frozenset(
     }
 )
 FRAMEWORK_TAGS = frozenset({"transformers", "diffusers", "pydantic-ai"})
+TomlValue: TypeAlias = (
+    str | int | float | bool | list["TomlValue"] | dict[str, "TomlValue"] | None
+)
+
 TASK_TAGS = frozenset(
     {
         "content-agnostic-layout-generation",
@@ -243,6 +248,8 @@ def site_page_for_repo_link(link: str) -> str:
     target = link.removeprefix("./")
     if target.startswith(("http://", "https://", "#", "mailto:")):
         return link
+    if target.startswith("api/"):
+        return target
     if target.startswith("models/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
@@ -264,6 +271,14 @@ def site_page_for_repo_link(link: str) -> str:
             )
             if reproducing_path is not None:
                 return docs_route(reproducing_path)
+    if target.startswith("models/") and target.endswith("/TRAINING.md"):
+        parts = target.split("/")
+        if len(parts) == 3:
+            member_dir = ROOT / "models" / parts[1]
+            project_name = read_project_name(member_dir / "pyproject.toml")
+            training_path = training_page_path_for("Models", project_name, member_dir)
+            if training_path is not None:
+                return docs_route(training_path)
     if target.startswith("lib/") and target.endswith("/README.md"):
         parts = target.split("/")
         if len(parts) == 3:
@@ -292,7 +307,7 @@ def rewrite_repo_relative_links(markdown: str) -> str:
         markdown,
     )
     return re.sub(
-        r"(?<!!)\[(?P<label>[^\]]+)\]\((?P<link>[^):#][^)]+)\)",
+        r"(?<!!)\[(?P<label>(?:!\[[^\]]*\]\([^)]+\)|[^\]])+)\]\((?P<link>[^):#][^)]+)\)",
         replace,
         markdown,
     )
@@ -326,7 +341,7 @@ def read_project_name(pyproject_path: Path) -> str:
     return str(data["project"]["name"])
 
 
-def read_pyproject(member_dir: Path) -> dict[str, object]:
+def read_pyproject(member_dir: Path) -> dict[str, TomlValue]:
     """Read a workspace member ``pyproject.toml`` file."""
     return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
 
@@ -388,7 +403,7 @@ def model_metadata_error(member_dir: Path, key: str, detail: str) -> str:
 
 
 def require_str_sequence(
-    value: object, *, key: str, member_dir: Path
+    value: TomlValue, *, key: str, member_dir: Path
 ) -> tuple[str, ...]:
     """Return a tuple of strings from a model metadata list."""
     if not isinstance(value, list):
@@ -412,7 +427,7 @@ def require_str_sequence(
 
 
 def require_str_or_sequence(
-    value: object, *, key: str, member_dir: Path
+    value: TomlValue, *, key: str, member_dir: Path
 ) -> tuple[str, ...]:
     """Return a tuple of strings from a scalar or list metadata field."""
     if isinstance(value, str):
@@ -438,8 +453,8 @@ def validate_values(
 
 
 def required_metadata_value(
-    table: Mapping[str, object], *, key: str, member_dir: Path
-) -> object:
+    table: Mapping[str, TomlValue], *, key: str, member_dir: Path
+) -> TomlValue:
     """Return a required metadata value or fail with an actionable error."""
     if key not in table:
         raise KeyError(model_metadata_error(member_dir, key, "is required"))
@@ -455,7 +470,7 @@ def read_model_design_metadata(member_dir: Path) -> ModelDesignMetadata:
     table = tool.get(DESIGN_METADATA_TOOL_KEY)
     if not isinstance(table, dict):
         raise KeyError(model_metadata_error(member_dir, "table", "is required"))
-    metadata_table = cast(Mapping[str, object], table)
+    metadata_table = cast(Mapping[str, TomlValue], table)
     framework = required_metadata_value(
         metadata_table, key="framework", member_dir=member_dir
     )

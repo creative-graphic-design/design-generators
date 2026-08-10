@@ -59,7 +59,9 @@ def build_pipeline(config: RADMConfig) -> RADMPipeline:
 def inspect_checkpoint_payload(
     payload: Mapping[
         str,
-        CheckpointPayloadValue | Mapping[str, Float[torch.Tensor, "..."]],
+        CheckpointPayloadValue
+        | Float[torch.Tensor, "..."]
+        | Mapping[str, Float[torch.Tensor, "..."]],
     ],
 ) -> dict[str, int | bool | list[str]]:
     """Summarize a Detectron2-style RADM checkpoint payload.
@@ -119,7 +121,9 @@ def convert_original_state_dict(
 def _find_state_dict(
     payload: Mapping[
         str,
-        CheckpointPayloadValue | Mapping[str, Float[torch.Tensor, "..."]],
+        CheckpointPayloadValue
+        | Float[torch.Tensor, "..."]
+        | Mapping[str, Float[torch.Tensor, "..."]],
     ],
 ) -> Mapping[str, Float[torch.Tensor, "..."]]:
     for key in ("model", "state_dict", "ema_state"):

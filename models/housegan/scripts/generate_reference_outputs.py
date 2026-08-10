@@ -7,19 +7,20 @@ import ast
 import hashlib
 import json
 import platform
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import cast
 
 import numpy as np
 import torch
-from torch import nn
 import torch.nn.functional as F
-from torch.nn.utils import spectral_norm
-
+import torch.version
 from housegan.configuration_housegan import HouseGanConfig
 from housegan.graph_schema import relation_from_bboxes
 from housegan.processing_housegan import HouseGanProcessor
+from jaxtyping import Float, Int, Shaped
+from torch import nn
+from torch.nn.utils import spectral_norm
 
 
 def main() -> None:
@@ -152,15 +153,20 @@ def _load_input_graphs(
     assets_dir: Path,
     target_set: str,
     indices: list[int],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, list[int]]:
+) -> tuple[
+    Float[torch.Tensor, "nodes labels"],
+    Int[torch.Tensor, "edges 3"],
+    Int[torch.Tensor, "nodes"],
+    list[int],
+]:
     rows = _filter_rows(np.load(_dataset_path(assets_dir), allow_pickle=True))
     low, high = {"A": (1, 3), "B": (4, 6), "C": (7, 9), "D": (10, 12), "E": (13, 100)}[
         target_set
     ]
     eval_rows = [row for row in rows if low <= len(row[0]) <= high]
-    selected_features: list[torch.Tensor] = []
-    selected_edges: list[torch.Tensor] = []
-    selected_labels: list[torch.Tensor] = []
+    selected_features: list[Float[torch.Tensor, "nodes labels"]] = []
+    selected_edges: list[Int[torch.Tensor, "edges 3"]] = []
+    selected_labels: list[Int[torch.Tensor, "nodes"]] = []
     selected_rows: list[int] = []
     node_offset = 0
     for index in indices:
@@ -195,32 +201,38 @@ def _dataset_path(assets_dir: Path) -> Path:
     raise FileNotFoundError(f"No House-GAN train_data.npy found under {assets_dir}")
 
 
-GraphRow = tuple[Sequence[int], Sequence[np.ndarray]]
+GraphRow = tuple[Sequence[int], Sequence[Sequence[float]]]
 
 
-def _filter_rows(rows: np.ndarray) -> list[GraphRow]:
+def _filter_rows(rows: Shaped[np.ndarray, "rows"]) -> list[GraphRow]:
     filtered: list[GraphRow] = []
     for row in rows:
         room_types = cast(Sequence[int], row[0])
-        room_bbs = cast(Sequence[np.ndarray], row[1])
+        room_bbs = cast(Sequence[Sequence[float]], row[1])
         if not room_types or any(value == 0 for value in room_types):
             continue
         if any(bb is None for bb in room_bbs):
             continue
         kept_types: list[int] = []
-        kept_boxes: list[np.ndarray] = []
+        kept_boxes: list[Sequence[float]] = []
         for room_type, bbox in zip(room_types, room_bbs, strict=True):
             bbox_array = np.asarray(bbox)
             height = bbox_array[2] - bbox_array[0]
             width = bbox_array[3] - bbox_array[1]
             if height > 0.03 and width > 0.03:
                 kept_types.append(int(room_type))
-                kept_boxes.append(bbox_array)
+                kept_boxes.append([float(value) for value in bbox_array])
         filtered.append((kept_types, kept_boxes))
     return filtered
 
 
-def _encode_row(row: GraphRow) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def _encode_row(
+    row: GraphRow,
+) -> tuple[
+    Float[torch.Tensor, "nodes labels"],
+    Int[torch.Tensor, "edges 3"],
+    Int[torch.Tensor, "nodes"],
+]:
     room_types = list(row[0])
     room_bbs = np.stack(row[1]).astype("float32") / 256.0
     top_left = np.min(room_bbs[:, :2], axis=0)

@@ -18,7 +18,7 @@ from laygen.common.bbox import (
     xywh_to_ltrb,
 )
 
-from .configuration_layout_fid import LayoutFIDConfig
+from .configuration_layout_fid import LayoutFIDConfig, LayoutFIDConfigValue
 
 
 @dataclass(frozen=True)
@@ -175,7 +175,9 @@ class LayoutFIDProcessor(ProcessorMixin):
 
     @classmethod
     def from_pretrained(  # ty: ignore[invalid-method-override]
-        cls, pretrained_model_name_or_path: str | os.PathLike[str], **kwargs: object
+        cls,
+        pretrained_model_name_or_path: str | os.PathLike[str],
+        **kwargs: LayoutFIDConfigValue,
     ) -> "LayoutFIDProcessor":
         """Load a processor from a saved model directory.
 

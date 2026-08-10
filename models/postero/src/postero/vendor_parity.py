@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Final
 
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from postero.agent import PosterOAgent
@@ -86,7 +86,9 @@ def golden_prompt() -> str:
     return build_prompt(query, [candidates[0]], config=parity_config())
 
 
-def implementation_reference() -> dict[str, object]:
+def implementation_reference() -> dict[
+    str, str | list[str] | list[int] | list[list[float]]
+]:
     """Return prompt, selection, and parser metadata from this package."""
     config = parity_config()
     query, candidates = fixture_records()
@@ -109,7 +111,7 @@ def implementation_retry_calls() -> int:
     calls = {"count": 0}
     responses = [INVALID_RESPONSE, PARSER_RESPONSE]
 
-    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         text = responses[calls["count"]]
         calls["count"] += 1
         return ModelResponse(parts=[TextPart(content=json.dumps({"text": text}))])

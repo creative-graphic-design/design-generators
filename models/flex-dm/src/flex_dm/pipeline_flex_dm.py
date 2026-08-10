@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal, Protocol, cast, runtime_checkable
 
 import numpy as np
 import torch
@@ -19,7 +19,14 @@ from laygen.pipelines import LayoutGenerationPipeline, model_processor_component
 from .configuration_flex_dm import FlexDmConfig
 from .masking import apply_token, iterative_decode
 from .modeling_flex_dm import FlexDmForMaskedDocumentModeling, FlexDmModelOutput
-from .processing_flex_dm import FlexDmProcessor
+from .processing_flex_dm import FlexDmProcessor, FlexDmValue
+
+FlexDmComponent = FlexDmForMaskedDocumentModeling | FlexDmProcessor
+
+
+@runtime_checkable
+class FlexDmPipelineComponent(Protocol):
+    """Runtime-checkable loaded pipeline component marker."""
 
 
 def _load_model_component(
@@ -27,7 +34,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> FlexDmForMaskedDocumentModeling:
     if subfolder is None:
         return FlexDmForMaskedDocumentModeling.from_pretrained(
             pretrained_model_name_or_path,
@@ -45,7 +52,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> FlexDmProcessor:
     if subfolder is None:
         return FlexDmProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -88,7 +95,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, FlexDmPipelineComponent | None],
     ) -> "FlexDmPipeline":
         """Build a pipeline from loaded model and processor components."""
         return cls(
@@ -124,12 +131,21 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         num_inference_steps: int | None = None,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
-        attributes: Mapping[str, object] | None = None,
-        content: Mapping[str, object] | None = None,
+        attributes: Mapping[str, FlexDmValue] | None = None,
+        content: Mapping[str, FlexDmValue] | None = None,
         feature_group: str | None = None,
         target_indices: Int[torch.Tensor, "..."] | None = None,
-        **model_kwargs: object,
-    ) -> LayoutGenerationOutput | dict[str, object]:
+        **model_kwargs: FlexDmValue,
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Infills masked Flex-DM document fields.
 
         Args:

@@ -12,8 +12,9 @@ import torch
 from jaxtyping import Bool, Float, Int
 from laygen.agents import BaseLayoutAgent, ModelLike
 from laygen.common import ConditionType
-from laygen.common.bbox import BoxFormat
+from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.modeling_outputs import LayoutGenerationOutput
+from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
 from layout_gpt.enums import ICLType, OutputType, coerce_enum
@@ -45,7 +46,7 @@ SUPPORTED_CONDITION_TYPES: Final[tuple[ConditionType, ...]] = (
 )
 
 
-def build_agent(model: ModelLike = None) -> object:
+def build_agent(model: ModelLike = None) -> Agent[None]:
     """Build a Pydantic AI agent with provider selected by argument or env."""
     return BaseLayoutAgent[RawLayoutResponse](
         model=model,
@@ -170,9 +171,13 @@ class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: str | ConditionType = ConditionType.text,
-        labels: Int[torch.Tensor, "batch elements"] | list[object] | None = None,
-        bbox: Float[torch.Tensor, "batch elements 4"] | list[object] | None = None,
-        mask: Bool[torch.Tensor, "batch elements"] | list[object] | None = None,
+        labels: Int[torch.Tensor, "batch elements"]
+        | list[ArrayLikeInput]
+        | None = None,
+        bbox: Float[torch.Tensor, "batch elements 4"]
+        | list[ArrayLikeInput]
+        | None = None,
+        mask: Bool[torch.Tensor, "batch elements"] | list[ArrayLikeInput] | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: str | BoxFormat = BoxFormat.xywh,
         normalized: bool = True,

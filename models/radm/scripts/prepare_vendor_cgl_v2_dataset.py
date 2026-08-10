@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
+from jaxtyping import Float
 from PIL import Image
 import torch
 
@@ -78,14 +79,14 @@ def _text_features(
     *,
     max_text_num: int,
     text_feature_dim: int,
-) -> list[torch.Tensor]:
+) -> list[Float[torch.Tensor, "1 text_feature_dim"]]:
     raw = row.get("text_features")
     if not isinstance(raw, Mapping):
         return []
     feats = raw.get("feats")
     if not isinstance(feats, Sequence) or isinstance(feats, (str, bytes)):
         return []
-    values: list[torch.Tensor] = []
+    values: list[Float[torch.Tensor, "1 text_feature_dim"]] = []
     for item in feats[:max_text_num]:
         array = np.asarray(item, dtype=np.float32).reshape(-1)
         tensor = torch.zeros(1, text_feature_dim, dtype=torch.float32)

@@ -13,9 +13,20 @@ import os
 import pickle
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import SupportsFloat, cast
+
+
+RalfReferenceValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["RalfReferenceValue"]
+    | dict[str, "RalfReferenceValue"]
+)
 
 
 VENDOR_DEPENDENCIES = [
@@ -193,15 +204,15 @@ def _find_vendor_pickle(job_dir: Path, *, split: str, seed: int) -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def _sequence(value: object) -> Sequence[object]:
-    return cast(Sequence[object], value)
+def _sequence(value: RalfReferenceValue) -> Sequence[RalfReferenceValue]:
+    return cast(Sequence[RalfReferenceValue], value)
 
 
-def _float_sequence(value: object) -> Sequence[SupportsFloat]:
+def _float_sequence(value: RalfReferenceValue) -> Sequence[SupportsFloat]:
     return cast(Sequence[SupportsFloat], value)
 
 
-def _public_bbox(result: dict[str, object]) -> list[list[float]]:
+def _public_bbox(result: Mapping[str, RalfReferenceValue]) -> list[list[float]]:
     return [
         [float(x), float(y), float(w), float(h)]
         for x, y, w, h in zip(
@@ -214,14 +225,14 @@ def _public_bbox(result: dict[str, object]) -> list[list[float]]:
     ]
 
 
-def _summarize_pickle(path: Path) -> dict[str, object]:
+def _summarize_pickle(path: Path) -> dict[str, RalfReferenceValue]:
     with path.open("rb") as f:
         data = pickle.load(f)
-    data = cast(dict[str, object], data)
-    results = cast(list[dict[str, object]], data["results"])
-    first: dict[str, object] = results[0] if results else {}
+    data = cast(dict[str, RalfReferenceValue], data)
+    results = cast(list[dict[str, RalfReferenceValue]], data["results"])
+    first: dict[str, RalfReferenceValue] = results[0] if results else {}
     labels = list(_sequence(first.get("label", []))) if first else []
-    train_cfg = cast(dict[str, object], data.get("train_cfg", {}))
+    train_cfg = cast(dict[str, RalfReferenceValue], data.get("train_cfg", {}))
     return {
         "pickle": str(path),
         "num_results": len(results),

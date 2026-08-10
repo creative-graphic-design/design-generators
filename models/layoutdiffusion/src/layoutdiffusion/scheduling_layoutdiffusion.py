@@ -11,7 +11,6 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int
-
 from laygen.common.discrete import (
     gumbel_noise_like,
     index_to_log_onehot,
@@ -23,6 +22,7 @@ from .sampling import LayoutDiffusionSamplingConfig, LayoutDiffusionSamplingName
 
 if TYPE_CHECKING:
     from .conditioning import LayoutDiffusionCondition
+    from .configuration_layoutdiffusion import LayoutDiffusionConfig
 
 
 @dataclass
@@ -92,6 +92,30 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         self.publaynet_refine_start_step = publaynet_refine_start_step
         self.timesteps = torch.arange(num_train_timesteps - 1, -1, -1)
         self._init_buffers()
+
+    @classmethod
+    def from_layout_config(
+        cls, config: LayoutDiffusionConfig
+    ) -> LayoutDiffusionScheduler:
+        """Build a scheduler from serialized LayoutDiffusion settings.
+
+        Args:
+            config: LayoutDiffusion model/tokenizer/scheduler settings.
+
+        Returns:
+            A scheduler initialized with the config's diffusion parameters.
+        """
+        return cls(
+            num_train_timesteps=config.diffusion_steps,
+            vocab_size=config.vocab_size,
+            mask_token_id=config.mask_token_id,
+            type_classes=config.type_classes,
+            num_coordinate_bins=config.num_coordinate_bins,
+            noise_schedule=config.noise_schedule,
+            pow_num=config.pow_num,
+            mul_num=config.mul_num,
+            type_start_step=config.type_start_step,
+        )
 
     def set_timesteps(
         self,
@@ -233,60 +257,69 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
                 "Only gaussian_refine_pow2.5 LayoutDiffusion schedule is supported"
             )
         at, at1, bt1, bt2, ct, ct1, att, att1, btt1, btt2, ctt, ctt1 = _alpha_schedule(
-            self.num_timesteps, type_classes=self.type_classes
+            self.num_timesteps, type_classes=25
         )
-        self.log_at1 = (
-            torch.log(torch.tensor(at1, dtype=torch.float64)).clamp(-70, 0).float()
-        )
-        self.log_ct1 = (
-            torch.log(torch.tensor(ct1, dtype=torch.float64)).clamp(-70, 0).float()
-        )
-        self.log_cumprod_at1 = (
-            torch.log(torch.tensor(att1, dtype=torch.float64)).clamp(-70, 0).float()
-        )
-        self.log_cumprod_ct1 = (
-            torch.log(torch.tensor(ctt1, dtype=torch.float64)).clamp(-70, 0).float()
-        )
-        self.log_1_min_ct1 = _log_1_min_a(self.log_ct1.double()).float()
-        self.log_1_min_cumprod_ct1 = _log_1_min_a(self.log_cumprod_ct1.double()).float()
+        at1_t = torch.tensor(at1.astype("float64"))
+        ct1_t = torch.tensor(ct1.astype("float64"))
+        log_at1 = torch.log(at1_t).clamp(-70, 0)
+        log_ct1 = torch.log(ct1_t).clamp(-70, 0)
+        att1_t = torch.tensor(att1.astype("float64"))
+        ctt1_t = torch.tensor(ctt1.astype("float64"))
+        log_cumprod_at1 = torch.log(att1_t).clamp(-70, 0)
+        log_cumprod_ct1 = torch.log(ctt1_t).clamp(-70, 0)
+        log_1_min_ct1 = _log_1_min_a(log_ct1)
+        log_1_min_cumprod_ct1 = _log_1_min_a(log_cumprod_ct1)
+        self.log_ct1 = log_ct1.float()
+        self.log_at1 = log_at1.float()
+        self.log_cumprod_at1 = log_cumprod_at1.float()
+        self.log_cumprod_ct1 = log_cumprod_ct1.float()
+        self.log_1_min_ct1 = log_1_min_ct1.float()
+        self.log_1_min_cumprod_ct1 = log_1_min_cumprod_ct1.float()
 
-        at_t = torch.tensor(at, dtype=torch.float64)
-        bt1_t = torch.tensor(bt1, dtype=torch.float64)
-        bt2_t = torch.tensor(bt2, dtype=torch.float64)
-        ct_t = torch.tensor(ct, dtype=torch.float64)
-        self.log_at = torch.log(at_t).float()
-        self.log_bt1 = torch.log(bt1_t).float()
-        self.log_bt2 = torch.log(bt2_t).float()
-        self.log_ct = torch.log(ct_t).clamp(-70, 0).float()
-        self.log_cumprod_at = torch.log(torch.tensor(att, dtype=torch.float64)).float()
-        self.log_cumprod_bt1 = torch.log(
-            torch.tensor(btt1, dtype=torch.float64)
-        ).float()
-        self.log_cumprod_bt2 = torch.log(
-            torch.tensor(btt2, dtype=torch.float64)
-        ).float()
-        self.log_cumprod_ct = (
-            torch.log(torch.tensor(ctt, dtype=torch.float64)).clamp(-70, 0).float()
-        )
-        self.log_1_min_ct = _log_1_min_a(self.log_ct.double()).float()
-        self.log_1_min_cumprod_ct = _log_1_min_a(self.log_cumprod_ct.double()).float()
+        at_t = torch.tensor(at.astype("float64"))
+        bt1_t = torch.tensor(bt1.astype("float64"))
+        bt2_t = torch.tensor(bt2.astype("float64"))
+        ct_t = torch.tensor(ct.astype("float64"))
+        log_at = torch.log(at_t)
+        log_bt1 = torch.log(bt1_t)
+        log_bt2 = torch.log(bt2_t)
+        log_ct = torch.log(ct_t).clamp(-70, 0)
+        att_t = torch.tensor(att.astype("float64"))
+        btt1_t = torch.tensor(btt1.astype("float64"))
+        btt2_t = torch.tensor(btt2.astype("float64"))
+        ctt_t = torch.tensor(ctt.astype("float64"))
+        log_cumprod_at = torch.log(att_t)
+        log_cumprod_bt1 = torch.log(btt1_t)
+        log_cumprod_bt2 = torch.log(btt2_t)
+        log_cumprod_ct = torch.log(ctt_t).clamp(-70, 0)
+        log_1_min_ct = _log_1_min_a(log_ct)
+        log_1_min_cumprod_ct = _log_1_min_a(log_cumprod_ct)
+        self.log_at = log_at.float()
+        self.log_bt1 = log_bt1.float()
+        self.log_bt2 = log_bt2.float()
+        self.log_ct = log_ct.float()
+        self.log_cumprod_at = log_cumprod_at.float()
+        self.log_cumprod_bt1 = log_cumprod_bt1.float()
+        self.log_cumprod_bt2 = log_cumprod_bt2.float()
+        self.log_cumprod_ct = log_cumprod_ct.float()
+        self.log_1_min_ct = log_1_min_ct.float()
+        self.log_1_min_cumprod_ct = log_1_min_cumprod_ct.float()
 
-        bt2_safe = np.where(bt2 == 0.0, bt2.max(), bt2)
+        bt2_t = torch.where(bt2_t == 0.0, bt2_t.max(), bt2_t)
         q_one_step = [
-            _gaussian_matrix2(
-                t, bt=torch.tensor(bt2_safe).pow(2).pow(self.pow_num / 2) * self.mul_num
-            )
+            _gaussian_matrix2(t, bt=bt2_t.pow(2).pow(self.pow_num / 2) * self.mul_num)
             for t in range(self.num_timesteps)
         ]
         q_one_step.append(
             np.ones((self.num_coordinate_bins, self.num_coordinate_bins))
             / (self.num_coordinate_bins**2)
         )
-        self.q_onestep_mats = torch.from_numpy(np.stack(q_one_step, axis=0)).float()
-        q_mat = self.q_onestep_mats[0].numpy()
+        q_onestep_mats = torch.from_numpy(np.stack(q_one_step, axis=0)).float()
+        self.q_onestep_mats = q_onestep_mats
+        q_mat = self.q_onestep_mats[0]
         q_mats = [q_mat]
         for t in range(1, self.num_timesteps):
-            q_mat = np.tensordot(q_mat, self.q_onestep_mats[t].numpy(), axes=([1], [0]))
+            q_mat = np.tensordot(q_mat, self.q_onestep_mats[t], axes=([1], [0]))
             q_mats.append(q_mat)
         q_mats.append(
             np.ones((self.num_coordinate_bins, self.num_coordinate_bins))
@@ -418,13 +451,13 @@ def _extract(
     values: Float[torch.Tensor, "timesteps"],
     timesteps: Int[torch.Tensor, "batch"],
     broadcast_shape: tuple[int, ...] | torch.Size,
-) -> Float[torch.Tensor, "..."]:
+) -> Float[torch.Tensor, ...]:
     batch, *_ = timesteps.shape
     out = values.to(timesteps.device).gather(-1, timesteps)
     return out.reshape(batch, *((1,) * (len(broadcast_shape) - 1)))
 
 
-def _log_1_min_a(a: Float[torch.Tensor, "..."]) -> Float[torch.Tensor, "..."]:
+def _log_1_min_a(a: Float[torch.Tensor, ...]) -> Float[torch.Tensor, ...]:
     return torch.log(1 - a.exp() + 1e-40)
 
 

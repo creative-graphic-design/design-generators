@@ -14,14 +14,18 @@ from enum import StrEnum, auto
 from pathlib import Path
 from typing import Final, Protocol, cast
 
-from laygen.common.vendor import vendor_root as resolve_vendor_root
 import torch
+from jaxtyping import Float
+from laygen.common.vendor import vendor_root as resolve_vendor_root
 from typing_extensions import TypedDict
 
 DEFAULT_SEED: Final[int] = 42
 DEFAULT_K: Final[int] = 3
 DEFAULT_CANVAS_SIZE: Final[int] = 64
 DEFAULT_INPUT_LENGTH_LIMIT: Final[int] = 100_000
+JsonScalar = str | int | float | bool | None
+JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+VendorRecord = dict[str, JsonValue]
 COUNTING_TRAIN_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.train.json")
 COUNTING_VAL_JSON: Final[Path] = Path("dataset/NSR-1K/counting/counting.val.json")
 VENDOR_2D_SCRIPT: Final[str] = "run_layoutgpt_2d.py"
@@ -44,23 +48,23 @@ class GoldenMetadata(TypedDict):
     seed: int
     k: int
     canvas_size: int
-    query_id: object
-    candidate_ids: list[object]
+    query_id: str | int
+    candidate_ids: list[str | int]
 
 
 class VendorGolden(TypedDict):
     """Structured vendor parity golden payload."""
 
     metadata: GoldenMetadata
-    fixed_random_ids: list[object]
-    fixed_chat_prompt: object
-    fixed_completion_prompt: object
-    k_similar_ids: list[object]
-    k_similar_completion_prompt: object
+    fixed_random_ids: list[str | int]
+    fixed_chat_prompt: JsonValue
+    fixed_completion_prompt: JsonValue
+    k_similar_ids: list[str | int]
+    k_similar_completion_prompt: JsonValue
     parser_lines: list[str]
-    parsed_2d: list[object]
+    parsed_2d: list[JsonValue]
     parser_3d_lines: list[str]
-    parsed_3d: list[object]
+    parsed_3d: list[JsonValue]
 
 
 class VendorRandom(Protocol):
@@ -68,7 +72,7 @@ class VendorRandom(Protocol):
 
     def seed(self, value: int) -> None: ...
 
-    def shuffle(self, value: list[dict[str, object]]) -> None: ...
+    def shuffle(self, value: list[VendorRecord]) -> None: ...
 
 
 class VendorArgs(Protocol):
@@ -80,20 +84,29 @@ class VendorArgs(Protocol):
     gpt_input_length_limit: int
 
 
+class ByteTokenizer:
+    """Small tokenizer stand-in for vendor prompt functions."""
+
+    def __call__(self, text: str) -> dict[str, list[int]]:
+        return {"input_ids": list(text.encode())}
+
+
 class VendorPromptFunction(Protocol):
     """Prompt function signature used by the vendor LayoutGPT script."""
 
-    __globals__: MutableMapping[str, object]
+    __globals__: MutableMapping[
+        str, VendorModuleValue | Float[torch.Tensor, "examples dimensions"]
+    ]
 
     def __call__(
         self,
         *,
-        text_input: object,
+        text_input: str,
         top_k: int,
         tokenizer: ByteTokenizer,
-        supporting_examples: Sequence[dict[str, object]],
-        features: object | None,
-    ) -> object:
+        supporting_examples: Sequence[VendorRecord],
+        features: Float[torch.Tensor, "examples dimensions"] | None,
+    ) -> JsonValue:
         del text_input, top_k, tokenizer, supporting_examples, features
         raise NotImplementedError
 
@@ -101,20 +114,25 @@ class VendorPromptFunction(Protocol):
 class VendorParse2D(Protocol):
     """2D vendor parser signature."""
 
-    def __call__(self, line: str, *, canvas_size: int) -> object: ...
+    def __call__(self, line: str, *, canvas_size: int) -> JsonValue: ...
 
 
 class VendorParse3D(Protocol):
     """3D vendor parser signature."""
 
-    def __call__(self, line: str, *, unit: str) -> object: ...
+    def __call__(self, line: str, *, unit: str) -> JsonValue: ...
 
 
-class ByteTokenizer:
-    """Small tokenizer stand-in for vendor prompt functions."""
-
-    def __call__(self, text: str) -> dict[str, list[int]]:
-        return {"input_ids": list(text.encode())}
+VendorModuleValue = (
+    JsonValue
+    | VendorRecord
+    | random.Random
+    | ByteTokenizer
+    | VendorArgs
+    | VendorPromptFunction
+    | VendorParse2D
+    | VendorParse3D
+)
 
 
 class _TokenizedText:
@@ -129,12 +147,14 @@ class _ClipStub(types.ModuleType):
 
 
 class _ClipModelStub:
-    def encode_text(self, _tokens: _TokenizedText) -> torch.Tensor:
+    def encode_text(
+        self, _tokens: _TokenizedText
+    ) -> Float[torch.Tensor, "1 dimensions"]:
         return torch.tensor([[0.0, 1.0]], dtype=torch.float32)
 
 
 class _CssUtilsStub(types.ModuleType):
-    def parseString(self, _text: str) -> object:  # noqa: N802
+    def parseString(self, _text: str) -> JsonValue:
         raise ValueError("force vendor fallback parser")
 
 
@@ -149,11 +169,11 @@ def build_golden(vendor_root: Path | None = None) -> VendorGolden:
     vendor_parser = _load_vendor_module(root, VENDOR_PARSER_SCRIPT)
 
     train_records = cast(
-        list[dict[str, object]],
+        list[VendorRecord],
         json.loads((root / COUNTING_TRAIN_JSON).read_text()),
     )
     val_records = cast(
-        list[dict[str, object]],
+        list[VendorRecord],
         json.loads((root / COUNTING_VAL_JSON).read_text()),
     )
     candidates = train_records[:6]
@@ -171,7 +191,7 @@ def build_golden(vendor_root: Path | None = None) -> VendorGolden:
     args.gpt_input_length_limit = DEFAULT_INPUT_LENGTH_LIMIT
 
     tokenizer = ByteTokenizer()
-    query = val_records[0]["prompt"]
+    query = str(val_records[0]["prompt"])
     form_prompt_for_chatgpt = cast(
         VendorPromptFunction, vendor_2d["form_prompt_for_chatgpt"]
     )
@@ -194,7 +214,7 @@ def build_golden(vendor_root: Path | None = None) -> VendorGolden:
     args.icl_type = "k-similar"
     function_globals = form_prompt_for_gpt3.__globals__
     function_globals["device"] = "cpu"
-    function_globals["clip_model"] = _ClipModelStub()
+    function_globals["clip_model"] = cast(VendorModuleValue, _ClipModelStub())
     function_globals["features"] = torch.tensor(
         [
             [1.0, 0.0],
@@ -204,14 +224,16 @@ def build_golden(vendor_root: Path | None = None) -> VendorGolden:
         ],
         dtype=torch.float32,
     )
-    function_globals["clip"] = _ClipStub("clip")
+    function_globals["clip"] = cast(VendorModuleValue, _ClipStub("clip"))
     k_candidates = candidates[:4]
     k_completion = form_prompt_for_gpt3(
         text_input=query,
         top_k=DEFAULT_K,
         tokenizer=tokenizer,
         supporting_examples=k_candidates,
-        features=function_globals["features"],
+        features=cast(
+            Float[torch.Tensor, "examples dimensions"], function_globals["features"]
+        ),
     )
     features = cast(torch.Tensor, function_globals["features"])
     _, k_indices = (
@@ -242,10 +264,10 @@ def build_golden(vendor_root: Path | None = None) -> VendorGolden:
             "seed": DEFAULT_SEED,
             "k": DEFAULT_K,
             "canvas_size": DEFAULT_CANVAS_SIZE,
-            "query_id": val_records[0]["id"],
-            "candidate_ids": [record["id"] for record in candidates],
+            "query_id": cast(str | int, val_records[0]["id"]),
+            "candidate_ids": [cast(str | int, record["id"]) for record in candidates],
         },
-        "fixed_random_ids": [record["id"] for record in fixed_records],
+        "fixed_random_ids": [cast(str | int, record["id"]) for record in fixed_records],
         "fixed_chat_prompt": fixed_chat,
         "fixed_completion_prompt": fixed_completion,
         "k_similar_ids": k_similar_ids,
@@ -271,9 +293,13 @@ def main() -> None:
         args.output.write_text(encoded + "\n")
 
 
-def _load_vendor_module(vendor_root: Path, filename: str) -> dict[str, object]:
+def _load_vendor_module(
+    vendor_root: Path, filename: str
+) -> dict[str, VendorModuleValue]:
     with _vendor_runtime(vendor_root, filename):
-        return runpy.run_path(str(vendor_root / filename))
+        return cast(
+            dict[str, VendorModuleValue], runpy.run_path(str(vendor_root / filename))
+        )
 
 
 @contextlib.contextmanager
@@ -292,10 +318,10 @@ def _vendor_runtime(vendor_root: Path, filename: str) -> Iterator[None]:
         StubbedVendorModule.openai.value
     )
     transformers = types.ModuleType(StubbedVendorModule.transformers.value)
-    setattr(transformers, "StoppingCriteria", _StoppingCriteria)
-    setattr(transformers, "GPT2TokenizerFast", object)
-    setattr(transformers, "LlamaForCausalLM", object)
-    setattr(transformers, "LlamaTokenizer", object)
+    transformers.__dict__["StoppingCriteria"] = _StoppingCriteria
+    transformers.__dict__["GPT2TokenizerFast"] = object
+    transformers.__dict__["LlamaForCausalLM"] = object
+    transformers.__dict__["LlamaTokenizer"] = object
     sys.modules[StubbedVendorModule.transformers.value] = transformers
     sys.modules[StubbedVendorModule.cssutils.value] = _CssUtilsStub(
         StubbedVendorModule.cssutils.value
