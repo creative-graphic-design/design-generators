@@ -61,10 +61,10 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layoutdiffusion-rico25`](https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/layoutdiffusion-publaynet`](https://huggingface.co/creative-graphic-design/layoutdiffusion-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                                          | Status        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layoutdiffusion-rico25`](https://huggingface.co/creative-graphic-design/layoutdiffusion-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/layoutdiffusion-publaynet`](https://huggingface.co/creative-graphic-design/layoutdiffusion-publaynet) | not-published |
 
 ## Uses
 
@@ -72,12 +72,12 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
 
-| `condition_type` | Required inputs | Effect |
-| --- | --- | --- |
-| `unconditional` | none | samples labels and geometry |
-| `label` | `labels`, optional `num_elements` | keeps labels fixed and samples geometry |
-| `refinement` | `bbox`, `labels`, `mask` | refines an encoded layout |
-| `label_size`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+| `condition_type`                                                                             | Required inputs                   | Effect                                  |
+| -------------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------- |
+| `unconditional`                                                                              | none                              | samples labels and geometry             |
+| `label`                                                                                      | `labels`, optional `num_elements` | keeps labels fixed and samples geometry |
+| `refinement`                                                                                 | `bbox`, `labels`, `mask`          | refines an encoded layout               |
+| `label_size`, `completion`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable                    | raises `NotImplementedError`            |
 
 ### Downstream Use
 
@@ -136,26 +136,28 @@ print(out.bbox.shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Package-local training is available through LightningCLI configs under [`configs/training`](configs/training). Staged S0-S5 reproduction against the original implementation is complete for RICO25 and PubLayNet at training-seed n=3: RICO25 is statistically equivalent, and PubLayNet matches on structural metrics with small FID/Alignment endpoint residuals documented in [`TRAINING.md`](TRAINING.md). The S5 configs reproduce the original code's effective GPU behavior, which uses uniform timestep sampling because the original loss-history importance sampler never activates in the documented GPU run configuration.
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Training uses lexicographic `ltrb` layout token sequences so package-local runs can be compared against the original `RICO_ltrb_lex` and `PublayNet_ltrb_lex` streams.
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** categorical diffusion over LayoutDiffusion token ids with `gaussian_refine_pow2.5`, 200 diffusion steps, `training_mode=discrete1`, uniform timestep sampling (the original code's effective GPU behavior; its loss-history importance sampler never activates in the documented run configuration), auxiliary loss, AdamW, disabled gradient clipping, EMA `0.9999`, and training seeds `102`/`103`/`104`.
+- **RICO25:** learning rate `4e-5`, batch size `64`, LR anneal steps `175000`, vocabulary size `159`.
+- **PubLayNet:** learning rate `5e-5`, batch size `64`, LR anneal steps `400000`, vocabulary size `139`.
 
 #### Speeds, Sizes, Times
 
-Training-time and carbon measurements are unknown.
+Full-run training-time and carbon measurements are not available yet.
 
 ## Evaluation
 
@@ -175,21 +177,20 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ### Parity Results
 
-| Dataset | Comparison target | Cases | Agreement criterion | Result |
-| --- | --- | ---: | --- | --- |
-| RICO25 | Tokenizer ids | 121 tokens | exact id match | 121/121 |
-| RICO25 | Scheduler buffers | 1 schedule fixture | exact tensor match | pass |
-| RICO25 | Denoiser logits | 1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `1.0252e-05`, max rel `5.9171e-03` |
-| RICO25 | Full unconditional sample | 121 tokens | exact id match | 121/121 |
-| PubLayNet | Tokenizer ids | 121 tokens | exact id match | 121/121 |
-| PubLayNet | Scheduler buffers | 1 schedule fixture | exact tensor match | pass |
-| PubLayNet | Denoiser logits | 1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `5.7220e-06`, max rel `5.6200e-04` |
-| PubLayNet | Full unconditional sample | 121 tokens | exact id match | 121/121 |
+| Dataset   | Comparison target         |              Cases | Agreement criterion      | Result                                     |
+| --------- | ------------------------- | -----------------: | ------------------------ | ------------------------------------------ |
+| RICO25    | Tokenizer ids             |         121 tokens | exact id match           | 121/121                                    |
+| RICO25    | Scheduler buffers         | 1 schedule fixture | exact tensor match       | pass                                       |
+| RICO25    | Denoiser logits           |     1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `1.0252e-05`, max rel `5.9171e-03` |
+| RICO25    | Full unconditional sample |         121 tokens | exact id match           | 121/121                                    |
+| PubLayNet | Tokenizer ids             |         121 tokens | exact id match           | 121/121                                    |
+| PubLayNet | Scheduler buffers         | 1 schedule fixture | exact tensor match       | pass                                       |
+| PubLayNet | Denoiser logits           |     1 forward pass | `rtol=2e-5`, `atol=2e-4` | max abs `5.7220e-06`, max rel `5.6200e-04` |
+| PubLayNet | Full unconditional sample |         121 tokens | exact id match           | 121/121                                    |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
-
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](TRAINING.md) for package-local LightningCLI training, staged S0-S5 checks, and current training-reproduction status.
 
 ## Environmental Impact
 

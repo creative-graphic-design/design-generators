@@ -4,23 +4,23 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from types import MethodType
-from collections.abc import Sequence
 from typing import Protocol, cast
 
 import torch
+import torch.version
 from jaxtyping import Bool, Float, Int
-from PIL import Image
-from transformers import BertTokenizerFast
-from transformers.tokenization_utils_base import BatchEncoding
-
 from layout_detr import LayoutDetrProcessor
 from layout_detr.vendor_state import (
     extract_generator_state,
     load_vendor_generator,
     temporary_sys_path,
 )
+from PIL import Image
+from transformers import BertTokenizerFast
+from transformers.tokenization_utils_base import BatchEncoding
 
 
 class _VendorTokenizerProtocol(Protocol):
@@ -42,7 +42,7 @@ class _VendorGeneratorProtocol(Protocol):
     input_proj: torch.nn.Module
     bbox_embed: torch.nn.Module
 
-    def eval(self) -> "_VendorGeneratorProtocol": ...
+    def eval(self) -> _VendorGeneratorProtocol: ...
 
 
 def main() -> None:
@@ -222,9 +222,9 @@ def _patch_vendor_bert_runtime(module: torch.nn.Module) -> None:
 
 def _vendor_get_head_mask(
     self: torch.nn.Module,
-    head_mask: Float[torch.Tensor, "..."] | None,
+    head_mask: Float[torch.Tensor, ...] | None,
     num_hidden_layers: int,
-) -> list[Float[torch.Tensor, "..."] | None]:
+) -> list[Float[torch.Tensor, ...] | None]:
     del self
     if head_mask is None:
         return [None] * num_hidden_layers
@@ -243,10 +243,10 @@ def _vendor_get_head_mask(
 
 def _vendor_invert_attention_mask(
     self: torch.nn.Module,
-    encoder_attention_mask: Float[torch.Tensor, "..."]
-    | Int[torch.Tensor, "..."]
-    | Bool[torch.Tensor, "..."],
-) -> Float[torch.Tensor, "..."]:
+    encoder_attention_mask: Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...]
+    | Bool[torch.Tensor, ...],
+) -> Float[torch.Tensor, ...]:
     dtype = next(self.parameters()).dtype
     if encoder_attention_mask.dim() == 2:
         encoder_attention_mask = encoder_attention_mask[:, None, None, :]
@@ -260,9 +260,9 @@ def _run_vendor_forward(
     *,
     inputs: dict[
         str,
-        Float[torch.Tensor, "..."]
-        | Int[torch.Tensor, "..."]
-        | Bool[torch.Tensor, "..."]
+        Float[torch.Tensor, ...]
+        | Int[torch.Tensor, ...]
+        | Bool[torch.Tensor, ...]
         | list[list[str]],
     ],
     device: torch.device,
@@ -324,16 +324,16 @@ def _run_vendor_forward(
 def _cpu_tensors(
     inputs: dict[
         str,
-        Float[torch.Tensor, "..."]
-        | Int[torch.Tensor, "..."]
-        | Bool[torch.Tensor, "..."]
+        Float[torch.Tensor, ...]
+        | Int[torch.Tensor, ...]
+        | Bool[torch.Tensor, ...]
         | list[list[str]],
     ],
 ) -> dict[
     str,
-    Float[torch.Tensor, "..."]
-    | Int[torch.Tensor, "..."]
-    | Bool[torch.Tensor, "..."]
+    Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...]
+    | Bool[torch.Tensor, ...]
     | list[list[str]],
 ]:
     result = {}

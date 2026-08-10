@@ -19,7 +19,6 @@ from layout_dm.training.parity import (
 from traingen.lightning.cli import main
 from traingen_parity.trace import build_step_trace
 
-
 pytestmark = pytest.mark.training
 
 
@@ -94,6 +93,8 @@ def test_optimizer_scheduler_and_parity_helpers() -> None:
 def test_validation_epoch_loss_uses_vendor_step_mean(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from lightning.fabric.plugins.environments import LightningEnvironment
+
     module = LayoutDMTrainingModule(
         config=tiny_config(), scheduler=None, time_sampler="uniform"
     )
@@ -116,6 +117,7 @@ def test_validation_epoch_loss_uses_vendor_step_mean(
         enable_checkpointing=False,
         enable_progress_bar=False,
         enable_model_summary=False,
+        plugins=[LightningEnvironment()],
     )
     torch.manual_seed(123)
     result = trainer.validate(
