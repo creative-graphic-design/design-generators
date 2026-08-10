@@ -48,7 +48,7 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 - **Shared by:** creative-graphic-design.
 - **Model type:** content-aware poster layout generation.
 - **Language(s) (NLP):** not applicable.
-- **License:** unconfirmed for the checked original source and any locally trained or converted weights.
+- **License:** unconfirmed for the checked original source and any user-supplied or converted weights.
 
 ### Model Sources
 
@@ -67,7 +67,7 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 ### Direct Use
 
-Use this package for local RADM conversion experiments, CPU smoke tests, and gated original-code parity preparation after a locally trained or otherwise user-supplied checkpoint and license terms have been confirmed.
+Use this package for local RADM conversion experiments, CPU smoke tests, and gated original-code parity preparation after a user-supplied local checkpoint and license terms have been confirmed.
 
 The first public condition is `content_image`. `images` or `content["image"]` is required; `text_features` and `text_mask` are auxiliary payload fields under the same content-image condition.
 
@@ -77,15 +77,15 @@ Generated poster layouts may feed research evaluation, poster composition studie
 
 ### Out-of-Scope Use
 
-Do not use synthetic RADM smoke artifacts as trained checkpoints, claim original-code agreement without generated references, or redistribute converted weights before local checkpoint provenance and license status are resolved.
+Do not use synthetic RADM smoke artifacts as release checkpoints, claim original-code agreement without generated references, or redistribute converted weights before local checkpoint provenance and license status are resolved.
 
 ## Bias, Risks, and Limitations
 
-The checked RADM README publishes dataset and testing-feature assets only; no public RADM checkpoint is published. The checked source has no license file, so converted or newly trained weight redistribution is blocked until maintainers verify the source license, checkpoint provenance, and dataset terms.
+The checked RADM README publishes dataset and testing-feature assets only; no public RADM checkpoint is published. The checked source has no license file, so weight redistribution is blocked until maintainers verify the source license, checkpoint provenance, and dataset terms.
 
 ### Recommendations
 
-Use explicit local paths for locally trained or user-supplied checkpoints, datasets, text features, and vendor source. Run the gated parity workflow before comparing generated layouts against the original method.
+Use explicit local paths for user-supplied checkpoints, datasets, text features, and vendor source. Run the gated parity workflow before comparing generated layouts against the original method.
 
 ## How to Get Started with the Model
 
@@ -125,20 +125,11 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| CGL | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster layout and content-image metadata |
-| CGL-v2 | CGL-v2 local distribution | text-feature and validation path remains local until the dataset source is confirmed |
-
-RADM issue metadata names CGL training data and separate testing/text-feature assets. The short testing-data URL recorded in the issue redirected away from a usable asset endpoint during planning, so local asset validation is still required.
+Training-data preparation is not included in the current package.
 
 ### Training Procedure
 
-No training run is included in this package. RADM is in the train-ourselves lane because the checked RADM README publishes dataset and testing-feature assets only, so a local training run is the confirmed route to obtain weights.
-
-#### Speeds, Sizes, Times
-
-Training-time and carbon measurements are unknown.
+No training entrypoint or configuration is shipped.
 
 ## Evaluation
 
@@ -160,7 +151,7 @@ Metrics are exact scheduler/timestep agreement, exact tensor equality where the 
 
 | Dataset | Compared path | Cases | Assertion |
 | --- | --- | ---: | --- |
-| CGL | original Detectron2 RADM path vs. converted `🧨diffusers` path | 0 | not run; released checkpoint is not published and local training is required for weights |
+| CGL | original Detectron2 RADM path vs. converted `🧨diffusers` path | 0 | not run; no released checkpoint or local parity assets were available |
 | Synthetic smoke | randomly initialized RADM pipeline save/load | 1 | schema smoke only, no original-code parity claim |
 
 No accepted original-code parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
@@ -171,7 +162,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by this package. Conversion, reference generation, and parity costs depend on the selected checkpoint and local hardware.
+No model weights are included. Conversion, reference generation, and parity costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -193,7 +184,7 @@ Use `uv run --package radm ...` from the repository root so workspace dependency
 
 ## License
 
-Repository wrapper code is Apache-2.0. The checked original RADM source has no license file, and converted or newly trained weight redistribution is blocked until license and checkpoint provenance are confirmed.
+Repository wrapper code is Apache-2.0. The checked original RADM source has no license file, and weight redistribution is blocked until license and checkpoint provenance are confirmed.
 
 ## Citation
 
