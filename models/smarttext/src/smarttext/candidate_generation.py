@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TypedDict, cast
@@ -260,7 +260,7 @@ def candidate_to_reference_json(candidate: SmartTextCandidate) -> list[Candidate
 
 
 def candidate_from_reference_json(
-    row: Sequence[Mapping[str, object]],
+    row: Sequence[CandidateBoxRow],
 ) -> SmartTextCandidate:
     """Convert one reference JSON candidate row to typed metadata."""
     head = row[0]

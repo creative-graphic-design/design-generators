@@ -341,25 +341,25 @@ def test_root_readme_badge_policy_enforces_library_badges() -> None:
             "laygen",
             "2f80ed",
             None,
-            "https://github.com/creative-graphic-design/design-generators/blob/main/lib/laygen/README.md",
+            "lib/laygen/README.md",
         ),
         (
             "posgen",
             "00a88f",
             None,
-            "https://github.com/creative-graphic-design/design-generators/blob/main/lib/posgen/README.md",
+            "lib/posgen/README.md",
         ),
         (
             "traingen",
             "27ae60",
             None,
-            "https://github.com/creative-graphic-design/design-generators/blob/main/lib/traingen/README.md",
+            "lib/traingen/README.md",
         ),
         (
             "traingen-parity",
             "9b51e0",
             None,
-            "https://github.com/creative-graphic-design/design-generators/blob/main/lib/traingen-parity/README.md",
+            "lib/traingen-parity/README.md",
         ),
     }
 

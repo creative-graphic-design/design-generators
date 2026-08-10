@@ -78,7 +78,7 @@ class DSGANConfig(PretrainedConfig):
         dtype: str | None = None,
         name_or_path: str = "",
         _commit_hash: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize DS-GAN configuration."""
         _ = (model_type, transformers_version)

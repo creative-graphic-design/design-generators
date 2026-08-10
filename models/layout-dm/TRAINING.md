@@ -54,6 +54,20 @@ Training configs live under `models/layout-dm/configs/training`.
 | `layoutdm_publaynet_deterministic.yaml` | PubLayNet | `deterministic` | Deterministic short run for parity/debug checks. |
 | `smoke.yaml` | PubLayNet synthetic | `deterministic` | CPU smoke config for CLI wiring. |
 
+## Scheduler and Recipe Notes
+
+LayoutDM uses the original training recipe with the package-local denoiser
+initialization matched to the original `normal_(0, 0.02)` linear and embedding
+scheme. Scheduler cadence and optimizer-step behavior are covered by the S2/S3
+checks when those reruns are available.
+
+## Seed Policy
+
+RICO25 S5 evidence is reported at `training-seed n=8`. PubLayNet S5 evidence is
+reported at `training-seed n=3` by project decision after the early verdict.
+Conditional RICO25 metrics reuse the same n=8 trained seed set without
+additional retraining.
+
 ## Validation Stages
 
 | Stage | Scope | Purpose |
@@ -73,7 +87,7 @@ Training configs live under `models/layout-dm/configs/training`.
 | S1 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Fixed-batch pre-optimizer trace parity covers timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss. |
 | S2 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | One optimizer-step parity covers gradients, clipped gradients, optimizer state, post-step params, and learning rate. |
 | S4 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `.cache/layout-dm/original-data` | Tokenizer/loader row encoding parity and preprocessed stream reader parity are recorded for local fixtures. |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training python -m traingen.lightning.cli fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/` | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training traingen fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/` | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression. |
 
 ## Reproduction Results
 
@@ -83,10 +97,10 @@ PubLayNet is finalized at training-seed n=3 by project decision; the attempted n
 
 RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The vendor conditional names are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`, bootstrap 95% CI `[+0.0304, +0.2190]`) even though the FID ranges overlap; therefore the category-conditioned result is close but not strict FID equality. A same-weight route-identity check reloaded vendor seed 42975 through the package denoiser, re-exported it to the vendor checkpoint format, and then ran the same vendor `trainer.test cond=c` settings (`temperature=1.0`, `num_timesteps=100`, `sampling=random`, and vendor mask construction). The direct and re-export paths produced identical 4,218-layout outputs by SHA256, so the residual is not a conditioning-route, setting, or export bug. The best supported interpretation is that `cond=c` is sensitive to small trained-weight endpoint differences: the +0.1217 FID gap is near the same-method run-to-run floor estimated from the existing c-mode seeds, while completion, refinement, and unconditional generation remain equivalent.
 
-| Dataset | Scope | Vendor FID | Ours FID | Δ FID | Welch p | Alignment vendor → ours | Overlap vendor → ours | mIoU vendor → ours | Verdict |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| RICO25 | n=8 initfix | 7.1055 ± 0.3673 | 7.2307 ± 0.2632 | +0.1252 | 0.4768 | 0.0019 → 0.0022 | 0.8438 → 0.8379 | 0.1941 → 0.1931 | statistically equivalent |
-| PubLayNet | n=3 initfix | 12.0617 ± 0.1665 | 11.5308 ± 0.1915 | -0.5308 | 0.0426 | 0.0020 → 0.0021 | 0.1295 → 0.1240 | 0.0759 → 0.0727 | ours lower-FID side; no over-FID regression |
+| Dataset | Status | Scope | Vendor FID | Ours FID | Δ FID | Welch p | Alignment vendor → ours | Overlap vendor → ours | mIoU vendor → ours | Verdict |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| RICO25 | `s5-practical-reproduction` | n=8 initfix | 7.1055 ± 0.3673 | 7.2307 ± 0.2632 | +0.1252 | 0.4768 | 0.0019 → 0.0022 | 0.8438 → 0.8379 | 0.1941 → 0.1931 | statistically equivalent |
+| PubLayNet | `s5-practical-reproduction` | n=3 initfix | 12.0617 ± 0.1665 | 11.5308 ± 0.1915 | -0.5308 | 0.0426 | 0.0020 → 0.0021 | 0.1295 → 0.1240 | 0.0759 → 0.0727 | ours lower-FID side; no over-FID regression |
 
 RICO25 and PubLayNet metrics use the vendor `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the vendor `LayoutGAN++` variants; mIoU is reported from the vendor `average_iou-VTN` output. Standard deviations use population standard deviation over the reported training seeds.
 
@@ -100,6 +114,8 @@ Overall S5 verdict: the original RICO25 high-FID failure was caused by the denoi
 
 RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). Same-method c-FID spread from the existing eight seeds is of comparable scale: exact 4-vs-4 within-method splits have mean absolute gaps of `0.0652` for ours and `0.0519` for vendor, with p90 `0.1376` and `0.1018`; same-method bootstrap absolute-gap p95 is `0.1062` for ours and `0.0812` for vendor, and ours p97.5 is `0.1210`. For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
 
+## Regeneration Metadata
+
 Evidence locations:
 
 ```text
@@ -111,7 +127,9 @@ Evidence locations:
 .cache/layout-dm/full-run/eval/rico25_c_route_identity/
 ```
 
-## Reproducing These Results
+## Training Commands
+
+### Reproducing These Results
 
 Run the local CI training checks.
 
@@ -119,7 +137,7 @@ Run the local CI training checks.
 uv run --package layout-dm --extra training --with pytest pytest \
   models/layout-dm/tests -m "not vendor_parity and not integration" -q
 CUDA_VISIBLE_DEVICES="" uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/smoke.yaml
 ```
 
@@ -137,7 +155,7 @@ Start a regular RICO25 package-local training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/layoutdm_rico25.yaml \
   --data.init_args.dataset_source=processed \
   --data.init_args.processed_data_dir=.cache/layout-dm/original-data \
@@ -149,7 +167,7 @@ Start a regular PubLayNet package-local training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training \
-  python -m traingen.lightning.cli fit \
+  traingen fit \
   --config models/layout-dm/configs/training/layoutdm_publaynet.yaml \
   --data.init_args.dataset_source=processed \
   --data.init_args.processed_data_dir=.cache/layout-dm/original-data \

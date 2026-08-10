@@ -17,7 +17,7 @@ import sys
 import types
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 # Set BLAS/OpenMP defaults before importing the vendor cal_color module.
 for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
@@ -25,6 +25,7 @@ for _thread_env_var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THRE
 
 import numpy as np
 import torch
+from jaxtyping import Float
 from PIL import Image, ImageDraw, ImageFont
 from threadpoolctl import threadpool_limits
 
@@ -34,7 +35,16 @@ MOS_MEAN = 2.95
 MOS_STD = 0.8
 
 
-def _json_default(value: object) -> object:
+class _VendorSample(TypedDict):
+    """Subset of the SmartText vendor dataset sample used by this script."""
+
+    imgpath: str
+    tbboxes: dict[str, list[float]]
+    resized_images: Float[torch.Tensor, "..."] | list[Float[torch.Tensor, "..."]]
+    box_list: list[list[dict[str, int | float | str]]]
+
+
+def _json_default(value: np.integer | np.floating) -> int | float:
     if isinstance(value, np.integer):
         return int(value)
     if isinstance(value, np.floating):
@@ -78,7 +88,11 @@ class _VendorRoIAlignAvg(torch.nn.Module):
             aligned_height + 1, aligned_width + 1, spatial_scale
         )
 
-    def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        features: Float[torch.Tensor, "batch channels height width"],
+        rois: Float[torch.Tensor, "regions 5"],
+    ) -> Float[torch.Tensor, "regions"]:
         return self.impl(features, rois)
 
 
@@ -91,7 +105,11 @@ class _VendorRoDAlignAvg(torch.nn.Module):
             aligned_height + 1, aligned_width + 1, spatial_scale
         )
 
-    def forward(self, features: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        features: Float[torch.Tensor, "batch channels height width"],
+        rois: Float[torch.Tensor, "regions 5"],
+    ) -> Float[torch.Tensor, "regions"]:
         return self.impl(features, rois)
 
 
@@ -113,14 +131,14 @@ def _install_align_shims() -> None:
 def _score_sample(
     *,
     smt_net: torch.nn.Module,
-    sample: dict[str, object],
+    sample: _VendorSample,
     model_type: str,
     device: torch.device,
-) -> torch.Tensor:
+) -> Float[torch.Tensor, "candidates"]:
     tbboxes = sample["tbboxes"]
     if not isinstance(tbboxes, dict):
         raise TypeError("vendor sample tbboxes must be a dictionary")
-    box_rows = cast(dict[str, list[float]], tbboxes)
+    box_rows = tbboxes
     if model_type == "RoE":
         outputs = []
         batch_size = 16
@@ -142,14 +160,16 @@ def _score_sample(
 
 def _scorer_inputs(
     *,
-    sample: dict[str, object],
+    sample: _VendorSample,
     model_type: str,
     device: torch.device,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[
+    Float[torch.Tensor, "batch channels height width"], Float[torch.Tensor, "regions 5"]
+]:
     tbboxes = sample["tbboxes"]
     if not isinstance(tbboxes, dict):
         raise TypeError("vendor sample tbboxes must be a dictionary")
-    box_rows = cast(dict[str, list[float]], tbboxes)
+    box_rows = tbboxes
     if model_type == "RoE":
         resized_images = sample["resized_images"]
         if not isinstance(resized_images, list):
@@ -273,17 +293,17 @@ def main() -> None:
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    scores_by_image: dict[str, torch.Tensor] = {}
-    saliency_by_image: dict[str, torch.Tensor] = {}
-    scorer_inputs_by_image: dict[str, dict[str, torch.Tensor]] = {}
-    candidates_by_image: dict[str, object] = {}
-    selected_by_image: dict[str, object] = {}
-    colors_by_image: dict[str, object] = {}
+    scores_by_image: dict[str, Float[torch.Tensor, "candidates"]] = {}
+    saliency_by_image: dict[str, Float[torch.Tensor, "height width"]] = {}
+    scorer_inputs_by_image: dict[str, dict[str, Float[torch.Tensor, "..."]]] = {}
+    candidates_by_image: dict[str, list[list[dict[str, int | float | str]]]] = {}
+    selected_by_image: dict[str, list[dict[str, int | float]]] = {}
+    colors_by_image: dict[str, dict[str, int | str]] = {}
     image_paths: dict[str, str] = {}
     case_count = min(args.max_images, len(dataset))
     with torch.no_grad():
         for index in range(case_count):
-            sample = dataset[index]
+            sample = cast(_VendorSample, dataset[index])
             image_name = Path(sample["imgpath"]).name
             raw_scores = _score_sample(
                 smt_net=smt_net, sample=sample, model_type="RoE", device=device

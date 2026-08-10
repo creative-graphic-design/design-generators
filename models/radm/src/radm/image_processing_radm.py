@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Unpack
 
 import numpy as np
 import torch
@@ -12,6 +12,7 @@ from PIL import Image
 from transformers import BaseImageProcessor
 from transformers.image_processing_utils import BatchFeature
 from transformers.image_utils import ImageInput
+from transformers.processing_utils import ImagesKwargs
 
 from .configuration_radm import RADMConfig
 
@@ -40,7 +41,7 @@ class RADMImageProcessor(BaseImageProcessor):
         size_divisibility: int = 32,
         pixel_mean: Sequence[float] = (123.675, 116.280, 103.530),
         pixel_std: Sequence[float] = (58.395, 57.120, 57.375),
-        **kwargs: object,
+        **kwargs: Unpack[ImagesKwargs],
     ) -> None:
         """Initialize image normalization settings."""
         super().__init__(**kwargs)
@@ -69,9 +70,7 @@ class RADMImageProcessor(BaseImageProcessor):
     def preprocess(
         self,
         images: ImageInput | Sequence[ImageInput],
-        *,
-        return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: Unpack[ImagesKwargs],
     ) -> BatchFeature:
         """Preprocess one image or an image batch.
 
@@ -86,7 +85,7 @@ class RADMImageProcessor(BaseImageProcessor):
         Raises:
             ValueError: If ``return_tensors`` is not ``pt``.
         """
-        del kwargs
+        return_tensors = kwargs.pop("return_tensors", "pt")
         if return_tensors != "pt":
             raise ValueError("RADMImageProcessor only supports return_tensors='pt'")
         tensors: list[Float[torch.Tensor, "channels height width"]] = []

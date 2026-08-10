@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import json
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - script prints arbitrary checkpoint metadata.
+from typing import cast
 
 import torch
+from jaxtyping import Float
 
-from radm.conversion import inspect_checkpoint_payload
+from radm.conversion import CheckpointPayloadValue, inspect_checkpoint_payload
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,7 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     """Print checkpoint metadata as JSON."""
     args = build_parser().parse_args()
-    payload = cast(dict[str, Any], torch.load(args.checkpoint, map_location="cpu"))
+    payload = cast(
+        Mapping[
+            str,
+            CheckpointPayloadValue
+            | Float[torch.Tensor, "..."]
+            | Mapping[str, Float[torch.Tensor, "..."]],
+        ],
+        torch.load(args.checkpoint, map_location="cpu"),
+    )
     print(json.dumps(inspect_checkpoint_payload(payload), indent=2, sort_keys=True))
 
 

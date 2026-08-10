@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Mapping
-from typing import cast
+from types import SimpleNamespace
+from typing import Protocol, cast
 
 import torch
 from jaxtyping import Shaped
 
 from .configuration_ds_gan import DSGANConfig
+
+
+class _Stringifiable(Protocol):
+    """Value accepted at dynamic vendor-argument boundaries."""
+
+    def __str__(self) -> str: ...
+
+
+DSGANArgValue = str | int | float | bool | None | _Stringifiable
 
 
 def convert_vendor_state_dict(
@@ -38,7 +49,12 @@ def convert_vendor_state_dict(
     return converted
 
 
-def config_from_vendor_args(args: object | None = None) -> DSGANConfig:
+def config_from_vendor_args(
+    args: argparse.Namespace
+    | SimpleNamespace
+    | Mapping[str, DSGANArgValue]
+    | None = None,
+) -> DSGANConfig:
     """Build a DS-GAN config from vendor args or defaults."""
     if args is None:
         return DSGANConfig()
@@ -55,13 +71,15 @@ def config_from_vendor_args(args: object | None = None) -> DSGANConfig:
     )
 
 
-def _values(args: object) -> Mapping[str, object]:
+def _values(
+    args: argparse.Namespace | SimpleNamespace | Mapping[str, DSGANArgValue],
+) -> Mapping[str, DSGANArgValue]:
     if isinstance(args, Mapping):
-        return cast(Mapping[str, object], args)
-    return vars(args)
+        return cast(Mapping[str, DSGANArgValue], args)
+    return cast(Mapping[str, DSGANArgValue], vars(args))
 
 
-def _int_value(values: Mapping[str, object], key: str, default: int) -> int:
+def _int_value(values: Mapping[str, DSGANArgValue], key: str, default: int) -> int:
     value = values.get(key, default)
     if isinstance(value, int):
         return value

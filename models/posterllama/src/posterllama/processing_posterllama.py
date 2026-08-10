@@ -18,7 +18,10 @@ from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .configuration_posterllama import PosterLlamaConfig
-from .image_processing_posterllama import PosterLlamaImageProcessor
+from .image_processing_posterllama import (
+    PosterLlamaImageProcessor,
+    PosterLlamaImageProcessorKwarg,
+)
 from .postprocessing import parse_rectangles, rect_ltwh_to_output
 
 REQUEST_CONDITION_ALIASES: Final[dict[str, ConditionType]] = {
@@ -137,7 +140,7 @@ class PosterLlamaProcessor(ProcessorMixin):
         self,
         save_directory: str | PathLike[str],
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Save processor metadata.
 
@@ -174,7 +177,7 @@ class PosterLlamaProcessor(ProcessorMixin):
         revision: str = "main",
         *,
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: PosterLlamaImageProcessorKwarg,
     ) -> "PosterLlamaProcessor":
         """Load processor metadata.
 

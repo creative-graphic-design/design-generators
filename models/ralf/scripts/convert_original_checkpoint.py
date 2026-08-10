@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
 import torch
+from jaxtyping import Shaped
 from laygen.common.conditions import normalize_condition_type
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration, RalfProcessor
@@ -23,21 +25,25 @@ from ralf.configuration_ralf import (
 )
 from ralf.modeling_ralf import TASK_BY_CONDITION
 
+RalfYamlValue = (
+    str | int | float | bool | None | list["RalfYamlValue"] | dict[str, "RalfYamlValue"]
+)
 
-def _int_value(value: object, default: int) -> int:
+
+def _int_value(value: RalfYamlValue, default: int) -> int:
     if value is None:
         return default
     return int(cast(int | str, value))
 
 
-def _str_sequence(value: object, default: list[str]) -> list[str]:
+def _str_sequence(value: RalfYamlValue, default: list[str]) -> list[str]:
     if value is None:
         return default
-    return [str(item) for item in cast(list[object], value)]
+    return [str(item) for item in cast(Sequence[RalfYamlValue], value)]
 
 
 def _layout_variable_sequence(
-    value: object, default: list[RalfLayoutVariable]
+    value: RalfYamlValue, default: list[RalfLayoutVariable]
 ) -> list[RalfLayoutVariable]:
     variables = _str_sequence(value, list(default))
     allowed = {"label", "width", "height", "center_x", "center_y"}
@@ -47,7 +53,7 @@ def _layout_variable_sequence(
     return cast(list[RalfLayoutVariable], variables)
 
 
-def _int_or_str(value: object, default: int | str) -> int | str:
+def _int_or_str(value: RalfYamlValue, default: int | str) -> int | str:
     if value is None:
         return default
     if isinstance(value, int):
@@ -111,7 +117,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _read_yaml(path: Path) -> dict[str, object]:
+def _read_yaml(path: Path) -> dict[str, RalfYamlValue]:
     try:
         import yaml
     except ImportError as exc:
@@ -120,10 +126,10 @@ def _read_yaml(path: Path) -> dict[str, object]:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
         raise TypeError(f"{path} did not contain a mapping")
-    return cast(dict[str, object], data)
+    return cast(dict[str, RalfYamlValue], data)
 
 
-def _state_dict_from_checkpoint(path: Path) -> dict[str, torch.Tensor]:
+def _state_dict_from_checkpoint(path: Path) -> dict[str, Shaped[torch.Tensor, "..."]]:
     checkpoint = torch.load(path, map_location="cpu")
     state_dict = (
         checkpoint.get("state_dict", checkpoint)
@@ -132,7 +138,7 @@ def _state_dict_from_checkpoint(path: Path) -> dict[str, torch.Tensor]:
     )
     if not isinstance(state_dict, dict):
         raise TypeError(f"{path} did not contain a state_dict mapping")
-    return cast(dict[str, torch.Tensor], state_dict)
+    return cast(dict[str, Shaped[torch.Tensor, "..."]], state_dict)
 
 
 def _labels_from_vocabulary(
@@ -160,14 +166,14 @@ def _labels_from_vocabulary(
 
 def _config_from_original(
     *,
-    original_config: dict[str, object],
+    original_config: dict[str, RalfYamlValue],
     dataset: RalfDatasetName,
     task: str,
     id2label: dict[int, str],
 ) -> RalfConfig:
-    dataset_cfg = cast(dict[str, object], original_config.get("dataset", {}))
-    tokenizer_cfg = cast(dict[str, object], original_config.get("tokenizer", {}))
-    generator_cfg = cast(dict[str, object], original_config.get("generator", {}))
+    dataset_cfg = cast(dict[str, RalfYamlValue], original_config.get("dataset", {}))
+    tokenizer_cfg = cast(dict[str, RalfYamlValue], original_config.get("tokenizer", {}))
+    generator_cfg = cast(dict[str, RalfYamlValue], original_config.get("generator", {}))
     canonical_task = _canonical_task(task)
     config_task_name = _task_name(str(generator_cfg.get("auxilary_task", task)))
     requested_task_name = _task_name(canonical_task)
@@ -204,8 +210,8 @@ def _config_from_original(
 
 def _strict_load_report(
     model: RalfForConditionalLayoutGeneration,
-    state_dict: dict[str, torch.Tensor],
-) -> dict[str, object]:
+    state_dict: dict[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, RalfYamlValue]:
     target_state = model.state_dict()
     shape_mismatches = {
         key: {

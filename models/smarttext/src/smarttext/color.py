@@ -14,7 +14,14 @@ from jaxtyping import Shaped
 from PIL import Image
 from sklearn.cluster import KMeans
 from threadpoolctl import threadpool_limits
-from typing import cast
+from typing import TypedDict
+
+
+class SmartTextColorCandidate(TypedDict):
+    """Foreground color candidate and contrast score."""
+
+    color: Shaped[np.ndarray, "channels"] | list[float] | list[int]
+    contrast_rate: float
 
 
 def dominant_colors(
@@ -83,7 +90,7 @@ def best_color_candidates(
     *,
     contrast_threshold: float,
     random_seed: int | None = 0,
-) -> list[dict[str, object]]:
+) -> list[SmartTextColorCandidate]:
     """Return reference-ordered color candidates for a text region.
 
     Args:
@@ -112,13 +119,13 @@ def _best_color_candidates_unseeded(
     crop: Shaped[np.ndarray, "crop_height crop_width channels"],
     *,
     contrast_threshold: float,
-) -> list[dict[str, object]]:
+) -> list[SmartTextColorCandidate]:
     image_array = np.asarray(
         image.convert("RGB") if isinstance(image, Image.Image) else image
     )
     color_candidates = dominant_colors(image_array, 6)
     crop_color = dominant_colors(crop, 1)[0]
-    chosen: list[dict[str, object]] = []
+    chosen: list[SmartTextColorCandidate] = []
     grey_flag = False
     for color in color_candidates:
         rate = contrast_rate(color, crop_color)
@@ -172,10 +179,7 @@ def choose_text_color(
     crop = array[top:bottom, left:right]
     if crop.size == 0:
         return "#000000"
-    color = cast(
-        Shaped[np.ndarray, "channels"] | list[float] | list[int],
-        best_color_candidates(array, crop, contrast_threshold=contrast_threshold)[0][
-            "color"
-        ],
-    )
+    color = best_color_candidates(array, crop, contrast_threshold=contrast_threshold)[
+        0
+    ]["color"]
     return rgb_to_hex(color)

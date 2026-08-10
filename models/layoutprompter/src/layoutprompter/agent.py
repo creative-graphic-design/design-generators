@@ -26,7 +26,7 @@ from pydantic_ai.settings import ModelSettings
 from layoutprompter.data import SupportedDataset, normalize_dataset
 from layoutprompter.enums import LayoutPrompterTask, OutputType, PromptFormat
 from layoutprompter.parsing import Parser
-from layoutprompter.records import LayoutRecordInput
+from layoutprompter.records import LayoutRecordPayload, LayoutRecordInput
 from layoutprompter.schemas import LayoutPrompterOutput
 from layoutprompter.selection import create_selector
 from layoutprompter.serialization import build_prompt, create_serializer
@@ -278,12 +278,16 @@ class LayoutPrompter(BaseLayoutAgent[LayoutPrompterOutput]):
         test_data: LayoutRecord,
         batch_size: int = 1,
         seed: int | None = None,
-        generator: object | None = None,
+        generator: np.random.Generator | None = None,
         condition_type: ConditionType | str | None = None,
-        labels: Int[np.ndarray, "batch elements"] | object | None = None,
-        bbox: Float[np.ndarray, "batch elements 4"] | object | None = None,
-        mask: Bool[np.ndarray, "batch elements"] | object | None = None,
-        num_elements: int | list[int] | Int[np.ndarray, "batch"] | object | None = None,
+        labels: Int[np.ndarray, "batch elements"] | LayoutRecordPayload | None = None,
+        bbox: Float[np.ndarray, "batch elements 4"] | LayoutRecordPayload | None = None,
+        mask: Bool[np.ndarray, "batch elements"] | LayoutRecordPayload | None = None,
+        num_elements: int
+        | list[int]
+        | Int[np.ndarray, "batch"]
+        | LayoutRecordPayload
+        | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,

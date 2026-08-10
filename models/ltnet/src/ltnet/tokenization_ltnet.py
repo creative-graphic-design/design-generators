@@ -61,7 +61,7 @@ class LTNetRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         clean_up_tokenization_spaces: bool = False,
         added_tokens_decoder: dict[int | str, str | AddedToken] | None = None,
         name_or_path: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize vocabulary and object/relation id metadata."""
         _ = kwargs
@@ -132,7 +132,7 @@ class LTNetRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         legacy_format: bool | None = None,
         filename_prefix: str | None = None,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str, ...]:
         """Save tokenizer files plus LT-Net tokenizer metadata."""
         _ = kwargs
@@ -161,7 +161,7 @@ class LTNetRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         revision: str = "main",
         object_token_ids: list[int] | None = None,
         relation_token_ids: list[int] | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "LTNetRelationTokenizer":
         """Load tokenizer and LT-Net metadata."""
         path = Path(pretrained_model_name_or_path)

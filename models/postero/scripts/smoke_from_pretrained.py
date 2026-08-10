@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 from typing import cast
 
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from postero import PosterOAgent, PosterOConfig
@@ -30,7 +30,7 @@ def main() -> None:
     """Run the smoke test."""
     args = parse_args()
 
-    def respond(_messages: object, _info: AgentInfo) -> ModelResponse:
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(
             parts=[
                 TextPart(

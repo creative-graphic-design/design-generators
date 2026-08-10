@@ -10,14 +10,15 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import torch
+from jaxtyping import Float, Shaped
 
 
 class VendorInferenceModel(Protocol):
     """Vendor model surface used by this local reference exporter."""
 
     def inference(
-        self, device: torch.device, z: torch.Tensor
-    ) -> dict[str, torch.Tensor]: ...
+        self, device: torch.device, z: Float[torch.Tensor, "batch 1 latent"]
+    ) -> dict[str, Shaped[torch.Tensor, "..."]]: ...
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,7 @@ def _vendor_model_class(vendor_root: Path) -> type[torch.nn.Module]:
     return cast(type[torch.nn.Module], C2FLayoutTransformer)
 
 
-def _load_state(checkpoint: Path) -> dict[str, torch.Tensor]:
+def _load_state(checkpoint: Path) -> dict[str, Shaped[torch.Tensor, "..."]]:
     raw = torch.load(checkpoint, map_location="cpu")
     return {str(key).removeprefix("module."): value for key, value in raw.items()}
 

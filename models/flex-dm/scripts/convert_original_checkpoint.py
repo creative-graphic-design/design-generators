@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import torch
+from jaxtyping import Shaped
 
 from flex_dm import FlexDmForMaskedDocumentModeling, FlexDmProcessor
 from flex_dm.conversion import conversion_report, map_tensor_by_rule
@@ -93,7 +94,7 @@ def main() -> None:
     model = FlexDmForMaskedDocumentModeling(processor.config)
     checkpoint = checkpoint_root / "checkpoints" / args.checkpoint_name
     variables = load_tf_checkpoint_variables(checkpoint)
-    converted: dict[str, torch.Tensor] = {}
+    converted: dict[str, Shaped[torch.Tensor, "..."]] = {}
     consumed: set[str] = set()
     model_source_keys: set[str] = set()
     for source_name, value in variables.items():

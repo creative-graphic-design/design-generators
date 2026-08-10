@@ -4,11 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
 import sys
 from types import ModuleType
 
 import numpy as np
+from jaxtyping import Shaped
+
+
+FlexDmProbeValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["FlexDmProbeValue"]
+    | dict[str, "FlexDmProbeValue"]
+)
+FlexDmLookupKwarg = str | int | float | bool | None | Sequence[str]
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,21 +55,27 @@ def install_tf_compat_shim() -> None:
     experimental = ModuleType("tensorflow.keras.layers.experimental")
     preprocessing = ModuleType("tensorflow.keras.layers.experimental.preprocessing")
 
-    def normalize_lookup_kwargs(kwargs: dict[str, object]) -> dict[str, object]:
+    def normalize_lookup_kwargs(
+        kwargs: dict[str, FlexDmLookupKwarg],
+    ) -> dict[str, FlexDmLookupKwarg]:
         normalized = dict(kwargs)
         if "mask_value" in normalized:
             normalized["mask_token"] = normalized.pop("mask_value")
         return normalized
 
     class StringLookup(tf.keras.layers.StringLookup):  # type: ignore[misc]
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(
+            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
+        ) -> None:
             super().__init__(*args, **normalize_lookup_kwargs(kwargs))
 
         def vocab_size(self) -> int:
             return int(self.vocabulary_size())
 
     class IntegerLookup(tf.keras.layers.IntegerLookup):  # type: ignore[misc]
-        def __init__(self, *args: object, **kwargs: object) -> None:
+        def __init__(
+            self, *args: FlexDmLookupKwarg, **kwargs: FlexDmLookupKwarg
+        ) -> None:
             super().__init__(*args, **normalize_lookup_kwargs(kwargs))
 
         def vocab_size(self) -> int:
@@ -171,7 +191,7 @@ def export_vendor(args: argparse.Namespace) -> None:
         block_outputs.append(current)
     logits = base.decoder(current, training=False)
 
-    arrays: dict[str, np.ndarray] = {
+    arrays: dict[str, Shaped[np.ndarray, "..."]] = {
         "seq_mask": mask.numpy(),
         "encoder": hidden.numpy(),
         "block0_norm1": norm1.numpy(),
@@ -219,7 +239,9 @@ def export_vendor(args: argparse.Namespace) -> None:
     print(f"wrote {args.probe_dir / 'tf_probe.npz'}")
 
 
-def _max_abs(current: np.ndarray, reference: np.ndarray) -> dict[str, float]:
+def _max_abs(
+    current: Shaped[np.ndarray, "..."], reference: Shaped[np.ndarray, "..."]
+) -> dict[str, float]:
     diff = np.abs(current - reference)
     return {"max_abs": float(diff.max()), "mean_abs": float(diff.mean())}
 
@@ -240,7 +262,7 @@ def compare_torch(args: argparse.Namespace) -> None:
         .to(device)
         .eval()
     )
-    inputs: dict[str, torch.Tensor] = {}
+    inputs: dict[str, Shaped[torch.Tensor, "..."]] = {}
     for key in tf_probe.files:
         if not key.startswith("input__"):
             continue
@@ -255,10 +277,10 @@ def compare_torch(args: argparse.Namespace) -> None:
             tensor = tensor.float()
         inputs[input_name] = tensor
 
-    def to_numpy(tensor: torch.Tensor) -> np.ndarray:
+    def to_numpy(tensor: Shaped[torch.Tensor, "..."]) -> Shaped[np.ndarray, "..."]:
         return tensor.detach().cpu().numpy()
 
-    summaries: list[dict[str, object]] = []
+    summaries: list[dict[str, FlexDmProbeValue]] = []
     with torch.no_grad():
         hidden, seq_mask = model.encoder(inputs)
         block = model.blocks[0]

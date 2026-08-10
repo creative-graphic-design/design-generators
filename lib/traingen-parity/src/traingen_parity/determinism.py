@@ -8,12 +8,10 @@ from dataclasses import dataclass
 from typing import TypeAlias, cast
 
 import numpy as np
-import numpy.typing as npt
 import torch
-from jaxtyping import Shaped
+from jaxtyping import Shaped, UInt32
 
-PythonRandomState: TypeAlias = tuple[object, ...]
-NumpyRandomState: TypeAlias = tuple[str, object, int, int, float] | dict[str, object]
+PythonRandomState: TypeAlias = tuple[int, tuple[int, ...], float | None]
 
 
 @dataclass(frozen=True)
@@ -52,7 +50,7 @@ class RNGState:
     """Captured Python, NumPy, torch CPU, and torch CUDA RNG state."""
 
     python: PythonRandomState
-    numpy: NumpyRandomState
+    numpy: tuple[str, UInt32[np.ndarray, "state"], int, int, float]
     torch_cpu: Shaped[torch.Tensor, "..."]
     torch_cuda: tuple[Shaped[torch.Tensor, "..."], ...]
 
@@ -107,7 +105,10 @@ def capture_rng_state() -> RNGState:
     )
     return RNGState(
         python=cast(PythonRandomState, random.getstate()),
-        numpy=cast(NumpyRandomState, np.random.get_state()),
+        numpy=cast(
+            tuple[str, UInt32[np.ndarray, "state"], int, int, float],
+            np.random.get_state(),
+        ),
         torch_cpu=torch.random.get_rng_state(),
         torch_cuda=cuda_state,
     )
@@ -130,12 +131,7 @@ def restore_rng_state(state: RNGState) -> None:
         >>> restore_rng_state(state)
     """
     random.setstate(state.python)
-    np.random.set_state(
-        cast(
-            tuple[str, npt.NDArray[np.uint32], int, int, float] | dict[str, object],
-            state.numpy,
-        )
-    )
+    np.random.set_state(state.numpy)
     torch.random.set_rng_state(state.torch_cpu)
     if torch.cuda.is_available() and state.torch_cuda:
         torch.cuda.set_rng_state_all(list(state.torch_cuda))

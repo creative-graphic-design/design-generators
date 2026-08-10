@@ -9,7 +9,7 @@ from enum import StrEnum, auto
 class LayoutDiffusionSamplingName(StrEnum):
     """Supported LayoutDiffusion sampling modes."""
 
-    vendor_gumbel = auto()
+    gumbel = auto()
     argmax = auto()
 
 
@@ -17,7 +17,7 @@ class LayoutDiffusionSamplingName(StrEnum):
 class LayoutDiffusionSamplingConfig:
     """Runtime sampling options for the reverse diffusion loop."""
 
-    name: LayoutDiffusionSamplingName | str = LayoutDiffusionSamplingName.vendor_gumbel
+    name: LayoutDiffusionSamplingName | str = LayoutDiffusionSamplingName.gumbel
     num_inference_steps: int | None = None
     skip_step: int = 0
     multistep: bool = False

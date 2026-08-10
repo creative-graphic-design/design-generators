@@ -40,7 +40,7 @@ class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         padding_side: str = "right",
         truncation_side: str = "right",
         clean_up_tokenization_spaces: bool = False,
-        added_tokens_decoder: dict[int | str, object] | None = None,
+        added_tokens_decoder: dict[int | str, str] | None = None,
         backend: str = "custom",
         tokenizer_file: str | None = None,
         name_or_path: str = "",
@@ -92,7 +92,7 @@ class LayoutFormerPPTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
         legacy_format: bool | None = None,
         filename_prefix: str | None = None,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> tuple[str, ...]:
         """Save tokenizer files plus LayoutFormer++ tokenizer metadata."""
         _ = kwargs

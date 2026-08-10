@@ -6,13 +6,14 @@ from collections.abc import Mapping, Sequence
 import json
 from os import PathLike
 from pathlib import Path
-from typing import Literal, Self, cast
+from typing import Literal, Self, Unpack, cast
 
 import numpy as np
 import torch
 from jaxtyping import Bool, Float, Int
 from transformers import ProcessorMixin
 from transformers.image_utils import ImageInput
+from transformers.processing_utils import ProcessingKwargs
 from transformers.tokenization_utils_base import BatchEncoding
 
 from laygen.common.conditions import ConditionType, normalize_condition_type
@@ -67,7 +68,7 @@ class RADMProcessor(ProcessorMixin):
         self,
         save_directory: str | Path,
         push_to_hub: bool = False,
-        **kwargs: object,
+        **kwargs: Unpack[ProcessingKwargs],
     ) -> None:
         """Save processor metadata.
 
@@ -103,7 +104,7 @@ class RADMProcessor(ProcessorMixin):
         token: str | bool | None = None,
         revision: str = "main",
         subfolder: str | None = None,
-        **kwargs: object,
+        **kwargs: Unpack[ProcessingKwargs],
     ) -> Self:
         """Load processor metadata from a local pipeline directory.
 
@@ -166,7 +167,7 @@ class RADMProcessor(ProcessorMixin):
         | None = None,
         batch_size: int = 1,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: Unpack[ProcessingKwargs],
     ) -> BatchEncoding:
         """Encode public RADM inputs.
 

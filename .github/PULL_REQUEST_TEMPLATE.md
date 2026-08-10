@@ -43,6 +43,11 @@ Full checklist: see [issue #60](https://github.com/creative-graphic-design/desig
 - [ ] Training S5 reproduction complete, or N/A: <reason>.
 - [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
 
+<!-- Optional for complete PRs that must remain draft:
+## Draft Reason
+State the blocker and the resolution trigger that will make this ready for review.
+-->
+
 ## Deviations / Follow-ups
 
 <!-- Model PRs: summarize parity, checkpoint, dataset, and Hub-card deviations here. Infra/docs PRs: summarize scope limits, skipped commands, or follow-up cleanup here. -->

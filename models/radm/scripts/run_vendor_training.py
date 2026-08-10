@@ -140,12 +140,12 @@ def _patch_rolling_checkpointer(train_net_module) -> None:
     train_net_module.hooks.PeriodicCheckpointer = rolling_periodic_checkpointer
 
 
-def _run_train_net_main(train_args, vendor_root: str) -> object:
+def _run_train_net_main(train_args: SimpleNamespace, vendor_root: str) -> None:
     sys.path.insert(0, vendor_root)
     import train_net  # type: ignore[import-not-found]
 
     _patch_rolling_checkpointer(train_net)
-    return train_net.main(train_args)
+    train_net.main(train_args)
 
 
 def _copy_final_checkpoint(output_dir: Path) -> Path | None:

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import Final, Literal, assert_never, cast
+from typing import Final, Literal, TypeAlias, assert_never, cast
 
 import torch
 from jaxtyping import Bool, Int
 from transformers import BatchEncoding, ProcessorMixin
+from transformers.pipelines.base import GenericTensor
 
 from laygen.common.bbox import BoxFormat, normalize_box_format, normalize_boxes
 from laygen.common.conditions import (
@@ -39,6 +40,15 @@ from .tokenization_layoutformerpp import LayoutFormerPPTokenizer
 
 DEFAULT_DATASET: Final[DatasetName] = DatasetName.rico25
 DEFAULT_TASK: Final[LayoutFormerPPTask] = LayoutFormerPPTask.gen_t
+LayoutFormerPPBBoxInput: TypeAlias = (
+    GenericTensor | list[list[int | float]] | list[list[list[int | float]]] | None
+)
+LayoutFormerPPOutputDict: TypeAlias = dict[
+    str,
+    GenericTensor | dict[int, str] | dict[str, GenericTensor | str | BoxFormat] | None,
+]
+
+
 SupportedConditionType = Literal[
     ConditionType.unconditional,
     ConditionType.label,
@@ -131,7 +141,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         sub_processor_type: str,
         pretrained_model_name_or_path: str | PathLike[str],
         subfolder: str = "",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> LayoutFormerPPTokenizer:
         """Load the local tokenizer for `ProcessorMixin.from_pretrained`."""
         _ = sub_processor_type
@@ -218,7 +228,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def _prepare_bbox(
         self,
-        bbox: object,
+        bbox: LayoutFormerPPBBoxInput,
         *,
         labels: list[list[int]],
         box_format: BoxFormat | str,
@@ -261,7 +271,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         labels: list[list[int | str]]
         | Int[torch.Tensor, "batch elements"]
         | None = None,
-        bbox: object = None,
+        bbox: LayoutFormerPPBBoxInput = None,
         mask: Bool[torch.Tensor, "batch elements"]
         | list[list[bool]]
         | list[bool]
@@ -348,7 +358,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         box_format: BoxFormat | str = BoxFormat.xywh,
         output_type: OutputType | str = OutputType.dataclass,
         return_tensors: Literal["pt"] = "pt",
-    ) -> LayoutGenerationOutput | dict[str, object]:
+    ) -> LayoutGenerationOutput | LayoutFormerPPOutputDict:
         """Parse generated token ids to the common layout output schema."""
         texts = self.tokenizer.batch_decode(sequences, skip_special_tokens=True)
         parsed = [self.serializer.parse_seq(text.strip()) for text in texts]

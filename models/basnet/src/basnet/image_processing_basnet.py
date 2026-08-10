@@ -44,7 +44,7 @@ class BASNetImageProcessor(BaseImageProcessor):
         input_size: int = 256,
         rgb_mean: Sequence[float] = (0.485, 0.456, 0.406),
         rgb_std: Sequence[float] = (0.229, 0.224, 0.225),
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize image processor settings."""
         if input_size <= 0:
@@ -68,7 +68,7 @@ class BASNetImageProcessor(BaseImageProcessor):
         images: ImageInput | Sequence[ImageInput],
         *,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> BatchFeature:
         """Preprocess images for BASNet saliency prediction.
 

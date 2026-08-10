@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import torch
@@ -12,6 +12,16 @@ from PIL import Image
 from transformers import BatchFeature
 from transformers.image_processing_utils import BaseImageProcessor
 from transformers.image_utils import ImageInput
+
+PosterLlamaProcessorScalar = str | int | float | bool | None
+PosterLlamaImageProcessorKwarg = (
+    PosterLlamaProcessorScalar
+    | tuple[int, int]
+    | list[int]
+    | list[float]
+    | dict[str, int]
+    | dict[str, float]
+)
 
 
 def _as_image_list(images: ImageInput | Sequence[ImageInput]) -> list[ImageInput]:
@@ -73,7 +83,7 @@ class PosterLlamaImageProcessor(BaseImageProcessor):
         self,
         image_size: tuple[int, int] | None = None,
         vision_encoder_repo_id: str = "facebook/dinov2-base",
-        **kwargs: object,
+        **kwargs: PosterLlamaImageProcessorKwarg,
     ) -> None:
         """Initialize image processor metadata."""
         super().__init__(**kwargs)  # ty: ignore[invalid-argument-type]
@@ -84,7 +94,7 @@ class PosterLlamaImageProcessor(BaseImageProcessor):
         self,
         images: ImageInput | Sequence[ImageInput] | None,
         return_tensors: Literal["pt"] = "pt",
-        **kwargs: object,
+        **kwargs: PosterLlamaImageProcessorKwarg,
     ) -> BatchFeature:
         """Convert images to tensors.
 
@@ -118,7 +128,7 @@ class PosterLlamaImageProcessor(BaseImageProcessor):
 
     def to_dict(self) -> dict[str, str | tuple[int, int] | None]:
         """Serialize image processor metadata."""
-        data = super().to_dict()
+        data = cast(dict[str, str | tuple[int, int] | None], super().to_dict())
         data["image_size"] = self.image_size
         data["vision_encoder_repo_id"] = self.vision_encoder_repo_id
         return data

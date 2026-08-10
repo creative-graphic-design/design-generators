@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from huggingface_hub import ModelCard
+
 from laygen.common.model_card import build_layout_model_card
 
 
-def dsgan_model_card() -> object:
+def dsgan_model_card() -> ModelCard:
     """Build the DS-GAN PKU PosterLayout Hub model card."""
     return build_layout_model_card(
         model_id="creative-graphic-design/ds-gan-pku-posterlayout",

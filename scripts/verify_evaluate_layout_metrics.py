@@ -3,26 +3,25 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import redirect_stdout
-from dataclasses import dataclass
 import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import sys
+from collections.abc import Sequence
+from contextlib import redirect_stdout
+from dataclasses import dataclass
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import ModuleType
-from typing import Any, TypeAlias  # noqa: TID251  # Dynamic evaluate/vendor module payloads.
+from typing import Protocol, TypedDict, cast
 
 import evaluate
 import numpy as np
-import numpy.typing as npt
-from PIL import Image
 import torch
+from jaxtyping import Bool, Float, Int
+from PIL import Image
 
-
-NDArray: TypeAlias = npt.NDArray[Any]
 VENDOR_ROOT_ENV = "DESIGN_GENERATORS_VENDOR_ROOT"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_VENDOR_ROOT = Path(os.environ.get(VENDOR_ROOT_ENV, REPO_ROOT / "vendor"))
@@ -31,6 +30,83 @@ POSTERLLAMA_EVAL = Path("posterllama/eval.py")
 TOLERANCE = 1e-12
 CANVAS_WIDTH = 513
 CANVAS_HEIGHT = 750
+
+
+class LayoutMetricPayload(TypedDict):
+    """Unpadded layout metric payload with boxes and category ids."""
+
+    bboxes: list[list[float]]
+    categories: list[int]
+
+
+class LayoutMetricFixture(TypedDict):
+    """Fixture payload for shared layout metrics."""
+
+    bbox: Float[np.ndarray, "batch elements 4"]
+    bbox_2: Float[np.ndarray, "batch elements 4"]
+    mask: Bool[np.ndarray, "batch elements"]
+    labels: Int[np.ndarray, "batch elements"]
+    layouts_1: list[LayoutMetricPayload]
+    layouts_2: list[LayoutMetricPayload]
+
+
+class FeatureFixture(TypedDict):
+    """Feature arrays used by PRDC/FID metrics."""
+
+    feats_real: Float[np.ndarray, "batch features"]
+    feats_fake: Float[np.ndarray, "batch features"]
+
+
+class PosterFixture(TypedDict):
+    """Poster metric fixture payload."""
+
+    predictions: Float[np.ndarray, "batch elements 4"]
+    gold_labels: Int[np.ndarray, "batch elements"]
+
+
+class MediaFixture(TypedDict):
+    """Generated media paths used by poster metrics."""
+
+    names: list[str]
+    saliency_maps_1: list[str]
+    saliency_maps_2: list[str]
+    image_canvases: list[str]
+
+
+MetricComputeKwarg = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list[str]
+    | list[int]
+    | list[float]
+    | list[bool]
+    | list[list[int]]
+    | list[list[float]]
+    | list[list[bool]]
+    | list[list[list[int]]]
+    | list[list[list[float]]]
+    | list[LayoutMetricPayload]
+)
+MetricComputeReturn = float | dict[str, float]
+
+
+class EvaluatePublicMetric(Protocol):
+    """Public evaluate metric interface used by this verifier."""
+
+    def compute(self, **kwargs: MetricComputeKwarg) -> MetricComputeReturn:
+        """Compute a metric result."""
+
+
+class EvaluatePrivateMetric(Protocol):
+    """Evaluate metric module interface for direct private compute calls."""
+
+    def _compute(self, **kwargs: MetricComputeKwarg) -> MetricComputeReturn:
+        """Compute a metric result through the module implementation."""
+
+
 LAYOUT_METRIC_REPOS = [
     "creative-graphic-design/layout-alignment",
     "creative-graphic-design/layout-overlap",
@@ -131,7 +207,9 @@ def _load_posterllama_eval(vendor_root: Path) -> ModuleType:
     return module
 
 
-def _random_bboxes(rng: np.random.Generator, shape: tuple[int, int]) -> NDArray:
+def _random_bboxes(
+    rng: np.random.Generator, shape: tuple[int, int]
+) -> Float[np.ndarray, "batch elements 4"]:
     widths = rng.uniform(0.08, 0.34, size=shape)
     heights = rng.uniform(0.08, 0.34, size=shape)
     centers_x = rng.uniform(widths / 2, 1.0 - widths / 2)
@@ -139,7 +217,7 @@ def _random_bboxes(rng: np.random.Generator, shape: tuple[int, int]) -> NDArray:
     return np.stack([centers_x, centers_y, widths, heights], axis=-1).astype(np.float64)
 
 
-def make_fixture(seed: int = 183) -> dict[str, Any]:
+def make_fixture(seed: int = 183) -> LayoutMetricFixture:
     """Create deterministic normalized center-xywh layouts with padding."""
     rng = np.random.default_rng(seed)
     batch_size, max_elements = 5, 7
@@ -185,7 +263,9 @@ def make_fixture(seed: int = 183) -> dict[str, Any]:
     }
 
 
-def make_feature_fixture(seed: int = 183) -> dict[str, NDArray]:
+def make_feature_fixture(
+    seed: int = 183,
+) -> FeatureFixture:
     """Create deterministic feature arrays for PRDC/FID metrics."""
     rng = np.random.default_rng(seed)
     feats_real = rng.normal(size=(8, 6)).astype(np.float64)
@@ -195,7 +275,7 @@ def make_feature_fixture(seed: int = 183) -> dict[str, NDArray]:
     return {"feats_real": feats_real, "feats_fake": feats_fake}
 
 
-def make_poster_fixture() -> dict[str, Any]:
+def make_poster_fixture() -> PosterFixture:
     """Create deterministic normalized ltrb poster layouts and media inputs."""
     pixel_predictions = np.array(
         [
@@ -229,14 +309,16 @@ def make_poster_fixture() -> dict[str, Any]:
     return {"predictions": predictions, "gold_labels": labels}
 
 
-def _poster_pixel_boxes(predictions: NDArray) -> list[list[list[int]]]:
+def _poster_pixel_boxes(
+    predictions: Float[np.ndarray, "batch elements 4"],
+) -> list[list[list[int]]]:
     pixels = predictions.copy()
     pixels[:, :, ::2] *= CANVAS_WIDTH
     pixels[:, :, 1::2] *= CANVAS_HEIGHT
     return pixels.astype(int).tolist()
 
 
-def _write_media_fixture(root: Path, count: int) -> dict[str, list[str]]:
+def _write_media_fixture(root: Path, count: int) -> MediaFixture:
     pfpn = root / "data/cgl_dataset/PFPN_salient_imgs_cgl"
     basnet = root / "data/cgl_dataset/BasNet_salient_imgs_cgl"
     canvases = root / "data/cgl_dataset/cgl_inpainting_all"
@@ -271,23 +353,25 @@ def _write_media_fixture(root: Path, count: int) -> dict[str, list[str]]:
 
 
 def _to_layouts(
-    bbox: NDArray, labels: NDArray, mask: NDArray
-) -> list[dict[str, list[Any]]]:
-    layouts = []
+    bbox: Float[np.ndarray, "batch elements 4"],
+    labels: Int[np.ndarray, "batch elements"],
+    mask: Bool[np.ndarray, "batch elements"],
+) -> list[LayoutMetricPayload]:
+    layouts: list[LayoutMetricPayload] = []
     for batch_index in range(bbox.shape[0]):
         valid = mask[batch_index]
         layouts.append(
             {
-                "bboxes": bbox[batch_index, valid].tolist(),
-                "categories": labels[batch_index, valid].tolist(),
+                "bboxes": cast(list[list[float]], bbox[batch_index, valid].tolist()),
+                "categories": cast(list[int], labels[batch_index, valid].tolist()),
             }
         )
     return layouts
 
 
 def _to_vendor_layouts(
-    layouts: list[dict[str, list[Any]]],
-) -> list[tuple[NDArray, NDArray]]:
+    layouts: list[LayoutMetricPayload],
+) -> list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]]:
     return [
         (
             np.asarray(layout["bboxes"], dtype=np.float64),
@@ -297,13 +381,29 @@ def _to_vendor_layouts(
     ]
 
 
-def _as_float_array(value: Any) -> NDArray:
+def _as_float_array(
+    value: float
+    | Sequence[int | float]
+    | Sequence[Sequence[int | float]]
+    | Float[np.ndarray, ...]
+    | Int[np.ndarray, ...]
+    | Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...],
+) -> Float[np.ndarray, ...]:
     if isinstance(value, torch.Tensor):
         return value.detach().cpu().numpy().astype(np.float64)
     return np.asarray(value, dtype=np.float64)
 
 
-def _scalar_or_list(value: Any) -> float | list[float]:
+def _scalar_or_list(
+    value: float
+    | Sequence[int | float]
+    | Sequence[Sequence[int | float]]
+    | Float[np.ndarray, ...]
+    | Int[np.ndarray, ...]
+    | Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...],
+) -> float | list[float]:
     array = _as_float_array(value)
     if array.ndim == 0:
         return float(array)
@@ -315,8 +415,20 @@ def _compare(
     metric: str,
     vendor_key: str,
     evaluate_key: str,
-    vendor_value: Any,
-    evaluate_value: Any,
+    vendor_value: float
+    | Sequence[int | float]
+    | Sequence[Sequence[int | float]]
+    | Float[np.ndarray, ...]
+    | Int[np.ndarray, ...]
+    | Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...],
+    evaluate_value: float
+    | Sequence[int | float]
+    | Sequence[Sequence[int | float]]
+    | Float[np.ndarray, ...]
+    | Int[np.ndarray, ...]
+    | Float[torch.Tensor, ...]
+    | Int[torch.Tensor, ...],
     notes: str = "",
 ) -> MetricComparison:
     vendor_array = _as_float_array(vendor_value)
@@ -349,12 +461,16 @@ def _verify_repo_loads() -> None:
         evaluate.load(repo)
 
 
-def _evaluate_public_compute(repo: str, **kwargs: Any) -> Any:
-    metric: Any = evaluate.load(repo)
+def _evaluate_public_compute(
+    repo: str, **kwargs: MetricComputeKwarg
+) -> MetricComputeReturn:
+    metric = cast(EvaluatePublicMetric, evaluate.load(repo))
     return metric.compute(**kwargs)
 
 
-def _evaluate_module_compute(repo: str, **kwargs: Any) -> Any:
+def _evaluate_module_compute(
+    repo: str, **kwargs: MetricComputeKwarg
+) -> MetricComputeReturn:
     """Call a loaded evaluate module implementation after explicit load.
 
     Several poster-layout metric repos currently declare 2D Features while their
@@ -362,8 +478,8 @@ def _evaluate_module_compute(repo: str, **kwargs: Any) -> Any:
     focused on numeric parity after separately checking that ``evaluate.load``
     succeeds for every repo.
     """
-    metric: Any = evaluate.load(repo)
-    return metric._compute(**kwargs)  # noqa: SLF001
+    metric = cast(EvaluatePrivateMetric, evaluate.load(repo))
+    return metric._compute(**kwargs)
 
 
 def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComparison]:
@@ -393,29 +509,44 @@ def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComp
             [torch.as_tensor(feature_fixture["feats_fake"], dtype=torch.float64)],
         )
 
-    evaluate_alignment = _evaluate_public_compute(
-        "creative-graphic-design/layout-alignment",
-        bbox=fixture["bbox"].tolist(),
-        mask=fixture["mask"].tolist(),
+    evaluate_alignment = cast(
+        dict[str, float],
+        _evaluate_public_compute(
+            "creative-graphic-design/layout-alignment",
+            bbox=fixture["bbox"].tolist(),
+            mask=fixture["mask"].tolist(),
+        ),
     )
-    evaluate_overlap = _evaluate_public_compute(
-        "creative-graphic-design/layout-overlap",
-        bbox=fixture["bbox"].tolist(),
-        mask=fixture["mask"].tolist(),
+    evaluate_overlap = cast(
+        dict[str, float],
+        _evaluate_public_compute(
+            "creative-graphic-design/layout-overlap",
+            bbox=fixture["bbox"].tolist(),
+            mask=fixture["mask"].tolist(),
+        ),
     )
-    evaluate_maximum_iou = _evaluate_public_compute(
-        "creative-graphic-design/layout-maximum-iou",
-        layouts1=fixture["layouts_1"],
-        layouts2=fixture["layouts_2"],
+    evaluate_maximum_iou = cast(
+        float,
+        _evaluate_public_compute(
+            "creative-graphic-design/layout-maximum-iou",
+            layouts1=fixture["layouts_1"],
+            layouts2=fixture["layouts_2"],
+        ),
     )
-    evaluate_average_iou = _evaluate_public_compute(
-        "creative-graphic-design/layout-average-iou", layouts=fixture["layouts_1"]
+    evaluate_average_iou = cast(
+        dict[str, float],
+        _evaluate_public_compute(
+            "creative-graphic-design/layout-average-iou", layouts=fixture["layouts_1"]
+        ),
     )
     with redirect_stdout(io.StringIO()):
-        evaluate_generative_scores = _evaluate_public_compute(
-            "creative-graphic-design/layout-generative-model-scores",
-            feats_real=feature_fixture["feats_real"].tolist(),
-            feats_fake=feature_fixture["feats_fake"].tolist(),
+        evaluate_generative_scores = cast(
+            dict[str, float],
+            _evaluate_public_compute(
+                "creative-graphic-design/layout-generative-model-scores",
+                feats_real=feature_fixture["feats_real"].tolist(),
+                feats_fake=feature_fixture["feats_fake"].tolist(),
+            ),
         )
 
     rows: list[MetricComparison] = []
@@ -495,12 +626,15 @@ def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComp
     vendor_validity = poster_eval.metrics_val(
         (CANVAS_WIDTH, CANVAS_HEIGHT), label_lists, pixel_boxes
     )
-    evaluate_validity = _evaluate_module_compute(
-        "creative-graphic-design/layout-validity",
-        predictions=predictions.tolist(),
-        gold_labels=label_lists,
-        canvas_width=CANVAS_WIDTH,
-        canvas_height=CANVAS_HEIGHT,
+    evaluate_validity = cast(
+        float,
+        _evaluate_module_compute(
+            "creative-graphic-design/layout-validity",
+            predictions=predictions.tolist(),
+            gold_labels=label_lists,
+            canvas_width=CANVAS_WIDTH,
+            canvas_height=CANVAS_HEIGHT,
+        ),
     )
     rows.append(
         _compare(
@@ -523,38 +657,47 @@ def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComp
             "creative-graphic-design/layout-overlay",
             "metrics_ove",
             "overlay",
-            poster_eval.metrics_ove(valid_labels, pixel_boxes),
-            _evaluate_module_compute(
-                "creative-graphic-design/layout-overlay",
-                predictions=predictions.tolist(),
-                gold_labels=label_lists,
-                canvas_width=CANVAS_WIDTH,
-                canvas_height=CANVAS_HEIGHT,
-                decoration_label_index=3,
+            cast(float, poster_eval.metrics_ove(valid_labels, pixel_boxes)),
+            cast(
+                float,
+                _evaluate_module_compute(
+                    "creative-graphic-design/layout-overlay",
+                    predictions=predictions.tolist(),
+                    gold_labels=label_lists,
+                    canvas_width=CANVAS_WIDTH,
+                    canvas_height=CANVAS_HEIGHT,
+                    decoration_label_index=3,
+                ),
             ),
         ),
         (
             "creative-graphic-design/layout-non-alignment",
             "metrics_ali",
             "non_alignment",
-            poster_eval.metrics_ali(valid_labels, pixel_boxes),
-            _evaluate_module_compute(
-                "creative-graphic-design/layout-non-alignment",
-                predictions=predictions.tolist(),
-                gold_labels=label_lists,
-                canvas_width=CANVAS_WIDTH,
-                canvas_height=CANVAS_HEIGHT,
+            cast(float, poster_eval.metrics_ali(valid_labels, pixel_boxes)),
+            cast(
+                float,
+                _evaluate_module_compute(
+                    "creative-graphic-design/layout-non-alignment",
+                    predictions=predictions.tolist(),
+                    gold_labels=label_lists,
+                    canvas_width=CANVAS_WIDTH,
+                    canvas_height=CANVAS_HEIGHT,
+                ),
             ),
         ),
     ]
-    underlay_result = _evaluate_module_compute(
-        "creative-graphic-design/layout-underlay-effectiveness",
-        predictions=predictions.tolist(),
-        gold_labels=label_lists,
-        canvas_width=CANVAS_WIDTH,
-        canvas_height=CANVAS_HEIGHT,
-        text_label_index=2,
-        decoration_label_index=3,
+    underlay_result = cast(
+        dict[str, float],
+        _evaluate_module_compute(
+            "creative-graphic-design/layout-underlay-effectiveness",
+            predictions=predictions.tolist(),
+            gold_labels=label_lists,
+            canvas_width=CANVAS_WIDTH,
+            canvas_height=CANVAS_HEIGHT,
+            text_label_index=2,
+            decoration_label_index=3,
+        ),
     )
     poster_metric_specs.extend(
         [
@@ -562,14 +705,14 @@ def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComp
                 "creative-graphic-design/layout-underlay-effectiveness",
                 "metrics_und_l",
                 "und_l",
-                poster_eval.metrics_und_l(valid_labels, pixel_boxes),
+                cast(float, poster_eval.metrics_und_l(valid_labels, pixel_boxes)),
                 underlay_result["und_l"],
             ),
             (
                 "creative-graphic-design/layout-underlay-effectiveness",
                 "metrics_und_s",
                 "und_s",
-                poster_eval.metrics_und_s(valid_labels, pixel_boxes),
+                cast(float, poster_eval.metrics_und_s(valid_labels, pixel_boxes)),
                 underlay_result["und_s"],
             ),
         ]
@@ -616,46 +759,55 @@ def run_verification(vendor_root: Path = DEFAULT_VENDOR_ROOT) -> list[MetricComp
                 "creative-graphic-design/layout-utility",
                 "metrics_uti",
                 "utility",
-                vendor_utility,
-                _evaluate_module_compute(
-                    "creative-graphic-design/layout-utility",
-                    predictions=predictions.tolist(),
-                    gold_labels=label_lists,
-                    saliency_maps_1=media["saliency_maps_1"],
-                    saliency_maps_2=media["saliency_maps_2"],
-                    canvas_width=CANVAS_WIDTH,
-                    canvas_height=CANVAS_HEIGHT,
+                cast(float, vendor_utility),
+                cast(
+                    float,
+                    _evaluate_module_compute(
+                        "creative-graphic-design/layout-utility",
+                        predictions=predictions.tolist(),
+                        gold_labels=label_lists,
+                        saliency_maps_1=media["saliency_maps_1"],
+                        saliency_maps_2=media["saliency_maps_2"],
+                        canvas_width=CANVAS_WIDTH,
+                        canvas_height=CANVAS_HEIGHT,
+                    ),
                 ),
             ),
             (
                 "creative-graphic-design/layout-occlusion",
                 "metrics_occ",
                 "occlusion",
-                vendor_occlusion,
-                _evaluate_module_compute(
-                    "creative-graphic-design/layout-occlusion",
-                    predictions=predictions.tolist(),
-                    gold_labels=label_lists,
-                    saliency_maps_1=media["saliency_maps_1"],
-                    saliency_maps_2=media["saliency_maps_2"],
-                    canvas_width=CANVAS_WIDTH,
-                    canvas_height=CANVAS_HEIGHT,
+                cast(float, vendor_occlusion),
+                cast(
+                    float,
+                    _evaluate_module_compute(
+                        "creative-graphic-design/layout-occlusion",
+                        predictions=predictions.tolist(),
+                        gold_labels=label_lists,
+                        saliency_maps_1=media["saliency_maps_1"],
+                        saliency_maps_2=media["saliency_maps_2"],
+                        canvas_width=CANVAS_WIDTH,
+                        canvas_height=CANVAS_HEIGHT,
+                    ),
                 ),
             ),
             (
                 "creative-graphic-design/layout-unreadability",
                 "metrics_rea",
                 "unreadability",
-                vendor_unreadability,
-                _evaluate_module_compute(
-                    "creative-graphic-design/layout-unreadability",
-                    predictions=predictions.tolist(),
-                    gold_labels=label_lists,
-                    image_canvases=media["image_canvases"],
-                    canvas_width=CANVAS_WIDTH,
-                    canvas_height=CANVAS_HEIGHT,
-                    text_label_index=2,
-                    decoration_label_index=3,
+                cast(float, vendor_unreadability),
+                cast(
+                    float,
+                    _evaluate_module_compute(
+                        "creative-graphic-design/layout-unreadability",
+                        predictions=predictions.tolist(),
+                        gold_labels=label_lists,
+                        image_canvases=media["image_canvases"],
+                        canvas_width=CANVAS_WIDTH,
+                        canvas_height=CANVAS_HEIGHT,
+                        text_label_index=2,
+                        decoration_label_index=3,
+                    ),
                 ),
             ),
         ]
@@ -687,14 +839,7 @@ def format_markdown(rows: list[MetricComparison]) -> str:
     ]
     for row in rows:
         lines.append(
-            "| {metric} | `{vendor_key}` | `{evaluate_key}` | {diff:.3g} | {verdict} | {notes} |".format(
-                metric=row.metric,
-                vendor_key=row.vendor_key,
-                evaluate_key=row.evaluate_key,
-                diff=row.max_abs_diff,
-                verdict=row.verdict,
-                notes=row.notes,
-            )
+            f"| {row.metric} | `{row.vendor_key}` | `{row.evaluate_key}` | {row.max_abs_diff:.3g} | {row.verdict} | {row.notes} |"
         )
     return "\n".join(lines)
 

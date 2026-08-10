@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import cast
 
 import torch
+from jaxtyping import Int
 
 from layout_action import LayoutActionConfig, LayoutActionTokenizer
 
@@ -81,7 +82,9 @@ def set_deterministic_torch(seed: int) -> None:
         torch.backends.cudnn.allow_tf32 = False
 
 
-def synthetic_vendor_batch(config: LayoutActionConfig, batch_size: int) -> torch.Tensor:
+def synthetic_vendor_batch(
+    config: LayoutActionConfig, batch_size: int
+) -> Int[torch.Tensor, "batch tokens"]:
     """Create deterministic action-token inputs with the vendor grammar."""
     tokenizer = LayoutActionTokenizer(config)
     bbox = torch.zeros(batch_size, config.max_elements, 4, dtype=torch.long)
@@ -113,8 +116,8 @@ def synthetic_vendor_batch(config: LayoutActionConfig, batch_size: int) -> torch
 
 
 def forced_label_tokens(
-    config: LayoutActionConfig, gt_input_ids: torch.Tensor
-) -> torch.Tensor:
+    config: LayoutActionConfig, gt_input_ids: Int[torch.Tensor, "batch tokens"]
+) -> Int[torch.Tensor, "batch tokens"]:
     """Build the forced-token matrix matching vendor ``only_label=True``."""
     forced = torch.full(
         (gt_input_ids.size(0), config.max_token_length),

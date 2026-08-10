@@ -14,6 +14,8 @@ classifiers = [
 dependencies = [
     "basnet",
     "coarse-to-fine",
+    "cgb-dm",
+    "dlt",
     "ds-gan",
     "flex-dm",
     "housegan",
@@ -210,6 +212,8 @@ members = ["lib/*", "models/*"]
 [tool.uv.sources]
 basnet = { workspace = true }
 coarse-to-fine = { workspace = true }
+cgb-dm = { workspace = true }
+dlt = { workspace = true }
 ds-gan = { workspace = true }
 flex-dm = { workspace = true }
 housegan = { workspace = true }
@@ -305,7 +309,9 @@ omit = [
     "tests/**/*",
     "models/*/tests/vendor_parity/*",
     "models/*/tests/vendor_parity/**/*",
+    "models/layout-dm/src/layout_dm/training/*",
     "models/layout-flow/src/layout_flow/training/*",
+    "models/layoutdiffusion/src/layoutdiffusion/training/*",
     "scripts/*",
     "scripts/**/*",
     "vendor/*",

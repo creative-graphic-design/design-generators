@@ -50,7 +50,7 @@ class LayoutDMProcessor(ProcessorMixin):
         local_files_only: bool = False,
         token: str | bool | None = None,
         revision: str = "main",
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> "LayoutDMProcessor":
         """Load a processor with the LayoutDM tokenizer implementation."""
         tokenizer = LayoutDMTokenizer.from_pretrained(

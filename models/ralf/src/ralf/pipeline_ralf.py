@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal, Protocol, cast, runtime_checkable
 
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
+from transformers.image_utils import ImageInput
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
@@ -16,9 +17,27 @@ from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 
 from .configuration_ralf import RalfConfig, RalfConfigTaskName
-from .modeling_ralf import RalfForConditionalLayoutGeneration
+from .modeling_ralf import (
+    RalfForConditionalLayoutGeneration,
+    RalfRelationshipTable,
+)
 from .processing_ralf import RalfProcessor
 from .retrieval import RalfRetrievalTable
+
+RalfScalar = str | int | float | bool | None
+RalfSequenceInput = (
+    Sequence[RalfScalar]
+    | Sequence[Sequence[RalfScalar]]
+    | Sequence[Sequence[Sequence[RalfScalar]]]
+)
+RalfRetrievalValue = RalfScalar | RalfSequenceInput | Mapping[str, RalfSequenceInput]
+RalfComponent = RalfForConditionalLayoutGeneration | RalfProcessor
+
+
+@runtime_checkable
+class RalfPipelineComponent(Protocol):
+    """Runtime-checkable loaded pipeline component marker."""
+
 
 SUPPORTED_GENERATION_CONDITIONS = {
     ConditionType.unconditional,
@@ -37,7 +56,7 @@ def _load_model_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> RalfForConditionalLayoutGeneration:
     if subfolder is None:
         return RalfForConditionalLayoutGeneration.from_pretrained(
             pretrained_model_name_or_path,
@@ -55,7 +74,7 @@ def _load_processor_component(
     *,
     local_files_only: bool = False,
     subfolder: str | None = None,
-) -> object:
+) -> RalfProcessor:
     if subfolder is None:
         return RalfProcessor.from_pretrained(
             pretrained_model_name_or_path,
@@ -107,7 +126,7 @@ class RalfPipeline(LayoutGenerationPipeline):
         cls,
         *,
         config: PretrainedConfig,
-        components: Mapping[str, object | None],
+        components: Mapping[str, RalfPipelineComponent | None],
     ) -> "RalfPipeline":
         """Build a pipeline from checkpoint components."""
         return cls(
@@ -117,11 +136,11 @@ class RalfPipeline(LayoutGenerationPipeline):
         )
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         *,
-        images: object = None,
-        saliency: object = None,
+        images: ImageInput | Sequence[ImageInput] | None = None,
+        saliency: ImageInput | Sequence[ImageInput] | None = None,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
@@ -130,28 +149,51 @@ class RalfPipeline(LayoutGenerationPipeline):
         | Sequence[Sequence[int | str]]
         | Sequence[int | str]
         | None = None,
-        bbox: Float[torch.Tensor, "..."] | Sequence[object] | None = None,
-        mask: Bool[torch.Tensor, "..."] | Sequence[object] | None = None,
+        bbox: Float[torch.Tensor, "..."] | RalfSequenceInput | None = None,
+        mask: Bool[torch.Tensor, "..."]
+        | Sequence[bool]
+        | Sequence[Sequence[bool]]
+        | None = None,
         num_elements: int | Sequence[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: BoxFormat | str = BoxFormat.xywh,
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
-        retrieved_layouts: Mapping[str, object] | None = None,
-        retrieved_images: object = None,
-        retrieved_saliency: object = None,
+        retrieved_layouts: Mapping[
+            str, RalfRetrievalValue | Shaped[torch.Tensor, "..."]
+        ]
+        | None = None,
+        retrieved_images: RalfSequenceInput | Shaped[torch.Tensor, "..."] | None = None,
+        retrieved_saliency: RalfSequenceInput
+        | Shaped[torch.Tensor, "..."]
+        | None = None,
         retrieved_indexes: Int[torch.Tensor, "batch candidates"]
         | Sequence[Sequence[int]]
         | None = None,
-        retrieval: Mapping[str, object] | None = None,
+        retrieval: Mapping[
+            str,
+            RalfRetrievalValue
+            | Shaped[torch.Tensor, "..."]
+            | Mapping[str, Shaped[torch.Tensor, "..."]],
+        ]
+        | None = None,
         retrieval_table: RalfRetrievalTable | None = None,
         query_ids: Sequence[int | str] | None = None,
-        relations: object = None,
+        relations: RalfRelationshipTable | None = None,
         num_inference_steps: int | None = None,
         output_type: Literal["dataclass", "dict"] = "dataclass",
         return_intermediates: bool = False,
         temperature: float = 1.0,
         top_k: int | None = None,
-    ) -> LayoutGenerationOutput | dict[str, object]:  # ty: ignore[invalid-method-override]
+    ) -> (
+        LayoutGenerationOutput
+        | dict[
+            str,
+            Shaped[torch.Tensor, "..."]
+            | dict[int, str]
+            | Mapping[str, Shaped[torch.Tensor, "..."]]
+            | None,
+        ]
+    ):
         """Generate layouts through the RALF public interface.
 
         Args:
@@ -189,7 +231,7 @@ class RalfPipeline(LayoutGenerationPipeline):
         Returns:
             LayoutGenerationOutput or dictionary.
         """
-        _ = (num_elements, relations, num_inference_steps)
+        _ = (num_elements, num_inference_steps)
         condition = normalize_condition_type(condition_type)
         if condition not in SUPPORTED_GENERATION_CONDITIONS:
             raise NotImplementedError(
@@ -221,7 +263,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             seed=seed,
             device=model_device,
         )
-        intermediates: dict[str, object] = {}
+        intermediates: dict[str, Mapping[str, Shaped[torch.Tensor, "..."] | str]] = {}
         if "retrieval" in encoded:
             retrieval_batch = encoded["retrieval"]
             if retrieval_batch.indexes is not None:
@@ -243,10 +285,7 @@ class RalfPipeline(LayoutGenerationPipeline):
             constraint_input_ids=encoded["input_ids"].to(model_device),
             constraint_mask=encoded["attention_mask"].to(model_device),
             constraint_element_mask=encoded["constraint_mask"].to(model_device),
-            relationship_table=cast(
-                Mapping[str, list[object]] | None,
-                relations if isinstance(relations, Mapping) else None,
-            ),
+            relationship_table=relations,
             sample_ids=query_ids,
         )
         return self.processor.post_process_layouts(

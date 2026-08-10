@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum, auto
-from typing import TypeAlias
+from typing import NotRequired, TypeAlias, cast
 
 import numpy as np
-from jaxtyping import Float, Int
-from typing_extensions import NotRequired, TypedDict
+import numpy.typing as npt
+from jaxtyping import Bool, Float, Int
+from typing_extensions import TypedDict
 
 
 class LayoutRecordKey(StrEnum):
@@ -30,50 +30,69 @@ class LayoutRecord(TypedDict, total=False):
     """Structured LayoutPrompter record accepted by prompt and selector code."""
 
     id: NotRequired[str]
-    labels: Int[np.ndarray, "elements"] | Sequence[int]
-    bboxes: (
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
-    )
-    discrete_bboxes: NotRequired[
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
-    ]
-    discrete_gold_bboxes: (
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
-    )
+    labels: npt.ArrayLike | Sequence[int]
+    bboxes: npt.ArrayLike | Sequence[Sequence[int | float]]
+    discrete_bboxes: NotRequired[npt.ArrayLike | Sequence[Sequence[int | float]]]
+    discrete_gold_bboxes: npt.ArrayLike | Sequence[Sequence[int | float]]
     discrete_content_bboxes: NotRequired[
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
+        npt.ArrayLike | Sequence[Sequence[int | float]]
     ]
-    relations: NotRequired[
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
-    ]
+    relations: NotRequired[npt.ArrayLike | Sequence[Sequence[int | float]]]
     text: NotRequired[str]
-    embedding: NotRequired[
-        Int[np.ndarray, "..."]
-        | Float[np.ndarray, "..."]
-        | Sequence[Sequence[int | float]]
-    ]
+    embedding: NotRequired[npt.ArrayLike | Sequence[Sequence[int | float]]]
 
 
-LayoutRecordInput: TypeAlias = LayoutRecord | Mapping[str, object]
+LayoutRecordScalar: TypeAlias = str | int | float | bool | None
+LayoutRecordPayload: TypeAlias = npt.ArrayLike
+LayoutRecordInput: TypeAlias = LayoutRecord | Mapping[str, LayoutRecordPayload]
 
 
-def record_value(data: LayoutRecordInput, key: LayoutRecordKey) -> object:
+def record_value(
+    data: LayoutRecordInput, key: LayoutRecordKey
+) -> (
+    LayoutRecordScalar
+    | Int[np.ndarray, ...]
+    | Float[np.ndarray, ...]
+    | Bool[np.ndarray, ...]
+    | Sequence[int | float | str | bool | None]
+    | Sequence[Sequence[int | float | str | bool | None]]
+):
     """Return a layout-record value by enum key."""
-    return data[key.value]
+    return cast(
+        LayoutRecordScalar
+        | Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Bool[np.ndarray, "..."]
+        | Sequence[int | float | str | bool | None]
+        | Sequence[Sequence[int | float | str | bool | None]],
+        data[key.value],
+    )
 
 
 def optional_record_value(
-    data: LayoutRecordInput, key: LayoutRecordKey, default: object
-) -> object:
+    data: LayoutRecordInput,
+    key: LayoutRecordKey,
+    default: LayoutRecordScalar
+    | Int[np.ndarray, ...]
+    | Float[np.ndarray, ...]
+    | Bool[np.ndarray, ...]
+    | Sequence[int | float | str | bool | None]
+    | Sequence[Sequence[int | float | str | bool | None]],
+) -> (
+    LayoutRecordScalar
+    | Int[np.ndarray, ...]
+    | Float[np.ndarray, ...]
+    | Bool[np.ndarray, ...]
+    | Sequence[int | float | str | bool | None]
+    | Sequence[Sequence[int | float | str | bool | None]]
+):
     """Return a layout-record value by enum key, or a default."""
-    return data.get(key.value, default)
+    return cast(
+        LayoutRecordScalar
+        | Int[np.ndarray, "..."]
+        | Float[np.ndarray, "..."]
+        | Bool[np.ndarray, "..."]
+        | Sequence[int | float | str | bool | None]
+        | Sequence[Sequence[int | float | str | bool | None]],
+        data.get(key.value, default),
+    )

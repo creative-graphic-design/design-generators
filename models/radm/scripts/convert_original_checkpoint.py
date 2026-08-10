@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - conversion scripts inspect arbitrary checkpoint payloads.
+from typing import cast
 
 import torch
+from jaxtyping import Float
 
 from radm.configuration_radm import RADMConfig
-from radm.conversion import build_pipeline, convert_original_state_dict
+from radm.conversion import (
+    CheckpointPayloadValue,
+    build_pipeline,
+    convert_original_state_dict,
+)
 from radm.model_card import write_local_model_card
 
 
@@ -35,20 +41,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _state_dict(payload: dict[str, Any], *, use_ema: bool) -> dict[str, torch.Tensor]:
+def _state_dict(
+    payload: Mapping[
+        str,
+        CheckpointPayloadValue
+        | Float[torch.Tensor, "..."]
+        | Mapping[str, Float[torch.Tensor, "..."]],
+    ],
+    *,
+    use_ema: bool,
+) -> dict[str, Float[torch.Tensor, "..."]]:
     if use_ema and isinstance(payload.get("ema_state"), dict):
-        return cast(dict[str, torch.Tensor], payload["ema_state"])
+        return cast(dict[str, Float[torch.Tensor, "..."]], payload["ema_state"])
     if isinstance(payload.get("model"), dict):
-        return cast(dict[str, torch.Tensor], payload["model"])
+        return cast(dict[str, Float[torch.Tensor, "..."]], payload["model"])
     if isinstance(payload.get("state_dict"), dict):
-        return cast(dict[str, torch.Tensor], payload["state_dict"])
-    return cast(dict[str, torch.Tensor], payload)
+        return cast(dict[str, Float[torch.Tensor, "..."]], payload["state_dict"])
+    return cast(dict[str, Float[torch.Tensor, "..."]], payload)
 
 
 def main() -> None:
     """Convert and save one local RADM pipeline."""
     args = build_parser().parse_args()
-    payload = cast(dict[str, Any], torch.load(args.checkpoint, map_location="cpu"))
+    payload = cast(
+        Mapping[
+            str,
+            CheckpointPayloadValue
+            | Float[torch.Tensor, "..."]
+            | Mapping[str, Float[torch.Tensor, "..."]],
+        ],
+        torch.load(args.checkpoint, map_location="cpu"),
+    )
     config = RADMConfig(dataset_name=args.dataset_name)
     pipe = build_pipeline(config)
     converted = convert_original_state_dict(_state_dict(payload, use_ema=args.use_ema))

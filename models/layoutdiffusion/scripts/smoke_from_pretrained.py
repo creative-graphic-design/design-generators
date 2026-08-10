@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast  # noqa: TID251 - smoke scripts narrow pipeline output unions dynamically.
+from typing import cast
 
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 from layoutdiffusion import LayoutDiffusionPipeline
 from layoutdiffusion.sampling import LayoutDiffusionSamplingConfig
 
@@ -23,7 +24,7 @@ def main() -> None:
     for path in args.path:
         pipe = LayoutDiffusionPipeline.from_pretrained(path)
         out = cast(
-            Any,
+            LayoutGenerationOutput,
             pipe(
                 batch_size=1,
                 seed=101,

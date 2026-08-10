@@ -129,7 +129,7 @@ class LTNetConfig(PretrainedConfig):
         mask_token_id: int = 3,
         model_type: str | None = None,
         transformers_version: str | None = None,
-        **kwargs: object,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize LT-Net architecture and metadata fields."""
         _ = (model_type, transformers_version)
