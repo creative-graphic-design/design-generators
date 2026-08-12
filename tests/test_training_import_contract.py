@@ -26,6 +26,7 @@ class TrainingImportContract:
     resolved_exports: tuple[str, ...]
     class_bases: tuple[tuple[str, str], ...]
     module_assertions: tuple[tuple[str, str], ...] = ()
+    test_stubs: tuple[str, ...] = ()
 
 
 CONTRACTS = (
@@ -94,6 +95,7 @@ CONTRACTS = (
         module_assertions=(
             ("DLTWarmupCosineSchedulerFactory", "dlt.training.lightning_module"),
         ),
+        test_stubs=("lightning", "h5py"),
     ),
     TrainingImportContract(
         package_name="layout_dm",
@@ -170,14 +172,68 @@ CONTRACTS = (
 )
 
 
-def _run_script(code: str, *, blocked: tuple[str, ...] = ()) -> None:
+def _run_script(
+    code: str,
+    *,
+    blocked: tuple[str, ...] = (),
+    stubbed: tuple[str, ...] = (),
+) -> None:
     """Run one isolated contract assertion in a fresh interpreter."""
     bootstrap = textwrap.dedent(
         f"""
         import importlib.abc
         import sys
+        import types
 
         _BLOCKED = {blocked!r}
+        _STUBBED = {stubbed!r}
+
+        if "lightning" in _STUBBED:
+            class _StubCallback:
+                pass
+
+            class _StubLightningDataModule:
+                pass
+
+            class _StubLightningModule:
+                pass
+
+            class _StubTrainer:
+                pass
+
+            _lightning = types.ModuleType("lightning")
+            _lightning.__path__ = []
+            _pytorch = types.ModuleType("lightning.pytorch")
+            _pytorch.__path__ = []
+            _pytorch.Callback = _StubCallback
+            _pytorch.LightningDataModule = _StubLightningDataModule
+            _pytorch.LightningModule = _StubLightningModule
+            _pytorch.Trainer = _StubTrainer
+            _cli = types.ModuleType("lightning.pytorch.cli")
+            _cli.LRSchedulerCallable = object
+            _cli.OptimizerCallable = object
+            _utilities = types.ModuleType("lightning.pytorch.utilities")
+            _utilities.__path__ = []
+            _types = types.ModuleType("lightning.pytorch.utilities.types")
+            _types.OptimizerLRScheduler = object
+            _pytorch.cli = _cli
+            _pytorch.utilities = _utilities
+            _utilities.types = _types
+            _lightning.pytorch = _pytorch
+            sys.modules.update(
+                {{
+                    "lightning": _lightning,
+                    "lightning.pytorch": _pytorch,
+                    "lightning.pytorch.cli": _cli,
+                    "lightning.pytorch.utilities": _utilities,
+                    "lightning.pytorch.utilities.types": _types,
+                }}
+            )
+
+        if "h5py" in _STUBBED:
+            _h5py = types.ModuleType("h5py")
+            _h5py.__path__ = []
+            sys.modules["h5py"] = _h5py
 
         class _ImportBlocker(importlib.abc.MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
@@ -246,7 +302,8 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
             else:
                 raise AssertionError("optional dependency unexpectedly resolved")
             """,
-            blocked=(missing_root,),
+            blocked=contract.export_blocked,
+            stubbed=tuple(root for root in contract.test_stubs if root != missing_root),
         )
 
     _run_script(
