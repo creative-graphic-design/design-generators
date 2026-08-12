@@ -16,8 +16,7 @@ from laygen.common.conditions import (
     ConditionType,
     normalize_condition_type as normalize_common_condition_type,
 )
-from laygen.common.labels import DatasetName
-from laygen.common.labels import labels_for_dataset
+from laygen.common.labels import DatasetName, labels_for_dataset
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 from .tasks import (
@@ -29,6 +28,14 @@ from .tasks import (
     normalize_layoutformerpp_task,
 )
 from .geometry import discrete_ltwh_to_public, public_to_discrete_ltwh
+from .labels import (
+    RICO25_LABEL_TRANSLATION,
+    LabelTranslationMetadata,
+    build_label_translation,
+    label_translation_for_dataset,
+    normalize_label_name,
+    validate_label_translation_metadata,
+)
 from .serialization import (
     T5LayoutSequence,
     T5LayoutSequenceForGenR,
@@ -74,6 +81,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         x_grid: int = 128,
         y_grid: int = 128,
         id2label: dict[int, str] | None = None,
+        label_translation_metadata: LabelTranslationMetadata | None = None,
     ) -> None:
         """Initialize serializers, label maps, and tokenizer state."""
         self.tokenizer = tokenizer
@@ -85,18 +93,39 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         self.x_grid = x_grid
         self.y_grid = y_grid
         labels = labels_for_dataset(normalized_dataset)
-        self.id2label = (
+        public_id2label = (
             {int(key): str(value) for key, value in id2label.items()}
             if id2label is not None
             else dict(enumerate(labels))
         )
-        self.public_id2label = dict(self.id2label)
+        canonical_translation = label_translation_for_dataset(normalized_dataset)
+        if normalized_dataset is DatasetName.rico25 and public_id2label != dict(
+            RICO25_LABEL_TRANSLATION.public_id2label
+        ):
+            raise ValueError("RICO25 public id2label must match the canonical map")
+        translation = build_label_translation(
+            public_id2label,
+            canonical_translation.sequence_id2label,
+        )
+        self.id2label = dict(translation.public_id2label)
+        self.public_id2label = dict(translation.public_id2label)
         self.public_label2id = {
-            value.lower(): key for key, value in self.public_id2label.items()
+            normalize_label_name(value): key
+            for key, value in self.public_id2label.items()
         }
-        self.internal_id2label = {
-            idx + 1: f"label_{idx + 1}" for idx in range(len(labels))
-        }
+        self.sequence_id2label = dict(translation.sequence_id2label)
+        self.public_to_sequence = dict(translation.public_to_sequence)
+        self.sequence_to_public = dict(translation.sequence_to_public)
+        self.label_translation_metadata = (
+            translation.metadata()
+            if label_translation_metadata is None
+            else validate_label_translation_metadata(
+                label_translation_metadata,
+                translation,
+            )
+        )
+        self.label_translation_sha256 = translation.sha256
+        self.internal_id2label = {idx: f"label_{idx}" for idx in self.sequence_id2label}
         self.serializer = T5LayoutSequence(
             self.internal_id2label, add_sep_token=add_sep_token
         )
@@ -171,12 +200,14 @@ class LayoutFormerPPProcessor(ProcessorMixin):
 
     def _label_to_internal_id(self, label: int | str) -> int:
         if isinstance(label, int):
-            return label + 1 if label in self.public_id2label else label
-        lowered = label.lower()
-        if lowered in self.public_label2id:
-            return self.public_label2id[lowered] + 1
-        if lowered.startswith("label_"):
-            return int(lowered.split("_", 1)[1])
+            if label not in self.public_to_sequence:
+                raise ValueError(f"Unknown label: {label}")
+            return self.public_to_sequence[label]
+        normalized = normalize_label_name(label)
+        if normalized.startswith("label_"):
+            raise ValueError("Raw label_<id> tokens are internal-only")
+        if normalized in self.public_label2id:
+            return self.public_to_sequence[self.public_label2id[normalized]]
         raise ValueError(f"Unknown label: {label}")
 
     def _prepare_labels(
@@ -376,9 +407,15 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                 boxes = torch.zeros(max_len, 4, dtype=torch.long)
                 mask = torch.zeros(max_len, dtype=torch.bool)
             else:
-                labels = torch.tensor(
-                    [max(0, label - 1) for label in item.labels], dtype=torch.long
-                )
+                try:
+                    public_labels = [
+                        self.sequence_to_public[label] for label in item.labels
+                    ]
+                except KeyError as exc:
+                    raise ValueError(
+                        f"Unknown internal label id in generated sequence: {exc.args[0]}"
+                    ) from exc
+                labels = torch.tensor(public_labels, dtype=torch.long)
                 boxes = torch.tensor(item.bbox, dtype=torch.long)
                 mask = torch.ones(len(labels), dtype=torch.bool)
                 if len(labels) < max_len:

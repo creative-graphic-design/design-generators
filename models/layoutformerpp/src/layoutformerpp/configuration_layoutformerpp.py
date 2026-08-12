@@ -15,6 +15,11 @@ from .tasks import (
     normalize_layoutformerpp_dataset,
     normalize_layoutformerpp_task,
 )
+from .labels import (
+    LabelTranslationMetadata,
+    label_translation_for_dataset,
+    validate_label_translation_metadata,
+)
 
 
 class TaskDefaults(TypedDict, total=False):
@@ -135,6 +140,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         architectures: list[str] | None = None,
         id2label: dict[int | str, str] | None = None,
         label2id: dict[str, int] | None = None,
+        label_translation_metadata: LabelTranslationMetadata | None = None,
         torch_dtype: str | None = None,
         dtype: str | None = None,
         tie_word_embeddings: bool = True,
@@ -150,6 +156,27 @@ class LayoutFormerPPConfig(PretrainedConfig):
         _ = (condition_type, model_type, transformers_version)
         normalized_dataset = normalize_layoutformerpp_dataset(dataset)
         normalized_task = normalize_layoutformerpp_task(task)
+        translation = label_translation_for_dataset(normalized_dataset)
+        canonical_id2label = dict(translation.public_id2label)
+        if (
+            id2label is not None
+            and {int(key): str(value) for key, value in id2label.items()}
+            != canonical_id2label
+        ):
+            raise ValueError("id2label does not match the canonical dataset map")
+        normalized_id2label: dict[int | str, str] = {
+            key: value for key, value in canonical_id2label.items()
+        }
+        id2label = normalized_id2label
+        label2id = {value: key for key, value in canonical_id2label.items()}
+        self.label_translation_metadata = (
+            translation.metadata()
+            if label_translation_metadata is None
+            else validate_label_translation_metadata(
+                label_translation_metadata,
+                translation,
+            )
+        )
         condition_type = TASK_TO_CONDITION[normalized_task]
         self.dataset = layoutformerpp_dataset_slug(normalized_dataset)
         self.task = str(normalized_task)

@@ -43,7 +43,7 @@ class DatasetCardMetadata(TypedDict):
 
 DATASET_CARD_METADATA: Final[dict[DatasetName, DatasetCardMetadata]] = {
     DatasetName.rico25: {
-        "hub_slug": "rico",
+        "hub_slug": "rico25",
         "dataset_id": "creative-graphic-design/Rico",
     },
     DatasetName.publaynet: {
@@ -137,7 +137,7 @@ print(out.bbox, out.labels, out.mask)
             "contract and inherits the dataset and task coverage of the original "
             "research release. Local reference parity covers tokenizer behavior, "
             "teacher-forced logits, reference greedy/top-k generation, and constrained "
-            "label or label-size generation for every public `rico` and `publaynet` "
+            "label or label-size generation for every public `rico25` and `publaynet` "
             "LayoutFormer++ task checkpoint. This checkpoint is not intended for "
             "OCR, document understanding, or unreviewed production design decisions."
         ),
