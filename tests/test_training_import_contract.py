@@ -16,27 +16,21 @@ class TrainingImportContract:
 
     package_name: str
     training_module: str
-    lazy_exports: tuple[str, ...]
-    lazy_modules: tuple[str, ...]
+    lazy_exports: tuple[tuple[str, str], ...]
     top_level_blocked: tuple[str, ...]
     export_blocked: tuple[str, ...]
     optional_errors: tuple[tuple[str, str], ...]
     nested_target: str
     nested_export: str
-    resolved_exports: tuple[str, ...]
-    class_bases: tuple[tuple[str, str], ...]
-    module_assertions: tuple[tuple[str, str], ...] = ()
-    test_stubs: tuple[str, ...] = ()
 
 
 CONTRACTS = (
     TrainingImportContract(
         package_name="cgb_dm",
         training_module="cgb_dm.training",
-        lazy_exports=("CGBDMDataModule", "CGBDMTrainingModule"),
-        lazy_modules=(
-            "cgb_dm.training.datamodule",
-            "cgb_dm.training.lightning_module",
+        lazy_exports=(
+            ("CGBDMDataModule", "cgb_dm.training.datamodule"),
+            ("CGBDMTrainingModule", "cgb_dm.training.lightning_module"),
         ),
         top_level_blocked=("lightning", "torchmetrics", "h5py", "h5pickle"),
         export_blocked=("lightning",),
@@ -46,26 +40,21 @@ CONTRACTS = (
         ),
         nested_target="cgb_dm.training.lightning_module",
         nested_export="CGBDMTrainingModule",
-        resolved_exports=("CGBDMDataModule", "CGBDMTrainingModule"),
-        class_bases=(
-            ("CGBDMDataModule", "LightningDataModule"),
-            ("CGBDMTrainingModule", "LightningModule"),
-        ),
     ),
     TrainingImportContract(
         package_name="dlt",
         training_module="dlt.training",
         lazy_exports=(
-            "DLTDataModule",
-            "DLTReferenceEpochSamplingCallback",
-            "DLTTrainingModule",
-            "DLTWarmupCosineSchedulerFactory",
-        ),
-        lazy_modules=(
-            "dlt.training.callbacks",
-            "dlt.training.datamodule",
-            "dlt.training.dataset",
-            "dlt.training.lightning_module",
+            ("DLTDataModule", "dlt.training.datamodule"),
+            (
+                "DLTReferenceEpochSamplingCallback",
+                "dlt.training.callbacks",
+            ),
+            ("DLTTrainingModule", "dlt.training.lightning_module"),
+            (
+                "DLTWarmupCosineSchedulerFactory",
+                "dlt.training.lightning_module",
+            ),
         ),
         top_level_blocked=("lightning", "h5py"),
         export_blocked=("lightning", "h5py"),
@@ -81,29 +70,13 @@ CONTRACTS = (
         ),
         nested_target="dlt.training.lightning_module",
         nested_export="DLTTrainingModule",
-        resolved_exports=(
-            "DLTDataModule",
-            "DLTReferenceEpochSamplingCallback",
-            "DLTTrainingModule",
-            "DLTWarmupCosineSchedulerFactory",
-        ),
-        class_bases=(
-            ("DLTDataModule", "LightningDataModule"),
-            ("DLTReferenceEpochSamplingCallback", "Callback"),
-            ("DLTTrainingModule", "LightningModule"),
-        ),
-        module_assertions=(
-            ("DLTWarmupCosineSchedulerFactory", "dlt.training.lightning_module"),
-        ),
-        test_stubs=("lightning", "h5py"),
     ),
     TrainingImportContract(
         package_name="layout_dm",
         training_module="layout_dm.training",
-        lazy_exports=("LayoutDMDataModule", "LayoutDMTrainingModule"),
-        lazy_modules=(
-            "layout_dm.training.datamodule",
-            "layout_dm.training.lightning_module",
+        lazy_exports=(
+            ("LayoutDMDataModule", "layout_dm.training.datamodule"),
+            ("LayoutDMTrainingModule", "layout_dm.training.lightning_module"),
         ),
         top_level_blocked=("lightning", "datasets"),
         export_blocked=("lightning",),
@@ -113,19 +86,13 @@ CONTRACTS = (
         ),
         nested_target="layout_dm.training.lightning_module",
         nested_export="LayoutDMTrainingModule",
-        resolved_exports=("LayoutDMDataModule", "LayoutDMTrainingModule"),
-        class_bases=(
-            ("LayoutDMDataModule", "LightningDataModule"),
-            ("LayoutDMTrainingModule", "LightningModule"),
-        ),
     ),
     TrainingImportContract(
         package_name="layout_flow",
         training_module="layout_flow.training",
-        lazy_exports=("LayoutFlowDataModule", "LayoutFlowTrainingModule"),
-        lazy_modules=(
-            "layout_flow.training.datamodule",
-            "layout_flow.training.lightning_module",
+        lazy_exports=(
+            ("LayoutFlowDataModule", "layout_flow.training.datamodule"),
+            ("LayoutFlowTrainingModule", "layout_flow.training.lightning_module"),
         ),
         top_level_blocked=("lightning", "torchmetrics", "h5py", "h5pickle"),
         export_blocked=("lightning",),
@@ -135,22 +102,16 @@ CONTRACTS = (
         ),
         nested_target="layout_flow.training.lightning_module",
         nested_export="LayoutFlowTrainingModule",
-        resolved_exports=("LayoutFlowDataModule", "LayoutFlowTrainingModule"),
-        class_bases=(
-            ("LayoutFlowDataModule", "LightningDataModule"),
-            ("LayoutFlowTrainingModule", "LightningModule"),
-        ),
     ),
     TrainingImportContract(
         package_name="layoutdiffusion",
         training_module="layoutdiffusion.training",
         lazy_exports=(
-            "LayoutDiffusionDataModule",
-            "LayoutDiffusionTrainingModule",
-        ),
-        lazy_modules=(
-            "layoutdiffusion.training.datamodule",
-            "layoutdiffusion.training.lightning_module",
+            ("LayoutDiffusionDataModule", "layoutdiffusion.training.datamodule"),
+            (
+                "LayoutDiffusionTrainingModule",
+                "layoutdiffusion.training.lightning_module",
+            ),
         ),
         top_level_blocked=("lightning", "datasets"),
         export_blocked=("lightning",),
@@ -160,14 +121,6 @@ CONTRACTS = (
         ),
         nested_target="layoutdiffusion.training.lightning_module",
         nested_export="LayoutDiffusionTrainingModule",
-        resolved_exports=(
-            "LayoutDiffusionDataModule",
-            "LayoutDiffusionTrainingModule",
-        ),
-        class_bases=(
-            ("LayoutDiffusionDataModule", "LightningDataModule"),
-            ("LayoutDiffusionTrainingModule", "LightningModule"),
-        ),
     ),
 )
 
@@ -176,64 +129,22 @@ def _run_script(
     code: str,
     *,
     blocked: tuple[str, ...] = (),
-    stubbed: tuple[str, ...] = (),
+    leaf_exports: tuple[tuple[str, str], ...] = (),
+    leaf_errors: tuple[tuple[str, str], ...] = (),
 ) -> None:
     """Run one isolated contract assertion in a fresh interpreter."""
     bootstrap = textwrap.dedent(
         f"""
         import importlib.abc
+        import importlib.util
         import sys
         import types
 
         _BLOCKED = {blocked!r}
-        _STUBBED = {stubbed!r}
-
-        if "lightning" in _STUBBED:
-            class _StubCallback:
-                pass
-
-            class _StubLightningDataModule:
-                pass
-
-            class _StubLightningModule:
-                pass
-
-            class _StubTrainer:
-                pass
-
-            _lightning = types.ModuleType("lightning")
-            _lightning.__path__ = []
-            _pytorch = types.ModuleType("lightning.pytorch")
-            _pytorch.__path__ = []
-            _pytorch.Callback = _StubCallback
-            _pytorch.LightningDataModule = _StubLightningDataModule
-            _pytorch.LightningModule = _StubLightningModule
-            _pytorch.Trainer = _StubTrainer
-            _cli = types.ModuleType("lightning.pytorch.cli")
-            _cli.LRSchedulerCallable = object
-            _cli.OptimizerCallable = object
-            _utilities = types.ModuleType("lightning.pytorch.utilities")
-            _utilities.__path__ = []
-            _types = types.ModuleType("lightning.pytorch.utilities.types")
-            _types.OptimizerLRScheduler = object
-            _pytorch.cli = _cli
-            _pytorch.utilities = _utilities
-            _utilities.types = _types
-            _lightning.pytorch = _pytorch
-            sys.modules.update(
-                {{
-                    "lightning": _lightning,
-                    "lightning.pytorch": _pytorch,
-                    "lightning.pytorch.cli": _cli,
-                    "lightning.pytorch.utilities": _utilities,
-                    "lightning.pytorch.utilities.types": _types,
-                }}
-            )
-
-        if "h5py" in _STUBBED:
-            _h5py = types.ModuleType("h5py")
-            _h5py.__path__ = []
-            sys.modules["h5py"] = _h5py
+        _LEAF_EXPORTS = {leaf_exports!r}
+        _LEAF_ERRORS = dict({leaf_errors!r})
+        _LEAF_MODULES = {{module for _, module in _LEAF_EXPORTS}}
+        _REQUESTED = []
 
         class _ImportBlocker(importlib.abc.MetaPathFinder):
             def find_spec(self, fullname, path=None, target=None):
@@ -246,8 +157,35 @@ def _run_script(
                     )
                 return None
 
+        class _LeafLoader(importlib.abc.Loader):
+            def create_module(self, spec):
+                return types.ModuleType(spec.name)
+
+            def exec_module(self, module):
+                for export_name, module_name in _LEAF_EXPORTS:
+                    if module_name == module.__name__:
+                        setattr(
+                            module,
+                            export_name,
+                            type(export_name, (), {{"__module__": module_name}}),
+                        )
+
+        class _LeafFinder(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname not in _LEAF_MODULES and fullname not in _LEAF_ERRORS:
+                    return None
+                _REQUESTED.append(fullname)
+                if fullname in _LEAF_ERRORS:
+                    missing_root = _LEAF_ERRORS[fullname]
+                    raise ModuleNotFoundError(
+                        f"No module named '{{missing_root}}'", name=missing_root
+                    )
+                return importlib.util.spec_from_loader(fullname, _LeafLoader())
+
         if _BLOCKED:
             sys.meta_path.insert(0, _ImportBlocker())
+        if _LEAF_MODULES or _LEAF_ERRORS:
+            sys.meta_path.insert(0, _LeafFinder())
         """
     )
     subprocess.run(
@@ -258,6 +196,10 @@ def _run_script(
 
 def _assert_training_import_contract(contract: TrainingImportContract) -> None:
     """Run the shared lazy training checks for one model contract."""
+    lazy_names = tuple(name for name, _ in contract.lazy_exports)
+    lazy_modules = tuple(dict.fromkeys(module for _, module in contract.lazy_exports))
+    export_modules = dict(contract.lazy_exports)
+
     _run_script(
         f"""
         import {contract.package_name}
@@ -273,14 +215,31 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
         f"""
         import {contract.training_module} as training
 
-        for name in {contract.lazy_exports!r}:
+        assert "laygen.common.import_utils" not in sys.modules
+        assert "_LAZY_EXPORTS" not in training.__dict__
+        for name in {lazy_names!r}:
             assert name in training.__all__
             assert name in dir(training)
             assert name not in training.__dict__
-        for name in {contract.lazy_modules!r}:
+        for name in {lazy_modules!r}:
             assert name not in sys.modules
         """,
         blocked=contract.export_blocked,
+    )
+
+    _run_script(
+        f"""
+        import {contract.training_module} as training
+
+        try:
+            getattr(training, "Unknown")
+        except AttributeError as error:
+            assert str(error) == (
+                "module '{contract.training_module}' has no attribute 'Unknown'"
+            )
+        else:
+            raise AssertionError("unknown export unexpectedly resolved")
+        """
     )
 
     for export_name, missing_root in contract.optional_errors:
@@ -299,70 +258,43 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
                 assert str(error) == {expected_message!r}
                 assert isinstance(error.__cause__, ModuleNotFoundError)
                 assert error.__cause__.name == "{missing_root}"
+                assert _REQUESTED == ["{export_modules[export_name]}"]
             else:
                 raise AssertionError("optional dependency unexpectedly resolved")
             """,
-            blocked=contract.export_blocked,
-            stubbed=tuple(root for root in contract.test_stubs if root != missing_root),
+            blocked=(missing_root,),
+            leaf_errors=((export_modules[export_name], missing_root),),
         )
 
     _run_script(
         f"""
-        import importlib.abc
-
         import {contract.training_module} as training
-
-        class _BrokenTarget(importlib.abc.MetaPathFinder):
-            def find_spec(self, fullname, path=None, target=None):
-                if fullname == "{contract.nested_target}":
-                    raise ModuleNotFoundError(
-                        "No module named 'torchmetrics'", name="torchmetrics"
-                    )
-                return None
-
-        sys.meta_path.insert(0, _BrokenTarget())
         try:
             getattr(training, "{contract.nested_export}")
         except ModuleNotFoundError as error:
             assert error.name == "torchmetrics"
+            assert _REQUESTED == ["{contract.nested_target}"]
         else:
             raise AssertionError("nested dependency failure was hidden")
-        """
+        """,
+        leaf_errors=((contract.nested_target, "torchmetrics"),),
     )
-
-    try:
-        __import__("lightning.pytorch")
-    except ImportError:
-        return
 
     _run_script(
         f"""
-        from lightning.pytorch import Callback, LightningDataModule, LightningModule
-
         import {contract.training_module} as training
 
         resolved = dict(
-            (name, getattr(training, name)) for name in {contract.resolved_exports!r}
+            (name, getattr(training, name)) for name in {lazy_names!r}
         )
-        base_types = dict(
-            (
-                name,
-                {{
-                    "Callback": Callback,
-                    "LightningDataModule": LightningDataModule,
-                    "LightningModule": LightningModule,
-                }}[base_name],
-            )
-            for name, base_name in {contract.class_bases!r}
-        )
-        for name, base_type in base_types.items():
-            assert issubclass(resolved[name], base_type)
-        for name, module_name in {contract.module_assertions!r}:
-            assert resolved[name].__module__ == module_name
-        for name, value in resolved.items():
+        for name, module_name in {contract.lazy_exports!r}:
+            value = resolved[name]
+            assert value.__module__ == module_name
             assert getattr(training, name) is value
             assert training.__dict__[name] is value
-        """
+        assert tuple(_REQUESTED) == {lazy_modules!r}
+        """,
+        leaf_exports=contract.lazy_exports,
     )
 
 

@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from laygen.common.import_utils import (
-    LazyClassExport,
-    build_module_dir,
-    resolve_lazy_class,
-)
-
 if TYPE_CHECKING:
     from .datamodule import LayoutDiffusionDataModule
     from .lightning_module import LayoutDiffusionTrainingModule
@@ -28,21 +22,6 @@ from .dataset import (
     LayoutDiffusionProcessedDataset,
     LayoutDiffusionSyntheticDataset,
 )
-
-_LAZY_EXPORTS: dict[
-    str, LazyClassExport[LayoutDiffusionDataModule | LayoutDiffusionTrainingModule]
-] = {
-    "LayoutDiffusionDataModule": LazyClassExport(
-        module="layoutdiffusion.training.datamodule",
-        attribute="LayoutDiffusionDataModule",
-        optional_roots=frozenset({"lightning"}),
-    ),
-    "LayoutDiffusionTrainingModule": LazyClassExport(
-        module="layoutdiffusion.training.lightning_module",
-        attribute="LayoutDiffusionTrainingModule",
-        optional_roots=frozenset({"lightning"}),
-    ),
-}
 
 __all__ = [
     "LayoutDiffusionDataset",
@@ -63,15 +42,32 @@ __all__ = [
 def __getattr__(
     name: str,
 ) -> type[LayoutDiffusionDataModule | LayoutDiffusionTrainingModule]:
-    """Resolve a lazy LayoutDiffusion training class."""
-    return resolve_lazy_class(
-        name,
-        module_name=__name__,
-        distribution_name="layoutdiffusion",
-        exports=_LAZY_EXPORTS,
-    )
+    """Resolve one LayoutDiffusion training class on first access."""
+    resolved: type[LayoutDiffusionDataModule | LayoutDiffusionTrainingModule]
+    try:
+        if name == "LayoutDiffusionDataModule":
+            from .datamodule import LayoutDiffusionDataModule
+
+            resolved = LayoutDiffusionDataModule
+        elif name == "LayoutDiffusionTrainingModule":
+            from .lightning_module import LayoutDiffusionTrainingModule
+
+            resolved = LayoutDiffusionTrainingModule
+        else:
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    except ModuleNotFoundError as error:
+        missing_root = error.name.partition(".")[0] if error.name is not None else None
+        if missing_root != "lightning":
+            raise
+        raise ImportError(
+            f"{__name__}.{name} requires the optional 'lightning' dependency; "
+            f"install the training extra with `pip install 'layoutdiffusion[training]'`."
+        ) from error
+
+    globals()[name] = resolved
+    return resolved
 
 
 def __dir__() -> list[str]:
     """Return stable eager and lazy training namespace names."""
-    return build_module_dir(globals(), _LAZY_EXPORTS)
+    return sorted(set(globals()) | set(__all__))

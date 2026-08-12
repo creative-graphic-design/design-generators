@@ -4,49 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from laygen.common.import_utils import (
-    LazyClassExport,
-    build_module_dir,
-    resolve_lazy_class,
-)
-
 if TYPE_CHECKING:
     from .callbacks import DLTReferenceEpochSamplingCallback
     from .datamodule import DLTDataModule
     from .lightning_module import DLTTrainingModule, DLTWarmupCosineSchedulerFactory
 
 from .config import DLTSeedMode
-
-_LAZY_EXPORTS: dict[
-    str,
-    LazyClassExport[
-        DLTDataModule
-        | DLTReferenceEpochSamplingCallback
-        | DLTTrainingModule
-        | DLTWarmupCosineSchedulerFactory
-    ],
-] = {
-    "DLTDataModule": LazyClassExport(
-        module="dlt.training.datamodule",
-        attribute="DLTDataModule",
-        optional_roots=frozenset({"lightning", "h5py"}),
-    ),
-    "DLTReferenceEpochSamplingCallback": LazyClassExport(
-        module="dlt.training.callbacks",
-        attribute="DLTReferenceEpochSamplingCallback",
-        optional_roots=frozenset({"lightning", "h5py"}),
-    ),
-    "DLTTrainingModule": LazyClassExport(
-        module="dlt.training.lightning_module",
-        attribute="DLTTrainingModule",
-        optional_roots=frozenset({"lightning", "h5py"}),
-    ),
-    "DLTWarmupCosineSchedulerFactory": LazyClassExport(
-        module="dlt.training.lightning_module",
-        attribute="DLTWarmupCosineSchedulerFactory",
-        optional_roots=frozenset({"lightning", "h5py"}),
-    ),
-}
 
 __all__ = [
     "DLTSeedMode",
@@ -65,15 +28,45 @@ def __getattr__(
     | DLTTrainingModule
     | DLTWarmupCosineSchedulerFactory
 ]:
-    """Resolve a lazy DLT training class or factory."""
-    return resolve_lazy_class(
-        name,
-        module_name=__name__,
-        distribution_name="dlt",
-        exports=_LAZY_EXPORTS,
-    )
+    """Resolve one DLT training class or factory on first access."""
+    resolved: type[
+        DLTDataModule
+        | DLTReferenceEpochSamplingCallback
+        | DLTTrainingModule
+        | DLTWarmupCosineSchedulerFactory
+    ]
+    try:
+        if name == "DLTDataModule":
+            from .datamodule import DLTDataModule
+
+            resolved = DLTDataModule
+        elif name == "DLTReferenceEpochSamplingCallback":
+            from .callbacks import DLTReferenceEpochSamplingCallback
+
+            resolved = DLTReferenceEpochSamplingCallback
+        elif name == "DLTTrainingModule":
+            from .lightning_module import DLTTrainingModule
+
+            resolved = DLTTrainingModule
+        elif name == "DLTWarmupCosineSchedulerFactory":
+            from .lightning_module import DLTWarmupCosineSchedulerFactory
+
+            resolved = DLTWarmupCosineSchedulerFactory
+        else:
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    except ModuleNotFoundError as error:
+        missing_root = error.name.partition(".")[0] if error.name is not None else None
+        if missing_root not in {"lightning", "h5py"}:
+            raise
+        raise ImportError(
+            f"{__name__}.{name} requires the optional '{missing_root}' dependency; "
+            f"install the training extra with `pip install 'dlt[training]'`."
+        ) from error
+
+    globals()[name] = resolved
+    return resolved
 
 
 def __dir__() -> list[str]:
     """Return stable eager and lazy training namespace names."""
-    return build_module_dir(globals(), _LAZY_EXPORTS)
+    return sorted(set(globals()) | set(__all__))

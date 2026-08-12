@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from laygen.common.import_utils import (
-    LazyClassExport,
-    build_module_dir,
-    resolve_lazy_class,
-)
-
 if TYPE_CHECKING:
     from .datamodule import LayoutFlowDataModule
     from .lightning_module import LayoutFlowTrainingModule
@@ -22,21 +16,6 @@ from .config import (
     LayoutFlowTrainingSplit,
 )
 from .dataset import LayoutFlowH5Dataset, collate_layout_flow_batch
-
-_LAZY_EXPORTS: dict[
-    str, LazyClassExport[LayoutFlowDataModule | LayoutFlowTrainingModule]
-] = {
-    "LayoutFlowDataModule": LazyClassExport(
-        module="layout_flow.training.datamodule",
-        attribute="LayoutFlowDataModule",
-        optional_roots=frozenset({"lightning"}),
-    ),
-    "LayoutFlowTrainingModule": LazyClassExport(
-        module="layout_flow.training.lightning_module",
-        attribute="LayoutFlowTrainingModule",
-        optional_roots=frozenset({"lightning"}),
-    ),
-}
 
 
 __all__ = [
@@ -53,15 +32,32 @@ __all__ = [
 
 
 def __getattr__(name: str) -> type[LayoutFlowDataModule | LayoutFlowTrainingModule]:
-    """Resolve a lazy LayoutFlow training class."""
-    return resolve_lazy_class(
-        name,
-        module_name=__name__,
-        distribution_name="layout-flow",
-        exports=_LAZY_EXPORTS,
-    )
+    """Resolve one LayoutFlow training class on first access."""
+    resolved: type[LayoutFlowDataModule | LayoutFlowTrainingModule]
+    try:
+        if name == "LayoutFlowDataModule":
+            from .datamodule import LayoutFlowDataModule
+
+            resolved = LayoutFlowDataModule
+        elif name == "LayoutFlowTrainingModule":
+            from .lightning_module import LayoutFlowTrainingModule
+
+            resolved = LayoutFlowTrainingModule
+        else:
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    except ModuleNotFoundError as error:
+        missing_root = error.name.partition(".")[0] if error.name is not None else None
+        if missing_root != "lightning":
+            raise
+        raise ImportError(
+            f"{__name__}.{name} requires the optional 'lightning' dependency; "
+            f"install the training extra with `pip install 'layout-flow[training]'`."
+        ) from error
+
+    globals()[name] = resolved
+    return resolved
 
 
 def __dir__() -> list[str]:
     """Return stable eager and lazy training namespace names."""
-    return build_module_dir(globals(), _LAZY_EXPORTS)
+    return sorted(set(globals()) | set(__all__))
