@@ -1,6 +1,7 @@
 import torch
 
 from cgb_dm.training import CGBDMDataModule, CGBDMTrainingModule
+from cgb_dm.training.dataset import CGBDMOriginalDataset
 from PIL import Image
 
 from cgb_dm.training.parity import (
@@ -218,6 +219,7 @@ def test_original_zip_datamodule_uses_reference_encoding_and_manifest(tmp_path):
     )
     datamodule.setup()
 
+    assert isinstance(datamodule.train_dataset, CGBDMOriginalDataset)
     assert datamodule.train_dataset.names == ["b.png", "a.png"]
     row = datamodule.train_dataset[0]
     assert row["layout"][:, :4].argmax(dim=-1).tolist()[:2] == [3, 0]
