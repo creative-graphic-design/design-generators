@@ -1,4 +1,5 @@
 from functools import partial
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TypedDict, cast
 
@@ -12,6 +13,7 @@ from dlt.training.config import DLTSeedMode
 
 pytest.importorskip("lightning")
 
+from traingen.lightning.cli import lightning_cli_class
 from lightning.pytorch import LightningModule, Trainer
 
 from dlt.training.callbacks import (
@@ -28,6 +30,17 @@ from dlt.training.lightning_module import (
 )
 from dlt.training.parity import DLTSyntheticStepTraceAdapter
 from dlt.training.seed import apply_seed_mode
+
+
+CONFIG_DIR = Path("models/dlt/configs/training")
+CONFIG_NAMES = (
+    "dlt_magazine.yaml",
+    "dlt_publaynet.yaml",
+    "dlt_publaynet_deterministic.yaml",
+    "dlt_rico13.yaml",
+    "dlt_rico13_deterministic.yaml",
+    "smoke.yaml",
+)
 
 
 class _SchedulerConfig(TypedDict):
@@ -316,6 +329,41 @@ def test_reference_epoch_sampling_callback_requires_validation_dataset() -> None
         callback.on_train_epoch_end(
             cast(Trainer, SimpleNamespace(datamodule=SimpleNamespace())),
             cast(LightningModule, _TinySamplingModule()),
+        )
+
+
+@pytest.mark.training
+@pytest.mark.parametrize("config_name", CONFIG_NAMES)
+def test_training_config_resolves_leaf_class_paths(config_name: str) -> None:
+    cli = lightning_cli_class()(
+        model_class=None,
+        datamodule_class=None,
+        subclass_mode_model=True,
+        subclass_mode_data=True,
+        run=False,
+        args=[
+            "--config",
+            str(CONFIG_DIR / config_name),
+            "--trainer.accelerator",
+            "cpu",
+            "--trainer.devices",
+            "1",
+            "--trainer.logger",
+            "false",
+            "--trainer.enable_checkpointing",
+            "false",
+            "--trainer.enable_model_summary",
+            "false",
+        ],
+    )
+
+    assert isinstance(cli.model, DLTTrainingModule)
+    assert isinstance(cli.datamodule, DLTDataModule)
+    assert isinstance(cli.model.lr_scheduler, DLTWarmupCosineSchedulerFactory)
+    if "publaynet" in config_name:
+        assert any(
+            isinstance(callback, DLTReferenceEpochSamplingCallback)
+            for callback in getattr(cli.trainer, "callbacks", ())
         )
 
 

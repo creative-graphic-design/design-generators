@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypedDict
 
 import torch
 from lightning.pytorch import LightningDataModule
@@ -14,6 +14,14 @@ from cgb_dm.processing_cgb_dm import CGBDMProcessor
 
 from .config import CGBDMDataSource
 from .dataset import CGBDMOriginalDataset, CGBDMSyntheticDataset
+
+
+class _CGBDMSyntheticDatasetKwargs(TypedDict):
+    """Keyword arguments shared by the synthetic train and validation sets."""
+
+    max_seq_length: int
+    seq_dim: int
+    image_size: tuple[int, int]
 
 
 class CGBDMDataModule(LightningDataModule):
@@ -81,17 +89,13 @@ class CGBDMDataModule(LightningDataModule):
             return
         if self.source != "synthetic":
             raise ValueError(f"Unsupported CGB-DM data source: {self.source}")
-        self.train_dataset = CGBDMSyntheticDataset(
-            max_seq_length=self.config.max_seq_length,
-            seq_dim=self.config.seq_dim,
-            image_size=self.config.image_size,
-        )
-        self.val_dataset = CGBDMSyntheticDataset(
-            length=2,
-            max_seq_length=self.config.max_seq_length,
-            seq_dim=self.config.seq_dim,
-            image_size=self.config.image_size,
-        )
+        kwargs: _CGBDMSyntheticDatasetKwargs = {
+            "max_seq_length": self.config.max_seq_length,
+            "seq_dim": self.config.seq_dim,
+            "image_size": self.config.image_size,
+        }
+        self.train_dataset = CGBDMSyntheticDataset(**kwargs)
+        self.val_dataset = CGBDMSyntheticDataset(length=2, **kwargs)
 
     def train_dataloader(self) -> DataLoader[dict[str, Float[torch.Tensor, "..."]]]:
         """Return the training dataloader."""

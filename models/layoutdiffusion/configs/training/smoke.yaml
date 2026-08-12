@@ -11,7 +11,7 @@ trainer:
   limit_val_batches: 0
   num_sanity_val_steps: 0
 model:
-  class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule
+  class_path: layoutdiffusion.training.lightning_module.LayoutDiffusionTrainingModule
   init_args:
     config:
       class_path: layoutdiffusion.LayoutDiffusionConfig
@@ -34,7 +34,7 @@ model:
     ema_rate: 0.9999
     seed_mode: deterministic
 data:
-  class_path: layoutdiffusion.training.LayoutDiffusionDataModule
+  class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule
   init_args:
     dataset_name: publaynet
     config:

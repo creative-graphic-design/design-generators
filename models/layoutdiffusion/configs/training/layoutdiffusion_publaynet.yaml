@@ -17,7 +17,7 @@ trainer:
         save_last: true
         filename: "epoch={epoch:02d}-val_loss={val_loss:.4f}"
 model:
-  class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule
+  class_path: layoutdiffusion.training.lightning_module.LayoutDiffusionTrainingModule
   init_args:
     config:
       class_path: layoutdiffusion.LayoutDiffusionConfig
@@ -41,7 +41,7 @@ model:
     ema_rate: 0.9999
     seed_mode: default
 data:
-  class_path: layoutdiffusion.training.LayoutDiffusionDataModule
+  class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule
   init_args:
     dataset_name: publaynet
     config:

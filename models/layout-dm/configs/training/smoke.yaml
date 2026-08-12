@@ -9,7 +9,7 @@ trainer:
   limit_val_batches: 0
   num_sanity_val_steps: 0
 model:
-  class_path: layout_dm.training.LayoutDMTrainingModule
+  class_path: layout_dm.training.lightning_module.LayoutDMTrainingModule
   init_args:
     config:
       class_path: layout_dm.LayoutDMConfig
@@ -31,7 +31,7 @@ model:
     scheduler: null
     seed_mode: deterministic
 data:
-  class_path: layout_dm.training.LayoutDMDataModule
+  class_path: layout_dm.training.datamodule.LayoutDMDataModule
   init_args:
     dataset_name: publaynet
     config:

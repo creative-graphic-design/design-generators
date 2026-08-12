@@ -12,10 +12,13 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
         assert "defaults:" not in text
         assert "class_path:" in text
         assert "init_args:" in text
-        assert "layout_dm.training.lightning_module." not in text
-        assert "layout_dm.training.datamodule." not in text
-        assert "class_path: layout_dm.training.LayoutDMTrainingModule" in text
-        assert "class_path: layout_dm.training.LayoutDMDataModule" in text
+        assert (
+            "class_path: layout_dm.training.lightning_module.LayoutDMTrainingModule"
+            in text
+        )
+        assert "class_path: layout_dm.training.datamodule.LayoutDMDataModule" in text
+        assert "class_path: layout_dm.training.LayoutDMTrainingModule" not in text
+        assert "class_path: layout_dm.training.LayoutDMDataModule" not in text
 
 
 def test_s5_training_configs_pin_layoutdm_experiment_settings() -> None:
