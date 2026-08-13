@@ -8,15 +8,14 @@ tags:
 
 # LayoutFormer++ Training
 
-The retained LayoutFormer++ candidate passes the sequential S0-S4 training
-reproduction gates for all twelve RICO25 and PubLayNet recipe families. The
-final tree records S0=39, S1=12, S2=12, S3=12, and S4=12 passing tests with zero
-skips, plus a 300-step real-scale lockstep diagnostic with no first divergence.
-These results cover static state, fixed-batch traces, optimizer steps,
-multi-batch control flow, and authoritative loader streams. They do not claim
-training-seed parity, trained-checkpoint parity, or S5 full-run reproduction;
-S5 is intentionally stopped. Issue #9 is the closed inference implementation
-issue; issue #265 tracks this training reproduction candidate.
+The retained LayoutFormer++ candidate has accepted S0-S4 evidence for all
+twelve RICO25 and PubLayNet recipe families. S2 uses a stepped authoritative
+reference scheduler at the optimizer cadence; S3 exercises the package
+training and validation hooks across deterministic real batches; and S4
+compares the pinned original loaders with the production package DataModule.
+The required 300-step lockstep run is a diagnostic pre-S5 probe through those
+loader outputs. No training-seed parity, trained-checkpoint parity, or S5
+full-run reproduction is claimed.
 
 Run commands from the repository root. Keep generated evidence, logs, data, and
 checkpoints under `.cache/layoutformerpp/`.
@@ -44,9 +43,10 @@ no full dataset download is part of this candidate.
 
 ## Data
 
-S0-S2 use the accepted source-shaped fixed fixtures. S3-S4 use the original
-processed split files from the pinned source data tree through
-`LAYOUTFORMERPP_PARITY_DATA_ROOT`.
+S0-S1 use the accepted source-shaped fixed fixtures. S3-S4 use the pinned
+original processed split files through
+`LAYOUTFORMERPP_PARITY_DATA_ROOT` and compare the original loader with the
+package-local DataModule/DataLoader.
 
 | Dataset | Source | Config or path |
 | --- | --- | --- |
@@ -61,9 +61,9 @@ only at named original CLI/cache boundaries.
 ## Configs
 
 The twelve faithful LightningCLI YAMLs live under
-`models/layoutformerpp/configs/training`. They intentionally have no `data`
-section; S3-S4 consume the authoritative processed source splits directly in
-the bounded parity harness.
+`models/layoutformerpp/configs/training`. The package-local DataModule is the
+existing production training path used by `traingen fit` and the bounded
+loader-parity gate.
 
 | Config | Dataset | Seed mode | Purpose |
 | --- | --- | --- | --- |
@@ -122,10 +122,10 @@ The stages below follow `docs/training-reproduction.md`.
 | --- | --- | --- |
 | S0 | Static config and initialized state parity | all twelve recipe, topology, state, vocab, label-map, loss, optimizer, scheduler, seed-order, and checkpoint facts |
 | S1 | Fixed-batch pre-optimizer trace parity | all twelve families pass on the selected CUDA device |
-| S2 | One optimizer-step parity | all twelve families pass with backward, optimizer, scheduler, RNG, and state checks |
-| S3 | Short deterministic multi-batch run | all twelve families pass across two real batches and validation branches |
-| S4 | Deterministic loader stream | all twelve families pass across authoritative train and validation slices |
-| S5 | Full-run statistical comparison | pending and hard-gated by family-local S0-S4 plus the 300-step real-scale lockstep probe |
+| S2 | One optimizer-step parity | accepted: authoritative scheduler, backward/optimizer state, post-step parameters, LR/cadence, RNG, and first divergence matched for all twelve recipes |
+| S3 | Short deterministic multi-batch run | accepted: production training/validation hooks and repeated scheduler/RNG/logging/checkpoint branches matched for all twelve recipes |
+| S4 | Deterministic loader stream | accepted: production package DataModule/loaders matched pinned original RICO25/PubLayNet train and validation streams |
+| S5 | Full-run statistical comparison | stopped; hard-gated by accepted S0-S4 and the later lockstep probe |
 
 ## Stage Evidence
 
@@ -133,66 +133,63 @@ The stages below follow `docs/training-reproduction.md`.
 | --- | --- | --- | --- |
 | S0 | `PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s0 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json` | PASS: 39 tests, all twelve families, zero skips; pinned original revision `1498ff300710b4fc204aece537582d37ca447fc7`; independent task-ID, topology, scheduler, loss, and state checks. |
 | S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
-| S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and full optimizer step per recipe with gradient, clipping branch, optimizer-state, post-step parameter, scheduler cadence/LR, RNG, and first-divergence checks; all surfaces within `rtol=1e-4`, `atol=1e-5`; first divergence `null`. |
-| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 12 tests, zero skips; two authoritative real batches per recipe with repeated RNG, optimizer, scheduler cadence, logging, accumulation/clipping branches, validation, checkpoint selection, and first-divergence checks; all compared surfaces within `rtol=1e-4`, `atol=1e-5`; first divergence `null`. |
-| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; authoritative RICO25/PubLayNet train and validation streams compare sample order, split membership, task serialization, tokenization, masks/padding, class IDs, and PubLayNet relation task IDs; first divergence `null`. |
-| S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
+| S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and optimizer step per recipe matched gradients, clipping behavior, optimizer state, post-step parameters, authoritative scheduler cadence/LR, RNG, and first divergence within `rtol=1e-4`, `atol=1e-5`. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 12 tests, zero skips; two real train and two real validation batches per recipe exercised production training/validation hooks and matched repeated scheduler/RNG/logging/checkpoint branches within the fixed tolerances. |
+| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; production package DataModule/loaders matched pinned original RICO25 and PubLayNet train/validation streams, including order, bytes, tokenization, masks/padding, task IDs, and first divergence. |
+| S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | STOPPED/NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
 
-The pre-S5 real-scale lockstep diagnostic is not an S5 claim. It ran the
-RICO25 label recipe for 300 optimizer steps on physical GPU 0 as logical
-`cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32), copied original
-initial weights into the package runtime model, restored paired RNG before each
-side, and recorded per-step loss, gradient norm, parameter difference, LR,
-scheduler state, sampler digest, RNG hashes, and model state hashes. The
-summary is `.cache/layoutformerpp/s4/lockstep-rico25-label-summary.json`:
-`first_divergence=null`, maximum relative loss difference
-`2.2193511216545086e-07`, maximum parameter difference `0.0`, and 300 JSONL
-records.
+The loader-based 300-step real-scale lockstep diagnostic passed for the
+`rico25_label` recipe after S0-S4. It recorded per-step loss, gradient norm,
+parameter difference, scheduler/LR, loader order, and RNG/state hashes for 300
+steps; first divergence was `null`. This remains diagnostic preflight only and
+is not a trained-checkpoint, training-seed, or S5 claim.
 
 ## Reproduction Results
 
-No trained-family result exists. All twelve recipe families have S0-S4 step,
-multi-batch, and loader evidence, but no training-seed, trained-checkpoint, or
-full-run metric claim. S5 remains intentionally stopped.
+No trained-family result exists. All twelve recipe families have accepted S0-S4
+stage evidence; the 300-step result is a diagnostic pre-S5 probe only.
+There is no training-seed, trained-checkpoint, or full-run metric claim. S5
+remains intentionally stopped.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| RICO25 label | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 label | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 label-size | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 label-size | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 relation | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 relation | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 refinement | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 refinement | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 completion | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 completion | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 unconditional | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| RICO25 unconditional | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet label | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet label | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet label-size | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet label-size | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet relation | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet relation | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet refinement | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet refinement | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet completion | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet completion | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet unconditional | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
-| PubLayNet unconditional | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 label | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 label | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 label-size | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 label-size | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 relation | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 relation | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 refinement | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 refinement | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 completion | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 completion | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 unconditional | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| RICO25 unconditional | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet label | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet label | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet label-size | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet label-size | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet relation | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet relation | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet refinement | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet refinement | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet completion | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet completion | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet unconditional | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet unconditional | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 
 Released-checkpoint trainer provenance and source/license approval remain
 unresolved. They block comparison against released weights and publication, but
-do not block the bounded S0-S4 candidate. No S5 run is authorized by this
-evidence.
+do not invalidate the accepted bounded S0-S4 candidate. No S5 run is
+authorized by this evidence.
 
 ## Regeneration Metadata
 
 The authoritative local manifest contains the worktree commit, exact
 original-source revision, reviewed boundary hashes, RICO25 map hash,
-recipe/test/document hashes, S0-S4 command results, lockstep summary, pinned
-DeepSpeed source hash, and late-seed/captured-initialization contract at:
+recipe/test/document hashes, S0-S4 command results, the loader-based 300-step
+diagnostic, pinned DeepSpeed source hash, and late-seed/captured-initialization
+contract at:
 
 ```text
 .cache/layoutformerpp/s0/static-parity.json
@@ -204,13 +201,14 @@ manifest or helper.
 
 The [issue #265 evidence comment](https://github.com/creative-graphic-design/design-generators/issues/265#issuecomment-5264137469)
 is the durable record for the rejected predecessor candidate, not the current
-manifest. The current S0-S4 evidence is pending the two required protocol
-comments; those comments do not change the explicit S5 stop.
+manifest. The current S0-S4 evidence uses the production package DataModule
+and the pinned original loaders. The 300-step artifact is diagnostic only; S5
+remains explicitly stopped.
 
-Native official-document and GitHub-restricted research both failed with
-`403 Selected provider is forbidden`; the S0 adapter therefore uses the local
-primary source checkout and its pinned requirements. Dependency metadata was not
-changed because the required external research stages were inaccessible.
+Official Lightning/PyTorch documentation and the pinned GitHub source were
+consulted before the loader correction. The implementation follows the
+documented DataModule/DataLoader ownership and the original split/sampler path;
+vendor code remains gated under `tests/vendor_parity`.
 
 ## Training Commands
 
@@ -234,5 +232,5 @@ Run S1-S4 with the compatible activated environment and set
 `LAYOUTFORMERPP_PARITY_DATA_ROOT` to the authoritative processed source tree
 for S3-S4. Keep `PARITY_REQUIRE=1`; missing source assets must fail the run.
 
-`traingen fit`, checkpoint conversion, and local loading commands are deferred
-until their respective package-local DataModule and later evidence slices exist.
+`traingen fit` uses the package-local DataModule; checkpoint conversion and S5
+full-run commands remain deferred.

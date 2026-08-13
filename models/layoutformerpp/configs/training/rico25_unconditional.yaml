@@ -17,3 +17,6 @@ model:
   init_args:
     recipe_name: rico25_unconditional
     config: {dataset: rico25, task: ugen, vocab_size: 159, max_position_embeddings: 350}
+data:
+  class_path: layoutformerpp.training.lightning_module.LayoutFormerPPDataModule
+  init_args: {recipe_name: rico25_unconditional}

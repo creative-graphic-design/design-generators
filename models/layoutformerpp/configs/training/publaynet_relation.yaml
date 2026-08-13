@@ -17,3 +17,6 @@ model:
   init_args:
     recipe_name: publaynet_relation
     config: {dataset: publaynet, task: gen_r, vocab_size: 178, max_position_embeddings: 400}
+data:
+  class_path: layoutformerpp.training.lightning_module.LayoutFormerPPDataModule
+  init_args: {recipe_name: publaynet_relation}

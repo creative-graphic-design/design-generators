@@ -17,3 +17,6 @@ model:
   init_args:
     recipe_name: publaynet_refinement
     config: {dataset: publaynet, task: refinement, vocab_size: 139, max_position_embeddings: 400}
+data:
+  class_path: layoutformerpp.training.lightning_module.LayoutFormerPPDataModule
+  init_args: {recipe_name: publaynet_refinement}

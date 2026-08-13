@@ -13,4 +13,4 @@ from .recipes import (
 from .scheduler import LayoutFormerPPWarmupLR
 
 if _find_spec("lightning") is not None:
-    from .lightning_module import LayoutFormerPPTrainingModule
+    from .lightning_module import LayoutFormerPPDataModule, LayoutFormerPPTrainingModule
