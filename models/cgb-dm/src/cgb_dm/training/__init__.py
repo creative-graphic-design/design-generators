@@ -1,11 +1,9 @@
 """Training utilities for CGB-DM."""
 
-# ruff: noqa: F401
-
 from importlib.util import find_spec as _find_spec
 
-from .config import CGBDMSeedMode
+from .config import CGBDMSeedMode as CGBDMSeedMode
 
 if _find_spec("lightning") is not None:
-    from .datamodule import CGBDMDataModule
-    from .lightning_module import CGBDMTrainingModule
+    from .datamodule import CGBDMDataModule as CGBDMDataModule
+    from .lightning_module import CGBDMTrainingModule as CGBDMTrainingModule
