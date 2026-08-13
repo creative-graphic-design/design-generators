@@ -770,7 +770,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
         """Compute the package training loss without altering runtime loss semantics."""
         del batch_idx
         loss = self._loss(batch)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, on_step=True, on_epoch=True)
         return loss
 
     def validation_step(
@@ -783,7 +783,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
         """Compute aggregate validation loss used for checkpoint selection."""
         del batch_idx
         loss = self._loss(batch)
-        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def configure_optimizers(self) -> OptimizerLRScheduler:

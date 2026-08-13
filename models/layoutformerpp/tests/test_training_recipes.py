@@ -145,6 +145,7 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
     config_dir = Path("models/layoutformerpp/configs/training")
     paths = sorted(config_dir.glob("*.yaml"))
     assert [path.stem for path in paths] == sorted(TRAINING_RECIPES_BY_NAME)
+    invariant_wiring: set[tuple[object, ...]] = set()
     for path in paths:
         recipe = TRAINING_RECIPES_BY_NAME[path.stem]
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -152,6 +153,9 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
         init_args = data["model"]["init_args"]
         config_args = init_args["config"]
         assert data["seed_everything"] is False
+        assert data["model"]["class_path"] == (
+            "layoutformerpp.training.lightning_module.LayoutFormerPPTrainingModule"
+        )
         assert trainer["max_epochs"] == recipe.epochs
         assert trainer["check_val_every_n_epoch"] == recipe.eval_interval
         assert trainer["accumulate_grad_batches"] == recipe.gradient_accumulation
@@ -174,6 +178,22 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
             ),
             "init_args": {"recipe_name": recipe.name},
         }
+        invariant_wiring.add(
+            (
+                trainer["accelerator"],
+                trainer["devices"],
+                trainer["precision"],
+                trainer["accumulate_grad_batches"],
+                trainer["gradient_clip_val"],
+                trainer["num_sanity_val_steps"],
+                trainer["use_distributed_sampler"],
+                data["model"]["class_path"],
+                data["data"]["class_path"],
+                data["trainer"]["callbacks"][0]["class_path"],
+                tuple(sorted(checkpoint.items())),
+            )
+        )
+    assert len(invariant_wiring) == 1
 
 
 @pytest.mark.parametrize("config_name", sorted(TRAINING_RECIPES_BY_NAME))
