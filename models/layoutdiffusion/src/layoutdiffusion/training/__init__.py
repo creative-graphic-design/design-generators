@@ -1,5 +1,9 @@
 """Training entry points for LayoutDiffusion."""
 
+# ruff: noqa: F401
+
+from importlib.util import find_spec as _find_spec
+
 from .config import (
     LayoutDiffusionSeedMode,
     LayoutDiffusionTimeSampler,
@@ -15,15 +19,6 @@ from .dataset import (
     LayoutDiffusionSyntheticDataset,
 )
 
-__all__ = [
-    "LayoutDiffusionDataset",
-    "LayoutDiffusionProcessedDataset",
-    "LayoutDiffusionSeedMode",
-    "LayoutDiffusionSyntheticDataset",
-    "LayoutDiffusionTimeSampler",
-    "LayoutDiffusionTrainingDatasetName",
-    "LayoutDiffusionTrainingDatasetSource",
-    "LayoutDiffusionTrainingScheduler",
-    "LayoutDiffusionTrainingSplit",
-    "LayoutDiffusionTrainingTransform",
-]
+if _find_spec("lightning") is not None:
+    from .datamodule import LayoutDiffusionDataModule
+    from .lightning_module import LayoutDiffusionTrainingModule

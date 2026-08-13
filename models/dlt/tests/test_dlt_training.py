@@ -9,6 +9,7 @@ import pytest
 import torch
 
 from dlt import DLTConfig
+import dlt.training as training_namespace
 from dlt.training.config import DLTSeedMode
 
 pytest.importorskip("lightning")
@@ -365,6 +366,27 @@ def test_training_config_resolves_leaf_class_paths(config_name: str) -> None:
             isinstance(callback, DLTReferenceEpochSamplingCallback)
             for callback in getattr(cli.trainer, "callbacks", ())
         )
+
+
+@pytest.mark.training
+def test_training_namespace_exports_when_lightning_is_installed() -> None:
+    assert (
+        training_namespace.DLTDataModule  # ty: ignore[possibly-missing-attribute]
+        is DLTDataModule
+    )
+    assert (
+        training_namespace.DLTReferenceEpochSamplingCallback  # ty: ignore[possibly-missing-attribute]
+        is DLTReferenceEpochSamplingCallback
+    )
+    assert (
+        training_namespace.DLTTrainingModule  # ty: ignore[possibly-missing-attribute]
+        is DLTTrainingModule
+    )
+    assert (
+        training_namespace.DLTWarmupCosineSchedulerFactory  # ty: ignore[possibly-missing-attribute]
+        is DLTWarmupCosineSchedulerFactory
+    )
+    assert "__all__" not in training_namespace.__dict__
 
 
 @pytest.mark.training

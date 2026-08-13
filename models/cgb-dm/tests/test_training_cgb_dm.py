@@ -5,6 +5,7 @@ import torch
 
 from cgb_dm.training.datamodule import CGBDMDataModule
 from cgb_dm.training.lightning_module import CGBDMTrainingModule
+import cgb_dm.training as training_namespace
 from traingen.lightning.cli import lightning_cli_class
 from PIL import Image
 
@@ -54,6 +55,18 @@ def test_training_config_resolves_leaf_class_paths(config_name: str) -> None:
 
     assert isinstance(cli.model, CGBDMTrainingModule)
     assert isinstance(cli.datamodule, CGBDMDataModule)
+
+
+def test_training_namespace_exports_when_lightning_is_installed() -> None:
+    assert (
+        training_namespace.CGBDMDataModule  # ty: ignore[possibly-missing-attribute]
+        is CGBDMDataModule
+    )
+    assert (
+        training_namespace.CGBDMTrainingModule  # ty: ignore[possibly-missing-attribute]
+        is CGBDMTrainingModule
+    )
+    assert "__all__" not in training_namespace.__dict__
 
 
 def test_training_step_records_required_trace():
