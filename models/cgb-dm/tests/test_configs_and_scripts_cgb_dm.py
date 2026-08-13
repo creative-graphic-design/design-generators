@@ -6,8 +6,8 @@ def test_training_configs_use_shared_cli_class_paths():
     for path in config_dir.glob("*.yaml"):
         text = path.read_text(encoding="utf-8")
         assert "cgb_dm.training.cli" not in text
-        assert "cgb_dm.training.lightning_module.CGBDMTrainingModule" in text
-        assert "cgb_dm.training.datamodule.CGBDMDataModule" in text
+        assert "cgb_dm.training.CGBDMTrainingModule" in text
+        assert "cgb_dm.training.CGBDMDataModule" in text
         assert "optimizer:\n  class_path: torch.optim.Adam" in text
         assert (
             "lr_scheduler:\n  class_path: torch.optim.lr_scheduler.CosineAnnealingLR"

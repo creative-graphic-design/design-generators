@@ -1,5 +1,5 @@
 model:
-  class_path: cgb_dm.training.lightning_module.CGBDMTrainingModule
+  class_path: cgb_dm.training.CGBDMTrainingModule
   init_args:
     config:
       dataset_name: pku_posterlayout
@@ -27,7 +27,7 @@ lr_scheduler:
   init_args:
     T_max: 1
 data:
-  class_path: cgb_dm.training.datamodule.CGBDMDataModule
+  class_path: cgb_dm.training.CGBDMDataModule
   init_args:
     config:
       dataset_name: pku_posterlayout

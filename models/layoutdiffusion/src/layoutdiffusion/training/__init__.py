@@ -1,44 +1,24 @@
 """Training entry points for LayoutDiffusion."""
 
-from __future__ import annotations
+from importlib.util import find_spec as _find_spec
 
 from .config import (
-    LayoutDiffusionSeedMode,
-    LayoutDiffusionTimeSampler,
-    LayoutDiffusionTrainingDatasetName,
-    LayoutDiffusionTrainingDatasetSource,
-    LayoutDiffusionTrainingScheduler,
-    LayoutDiffusionTrainingSplit,
-    LayoutDiffusionTrainingTransform,
+    LayoutDiffusionSeedMode as LayoutDiffusionSeedMode,
+    LayoutDiffusionTimeSampler as LayoutDiffusionTimeSampler,
+    LayoutDiffusionTrainingDatasetName as LayoutDiffusionTrainingDatasetName,
+    LayoutDiffusionTrainingDatasetSource as LayoutDiffusionTrainingDatasetSource,
+    LayoutDiffusionTrainingScheduler as LayoutDiffusionTrainingScheduler,
+    LayoutDiffusionTrainingSplit as LayoutDiffusionTrainingSplit,
+    LayoutDiffusionTrainingTransform as LayoutDiffusionTrainingTransform,
 )
 from .dataset import (
-    LayoutDiffusionDataset,
-    LayoutDiffusionProcessedDataset,
-    LayoutDiffusionSyntheticDataset,
+    LayoutDiffusionDataset as LayoutDiffusionDataset,
+    LayoutDiffusionProcessedDataset as LayoutDiffusionProcessedDataset,
+    LayoutDiffusionSyntheticDataset as LayoutDiffusionSyntheticDataset,
 )
 
-_LIGHTNING_EXPORTS: tuple[type[object], ...] = ()
-try:
-    from .datamodule import LayoutDiffusionDataModule
-    from .lightning_module import LayoutDiffusionTrainingModule
-
-    _LIGHTNING_EXPORTS = (LayoutDiffusionDataModule, LayoutDiffusionTrainingModule)
-except ModuleNotFoundError as exc:
-    if exc.name != "lightning":
-        raise
-
-__all__ = [
-    "LayoutDiffusionDataset",
-    "LayoutDiffusionDataModule",
-    "LayoutDiffusionProcessedDataset",
-    "LayoutDiffusionSeedMode",
-    "LayoutDiffusionSyntheticDataset",
-    "LayoutDiffusionTimeSampler",
-    "LayoutDiffusionTrainingDatasetName",
-    "LayoutDiffusionTrainingDatasetSource",
-    "LayoutDiffusionTrainingScheduler",
-    "LayoutDiffusionTrainingSplit",
-    "LayoutDiffusionTrainingTransform",
-    "LayoutDiffusionTrainingModule",
-]
-__all__.extend(symbol.__name__ for symbol in _LIGHTNING_EXPORTS)
+if _find_spec("lightning") is not None:
+    from .datamodule import LayoutDiffusionDataModule as LayoutDiffusionDataModule
+    from .lightning_module import (
+        LayoutDiffusionTrainingModule as LayoutDiffusionTrainingModule,
+    )

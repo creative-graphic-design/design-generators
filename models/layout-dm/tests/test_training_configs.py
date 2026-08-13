@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 
 CONFIG_DIR = Path("models/layout-dm/configs/training")
 
@@ -12,10 +14,32 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
         assert "defaults:" not in text
         assert "class_path:" in text
         assert "init_args:" in text
-        assert "layout_dm.training.lightning_module." not in text
-        assert "layout_dm.training.datamodule." not in text
         assert "class_path: layout_dm.training.LayoutDMTrainingModule" in text
         assert "class_path: layout_dm.training.LayoutDMDataModule" in text
+        assert (
+            "class_path: layout_dm.training.lightning_module.LayoutDMTrainingModule"
+            not in text
+        )
+        assert (
+            "class_path: layout_dm.training.datamodule.LayoutDMDataModule" not in text
+        )
+
+
+def test_training_namespace_exports_when_lightning_is_installed() -> None:
+    pytest.importorskip("lightning")
+    import layout_dm.training as training_namespace
+    from layout_dm.training.datamodule import LayoutDMDataModule
+    from layout_dm.training.lightning_module import LayoutDMTrainingModule
+
+    assert (
+        training_namespace.LayoutDMDataModule  # ty: ignore[possibly-missing-attribute]
+        is LayoutDMDataModule
+    )
+    assert (
+        training_namespace.LayoutDMTrainingModule  # ty: ignore[possibly-missing-attribute]
+        is LayoutDMTrainingModule
+    )
+    assert "__all__" not in training_namespace.__dict__
 
 
 def test_s5_training_configs_pin_layoutdm_experiment_settings() -> None:

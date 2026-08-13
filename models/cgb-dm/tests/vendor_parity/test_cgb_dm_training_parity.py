@@ -10,7 +10,7 @@ from torch import nn
 
 from cgb_dm.modeling_cgb_dm import CGBDMModelOutput
 from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
-from cgb_dm.training import CGBDMTrainingModule
+from cgb_dm.training.lightning_module import CGBDMTrainingModule
 from cgb_dm.training.parity import (
     CGBDMStepTraceAdapter,
     build_reference_dataset,

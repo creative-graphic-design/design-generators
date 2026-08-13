@@ -1,6 +1,12 @@
+from pathlib import Path
+
+import pytest
 import torch
 
-from cgb_dm.training import CGBDMDataModule, CGBDMTrainingModule
+from cgb_dm.training.datamodule import CGBDMDataModule
+from cgb_dm.training.lightning_module import CGBDMTrainingModule
+import cgb_dm.training as training_namespace
+from traingen.lightning.cli import lightning_cli_class
 from PIL import Image
 
 from cgb_dm.training.parity import (
@@ -11,6 +17,56 @@ from cgb_dm.training.parity import (
     write_source_order_manifest,
 )
 from cgb_dm.training.seed import apply_seed_mode
+
+
+CONFIG_DIR = Path("models/cgb-dm/configs/training")
+CONFIG_NAMES = (
+    "cgb_dm_cgl.yaml",
+    "cgb_dm_cgl_deterministic.yaml",
+    "cgb_dm_pku_posterlayout.yaml",
+    "cgb_dm_pku_posterlayout_deterministic.yaml",
+    "smoke.yaml",
+)
+
+
+@pytest.mark.parametrize("config_name", CONFIG_NAMES)
+def test_training_config_resolves_namespace_class_paths(config_name: str) -> None:
+    cli = lightning_cli_class()(
+        model_class=None,
+        datamodule_class=None,
+        subclass_mode_model=True,
+        subclass_mode_data=True,
+        run=False,
+        args=[
+            "--config",
+            str(CONFIG_DIR / config_name),
+            "--trainer.accelerator",
+            "cpu",
+            "--trainer.devices",
+            "1",
+            "--trainer.logger",
+            "false",
+            "--trainer.enable_checkpointing",
+            "false",
+            "--trainer.enable_model_summary",
+            "false",
+        ],
+    )
+
+    assert isinstance(cli.model, CGBDMTrainingModule)
+    assert isinstance(cli.datamodule, CGBDMDataModule)
+
+
+def test_training_namespace_exports_when_lightning_is_installed() -> None:
+    assert (
+        training_namespace.CGBDMDataModule  # ty: ignore[possibly-missing-attribute]
+        is CGBDMDataModule
+    )
+    assert (
+        training_namespace.CGBDMTrainingModule  # ty: ignore[possibly-missing-attribute]
+        is CGBDMTrainingModule
+    )
+    assert "__all__" not in training_namespace.__dict__
 
 
 def test_training_step_records_required_trace():
@@ -218,6 +274,6 @@ def test_original_zip_datamodule_uses_reference_encoding_and_manifest(tmp_path):
     )
     datamodule.setup()
 
-    assert datamodule.train_dataset.names == ["b.png", "a.png"]
+    assert getattr(datamodule.train_dataset, "names", None) == ["b.png", "a.png"]
     row = datamodule.train_dataset[0]
     assert row["layout"][:, :4].argmax(dim=-1).tolist()[:2] == [3, 0]

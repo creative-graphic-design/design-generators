@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING
-
+from lightning.pytorch import LightningModule
+from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
+from lightning.pytorch.utilities.types import OptimizerLRScheduler
 import torch
 from jaxtyping import Float, Int
-from torch import nn
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LRScheduler
 
 from cgb_dm.configuration_cgb_dm import CGBDMConfig
 from cgb_dm.modeling_cgb_dm import CGBDMTransformerModel
@@ -18,27 +15,6 @@ from laygen.common import ConditionType
 
 from .config import CGBDMCondition, CGBDMSeedMode
 from .losses import denoising_mse
-
-if TYPE_CHECKING:
-    from lightning.pytorch import LightningModule
-    from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
-    from lightning.pytorch.utilities.types import OptimizerLRScheduler
-else:
-    try:
-        from lightning.pytorch import LightningModule
-        from lightning.pytorch.cli import LRSchedulerCallable, OptimizerCallable
-        from lightning.pytorch.utilities.types import OptimizerLRScheduler
-    except ImportError:  # pragma: no cover - exercised only without training extra
-        LightningModule = nn.Module
-        OptimizerCallable = Callable[[Iterable[nn.Parameter]], Optimizer]
-        LRSchedulerCallable = Callable[[Optimizer], LRScheduler]
-        OptimizerLRScheduler = (
-            Optimizer
-            | dict[
-                str,
-                Optimizer | LRScheduler,
-            ]
-        )
 
 
 class CGBDMTrainingModule(LightningModule):
