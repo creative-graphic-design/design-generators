@@ -168,7 +168,12 @@ def test_s0_twelve_standalone_yamls_match_registry() -> None:
         assert config_args["dataset"] == str(recipe.dataset)
         assert config_args["vocab_size"] == recipe.vocab_size
         assert config_args["max_position_embeddings"] == recipe.max_position_embeddings
-        assert "data" not in data
+        assert data["data"] == {
+            "class_path": (
+                "layoutformerpp.training.lightning_module.LayoutFormerPPDataModule"
+            ),
+            "init_args": {"recipe_name": recipe.name},
+        }
 
 
 @pytest.mark.parametrize("config_name", sorted(TRAINING_RECIPES_BY_NAME))
@@ -199,4 +204,4 @@ def test_s0_twelve_yamls_construct_with_bounded_lightning_cli(
     )
     module = cast(object, cli.model)
     assert module.__class__.__name__ == "LayoutFormerPPTrainingModule"
-    assert cli.datamodule is None
+    assert cli.datamodule.__class__.__name__ == "LayoutFormerPPDataModule"

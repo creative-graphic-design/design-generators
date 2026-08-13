@@ -6,9 +6,11 @@ import ast
 import importlib.util
 import json
 import os
+import random
 import shlex
 import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -47,6 +49,7 @@ class _OptimizerSchedulerState(TypedDict):
     scheduler: str
     optimizer_defaults: _OptimizerDefaults
     lr_sequences: dict[str, list[float]]
+    post_optimizer_steps: dict[str, dict[str, float]]
 
 
 class _ReferenceLayoutSequence:
@@ -311,6 +314,7 @@ def reference_optimizer_scheduler_state(
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         sequences = {{}}
+        post_optimizer_steps = {{}}
         optimizer_defaults = None
         optimizer_name = None
         scheduler_name = None
@@ -328,6 +332,21 @@ def reference_optimizer_scheduler_state(
             scheduler.step()
             values.append(optimizer.param_groups[0]["lr"])
             sequences[str(warmup_steps)] = values
+            step_parameter = torch.nn.Parameter(torch.tensor(1.0))
+            step_optimizer = torch.optim.Adam([step_parameter], lr=1e-4)
+            step_scheduler = module.WarmupLR(
+                step_optimizer,
+                warmup_max_lr=1e-4,
+                warmup_num_steps=warmup_steps,
+            )
+            step_parameter.grad = torch.ones_like(step_parameter)
+            step_optimizer.step()
+            step_scheduler.step()
+            post_optimizer_steps[str(warmup_steps)] = {{
+                "optimizer_step": float(step_optimizer.state[step_parameter]["step"]),
+                "last_batch_iteration": float(step_scheduler.last_batch_iteration),
+                "lr": float(step_optimizer.param_groups[0]["lr"]),
+            }}
             optimizer_name = type(optimizer).__module__ + "." + type(optimizer).__name__
             scheduler_name = type(scheduler).__module__ + "." + type(scheduler).__name__
             optimizer_defaults = {{
@@ -344,13 +363,14 @@ def reference_optimizer_scheduler_state(
             "scheduler": scheduler_name,
             "optimizer_defaults": optimizer_defaults,
             "lr_sequences": sequences,
+            "post_optimizer_steps": post_optimizer_steps,
         }}, sort_keys=True))
         """
     )
     completed = subprocess.run(
         [uv, "run", "--with", f"deepspeed=={pin}", "python", "-c", script],
         cwd=PROJECT_ROOT,
-        env={**os.environ, "UV_NO_PROGRESS": "1"},
+        env={**os.environ, "UV_NO_PROGRESS": "1", "CUDA_VISIBLE_DEVICES": ""},
         check=True,
         capture_output=True,
         text=True,
@@ -639,6 +659,162 @@ def script_arguments(recipe: LayoutFormerPPTrainingRecipe) -> dict[str, str | bo
             parsed[key] = True
             index += 1
     return parsed
+
+
+def _reference_loader_args(
+    recipe: LayoutFormerPPTrainingRecipe, data_root: Path
+) -> SimpleNamespace:
+    """Build the original basic-trainer arguments from the pinned recipe script."""
+    parsed = script_arguments(recipe)
+    args = SimpleNamespace(
+        dataset="rico" if recipe.dataset == "rico25" else "publaynet",
+        tasks=parsed["tasks"],
+        eval_tasks=parsed.get("eval_tasks"),
+        data_dir=str(data_root),
+        max_num_elements=recipe.max_num_elements,
+        gaussian_noise_mean=0.0,
+        gaussian_noise_std=0.01,
+        train_bernoulli_beta=1.0,
+        discrete_x_grid=recipe.discrete_x_grid,
+        discrete_y_grid=recipe.discrete_y_grid,
+        sort_by_dict=True,
+        add_sep_token=True,
+        add_task_prompt=False,
+        task_weights=None,
+        partition_training_data=False,
+        partition_training_data_task_buckets=None,
+        fine_grained_partition_training_data=False,
+        fine_grained_partition_training_data_task_size=None,
+        single_task_per_batch=False,
+        remove_too_long_layout=False,
+        gen_t_add_unk_token=False,
+        gen_ts_add_unk_token=False,
+        gen_r_compact=False,
+        gen_r_add_unk_token=False,
+        gen_r_discrete_before_induce_relations=False,
+        gen_r_shuffle_before_sort_by_label=False,
+        gen_r_sort_by_pos_before_sort_by_label=False,
+        refinement_shuffle_before_sort_by_label=False,
+        refinement_sort_by_pos_before_sort_by_label=False,
+        completion_sort_by_pos=False,
+        completion_shuffle_before_sort_by_label=False,
+        completion_sort_by_pos_before_sort_by_label=False,
+        ugen_sort_by_pos=False,
+        ugen_shuffle_before_sort_by_label=False,
+        ugen_sort_by_pos_before_sort_by_label=False,
+        gen_t_shuffle_before_sort_by_label=False,
+        gen_t_sort_by_pos_before_sort_by_label=False,
+        gen_ts_shuffle_before_sort_by_label=False,
+        gen_ts_sort_by_pos_before_sort_by_label=False,
+    )
+    for key, value in parsed.items():
+        if key in {"${MODE}", "data_dir", "out_dir"}:
+            continue
+        if isinstance(value, bool):
+            setattr(args, key, value)
+        elif key in {"tasks", "eval_tasks", "partition_training_data_task_buckets"}:
+            setattr(args, key, str(value))
+        elif key in {
+            "max_num_elements",
+            "batch_size",
+            "eval_batch_size",
+            "discrete_x_grid",
+            "discrete_y_grid",
+            "warmup_num_steps",
+            "eval_seed",
+            "eval_interval",
+        }:
+            setattr(args, key, int(str(value)))
+        elif key in {
+            "gaussian_noise_mean",
+            "gaussian_noise_std",
+            "train_bernoulli_beta",
+        }:
+            setattr(args, key, float(str(value)))
+    args.batch_size = recipe.batch_size
+    args.eval_batch_size = recipe.eval_batch_size
+    args.partition_training_data = bool(recipe.partition_buckets)
+    if recipe.partition_buckets:
+        args.partition_training_data_task_buckets = ",".join(
+            str(bucket) for bucket in recipe.partition_buckets
+        )
+    return args
+
+
+def reference_loader_stream(
+    recipe: LayoutFormerPPTrainingRecipe,
+    data_root: Path,
+    split: str,
+    *,
+    batches: int = 2,
+    seed: int = 0,
+) -> list[dict[str, object]]:
+    """Iterate the pinned original dataset and basic DataLoader for one split."""
+    if split not in {"train", "val"}:
+        raise ValueError(f"unsupported LayoutFormer++ loader split: {split}")
+    vendor_source = str(REFERENCE_SRC)
+    if vendor_source not in sys.path:
+        sys.path.insert(0, vendor_source)
+    from tasks.task_config import TASK_CONFIG
+    from tasks.task_utils import create_dataset, create_tokenizer
+    from torch.utils.data import DataLoader
+    from utils import utils
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    args = _reference_loader_args(recipe, data_root)
+    task_names = tuple(str(task) for task in recipe.tasks)
+    tokenizer = create_tokenizer(
+        list(task_names),
+        str(args.dataset),
+        recipe.discrete_x_grid,
+        add_sep_token=True,
+        add_task_prompt=bool(args.add_task_prompt),
+    )
+    dataset = create_dataset(
+        args,
+        tokenizer=tokenizer,
+        task_config=TASK_CONFIG,
+        split=split,
+        sort_by_pos=not args.sort_by_dict,
+    )
+    if split == "val":
+        dataset.switch_task(str(recipe.eval_tasks[0]))
+    loader = DataLoader(
+        dataset=dataset,
+        batch_size=args.batch_size if split == "train" else args.eval_batch_size,
+        collate_fn=utils.collate_fn,
+        drop_last=True,
+        shuffle=split == "train",
+    )
+    rows: list[dict[str, object]] = []
+    for batch_index, batch in enumerate(loader):
+        input_text = [str(value) for value in batch["in_str"]]
+        output_text = [str(value) for value in batch["out_str"]]
+        input_encoding = tokenizer(input_text, add_eos=True, add_bos=False)
+        target_encoding = tokenizer(output_text, add_eos=True, add_bos=False)
+        rows.append(
+            {
+                "names": tuple(str(value) for value in batch["name"]),
+                "task_names": tuple(str(value) for value in batch["task_name"]),
+                "task_ids": tuple(int(value) for value in batch["task_id"]),
+                "input_bytes": tuple(value.encode("utf-8") for value in input_text),
+                "output_bytes": tuple(value.encode("utf-8") for value in output_text),
+                "input_ids": input_encoding["input_ids"].long(),
+                "attention_mask": input_encoding["mask"].bool(),
+                "labels": target_encoding["input_ids"].long(),
+                "target_mask": target_encoding["mask"].bool(),
+            }
+        )
+        if batch_index + 1 == batches:
+            break
+    if len(rows) != batches:
+        raise AssertionError(
+            f"{recipe.name} {split} original loader yielded {len(rows)} batches; "
+            f"expected {batches}"
+        )
+    return rows
 
 
 def source_facts() -> dict[str, bool | str]:
