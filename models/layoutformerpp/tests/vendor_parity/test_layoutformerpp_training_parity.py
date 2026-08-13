@@ -10,10 +10,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-import numpy as np
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import ModelCheckpoint
 
 from laygen.common import DatasetName
 
@@ -22,7 +24,7 @@ from layoutformerpp.labels import (
     RICO25_LABEL_TRANSLATION,
     label_translation_for_dataset,
 )
-from layoutformerpp.training import TRAINING_RECIPES
+from layoutformerpp.training import TRAINING_RECIPES, TRAINING_RECIPES_BY_NAME
 from layoutformerpp.serialization import (
     T5LayoutSequence,
     T5LayoutSequenceForGenR,
@@ -1397,6 +1399,69 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
     }
 
 
+def _run_s3_trainer_fit_wiring_case(
+    device: torch.device, tmp_path: Path
+) -> dict[str, object]:
+    recipe = TRAINING_RECIPES_BY_NAME["rico25_label"]
+    checkpoint = ModelCheckpoint(
+        dirpath=tmp_path / "checkpoints",
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
+        save_last=False,
+    )
+    module = LayoutFormerPPTrainingModule(
+        recipe_name=recipe.name,
+        config=_s1_package_config(recipe),
+    )
+    data_module = LayoutFormerPPDataModule(
+        recipe_name=recipe.name,
+        data_root=str(_real_data_root()),
+        num_workers=0,
+    )
+    trainer = Trainer(
+        accelerator="gpu" if device.type == "cuda" else "cpu",
+        devices=1,
+        precision="32-true",
+        max_epochs=1,
+        limit_train_batches=2,
+        limit_val_batches=2,
+        num_sanity_val_steps=0,
+        check_val_every_n_epoch=1,
+        accumulate_grad_batches=1,
+        callbacks=[checkpoint],
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        log_every_n_steps=1,
+        deterministic=True,
+    )
+    trainer.fit(module, datamodule=data_module)
+
+    expected_optimizer_steps = 2
+    scheduler = cast(LayoutFormerPPWarmupLR, trainer.lr_scheduler_configs[0].scheduler)
+    optimizer = trainer.optimizers[0]
+    expected_lr = (
+        recipe.learning_rate
+        * math.log(expected_optimizer_steps)
+        / math.log(recipe.warmup_num_steps)
+    )
+    logged_metrics = {str(key) for key in trainer.callback_metrics}
+    return {
+        "config_families": len(TRAINING_RECIPES),
+        "expected_optimizer_steps": expected_optimizer_steps,
+        "global_step": trainer.global_step,
+        "logged_train_loss": "train_loss" in logged_metrics,
+        "logged_val_loss": "val_loss" in logged_metrics,
+        "scheduler_interval": trainer.lr_scheduler_configs[0].interval,
+        "scheduler_last_epoch": scheduler.last_epoch,
+        "lr": float(optimizer.param_groups[0]["lr"]),
+        "expected_lr": expected_lr,
+        "checkpoint_selected": bool(checkpoint.best_model_path),
+        "checkpoint_file": Path(checkpoint.best_model_path).is_file(),
+    }
+
+
 @pytest.mark.parametrize(
     "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
 )
@@ -1430,6 +1495,20 @@ def test_s3_all_recipe_deterministic_multi_batch_run_matches(recipe) -> None:
     assert evidence["first_divergence"] is None, json.dumps(
         evidence["first_divergence"], sort_keys=True
     )
+
+
+def test_s3_production_trainer_fit_wiring_smoke(tmp_path: Path) -> None:
+    """Exercise Trainer.fit and prove all twelve configs share its wiring."""
+    evidence = _run_s3_trainer_fit_wiring_case(_s1_device(), tmp_path)
+    assert evidence["config_families"] == len(TRAINING_RECIPES)
+    assert evidence["global_step"] == evidence["expected_optimizer_steps"]
+    assert evidence["scheduler_interval"] == "step"
+    assert evidence["scheduler_last_epoch"] == cast(int, evidence["global_step"]) - 1
+    assert evidence["lr"] == pytest.approx(evidence["expected_lr"])
+    assert evidence["logged_train_loss"] is True
+    assert evidence["logged_val_loss"] is True
+    assert evidence["checkpoint_selected"] is True
+    assert evidence["checkpoint_file"] is True
 
 
 @pytest.mark.parametrize(

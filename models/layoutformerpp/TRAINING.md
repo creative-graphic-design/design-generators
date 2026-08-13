@@ -10,12 +10,12 @@ tags:
 
 The retained LayoutFormer++ candidate has accepted S0-S4 evidence for all
 twelve RICO25 and PubLayNet recipe families. S2 uses a stepped authoritative
-reference scheduler at the optimizer cadence; S3 exercises the package
-training and validation hooks across deterministic real batches; and S4
-compares the pinned original loaders with the production package DataModule.
-The required 300-step lockstep run is a diagnostic pre-S5 probe through those
-loader outputs. No training-seed parity, trained-checkpoint parity, or S5
-full-run reproduction is claimed.
+reference scheduler at the optimizer cadence; S3 has separate 12-family
+manual numerical lockstep and a bounded production `Trainer.fit` wiring smoke;
+and S4 compares the pinned original loaders with the production package
+DataModule. The required 300-step lockstep run is a diagnostic pre-S5 probe
+through those loader outputs. No training-seed parity, trained-checkpoint
+parity, or S5 full-run reproduction is claimed.
 
 Run commands from the repository root. Keep generated evidence, logs, data, and
 checkpoints under `.cache/layoutformerpp/`.
@@ -123,7 +123,7 @@ The stages below follow `docs/training-reproduction.md`.
 | S0 | Static config and initialized state parity | all twelve recipe, topology, state, vocab, label-map, loss, optimizer, scheduler, seed-order, and checkpoint facts |
 | S1 | Fixed-batch pre-optimizer trace parity | all twelve families pass on the selected CUDA device |
 | S2 | One optimizer-step parity | accepted: authoritative scheduler, backward/optimizer state, post-step parameters, LR/cadence, RNG, and first divergence matched for all twelve recipes |
-| S3 | Short deterministic multi-batch run | accepted: production training/validation hooks and repeated scheduler/RNG/logging/checkpoint branches matched for all twelve recipes |
+| S3 | Short deterministic multi-batch run | accepted: 12-family manual numerical lockstep passed; a separate real-data `Trainer.fit` smoke exercised production scheduler, logging, validation, and `ModelCheckpoint` wiring |
 | S4 | Deterministic loader stream | accepted: production package DataModule/loaders matched pinned original RICO25/PubLayNet train and validation streams |
 | S5 | Full-run statistical comparison | stopped; hard-gated by accepted S0-S4 and the later lockstep probe |
 
@@ -134,7 +134,7 @@ The stages below follow `docs/training-reproduction.md`.
 | S0 | `PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s0 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json` | PASS: 39 tests, all twelve families, zero skips; pinned original revision `1498ff300710b4fc204aece537582d37ca447fc7`; independent task-ID, topology, scheduler, loss, and state checks. |
 | S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
 | S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and optimizer step per recipe matched gradients, clipping behavior, optimizer state, post-step parameters, authoritative scheduler cadence/LR, RNG, and first divergence within `rtol=1e-4`, `atol=1e-5`. |
-| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 12 tests, zero skips; two real train and two real validation batches per recipe exercised production training/validation hooks and matched repeated scheduler/RNG/logging/checkpoint branches within the fixed tolerances. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 13 tests, zero skips: 12 manual numerical lockstep cases plus 1 production `Trainer.fit` wiring smoke. Manual cases used two real train and two real validation batches per recipe; the smoke used two train and two validation batches for `rico25_label`, proved identical Trainer/DataModule/model/ModelCheckpoint wiring in all 12 YAMLs via the ordinary recipe-matrix guard, reached `global_step=2`, scheduler `interval=step`/`last_epoch=1`, LR `1.0034333188799373e-05`, delivered `train_loss`/`val_loss`, and selected a real checkpoint file under a temporary directory. Numerical manual logging/checkpoint selection remains diagnostic; production wiring is accepted separately. |
 | S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; production package DataModule/loaders matched pinned original RICO25 and PubLayNet train/validation streams, including order, bytes, tokenization, masks/padding, task IDs, and first divergence. |
 | S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | STOPPED/NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
 
@@ -143,6 +143,12 @@ The loader-based 300-step real-scale lockstep diagnostic passed for the
 parameter difference, scheduler/LR, loader order, and RNG/state hashes for 300
 steps; first divergence was `null`. This remains diagnostic preflight only and
 is not a trained-checkpoint, training-seed, or S5 claim.
+
+The production Trainer smoke is wiring evidence only, not an additional
+12-family numerical parity claim. It used the package `LayoutFormerPPDataModule`
+and `LayoutFormerPPTrainingModule` with the authoritative real-data root; the
+ordinary 12-YAML recipe guard proves that all recipe configs select the same
+Trainer/DataModule/model/checkpoint wiring branch.
 
 ## Reproduction Results
 
@@ -187,9 +193,9 @@ authorized by this evidence.
 
 The authoritative local manifest contains the worktree commit, exact
 original-source revision, reviewed boundary hashes, RICO25 map hash,
-recipe/test/document hashes, S0-S4 command results, the loader-based 300-step
-diagnostic, pinned DeepSpeed source hash, and late-seed/captured-initialization
-contract at:
+recipe/test/document hashes, S0-S4 command results, the production Trainer
+wiring smoke, the loader-based 300-step diagnostic, pinned DeepSpeed source
+hash, and late-seed/captured-initialization contract at:
 
 ```text
 .cache/layoutformerpp/s0/static-parity.json
