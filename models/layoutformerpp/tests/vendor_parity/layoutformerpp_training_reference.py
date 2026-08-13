@@ -174,6 +174,9 @@ def reference_serialization(
     labels: list[int],
     bboxes: list[list[int]],
     relations: list[tuple[int, int, int, int, int]],
+    input_labels: list[int] | None = None,
+    input_bboxes: list[list[int]] | None = None,
+    input_relations: list[tuple[int, int, int, int, int]] | None = None,
 ) -> dict[str, bytes | int | str]:
     """Execute original serializer classes for one active recipe task."""
     base_class = _compiled_classes(
@@ -208,11 +211,15 @@ def reference_serialization(
     base = base_class(tokenizer, index2label, label2index, add_sep_token)
     label_tensor = torch.tensor(labels)
     bbox_tensor = torch.tensor(bboxes)
-    relation_tensor = torch.tensor(relations)
+    input_label_tensor = torch.tensor(labels if input_labels is None else input_labels)
+    input_bbox_tensor = torch.tensor(bboxes if input_bboxes is None else input_bboxes)
+    relation_tensor = torch.tensor(
+        relations if input_relations is None else input_relations
+    )
     if task == "refinement":
-        input_text = base.build_seq(label_tensor, bbox_tensor)
+        input_text = base.build_seq(input_label_tensor, input_bbox_tensor)
     elif task == "completion":
-        input_text = base.build_seq(label_tensor[:1], bbox_tensor[:1])
+        input_text = base.build_seq(input_label_tensor[:1], input_bbox_tensor[:1])
     elif task == "ugen":
         input_text = ""
     elif task in {"gen_t", "gen_ts"}:
@@ -225,7 +232,7 @@ def reference_serialization(
             gen_t_add_unk_token=("gen_t_add_unk_token" in recipe.serialization_flags),
             gen_ts_add_unk_token=("gen_ts_add_unk_token" in recipe.serialization_flags),
         )
-        input_text = serializer.build_input_seq(label_tensor, bbox_tensor)
+        input_text = serializer.build_input_seq(input_label_tensor, input_bbox_tensor)
     elif task == "gen_r":
         relation_class = relation_classes["T5LayoutSequenceForGenR"]
         serializer = relation_class(

@@ -8,16 +8,15 @@ tags:
 
 # LayoutFormer++ Training
 
-This package currently provides static training-parity infrastructure only. The
-remediated S0 candidate checks pass for all twelve RICO25 and PubLayNet recipe
-families: the ordinary gate recorded 55 passed with 68 deselected, the real-source
-S0 gate recorded 39 passed, and the focused task-ID gate recorded 12 passed. No
-optimizer update, DataLoader, trained checkpoint, or full-run reproduction is
-claimed. Issue #9 is the closed inference implementation issue; issue #265
-tracks training reproduction. Its first durable S0 comment records the rejected
-25-test candidate. Independent read-only review accepted the remediated technical
-S0 gate; local manifest provenance is complete, and separately authorized durable
-posting remains before any S1 work; S1-S5 stay stopped.
+The retained LayoutFormer++ candidate passes the sequential S0-S4 training
+reproduction gates for all twelve RICO25 and PubLayNet recipe families. The
+final tree records S0=39, S1=12, S2=12, S3=12, and S4=12 passing tests with zero
+skips, plus a 300-step real-scale lockstep diagnostic with no first divergence.
+These results cover static state, fixed-batch traces, optimizer steps,
+multi-batch control flow, and authoritative loader streams. They do not claim
+training-seed parity, trained-checkpoint parity, or S5 full-run reproduction;
+S5 is intentionally stopped. Issue #9 is the closed inference implementation
+issue; issue #265 tracks this training reproduction candidate.
 
 Run commands from the repository root. Keep generated evidence, logs, data, and
 checkpoints under `.cache/layoutformerpp/`.
@@ -39,18 +38,20 @@ The S0 vendor-parity harness reads the original requirements pin and constructs
 the real DeepSpeed 0.5.10 `WarmupLR` class in an isolated `uv --with` overlay;
 the original package import is incompatible with the currently verified Torch
 because it imports the removed `torch._six` module. No dependency-design change
-is claimed. Original data/evaluation parity may add further dependencies later
-behind the `vendor` extra after the required research gate succeeds.
+is claimed. S3 and S4 use bounded slices of the authoritative original processed
+RICO25 and PubLayNet splits supplied through `LAYOUTFORMERPP_PARITY_DATA_ROOT`;
+no full dataset download is part of this candidate.
 
 ## Data
 
-S0 constructs no dataset or DataLoader. These sources are reserved for the
-deferred data slice.
+S0-S2 use the accepted source-shaped fixed fixtures. S3-S4 use the original
+processed split files from the pinned source data tree through
+`LAYOUTFORMERPP_PARITY_DATA_ROOT`.
 
 | Dataset | Source | Config or path |
 | --- | --- | --- |
-| RICO25 | `creative-graphic-design/Rico` | `ui-screenshots-and-hierarchies-with-semantic-annotations`; ingestion pending |
-| PubLayNet | `creative-graphic-design/PubLayNet` | ingestion pending |
+| RICO25 | `creative-graphic-design/Rico` | `ui-screenshots-and-hierarchies-with-semantic-annotations`; processed `pre_processed_20_25` slice used for S3-S4 |
+| PubLayNet | `creative-graphic-design/PubLayNet` | processed `pre_processed_20_5` slice used for S3-S4 |
 
 RICO25 persists separate public zero-based and sequence one-based maps. The maps
 are joined by normalized semantic name and hashed; integer arithmetic is never
@@ -61,7 +62,8 @@ only at named original CLI/cache boundaries.
 
 The twelve faithful LightningCLI YAMLs live under
 `models/layoutformerpp/configs/training`. They intentionally have no `data`
-section until the later DataModule slice.
+section; S3-S4 consume the authoritative processed source splits directly in
+the bounded parity harness.
 
 | Config | Dataset | Seed mode | Purpose |
 | --- | --- | --- | --- |
@@ -108,9 +110,9 @@ and late loader-transform seed. This is a documented harness deviation from the
 unmodified late-seed CLI. Reusing one initial state for all three replicates does
 not constitute three distinct training-seed replicates.
 
-No training or evaluation seed scope is claimed in this S0-only slice. A complete
-twelve-family claim would require 12 families by 2 systems by 3 training seeds,
-or 72 full runs; PubLayNet relation is counted once.
+No training or evaluation seed scope is claimed. A complete twelve-family
+training-seed claim would require 12 families by 2 systems by 3 training seeds,
+or 72 full runs; PubLayNet relation is counted once. S5 remains stopped.
 
 ## Validation Stages
 
@@ -119,69 +121,78 @@ The stages below follow `docs/training-reproduction.md`.
 | Stage | Scope | Purpose |
 | --- | --- | --- |
 | S0 | Static config and initialized state parity | all twelve recipe, topology, state, vocab, label-map, loss, optimizer, scheduler, seed-order, and checkpoint facts |
-| S1 | Fixed-batch pre-optimizer trace parity | pending; outside this slice |
-| S2 | One optimizer-step parity | pending; outside this slice |
-| S3 | Short deterministic multi-batch run | pending; outside this slice |
-| S4 | Deterministic loader stream | pending; outside this slice |
+| S1 | Fixed-batch pre-optimizer trace parity | all twelve families pass on the selected CUDA device |
+| S2 | One optimizer-step parity | all twelve families pass with backward, optimizer, scheduler, RNG, and state checks |
+| S3 | Short deterministic multi-batch run | all twelve families pass across two real batches and validation branches |
+| S4 | Deterministic loader stream | all twelve families pass across authoritative train and validation slices |
 | S5 | Full-run statistical comparison | pending and hard-gated by family-local S0-S4 plus the 300-step real-scale lockstep probe |
 
 ## Stage Evidence
 
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
-| S0 | `PARITY_REQUIRE=1 uv run --package layoutformerpp --extra training --extra vendor --no-sync pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s0 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json`; [issue #265 rejected predecessor evidence](https://github.com/creative-graphic-design/design-generators/issues/265#issuecomment-5264137469) | TECHNICAL S0 ACCEPTED by independent read-only review: 39 tests cover all twelve families, including independent original-versus-package task-ID checks, using local original source and the pinned scheduler distribution; focused task-ID slice recorded 12 passed; no skips; accepted evidence is not yet durably posted; S1-S5 remain stopped |
-| S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 families, 12 passed, 0 skipped on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`; no model-state mutation, paired RNG mismatch, or caller-RNG restoration failure; S2-S5 remain gated |
-| S2 | `PENDING` | `PENDING` | `PENDING` |
-| S3 | `PENDING` | `PENDING` | `PENDING` |
-| S4 | `PENDING` | `PENDING` | `PENDING` |
-| S5 | `PENDING` | `PENDING` | `PENDING` |
+| S0 | `PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s0 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json` | PASS: 39 tests, all twelve families, zero skips; pinned original revision `1498ff300710b4fc204aece537582d37ca447fc7`; independent task-ID, topology, scheduler, loss, and state checks. |
+| S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
+| S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and full optimizer step per recipe with gradient, clipping branch, optimizer-state, post-step parameter, scheduler cadence/LR, RNG, and first-divergence checks; all surfaces within `rtol=1e-4`, `atol=1e-5`; first divergence `null`. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 12 tests, zero skips; two authoritative real batches per recipe with repeated RNG, optimizer, scheduler cadence, logging, accumulation/clipping branches, validation, checkpoint selection, and first-divergence checks; all compared surfaces within `rtol=1e-4`, `atol=1e-5`; first divergence `null`. |
+| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; authoritative RICO25/PubLayNet train and validation streams compare sample order, split membership, task serialization, tokenization, masks/padding, class IDs, and PubLayNet relation task IDs; first divergence `null`. |
+| S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
+
+The pre-S5 real-scale lockstep diagnostic is not an S5 claim. It ran the
+RICO25 label recipe for 300 optimizer steps on physical GPU 0 as logical
+`cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32), copied original
+initial weights into the package runtime model, restored paired RNG before each
+side, and recorded per-step loss, gradient norm, parameter difference, LR,
+scheduler state, sampler digest, RNG hashes, and model state hashes. The
+summary is `.cache/layoutformerpp/s4/lockstep-rico25-label-summary.json`:
+`first_divergence=null`, maximum relative loss difference
+`2.2193511216545086e-07`, maximum parameter difference `0.0`, and 300 JSONL
+records.
 
 ## Reproduction Results
 
-No trained-family result exists. All twelve checkpoint families remain
-not-yet-run with no seed scope or metrics; #9 tracks prior inference work, while
-#265 tracks S0; its durable 25-test candidate was independently rejected, and
-the remediated 39-test technical S0 gate was independently accepted. No S1-S5
-evidence or trained-checkpoint claim exists.
+No trained-family result exists. All twelve recipe families have S0-S4 step,
+multi-batch, and loader evidence, but no training-seed, trained-checkpoint, or
+full-run metric claim. S5 remains intentionally stopped.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| RICO25 label | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 label | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 label-size | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 label-size | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 relation | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 relation | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 refinement | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 refinement | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 completion | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 completion | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 unconditional | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| RICO25 unconditional | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label-size | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label-size | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet relation | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet relation | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet refinement | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet refinement | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet completion | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet completion | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet unconditional | original | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
-| PubLayNet unconditional | package | `not-yet-run (#265; S0 candidate only)` | not run | not run | S0 static only | `.cache/layoutformerpp/s0/` |
+| RICO25 label | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 label | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 label-size | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 label-size | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 relation | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 relation | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 refinement | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 refinement | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 completion | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 completion | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 unconditional | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| RICO25 unconditional | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet label | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet label | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet label-size | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet label-size | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet relation | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet relation | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet refinement | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet refinement | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet completion | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet completion | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet unconditional | original | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
+| PubLayNet unconditional | package | `not-yet-run (S0-S4 passed; S5 intentionally stopped)` | no training seed | not run | S0-S4 step evidence only | `.cache/layoutformerpp/s0/`, `.cache/layoutformerpp/s4/` |
 
 Released-checkpoint trainer provenance and source/license approval remain
 unresolved. They block comparison against released weights and publication, but
-do not block future paired fresh original/package runs once S1-S4 and the
-lockstep gate pass.
+do not block the bounded S0-S4 candidate. No S5 run is authorized by this
+evidence.
 
 ## Regeneration Metadata
 
-The authoritative remediated local manifest contains the worktree commit,
+The authoritative local manifest contains the worktree commit, exact
 original-source revision, reviewed boundary hashes, RICO25 map hash,
-recipe/test/document hashes, command results, pinned DeepSpeed source hash, and
-late-seed/captured-initialization contract at:
+recipe/test/document hashes, S0-S4 command results, lockstep summary, pinned
+DeepSpeed source hash, and late-seed/captured-initialization contract at:
 
 ```text
 .cache/layoutformerpp/s0/static-parity.json
@@ -193,9 +204,8 @@ manifest or helper.
 
 The [issue #265 evidence comment](https://github.com/creative-graphic-design/design-generators/issues/265#issuecomment-5264137469)
 is the durable record for the rejected predecessor candidate, not the current
-manifest. The current technical S0 review is independently accepted, but the
-accepted evidence is not yet durably posted and neither local record authorizes
-S1.
+manifest. The current S0-S4 evidence is pending the two required protocol
+comments; those comments do not change the explicit S5 stop.
 
 Native official-document and GitHub-restricted research both failed with
 `403 Selected provider is forbidden`; the S0 adapter therefore uses the local
@@ -208,11 +218,7 @@ Rerun the ordinary static checks.
 
 ```bash
 uv run --package layoutformerpp --extra training --no-sync pytest \
-  models/layoutformerpp/tests/test_training_imports.py \
-  models/layoutformerpp/tests/test_training_recipes.py \
-  models/layoutformerpp/tests/test_training_lightning.py \
-  models/layoutformerpp/tests/test_layoutformerpp_processor.py \
-  models/layoutformerpp/tests/test_model_card.py -q
+  models/layoutformerpp/tests -m "not vendor_parity and not integration" -q
 ```
 
 Rerun S0 original-code parity with missing assets treated as failures.
@@ -223,6 +229,10 @@ PARITY_REQUIRE=1 \
   models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py \
   -m "vendor_parity and training" -k s0 -rs -q
 ```
+
+Run S1-S4 with the compatible activated environment and set
+`LAYOUTFORMERPP_PARITY_DATA_ROOT` to the authoritative processed source tree
+for S3-S4. Keep `PARITY_REQUIRE=1`; missing source assets must fail the run.
 
 `traingen fit`, checkpoint conversion, and local loading commands are deferred
 until their respective package-local DataModule and later evidence slices exist.
