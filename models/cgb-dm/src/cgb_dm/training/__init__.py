@@ -1,7 +1,9 @@
 """Training utilities for CGB-DM."""
 
-from .config import CGBDMSeedMode
-from .datamodule import CGBDMDataModule
-from .lightning_module import CGBDMTrainingModule
+from importlib.util import find_spec as _find_spec
 
-__all__ = ["CGBDMDataModule", "CGBDMSeedMode", "CGBDMTrainingModule"]
+from .config import CGBDMSeedMode as CGBDMSeedMode
+
+if _find_spec("lightning") is not None:
+    from .datamodule import CGBDMDataModule as CGBDMDataModule
+    from .lightning_module import CGBDMTrainingModule as CGBDMTrainingModule

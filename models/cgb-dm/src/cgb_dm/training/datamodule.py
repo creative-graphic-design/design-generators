@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypedDict
 
 import torch
+from lightning.pytorch import LightningDataModule
 from jaxtyping import Float
 from torch.utils.data import DataLoader
 
@@ -14,12 +15,13 @@ from cgb_dm.processing_cgb_dm import CGBDMProcessor
 from .config import CGBDMDataSource
 from .dataset import CGBDMOriginalDataset, CGBDMSyntheticDataset
 
-try:
-    from lightning.pytorch import LightningDataModule
-except ImportError:  # pragma: no cover - exercised only without training extra
 
-    class LightningDataModule:  # type: ignore[no-redef]
-        """Fallback base when Lightning is not installed."""
+class _CGBDMSyntheticDatasetKwargs(TypedDict):
+    """Keyword arguments shared by the synthetic train and validation sets."""
+
+    max_seq_length: int
+    seq_dim: int
+    image_size: tuple[int, int]
 
 
 class CGBDMDataModule(LightningDataModule):
@@ -87,7 +89,7 @@ class CGBDMDataModule(LightningDataModule):
             return
         if self.source != "synthetic":
             raise ValueError(f"Unsupported CGB-DM data source: {self.source}")
-        kwargs = {
+        kwargs: _CGBDMSyntheticDatasetKwargs = {
             "max_seq_length": self.config.max_seq_length,
             "seq_dim": self.config.seq_dim,
             "image_size": self.config.image_size,

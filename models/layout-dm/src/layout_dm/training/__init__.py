@@ -1,38 +1,21 @@
 """Training entry points for LayoutDM."""
 
-from __future__ import annotations
+from importlib.util import find_spec as _find_spec
 
 from .config import (
-    LayoutDMSeedMode,
-    LayoutDMTimeSampler,
-    LayoutDMTrainingDatasetName,
-    LayoutDMTrainingDatasetSource,
-    LayoutDMTrainingScheduler,
-    LayoutDMTrainingSplit,
+    LayoutDMSeedMode as LayoutDMSeedMode,
+    LayoutDMTimeSampler as LayoutDMTimeSampler,
+    LayoutDMTrainingDatasetName as LayoutDMTrainingDatasetName,
+    LayoutDMTrainingDatasetSource as LayoutDMTrainingDatasetSource,
+    LayoutDMTrainingScheduler as LayoutDMTrainingScheduler,
+    LayoutDMTrainingSplit as LayoutDMTrainingSplit,
 )
-from .dataset import LayoutDMDataset, LayoutDMProcessedDataset, LayoutDMSyntheticDataset
+from .dataset import (
+    LayoutDMDataset as LayoutDMDataset,
+    LayoutDMProcessedDataset as LayoutDMProcessedDataset,
+    LayoutDMSyntheticDataset as LayoutDMSyntheticDataset,
+)
 
-_LIGHTNING_EXPORTS: tuple[type[object], ...] = ()
-try:
-    from .datamodule import LayoutDMDataModule
-    from .lightning_module import LayoutDMTrainingModule
-
-    _LIGHTNING_EXPORTS = (LayoutDMDataModule, LayoutDMTrainingModule)
-except ModuleNotFoundError as exc:
-    if exc.name != "lightning":
-        raise
-
-__all__ = [
-    "LayoutDMDataModule",
-    "LayoutDMDataset",
-    "LayoutDMProcessedDataset",
-    "LayoutDMSeedMode",
-    "LayoutDMSyntheticDataset",
-    "LayoutDMTimeSampler",
-    "LayoutDMTrainingDatasetName",
-    "LayoutDMTrainingDatasetSource",
-    "LayoutDMTrainingModule",
-    "LayoutDMTrainingScheduler",
-    "LayoutDMTrainingSplit",
-]
-__all__.extend(symbol.__name__ for symbol in _LIGHTNING_EXPORTS)
+if _find_spec("lightning") is not None:
+    from .datamodule import LayoutDMDataModule as LayoutDMDataModule
+    from .lightning_module import LayoutDMTrainingModule as LayoutDMTrainingModule

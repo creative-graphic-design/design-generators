@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 training = [
-    "lightning>=2.0.0",
+    "traingen[lightning]",
 ]
 vendor = [
     "opencv-python>=4.10",
@@ -30,6 +30,7 @@ vendor = [
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }
+traingen = { workspace = true }
 
 [tool.design-generators]
 framework = "diffusers"

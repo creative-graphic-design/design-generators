@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+import pytest
+
 CONFIG_DIR = Path("models/layoutdiffusion/configs/training")
 REFERENCE_GENERATOR = Path(
     "models/layoutdiffusion/tests/vendor_parity/layoutdiffusion_training_reference.py"
@@ -35,6 +37,33 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
             "class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule" in text
         )
         assert "class_path: layoutdiffusion.training.LayoutDiffusionDataModule" in text
+        assert (
+            "class_path: layoutdiffusion.training.lightning_module.LayoutDiffusionTrainingModule"
+            not in text
+        )
+        assert (
+            "class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule"
+            not in text
+        )
+
+
+def test_training_namespace_exports_when_lightning_is_installed() -> None:
+    pytest.importorskip("lightning")
+    import layoutdiffusion.training as training_namespace
+    from layoutdiffusion.training.datamodule import LayoutDiffusionDataModule
+    from layoutdiffusion.training.lightning_module import (
+        LayoutDiffusionTrainingModule,
+    )
+
+    assert (
+        training_namespace.LayoutDiffusionDataModule  # ty: ignore[possibly-missing-attribute]
+        is LayoutDiffusionDataModule
+    )
+    assert (
+        training_namespace.LayoutDiffusionTrainingModule  # ty: ignore[possibly-missing-attribute]
+        is LayoutDiffusionTrainingModule
+    )
+    assert "__all__" not in training_namespace.__dict__
 
 
 def test_s5_training_configs_pin_layoutdiffusion_settings() -> None:

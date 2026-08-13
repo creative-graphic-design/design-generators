@@ -164,7 +164,8 @@ from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from layoutdiffusion import LayoutDiffusionConfig
-from layoutdiffusion.training import LayoutDiffusionDataModule, LayoutDiffusionTrainingModule
+from layoutdiffusion.training.datamodule import LayoutDiffusionDataModule
+from layoutdiffusion.training.lightning_module import LayoutDiffusionTrainingModule
 
 out_dir = Path(".cache/layoutdiffusion/training-evidence/package-smoke")
 out_dir.mkdir(parents=True, exist_ok=True)
