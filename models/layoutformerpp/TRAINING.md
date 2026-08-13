@@ -42,6 +42,33 @@ is claimed. S3 and S4 use bounded slices of the authoritative original processed
 RICO25 and PubLayNet splits supplied through `LAYOUTFORMERPP_PARITY_DATA_ROOT`;
 no full dataset download is part of this candidate.
 
+## GPU Environment
+
+The repository default Torch build is `cu130`, which is diagnostic-only on the
+currently verified Tesla V100 setup. Use a temporary environment outside the
+repository with the driver-compatible `cu126` wheels; do not change
+`pyproject.toml` or `uv.lock` for this local runtime replacement.
+
+```bash
+export LAYOUTFORMERPP_PARITY_ENV="${LAYOUTFORMERPP_PARITY_ENV:?set a temporary path outside this repository}"
+uv venv --python 3.11 "$LAYOUTFORMERPP_PARITY_ENV"
+uv pip install --python "$LAYOUTFORMERPP_PARITY_ENV/bin/python" \
+  torch==2.12.0 torchvision==0.27.0 \
+  --index-url https://download.pytorch.org/whl/cu126
+uv pip install --python "$LAYOUTFORMERPP_PARITY_ENV/bin/python" \
+  -e lib/laygen \
+  -e "lib/traingen[lightning]" \
+  -e "lib/traingen-parity[lightning]" \
+  -e "models/layoutformerpp[training,vendor]" \
+  pytest
+export LAYOUTFORMERPP_PARITY_PYTHON="$LAYOUTFORMERPP_PARITY_ENV/bin/python"
+CUDA_VISIBLE_DEVICES=0 "$LAYOUTFORMERPP_PARITY_PYTHON" -c \
+  'import torch; assert torch.__version__ == "2.12.0+cu126"; assert torch.version.cuda == "12.6"; assert torch.cuda.is_available(); assert torch.cuda.get_device_capability(0) == (7, 0); torch.zeros(1, device="cuda:0")'
+```
+
+The verified setup is one physical V100 exposed as logical `cuda:0`; CPU is
+diagnostic-only for these stages.
+
 ## Data
 
 S0-S1 use the accepted source-shaped fixed fixtures. S3-S4 use the pinned
@@ -133,10 +160,10 @@ The stages below follow `docs/training-reproduction.md`.
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
 | S0 | `PARITY_REQUIRE=1 uv run --package layoutformerpp --extra training --extra vendor --no-sync pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s0 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json` | PASS: 39 tests, all twelve families, zero skips; pinned original revision `1498ff300710b4fc204aece537582d37ca447fc7`; independent task-ID, topology, scheduler, loss, and state checks. |
-| S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
-| S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and optimizer step per recipe matched gradients, clipping behavior, optimizer state, post-step parameters, authoritative scheduler cadence/LR, RNG, and first divergence within `rtol=1e-4`, `atol=1e-5`. |
-| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 22 tests, zero skips: 12 manual numerical lockstep cases plus 10 production `traingen fit` representative cases (`rico25_label`, `rico25_label_size`, `rico25_relation`, `rico25_refinement`, `rico25_completion`, `rico25_unconditional`, `publaynet_label`, `publaynet_label_size`, `publaynet_relation`, `publaynet_refinement`). Every console run exited 0, reached `global_step=2` and two optimizer steps, recorded scheduler `last_epoch=1` and the expected post-step LR, delivered `train_loss`/`val_loss` to the CSV logger, and selected a real `ModelCheckpoint` file. The ordinary 12-YAML matrix guard proves shared Trainer/DataModule/model/checkpoint wiring for all recipes; manual numerical parity remains the separate all-family claim, while PubLayNet completion/unconditional are not separately claimed as console-fit runs. |
-| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" python -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m 'vendor_parity and training' -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; production package DataModule/loaders matched pinned original RICO25 and PubLayNet train/validation streams, including order, bytes, tokenization, masks/padding, task IDs, and first divergence. |
+| S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
+| S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and optimizer step per recipe matched gradients, clipping behavior, optimizer state, post-step parameters, authoritative scheduler cadence/LR, RNG, and first divergence within `rtol=1e-4`, `atol=1e-5`. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 22 tests, zero skips: 12 manual numerical lockstep cases plus 10 production `traingen fit` representative cases (`rico25_label`, `rico25_label_size`, `rico25_relation`, `rico25_refinement`, `rico25_completion`, `rico25_unconditional`, `publaynet_label`, `publaynet_label_size`, `publaynet_relation`, `publaynet_refinement`). Every console run exited 0, reached `global_step=2` and two optimizer steps, recorded scheduler `last_epoch=1` and the expected post-step LR, delivered `train_loss`/`val_loss` to the CSV logger, and selected a real `ModelCheckpoint` file. The ordinary 12-YAML matrix guard proves shared Trainer/DataModule/model/checkpoint wiring for all recipes; manual numerical parity remains the separate all-family claim, while PubLayNet completion/unconditional are not separately claimed as console-fit runs. |
+| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; production package DataModule/loaders matched pinned original RICO25 and PubLayNet train/validation streams, including order, bytes, tokenization, masks/padding, task IDs, and first divergence. |
 | S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | STOPPED/NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
 
 The loader-based 300-step real-scale lockstep diagnostic passed for the
@@ -242,7 +269,8 @@ PARITY_REQUIRE=1 \
   -m "vendor_parity and training" -k s0 -rs -q
 ```
 
-Run S1-S4 with the compatible activated environment and set
+Run S1-S4 after the compatible environment setup above. The canonical
+interpreter is `LAYOUTFORMERPP_PARITY_PYTHON`; set
 `LAYOUTFORMERPP_PARITY_DATA_ROOT` to the authoritative processed source tree
 for S3-S4. Keep `PARITY_REQUIRE=1`; missing source assets must fail the run.
 
