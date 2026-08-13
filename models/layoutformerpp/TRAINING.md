@@ -149,9 +149,11 @@ The production `traingen fit` runs are wiring evidence only, not an additional
 12-family numerical parity claim. They used the package
 `LayoutFormerPPDataModule` and `LayoutFormerPPTrainingModule` with the
 authoritative real-data root. The ten representatives cover both datasets,
-all six conditioning paths, the distinct train/evaluation batch and validation
-cadence branches, PubLayNet label-size flags, and the PubLayNet relation
-multitask partition path. The ordinary 12-YAML recipe guard proves that all
+all six conditioning paths, the distinct train/evaluation batch branches,
+PubLayNet label-size flags, and the PubLayNet relation multitask partition
+path. Native 20/50 validation cadence values are statically validated from
+YAML; runtime validation/logging/checkpoint wiring was exercised at bounded
+cadence 1. The ordinary 12-YAML recipe guard proves that all
 recipe configs select the same Trainer/DataModule/model/checkpoint wiring
 branch; the two PubLayNet families not directly run as console representatives
 remain covered by the separate 12-family manual numerical gate only.
