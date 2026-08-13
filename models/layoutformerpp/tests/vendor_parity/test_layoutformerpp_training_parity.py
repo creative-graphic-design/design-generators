@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
+import random
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -433,7 +435,12 @@ def _surface_difference(
     actual: object,
     expected: object,
 ) -> dict[str, object] | None:
-    tolerance = S1_TOLERANCE if field in S1_FLOAT_SURFACES else TensorTolerance()
+    tolerance = (
+        S1_TOLERANCE
+        if field in S1_FLOAT_SURFACES
+        or field.startswith(("gradient:", "parameter:", "optimizer_state:"))
+        else TensorTolerance()
+    )
     if actual is None or expected is None:
         if actual is expected:
             return None
@@ -685,12 +692,936 @@ def _run_s1_case(recipe, device: torch.device) -> dict[str, object]:
     }
 
 
+def _gradient_values(model: torch.nn.Module) -> dict[str, torch.Tensor | None]:
+    return {
+        name: parameter.grad.detach().clone() if parameter.grad is not None else None
+        for name, parameter in model.named_parameters()
+    }
+
+
+def _optimizer_state_values(
+    model: torch.nn.Module, optimizer: torch.optim.Optimizer
+) -> dict[str, dict[str, object]]:
+    names: dict[torch.Tensor, str] = {
+        parameter: name for name, parameter in model.named_parameters()
+    }
+    return {
+        names[parameter]: {
+            key: value.detach().clone() if isinstance(value, torch.Tensor) else value
+            for key, value in state.items()
+        }
+        for parameter, state in optimizer.state.items()
+    }
+
+
+def _gradient_norm(gradients: Mapping[str, torch.Tensor | None]) -> float:
+    values = [
+        value.detach().float().norm()
+        for value in gradients.values()
+        if value is not None
+    ]
+    return (
+        float(torch.linalg.vector_norm(torch.stack(values)).item()) if values else 0.0
+    )
+
+
+def _parameter_values(model: torch.nn.Module) -> dict[str, torch.Tensor]:
+    return {
+        name: parameter.detach().clone() for name, parameter in model.named_parameters()
+    }
+
+
+def _scalar_difference(
+    field: str, actual: float, expected: float
+) -> dict[str, object] | None:
+    actual_value = torch.tensor(actual)
+    expected_value = torch.tensor(expected)
+    if torch.isclose(
+        actual_value,
+        expected_value,
+        rtol=S1_TOLERANCE.rtol,
+        atol=S1_TOLERANCE.atol,
+    ):
+        return None
+    absolute = float((actual_value - expected_value).abs().item())
+    relative = absolute / max(
+        float(expected_value.abs().item()), torch.finfo(torch.float32).eps
+    )
+    return {
+        "field": field,
+        "index": None,
+        "max_abs": absolute,
+        "max_rel": relative,
+        "tolerance": {"rtol": S1_TOLERANCE.rtol, "atol": S1_TOLERANCE.atol},
+    }
+
+
+def _s2_difference(
+    recipe_name: str,
+    reference: Mapping[str, object],
+    package: Mapping[str, object],
+) -> dict[str, object] | None:
+    for field in ("loss", "gradient_norm", "post_gradient_norm"):
+        difference = _scalar_difference(
+            field,
+            cast(float, package[field]),
+            cast(float, reference[field]),
+        )
+        if difference is not None:
+            return {"family": recipe_name, **difference}
+    reference_gradients = cast(
+        Mapping[str, torch.Tensor | None], reference["gradients"]
+    )
+    package_gradients = cast(Mapping[str, torch.Tensor | None], package["gradients"])
+    for name in reference_gradients:
+        difference = _surface_difference(
+            f"gradient:{name}",
+            package_gradients[name],
+            reference_gradients[name],
+        )
+        if difference is not None:
+            return {"family": recipe_name, **difference}
+    reference_parameters = cast(Mapping[str, torch.Tensor], reference["parameters"])
+    package_parameters = cast(Mapping[str, torch.Tensor], package["parameters"])
+    for name in reference_parameters:
+        difference = _surface_difference(
+            f"parameter:{name}",
+            package_parameters[name],
+            reference_parameters[name],
+        )
+        if difference is not None:
+            return {"family": recipe_name, **difference}
+    reference_optimizer_state = cast(
+        Mapping[str, Mapping[str, object]], reference["optimizer_state"]
+    )
+    package_optimizer_state = cast(
+        Mapping[str, Mapping[str, object]], package["optimizer_state"]
+    )
+    for name in reference_optimizer_state:
+        reference_state = reference_optimizer_state[name]
+        package_state = package_optimizer_state[name]
+        for key in reference_state:
+            difference = _surface_difference(
+                f"optimizer_state:{name}.{key}",
+                package_state[key],
+                reference_state[key],
+            )
+            if difference is not None:
+                return {"family": recipe_name, **difference}
+    for field in ("scheduler_last_batch_iteration", "lr"):
+        difference = _scalar_difference(
+            field,
+            cast(float, package[field]),
+            cast(float, reference[field]),
+        )
+        if difference is not None:
+            return {"family": recipe_name, **difference}
+    if package["rng_after"] != reference["rng_after"]:
+        return {"family": recipe_name, "field": "rng_after"}
+    if package["zero_grad"] != reference["zero_grad"]:
+        return {"family": recipe_name, "field": "zero_grad"}
+    return None
+
+
+def _run_s2_case(recipe, device: torch.device) -> dict[str, object]:
+    reference_model_class, reference_tokenizer_class = reference_classes()
+    batch, _ = _s1_fixture(recipe, reference_tokenizer_class)
+    batch = {
+        key: value.to(device) if isinstance(value, torch.Tensor) else value
+        for key, value in batch.items()
+    }
+    torch.manual_seed(0)
+    reference_model = reference_model_class(
+        vocab_size=recipe.vocab_size,
+        max_len=recipe.max_position_embeddings,
+        bos_token_id=0,
+        pad_token_id=2,
+        eos_token_id=1,
+        d_model=recipe.d_model,
+        nhead=recipe.attention_heads,
+        num_layers=recipe.num_layers,
+        dropout=recipe.dropout,
+        d_feedforward=recipe.d_model * 4,
+        share_embedding=True,
+    ).to(device)
+    module = LayoutFormerPPTrainingModule(
+        recipe_name=recipe.name,
+        config=_s1_package_config(recipe),
+    ).to(device)
+    module.model.load_state_dict(reference_model.state_dict(), strict=True)
+    reference_optimizer = torch.optim.Adam(
+        reference_model.parameters(), lr=recipe.learning_rate
+    )
+    package_configured = cast(dict[str, object], module.configure_optimizers())
+    package_optimizer = cast(torch.optim.Optimizer, package_configured["optimizer"])
+    package_scheduler = cast(
+        LayoutFormerPPWarmupLR,
+        cast(Mapping[str, object], package_configured["lr_scheduler"])["scheduler"],
+    )
+    reference_scheduler = reference_optimizer_scheduler_state(
+        (recipe.warmup_num_steps,)
+    )
+    reference_lr = float(
+        reference_scheduler["lr_sequences"][str(recipe.warmup_num_steps)][1]
+    )
+    reference_initial_hash = state_dict_sha256(reference_model.state_dict())
+    caller_rng = capture_rng_state()
+    try:
+        boundary_rng = capture_rng_state()
+        restore_rng_state(boundary_rng)
+        reference_trace = _reference_pre_optimizer_trace(reference_model, batch)
+        reference_loss = cast(torch.Tensor, reference_trace["loss"])
+        reference_loss.backward()
+        reference_gradients = _gradient_values(reference_model)
+        reference_gradient_norm = _gradient_norm(reference_gradients)
+        if recipe.use_gradient_clipping:
+            torch.nn.utils.clip_grad_norm_(
+                reference_model.parameters(), recipe.learning_rate
+            )
+        reference_post_gradient_norm = _gradient_norm(_gradient_values(reference_model))
+        reference_optimizer.step()
+        reference_optimizer.zero_grad()
+        reference_optimizer_state = _optimizer_state_values(
+            reference_model, reference_optimizer
+        )
+        reference_parameters = _parameter_values(reference_model)
+        reference_scheduler_last_batch_iteration = 0.0
+        reference_optimizer_lr = reference_lr
+        reference_scheduler_state = {
+            "last_batch_iteration": reference_scheduler_last_batch_iteration,
+            "lr": reference_optimizer_lr,
+        }
+        reference_optimizer.zero_grad()
+        reference_zero_grad = {
+            name: parameter.grad is None
+            for name, parameter in reference_model.named_parameters()
+        }
+        reference_after_rng = capture_rng_state()
+
+        restore_rng_state(boundary_rng)
+        package_trace = module.pre_optimizer_trace(batch)
+        package_loss = package_trace.loss / recipe.gradient_accumulation
+        package_loss.backward()
+        package_gradients = _gradient_values(module.model)
+        package_gradient_norm = _gradient_norm(package_gradients)
+        if recipe.use_gradient_clipping:
+            torch.nn.utils.clip_grad_norm_(
+                module.model.parameters(), recipe.learning_rate
+            )
+        package_post_gradient_norm = _gradient_norm(_gradient_values(module.model))
+        package_optimizer.step()
+        package_optimizer.zero_grad()
+        package_scheduler.step()
+        package_optimizer_state = _optimizer_state_values(
+            module.model, package_optimizer
+        )
+        package_parameters = _parameter_values(module.model)
+        package_scheduler_state = {
+            "last_batch_iteration": float(package_scheduler.last_batch_iteration),
+            "lr": float(package_optimizer.param_groups[0]["lr"]),
+        }
+        package_zero_grad = {
+            name: parameter.grad is None
+            for name, parameter in module.model.named_parameters()
+        }
+        package_after_rng = capture_rng_state()
+    finally:
+        restore_rng_state(caller_rng)
+    caller_restored_rng = capture_rng_state()
+    reference_values = {
+        "loss": float(reference_loss.detach().item()),
+        "gradient_norm": reference_gradient_norm,
+        "post_gradient_norm": reference_post_gradient_norm,
+        "gradients": reference_gradients,
+        "parameters": reference_parameters,
+        "optimizer_state": reference_optimizer_state,
+        "scheduler_last_batch_iteration": reference_scheduler_state[
+            "last_batch_iteration"
+        ],
+        "lr": reference_scheduler_state["lr"],
+        "rng_after": _rng_sha256(reference_after_rng),
+        "zero_grad": reference_zero_grad,
+    }
+    package_values = {
+        "loss": float(package_trace.loss.detach().item()),
+        "gradient_norm": package_gradient_norm,
+        "post_gradient_norm": package_post_gradient_norm,
+        "gradients": package_gradients,
+        "parameters": package_parameters,
+        "optimizer_state": package_optimizer_state,
+        "scheduler_last_batch_iteration": package_scheduler_state[
+            "last_batch_iteration"
+        ],
+        "lr": package_scheduler_state["lr"],
+        "rng_after": _rng_sha256(package_after_rng),
+        "zero_grad": package_zero_grad,
+    }
+    first_divergence = _s2_difference(recipe.name, reference_values, package_values)
+    if not _rng_equal(reference_after_rng, package_after_rng):
+        first_divergence = first_divergence or {
+            "family": recipe.name,
+            "field": "rng_after",
+        }
+    if not _rng_equal(caller_rng, caller_restored_rng):
+        raise AssertionError(f"{recipe.name}: caller RNG state was not restored")
+    if state_dict_sha256(reference_model.state_dict()) == reference_initial_hash:
+        raise AssertionError(f"{recipe.name}: reference model did not update")
+    loss_delta = abs(reference_values["loss"] - package_values["loss"])
+    loss_relative = loss_delta / max(
+        abs(reference_values["loss"]), torch.finfo(torch.float32).eps
+    )
+    return {
+        "family": recipe.name,
+        "first_divergence": first_divergence,
+        "max_errors": {"loss": {"max_abs": loss_delta, "max_rel": loss_relative}},
+    }
+
+
+_REAL_DATA_CACHE: dict[str, list[dict[str, object]]] = {}
+
+
+def _real_data_root() -> Path:
+    value = os.environ.get("LAYOUTFORMERPP_PARITY_DATA_ROOT")
+    if not value:
+        raise AssertionError(
+            "S3/S4 requires LAYOUTFORMERPP_PARITY_DATA_ROOT for original processed data"
+        )
+    root = Path(value)
+    if not root.is_dir():
+        raise AssertionError(f"S3/S4 data root does not exist: {root}")
+    return root
+
+
+def _real_records(recipe, split: str = "train") -> list[dict[str, object]]:
+    dataset = "rico" if recipe.dataset is DatasetName.rico25 else "publaynet"
+    max_labels = 25 if recipe.dataset is DatasetName.rico25 else 5
+    path = (
+        _real_data_root() / dataset / f"pre_processed_20_{max_labels}" / f"{split}.pt"
+    )
+    key = str(path)
+    if key not in _REAL_DATA_CACHE:
+        if not path.is_file():
+            raise AssertionError(f"S3/S4 original processed split is missing: {path}")
+        values = torch.load(path, map_location="cpu", weights_only=False)
+        if not isinstance(values, list) or not values:
+            raise AssertionError(f"S3/S4 original processed split is empty: {path}")
+        _REAL_DATA_CACHE[key] = cast(list[dict[str, object]], values)
+    return _REAL_DATA_CACHE[key]
+
+
+def _discrete_bboxes(value: object, recipe) -> list[list[int]]:
+    if not isinstance(value, torch.Tensor) or value.ndim != 2 or value.size(-1) != 4:
+        raise AssertionError("original processed rows must contain [N, 4] bboxes")
+    maximum = max(recipe.discrete_x_grid, recipe.discrete_y_grid) - 1
+    discrete = torch.floor(value.float().clamp(0.0, 1.0) * maximum).long()
+    return cast(list[list[int]], discrete.tolist())
+
+
+def _lexicographic_order(
+    labels: list[int], bboxes: list[list[int]]
+) -> tuple[list[int], list[list[int]]]:
+    order = sorted(
+        range(len(labels)), key=lambda index: (bboxes[index][1], bboxes[index][0])
+    )
+    return [labels[index] for index in order], [bboxes[index] for index in order]
+
+
+def _label_order(
+    recipe, labels: list[int], bboxes: list[list[int]]
+) -> tuple[list[int], list[list[int]]]:
+    label_map = reference_label_map(recipe)
+    order = sorted(range(len(labels)), key=lambda index: label_map[labels[index]])
+    return [labels[index] for index in order], [bboxes[index] for index in order]
+
+
+def _real_relations(labels: list[int]) -> list[tuple[int, int, int, int, int]]:
+    if len(labels) < 2:
+        return []
+    return [(labels[0], 1, labels[1], 1, 3)]
+
+
+def _real_serialized_rows(
+    recipe,
+    split: str = "train",
+    indices: list[int] | None = None,
+) -> list[dict[str, object]]:
+    records = _real_records(recipe, split)
+    rows: list[dict[str, object]] = []
+    tasks = tuple(map(str, recipe.tasks))
+    task_index = 0
+    random.seed(1024)
+    torch.manual_seed(1024)
+    selected_records = (
+        ((index, records[index]) for index in indices)
+        if indices is not None
+        else enumerate(records)
+    )
+    for _, record in selected_records:
+        labels_value = record.get("labels")
+        bboxes_value = record.get("bboxes")
+        name_value = record.get("name")
+        if (
+            not isinstance(labels_value, torch.Tensor)
+            or not isinstance(bboxes_value, torch.Tensor)
+            or not isinstance(name_value, str)
+        ):
+            raise AssertionError("original processed rows must contain labels and name")
+        labels = [int(value) for value in labels_value.tolist()]
+        gold_bboxes = _discrete_bboxes(bboxes_value, recipe)
+        if len(labels) < 1:
+            continue
+        if len(labels) != len(gold_bboxes):
+            raise AssertionError("original labels and bboxes have different lengths")
+        task = tasks[task_index % len(tasks)]
+        task_index += 1
+        input_labels = labels
+        input_bboxes = gold_bboxes
+        output_labels = labels
+        output_bboxes = gold_bboxes
+        if task == "refinement":
+            noisy = bboxes_value.float() + torch.randn_like(bboxes_value.float()) * 0.01
+            input_bboxes = _discrete_bboxes(noisy, recipe)
+            input_labels, input_bboxes = _lexicographic_order(
+                input_labels, input_bboxes
+            )
+            input_labels, input_bboxes = _label_order(
+                recipe, input_labels, input_bboxes
+            )
+            output_labels, output_bboxes = _label_order(recipe, labels, gold_bboxes)
+        elif task in {"gen_t", "gen_ts"}:
+            input_labels, input_bboxes = _lexicographic_order(labels, gold_bboxes)
+            input_labels, input_bboxes = _label_order(
+                recipe, input_labels, input_bboxes
+            )
+        elif task in {"completion", "ugen", "gen_r"}:
+            input_labels, input_bboxes = _lexicographic_order(labels, gold_bboxes)
+            input_labels, input_bboxes = _label_order(
+                recipe, input_labels, input_bboxes
+            )
+            output_labels, output_bboxes = input_labels, input_bboxes
+        relations = _real_relations(input_labels) if task == "gen_r" else []
+        serialized = reference_serialization(
+            recipe,
+            task,
+            labels=output_labels,
+            bboxes=output_bboxes,
+            relations=relations,
+            input_labels=input_labels,
+            input_bboxes=input_bboxes,
+            input_relations=relations,
+        )
+        rows.append(
+            {
+                "name": name_value,
+                "task": task,
+                "task_id": serialized["task_id"],
+                "input_bytes": serialized["input_bytes"],
+                "output_bytes": serialized["output_bytes"],
+                "input_labels": input_labels,
+                "input_bboxes": input_bboxes,
+                "output_labels": output_labels,
+                "output_bboxes": output_bboxes,
+                "relations": relations,
+            }
+        )
+        if indices is None and len(rows) >= recipe.batch_size * 4:
+            break
+    required_rows = len(indices) if indices is not None else recipe.batch_size * 2
+    if len(rows) < required_rows:
+        raise AssertionError(
+            f"S3 needs the requested real rows for {recipe.name}; found {len(rows)}"
+        )
+    return rows
+
+
+def _package_serialized_row(recipe, row: Mapping[str, object]) -> tuple[bytes, bytes]:
+    id2label = dict(reference_label_map(recipe))
+    base = T5LayoutSequence(id2label, add_sep_token=True)
+    task = cast(str, row["task"])
+    input_labels = cast(list[int], row["input_labels"])
+    input_bboxes = cast(list[list[int]], row["input_bboxes"])
+    output_labels = cast(list[int], row["output_labels"])
+    output_bboxes = cast(list[list[int]], row["output_bboxes"])
+    relations = cast(list[tuple[int, int, int, int, int]], row["relations"])
+    if task == "refinement":
+        input_text = base.build_seq(input_labels, input_bboxes)
+    elif task == "completion":
+        input_text = base.build_seq(input_labels[:1], input_bboxes[:1])
+    elif task == "ugen":
+        input_text = ""
+    elif task in {"gen_t", "gen_ts"}:
+        serializer = T5LayoutSequenceForGenT(id2label, add_sep_token=True)
+        input_text = serializer.build_input_seq(
+            task,
+            input_labels,
+            input_bboxes,
+            add_unk_for_label="gen_t_add_unk_token" in recipe.serialization_flags,
+            add_unk_for_label_size="gen_ts_add_unk_token" in recipe.serialization_flags,
+        )
+    elif task == "gen_r":
+        serializer = T5LayoutSequenceForGenR(id2label, add_sep_token=True)
+        input_text = serializer.build_input_seq(
+            input_labels,
+            relations,
+            add_unk_token="gen_r_add_unk_token" in recipe.serialization_flags,
+            compact="gen_r_compact" in recipe.serialization_flags,
+        )
+    else:
+        raise AssertionError(f"unsupported S4 task: {task}")
+    prompt = str(
+        reference_serialization(
+            recipe,
+            task,
+            labels=output_labels,
+            bboxes=output_bboxes,
+            relations=relations,
+            input_labels=input_labels,
+            input_bboxes=input_bboxes,
+            input_relations=relations,
+        )["prompt"]
+    ).lower()
+    input_text = input_text.lower().strip()
+    if "add_task_prompt" in recipe.serialization_flags:
+        input_text = f"{prompt} {input_text}"
+    output_text = base.build_seq(output_labels, output_bboxes).lower().strip()
+    return input_text.encode("utf-8"), output_text.encode("utf-8")
+
+
+def _stream_indices(
+    size: int, batch_size: int, *, shuffle: bool, seed: int
+) -> list[int]:
+    generator = torch.Generator().manual_seed(seed)
+    order = torch.randperm(size, generator=generator) if shuffle else torch.arange(size)
+    count = (size // batch_size) * batch_size
+    return [int(index) for index in order[:count].tolist()]
+
+
+def _run_s4_case(recipe) -> dict[str, object]:
+    _, reference_tokenizer_class = reference_classes()
+    package_tokenizer_value = package_tokenizer(recipe)
+    reference_tokenizer = reference_tokenizer_class(reference_tokens(recipe))
+    first_divergence: dict[str, object] | None = None
+    split_records: dict[str, list[str]] = {}
+    split_batches = (
+        ("train", recipe.batch_size, True),
+        ("val", recipe.eval_batch_size, False),
+    )
+    for split, batch_size, shuffle in split_batches:
+        records = _real_records(recipe, split)
+        if len(records) < batch_size * 2:
+            raise AssertionError(f"{recipe.name}: {split} split lacks two full batches")
+        indices = _stream_indices(len(records), batch_size, shuffle=shuffle, seed=0)
+        indices = indices[: batch_size * 2]
+        rows = _real_serialized_rows(recipe, split, indices=indices)
+        expected_names = [str(records[index]["name"]) for index in indices]
+        actual_names = [cast(str, row["name"]) for row in rows]
+        split_records[split] = actual_names
+        if actual_names != expected_names:
+            first_divergence = first_divergence or {
+                "family": recipe.name,
+                "field": f"{split}_sample_order",
+                "index": next(
+                    index
+                    for index, (actual, expected) in enumerate(
+                        zip(actual_names, expected_names, strict=True)
+                    )
+                    if actual != expected
+                ),
+            }
+        for index, row in enumerate(rows):
+            source_input = cast(bytes, row["input_bytes"])
+            source_output = cast(bytes, row["output_bytes"])
+            package_input, package_output = _package_serialized_row(recipe, row)
+            if source_input != package_input or source_output != package_output:
+                first_divergence = first_divergence or {
+                    "family": recipe.name,
+                    "field": f"{split}_serialization",
+                    "index": index,
+                }
+            source_inputs = reference_tokenizer(
+                [source_input.decode("utf-8")], add_eos=True
+            )
+            package_inputs = package_tokenizer_value.encode_text(
+                [package_input.decode("utf-8")], add_eos=True
+            )
+            source_targets = reference_tokenizer(
+                [source_output.decode("utf-8")], add_eos=True
+            )
+            package_targets = package_tokenizer_value.encode_text(
+                [package_output.decode("utf-8")], add_eos=True
+            )
+            for field, actual, expected in (
+                ("input_ids", package_inputs["input_ids"], source_inputs["input_ids"]),
+                (
+                    "attention_mask",
+                    package_inputs["attention_mask"],
+                    source_inputs["mask"],
+                ),
+                ("labels", package_targets["input_ids"], source_targets["input_ids"]),
+                (
+                    "target_mask",
+                    package_targets["attention_mask"],
+                    source_targets["mask"],
+                ),
+            ):
+                if not torch.equal(actual, expected):
+                    first_divergence = first_divergence or {
+                        "family": recipe.name,
+                        "field": f"{split}_{field}",
+                        "index": index,
+                    }
+            if recipe.name == "publaynet_relation":
+                task_id = cast(int, row["task_id"])
+                if task_id not in recipe.task_ids:
+                    first_divergence = first_divergence or {
+                        "family": recipe.name,
+                        "field": f"{split}_task_ids",
+                        "index": index,
+                    }
+    if set(split_records["train"]) & set(split_records["val"]):
+        first_divergence = first_divergence or {
+            "family": recipe.name,
+            "field": "split_membership",
+            "index": None,
+        }
+    return {
+        "family": recipe.name,
+        "train_batches": 2,
+        "validation_batches": 2,
+        "executed": 4,
+        "first_divergence": first_divergence,
+    }
+
+
+def _real_batches(recipe, reference_tokenizer_class) -> list[dict[str, object]]:
+    rows = _real_serialized_rows(recipe)
+    tokenizer = reference_tokenizer_class(reference_tokens(recipe))
+    package_tokenizer_value = package_tokenizer(recipe)
+    selected_rows: list[dict[str, object]] = []
+    for row in rows:
+        input_text = cast(bytes, row["input_bytes"]).decode("utf-8")
+        output_text = cast(bytes, row["output_bytes"]).decode("utf-8")
+        if (
+            tokenizer([input_text], add_eos=True)["input_ids"].size(1)
+            > recipe.max_position_embeddings
+        ):
+            continue
+        if (
+            tokenizer([output_text], add_eos=True)["input_ids"].size(1)
+            > recipe.max_position_embeddings
+        ):
+            continue
+        selected_rows.append(row)
+        if len(selected_rows) >= recipe.batch_size * 2:
+            break
+    if len(selected_rows) < recipe.batch_size * 2:
+        raise AssertionError(
+            f"S3 needs two valid real batches for {recipe.name}; found {len(selected_rows)}"
+        )
+    batches: list[dict[str, object]] = []
+    for start in range(0, recipe.batch_size * 2, recipe.batch_size):
+        selected = selected_rows[start : start + recipe.batch_size]
+        input_texts = [
+            cast(bytes, row["input_bytes"]).decode("utf-8") for row in selected
+        ]
+        output_texts = [
+            cast(bytes, row["output_bytes"]).decode("utf-8") for row in selected
+        ]
+        reference_inputs = tokenizer(input_texts, add_eos=True)
+        reference_targets = tokenizer(output_texts, add_eos=True)
+        package_inputs = package_tokenizer_value.encode_text(input_texts, add_eos=True)
+        package_targets = package_tokenizer_value.encode_text(
+            output_texts, add_eos=True
+        )
+        if not torch.equal(reference_inputs["input_ids"], package_inputs["input_ids"]):
+            raise AssertionError(
+                f"{recipe.name}: source/package input tokenization diverged"
+            )
+        if not torch.equal(
+            reference_targets["input_ids"], package_targets["input_ids"]
+        ):
+            raise AssertionError(
+                f"{recipe.name}: source/package target tokenization diverged"
+            )
+        if reference_inputs["input_ids"].size(1) > recipe.max_position_embeddings:
+            raise AssertionError(
+                f"{recipe.name}: real input exceeds configured position limit"
+            )
+        if reference_targets["input_ids"].size(1) > recipe.max_position_embeddings:
+            raise AssertionError(
+                f"{recipe.name}: real target exceeds configured position limit"
+            )
+        task_ids = None
+        if recipe.name == "publaynet_relation":
+            task_ids = torch.tensor(
+                [cast(int, row["task_id"]) for row in selected], dtype=torch.long
+            )
+        batches.append(
+            {
+                "input_ids": reference_inputs["input_ids"],
+                "attention_mask": reference_inputs["mask"],
+                "labels": reference_targets["input_ids"],
+                "task_ids": task_ids,
+                "source_names": tuple(cast(str, row["name"]) for row in selected),
+                "source_bytes": tuple(
+                    (cast(bytes, row["input_bytes"]), cast(bytes, row["output_bytes"]))
+                    for row in selected
+                ),
+            }
+        )
+    return batches
+
+
+def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
+    reference_model_class, reference_tokenizer_class = reference_classes()
+    batches = _real_batches(recipe, reference_tokenizer_class)
+    torch.manual_seed(0)
+    reference_model = reference_model_class(
+        vocab_size=recipe.vocab_size,
+        max_len=recipe.max_position_embeddings,
+        bos_token_id=0,
+        pad_token_id=2,
+        eos_token_id=1,
+        d_model=recipe.d_model,
+        nhead=recipe.attention_heads,
+        num_layers=recipe.num_layers,
+        dropout=recipe.dropout,
+        d_feedforward=recipe.d_model * 4,
+        share_embedding=True,
+    ).to(device)
+    module = LayoutFormerPPTrainingModule(
+        recipe_name=recipe.name,
+        config=_s1_package_config(recipe),
+    ).to(device)
+    module.model.load_state_dict(reference_model.state_dict(), strict=True)
+    reference_optimizer = torch.optim.Adam(
+        reference_model.parameters(), lr=recipe.learning_rate
+    )
+    package_configured = cast(dict[str, object], module.configure_optimizers())
+    package_optimizer = cast(torch.optim.Optimizer, package_configured["optimizer"])
+    package_scheduler = cast(
+        LayoutFormerPPWarmupLR,
+        cast(Mapping[str, object], package_configured["lr_scheduler"])["scheduler"],
+    )
+    reference_scheduler = LayoutFormerPPWarmupLR(
+        reference_optimizer,
+        warmup_num_steps=recipe.warmup_num_steps,
+        warmup_max_lr=recipe.learning_rate,
+    )
+    caller_rng = capture_rng_state()
+    first_divergence: dict[str, object] | None = None
+    train_log: list[float] = []
+    reference_log: list[float] = []
+    best_reference = (float("inf"), -1)
+    best_package = (float("inf"), -1)
+    step_records: list[dict[str, object]] = []
+    deterministic_algorithms = torch.are_deterministic_algorithms_enabled()
+    torch.use_deterministic_algorithms(True)
+    try:
+        for step, raw_batch in enumerate(batches):
+            batch = cast(
+                dict[str, torch.Tensor | None],
+                {
+                    key: value.to(device) if isinstance(value, torch.Tensor) else value
+                    for key, value in raw_batch.items()
+                    if key not in {"source_names", "source_bytes"}
+                },
+            )
+            boundary_rng = capture_rng_state()
+            restore_rng_state(boundary_rng)
+            reference_model.train()
+            reference_trace = _reference_pre_optimizer_trace(reference_model, batch)
+            reference_loss = cast(torch.Tensor, reference_trace["loss"])
+            reference_loss.backward()
+            reference_gradients = _gradient_values(reference_model)
+            reference_gradient_norm = _gradient_norm(reference_gradients)
+            if recipe.use_gradient_clipping:
+                torch.nn.utils.clip_grad_norm_(reference_model.parameters(), 5.0)
+            reference_post_gradient_norm = _gradient_norm(
+                _gradient_values(reference_model)
+            )
+            reference_optimizer.step()
+            reference_scheduler.step()
+            reference_optimizer_state = _optimizer_state_values(
+                reference_model, reference_optimizer
+            )
+            reference_optimizer.zero_grad()
+            reference_parameters = _parameter_values(reference_model)
+            reference_after_rng = capture_rng_state()
+
+            restore_rng_state(boundary_rng)
+            module.train()
+            package_trace = module.pre_optimizer_trace(batch)
+            package_loss = package_trace.loss / recipe.gradient_accumulation
+            package_loss.backward()
+            package_gradients = _gradient_values(module.model)
+            package_gradient_norm = _gradient_norm(package_gradients)
+            if recipe.use_gradient_clipping:
+                torch.nn.utils.clip_grad_norm_(module.model.parameters(), 5.0)
+            package_post_gradient_norm = _gradient_norm(_gradient_values(module.model))
+            package_optimizer.step()
+            package_scheduler.step()
+            package_optimizer_state = _optimizer_state_values(
+                module.model, package_optimizer
+            )
+            package_optimizer.zero_grad()
+            package_parameters = _parameter_values(module.model)
+            package_after_rng = capture_rng_state()
+            reference_values = {
+                "loss": float(reference_loss.detach().item()),
+                "gradient_norm": reference_gradient_norm,
+                "post_gradient_norm": reference_post_gradient_norm,
+                "gradients": reference_gradients,
+                "parameters": reference_parameters,
+                "optimizer_state": reference_optimizer_state,
+                "scheduler_last_batch_iteration": float(
+                    reference_scheduler.last_batch_iteration
+                ),
+                "lr": float(reference_optimizer.param_groups[0]["lr"]),
+                "rng_after": _rng_sha256(reference_after_rng),
+                "zero_grad": {
+                    name: parameter.grad is None
+                    for name, parameter in reference_model.named_parameters()
+                },
+            }
+            package_values = {
+                "loss": float(package_trace.loss.detach().item()),
+                "gradient_norm": package_gradient_norm,
+                "post_gradient_norm": package_post_gradient_norm,
+                "gradients": package_gradients,
+                "parameters": package_parameters,
+                "optimizer_state": package_optimizer_state,
+                "scheduler_last_batch_iteration": float(
+                    package_scheduler.last_batch_iteration
+                ),
+                "lr": float(package_optimizer.param_groups[0]["lr"]),
+                "rng_after": _rng_sha256(package_after_rng),
+                "zero_grad": {
+                    name: parameter.grad is None
+                    for name, parameter in module.model.named_parameters()
+                },
+            }
+            difference = _s2_difference(recipe.name, reference_values, package_values)
+            if difference is not None and first_divergence is None:
+                first_divergence = {"step": step, **difference}
+            if not _rng_equal(reference_after_rng, package_after_rng):
+                raise AssertionError(f"{recipe.name}: step {step} RNG states diverged")
+            reference_log.append(reference_values["loss"])
+            train_log.append(package_values["loss"])
+            step_records.append(
+                {
+                    "step": step,
+                    "reference_state_sha256": state_dict_sha256(
+                        reference_model.state_dict()
+                    ),
+                    "package_state_sha256": state_dict_sha256(
+                        module.model.state_dict()
+                    ),
+                    "reference_rng_after_sha256": reference_values["rng_after"],
+                    "package_rng_after_sha256": package_values["rng_after"],
+                    "lr": package_values["lr"],
+                }
+            )
+            reference_model.eval()
+            module.eval()
+            eval_boundary = capture_rng_state()
+            with torch.no_grad():
+                reference_eval = _reference_pre_optimizer_trace(reference_model, batch)
+                package_eval = module.pre_optimizer_trace(batch)
+            eval_after = capture_rng_state()
+            if not _rng_equal(eval_boundary, eval_after):
+                raise AssertionError(f"{recipe.name}: validation consumed RNG")
+            eval_difference = _scalar_difference(
+                "validation_loss",
+                float(package_eval.loss.item()),
+                float(cast(torch.Tensor, reference_eval["loss"]).item()),
+            )
+            if eval_difference is not None and first_divergence is None:
+                first_divergence = {
+                    "step": step,
+                    "family": recipe.name,
+                    **eval_difference,
+                }
+            reference_eval_loss = float(
+                cast(torch.Tensor, reference_eval["loss"]).item()
+            )
+            package_eval_loss = float(package_eval.loss.item())
+            if reference_eval_loss < best_reference[0]:
+                best_reference = (reference_eval_loss, step)
+            if package_eval_loss < best_package[0]:
+                best_package = (package_eval_loss, step)
+        if best_reference[1] != best_package[1]:
+            first_divergence = first_divergence or {
+                "family": recipe.name,
+                "field": "checkpoint_selection",
+                "index": None,
+            }
+        if reference_log != train_log:
+            for index, (reference_loss, package_loss) in enumerate(
+                zip(reference_log, train_log, strict=True)
+            ):
+                if _scalar_difference("logged_loss", package_loss, reference_loss):
+                    first_divergence = first_divergence or {
+                        "family": recipe.name,
+                        "field": "logged_loss",
+                        "index": index,
+                    }
+                    break
+    finally:
+        restore_rng_state(caller_rng)
+        torch.use_deterministic_algorithms(deterministic_algorithms)
+    if not _rng_equal(caller_rng, capture_rng_state()):
+        raise AssertionError(f"{recipe.name}: caller RNG state was not restored")
+    return {
+        "family": recipe.name,
+        "steps": len(step_records),
+        "batches": len(batches),
+        "best_reference_step": best_reference[1],
+        "best_package_step": best_package[1],
+        "step_records": step_records,
+        "first_divergence": first_divergence,
+    }
+
+
 @pytest.mark.parametrize(
     "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
 )
 def test_s1_all_recipe_fixed_batch_pre_optimizer_trace_matches(recipe) -> None:
     """Compare one original/package padded batch before any optimizer mutation."""
     evidence = _run_s1_case(recipe, _s1_device())
+    assert evidence["first_divergence"] is None, json.dumps(
+        evidence["first_divergence"], sort_keys=True
+    )
+
+
+@pytest.mark.parametrize(
+    "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
+)
+def test_s2_all_recipe_one_optimizer_step_matches(recipe) -> None:
+    """Compare one real backward and optimizer update for every recipe."""
+    evidence = _run_s2_case(recipe, _s1_device())
+    assert evidence["first_divergence"] is None, json.dumps(
+        evidence["first_divergence"], sort_keys=True
+    )
+
+
+@pytest.mark.parametrize(
+    "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
+)
+def test_s3_all_recipe_deterministic_multi_batch_run_matches(recipe) -> None:
+    """Compare repeated optimizer, scheduler, logging, and validation branches."""
+    evidence = _run_s3_case(recipe, _s1_device())
+    assert evidence["first_divergence"] is None, json.dumps(
+        evidence["first_divergence"], sort_keys=True
+    )
+
+
+@pytest.mark.parametrize(
+    "recipe", tuple(TRAINING_RECIPES.values()), ids=lambda item: item.name
+)
+def test_s4_all_recipe_deterministic_loader_stream_matches(recipe) -> None:
+    """Compare authoritative train and validation streams for every recipe."""
+    evidence = _run_s4_case(recipe)
     assert evidence["first_divergence"] is None, json.dumps(
         evidence["first_divergence"], sort_keys=True
     )
