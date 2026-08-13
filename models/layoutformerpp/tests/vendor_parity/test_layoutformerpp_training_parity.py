@@ -6,6 +6,7 @@ import math
 import os
 import random
 import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
@@ -14,8 +15,6 @@ import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import ModelCheckpoint
 
 from laygen.common import DatasetName
 
@@ -1399,66 +1398,108 @@ def _run_s3_case(recipe, device: torch.device) -> dict[str, object]:
     }
 
 
-def _run_s3_trainer_fit_wiring_case(
-    device: torch.device, tmp_path: Path
-) -> dict[str, object]:
-    recipe = TRAINING_RECIPES_BY_NAME["rico25_label"]
-    checkpoint = ModelCheckpoint(
-        dirpath=tmp_path / "checkpoints",
-        monitor="val_loss",
-        mode="min",
-        save_top_k=1,
-        save_last=False,
-    )
-    module = LayoutFormerPPTrainingModule(
-        recipe_name=recipe.name,
-        config=_s1_package_config(recipe),
-    )
-    data_module = LayoutFormerPPDataModule(
-        recipe_name=recipe.name,
-        data_root=str(_real_data_root()),
-        num_workers=0,
-    )
-    trainer = Trainer(
-        accelerator="gpu" if device.type == "cuda" else "cpu",
-        devices=1,
-        precision="32-true",
-        max_epochs=1,
-        limit_train_batches=2,
-        limit_val_batches=2,
-        num_sanity_val_steps=0,
-        check_val_every_n_epoch=1,
-        accumulate_grad_batches=1,
-        callbacks=[checkpoint],
-        logger=False,
-        enable_progress_bar=False,
-        enable_model_summary=False,
-        log_every_n_steps=1,
-        deterministic=True,
-    )
-    trainer.fit(module, datamodule=data_module)
+PRODUCTION_FIT_RECIPE_NAMES = (
+    "rico25_label",
+    "rico25_label_size",
+    "rico25_relation",
+    "rico25_refinement",
+    "rico25_completion",
+    "rico25_unconditional",
+    "publaynet_label",
+    "publaynet_label_size",
+    "publaynet_relation",
+    "publaynet_refinement",
+)
 
-    expected_optimizer_steps = 2
-    scheduler = cast(LayoutFormerPPWarmupLR, trainer.lr_scheduler_configs[0].scheduler)
-    optimizer = trainer.optimizers[0]
-    expected_lr = (
-        recipe.learning_rate
-        * math.log(expected_optimizer_steps)
-        / math.log(recipe.warmup_num_steps)
+
+def _run_s3_production_fit_case(recipe_name: str, tmp_path: Path) -> dict[str, object]:
+    """Run one real bounded fit through the documented ``traingen`` entrypoint."""
+    recipe = TRAINING_RECIPES_BY_NAME[recipe_name]
+    project_root = Path(__file__).resolve().parents[4]
+    config = (
+        project_root / "models/layoutformerpp/configs/training" / f"{recipe_name}.yaml"
     )
-    logged_metrics = {str(key) for key in trainer.callback_metrics}
+    output_root = tmp_path / recipe_name
+    traingen = Path(sys.executable).with_name("traingen")
+    assert traingen.is_file(), f"compatible environment is missing {traingen}"
+    command = [
+        str(traingen),
+        "fit",
+        "--config",
+        str(config),
+        "--trainer.accelerator=gpu",
+        "--trainer.devices=1",
+        "--trainer.max_epochs=1",
+        "--trainer.max_steps=2",
+        "--trainer.limit_train_batches=2",
+        "--trainer.limit_val_batches=2",
+        "--trainer.num_sanity_val_steps=0",
+        "--trainer.check_val_every_n_epoch=1",
+        "--trainer.log_every_n_steps=1",
+        f"--trainer.default_root_dir={output_root}",
+        "--trainer.enable_progress_bar=false",
+        "--trainer.enable_model_summary=false",
+        "--model.init_args.config.d_model=8",
+        "--model.init_args.config.encoder_layers=1",
+        "--model.init_args.config.decoder_layers=1",
+        "--model.init_args.config.encoder_attention_heads=2",
+        "--model.init_args.config.decoder_attention_heads=2",
+        "--model.init_args.config.dim_feedforward=16",
+        "--model.init_args.config.dropout=0.0",
+    ]
+    environment = {
+        **os.environ,
+        "CUDA_VISIBLE_DEVICES": "0",
+        "PARITY_REQUIRE": "1",
+        "LAYOUTFORMERPP_PARITY_DATA_ROOT": str(_real_data_root()),
+    }
+    completed = subprocess.run(
+        command,
+        cwd=project_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, (
+        f"{recipe_name} documented traingen fit exited {completed.returncode}\n"
+        f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+    )
+    checkpoints = sorted(output_root.rglob("*.ckpt"))
+    assert checkpoints, f"{recipe_name}: no ModelCheckpoint file under {output_root}"
+    metrics = sorted(output_root.rglob("metrics.csv"))
+    assert metrics, f"{recipe_name}: no CSV logger output under {output_root}"
+    metric_text = metrics[-1].read_text(encoding="utf-8")
+    assert "train_loss" in metric_text
+    assert "val_loss" in metric_text
+    checkpoint_payload = torch.load(
+        checkpoints[-1], map_location="cpu", weights_only=False
+    )
+    assert isinstance(checkpoint_payload, dict)
+    scheduler_state = checkpoint_payload.get("lr_schedulers", [{}])[0]
+    assert isinstance(scheduler_state, dict)
+    callback_states = checkpoint_payload.get("callbacks", {})
+    selected_checkpoint = any(
+        isinstance(state, dict) and state.get("best_model_path")
+        for state in callback_states.values()
+    )
+    expected_lr = recipe.learning_rate * math.log(2) / math.log(recipe.warmup_num_steps)
     return {
-        "config_families": len(TRAINING_RECIPES),
-        "expected_optimizer_steps": expected_optimizer_steps,
-        "global_step": trainer.global_step,
-        "logged_train_loss": "train_loss" in logged_metrics,
-        "logged_val_loss": "val_loss" in logged_metrics,
-        "scheduler_interval": trainer.lr_scheduler_configs[0].interval,
-        "scheduler_last_epoch": scheduler.last_epoch,
-        "lr": float(optimizer.param_groups[0]["lr"]),
+        "recipe": recipe.name,
+        "exit_code": completed.returncode,
+        "global_step": checkpoint_payload.get("global_step"),
+        "optimizer_steps": checkpoint_payload.get("loops", {})
+        .get("fit_loop", {})
+        .get("epoch_loop.state_dict", {})
+        .get("_batches_that_stepped"),
+        "optimizer_state_count": len(checkpoint_payload.get("optimizer_states", [])),
+        "scheduler_last_epoch": scheduler_state.get("last_epoch"),
+        "scheduler_last_lr": scheduler_state.get("_last_lr", [None])[0],
         "expected_lr": expected_lr,
-        "checkpoint_selected": bool(checkpoint.best_model_path),
-        "checkpoint_file": Path(checkpoint.best_model_path).is_file(),
+        "checkpoint_selected": selected_checkpoint,
+        "checkpoint_file": str(checkpoints[-1].relative_to(tmp_path)),
+        "metrics_file": str(metrics[-1].relative_to(tmp_path)),
+        "metric_text": metric_text,
     }
 
 
@@ -1497,18 +1538,23 @@ def test_s3_all_recipe_deterministic_multi_batch_run_matches(recipe) -> None:
     )
 
 
-def test_s3_production_trainer_fit_wiring_smoke(tmp_path: Path) -> None:
-    """Exercise Trainer.fit and prove all twelve configs share its wiring."""
-    evidence = _run_s3_trainer_fit_wiring_case(_s1_device(), tmp_path)
-    assert evidence["config_families"] == len(TRAINING_RECIPES)
-    assert evidence["global_step"] == evidence["expected_optimizer_steps"]
-    assert evidence["scheduler_interval"] == "step"
-    assert evidence["scheduler_last_epoch"] == cast(int, evidence["global_step"]) - 1
-    assert evidence["lr"] == pytest.approx(evidence["expected_lr"])
-    assert evidence["logged_train_loss"] is True
-    assert evidence["logged_val_loss"] is True
+@pytest.mark.parametrize("recipe_name", PRODUCTION_FIT_RECIPE_NAMES)
+def test_s3_production_traingen_fit_wiring_representatives(
+    recipe_name: str, tmp_path: Path
+) -> None:
+    """Exercise every distinct production fit branch through the console script."""
+    _s1_device()
+    evidence = _run_s3_production_fit_case(recipe_name, tmp_path)
+    assert evidence["exit_code"] == 0
+    assert evidence["global_step"] == 2
+    assert evidence["optimizer_steps"] == 2
+    assert evidence["optimizer_state_count"] == 1
+    assert evidence["scheduler_last_epoch"] == 1
+    assert evidence["scheduler_last_lr"] == pytest.approx(evidence["expected_lr"])
     assert evidence["checkpoint_selected"] is True
-    assert evidence["checkpoint_file"] is True
+    assert evidence["checkpoint_file"]
+    assert "train_loss" in cast(str, evidence["metric_text"])
+    assert "val_loss" in cast(str, evidence["metric_text"])
 
 
 @pytest.mark.parametrize(
