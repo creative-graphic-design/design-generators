@@ -11,7 +11,7 @@ trainer:
   gradient_clip_val: 1.0
   num_sanity_val_steps: 0
 model:
-  class_path: layout_dm.training.lightning_module.LayoutDMTrainingModule
+  class_path: layout_dm.training.LayoutDMTrainingModule
   init_args:
     config:
       class_path: layout_dm.LayoutDMConfig
@@ -30,7 +30,7 @@ model:
     scheduler: reduce_on_plateau
     seed_mode: deterministic
 data:
-  class_path: layout_dm.training.datamodule.LayoutDMDataModule
+  class_path: layout_dm.training.LayoutDMDataModule
   init_args:
     dataset_name: rico25
     config:

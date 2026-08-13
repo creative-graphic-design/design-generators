@@ -10,7 +10,7 @@ trainer:
   enable_model_summary: false
   default_root_dir: .cache/dlt/smoke
 model:
-  class_path: dlt.training.lightning_module.DLTTrainingModule
+  class_path: dlt.training.DLTTrainingModule
   init_args:
     config:
       class_path: dlt.configuration_dlt.DLTConfig
@@ -34,12 +34,12 @@ model:
         eps: 1.0e-8
         weight_decay: 1.0e-6
     lr_scheduler:
-      class_path: dlt.training.lightning_module.DLTWarmupCosineSchedulerFactory
+      class_path: dlt.training.DLTWarmupCosineSchedulerFactory
       init_args:
         num_warmup_steps: 1
         num_training_steps: 1
 data:
-  class_path: dlt.training.datamodule.DLTDataModule
+  class_path: dlt.training.DLTDataModule
   init_args:
     batch_size: 2
     length: 4

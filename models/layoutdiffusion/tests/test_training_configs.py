@@ -34,19 +34,16 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
         assert "class_path:" in text
         assert "init_args:" in text
         assert (
+            "class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule" in text
+        )
+        assert "class_path: layoutdiffusion.training.LayoutDiffusionDataModule" in text
+        assert (
             "class_path: layoutdiffusion.training.lightning_module.LayoutDiffusionTrainingModule"
-            in text
-        )
-        assert (
-            "class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule"
-            in text
-        )
-        assert (
-            "class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule"
             not in text
         )
         assert (
-            "class_path: layoutdiffusion.training.LayoutDiffusionDataModule" not in text
+            "class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule"
+            not in text
         )
 
 

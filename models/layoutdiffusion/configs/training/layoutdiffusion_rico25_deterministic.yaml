@@ -12,7 +12,7 @@ trainer:
   gradient_clip_val: 0.0
   num_sanity_val_steps: 0
 model:
-  class_path: layoutdiffusion.training.lightning_module.LayoutDiffusionTrainingModule
+  class_path: layoutdiffusion.training.LayoutDiffusionTrainingModule
   init_args:
     config:
       class_path: layoutdiffusion.LayoutDiffusionConfig
@@ -36,7 +36,7 @@ model:
     ema_rate: 0.9999
     seed_mode: deterministic
 data:
-  class_path: layoutdiffusion.training.datamodule.LayoutDiffusionDataModule
+  class_path: layoutdiffusion.training.LayoutDiffusionDataModule
   init_args:
     dataset_name: rico25
     config:

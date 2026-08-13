@@ -14,15 +14,16 @@ def test_training_configs_use_lightning_cli_shape_without_hydra_keys() -> None:
         assert "defaults:" not in text
         assert "class_path:" in text
         assert "init_args:" in text
+        assert "class_path: layout_flow.training.LayoutFlowTrainingModule" in text
+        assert "class_path: layout_flow.training.LayoutFlowDataModule" in text
         assert (
             "class_path: layout_flow.training.lightning_module.LayoutFlowTrainingModule"
-            in text
+            not in text
         )
         assert (
-            "class_path: layout_flow.training.datamodule.LayoutFlowDataModule" in text
+            "class_path: layout_flow.training.datamodule.LayoutFlowDataModule"
+            not in text
         )
-        assert "class_path: layout_flow.training.LayoutFlowTrainingModule" not in text
-        assert "class_path: layout_flow.training.LayoutFlowDataModule" not in text
 
 
 def test_training_namespace_exports_when_lightning_is_installed() -> None:

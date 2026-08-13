@@ -335,7 +335,7 @@ def test_reference_epoch_sampling_callback_requires_validation_dataset() -> None
 
 @pytest.mark.training
 @pytest.mark.parametrize("config_name", CONFIG_NAMES)
-def test_training_config_resolves_leaf_class_paths(config_name: str) -> None:
+def test_training_config_resolves_namespace_class_paths(config_name: str) -> None:
     cli = lightning_cli_class()(
         model_class=None,
         datamodule_class=None,

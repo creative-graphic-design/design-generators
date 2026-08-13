@@ -16,7 +16,7 @@ trainer:
         save_last: true
         filename: "epoch={epoch:02d}-val_loss={val_loss:.4f}"
 model:
-  class_path: layout_dm.training.lightning_module.LayoutDMTrainingModule
+  class_path: layout_dm.training.LayoutDMTrainingModule
   init_args:
     config:
       class_path: layout_dm.LayoutDMConfig
@@ -39,7 +39,7 @@ model:
     scheduler_threshold: 0.01
     seed_mode: default
 data:
-  class_path: layout_dm.training.datamodule.LayoutDMDataModule
+  class_path: layout_dm.training.LayoutDMDataModule
   init_args:
     dataset_name: rico25
     config:
