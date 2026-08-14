@@ -9,11 +9,14 @@ tags:
 # RALF Training
 
 This document records package-local training commands and staged reproduction
-evidence for RALF. CGL has accepted S0-S4 evidence and two-layer S3 diagnostic
-evidence at one seed; PKU loader and full-run reproduction are not claimed.
-S3's final protocol acceptance and the S5 scope remain pending the general
-trajectory decision in meta issue #268. No S5 or real-scale 300-step probe has
-been run.
+evidence for RALF. CGL has accepted S0-S4 evidence under the general S3
+Evidence Layers rule at one seed; PKU loader and full-run reproduction are not
+claimed.
+CGL S3 is formally accepted under the general S3 Evidence Layers rule: natural
+runs 009/010 left the existing S0-S2 contract, synchronized run-012 supplied a
+bounded contract-internal PASS, and the production-wiring layer is recorded
+independently. Only the S5 scope remains pending. No S5 or real-scale 300-step
+probe has been run.
 
 Run commands from the repository root. Generated data, logs, checkpoints, and
 downloaded assets remain under `.cache/ralf/` or the authoritative cache
@@ -106,9 +109,9 @@ must not be inferred from the CGL stage ladder.
 | S0 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S0 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json --seed 1` | `.cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json` | PASS; artifact SHA256 `8c9982060b791a8fb34e1b122dec281a59d9ada18e260063212935e3b62b0dc0`. |
 | S1 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S1 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json` | PASS; artifact SHA256 `88b08d6b80b6c95af3c48501a89c280514a3086cb6f6550272a43419f22291d1`. |
 | S2 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json` | PASS; artifact SHA256 `22825974c7c8aeca7f29724253c24d667f3823293919a0c26819845bf0193f27`. |
-| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor traingen fit --config models/ralf/configs/training/cgl.yaml ...` | `.cache/ralf/training-reproduction/cgl/s3/runs/run-012/trace/s3-trace.json` | Two-layer diagnostic PASS; synchronized run-012 first divergence `null`, with final protocol acceptance pending #268. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor traingen fit --config models/ralf/configs/training/cgl.yaml ...` | `.cache/ralf/training-reproduction/cgl/s3/runs/run-012/trace/s3-trace.json` | PASS under the general S3 Evidence Layers rule: natural runs 009/010 left the S0-S2 contract; synchronized run-012 bounded PASS with first divergence `null`; production wiring is recorded independently. |
 | S4 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json` | PASS; artifact SHA256 `4c989f7e87444d2275d775c06fadcdcfbcff36acf18caca013f6ec156a7106c8`. |
-| S5 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --trainer.max_epochs=70` | `.cache/ralf/training-reproduction/cgl/s5/` | Not started; coordinator authorization is pending after #268, so this command has not been run. |
+| S5 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --trainer.max_epochs=70` | `.cache/ralf/training-reproduction/cgl/s5/` | Not started; S5 scope remains pending coordinator authorization for issue #44, so this command has not been run. |
 
 `RALF_AUDIT_PYTHON` and `RALF_CACHE_DIR` in the table are the explicit
 environment variables shown in [Regeneration Metadata](#regeneration-metadata).
@@ -117,31 +120,34 @@ environment variables shown in [Regeneration Metadata](#regeneration-metadata).
 
 CGL package-local training currently has accepted S0-S4 staged evidence at
 `training-seed n=1`, including exact authoritative train/validation stream
-parity and a two-layer S3 diagnostic. S5 full-run training and evaluation have
-not started, and PKU has no accepted training-stage evidence; therefore no
-trained-checkpoint reproduction claim is made for any listed checkpoint.
+parity and formally accepted general-rule S3 evidence. S5 full-run training and
+evaluation have not started, and PKU has no accepted training-stage evidence;
+therefore no trained-checkpoint reproduction claim is made for any listed
+checkpoint.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CGL unconditional | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | S0-S4 PASS; S4 16 batches / 512 samples; first divergence `null` | S1 loss max_abs `1.430511474609375e-06`; S2 raw gradient max_abs `2.1886080503463745e-08` | `.cache/ralf/training-reproduction/cgl/` |
-| CGL label | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
-| CGL label-size | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
-| CGL completion | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
-| CGL refinement | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
-| CGL relation | package/vendor staged path | `not-yet-run (#44 S5 pending)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
-| PKU unconditional | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
-| PKU label | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
-| PKU label-size | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
-| PKU completion | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
-| PKU refinement | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
-| PKU relation | package | `not-yet-run (#44 PKU pending)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| CGL unconditional | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | S0-S4 PASS; S4 16 batches / 512 samples; first divergence `null` | S1 loss max_abs `1.430511474609375e-06`; S2 raw gradient max_abs `2.1886080503463745e-08` | `.cache/ralf/training-reproduction/cgl/` |
+| CGL label | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
+| CGL label-size | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
+| CGL completion | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
+| CGL refinement | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
+| CGL relation | package/vendor staged path | `not-yet-run (S5 pending; tracked in issue #44)` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
+| PKU unconditional | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| PKU label | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| PKU label-size | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| PKU completion | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| PKU refinement | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
+| PKU relation | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
 
-The S3 diagnostic has two deliberately separate layers. Natural runs 009/010
-recorded run-to-run warn-only drift; synchronized run-012 restored state at
-optimizer boundaries and compared forward values, raw/clipped gradients,
-optimizer state, parameters, and learning rates. Run-012 recorded 210 optimizer
-steps, crossed the epoch-49 `MultiStepLR` milestone, delivered train and
-validation logging for 70/70 epochs, and exited the documented `traingen fit`
+The S3 evidence follows the general S3 Evidence Layers rule. Natural runs
+009/010 recorded run-to-run warn-only drift and left the existing S0-S2
+contract, so synchronized run-012 restored state at optimizer boundaries and
+compared forward values, raw/clipped gradients, optimizer state, parameters,
+and learning rates. The synchronized layer is a bounded PASS with no tolerance
+widening. The independent production-wiring representative recorded 210
+optimizer steps, crossed the epoch-49 `MultiStepLR` milestone, delivered train
+and validation logging for 70/70 epochs, and exited the documented `traingen fit`
 command with code 0. Its synchronized maxima were raw gradient
 `5.587935447692871e-08`, clipped gradient `4.6566128730773926e-09`, parameters
 `4.76837158203125e-07`, and optimizer state `4.656612873077393e-10`, with no

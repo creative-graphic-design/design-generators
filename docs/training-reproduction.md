@@ -31,27 +31,6 @@ Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missin
 
 ## Stage Rules
 
-#### RALF issue #44 warn-only S3 evidence
-
-For the RALF issue #44 S3 diagnostic, when the effective runtime uses
-PyTorch's deterministic-algorithm warning mode, record two separate evidence
-layers. First, run a state-synchronized lockstep at each optimizer boundary and
-compare the forward values, raw and clipped gradients, optimizer state,
-parameters, and learning rates with the existing S0-S2 contract. This is a
-graph/operator/module-order diagnostic and is not, by itself, production
-trajectory parity. Second, record the natural, state-unsynchronized package and
-original trajectory separately, including per-step drift, loss, gradient,
-parameter, and learning-rate values, the first divergence, and a repeat envelope
-under the same seed and data. Do not introduce a new warn-only drift threshold
-or widen an existing tolerance; report the measured values and apply the
-existing contracts.
-
-Before creating a disposable lockstep callback, smoke-test its Lightning callback
-signatures with a no-op callback and tensor hook. For view- or in-place-heavy
-graphs, prefer a no-op `Tensor.register_hook` on the explicit tensor under test
-over `register_full_backward_hook`; this smoke only validates the diagnostic
-surface and is not parity evidence.
-
 ### Step Parity and Full-Run Parity
 
 S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
