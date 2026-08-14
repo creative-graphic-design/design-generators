@@ -14,6 +14,7 @@ from ralf.training.config import (  # noqa: E402
 )
 from ralf.training.datamodule import (  # noqa: E402
     RalfTrainingDataset,
+    _sorted_layout,
     encode_training_sample,
 )
 from ralf.training.lightning_module import RalfTrainingModule  # noqa: E402
@@ -108,3 +109,42 @@ def test_training_dataset_rejects_missing_retrieval_rows() -> None:
             retrieval_table={},
             retrieval_samples=[],
         )
+
+
+def test_sorted_layout_matches_vendor_transform_order() -> None:
+    config = RalfConfig(dataset_name="cgl", max_seq_length=4)
+    sample = {
+        "label": [2, 3, 2],
+        "center_x": [0.5, 0.5, 0.5],
+        "center_y": [0.8, 0.1, 0.2],
+        "width": [0.1, 0.1, 0.1],
+        "height": [0.1, 0.1, 0.1],
+    }
+
+    sorted_layout = _sorted_layout(sample, config)
+
+    assert sorted_layout["labels"].tolist() == [3, 2, 2, 0]
+
+
+def test_sorted_layout_uses_vendor_source_float_order_for_ties() -> None:
+    config = RalfConfig(dataset_name="cgl", max_seq_length=2)
+    sample = {
+        "label": [2, 2],
+        "center_x": [0.4, 0.4],
+        "center_y": [0.398, 0.3993333333333333],
+        "width": [0.1, 0.1],
+        "height": [0.028, 0.0306666666666667],
+    }
+
+    sorted_layout = _sorted_layout(sample, config)
+
+    assert torch.equal(
+        sorted_layout["bbox"],
+        torch.tensor(
+            [
+                [0.4, 0.3993333333333333, 0.1, 0.0306666666666667],
+                [0.4, 0.398, 0.1, 0.028],
+            ],
+            dtype=torch.float32,
+        ),
+    )

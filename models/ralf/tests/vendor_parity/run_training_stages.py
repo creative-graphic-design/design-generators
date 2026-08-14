@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping, Sequence
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -19,6 +20,7 @@ import torch
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch import Tensor
+from torch.utils.data import DataLoader
 from traingen_parity.determinism import RNGState, capture_rng_state, restore_rng_state
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
@@ -494,6 +496,50 @@ def _copy_batch_to_cpu(value: object) -> object:
     if isinstance(value, Mapping):
         return {key: _copy_batch_to_cpu(item) for key, item in value.items()}
     return value
+
+
+def _serialized_sha256(value: object) -> str:
+    """Hash a stream value with names, tensor metadata, and tensor bytes."""
+    digest = hashlib.sha256()
+
+    def update(item: object, path: str) -> None:
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        if isinstance(item, Tensor):
+            tensor = item.detach().cpu().contiguous()
+            digest.update(b"tensor\0")
+            digest.update(str(tensor.dtype).encode("utf-8"))
+            digest.update(repr(tuple(tensor.shape)).encode("utf-8"))
+            digest.update(tensor.numpy().tobytes())
+            return
+        if isinstance(item, RalfRetrievedBatch):
+            update(
+                {
+                    "image": item.image,
+                    "saliency": item.saliency,
+                    "bbox": item.bbox,
+                    "labels": item.labels,
+                    "mask": item.mask,
+                    "indexes": item.indexes,
+                },
+                f"{path}.retrieved",
+            )
+            return
+        if isinstance(item, Mapping):
+            digest.update(b"mapping\0")
+            for key in sorted(item, key=str):
+                update(item[key], f"{path}.{key}")
+            return
+        if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
+            digest.update(b"sequence\0")
+            for index, nested in enumerate(item):
+                update(nested, f"{path}[{index}]")
+            return
+        digest.update(type(item).__name__.encode("utf-8"))
+        digest.update(repr(item).encode("utf-8"))
+
+    update(value, "root")
+    return digest.hexdigest()
 
 
 def _gradient_l2_norm(model: torch.nn.Module) -> Tensor:
@@ -1669,18 +1715,30 @@ def _s4(
     context: Mapping[str, object],
     steps: int,
 ) -> dict[str, object]:
-    if data.train_dataset is None:
-        raise RuntimeError("S4 package dataset is unavailable")
+    if config.dataset_name != "cgl":
+        raise RuntimeError("S4 is scoped to CGL; PKU stream evidence is not claimed")
+    if data.train_dataset is None or data.validation_dataset is None:
+        raise RuntimeError("S4 package train and validation datasets are unavailable")
+    if steps < 1:
+        raise ValueError("S4 requires at least one loader batch")
+    _ = context
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
     require_vendor = __import__(
         "training_reference", fromlist=["require_vendor"]
     ).require_vendor
     require_vendor(args.cache_dir)
+    import image2layout.train.global_variables as vendor_globals
+
+    vendor_globals.PRECOMPUTED_WEIGHT_DIR = str(
+        args.cache_dir / "PRECOMPUTED_WEIGHT_DIR"
+    )
+    from image2layout.train.config import get_mock_train_cfg
+    from image2layout.train.data import collate_fn as vendor_collate_fn
     from image2layout.train.data import get_dataset as vendor_get_dataset
+    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
     from image2layout.train.helpers.retrieval_dataset_wrapper import (
         RetrievalDatasetWrapper,
     )
-    from image2layout.train.config import get_mock_train_cfg
-    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
 
     data_cfg = get_mock_train_cfg(
         config.max_seq_length, str(args.cache_dir / "dataset" / "cgl")
@@ -1698,159 +1756,339 @@ def _s4(
         is_loc_vocab_shared=config.is_loc_vocab_shared,
         geo_quantization=config.geo_quantization,
     )
-    vendor_wrapper = RetrievalDatasetWrapper(
-        dataset_name="cgl",
-        dataset=vendor_dataset["train"],
-        db_dataset=vendor_dataset["train"],
-        split="train",
-        top_k=config.top_k,
-        max_seq_length=config.max_seq_length,
-        retrieval_backbone=config.retrieval_backbone,
-        random_retrieval=False,
-        saliency_k="None",
-    )
-    checked = 0
-    first_mismatch: str | None = None
-    for start in range(
-        0, min(len(data.train_dataset), steps * args.batch_size), args.batch_size
-    ):
-        count = min(args.batch_size, len(data.train_dataset) - start)
-        for index in range(start, start + count):
-            package_item = data.train_dataset[index]
-            vendor_item = vendor_wrapper[index]
-            vendor_labels = torch.as_tensor(vendor_item["label"], dtype=torch.long)
-            vendor_bbox = torch.stack(
-                [
-                    torch.as_tensor(vendor_item[key], dtype=torch.float32)
-                    for key in ("center_x", "center_y", "width", "height")
-                ],
-                dim=-1,
+
+    package_datasets = {
+        "train": data.train_dataset,
+        "val": data.validation_dataset,
+    }
+    vendor_wrappers = {
+        split: RetrievalDatasetWrapper(
+            dataset_name="cgl",
+            dataset=vendor_dataset[split],
+            db_dataset=vendor_dataset["train"],
+            split=split,
+            top_k=config.top_k,
+            max_seq_length=config.max_seq_length,
+            retrieval_backbone=config.retrieval_backbone,
+            random_retrieval=False,
+            saliency_k="None",
+        )
+        for split in ("train", "val")
+    }
+    package_loaders = {
+        "train": data.train_dataloader(),
+        "val": data.val_dataloader(),
+    }
+    vendor_loaders = {
+        split: DataLoader(
+            wrapper,
+            batch_size=args.batch_size,
+            shuffle=split == "train",
+            num_workers=0,
+            pin_memory=True,
+            collate_fn=partial(vendor_collate_fn, max_seq_length=config.max_seq_length),
+            drop_last=False,
+        )
+        for split, wrapper in vendor_wrappers.items()
+    }
+
+    def _first_difference(actual: object, expected: object, path: str) -> str | None:
+        if isinstance(actual, Tensor) and isinstance(expected, Tensor):
+            return None if torch.equal(actual, expected) else path
+        if isinstance(actual, Mapping) and isinstance(expected, Mapping):
+            if set(actual) != set(expected):
+                return path
+            for key in sorted(actual, key=str):
+                difference = _first_difference(
+                    actual[key], expected[key], f"{path}.{key}"
+                )
+                if difference is not None:
+                    return difference
+            return None
+        if isinstance(actual, RalfRetrievedBatch) and isinstance(
+            expected, RalfRetrievedBatch
+        ):
+            return _first_difference(
+                {
+                    "image": actual.image,
+                    "saliency": actual.saliency,
+                    "bbox": actual.bbox,
+                    "labels": actual.labels,
+                    "mask": actual.mask,
+                    "indexes": actual.indexes,
+                },
+                {
+                    "image": expected.image,
+                    "saliency": expected.saliency,
+                    "bbox": expected.bbox,
+                    "labels": expected.labels,
+                    "mask": expected.mask,
+                    "indexes": expected.indexes,
+                },
+                path,
             )
-            length = vendor_labels.numel()
-            vendor_mask = torch.ones(length, dtype=torch.bool)
-            vendor_labels = torch.cat(
+        return None if actual == expected else path
+
+    def _package_record(
+        item: Mapping[str, object], sample_id: object
+    ) -> dict[str, object]:
+        retrieved = cast(RalfRetrievedBatch, item["retrieved"])
+        bbox = cast(Tensor, item["layout_bbox"])
+        return {
+            "id": str(sample_id),
+            "image": cast(Tensor, item["pixel_values"]),
+            "saliency": cast(Tensor, item["saliency"]),
+            "labels": cast(Tensor, item["layout_labels"]),
+            "bbox": bbox,
+            "mask": cast(Tensor, item["layout_mask"]),
+            "tokens": torch.cat(
                 [
-                    vendor_labels,
-                    torch.zeros(config.max_seq_length - length, dtype=torch.long),
-                ]
-            )
-            vendor_bbox = torch.cat(
-                [vendor_bbox, torch.zeros(config.max_seq_length - length, 4)], dim=0
-            )
-            vendor_mask = torch.cat(
-                [
-                    vendor_mask,
-                    torch.zeros(config.max_seq_length - length, dtype=torch.bool),
-                ]
-            )
-            fields = {
-                "image": (
-                    cast(Tensor, package_item["pixel_values"]),
-                    cast(Tensor, vendor_item["image"]),
-                ),
-                "saliency": (
-                    cast(Tensor, package_item["saliency"]),
-                    cast(Tensor, vendor_item["saliency"]),
-                ),
-                "layout_labels": (
-                    cast(Tensor, package_item["layout_labels"]),
-                    vendor_labels,
-                ),
-                "layout_bbox": (cast(Tensor, package_item["layout_bbox"]), vendor_bbox),
-                "layout_mask": (cast(Tensor, package_item["layout_mask"]), vendor_mask),
-            }
-            for name, (actual, expected) in fields.items():
-                if not torch.equal(actual, expected):
-                    first_mismatch = f"sample[{index}].{name}"
-                    break
-            if first_mismatch is not None:
-                break
-            package_retrieved = cast(RalfRetrievedBatch, package_item["retrieved"])
-            vendor_retrieved = cast(
-                list[Mapping[str, object]], vendor_item["retrieved"]
-            )[0]
-            for name, actual, expected in (
-                (
-                    "retrieved.image",
-                    package_retrieved.image[0],
-                    cast(Tensor, vendor_retrieved["image"]),
-                ),
-                (
-                    "retrieved.saliency",
-                    package_retrieved.saliency[0],
-                    cast(Tensor, vendor_retrieved["saliency"]),
-                ),
-                (
-                    "retrieved.center_x",
-                    package_retrieved.bbox[0, ..., 0],
-                    cast(Tensor, vendor_retrieved["center_x"]),
-                ),
-                (
-                    "retrieved.center_y",
-                    package_retrieved.bbox[0, ..., 1],
-                    cast(Tensor, vendor_retrieved["center_y"]),
-                ),
-                (
-                    "retrieved.width",
-                    package_retrieved.bbox[0, ..., 2],
-                    cast(Tensor, vendor_retrieved["width"]),
-                ),
-                (
-                    "retrieved.height",
-                    package_retrieved.bbox[0, ..., 3],
-                    cast(Tensor, vendor_retrieved["height"]),
-                ),
-                (
-                    "retrieved.label",
-                    package_retrieved.labels[0],
-                    cast(Tensor, vendor_retrieved["label"]),
-                ),
-                (
-                    "retrieved.mask",
-                    package_retrieved.mask[0],
-                    cast(Tensor, vendor_retrieved["mask"]),
-                ),
-            ):
-                if not torch.equal(actual, expected):
-                    first_mismatch = f"sample[{index}].{name}"
-                    break
-            if first_mismatch is not None:
-                break
-            package_full = torch.cat(
-                [
-                    cast(Tensor, package_item["input_ids"])[None, :1],
-                    cast(Tensor, package_item["labels"])[None],
+                    cast(Tensor, item["input_ids"])[None, :1],
+                    cast(Tensor, item["labels"])[None],
                 ],
                 dim=1,
-            )
-            vendor_full = cast(
-                Tensor,
-                vendor_tokenizer.encode(
-                    {
-                        "label": vendor_labels[None],
-                        "center_x": vendor_bbox[None, ..., 0],
-                        "center_y": vendor_bbox[None, ..., 1],
-                        "width": vendor_bbox[None, ..., 2],
-                        "height": vendor_bbox[None, ..., 3],
-                        "mask": vendor_mask[None],
-                    }
-                )["seq"],
-            )
-            if not torch.equal(package_full, vendor_full):
-                first_mismatch = f"sample[{index}].tokens"
+            ),
+            "retrieved": {
+                "image": retrieved.image[0],
+                "saliency": retrieved.saliency[0],
+                "bbox": retrieved.bbox[0],
+                "labels": retrieved.labels[0],
+                "mask": retrieved.mask[0],
+                "indexes": None if retrieved.indexes is None else retrieved.indexes[0],
+            },
+        }
+
+    def _vendor_record(
+        batch: Mapping[str, object], position: int, retrieval_indexes: object
+    ) -> dict[str, object]:
+        labels = cast(Tensor, batch["label"])[position].long()
+        bbox = torch.stack(
+            [
+                cast(Tensor, batch[key])[position].float()
+                for key in ("center_x", "center_y", "width", "height")
+            ],
+            dim=-1,
+        )
+        mask = cast(Tensor, batch["mask"])[position].bool()
+        tokens = cast(
+            Tensor,
+            vendor_tokenizer.encode(
+                {
+                    "label": labels[None],
+                    "center_x": bbox[None, ..., 0],
+                    "center_y": bbox[None, ..., 1],
+                    "width": bbox[None, ..., 2],
+                    "height": bbox[None, ..., 3],
+                    "mask": mask[None],
+                }
+            )["seq"],
+        )
+        retrieved = cast(list[Mapping[str, object]], batch["retrieved"])[0]
+        retrieved_bbox = torch.stack(
+            [
+                cast(Tensor, retrieved[key])[position].float()
+                for key in ("center_x", "center_y", "width", "height")
+            ],
+            dim=-1,
+        )
+        return {
+            "id": str(cast(Sequence[object], batch["id"])[position]),
+            "image": cast(Tensor, batch["image"])[position],
+            "saliency": cast(Tensor, batch["saliency"])[position],
+            "labels": labels,
+            "bbox": bbox,
+            "mask": mask,
+            "tokens": tokens,
+            "retrieved": {
+                "image": cast(Tensor, retrieved["image"])[position],
+                "saliency": cast(Tensor, retrieved["saliency"])[position],
+                "bbox": retrieved_bbox,
+                "labels": cast(Tensor, retrieved["label"])[position],
+                "mask": cast(Tensor, retrieved["mask"])[position].bool(),
+                "indexes": torch.as_tensor(retrieval_indexes, dtype=torch.long),
+            },
+        }
+
+    split_membership: dict[str, object] = {}
+    package_ids_by_split: dict[str, list[str]] = {}
+    vendor_ids_by_split: dict[str, list[str]] = {}
+    for split, package_dataset in package_datasets.items():
+        package_ids = [
+            str(sample.get("id", index))
+            for index, sample in enumerate(package_dataset.samples)
+        ]
+        vendor_ids = [str(value) for value in vendor_dataset[split]["id"]]
+        package_ids_by_split[split] = package_ids
+        vendor_ids_by_split[split] = vendor_ids
+        split_membership[split] = {
+            "package_count": len(package_ids),
+            "vendor_count": len(vendor_ids),
+            "package_sha256": _serialized_sha256(package_ids),
+            "vendor_sha256": _serialized_sha256(vendor_ids),
+            "equal": package_ids == vendor_ids,
+        }
+        if package_ids != vendor_ids:
+            raise RuntimeError(f"first divergence at {split}.split_membership")
+    package_overlap = sorted(
+        set(package_ids_by_split["train"]) & set(package_ids_by_split["val"])
+    )
+    vendor_overlap = sorted(
+        set(vendor_ids_by_split["train"]) & set(vendor_ids_by_split["val"])
+    )
+    if package_overlap or vendor_overlap:
+        raise RuntimeError("first divergence at split_membership.overlap")
+    split_membership["train_val_overlap"] = {
+        "package_count": len(package_overlap),
+        "vendor_count": len(vendor_overlap),
+        "equal": package_overlap == vendor_overlap == [],
+    }
+
+    package_stream_digest = hashlib.sha256()
+    vendor_stream_digest = hashlib.sha256()
+    package_loader_digest = hashlib.sha256()
+    vendor_loader_digest = hashlib.sha256()
+    split_results: dict[str, object] = {}
+    checked_samples = 0
+    checked_batches = 0
+    for split, package_dataset in package_datasets.items():
+        vendor_wrapper = vendor_wrappers[split]
+        if len(package_dataset) != len(vendor_wrapper):
+            raise RuntimeError(f"first divergence at {split}.length")
+        shuffle = split == "train"
+        torch.manual_seed(args.seed)
+        torch.empty((), dtype=torch.int64).random_()
+        expected_order = [
+            int(index)
+            for batch_indices in package_loaders[split].batch_sampler
+            for index in batch_indices
+        ]
+        torch.manual_seed(args.seed)
+        package_iterator = iter(package_loaders[split])
+        package_loader_rng = capture_rng_state()
+        torch.manual_seed(args.seed)
+        vendor_iterator = iter(vendor_loaders[split])
+        vendor_loader_rng = capture_rng_state()
+        split_checked_samples = 0
+        split_checked_batches = 0
+        split_first_divergence: str | None = None
+        for batch_index in range(min(steps, len(package_loaders[split]))):
+            restore_rng_state(package_loader_rng)
+            package_batch = next(package_iterator)
+            package_after_loader_rng = capture_rng_state()
+            restore_rng_state(vendor_loader_rng)
+            vendor_batch = next(vendor_iterator)
+            vendor_after_loader_rng = capture_rng_state()
+            if not torch.equal(
+                package_after_loader_rng.torch_cpu,
+                vendor_after_loader_rng.torch_cpu,
+            ):
+                split_first_divergence = f"{split}.loader.batch[{batch_index}].rng"
                 break
-            checked += 1
-        if first_mismatch is not None:
-            break
-    if first_mismatch is not None:
-        raise RuntimeError(f"first divergence at {first_mismatch}")
+            package_loader_rng = package_after_loader_rng
+            vendor_loader_rng = vendor_after_loader_rng
+            start = batch_index * args.batch_size
+            indexes = expected_order[start : start + args.batch_size]
+            if len(indexes) != len(cast(Tensor, package_batch["input_ids"])):
+                split_first_divergence = f"{split}.batch[{batch_index}].size"
+                break
+            expected_package_batch = collate_training_batch(
+                [package_dataset[index] for index in indexes]
+            )
+            difference = _first_difference(
+                package_batch,
+                expected_package_batch,
+                f"{split}.loader.batch[{batch_index}]",
+            )
+            if difference is not None:
+                split_first_divergence = difference
+                break
+            expected_vendor_ids = [
+                str(vendor_dataset[split][index]["id"]) for index in indexes
+            ]
+            actual_vendor_ids = [str(value) for value in vendor_batch["id"]]
+            if actual_vendor_ids != expected_vendor_ids:
+                split_first_divergence = (
+                    f"{split}.vendor_loader.batch[{batch_index}].id"
+                )
+                break
+            package_loader_digest.update(
+                _serialized_sha256(_copy_batch_to_cpu(package_batch)).encode("utf-8")
+            )
+            vendor_loader_digest.update(
+                _serialized_sha256(_copy_batch_to_cpu(vendor_batch)).encode("utf-8")
+            )
+            for position, index in enumerate(indexes):
+                package_item = package_dataset[index]
+                vendor_item = vendor_wrapper[index]
+                package_record = _package_record(
+                    package_item,
+                    package_dataset.samples[index].get("id", index),
+                )
+                vendor_retrieved_item = cast(
+                    list[Mapping[str, object]], vendor_item["retrieved"]
+                )[0]
+                vendor_record = _vendor_record(
+                    vendor_batch,
+                    position,
+                    vendor_retrieved_item["index"],
+                )
+                difference = _first_difference(
+                    package_record,
+                    vendor_record,
+                    f"{split}.loader.batch[{batch_index}].sample[{position}]",
+                )
+                if difference is not None:
+                    split_first_divergence = difference
+                    break
+                package_digest = _serialized_sha256(package_record)
+                vendor_digest = _serialized_sha256(vendor_record)
+                package_stream_digest.update(
+                    f"{split}:{index}:".encode("utf-8") + package_digest.encode()
+                )
+                vendor_stream_digest.update(
+                    f"{split}:{index}:".encode("utf-8") + vendor_digest.encode()
+                )
+                split_checked_samples += 1
+            if split_first_divergence is not None:
+                break
+            split_checked_batches += 1
+        if split_first_divergence is not None:
+            raise RuntimeError(f"first divergence at {split_first_divergence}")
+        checked_samples += split_checked_samples
+        checked_batches += split_checked_batches
+        split_results[split] = {
+            "shuffle": shuffle,
+            "seed": args.seed,
+            "checked_samples": split_checked_samples,
+            "checked_batches": split_checked_batches,
+            "dataset_count": len(package_dataset),
+            "first_divergence": None,
+        }
+
     return {
         "status": "PASS",
-        "checked_samples": checked,
-        "checked_batches": (checked + args.batch_size - 1) // args.batch_size,
+        "checked_samples": checked_samples,
+        "checked_batches": checked_batches,
         "first_divergence": None,
         "seed": args.seed,
-        "split": "train",
+        "splits": split_results,
+        "split_membership": split_membership,
+        "package_stream_sha256": package_stream_digest.hexdigest(),
+        "vendor_stream_sha256": vendor_stream_digest.hexdigest(),
+        "serialized_sha256": {
+            "package_loader": package_loader_digest.hexdigest(),
+            "vendor_loader": vendor_loader_digest.hexdigest(),
+            "package_canonical_stream": package_stream_digest.hexdigest(),
+            "vendor_canonical_stream": vendor_stream_digest.hexdigest(),
+        },
+        "stream_contract": {
+            "comparison": "exact tensor equality after vendor-effective transforms and padding",
+            "package_loader": "RalfDataModule.train_dataloader/val_dataloader",
+            "vendor_loader": "vendor train.py DataLoader with collate_fn",
+            "vendor_transforms": ["image", "sort_label", "sort_lexicographic"],
+            "retrieval": "fixed table indexes, top_k=16, random_retrieval=false",
+            "validation_split": "val",
+        },
     }
 
 

@@ -17,6 +17,7 @@ from run_training_stages import (
     _natural_run_envelope,
     _run_s3_fit,
     _s3,
+    _s4,
     RalfS3TraceCallback,
 )
 
@@ -147,7 +148,7 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
 
 
 def test_s3_does_not_disable_deterministic_training() -> None:
-    source = inspect.getsource(_s3)
+    source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
 
     assert "--trainer.deterministic=warn" in source
     assert "--trainer.deterministic=true" not in source
@@ -233,3 +234,56 @@ def test_s3_run_preserves_prior_artifacts(tmp_path: Path) -> None:
     assert first != second
     assert first.name == "run-001"
     assert second.name == "run-002"
+
+
+def test_s4_records_authoritative_train_validation_stream_evidence() -> None:
+    source = inspect.getsource(_s4)
+
+    for required_surface in (
+        "train_dataloader()",
+        "val_dataloader()",
+        '"split_membership"',
+        '"serialized_sha256"',
+        '"package_stream_sha256"',
+        '"vendor_stream_sha256"',
+    ):
+        assert required_surface in source
+
+
+def test_s4_points_vendor_retrieval_cache_at_authoritative_cache() -> None:
+    source = inspect.getsource(_s4)
+
+    assert "image2layout.train.global_variables" in source
+    assert "PRECOMPUTED_WEIGHT_DIR" in source
+
+
+def test_s4_uses_existing_vendor_legacy_torch_load_mode() -> None:
+    source = inspect.getsource(_s4)
+
+    assert "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD" in source
+
+
+def test_s4_derives_order_from_the_production_batch_sampler() -> None:
+    source = inspect.getsource(_s4)
+
+    assert "batch_sampler" in source
+    assert "torch.empty((), dtype=torch.int64).random_()" in source
+
+
+def test_s4_checks_vendor_loader_order_by_authoritative_ids() -> None:
+    source = inspect.getsource(_s4)
+
+    assert 'vendor_batch["id"]' in source
+
+
+def test_s4_restores_rng_between_lazy_loader_iterators() -> None:
+    source = inspect.getsource(_s4)
+
+    assert "package_loader_rng" in source
+    assert "restore_rng_state(package_loader_rng)" in source
+
+
+def test_s4_compares_vendor_collated_retrieval_batch() -> None:
+    source = inspect.getsource(_s4)
+
+    assert 'batch["retrieved"]' in source

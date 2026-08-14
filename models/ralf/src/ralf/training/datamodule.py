@@ -91,20 +91,49 @@ def _sorted_layout(
     bbox = cast(Float[torch.Tensor, "elements 4"], normalized["bbox"]).float()
     mask = cast(Bool[torch.Tensor, "elements"], normalized["mask"]).bool()
     valid = [idx for idx, flag in enumerate(mask.tolist()) if flag]
-    order = sorted(
+    label_order = sorted(
         valid,
-        key=lambda idx: (
-            int(labels[idx].item()),
-            float((bbox[idx, 1] - bbox[idx, 3] / 2).item()),
-            float((bbox[idx, 0] - bbox[idx, 2] / 2).item()),
-        ),
+        key=lambda idx: int(labels[idx].item()),
     )
-    if not order:
+    labels = labels[label_order]
+    bbox = bbox[label_order]
+    source_geometry = [
+        sample.get(key) for key in ("center_x", "center_y", "width", "height")
+    ]
+    if all(
+        isinstance(value, Sequence) and not isinstance(value, (str, bytes))
+        for value in source_geometry
+    ):
+        source_center_x, source_center_y, source_width, source_height = (
+            cast(Sequence[int | float], value) for value in source_geometry
+        )
+        source_left = [
+            float(source_center_x[idx]) - float(source_width[idx]) / 2.0
+            for idx in label_order
+        ]
+        source_top = [
+            float(source_center_y[idx]) - float(source_height[idx]) / 2.0
+            for idx in label_order
+        ]
+    else:
+        source_left = [
+            float((bbox[idx, 0] - bbox[idx, 2] / 2).item())
+            for idx in range(len(label_order))
+        ]
+        source_top = [
+            float((bbox[idx, 1] - bbox[idx, 3] / 2).item())
+            for idx in range(len(label_order))
+        ]
+    lexicographic_order = sorted(
+        range(len(label_order)),
+        key=lambda idx: (source_top[idx], source_left[idx]),
+    )
+    if not lexicographic_order:
         labels = torch.tensor([0], dtype=torch.long)
         bbox = torch.tensor([[0.5, 0.5, 0.05, 0.05]], dtype=torch.float32)
     else:
-        labels = labels[order]
-        bbox = bbox[order]
+        labels = labels[lexicographic_order]
+        bbox = bbox[lexicographic_order]
     padded_labels = torch.zeros(config.max_seq_length, dtype=torch.long)
     padded_bbox = torch.zeros(config.max_seq_length, 4, dtype=torch.float32)
     padded_mask = torch.zeros(config.max_seq_length, dtype=torch.bool)
