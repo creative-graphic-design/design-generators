@@ -1,0 +1,59 @@
+seed_everything: 1
+
+trainer:
+  accelerator: gpu
+  devices: 1
+  max_epochs: 50
+  deterministic: warn
+  gradient_clip_val: 0.1
+  log_every_n_steps: 1
+
+model:
+  class_path: ralf.training.lightning_module.RalfTrainingModule
+  init_args:
+    config:
+      class_path: ralf.RalfConfig
+      init_args:
+        dataset_name: pku
+        task: unconditional
+        id2label:
+          0: logo
+          1: text
+          2: underlay
+        max_seq_length: 10
+        num_bin: 128
+        top_k: 16
+        retrieval_backbone: dreamsim
+        resnet_weights_path: ${oc.env:RALF_RESNET_WEIGHTS_PATH,null}
+        fidnet_weights_path: ${oc.env:RALF_FIDNET_WEIGHTS_PATH,null}
+    learning_rate: 0.0001
+    weight_decay: 0.0001
+    clip_max_norm: 0.1
+    epochs: 50
+    scheduler: multi_step
+    scheduler_milestones: [0.7]
+    condition_type: unconditional
+
+data:
+  class_path: ralf.training.datamodule.RalfDataModule
+  init_args:
+    config:
+      class_path: ralf.RalfConfig
+      init_args:
+        dataset_name: pku
+        task: unconditional
+        id2label:
+          0: logo
+          1: text
+          2: underlay
+        max_seq_length: 10
+        num_bin: 128
+        top_k: 16
+        retrieval_backbone: dreamsim
+        resnet_weights_path: ${oc.env:RALF_RESNET_WEIGHTS_PATH,null}
+        fidnet_weights_path: ${oc.env:RALF_FIDNET_WEIGHTS_PATH,null}
+    data_root: ${oc.env:RALF_DATA_ROOT,null}
+    retrieval_index_path: ${oc.env:RALF_RETRIEVAL_INDEX_PATH,null}
+    validation_retrieval_index_path: ${oc.env:RALF_VALIDATION_RETRIEVAL_INDEX_PATH,null}
+    batch_size: 32
+    num_workers: 0

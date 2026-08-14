@@ -289,12 +289,21 @@ class ResnetBackbone(nn.Module):
     """RALF ResNet50 FPN feature extractor without external loads."""
 
     def __init__(
-        self, backbone: str = "resnet50", d_model: int = 256, head: str = "transformer"
+        self,
+        backbone: str = "resnet50",
+        d_model: int = 256,
+        head: str = "transformer",
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
         if backbone != "resnet50":
             raise ValueError("RALF converted checkpoints use resnet50")
         resnet = timm.create_model("resnet50", pretrained=False)
+        if weights_path is not None:
+            weights = torch.load(weights_path, map_location="cpu", weights_only=False)
+            if not isinstance(weights, Mapping):
+                raise TypeError(f"ResNet weights at {weights_path} are not a mapping")
+            resnet.load_state_dict(cast(Mapping[str, Tensor], weights), strict=True)
         return_nodes = {"layer4": "layer4", "layer3": "layer3"}
         self.body = create_feature_extractor(resnet, return_nodes=return_nodes)
         params = {
@@ -339,9 +348,15 @@ class ResnetFeatureExtractor(nn.Module):
         backbone: str = "resnet50",
         d_model: int = 256,
         head: str = "transformer",
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
-        self.extractor = ResnetBackbone(backbone=backbone, d_model=d_model, head=head)
+        self.extractor = ResnetBackbone(
+            backbone=backbone,
+            d_model=d_model,
+            head=head,
+            weights_path=weights_path,
+        )
 
     def forward(
         self, img: Float[torch.Tensor, "batch channels height width"]
@@ -390,6 +405,7 @@ class FIDNetFeatureExtractor(nn.Module):
         nhead: int = 4,
         num_layers: int = 4,
         max_bbox: int = 10,
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
         _ = max_bbox
@@ -403,6 +419,18 @@ class FIDNetFeatureExtractor(nn.Module):
             num_layers=num_layers,
         )
         self.dec_fc_in = nn.Linear(d_model * 2, d_model)
+        if weights_path is not None:
+            payload = torch.load(weights_path, map_location="cpu", weights_only=False)
+            if not isinstance(payload, Mapping) or "state_dict" not in payload:
+                raise TypeError(
+                    f"FIDNet weights at {weights_path} are not a checkpoint mapping"
+                )
+            state_dict = cast(Mapping[str, Tensor], payload["state_dict"])
+            target_keys = set(self.state_dict())
+            filtered = {
+                key: value for key, value in state_dict.items() if key in target_keys
+            }
+            self.load_state_dict(filtered, strict=True)
 
     def extract_features(
         self, inputs: Mapping[str, Shaped[torch.Tensor, ...]]
@@ -990,7 +1018,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.nhead = config.num_attention_heads
         self.dropout = config.dropout
         self.encoder = ResnetFeatureExtractor(
-            backbone="resnet50", d_model=config.d_model, head="transformer"
+            backbone="resnet50",
+            d_model=config.d_model,
+            head="transformer",
+            weights_path=config.resnet_weights_path,
         )
         self.pos_emb_2d = PositionEmbeddingSine(config.d_model, normalize=True)
         self.dim_feedforward = 4 * config.d_model
@@ -1022,6 +1053,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             nhead=4,
             num_layers=4,
             max_bbox=config.max_seq_length,
+            weights_path=config.fidnet_weights_path,
         )
         self.layout_encoer.enc_transformer.token.requires_grad = False
         for parameter in self.layout_encoer.parameters():
@@ -1049,6 +1081,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             d_label=self.preprocessor.N_total,
             dim_feedforward=self.dim_feedforward,
         )
+        self.user_const_encoder.init_weight()
         self.use_flag_embedding = config.use_flag_embedding
         if self.use_flag_embedding:
             self.task_emb = nn.Embedding(2, 1)
@@ -1058,6 +1091,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.attn = Attention(
             config.d_model, config.d_model, heads=8, dim_head=64, dropout=0.0
         )
+        self.decoder.init_weight()
+        for parameter in self.transformer_encoder.parameters():
+            if parameter.dim() > 1:
+                nn.init.xavier_uniform_(parameter)
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
@@ -1281,12 +1318,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         loss = None
         if labels is not None:
             targets = labels.clone()
-            targets[targets == self.config.pad_token_id] = -100
-            loss = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)),
-                targets.reshape(-1),
-                ignore_index=-100,
-            )
+            loss = self.loss_fn_ce(logits.transpose(1, 2), targets)
         if return_dict is False:
             return (logits,) if loss is None else (loss, logits)
         return CausalLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)

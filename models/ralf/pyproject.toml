@@ -18,6 +18,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "lightning>=2.4,<3",
+    "traingen[lightning]",
+    "traingen-parity[lightning]",
+]
 download = [
     "gdown>=6.1",
 ]
@@ -45,8 +51,18 @@ datasets = ["cgl", "pku_posterlayout"]
 [tool.uv.sources]
 laygen = { workspace = true }
 posgen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original RALF weights, cache.zip, and vendor dependencies",
+]
+
+[tool.coverage.run]
+omit = [
+    "models/ralf/src/ralf/training/*",
+    "src/ralf/training/*",
+    "*/src/ralf/training/*",
 ]
