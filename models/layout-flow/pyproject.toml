@@ -17,8 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 training = [
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
+    "traingen",
+    "traingen-parity",
     "h5pickle",
     "torchcfm",
     "torchdyn",

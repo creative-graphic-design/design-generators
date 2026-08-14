@@ -8,11 +8,3 @@ dependencies = [
     "numpy>=1.24",
     "torch>=2.1",
 ]
-
-[project.optional-dependencies]
-lightning = [
-    "traingen[lightning]",
-]
-
-[tool.uv.sources]
-traingen = { workspace = true }
