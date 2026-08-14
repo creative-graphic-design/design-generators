@@ -43,7 +43,9 @@ def _write_evidence(path: Path, report: dict[str, object]) -> None:
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
 
 
-def _first_order_difference(source: list[int], package: list[int]) -> dict[str, object] | None:
+def _first_order_difference(
+    source: list[int], package: list[int]
+) -> dict[str, object] | None:
     for index, (source_id, package_id) in enumerate(zip(source, package)):
         if source_id != package_id:
             return {
@@ -52,11 +54,16 @@ def _first_order_difference(source: list[int], package: list[int]) -> dict[str, 
                 "package_image_id": package_id,
             }
     if len(source) != len(package):
-        return {"index": min(len(source), len(package)), "lengths": [len(source), len(package)]}
+        return {
+            "index": min(len(source), len(package)),
+            "lengths": [len(source), len(package)],
+        }
     return None
 
 
-def _feature_inventory(root: Path, split: str, image_names: set[str]) -> dict[str, object]:
+def _feature_inventory(
+    root: Path, split: str, image_names: set[str]
+) -> dict[str, object]:
     feature_root = root / "text_features" / split
     stems = {Path(name).stem for name in image_names}
     present = {
@@ -132,11 +139,18 @@ def _aligned_sample(
         else None,
         "source_labels": instances.gt_classes.detach().cpu().tolist(),
         "package_labels": package["labels"].detach().cpu().tolist(),
-        "labels_equal": torch.equal(instances.gt_classes.detach().cpu(), package["labels"]),
-        "text_features_max_abs": float((source_features - package_features).abs().max()),
+        "labels_equal": torch.equal(
+            instances.gt_classes.detach().cpu(), package["labels"]
+        ),
+        "text_features_max_abs": float(
+            (source_features - package_features).abs().max()
+        ),
         "text_mask_equal": torch.equal(source_mask, package_mask),
         "source_image_size": [int(height), int(width)],
-        "package_image_size": [int(package["image"].shape[-2]), int(package["image"].shape[-1])],
+        "package_image_size": [
+            int(package["image"].shape[-2]),
+            int(package["image"].shape[-1]),
+        ],
     }
 
 
@@ -144,8 +158,12 @@ def _run_s4() -> dict[str, object]:
     if os.environ.get("PARITY_REQUIRE") != "1":
         raise RuntimeError("PARITY_REQUIRE=1 is required for RADM S4")
     if os.environ.get("RADM_S4_ALLOW_MISSING") != "1":
-        raise RuntimeError("RADM_S4_ALLOW_MISSING=1 is required for the approved diagnostic fallback")
-    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl")).resolve()
+        raise RuntimeError(
+            "RADM_S4_ALLOW_MISSING=1 is required for the approved diagnostic fallback"
+        )
+    data_root = Path(
+        os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl")
+    ).resolve()
     device = os.environ.get("RADM_REFERENCE_DEVICE", "cuda:0")
     archive_sha256 = os.environ.get("RADM_S4_ARCHIVE_SHA256")
     if not archive_sha256:
@@ -191,8 +209,12 @@ def _run_s4() -> dict[str, object]:
             source_records = detectron2_data.DatasetCatalog.get(dataset_name)
             source_ids = [int(record["image_id"]) for record in source_records]
             package_ids = [int(record["id"]) for record in package_dataset.images]
-            package_by_id = {image_id: index for index, image_id in enumerate(package_ids)}
-            image_names = {str(record["file_name"]) for record in annotation_payload["images"]}
+            package_by_id = {
+                image_id: index for index, image_id in enumerate(package_ids)
+            }
+            image_names = {
+                str(record["file_name"]) for record in annotation_payload["images"]
+            }
             source_paths_present = all(
                 Path(record["file_name"]).is_file() for record in source_records
             )
@@ -202,16 +224,24 @@ def _run_s4() -> dict[str, object]:
                 "package_count": len(package_ids),
                 "source_order_sha256": _sha256_json(source_ids),
                 "package_order_sha256": _sha256_json(package_ids),
-                "first_order_difference": _first_order_difference(source_ids, package_ids),
+                "first_order_difference": _first_order_difference(
+                    source_ids, package_ids
+                ),
                 "source_image_paths_present": source_paths_present,
                 "feature_inventory": _feature_inventory(data_root, split, image_names),
                 "category_names": list(EXPECTED_LABELS),
                 "annotation_category_ids": sorted(
-                    {int(row["category_id"]) for row in annotation_payload["annotations"]}
+                    {
+                        int(row["category_id"])
+                        for row in annotation_payload["annotations"]
+                    }
                 ),
             }
             split_metadata[split] = split_report
-            if first_divergence is None and split_report["first_order_difference"] is not None:
+            if (
+                first_divergence is None
+                and split_report["first_order_difference"] is not None
+            ):
                 first_divergence = f"{split}.order"
             if split == "train":
                 first_record = source_records[0]
@@ -226,7 +256,9 @@ def _run_s4() -> dict[str, object]:
                 missing_stem = next(
                     (
                         stem
-                        for stem in cast(list[str], feature_inventory["missing_examples"])
+                        for stem in cast(
+                            list[str], feature_inventory["missing_examples"]
+                        )
                         if stem
                     ),
                     None,
@@ -259,7 +291,9 @@ def _run_s4() -> dict[str, object]:
             ["git", "-C", str(VENDOR_ROOT), "rev-parse", "HEAD"], text=True
         ).strip(),
         "effective_config_sha256": hashlib.sha256(
-            (ROOT / "models/radm/configs/training/effective_radm_config.yaml").read_bytes()
+            (
+                ROOT / "models/radm/configs/training/effective_radm_config.yaml"
+            ).read_bytes()
         ).hexdigest(),
         "runtime": runtime,
         "split_metadata": split_metadata,

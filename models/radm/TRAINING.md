@@ -11,12 +11,12 @@ tags:
 This document records the phase-1 package training surfaces and staged
 reproduction status for RADM. The supported Python 3.11/V100 rerun accepts S0,
 S1, and S2 on the source-generated fixed batch, and S4 accepts the bounded CGL
-loader stream. S3 is recorded in three separate layers: synchronized numerical
-diagnostics, natural-trajectory drift recording, and a bounded production
-wiring representative. The natural trajectory is not accepted as unconstrained
-trajectory parity. The approved RADM data archive is available through the
-local cache. No released checkpoint is present in this worktree. S5 evidence
-is not claimed.
+loader stream. Because the natural S3 trajectory leaves the S0-S2 contract,
+S3 is accepted as a bounded numerical result through the required synchronized
+layer, with the natural trajectory retained as drift evidence and production
+wiring recorded independently. The approved RADM data archive is available
+through the local cache. No released checkpoint is present in this worktree.
+S5 evidence is not claimed.
 
 Run commands from the repository root. Keep generated data, logs, checkpoints,
 converted local pipelines, and evaluation artifacts under `.cache/radm/`.
@@ -126,11 +126,13 @@ training-seed or evaluation-seed reproduction results. The static configuration
 records seed `1`, matching the checked original recipe. The eventual matched
 S5 matrix is vendor and package runs for the same approved data/config under
 training seeds `1`, `2`, and `3`, followed by the same evaluation seed scope;
-only seed `1` is currently documented and no matrix run has started. The S3
-synchronized/natural trajectory acceptance rule is pending the protocol
-generalization in meta issue [#268](https://github.com/creative-graphic-design/design-generators/issues/268)
-and the RALF protocol update in PR [#270](https://github.com/creative-graphic-design/design-generators/pull/270).
-S5 and the real-scale 300-step lockstep probe remain stopped by scope.
+only seed `1` is currently documented and no matrix run has started. The
+general S3 evidence rule in
+[`docs/training-reproduction.md`](../../docs/training-reproduction.md) governs
+this result: the natural trajectory is retained, synchronized diagnostics are
+required after a contract breach, and the bounded production wiring result is
+reported separately. S5 and the real-scale 300-step lockstep probe remain
+stopped by scope.
 
 ## S3 Evidence Layers
 
@@ -140,13 +142,15 @@ are unchanged.
 
 | Layer | Result | Evidence |
 | --- | --- | --- |
-| Synchronized numerical diagnostic | `PASS` as diagnostic only; `first_divergence: None`, `executed=1`, `skipped=0`, with optimizer-state storage independence and zero-diff synchronization assertions | `.cache/radm/s3/runs/run-005/s3-trace.json` (SHA-256 `9172d0f21940e56e1482f048cff3fde5d6d1f54adcfa2b4b2e24a79aa5523e64`); aggregate `.cache/radm/s3/two-layer-20260814-rerun.json` (SHA-256 `b4498680c80c04eb193e7166e79553fa8d9ab2e93120b039e4ba291f9b60677d`) |
+| Synchronized numerical diagnostic | `PASS` as the required bounded numerical layer after the natural contract breach; `first_divergence: None`, `executed=1`, `skipped=0`, with optimizer-state storage independence and zero-diff synchronization assertions | `.cache/radm/s3/runs/run-005/s3-trace.json` (SHA-256 `9172d0f21940e56e1482f048cff3fde5d6d1f54adcfa2b4b2e24a79aa5523e64`); aggregate `.cache/radm/s3/two-layer-20260814-rerun.json` (SHA-256 `b4498680c80c04eb193e7166e79553fa8d9ab2e93120b039e4ba291f9b60677d`) |
 | Natural trajectory recording | `RECORDED`, not trajectory-parity acceptance; both runs first diverge at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight` | `.cache/radm/s3/runs/run-003/s3-trace.json` (SHA-256 `6248349c9f34a627739add18b9aec4a2f4d172446c82b1e31d15f4d599cb44fc`), `.cache/radm/s3/runs/run-004/s3-trace.json` (SHA-256 `a6252d4e1d4ea3cf7459b7d4fc0166c9c9fd69a73b58c37e7393b963a70b5cb2`) |
 | Production wiring representative | `PASS`; two optimizer steps, scheduler/checkpoint cadence, validation loss logging, and checkpoint payload were observed through `traingen fit` | `.cache/radm/s3/wiring/run-002.json` (SHA-256 `3709a048fbfd2044464c55d5aa10207af1cfbbad450d72c463e341f509a38c01`); checkpoint SHA-256 `bc49decd95cd81f1177f730aced255f3b339f08e169b58721f32b2170df0cdf6`; metrics SHA-256 `7bd7ed5d71044db8f618941ae9952849d60d48190e9c7967574ce9db6aa6c682` |
 
-The synchronized run is a graph/operation and state-synchronization diagnostic;
-the natural runs record the unconstrained drift envelope. Neither layer alone
-establishes a trained-checkpoint or full-run reproduction claim.
+The synchronized run is a graph/operation and state-synchronization diagnostic
+required by the natural contract breach; together with the retained natural
+record it establishes only the bounded S3 numerical result. The natural and
+synchronized layers do not establish a trained-checkpoint or full-run
+reproduction claim. Production wiring is an independent third layer.
 
 ## Validation Stages
 
@@ -155,7 +159,7 @@ establishes a trained-checkpoint or full-run reproduction claim.
 | S0 | Static config and initialized state | Accepted on the supported V100 rerun: 23 passed in 26.50s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; text encoding fields are derived from the selected mapper, and class-mapping and derived-output guards passed. |
 | S1 | Fixed-batch pre-optimizer trace parity | Accepted post-correction: 1 passed in 33.76s, 0 skipped, executed=1, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`. |
 | S2 | One optimizer-step parity | Accepted post-correction: 1 passed in 59.98s, 0 skipped, executed=1, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25` under the existing S2 tolerance. |
-| S3 | Two-layer numerical diagnostic plus production wiring representative | Synchronized diagnostic: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs: `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. Natural trajectory acceptance awaits meta issue #268 and RALF PR #270. |
+| S3 | Bounded numerical result plus production wiring representative | `PASS` through the required synchronized layer: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs remain `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. This is not unconstrained natural trajectory parity. |
 | S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; the S3 natural trajectory remains a separate diagnostic boundary and CGL-v2 coverage is not claimed. |
 | S5 | Full-run statistical comparison | Not claimed; stopped by current scope. |
 
@@ -175,26 +179,26 @@ establishes a trained-checkpoint or full-run reproduction claim.
 RADM S2 one-optimizer-step parity is accepted for one source-generated
 in-memory fixture after accepted S1 fixed-batch pre-optimizer parity on the
 supported V100 runtime. S3 now has a bounded production wiring representative
-PASS and two diagnostic layers: the synchronized lockstep has
+PASS and two numerical layers: the synchronized lockstep has
 `first_divergence=None`, while the natural trajectory runs record the same
-step-2 pre-clip gradient drift. This is not a natural trajectory, dataset,
+step-2 pre-clip gradient drift. Together these layers satisfy the bounded S3
+numerical path required after the natural contract breach. This is not a natural trajectory, dataset,
 training-seed, evaluation-seed, trained-checkpoint, or full training
 reproduction result. The package trace uses the runtime `RADMDenoiser`; it does
 not inject the original model into the package module. Text inputs are
 generated as two deterministic 768-D rows and then padded by the original
-mapper. The synchronized/natural trajectory acceptance rule awaits the
-protocol generalization in meta issue #268 and RALF PR #270; no tolerance was
-changed. The approved archive is materialized locally, and the bounded CGL S4
+mapper. No tolerance was changed. The approved archive is materialized locally,
+and the bounded CGL S4
 loader boundary is exact for order, labels, fallback, image preprocessing, and
 boxes. This does not make the untested CGL-v2 stream a reproduction claim. S5
 and the real-scale 300-step lockstep probe remain prohibited.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CGL | original | `blocked (natural S3 acceptance pending; no trained checkpoint)` | not run | not measured | not measured | `models/radm/tests/vendor_parity/reference_adapter.py` |
-| CGL | package | `not-yet-run (#261 phase 1)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
-| CGL-v2 | original | `blocked (natural S3 acceptance pending; S4 coverage not claimed)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
-| CGL-v2 | package | `not-yet-run (#261 phase 1)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
+| CGL | original | `blocked (no trained checkpoint; S5 not run)` | not run | not measured | not measured | `models/radm/tests/vendor_parity/reference_adapter.py` |
+| CGL | package | `not-yet-run (phase-1 scope; no trained checkpoint)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
+| CGL-v2 | original | `blocked (S4 coverage not claimed; no trained checkpoint)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
+| CGL-v2 | package | `not-yet-run (phase-1 scope; no trained checkpoint)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
 
 There is no released checkpoint. The eventual reference checkpoint must first
 be created by the pinned original training procedure, then the package must be
