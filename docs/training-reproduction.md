@@ -21,7 +21,7 @@ Run stages on one explicitly selected GPU when CUDA is involved, with fixed seed
 | S0 | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree. |
 | S1 | Fixed-batch pre-optimizer trace | The same batch and RNG state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation. |
 | S2 | One optimizer step | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate. |
-| S3 | N training batches | A short deterministic run confirms repeated loader, scheduler, logging, accumulation, clipping, and checkpoint wiring over more than one batch. |
+| S3 | N training batches | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The independent wiring representative applies to either path; see [S3 Evidence Layers](#s3-evidence-layers). |
 | S4 | Deterministic loader stream | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls. |
 | S5 | Full-run statistical comparison | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded. |
 
@@ -41,6 +41,18 @@ When S5 diverges, diagnose the gap in this order before claiming a bug:
 To separate benign training stochasticity from a training-loop or orchestration difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to an orchestration difference that should be fixed or documented.
 
 Parity thresholds are per-dataset. Trajectory-sensitive metrics such as saliency and occlusion can make a model practical-parity on one dataset and qualitative-with-caveat on another. The CGB-DM reproduction recorded this pattern for CGL versus PKU, where CGL reached practical parity while PKU retained saliency/occlusion caveats despite passing S0-S2 step checks; use [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148) as the reference example.
+
+### S3 Evidence Layers
+
+S3 always begins with a natural, unsynchronized multi-step trajectory using
+the same seed and data for both systems. If every step remains within the
+existing S0-S2 contract, that natural trajectory is S3 numerical parity
+`PASS`, and no synchronized layer is needed. If a natural step leaves the
+contract, retain the natural record and add a synchronized diagnostic; its
+contract-internal agreement plus the retained natural evidence is a bounded
+S3 numerical `PASS`. This path distinction does not change tolerances. For
+either path, report the bounded production-wiring representative as an
+independent third layer; it does not establish numerical trajectory parity.
 
 ### Activation Thresholds
 
@@ -152,14 +164,38 @@ sections, `Reproduction Results` status vocabulary, regeneration metadata block,
 seed policy, and README supported-checkpoints cross-check surface enforced by
 `scripts/check_training_doc_template.py`.
 
+### S3 Evidence Recording
+
+Record the natural multi-step layer for every model with the same seed and data
+on both systems. Repeat it to measure the run-to-run envelope, and preserve
+per-step state drift, loss, gradients, post-step parameters, learning rates,
+the first divergence, and the envelope even when every step is within contract.
+
+When natural evidence leaves the S0-S2 contract, record the synchronized layer
+at every optimizer boundary. Synchronize model parameters and buffers,
+optimizer state, and scheduler state before the next batch, then apply the
+existing S0-S2 comparisons. Copy optimizer state with a `deepcopy` before
+`load_state_dict()` and assert independent storage for every tensor-valued
+state after loading. In the repository's checked torch `2.6.0+cu124` and
+`2.8.0+cu128` environments, same-device optimizer-state loading was
+empirically observed to share storage without this protection. This is an
+observation of those evidence runs, not a general PyTorch specification; the
+copy and assertion are the fail-closed requirement.
+
+For either numerical path, record the bounded production console boundary and
+its logger, checkpoint, and scheduler wiring as a separate third layer. Report
+the natural, synchronized, and wiring results independently, retain the
+natural record, and do not widen a tolerance or add a threshold without an
+explicit numerical justification. State observed runtime and hardware
+conditions separately from these general recording requirements.
+
 Per-model `TRAINING.md` files must be result-focused. Open with the conclusion,
 including the reproduction verdict, covered datasets, numeric metrics, and seed
 scope. Include only the reproducible training, evaluation, conversion, and smoke
 test procedure that maintainers should rerun. Do not include discarded attempts,
 failed diagnostic narratives, or process history; move that material to issue
-discussion only when it is still useful. The CGB-DM update in PR #167 is a good
-example of a conclusion-first report with numeric evidence and copy-pasteable
-commands.
+discussion only when it is still useful. The CGB-DM update is a good example of
+a conclusion-first report with numeric evidence and copy-pasteable commands.
 
 Write `Reproduction Results` in this order:
 
