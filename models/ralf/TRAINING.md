@@ -13,7 +13,7 @@ evidence for RALF. CGL has accepted S0-S4 evidence under the general S3
 Evidence Layers rule at one seed; PKU loader and full-run reproduction are not
 claimed.
 CGL S3 is formally accepted under the general S3 Evidence Layers rule: natural
-runs 009/010 left the existing S0-S2 contract, synchronized run-012 supplied a
+runs 009/010 exited the existing S0-S2 contract, synchronized run-012 supplied a
 bounded contract-internal PASS, and the production-wiring layer is recorded
 independently. Only the S5 scope remains pending. No S5 or real-scale 300-step
 probe has been run.
@@ -141,7 +141,7 @@ checkpoint.
 | PKU relation | package | `not-yet-run (staged evidence pending; tracked in issue #44)` | Not run | No staged evidence | Not run | `.cache/ralf/training-reproduction/cgl/` |
 
 The S3 evidence follows the general S3 Evidence Layers rule. Natural runs
-009/010 recorded run-to-run warn-only drift and left the existing S0-S2
+009/010 recorded run-to-run warn-only drift and exited the existing S0-S2
 contract, so synchronized run-012 restored state at optimizer boundaries and
 compared forward values, raw/clipped gradients, optimizer state, parameters,
 and learning rates. The synchronized layer is a bounded PASS with no tolerance
