@@ -21,6 +21,7 @@ DOCS_MODELS = REPO_ROOT / "docs" / "models.md"
 DOCS_MODEL_DATASET_LABELS = {
     "Ad Banner": "ad_banner",
     "CGL": "cgl",
+    "CGL-v2": "cgl_v2",
     "COCO": "coco",
     "COCO grounded": "coco-grounded",
     "Crello": "crello",

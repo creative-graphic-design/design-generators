@@ -1,0 +1,89 @@
+# Captured from vendor/radm/configs/Base-RADM.yaml and radm.yaml at the pinned
+# submodule commit. This is evidence metadata, not a full-run launch command.
+class_mapping:
+  vocabulary_size: 5
+  predicted_num_classes: 4
+  id2label:
+    0: Logo
+    1: 文字
+    2: 衬底
+    3: 符号元素
+    4: 强调突出子部分文字
+  predicted_id2label:
+    0: Logo
+    1: 文字
+    2: 衬底
+    3: 符号元素
+model:
+  backbone_depth: 50
+  backbone_freeze_at: 2
+  roi_resolution: 7
+  roi_sampling_ratio: 2
+  pixel_mean: [123.675, 116.28, 103.53]
+  pixel_std: [58.395, 57.12, 57.375]
+  num_proposals: 100
+  hidden_dim: 256
+  text_feature_dim: 768
+  max_text_num: 20
+  num_train_timesteps: 1000
+  snr_scale: 2.0
+  sample_step: 1
+  num_heads: 6
+  num_attention_heads: 8
+  dim_feedforward: 2048
+  num_dynamic: 2
+  dim_dynamic: 64
+  num_cls: 1
+  num_reg: 3
+  with_vtram: true
+  with_gram: true
+  deep_supervision: true
+  use_focal: true
+  use_fed_loss: false
+  class_weight: 5.0
+  giou_weight: 1.0
+  l1_weight: 1.0
+  no_object_weight: 0.1
+  prior_prob: 0.01
+  alpha: 0.25
+  gamma: 2.0
+  ota_k: 5
+optimizer:
+  name: AdamW
+  learning_rate: 0.000025
+  weight_decay: 0.0001
+  betas: [0.9, 0.999]
+  eps: 0.00000001
+  backbone_multiplier: 1.0
+  full_model_gradient_clip_norm: 1.0
+scheduler:
+  interval: step
+  milestones: [150000, 220000]
+  gamma: 0.1
+  warmup_factor: 0.01
+  warmup_iters: 1000
+  max_iter: 250000
+sampler:
+  batch_size: 16
+  num_workers: 0
+  filter_empty_annotations: false
+  random_repeat_permutation: true
+  box_renewal: true
+  use_ensemble: true
+input:
+  format: RGB
+  crop_enabled: false
+  crop_size: [384, 600]
+  min_size_train: [480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800]
+  max_size_train: 1333
+  min_size_train_sampling: choice
+  seed: 1
+runtime:
+  num_gpus: 1
+  world_size: 1
+  gradient_accumulation_steps: 1
+  eval_period: 5000
+  ema_enabled: false
+  amp_enabled: false
+  ddp_enabled: false
+  simple_trainer: true

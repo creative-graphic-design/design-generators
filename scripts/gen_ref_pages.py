@@ -93,6 +93,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
     "CVPR 2021": "0076a8",
     "CVPR 2023": "0076a8",
     "CVPR 2024": "0076a8",
+    "CIKM 2023": "6b7280",
     "CVPR 2025": "0076a8",
     "ECCV 2020": "009688",
     "ECCV 2024": "009688",
@@ -107,6 +108,7 @@ MODEL_OVERVIEW_VENUE_BADGE_COLORS = {
 MODEL_OVERVIEW_DATASET_LABELS = {
     "ad_banner": "Ad Banner",
     "cgl": "CGL",
+    "cgl_v2": "CGL-v2",
     "coco": "COCO",
     "coco-grounded": "COCO grounded",
     "crello": "Crello",
@@ -126,6 +128,7 @@ MODEL_OVERVIEW_DATASET_LABELS = {
 }
 MODEL_OVERVIEW_DATASET_LINKS = {
     "CGL": "https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset",
+    "CGL-v2": "https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset-v2",
     "Crello": "https://huggingface.co/datasets/cyberagent/crello",
     "Magazine": "https://huggingface.co/datasets/creative-graphic-design/magazine",
     "PKU-PosterLayout": (

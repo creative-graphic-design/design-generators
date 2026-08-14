@@ -31,6 +31,8 @@ REMOVED_HOST = "removed.example.test"
 DESIGN_GENERATORS_URL = (
     f"{HTTPS}{GITHUB_HOST}/creative-graphic-design/design-generators"
 )
+DETECTRON2_REPO_URL = f"{HTTPS}{GITHUB_HOST}/facebookresearch/detectron2.git"
+DETECTRON2_VERSIONED_GIT_URL = f"{DETECTRON2_REPO_URL}@v0.6"
 SMARTTEXT_BAD_URL = f"{HTTPS}{GITHUB_HOST}/chenqi008/SmartText"
 SMARTTEXT_GOOD_URL = f"{HTTPS}{GITHUB_HOST}/intchous/SmartText"
 
@@ -209,3 +211,36 @@ def test_check_changed_urls_treats_5xx_as_warning_success() -> None:
     )
 
     assert check_changed_urls.report_results(results) == 0
+
+
+def test_check_changed_urls_probes_vcs_git_revision_urls_as_repo_urls() -> None:
+    probed_urls: list[str] = []
+    urls = [
+        check_changed_urls.ChangedUrl(
+            DETECTRON2_VERSIONED_GIT_URL,
+            "uv.lock:1",
+        )
+    ]
+
+    def checker(url: str) -> object:
+        probed_urls.append(url)
+        return check_changed_urls.UrlCheckResult(
+            url=url,
+            outcome="ok",
+            status=200,
+        )
+
+    results = check_changed_urls.check_changed_urls(
+        urls,
+        ignore_patterns=[],
+        checker=checker,
+    )
+
+    assert probed_urls == [DETECTRON2_REPO_URL]
+    assert results == [
+        check_changed_urls.UrlCheckResult(
+            url=DETECTRON2_VERSIONED_GIT_URL,
+            outcome="ok",
+            status=200,
+        )
+    ]
