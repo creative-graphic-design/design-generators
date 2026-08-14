@@ -15,20 +15,17 @@ def lightning_cli_class() -> type[LightningCLI]:
     return LightningCLI
 
 
-def main(args: list[str] | None = None) -> LightningCLI:
+def main(args: list[str] | None = None) -> None:
     """Run a model-agnostic LightningCLI from YAML ``class_path`` entries.
 
     Args:
         args: Optional CLI arguments for tests. When omitted, LightningCLI reads
             ``sys.argv``.
 
-    Returns:
-        The instantiated LightningCLI object.
-
     Raises:
         SystemExit: If LightningCLI argument parsing fails.
     """
-    return lightning_cli_class()(
+    lightning_cli_class()(
         model_class=None,
         datamodule_class=None,
         subclass_mode_model=True,

@@ -2,6 +2,8 @@ import sys
 import types
 from importlib.metadata import entry_points
 
+import pytest
+
 from traingen.lightning.cli import lightning_cli_class, main
 
 
@@ -39,7 +41,10 @@ def test_main_uses_yaml_class_path_mode(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "lightning.pytorch", pytorch_module)
     monkeypatch.setitem(sys.modules, "lightning.pytorch.cli", cli_module)
 
-    assert isinstance(main(["fit", "--config", "config.yaml"]), FakeLightningCLI)
+    with pytest.raises(SystemExit) as exit_info:
+        sys.exit(main(["fit", "--config", "config.yaml"]))
+
+    assert exit_info.value.code is None
     assert calls == [
         {
             "model_class": None,
