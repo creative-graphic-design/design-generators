@@ -12,7 +12,6 @@ import numpy as np
 import torch
 from PIL import Image
 from jaxtyping import Bool, Float, Int, Shaped
-from torch.nn import functional as F
 from torch.utils.data import Dataset
 
 from ..training.config import RADMEffectiveConfig
@@ -99,7 +98,9 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             RADMCOCOPayload,
             json.loads(self.annotation_path.read_text(encoding="utf-8")),
         )
-        self.images: list[RADMCOCOImage] = list(payload["images"])
+        self.images: list[RADMCOCOImage] = sorted(
+            payload["images"], key=lambda image: int(image["id"])
+        )
         annotations: dict[int, list[RADMCOCOAnnotation]] = defaultdict(list)
         for annotation in payload["annotations"]:
             annotations[int(annotation["image_id"])].append(annotation)
@@ -119,8 +120,6 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             image_tensor = torch.from_numpy(np.asarray(rgb, dtype="float32")).permute(
                 2, 0, 1
             )
-        width = float(record["width"])
-        height = float(record["height"])
         boxes: list[list[float]] = []
         labels: list[int] = []
         for annotation in self.annotations[image_id]:
@@ -131,13 +130,13 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             )
             boxes.append(
                 [
-                    left / width,
-                    top / height,
-                    (left + box_width) / width,
-                    (top + box_height) / height,
+                    left,
+                    top,
+                    left + box_width,
+                    top + box_height,
                 ]
             )
-            labels.append(int(annotation["category_id"]))
+            labels.append(int(annotation["category_id"]) - 1)
         box_tensor = torch.tensor(boxes, dtype=torch.float32).reshape(-1, 4)
         image_tensor, box_tensor = _apply_training_transforms(
             image_tensor,
@@ -145,6 +144,14 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             effective=self.effective,
         )
         transformed_height, transformed_width = image_tensor.shape[-2:]
+        box_tensor = box_tensor / image_tensor.new_tensor(
+            (
+                transformed_width,
+                transformed_height,
+                transformed_width,
+                transformed_height,
+            )
+        )
         mean = image_tensor.new_tensor(self.effective.pixel_mean).reshape(3, 1, 1)
         std = image_tensor.new_tensor(self.effective.pixel_std).reshape(3, 1, 1)
         image_tensor = (image_tensor - mean) / std
@@ -242,15 +249,16 @@ def _apply_training_transforms(
     Float[torch.Tensor, "channels height width"],
     Float[torch.Tensor, "elements 4"],
 ]:
-    """Apply the released mapper's flip and shortest-edge resize branches."""
+    """Apply flip and shortest-edge resize to absolute pixel coordinates."""
     transformed_boxes = boxes_xyxy.clone()
+    original_height, original_width = image.shape[-2:]
     if np.random.random() < 0.5:
         image = image.flip(-1)
         if transformed_boxes.numel():
             left = transformed_boxes[:, 0].clone()
             right = transformed_boxes[:, 2].clone()
-            transformed_boxes[:, 0] = 1.0 - right
-            transformed_boxes[:, 2] = 1.0 - left
+            transformed_boxes[:, 0] = original_width - right
+            transformed_boxes[:, 2] = original_width - left
 
     if effective.min_size_train_sampling == "choice":
         min_size = int(np.random.choice(effective.min_size_train))
@@ -262,18 +270,29 @@ def _apply_training_transforms(
             "unsupported released ResizeShortestEdge sampling style: "
             f"{effective.min_size_train_sampling}"
         )
-    height, width = image.shape[-2:]
-    scale = min_size / min(height, width)
-    scale = min(scale, effective.max_size_train / max(height, width))
-    resized_height = max(1, round(height * scale))
-    resized_width = max(1, round(width * scale))
-    if (resized_height, resized_width) != (height, width):
-        image = F.interpolate(
-            image.unsqueeze(0),
-            size=(resized_height, resized_width),
-            mode="bilinear",
-            align_corners=False,
-        ).squeeze(0)
+    scale = min_size / min(original_height, original_width)
+    scale = min(scale, effective.max_size_train / max(original_height, original_width))
+    resized_height = max(1, round(original_height * scale))
+    resized_width = max(1, round(original_width * scale))
+    if (resized_height, resized_width) != (original_height, original_width):
+        if transformed_boxes.numel():
+            scale_x = resized_width / original_width
+            scale_y = resized_height / original_height
+            transformed_boxes[:, (0, 2)] = torch.trunc(
+                transformed_boxes[:, (0, 2)].to(dtype=torch.float64) * scale_x
+            ).to(dtype=transformed_boxes.dtype)
+            transformed_boxes[:, (1, 3)] = torch.trunc(
+                transformed_boxes[:, (1, 3)].to(dtype=torch.float64) * scale_y
+            ).to(dtype=transformed_boxes.dtype)
+        resized = Image.fromarray(
+            np.ascontiguousarray(image.permute(1, 2, 0).to(torch.uint8).numpy())
+        ).resize(
+            (resized_width, resized_height),
+            Image.Resampling.BILINEAR,
+        )
+        image = torch.from_numpy(
+            np.ascontiguousarray(np.asarray(resized).transpose(2, 0, 1))
+        ).to(dtype=image.dtype)
     return image, transformed_boxes
 
 
