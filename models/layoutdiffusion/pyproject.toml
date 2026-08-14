@@ -19,8 +19,8 @@ dependencies = [
 [project.optional-dependencies]
 training = [
     "datasets>=3",
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
+    "traingen",
+    "traingen-parity",
 ]
 download = [
     "gdown>=6.1.0",

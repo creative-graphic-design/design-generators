@@ -4,15 +4,10 @@ version = "0.1.0"
 description = "Shared training helpers for generator packages."
 requires-python = ">=3.11"
 dependencies = [
-    "torch>=2.1",
+    "jsonargparse[signatures]>=4.27",
+    "lightning>=2.4,<3",
+    "torchmetrics>=1.4",
 ]
 
 [project.scripts]
 traingen = "traingen.lightning.cli:main"
-
-[project.optional-dependencies]
-lightning = [
-    "lightning>=2.4,<3",
-    "jsonargparse[signatures]>=4.27",
-    "torchmetrics>=1.4",
-]

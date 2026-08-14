@@ -19,8 +19,8 @@ dependencies = [
 training = [
     "datasets>=3",
     "scikit-learn>=1.0",
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
+    "traingen",
+    "traingen-parity",
 ]
 convert = [
     "huggingface-hub>=0.24",

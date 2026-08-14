@@ -64,8 +64,8 @@ llm-agent = [
     "pydantic-ai>=2.7.0",
 ]
 training = [
-    "traingen[lightning]",
-    "traingen-parity[lightning]",
+    "traingen",
+    "traingen-parity",
 ]
 
 [dependency-groups]
