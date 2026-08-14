@@ -90,6 +90,26 @@ class RADMTrainingModule(LightningModule):
     ) -> Float[torch.Tensor, ""]:
         """Sample diffusion inputs and compute final plus auxiliary losses."""
         del batch_idx
+        total = self._compute_step_loss(batch, record_trace=True)
+        self.log("train_loss", total, prog_bar=True, on_step=True, on_epoch=True)
+        return total
+
+    def validation_step(
+        self, batch: dict[str, Shaped[torch.Tensor, "..."]], batch_idx: int
+    ) -> Float[torch.Tensor, ""]:
+        """Compute the validation loss through the training loss path."""
+        del batch_idx
+        total = self._compute_step_loss(batch, record_trace=False)
+        self.log("val_loss", total, prog_bar=True, on_step=False, on_epoch=True)
+        return total
+
+    def _compute_step_loss(
+        self,
+        batch: dict[str, Shaped[torch.Tensor, "..."]],
+        *,
+        record_trace: bool,
+    ) -> Float[torch.Tensor, ""]:
+        """Compute the configured diffusion and detection losses once."""
         batch_size = batch["boxes_xyxy"].shape[0]
         diffused_boxes: list[Float[torch.Tensor, "proposals 4"]] = []
         noises: list[Float[torch.Tensor, "proposals 4"]] = []
@@ -150,16 +170,16 @@ class RADMTrainingModule(LightningModule):
         total = output.logits.sum() * 0
         for value in losses.values():
             total = total + value
-        self.latest_step_trace = {
-            "timestep": timestep_batch.detach(),
-            "noise": noise.detach(),
-            "diffusion_input": diffusion_input.detach(),
-            "logits": output.logits.detach(),
-            "boxes_xyxy": output.boxes_xyxy.detach(),
-            **{name: value.detach() for name, value in losses.items()},
-            "train_loss": total.detach(),
-        }
-        self.log("train_loss", total, prog_bar=True, on_step=True, on_epoch=True)
+        if record_trace:
+            self.latest_step_trace = {
+                "timestep": timestep_batch.detach(),
+                "noise": noise.detach(),
+                "diffusion_input": diffusion_input.detach(),
+                "logits": output.logits.detach(),
+                "boxes_xyxy": output.boxes_xyxy.detach(),
+                **{name: value.detach() for name, value in losses.items()},
+                "train_loss": total.detach(),
+            }
         return total
 
     def configure_optimizers(self) -> OptimizerLRScheduler:

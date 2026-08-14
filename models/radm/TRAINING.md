@@ -10,15 +10,13 @@ tags:
 
 This document records the phase-1 package training surfaces and staged
 reproduction status for RADM. The supported Python 3.11/V100 rerun accepts S0,
-S1, and S2 on the source-generated fixed batch, with S3 blocked at its first
-step-2 gradient divergence. The approved RADM data archive is available
-through the local cache. The S4 train/test image ordering and training-label
-boundaries now match the pinned loader, and the supported V100 transform
-boundary is exact for image preprocessing and box coordinates. No released
-checkpoint is present in this worktree. The current candidate includes the
-narrowly proven GRAM operation correction and the source-order ROI view
-correction; the ladder below is fresh post-correction evidence. S4 and S5
-boundary evidence is recorded, while S5 evidence is not claimed.
+S1, and S2 on the source-generated fixed batch, and S4 accepts the bounded CGL
+loader stream. S3 is recorded in three separate layers: synchronized numerical
+diagnostics, natural-trajectory drift recording, and a bounded production
+wiring representative. The natural trajectory is not accepted as unconstrained
+trajectory parity. The approved RADM data archive is available through the
+local cache. No released checkpoint is present in this worktree. S5 evidence
+is not claimed.
 
 Run commands from the repository root. Keep generated data, logs, checkpoints,
 converted local pipelines, and evaluation artifacts under `.cache/radm/`.
@@ -93,7 +91,7 @@ Training configs live under `models/radm/configs/training`.
 | Config | Dataset | Seed mode | Purpose |
 | --- | --- | --- | --- |
 | `effective_radm_config.yaml` | CGL and CGL-v2 | captured static state | Mechanical record of effective model, optimizer, scheduler, sampler, and input values. |
-| `radm_cgl.yaml` | CGL | default | Future one-GPU package training launch; not run in phase 1. |
+| `radm_cgl.yaml` | CGL | deterministic | Bounded production wiring representative; not a full training run. |
 | `radm_cgl_v2.yaml` | CGL-v2 | default | Future one-GPU package training launch; not run in phase 1. |
 | `radm_s0_deterministic.yaml` | CGL | deterministic | S0/initialization wiring; data and original-code state are still unavailable. |
 | `radm_smoke.yaml` | CGL fixture | deterministic | Package-local CPU wiring only; not reproduction evidence. |
@@ -115,9 +113,11 @@ entry is preserved in metadata and is not silently normalized into the model
 output space. The post-correction supported rerun's package training loop and
 loss passed the recorded S1 fixed-batch pre-optimizer comparison and S2
 one-step backward, full-model clipping, AdamW state, post-step parameter, and
-step-cadence scheduler comparison. A three-batch S3 source-generated probe
-reached the first update but diverged on its second pre-clip gradient surface,
-so no multi-batch, loader, trained-checkpoint, or full-run parity is claimed.
+step-cadence scheduler comparison. The bounded production wiring representative
+also exercised the same loss path through validation, step-cadence scheduler,
+CSV logging, and monitored checkpoint creation. The natural three-batch S3
+trajectory still records its accepted-contract step-2 drift; this is separate
+from the wiring PASS and is not a multi-batch trajectory parity claim.
 
 ## Seed Policy
 
@@ -126,9 +126,27 @@ training-seed or evaluation-seed reproduction results. The static configuration
 records seed `1`, matching the checked original recipe. The eventual matched
 S5 matrix is vendor and package runs for the same approved data/config under
 training seeds `1`, `2`, and `3`, followed by the same evaluation seed scope;
-only seed `1` is currently documented and no matrix run has started. S4
-requires the approved assets and S3 must pass first. S5 and the real-scale
-300-step lockstep probe are prohibited until S0-S4 pass.
+only seed `1` is currently documented and no matrix run has started. The S3
+synchronized/natural trajectory acceptance rule is pending the protocol
+generalization in meta issue [#268](https://github.com/creative-graphic-design/design-generators/issues/268)
+and the RALF protocol update in PR [#270](https://github.com/creative-graphic-design/design-generators/pull/270).
+S5 and the real-scale 300-step lockstep probe remain stopped by scope.
+
+## S3 Evidence Layers
+
+S3 evidence intentionally separates diagnostic state synchronization from the
+natural trajectory and from the production wiring boundary. Existing tolerances
+are unchanged.
+
+| Layer | Result | Evidence |
+| --- | --- | --- |
+| Synchronized numerical diagnostic | `PASS` as diagnostic only; `first_divergence: None`, `executed=1`, `skipped=0`, with optimizer-state storage independence and zero-diff synchronization assertions | `.cache/radm/s3/runs/run-005/s3-trace.json` (SHA-256 `9172d0f21940e56e1482f048cff3fde5d6d1f54adcfa2b4b2e24a79aa5523e64`); aggregate `.cache/radm/s3/two-layer-20260814-rerun.json` (SHA-256 `b4498680c80c04eb193e7166e79553fa8d9ab2e93120b039e4ba291f9b60677d`) |
+| Natural trajectory recording | `RECORDED`, not trajectory-parity acceptance; both runs first diverge at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight` | `.cache/radm/s3/runs/run-003/s3-trace.json` (SHA-256 `6248349c9f34a627739add18b9aec4a2f4d172446c82b1e31d15f4d599cb44fc`), `.cache/radm/s3/runs/run-004/s3-trace.json` (SHA-256 `a6252d4e1d4ea3cf7459b7d4fc0166c9c9fd69a73b58c37e7393b963a70b5cb2`) |
+| Production wiring representative | `PASS`; two optimizer steps, scheduler/checkpoint cadence, validation loss logging, and checkpoint payload were observed through `traingen fit` | `.cache/radm/s3/wiring/run-002.json` (SHA-256 `3709a048fbfd2044464c55d5aa10207af1cfbbad450d72c463e341f509a38c01`); checkpoint SHA-256 `bc49decd95cd81f1177f730aced255f3b339f08e169b58721f32b2170df0cdf6`; metrics SHA-256 `7bd7ed5d71044db8f618941ae9952849d60d48190e9c7967574ce9db6aa6c682` |
+
+The synchronized run is a graph/operation and state-synchronization diagnostic;
+the natural runs record the unconstrained drift envelope. Neither layer alone
+establishes a trained-checkpoint or full-run reproduction claim.
 
 ## Validation Stages
 
@@ -137,44 +155,45 @@ requires the approved assets and S3 must pass first. S5 and the real-scale
 | S0 | Static config and initialized state | Accepted on the supported V100 rerun: 23 passed in 26.50s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; text encoding fields are derived from the selected mapper, and class-mapping and derived-output guards passed. |
 | S1 | Fixed-batch pre-optimizer trace parity | Accepted post-correction: 1 passed in 33.76s, 0 skipped, executed=1, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`. |
 | S2 | One optimizer-step parity | Accepted post-correction: 1 passed in 59.98s, 0 skipped, executed=1, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25` under the existing S2 tolerance. |
-| S3 | Short deterministic multi-batch run | Blocked post-correction on supported V100 step 2: 1 failed, 0 skipped in 62.92s; first divergence `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`, max abs `0.0038013458251953125`, max rel `102.74234771728516`. This does not establish unconstrained production trajectory parity. |
-| S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; S3 remains a separate multi-batch blocker and CGL-v2 coverage is not claimed. |
-| S5 | Full-run statistical comparison | Not claimed; prohibited until S0-S4 evidence exists. |
+| S3 | Two-layer numerical diagnostic plus production wiring representative | Synchronized diagnostic: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs: `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. Natural trajectory acceptance awaits meta issue #268 and RALF PR #270. |
+| S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; the S3 natural trajectory remains a separate diagnostic boundary and CGL-v2 coverage is not claimed. |
+| S5 | Full-run statistical comparison | Not claimed; stopped by current scope. |
 
 ## Stage Evidence
 
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
-| S0 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 .cache/radm/reference-env/bin/python -m pytest models/radm/tests/test_training_s0_contracts.py models/radm/tests/vendor_parity/test_s0_reference_adapter.py models/radm/tests/vendor_parity/test_s0_radm_topology.py -m 'not integration' -q -rs` | `models/radm/configs/training/effective_radm_config.yaml` | Accepted on physical GPU 0/logical `cuda:0`: 23 passed in 26.50s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; config SHA-256 `308139a77dc29df6d91d909565b48a026cf0b3f8a965ac9c315d7bb61291002f`. |
-| S1 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s1_fixed_batch_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s1_radm_fixed_batch_pre_optimizer_parity -s -q -rs` | `.cache/radm/supported-v100/source-order-20260814/s1_fixed_batch_trace.json` | Accepted: 1 passed in 33.76s, executed=1, skipped=0, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`, evidence SHA-256 `8f27ccd99b90fac3f1ed3e922308df7c8013197c7b05799e32f2055a7c66b63a`. |
-| S2 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s1_fixed_batch_trace.json RADM_S2_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s2_one_step_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s2_radm_one_optimizer_step_parity -s -q -rs` | `.cache/radm/supported-v100/source-order-20260814/s2_one_step_trace.json` | Accepted: 1 passed in 59.98s, executed=1, skipped=0, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25`, evidence SHA-256 `0af1cbd069e43f4e0005f8d728e569dd1b77e6800a2ea23bc1e750d974518181`. |
-| S3 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s1_fixed_batch_trace.json RADM_S2_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s2_one_step_trace.json RADM_S3_EVIDENCE_PATH=.cache/radm/supported-v100/source-order-20260814/s3_multi_batch_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s3_radm_deterministic_multi_batch_parity -s -q -rs` | `models/radm/tests/vendor_parity/test_s1_radm_training.py` | Blocked: deterministic-algorithm harness restored its caller setting; 1 failed, 0 skipped in 62.92s at S3 step 2, first divergence `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`, max abs `0.0038013458251953125`, max rel `102.74234771728516`; no S3 artifact was written. |
+| S0 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 .cache/radm/reference-env/bin/python -m pytest models/radm/tests/test_training_s0_contracts.py models/radm/tests/vendor_parity/test_s0_reference_adapter.py models/radm/tests/vendor_parity/test_s0_radm_topology.py -m 'not integration' -q -rs` | `models/radm/configs/training/effective_radm_config.yaml` | Accepted on physical GPU 0/logical `cuda:0`: 23 passed in 46.32s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; config SHA-256 `308139a77dc29df6d91d909565b48a026cf0b3f8a965ac9c315d7bb61291002f`. |
+| S1 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/s3-wiring-20260814/s1_fixed_batch_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s1_radm_fixed_batch_pre_optimizer_parity -s -q -rs` | `.cache/radm/supported-v100/s3-wiring-20260814/s1_fixed_batch_trace.json` | Accepted: 1 passed, 0 skipped, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`, evidence SHA-256 `8f27ccd99b90fac3f1ed3e922308df7c8013197c7b05799e32f2055a7c66b63a`. |
+| S2 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/s3-wiring-20260814/s1_fixed_batch_trace.json RADM_S2_EVIDENCE_PATH=.cache/radm/supported-v100/s3-wiring-20260814/s2_one_step_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s2_radm_one_optimizer_step_parity -s -q -rs` | `.cache/radm/supported-v100/s3-wiring-20260814/s2_one_step_trace.json` | Accepted: 1 passed, 0 skipped, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25`, evidence SHA-256 `0af1cbd069e43f4e0005f8d728e569dd1b77e6800a2ea23bc1e750d974518181`. |
+| S3 | `CUDA_VISIBLE_DEVICES=0 RADM_PHYSICAL_GPU=0 PARITY_REQUIRE=1 RADM_S3_WIRING_EVIDENCE_PATH=.cache/radm/s3/wiring/run-002.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s3_radm_wiring.py -s -q -rs` plus the recorded synchronized/natural runs | `.cache/radm/s3/two-layer-20260814-rerun.json` | Synchronized diagnostic `first_divergence=None`; natural drift recorded; wiring representative `1 passed` in 193.97s with exit code 0, `global_step=2`, `optimizer_steps=2`, `scheduler_last_epoch=2`, final LR `2.9950000000000005e-07`, CSV `train_loss`/`val_loss`, and monitored checkpoint. |
 | S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S4_ALLOW_MISSING=1 RADM_S4_DATA_ROOT=.cache/radm/data/cgl RADM_S4_ARCHIVE_SHA256=1348a2ad70513c90287c5d2ae6d4aa87b70c49676cac5f3531cbff62610fb75b RADM_S4_EVIDENCE_PATH=.cache/radm/s4/run-012-image-box-resampling.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s4_radm_loader_stream.py -s -q -rs` | `.cache/radm/s4/run-012-image-box-resampling.json` | Supported V100 (physical GPU 0, logical `cuda:0`; Tesla V100-SXM2-32GB, torch `2.6.0+cu124`, CUDA `12.4`): `1 passed, 0 skipped`, `first_divergence: none`; evidence SHA-256 `304892b296c24f7bec86e92ffcc4b6ab380ab62bfc9a7ce70dc414b3a9c59415`. Train order `fbf1603af946c5b606d154bf0acf02f7ab651bd1e65aab21b41e4003314a4e0c`, test order `2c6e86368deb082930d4be32fd4403634157f172880f7e7f4b43f4ef19fe964d`; aligned labels, image, boxes, text features, masks, and fallback are exact (`max_abs=0.0`). |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package radm --extra training traingen fit --config models/radm/configs/training/radm_cgl.yaml` | `.cache/radm/full-run/` | Not run and prohibited in phase 1; S5 is not claimed. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package radm --extra training traingen fit --config models/radm/configs/training/radm_cgl.yaml` | `.cache/radm/full-run/` | Not run and stopped by current scope; S5 is not claimed. |
 
 ## Reproduction Results
 
 RADM S2 one-optimizer-step parity is accepted for one source-generated
 in-memory fixture after accepted S1 fixed-batch pre-optimizer parity on the
-supported V100 runtime. This is
-not a dataset, training-seed, evaluation-seed, multi-batch, trained-checkpoint,
-or full training reproduction result. The package trace uses the runtime
-`RADMDenoiser`; it does not inject the original model into the package module.
-Text inputs are generated as two deterministic 768-D rows and then padded by
-the original mapper. The supported S3 multi-batch attempt is blocked by the
-exact step-2 gradient divergence recorded above even under the deterministic
-diagnostic algorithm setting. That setting is not a claim about unconstrained
-production trajectory parity. The approved archive is materialized locally,
-and the bounded CGL S4 loader boundary is now exact for order, labels,
-fallback, image preprocessing, and boxes. This does not make the blocked S3
-multi-batch trajectory or untested CGL-v2 stream a reproduction claim.
-S5 and the real-scale 300-step lockstep probe remain prohibited.
+supported V100 runtime. S3 now has a bounded production wiring representative
+PASS and two diagnostic layers: the synchronized lockstep has
+`first_divergence=None`, while the natural trajectory runs record the same
+step-2 pre-clip gradient drift. This is not a natural trajectory, dataset,
+training-seed, evaluation-seed, trained-checkpoint, or full training
+reproduction result. The package trace uses the runtime `RADMDenoiser`; it does
+not inject the original model into the package module. Text inputs are
+generated as two deterministic 768-D rows and then padded by the original
+mapper. The synchronized/natural trajectory acceptance rule awaits the
+protocol generalization in meta issue #268 and RALF PR #270; no tolerance was
+changed. The approved archive is materialized locally, and the bounded CGL S4
+loader boundary is exact for order, labels, fallback, image preprocessing, and
+boxes. This does not make the untested CGL-v2 stream a reproduction claim. S5
+and the real-scale 300-step lockstep probe remain prohibited.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CGL | original | `blocked (S3 remains blocked; no trained checkpoint)` | not run | not measured | not measured | `models/radm/tests/vendor_parity/reference_adapter.py` |
+| CGL | original | `blocked (natural S3 acceptance pending; no trained checkpoint)` | not run | not measured | not measured | `models/radm/tests/vendor_parity/reference_adapter.py` |
 | CGL | package | `not-yet-run (#261 phase 1)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
-| CGL-v2 | original | `blocked (S3 remains blocked; S4 coverage not claimed)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
+| CGL-v2 | original | `blocked (natural S3 acceptance pending; S4 coverage not claimed)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
 | CGL-v2 | package | `not-yet-run (#261 phase 1)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
 
 There is no released checkpoint. The eventual reference checkpoint must first
@@ -204,15 +223,23 @@ and text mask
 `da774fa5934ac062f6c8dcf0b4747ec0e2cb6783768d13b234df2cf611f24ca5`. Do not
 commit checkpoints, tensors, images, datasets, or generated reference outputs.
 
-The supported-runtime S1 and S2 evidence artifacts are
-`.cache/radm/supported-v100/s1_fixed_batch_trace.json` (SHA-256
-`5c935d69c30e8d8ad14bd304cf73c7fed43c3c4f07ab60b94a510692f00a42b1`) and
-`.cache/radm/supported-v100/s2_one_step_trace.json` (SHA-256
-`0b0427b4fbc142688eac8f19633f9a7f8c3ae74d3bcfbec12d83ef10ee0e5ca4`). They use
-the same source-generated fixture hashes above, source revision
-`413f87a45760ceac5635b6a08c8047f86478acf5`, and config SHA-256
-`308139a77dc29df6d91d909565b48a026cf0b3f8a965ac9c315d7bb61291002f`. The S3
-failure occurred before its evidence writer, so no S3 artifact hash exists.
+The current supported-runtime S1 and S2 regression artifacts are
+`.cache/radm/supported-v100/s3-wiring-20260814/s1_fixed_batch_trace.json`
+(SHA-256 `8f27ccd99b90fac3f1ed3e922308df7c8013197c7b05799e32f2055a7c66b63a`)
+and `.cache/radm/supported-v100/s3-wiring-20260814/s2_one_step_trace.json`
+(SHA-256 `0af1cbd069e43f4e0005f8d728e569dd1b77e6800a2ea23bc1e750d974518181`).
+They use the same source-generated fixture hashes above, source revision
+`413f87a45760ceac5635b6a08c8047f86478acf5`, and effective static config
+SHA-256 `308139a77dc29df6d91d909565b48a026cf0b3f8a965ac9c315d7bb61291002f`.
+The two-layer S3 aggregate is
+`.cache/radm/s3/two-layer-20260814-rerun.json` (SHA-256
+`b4498680c80c04eb193e7166e79553fa8d9ab2e93120b039e4ba291f9b60677d`), with
+natural run roots `.cache/radm/s3/runs/run-003` and `run-004`, and synchronized
+run root `.cache/radm/s3/runs/run-005`. The production wiring evidence is
+`.cache/radm/s3/wiring/run-002.json` (SHA-256
+`3709a048fbfd2044464c55d5aa10207af1cfbbad450d72c463e341f509a38c01`); its
+disposable checkpoint and CSV metric hashes are recorded in the S3 evidence
+layer above. These artifacts remain outside git.
 
 ## Training Commands
 

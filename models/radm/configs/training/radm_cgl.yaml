@@ -3,10 +3,26 @@ trainer:
   accelerator: gpu
   devices: 1
   precision: 32-true
-  deterministic: false
+  deterministic: true
   max_steps: 250000
   gradient_clip_val: 0.0
   limit_val_batches: 1.0
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  log_every_n_steps: 1
+  logger:
+    class_path: lightning.pytorch.loggers.CSVLogger
+    init_args:
+      save_dir: .cache/radm/training-runs/cgl
+      name: csv
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: .cache/radm/training-runs/cgl/checkpoints
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        save_last: false
 model:
   class_path: radm.training.lightning_module.RADMTrainingModule
   init_args:
@@ -23,8 +39,7 @@ model:
         snr_scale: 2.0
         sample_step: 1
         backbone_depth: 50
-    effective:
-      class_path: radm.training.config.RADMEffectiveConfig
+    effective: {}
 data:
   class_path: radm.training.datamodule.RADMDataModule
   init_args:
@@ -36,5 +51,4 @@ data:
     val_text_feature_root: .cache/radm/data/cgl/text_features/test
     batch_size: 16
     num_workers: 0
-    effective:
-      class_path: radm.training.config.RADMEffectiveConfig
+    effective: {}
