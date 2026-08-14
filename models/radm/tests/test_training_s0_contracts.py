@@ -564,11 +564,11 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
     monkeypatch.setattr(np.random, "choice", lambda values: 480)
     image, boxes = _apply_training_transforms(
         torch.zeros(3, 100, 200),
-        torch.tensor([[0.1, 0.2, 0.4, 0.8]]),
+        torch.tensor([[20.0, 20.0, 80.0, 80.0]]),
         effective=effective,
     )
     assert tuple(image.shape) == (3, 480, 960)
-    torch.testing.assert_close(boxes, torch.tensor([[0.6, 0.2, 0.9, 0.8]]))
+    torch.testing.assert_close(boxes, torch.tensor([[576.0, 96.0, 864.0, 384.0]]))
 
     examples = [
         {
