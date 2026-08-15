@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import cast
+from typing import Protocol, cast
 
 import torch
 from jaxtyping import Float, Shaped
@@ -14,7 +13,15 @@ from transformers.modeling_outputs import CausalLMOutput
 
 from ..configuration_ralf import RalfConfig
 from ..modeling_ralf import RalfForConditionalLayoutGeneration
-from ..retrieval import RalfRetrievedBatch, model_inputs_to_retrieved_batch
+from ..retrieval import RalfRetrievedBatch
+from .datamodule import RalfTrainingBatch
+
+
+class _GradientTraceHook(Protocol):
+    """Diagnostic callback surface used by the training parity runner."""
+
+    def on_package_gradients_clipped(self, pl_module: "RalfTrainingModule") -> None:
+        """Observe package gradients after Lightning applies clipping."""
 
 
 class RalfTrainingModule(LightningModule):
@@ -45,6 +52,7 @@ class RalfTrainingModule(LightningModule):
         self.scheduler_milestones = tuple(scheduler_milestones)
         self.condition_type = condition_type
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, ...]] = {}
+        self._gradient_trace_hook: _GradientTraceHook | None = None
 
     def forward(
         self, **batch: Shaped[torch.Tensor, ...] | RalfRetrievedBatch
@@ -59,7 +67,7 @@ class RalfTrainingModule(LightningModule):
 
     def training_step(
         self,
-        batch: dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch],
+        batch: RalfTrainingBatch,
         batch_idx: int,
     ) -> Float[torch.Tensor, ""]:
         """Run one teacher-forced package training step."""
@@ -86,7 +94,7 @@ class RalfTrainingModule(LightningModule):
 
     def validation_step(
         self,
-        batch: dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch],
+        batch: RalfTrainingBatch,
         batch_idx: int,
     ) -> Float[torch.Tensor, ""]:
         """Evaluate one validation batch with the same teacher forcing."""
@@ -198,22 +206,17 @@ class RalfTrainingModule(LightningModule):
 
     @staticmethod
     def _model_batch(
-        batch: Mapping[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch],
-    ) -> dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]:
-        retrieved = batch.get("retrieved")
-        if isinstance(retrieved, RalfRetrievedBatch):
-            batch_retrieved = retrieved
-        elif isinstance(retrieved, Mapping):
-            batch_retrieved = model_inputs_to_retrieved_batch(
-                cast(Mapping[str, Shaped[torch.Tensor, "..."]], retrieved)
-            )
-        else:
-            raise TypeError("training batch must contain a retrieved batch")
+        batch: RalfTrainingBatch,
+    ) -> RalfTrainingBatch:
+        batch_retrieved = batch["retrieved"]
         return {
-            "input_ids": cast(Tensor, batch["input_ids"]).long(),
-            "labels": cast(Tensor, batch["labels"]).long(),
-            "attention_mask": cast(Tensor, batch["attention_mask"]).bool(),
-            "pixel_values": cast(Tensor, batch["pixel_values"]).float(),
-            "saliency": cast(Tensor, batch["saliency"]).float(),
+            "input_ids": batch["input_ids"].long(),
+            "labels": batch["labels"].long(),
+            "attention_mask": batch["attention_mask"].bool(),
+            "pixel_values": batch["pixel_values"].float(),
+            "saliency": batch["saliency"].float(),
+            "layout_labels": batch["layout_labels"].long(),
+            "layout_bbox": batch["layout_bbox"].float(),
+            "layout_mask": batch["layout_mask"].bool(),
             "retrieved": batch_retrieved,
         }

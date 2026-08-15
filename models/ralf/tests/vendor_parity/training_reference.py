@@ -12,7 +12,7 @@ import random
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 import numpy as np
 import torch
@@ -22,7 +22,37 @@ from torch import Tensor
 
 from ralf import RalfConfig
 from ralf.retrieval import RalfRetrievedBatch
-from ralf.training.datamodule import collate_training_batch
+from ralf.training.datamodule import (
+    RalfSampleValue,
+    RalfTrainingBatch,
+    collate_training_batch,
+)
+
+
+class VendorTrainingModel(Protocol):
+    """Typed surface used by the independent vendor training adapter."""
+
+    def preprocess(
+        self, batch: Mapping[str, object]
+    ) -> tuple[dict[str, object], dict[str, object]]: ...
+
+    def train_loss(
+        self, inputs: Mapping[str, object], targets: Mapping[str, object]
+    ) -> tuple[Mapping[str, Tensor], Mapping[str, Tensor]]: ...
+
+    def optim_groups(
+        self,
+        *,
+        base_lr: float,
+        weight_decay: float,
+        custom_lr: Mapping[str, float],
+    ) -> list[dict[str, object]]:
+        del base_lr, custom_lr
+        raise NotImplementedError
+
+
+class _PrecomputedWeightModule(Protocol):
+    PRECOMPUTED_WEIGHT_DIR: str
 
 
 def require_vendor(cache_dir: Path) -> None:
@@ -43,11 +73,13 @@ def require_vendor(cache_dir: Path) -> None:
         "image2layout.train.models.common.image",
         "image2layout.train.helpers.layout_tokenizer",
     ):
-        module = importlib.import_module(module_name)
+        module = cast(_PrecomputedWeightModule, importlib.import_module(module_name))
         module.PRECOMPUTED_WEIGHT_DIR = str(precomputed)
 
 
 def _vendor_features(config: RalfConfig) -> Features:
+    if config.id2label is None:
+        raise RuntimeError("RALF config must define id2label for vendor training")
     labels = [str(label) for _, label in sorted(config.id2label.items())]
     return Features(
         {
@@ -113,9 +145,9 @@ def move_retrieved(
     )
 
 
-def vendor_raw_batch(batch: Mapping[str, object]) -> dict[str, object]:
+def vendor_raw_batch(batch: RalfTrainingBatch) -> dict[str, object]:
     """Convert package batch fields to the original model's raw batch schema."""
-    retrieved = cast(RalfRetrievedBatch, batch["retrieved"])
+    retrieved = batch["retrieved"]
     retrieved_image = torch.cat([retrieved.image, retrieved.saliency], dim=2)
     bbox = retrieved.bbox
     retrieved_data = {
@@ -128,37 +160,39 @@ def vendor_raw_batch(batch: Mapping[str, object]) -> dict[str, object]:
         "label": retrieved.labels,
         "mask": retrieved.mask,
     }
-    layout_bbox = cast(Tensor, batch["layout_bbox"])
+    layout_bbox = batch["layout_bbox"]
     return {
-        "id": list(range(cast(Tensor, batch["layout_labels"]).size(0))),
-        "image": cast(Tensor, batch["pixel_values"]),
-        "saliency": cast(Tensor, batch["saliency"]),
-        "label": cast(Tensor, batch["layout_labels"]),
+        "id": list(range(batch["layout_labels"].size(0))),
+        "image": batch["pixel_values"],
+        "saliency": batch["saliency"],
+        "label": batch["layout_labels"],
         "center_x": layout_bbox[..., 0],
         "center_y": layout_bbox[..., 1],
         "width": layout_bbox[..., 2],
         "height": layout_bbox[..., 3],
-        "mask": cast(Tensor, batch["layout_mask"]),
+        "mask": batch["layout_mask"],
         "retrieved": retrieved_data,
     }
 
 
 def vendor_preprocess(
-    model: torch.nn.Module, batch: Mapping[str, object]
+    model: torch.nn.Module, batch: RalfTrainingBatch
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Prepare a package batch through the original model's preprocessing."""
     raw = vendor_raw_batch(batch)
-    inputs, targets = model.preprocess(raw)
-    return cast(dict[str, object], inputs), cast(dict[str, object], targets)
+    vendor_model = cast(VendorTrainingModel, model)
+    return vendor_model.preprocess(raw)
 
 
 def package_batch_from_samples(
-    samples: Sequence[Mapping[str, object]],
+    samples: Sequence[Mapping[str, RalfSampleValue | Shaped[torch.Tensor, "..."]]],
     *,
     config: RalfConfig,
     table: Mapping[int | str, Sequence[int]],
-    retrieval_samples: Sequence[Mapping[str, object]],
-) -> dict[str, object]:
+    retrieval_samples: Sequence[
+        Mapping[str, RalfSampleValue | Shaped[torch.Tensor, "..."]]
+    ],
+) -> RalfTrainingBatch:
     """Build a package batch from explicit rows for stream checks."""
     from ralf.training.datamodule import RalfTrainingDataset
 

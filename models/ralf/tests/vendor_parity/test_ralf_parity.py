@@ -413,9 +413,9 @@ def _runtime_fixture(
         normalized = normalize_org_sample(sample, "cgl")
         return (
             cast(str, sample["id"]),
-            cast(torch.Tensor, normalized["labels"]).unsqueeze(0),
-            cast(torch.Tensor, normalized["bbox"]).unsqueeze(0),
-            cast(torch.Tensor, normalized["mask"]).unsqueeze(0),
+            normalized["labels"].unsqueeze(0),
+            normalized["bbox"].unsqueeze(0),
+            normalized["mask"].unsqueeze(0),
         )
 
     generated = (

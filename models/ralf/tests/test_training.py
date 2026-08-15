@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 import pytest
 import torch
 
@@ -18,6 +21,12 @@ from ralf.training.datamodule import (  # noqa: E402
     encode_training_sample,
 )
 from ralf.training.lightning_module import RalfTrainingModule  # noqa: E402
+
+
+def test_package_declares_runtime_jaxtyping_dependency() -> None:
+    package = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+
+    assert "jaxtyping>=0.3" in package["project"]["dependencies"]
 
 
 def test_training_stage_order_is_strict() -> None:
@@ -65,7 +74,9 @@ def test_encode_training_sample_matches_teacher_forcing_contract() -> None:
     assert encoded["attention_mask"].shape == (config.max_token_length,)
     assert encoded["pixel_values"].shape == (3, 64, 64)
     assert encoded["saliency"].shape == (1, 64, 64)
-    assert encoded["retrieved"].indexes.tolist() == [[0]]
+    indexes = encoded["retrieved"].indexes
+    assert indexes is not None
+    assert indexes.tolist() == [[0]]
 
 
 def test_s0_package_training_module_owns_package_model() -> None:

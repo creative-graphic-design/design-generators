@@ -5,9 +5,11 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 
 from run_training_stages import (
     _compare_learning_rates,
@@ -147,6 +149,23 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
     assert "validation_limit" in source
 
 
+def test_s3_uses_member_imports_without_manual_workspace_pythonpath() -> None:
+    source = inspect.getsource(_run_s3_fit)
+
+    assert (
+        "models.ralf.tests.vendor_parity.run_training_stages.RalfS3TraceCallback"
+        in source
+    )
+    assert (
+        "models.ralf.tests.vendor_parity.run_training_stages.RalfS3CSVLogger" in source
+    )
+    assert 'env["PYTHONPATH"]' not in source
+    assert "lib/laygen/src" not in source
+    assert "lib/posgen/src" not in source
+    assert "lib/traingen/src" not in source
+    assert "lib/traingen-parity/src" not in source
+
+
 def test_s3_does_not_disable_deterministic_training() -> None:
     source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
 
@@ -207,11 +226,14 @@ def test_s3_optimizer_state_sync_separates_tensor_storage(tmp_path: Path) -> Non
     callback.optimizer_step_count = 1
 
     callback.on_train_batch_start(
-        SimpleNamespace(
-            optimizers=[package_optimizer],
-            current_epoch=0,
+        cast(
+            Trainer,
+            SimpleNamespace(
+                optimizers=[package_optimizer],
+                current_epoch=0,
+            ),
         ),
-        SimpleNamespace(model=package),
+        cast(LightningModule, SimpleNamespace(model=package)),
         object(),
         0,
     )

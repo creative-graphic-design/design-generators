@@ -11,12 +11,14 @@ import shlex
 import subprocess
 import sys
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
-from typing import cast
+from typing import Literal, TypedDict, cast
 
 import torch
+from jaxtyping import Shaped
+from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch import Tensor
@@ -27,6 +29,8 @@ from ralf import RalfConfig, RalfForConditionalLayoutGeneration
 from ralf.retrieval import RalfRetrievedBatch
 from ralf.training.datamodule import (
     RalfDataModule,
+    RalfSampleValue,
+    RalfTrainingBatch,
     collate_training_batch,
 )
 from ralf.training.lightning_module import RalfTrainingModule
@@ -37,11 +41,82 @@ from training_reference import (
     named_optimizer_state,
     reseed,
     state_sha256,
+    VendorTrainingModel,
     vendor_preprocess,
 )
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
+
+RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
+
+
+class _GradientCoverage(TypedDict):
+    """Named-parameter gradient presence summary."""
+
+    named_parameter_count: int
+    present_count: int
+    absent_count: int
+    presence_digest: str
+
+
+class _OptimizerGroup(TypedDict):
+    """One optimizer group with stable parameter-name evidence."""
+
+    lr: float
+    weight_decay: float
+    names: list[str]
+
+
+class _GradientComparison(TypedDict):
+    """Per-parameter gradient comparison result."""
+
+    first_divergence: str | None
+    max_abs_diff: float
+    package: _GradientCoverage
+    vendor: _GradientCoverage
+
+
+class _TensorComparison(TypedDict):
+    """Tensor-state comparison result."""
+
+    first_divergence: str | None
+    max_abs_diff: float
+
+
+class _LearningRateGroup(TypedDict):
+    """Learning-rate comparison for one optimizer group."""
+
+    index: int
+    package: float
+    vendor: float
+    abs_diff: float
+
+
+class _LearningRateComparison(TypedDict):
+    """Learning-rate comparison result."""
+
+    first_divergence: int | None
+    max_abs_diff: float
+    groups: list[_LearningRateGroup]
+
+
+class _TrainingContext(TypedDict):
+    """Static package data used by the stage functions."""
+
+    batch: RalfTrainingBatch
+    samples: Sequence[RalfRawSample]
+    table: Mapping[str | int, Sequence[int]]
+
+
+class _NaturalEnvelope(TypedDict):
+    """Run-to-run natural-trajectory envelope."""
+
+    run_count: int
+    step_count: int
+    max_abs_diff: dict[str, dict[str, float]]
+    first_package_state_hash_divergence_step: int | None
+    package_state_hashes_equal: bool
 
 
 def _parse_args() -> argparse.Namespace:
@@ -62,16 +137,22 @@ def _dataset_config(dataset: str, cache_dir: Path) -> RalfConfig:
     if dataset == "cgl":
         with (cache_dir / "dataset" / "cgl" / "vocabulary.json").open() as handle:
             vocabulary = json.load(handle)
-        labels = {index: name for index, name in enumerate(sorted(vocabulary["label"]))}
+        labels: dict[int, str] = {
+            index: str(name) for index, name in enumerate(sorted(vocabulary["label"]))
+        }
         fidnet_name = "cgl"
-    else:
+        dataset_name: Literal["cgl"] = "cgl"
+    elif dataset == "pku":
         labels = {0: "logo", 1: "text", 2: "underlay"}
         fidnet_name = "pku10"
+        dataset_name = "pku"
+    else:
+        raise ValueError(f"unsupported RALF dataset: {dataset}")
     precomputed = cache_dir / "PRECOMPUTED_WEIGHT_DIR"
     return RalfConfig(
-        dataset_name=dataset,
+        dataset_name=dataset_name,
         task="unconditional",
-        id2label=labels,
+        id2label=cast(Mapping[int | str, str], labels),
         max_seq_length=10,
         num_bin=128,
         top_k=16,
@@ -95,7 +176,7 @@ def _retrieval_path(cache_dir: Path, dataset: str, split: str) -> Path:
 
 def _load_context(
     args: argparse.Namespace,
-) -> tuple[RalfConfig, RalfDataModule, dict[str, object]]:
+) -> tuple[RalfConfig, RalfDataModule, _TrainingContext]:
     config = _dataset_config(args.dataset, args.cache_dir)
     train_index = _retrieval_path(args.cache_dir, args.dataset, "train")
     val_index = _retrieval_path(args.cache_dir, args.dataset, "val")
@@ -136,16 +217,18 @@ def _device() -> torch.device:
     return torch.device("cuda")
 
 
-def _move_batch(batch: Mapping[str, object], device: torch.device) -> dict[str, object]:
-    output: dict[str, object] = {}
-    for key, value in batch.items():
-        if isinstance(value, Tensor):
-            output[key] = value.to(device)
-        elif isinstance(value, RalfRetrievedBatch):
-            output[key] = move_retrieved(value, device)
-        else:
-            output[key] = value
-    return output
+def _move_batch(batch: RalfTrainingBatch, device: torch.device) -> RalfTrainingBatch:
+    return {
+        "input_ids": batch["input_ids"].to(device),
+        "labels": batch["labels"].to(device),
+        "attention_mask": batch["attention_mask"].to(device),
+        "pixel_values": batch["pixel_values"].to(device),
+        "saliency": batch["saliency"].to(device),
+        "layout_labels": batch["layout_labels"].to(device),
+        "layout_bbox": batch["layout_bbox"].to(device),
+        "layout_mask": batch["layout_mask"].to(device),
+        "retrieved": move_retrieved(batch["retrieved"], device),
+    }
 
 
 def _vendor_move(value: object, device: torch.device) -> object:
@@ -183,7 +266,7 @@ def _models(
 def _loss_pair(
     package_module: RalfTrainingModule,
     vendor_model: torch.nn.Module,
-    batch: Mapping[str, object],
+    batch: RalfTrainingBatch,
     device: torch.device,
     seed: int,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
@@ -196,20 +279,21 @@ def _loss_pair(
     vendor_model.train()
     reseed(seed)
     package_output = package_model(
-        input_ids=cast(Tensor, package_batch["input_ids"]),
-        labels=cast(Tensor, package_batch["labels"]),
-        attention_mask=cast(Tensor, package_batch["attention_mask"]),
-        pixel_values=cast(Tensor, package_batch["pixel_values"]),
-        saliency=cast(Tensor, package_batch["saliency"]),
-        retrieved=cast(RalfRetrievedBatch, package_batch["retrieved"]),
+        input_ids=package_batch["input_ids"],
+        labels=package_batch["labels"],
+        attention_mask=package_batch["attention_mask"],
+        pixel_values=package_batch["pixel_values"],
+        saliency=package_batch["saliency"],
+        retrieved=package_batch["retrieved"],
         condition_type="unconditional",
     )
     reseed(seed)
-    vendor_output, vendor_losses = vendor_model.train_loss(
+    vendor_training_model = cast(VendorTrainingModel, vendor_model)
+    vendor_output, vendor_losses = vendor_training_model.train_loss(
         vendor_inputs, vendor_targets
     )
-    vendor_logits = cast(Tensor, vendor_output["logits"])
-    vendor_loss = cast(Tensor, vendor_losses["nll_loss"])
+    vendor_logits = vendor_output["logits"]
+    vendor_loss = vendor_losses["nll_loss"]
     if package_output.loss is None:
         raise RuntimeError("package model returned no loss")
     return package_output.loss, vendor_loss, package_output.logits, vendor_logits
@@ -233,7 +317,7 @@ def _gradient_presence_digest(gradients: Mapping[str, Tensor | None]) -> str:
     return digest.hexdigest()
 
 
-def _gradient_coverage(gradients: Mapping[str, Tensor | None]) -> dict[str, object]:
+def _gradient_coverage(gradients: Mapping[str, Tensor | None]) -> _GradientCoverage:
     return {
         "named_parameter_count": len(gradients),
         "present_count": sum(gradient is not None for gradient in gradients.values()),
@@ -248,7 +332,7 @@ def _compare_named_gradients(
     stage: str,
     *,
     enforce: bool = True,
-) -> dict[str, object]:
+) -> _GradientComparison:
     package_parameters = dict(package_model.named_parameters())
     vendor_parameters = dict(vendor_model.named_parameters())
     if set(package_parameters) != set(vendor_parameters):
@@ -262,8 +346,8 @@ def _compare_named_gradients(
         return {
             "first_divergence": "coverage",
             "max_abs_diff": float("inf"),
-            "package": {"named_parameter_count": len(package_parameters)},
-            "vendor": {"named_parameter_count": len(vendor_parameters)},
+            "package": _gradient_coverage({name: None for name in package_parameters}),
+            "vendor": _gradient_coverage({name: None for name in vendor_parameters}),
         }
     package_gradients = {
         name: parameter.grad.detach() if parameter.grad is not None else None
@@ -321,7 +405,7 @@ def _optimizer_for(
     module: RalfTrainingModule, vendor_model: torch.nn.Module
 ) -> tuple[torch.optim.Optimizer, torch.optim.Optimizer]:
     package_optimizer = torch.optim.AdamW(module.optim_groups(), lr=1e-4, foreach=False)
-    vendor_groups = vendor_model.optim_groups(
+    vendor_groups = cast(VendorTrainingModel, vendor_model).optim_groups(
         base_lr=1e-4,
         weight_decay=1e-4,
         custom_lr={"encoder.extractor.body": 1e-5},
@@ -332,12 +416,12 @@ def _optimizer_for(
 
 def _group_names(
     optimizer: torch.optim.Optimizer, model: torch.nn.Module
-) -> list[dict[str, object]]:
+) -> list[_OptimizerGroup]:
     by_id = {id(parameter): name for name, parameter in model.named_parameters()}
     return [
         {
-            "lr": group["lr"],
-            "weight_decay": group["weight_decay"],
+            "lr": float(group["lr"]),
+            "weight_decay": float(group["weight_decay"]),
             "names": [by_id[id(parameter)] for parameter in group["params"]],
         }
         for group in optimizer.param_groups
@@ -349,7 +433,7 @@ def _compare_learning_rates(
     vendor_optimizer: torch.optim.Optimizer,
     *,
     enforce: bool = True,
-) -> dict[str, object]:
+) -> _LearningRateComparison:
     package_groups = package_optimizer.param_groups
     vendor_groups = vendor_optimizer.param_groups
     if len(package_groups) != len(vendor_groups):
@@ -357,7 +441,7 @@ def _compare_learning_rates(
             "first divergence at learning_rates.group_count; "
             f"package={len(package_groups)}; vendor={len(vendor_groups)}"
         )
-    groups: list[dict[str, object]] = []
+    groups: list[_LearningRateGroup] = []
     first_divergence: int | None = None
     aggregate_max_abs = 0.0
     for index, (package_group, vendor_group) in enumerate(
@@ -527,8 +611,9 @@ def _serialized_sha256(value: object) -> str:
             return
         if isinstance(item, Mapping):
             digest.update(b"mapping\0")
-            for key in sorted(item, key=str):
-                update(item[key], f"{path}.{key}")
+            mapping = cast(Mapping[object, object], item)
+            for key in sorted(mapping, key=str):
+                update(mapping[key], f"{path}.{key}")
             return
         if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
             digest.update(b"sequence\0")
@@ -560,7 +645,7 @@ def _compare_state_dicts(
     stage: str,
     *,
     enforce: bool = True,
-) -> dict[str, object]:
+) -> _TensorComparison:
     if set(package_state) != set(vendor_state):
         missing = sorted(set(vendor_state) - set(package_state))
         extra = sorted(set(package_state) - set(vendor_state))
@@ -600,7 +685,7 @@ def _compare_optimizer_states(
     stage: str,
     *,
     enforce: bool = True,
-) -> dict[str, object]:
+) -> _TensorComparison:
     package_state = named_optimizer_state(package_optimizer, package_model)
     vendor_state = named_optimizer_state(vendor_optimizer, vendor_model)
     if set(package_state) != set(vendor_state):
@@ -669,10 +754,10 @@ class RalfS3TraceCallback(Callback):
         self.vendor_optimizer: torch.optim.Optimizer | None = None
         self.vendor_scheduler: torch.optim.lr_scheduler.MultiStepLR | None = None
         self.package_scheduler: torch.optim.lr_scheduler.MultiStepLR | None = None
-        self.current_batch: Mapping[str, object] | None = None
+        self.current_batch: RalfTrainingBatch | None = None
         self.current_rng: RNGState | None = None
-        self.raw_results: list[dict[str, object]] = []
-        self.clipped_result: dict[str, object] | None = None
+        self.raw_results: list[_GradientComparison] = []
+        self.clipped_result: _GradientComparison | None = None
         self.raw_norms: list[dict[str, float]] = []
         self.clipped_norms: list[dict[str, float]] = []
         self.train_trajectory: list[dict[str, object]] = []
@@ -685,7 +770,7 @@ class RalfS3TraceCallback(Callback):
         self.optimizer_step_count = 0
         self.scheduler_step_epochs: set[int] = set()
         self.last_global_step = 0
-        self.package_batch_lr: dict[str, object] | None = None
+        self.package_batch_lr: _LearningRateComparison | None = None
         self.package_batch_epoch = -1
         self.package_batch_index = -1
         self.package_loss: float | None = None
@@ -717,10 +802,10 @@ class RalfS3TraceCallback(Callback):
             raise RuntimeError("S3 reference models were not initialized")
         return self.vendor_model, self.vendor_optimizer
 
-    def on_fit_start(self, trainer: object, pl_module: RalfTrainingModule) -> None:
+    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         if os.environ.get("PARITY_REQUIRE") != "1":
             raise RuntimeError("PARITY_REQUIRE=1 is required for S3")
-        lightning_trainer = cast(object, trainer)
+        ralf_module = cast(RalfTrainingModule, pl_module)
         if not torch.are_deterministic_algorithms_enabled():
             raise RuntimeError(
                 "first divergence at S3.deterministic_algorithms; "
@@ -738,28 +823,28 @@ class RalfS3TraceCallback(Callback):
         torch.backends.cudnn.allow_tf32 = False
         reseed(self.seed)
         vendor_model = build_vendor_model(
-            pl_module.ralf_config, cache_dir=self.cache_dir
+            ralf_module.ralf_config, cache_dir=self.cache_dir
         )
-        vendor_model.to(pl_module.device)
+        vendor_model.to(ralf_module.device)
         vendor_model.train()
         self.vendor_model = vendor_model
-        _, self.vendor_optimizer = _optimizer_for(pl_module, vendor_model)
+        _, self.vendor_optimizer = _optimizer_for(ralf_module, vendor_model)
         self.vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
             self.vendor_optimizer,
             milestones=[
-                int(value * pl_module.epochs)
-                for value in pl_module.scheduler_milestones
+                int(value * ralf_module.epochs)
+                for value in ralf_module.scheduler_milestones
             ],
             gamma=0.1,
         )
         restore_rng_state(package_rng)
-        package_state = cast(Mapping[str, Tensor], pl_module.model.state_dict())
+        package_state = cast(Mapping[str, Tensor], ralf_module.model.state_dict())
         vendor_state = cast(Mapping[str, Tensor], vendor_model.state_dict())
         package_before_sync = state_sha256(package_state)
         vendor_initial_state = state_sha256(vendor_state)
-        pl_module.model.load_state_dict(vendor_state, strict=True)
+        ralf_module.model.load_state_dict(vendor_state, strict=True)
         _compare_state_dicts(
-            cast(Mapping[str, Tensor], pl_module.model.state_dict()),
+            cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
             vendor_state,
             "S3.initial_parameters",
         )
@@ -767,21 +852,20 @@ class RalfS3TraceCallback(Callback):
             "package_state_sha256_before_sync": package_before_sync,
             "vendor_state_sha256": vendor_initial_state,
             "package_state_sha256_after_sync": state_sha256(
-                pl_module.model.state_dict()
+                ralf_module.model.state_dict()
             ),
             "package_model_object_preserved": True,
             "vendor_model_injected": False,
         }
-        pl_module._gradient_trace_hook = self
+        ralf_module._gradient_trace_hook = self
 
-        lightning_trainer = cast(object, trainer)
-        optimizers = cast(list[torch.optim.Optimizer], lightning_trainer.optimizers)
+        optimizers = trainer.optimizers
         if len(optimizers) != 1:
             raise RuntimeError(
                 f"first divergence at S3.optimizer_count; package={len(optimizers)}"
             )
         package_optimizer = optimizers[0]
-        package_scheduler_configs = lightning_trainer.lr_scheduler_configs
+        package_scheduler_configs = trainer.lr_scheduler_configs
         if len(package_scheduler_configs) != 1:
             raise RuntimeError(
                 "first divergence at S3.scheduler_count; "
@@ -830,20 +914,20 @@ class RalfS3TraceCallback(Callback):
 
     def on_train_batch_start(
         self,
-        trainer: object,
-        pl_module: RalfTrainingModule,
+        trainer: Trainer,
+        pl_module: LightningModule,
         batch: object,
         batch_idx: int,
     ) -> None:
+        ralf_module = cast(RalfTrainingModule, pl_module)
         if self.vendor_optimizer is None:
             raise RuntimeError("S3 reference optimizer was not initialized")
-        lightning_trainer = cast(object, trainer)
-        package_optimizer = cast(
-            list[torch.optim.Optimizer], lightning_trainer.optimizers
-        )[0]
+        package_optimizer = trainer.optimizers[0]
         if self.synchronized and self.optimizer_step_count:
             self.vendor_model = self.vendor_model or self._require_models()[0]
-            self.vendor_model.load_state_dict(pl_module.model.state_dict(), strict=True)
+            self.vendor_model.load_state_dict(
+                ralf_module.model.state_dict(), strict=True
+            )
             self.vendor_optimizer.load_state_dict(
                 copy.deepcopy(package_optimizer.state_dict())
             )
@@ -851,21 +935,22 @@ class RalfS3TraceCallback(Callback):
                 self.vendor_scheduler.load_state_dict(
                     self.package_scheduler.state_dict()
                 )
-        self.package_batch_lr = _compare_learning_rates(
+        package_batch_lr = _compare_learning_rates(
             package_optimizer,
             self.vendor_optimizer,
             enforce=self.synchronized,
         )
-        if self.package_batch_lr["first_divergence"] is not None:
+        self.package_batch_lr = package_batch_lr
+        if package_batch_lr["first_divergence"] is not None:
             self._remember_divergence(
-                f"S3.epoch[{lightning_trainer.current_epoch}].batch[{batch_idx}].learning_rates",
-                float(self.package_batch_lr["max_abs_diff"]),
+                f"S3.epoch[{trainer.current_epoch}].batch[{batch_idx}].learning_rates",
+                package_batch_lr["max_abs_diff"],
             )
         if self.package_scheduler is None or self.vendor_scheduler is None:
             raise RuntimeError("S3 schedulers were not initialized")
         self.scheduler_trajectory.append(
             {
-                "epoch": lightning_trainer.current_epoch,
+                "epoch": trainer.current_epoch,
                 "package_last_epoch": self.package_scheduler.last_epoch,
                 "vendor_last_epoch": self.vendor_scheduler.last_epoch,
                 "package_lrs": [
@@ -876,9 +961,9 @@ class RalfS3TraceCallback(Callback):
                 ],
             }
         )
-        self.current_batch = cast(Mapping[str, object], _copy_batch_to_cpu(batch))
+        self.current_batch = cast(RalfTrainingBatch, _copy_batch_to_cpu(batch))
         self.current_rng = capture_rng_state()
-        self.package_batch_epoch = lightning_trainer.current_epoch
+        self.package_batch_epoch = trainer.current_epoch
         self.package_batch_index = batch_idx
         self.microbatch_count += 1
         self.raw_results = []
@@ -887,7 +972,8 @@ class RalfS3TraceCallback(Callback):
         self.clipped_norms = []
         self.vendor_rng_restored = False
 
-    def on_after_backward(self, trainer: object, pl_module: RalfTrainingModule) -> None:
+    def on_after_backward(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        ralf_module = cast(RalfTrainingModule, pl_module)
         vendor_model, _ = self._require_models()
         if self.current_batch is None or self.current_rng is None:
             raise RuntimeError("S3 backward hook has no current production batch")
@@ -898,23 +984,24 @@ class RalfS3TraceCallback(Callback):
             vendor_model, self.current_batch
         )
         vendor_inputs = cast(
-            dict[str, object], _vendor_move(vendor_inputs, pl_module.device)
+            dict[str, object], _vendor_move(vendor_inputs, ralf_module.device)
         )
         vendor_targets = cast(
-            dict[str, object], _vendor_move(vendor_targets, pl_module.device)
+            dict[str, object], _vendor_move(vendor_targets, ralf_module.device)
         )
         vendor_model.train()
-        vendor_output, vendor_losses = vendor_model.train_loss(
+        vendor_training_model = cast(VendorTrainingModel, vendor_model)
+        vendor_output, vendor_losses = vendor_training_model.train_loss(
             vendor_inputs, vendor_targets
         )
-        vendor_logits = cast(Tensor, vendor_output["logits"])
-        vendor_loss = cast(Tensor, vendor_losses["nll_loss"])
-        accumulation = cast(object, trainer).accumulate_grad_batches
+        vendor_logits = vendor_output["logits"]
+        vendor_loss = vendor_losses["nll_loss"]
+        accumulation = trainer.accumulate_grad_batches
         (vendor_loss / accumulation).backward()
         restore_rng_state(package_rng_after_backward)
-        package_trace = pl_module.latest_step_trace
-        package_loss = cast(Tensor, package_trace["train_loss"])
-        package_logits = cast(Tensor, package_trace["logits"])
+        package_trace = ralf_module.latest_step_trace
+        package_loss = package_trace["train_loss"]
+        package_logits = package_trace["logits"]
         self._observe_tensor(
             f"S3.epoch[{self.package_batch_epoch}].batch[{self.package_batch_index}].loss",
             package_loss,
@@ -926,7 +1013,7 @@ class RalfS3TraceCallback(Callback):
             vendor_logits,
         )
         raw_result = _compare_named_gradients(
-            pl_module.model,
+            ralf_module.model,
             vendor_model,
             f"S3.epoch[{self.package_batch_epoch}].batch[{self.package_batch_index}].raw_gradients",
             enforce=self.synchronized,
@@ -940,7 +1027,7 @@ class RalfS3TraceCallback(Callback):
                 ),
                 float(raw_result["max_abs_diff"]),
             )
-        package_norm = _gradient_l2_norm(pl_module.model)
+        package_norm = _gradient_l2_norm(ralf_module.model)
         vendor_norm = _gradient_l2_norm(vendor_model)
         self._observe_tensor(
             f"S3.epoch[{self.package_batch_epoch}].batch[{self.package_batch_index}].raw_gradient_norm",
@@ -996,15 +1083,15 @@ class RalfS3TraceCallback(Callback):
 
     def on_train_batch_end(
         self,
-        trainer: object,
-        pl_module: RalfTrainingModule,
+        trainer: Trainer,
+        pl_module: LightningModule,
         outputs: object,
         batch: object,
         batch_idx: int,
     ) -> None:
         del outputs, batch
+        ralf_module = cast(RalfTrainingModule, pl_module)
         vendor_model, vendor_optimizer = self._require_models()
-        lightning_trainer = cast(object, trainer)
         if self.clipped_result is None:
             return
         if self.package_batch_lr is None:
@@ -1012,10 +1099,10 @@ class RalfS3TraceCallback(Callback):
                 f"first divergence at S3.batch[{batch_idx}].optimizer_step_hooks"
             )
         optimizer_step_index = len(self.train_trajectory) + 1
-        trainer_global_step = lightning_trainer.global_step
+        trainer_global_step = trainer.global_step
         vendor_optimizer.step()
         parameter_result = _compare_state_dicts(
-            cast(Mapping[str, Tensor], pl_module.model.state_dict()),
+            cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
             cast(Mapping[str, Tensor], vendor_model.state_dict()),
             f"S3.global_step[{optimizer_step_index}].parameters",
             enforce=self.synchronized,
@@ -1028,9 +1115,9 @@ class RalfS3TraceCallback(Callback):
                 float(parameter_result["max_abs_diff"]),
             )
         optimizer_result = _compare_optimizer_states(
-            lightning_trainer.optimizers[0],
+            trainer.optimizers[0],
             vendor_optimizer,
-            pl_module.model,
+            ralf_module.model,
             vendor_model,
             f"S3.global_step[{optimizer_step_index}].optimizer_state",
             enforce=self.synchronized,
@@ -1042,29 +1129,29 @@ class RalfS3TraceCallback(Callback):
                 ),
                 float(optimizer_result["max_abs_diff"]),
             )
-        package_state_sha256 = state_sha256(pl_module.model.state_dict())
+        package_state_sha256 = state_sha256(ralf_module.model.state_dict())
         vendor_state_sha256 = state_sha256(vendor_model.state_dict())
         sync_result: dict[str, object] | None = None
         if self.synchronized:
-            package_optimizer = lightning_trainer.optimizers[0]
-            vendor_model.load_state_dict(pl_module.model.state_dict(), strict=True)
+            package_optimizer = trainer.optimizers[0]
+            vendor_model.load_state_dict(ralf_module.model.state_dict(), strict=True)
             vendor_optimizer.load_state_dict(
                 copy.deepcopy(package_optimizer.state_dict())
             )
             sync_result = {
                 "parameters": _compare_state_dicts(
-                    cast(Mapping[str, Tensor], pl_module.model.state_dict()),
+                    cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
                     cast(Mapping[str, Tensor], vendor_model.state_dict()),
                     f"S3.global_step[{optimizer_step_index}].state_sync.parameters",
                 ),
                 "optimizer_state": _compare_optimizer_states(
                     package_optimizer,
                     vendor_optimizer,
-                    pl_module.model,
+                    ralf_module.model,
                     vendor_model,
                     f"S3.global_step[{optimizer_step_index}].state_sync.optimizer_state",
                 ),
-                "package_state_sha256": state_sha256(pl_module.model.state_dict()),
+                "package_state_sha256": state_sha256(ralf_module.model.state_dict()),
                 "vendor_state_sha256": state_sha256(vendor_model.state_dict()),
             }
             self.state_sync_records.append(sync_result)
@@ -1107,13 +1194,10 @@ class RalfS3TraceCallback(Callback):
         vendor_optimizer.zero_grad(set_to_none=True)
         self.optimizer_step_count = optimizer_step_index
 
-    def on_train_epoch_end(
-        self, trainer: object, pl_module: RalfTrainingModule
-    ) -> None:
+    def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module
-        lightning_trainer = cast(object, trainer)
-        epoch = lightning_trainer.current_epoch
-        metrics = lightning_trainer.callback_metrics
+        epoch = trainer.current_epoch
+        metrics = trainer.callback_metrics
         self.logging_trace["train"].append(
             {"epoch": epoch, "train_loss": "train_loss" in metrics}
         )
@@ -1125,20 +1209,18 @@ class RalfS3TraceCallback(Callback):
         self.scheduler_step_epochs.add(epoch)
 
     def on_validation_epoch_end(
-        self, trainer: object, pl_module: RalfTrainingModule
+        self, trainer: Trainer, pl_module: LightningModule
     ) -> None:
         del pl_module
-        lightning_trainer = cast(object, trainer)
         self.logging_trace["validation"].append(
             {
-                "epoch": lightning_trainer.current_epoch,
-                "val_loss": "val_loss" in lightning_trainer.callback_metrics,
+                "epoch": trainer.current_epoch,
+                "val_loss": "val_loss" in trainer.callback_metrics,
             }
         )
 
-    def on_fit_end(self, trainer: object, pl_module: RalfTrainingModule) -> None:
+    def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module
-        lightning_trainer = cast(object, trainer)
         if self.vendor_scheduler is None or self.package_scheduler is None:
             raise RuntimeError("S3 schedulers were not initialized")
         if self.package_scheduler.last_epoch != self.vendor_scheduler.last_epoch:
@@ -1161,7 +1243,7 @@ class RalfS3TraceCallback(Callback):
         if self.vendor_optimizer is None:
             raise RuntimeError("S3 vendor optimizer was not initialized")
         final_learning_rates = _compare_learning_rates(
-            lightning_trainer.optimizers[0],
+            trainer.optimizers[0],
             self.vendor_optimizer,
             enforce=self.synchronized,
         )
@@ -1172,15 +1254,15 @@ class RalfS3TraceCallback(Callback):
                 ),
                 float(final_learning_rates["max_abs_diff"]),
             )
-        if lightning_trainer.global_step != len(self.train_trajectory):
+        if trainer.global_step != len(self.train_trajectory):
             raise RuntimeError(
                 "first divergence at S3.global_step_count; "
-                f"trainer={lightning_trainer.global_step}; "
+                f"trainer={trainer.global_step}; "
                 f"trace={len(self.train_trajectory)}"
             )
         checkpoints = [
             callback
-            for callback in lightning_trainer.checkpoint_callbacks
+            for callback in trainer.checkpoint_callbacks
             if isinstance(callback, ModelCheckpoint)
         ]
         if len(checkpoints) != 1:
@@ -1188,36 +1270,49 @@ class RalfS3TraceCallback(Callback):
                 f"first divergence at S3.checkpoint_callback_count; count={len(checkpoints)}"
             )
         checkpoint = checkpoints[0]
-        best_path = Path(checkpoint.best_model_path)
-        last_path = Path(checkpoint.last_model_path)
+        best_model_path = checkpoint.best_model_path
+        last_model_path = checkpoint.last_model_path
+        if best_model_path is None or last_model_path is None:
+            raise RuntimeError(
+                "first divergence at S3.checkpoint_paths; paths are unset"
+            )
+        best_path = Path(best_model_path)
+        last_path = Path(last_model_path)
         if not best_path.is_file() or not last_path.is_file():
             raise RuntimeError(
                 "first divergence at S3.checkpoint_files; "
                 f"best={best_path}; last={last_path}"
             )
         metrics_paths: list[str] = []
-        for logger in lightning_trainer.loggers:
-            log_dir = Path(logger.log_dir)
+        for logger in trainer.loggers:
+            log_dir_value = logger.log_dir
+            if log_dir_value is None:
+                raise RuntimeError(
+                    "first divergence at S3.logging.log_dir; path is unset"
+                )
+            log_dir = Path(log_dir_value)
             metrics_path = log_dir / "metrics.csv"
             if not metrics_path.is_file():
                 raise RuntimeError(
                     f"first divergence at S3.logging.metrics_file; path={metrics_path}"
                 )
             metrics_paths.append(metrics_path.as_posix())
+        max_epochs = trainer.max_epochs
+        if max_epochs is None:
+            raise RuntimeError("first divergence at S3.max_epochs; value is unset")
         result = {
             "status": "PASS" if self.synchronized else "RECORDED",
             "evidence_mode": self.evidence_mode,
             "production_model": "RalfTrainingModule",
             "production_datamodule": "RalfDataModule",
             "initial_state_sync": self.initial_state_sync,
-            "epochs": lightning_trainer.max_epochs,
-            "train_batches": lightning_trainer.num_training_batches
-            * lightning_trainer.max_epochs,
+            "epochs": max_epochs,
+            "train_batches": trainer.num_training_batches * max_epochs,
             "validation_epochs": len(self.logging_trace["validation"]),
             "microbatch_count": self.microbatch_count,
             "optimizer_step_count": len(self.train_trajectory),
-            "global_step": lightning_trainer.global_step,
-            "accumulate_grad_batches": lightning_trainer.accumulate_grad_batches,
+            "global_step": trainer.global_step,
+            "accumulate_grad_batches": trainer.accumulate_grad_batches,
             "trainer_deterministic_mode": "warn",
             "torch_deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
             "torch_deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
@@ -1227,8 +1322,8 @@ class RalfS3TraceCallback(Callback):
                 "enabled. cuDNN deterministic kernels, benchmark off, and TF32 disabled."
             ),
             "scheduler": {
-                "interval": lightning_trainer.lr_scheduler_configs[0].interval,
-                "frequency": lightning_trainer.lr_scheduler_configs[0].frequency,
+                "interval": trainer.lr_scheduler_configs[0].interval,
+                "frequency": trainer.lr_scheduler_configs[0].frequency,
                 "milestones": sorted(
                     int(item) for item in self.package_scheduler.milestones
                 ),
@@ -1297,7 +1392,7 @@ def _s0(
     args: argparse.Namespace,
     config: RalfConfig,
     data: RalfDataModule,
-    context: Mapping[str, object],
+    context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
@@ -1347,14 +1442,14 @@ def _s0(
 def _s1(
     args: argparse.Namespace,
     config: RalfConfig,
-    context: Mapping[str, object],
+    context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
-    batch = cast(Mapping[str, object], context["batch"])
+    batch = context["batch"]
     vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
-    package_ids = cast(Tensor, batch["input_ids"])
-    package_labels = cast(Tensor, batch["labels"])
+    package_ids = batch["input_ids"]
+    package_labels = batch["labels"]
     vendor_ids = cast(Tensor, vendor_inputs["seq"])
     vendor_labels = cast(Tensor, vendor_targets["seq"])
     input_diff = _assert_close("prepared.input_ids", package_ids, vendor_ids)
@@ -1381,13 +1476,13 @@ def _s1(
 def _s2(
     args: argparse.Namespace,
     config: RalfConfig,
-    context: Mapping[str, object],
+    context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     learning_rates = _compare_learning_rates(package_optimizer, vendor_optimizer)
-    batch = cast(Mapping[str, object], context["batch"])
+    batch = context["batch"]
     package_loss, vendor_loss, package_logits, vendor_logits = _loss_pair(
         package_module, vendor_model, batch, device, args.seed
     )
@@ -1510,21 +1605,10 @@ def _run_s3_fit(
         f"--data.init_args.data_root={args.cache_dir / 'dataset'}",
         f"--data.init_args.retrieval_index_path={train_index_path}",
         f"--data.init_args.validation_retrieval_index_path={validation_index_path}",
-        "--trainer.callbacks=[run_training_stages.RalfS3TraceCallback,run_training_stages.RalfS3ModelCheckpoint]",
-        "--trainer.logger=run_training_stages.RalfS3CSVLogger",
+        "--trainer.callbacks=[models.ralf.tests.vendor_parity.run_training_stages.RalfS3TraceCallback,models.ralf.tests.vendor_parity.run_training_stages.RalfS3ModelCheckpoint]",
+        "--trainer.logger=models.ralf.tests.vendor_parity.run_training_stages.RalfS3CSVLogger",
     ]
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(
-        [
-            str(ROOT / "models/ralf/tests/vendor_parity"),
-            str(ROOT / "models/ralf/src"),
-            str(ROOT / "lib/traingen/src"),
-            str(ROOT / "lib/traingen-parity/src"),
-            str(ROOT / "lib/laygen/src"),
-            str(ROOT / "lib/posgen/src"),
-            env.get("PYTHONPATH", ""),
-        ]
-    ).rstrip(os.pathsep)
     env["RALF_RESNET_WEIGHTS_PATH"] = str(resnet_path)
     env["RALF_FIDNET_WEIGHTS_PATH"] = str(fidnet_path)
     env["RALF_DATA_ROOT"] = str(args.cache_dir / "dataset")
@@ -1581,7 +1665,7 @@ def _run_s3_fit(
 
 def _natural_run_envelope(
     first: Mapping[str, object], second: Mapping[str, object]
-) -> dict[str, object]:
+) -> _NaturalEnvelope:
     first_trajectory = cast(list[Mapping[str, object]], first["trajectory"])
     second_trajectory = cast(list[Mapping[str, object]], second["trajectory"])
     if len(first_trajectory) != len(second_trajectory):
@@ -1598,18 +1682,19 @@ def _natural_run_envelope(
     for first_step, second_step in zip(
         first_trajectory, second_trajectory, strict=True
     ):
-        step = int(first_step["global_step"])
-        if step != int(second_step["global_step"]):
+        step = int(cast(int, first_step["global_step"]))
+        second_step_number = int(cast(int, second_step["global_step"]))
+        if step != second_step_number:
             raise RuntimeError(
                 f"first divergence at S3.natural_run_step; first={step}; "
-                f"second={second_step['global_step']}"
+                f"second={second_step_number}"
             )
         for metric in max_abs:
             first_values = cast(Mapping[str, object], first_step[metric])
             second_values = cast(Mapping[str, object], second_step[metric])
             for side in ("package", "vendor"):
-                first_value = float(first_values[side])
-                second_value = float(second_values[side])
+                first_value = float(cast(float, first_values[side]))
+                second_value = float(cast(float, second_values[side]))
                 max_abs[metric][side] = max(
                     max_abs[metric][side], abs(first_value - second_value)
                 )
@@ -1712,7 +1797,7 @@ def _s4(
     args: argparse.Namespace,
     config: RalfConfig,
     data: RalfDataModule,
-    context: Mapping[str, object],
+    context: _TrainingContext,
     steps: int,
 ) -> dict[str, object]:
     if config.dataset_name != "cgl":
@@ -1724,7 +1809,8 @@ def _s4(
     _ = context
     os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
     require_vendor = __import__(
-        "training_reference", fromlist=["require_vendor"]
+        "models.ralf.tests.vendor_parity.training_reference",
+        fromlist=["require_vendor"],
     ).require_vendor
     require_vendor(args.cache_dir)
     import image2layout.train.global_variables as vendor_globals
@@ -1796,11 +1882,13 @@ def _s4(
         if isinstance(actual, Tensor) and isinstance(expected, Tensor):
             return None if torch.equal(actual, expected) else path
         if isinstance(actual, Mapping) and isinstance(expected, Mapping):
-            if set(actual) != set(expected):
+            actual_mapping = cast(Mapping[object, object], actual)
+            expected_mapping = cast(Mapping[object, object], expected)
+            if set(actual_mapping) != set(expected_mapping):
                 return path
-            for key in sorted(actual, key=str):
+            for key in sorted(actual_mapping, key=str):
                 difference = _first_difference(
-                    actual[key], expected[key], f"{path}.{key}"
+                    actual_mapping[key], expected_mapping[key], f"{path}.{key}"
                 )
                 if difference is not None:
                     return difference
@@ -1957,10 +2045,11 @@ def _s4(
         shuffle = split == "train"
         torch.manual_seed(args.seed)
         torch.empty((), dtype=torch.int64).random_()
+        batch_sampler = cast(
+            Iterable[Sequence[int]], package_loaders[split].batch_sampler
+        )
         expected_order = [
-            int(index)
-            for batch_indices in package_loaders[split].batch_sampler
-            for index in batch_indices
+            int(index) for batch_indices in batch_sampler for index in batch_indices
         ]
         torch.manual_seed(args.seed)
         package_iterator = iter(package_loaders[split])

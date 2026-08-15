@@ -106,11 +106,11 @@ must not be inferred from the CGL stage ladder.
 
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
-| S0 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S0 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json --seed 1` | `.cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json` | PASS; artifact SHA256 `8c9982060b791a8fb34e1b122dec281a59d9ada18e260063212935e3b62b0dc0`. |
-| S1 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S1 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json` | PASS; artifact SHA256 `88b08d6b80b6c95af3c48501a89c280514a3086cb6f6550272a43419f22291d1`. |
-| S2 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json` | PASS; artifact SHA256 `22825974c7c8aeca7f29724253c24d667f3823293919a0c26819845bf0193f27`. |
+| S0 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S0 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json --seed 1` | `.cache/ralf/training-reproduction/cgl/warn-mode-001/s0.json` | PASS; artifact SHA256 `8c9982060b791a8fb34e1b122dec281a59d9ada18e260063212935e3b62b0dc0`. |
+| S1 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S1 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s1-after-loader-order-002/s1.json` | PASS; artifact SHA256 `88b08d6b80b6c95af3c48501a89c280514a3086cb6f6550272a43419f22291d1`. |
+| S2 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json` | PASS; artifact SHA256 `22825974c7c8aeca7f29724253c24d667f3823293919a0c26819845bf0193f27`. |
 | S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor traingen fit --config models/ralf/configs/training/cgl.yaml ...` | `.cache/ralf/training-reproduction/cgl/s3/runs/run-012/trace/s3-trace.json` | PASS under the general S3 Evidence Layers rule: natural runs 009/010 left the S0-S2 contract; synchronized run-012 bounded PASS with first divergence `null`; production wiring is recorded independently. |
-| S4 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 $RALF_AUDIT_PYTHON models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json` | PASS; artifact SHA256 `4c989f7e87444d2275d775c06fadcdcfbcff36acf18caca013f6ec156a7106c8`. |
+| S4 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json` | PASS; artifact SHA256 `4c989f7e87444d2275d775c06fadcdcfbcff36acf18caca013f6ec156a7106c8`. |
 | S5 | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --trainer.max_epochs=70` | `.cache/ralf/training-reproduction/cgl/s5/` | Not started; S5 scope remains pending coordinator authorization for issue #44, so this command has not been run. |
 
 `RALF_AUDIT_PYTHON` and `RALF_CACHE_DIR` in the table are the explicit
@@ -185,6 +185,17 @@ per-file SHA256 manifest is
 `17ce2b93df63ca8444b4be465f8b72d8a2ea9d2e480d98bb60f98de5a8150a96`). The
 manifest is generated from the authoritative local copy and is not committed.
 
+The repository-default torch and CUDA metadata remain unchanged for the V100
+host constraint. RALF declares its runtime `jaxtyping` dependency in the
+package metadata; `uv.lock` is intentionally unchanged in this checkpoint. To use the currently verified temporary interpreter,
+set `RALF_AUDIT_PYTHON` and activate its containing environment before using
+the member-scoped `uv run --active --no-sync` commands below. This is an
+observed verification condition, not a package requirement. The package and
+S0-S3 commands do not require `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD`. The S4 vendor
+loader command retains it because the pinned vendor path calls legacy
+`torch.load` without an explicit `weights_only` argument while loading cached
+retrieval/precomputed resources; it is scoped to that vendor-only boundary.
+
 S4 run-010 evidence:
 
 ```text
@@ -210,6 +221,21 @@ checkpoint_sha256: 8b5c76c0f105c25b3b061d77c1136ddc0a0ce90884cdfb3257126d7275606
 runtime_seconds: 3807.7891788799316
 ```
 
+The package-path health check after the import/runtime changes is recorded
+separately from accepted stage evidence:
+
+```text
+artifact: .cache/ralf/training-reproduction/cgl/import-env-20260815-001/s0.json
+artifact_sha256: a76a0d6a0adb828dbee860b8bc1f4256e64ac7091bd8fbd2516b24ce768be294
+status: PASS
+selected_gpu: 1 (Tesla V100-SXM2-32GB)
+torch: 2.8.0+cu128
+vendor_revision: c51db6032acbd0bd0ce72433becce08317e7874d
+```
+
+This health check confirms the current member-scoped import path and static
+state, but does not replace or invalidate the accepted S0-S4 artifacts above.
+
 ## Training Commands
 
 Set the diagnostic paths explicitly before rerunning a staged check. The
@@ -218,14 +244,15 @@ commands use one GPU and fail closed when local parity assets are unavailable.
 ```bash
 : "${RALF_AUDIT_PYTHON:?set RALF_AUDIT_PYTHON to the verified diagnostic interpreter}"
 : "${RALF_CACHE_DIR:?set RALF_CACHE_DIR to the authoritative read-only cache}"
-export RALF_PYTHONPATH="$PWD/models/ralf/src:$PWD/models/ralf/tests/vendor_parity:$PWD/lib/laygen/src:$PWD/lib/posgen/src:$PWD/lib/traingen-parity/src:$PWD/lib/traingen/src"
+RALF_AUDIT_VENV="${RALF_AUDIT_PYTHON%/bin/python}"
+source "$RALF_AUDIT_VENV/bin/activate"
 ```
 
 Run the focused package training checks.
 
 ```bash
-PARITY_REQUIRE=1 PYTHONPATH="$RALF_PYTHONPATH" \
-  "$RALF_AUDIT_PYTHON" -m pytest \
+PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor \
+  --with pytest --with 'beartype>=0.22.9,<0.23' pytest \
   models/ralf/tests/test_training.py \
   models/ralf/tests/vendor_parity/test_training_harness.py -q
 ```
@@ -234,8 +261,8 @@ Regenerate CGL S0-S2 into new `.cache` directories rather than overwriting
 accepted artifacts.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 PYTHONPATH="$RALF_PYTHONPATH" \
-  TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 "$RALF_AUDIT_PYTHON" \
+CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 \
+  uv run --active --no-sync --package ralf --extra training --extra vendor python \
   models/ralf/tests/vendor_parity/run_training_stages.py \
   --stage S1 --dataset cgl --cache-dir "$RALF_CACHE_DIR" \
   --output .cache/ralf/training-reproduction/cgl/<new-run>/s1.json \
@@ -264,8 +291,8 @@ the original model in the package Trainer.
 Run the accepted CGL S4 loader-stream check into a fresh artifact directory.
 
 ```bash
-CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 PYTHONPATH="$RALF_PYTHONPATH" \
-  TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 "$RALF_AUDIT_PYTHON" \
+CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
+  uv run --active --no-sync --package ralf --extra training --extra vendor python \
   models/ralf/tests/vendor_parity/run_training_stages.py \
   --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" \
   --output .cache/ralf/training-reproduction/cgl/s4/runs/<new-run>/s4.json \

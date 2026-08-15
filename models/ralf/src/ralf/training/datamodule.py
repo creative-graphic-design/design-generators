@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import TypeAlias, TypedDict, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import to_tensor
 
 from ..configuration_ralf import RalfConfig
-from ..datasets import normalize_org_sample
+from ..datasets import RalfNormalizedSample, normalize_org_sample
 from ..retrieval import (
     RalfRetrievalTable,
     RalfRetrievedBatch,
@@ -30,6 +30,34 @@ RalfSampleValue: TypeAlias = (
     | Mapping[str, "RalfSampleValue"]
     | None
 )
+
+
+class RalfTrainingSample(TypedDict):
+    """One encoded package-local RALF training sample."""
+
+    input_ids: Int[torch.Tensor, "tokens"]
+    labels: Int[torch.Tensor, "tokens"]
+    attention_mask: Bool[torch.Tensor, "tokens"]
+    pixel_values: Float[torch.Tensor, "channels height width"]
+    saliency: Float[torch.Tensor, "1 height width"]
+    layout_labels: Int[torch.Tensor, "elements"]
+    layout_bbox: Float[torch.Tensor, "elements 4"]
+    layout_mask: Bool[torch.Tensor, "elements"]
+    retrieved: RalfRetrievedBatch
+
+
+class RalfTrainingBatch(TypedDict):
+    """Collated package-local RALF batch consumed by Lightning."""
+
+    input_ids: Int[torch.Tensor, "batch tokens"]
+    labels: Int[torch.Tensor, "batch tokens"]
+    attention_mask: Bool[torch.Tensor, "batch tokens"]
+    pixel_values: Float[torch.Tensor, "batch channels height width"]
+    saliency: Float[torch.Tensor, "batch 1 height width"]
+    layout_labels: Int[torch.Tensor, "batch elements"]
+    layout_bbox: Float[torch.Tensor, "batch elements 4"]
+    layout_mask: Bool[torch.Tensor, "batch elements"]
+    retrieved: RalfRetrievedBatch
 
 
 def _as_image(
@@ -60,13 +88,15 @@ def _as_image(
 
 
 def _label_mapping(config: RalfConfig) -> dict[str, int]:
+    if config.id2label is None:
+        raise RuntimeError("RALF config must define id2label for training")
     return {str(label): int(index) for index, label in config.id2label.items()}
 
 
 def _normalize_for_config(
     sample: Mapping[str, RalfSampleValue | Shaped[torch.Tensor, ...]],
     config: RalfConfig,
-) -> dict[str, RalfSampleValue | Shaped[torch.Tensor, ...]]:
+) -> RalfNormalizedSample:
     normalized = normalize_org_sample(sample, config.dataset_name)
     raw_labels = sample.get("label")
     if (
@@ -85,11 +115,11 @@ def _normalize_for_config(
 def _sorted_layout(
     sample: Mapping[str, RalfSampleValue | Shaped[torch.Tensor, ...]],
     config: RalfConfig,
-) -> dict[str, Shaped[torch.Tensor, ...]]:
+) -> RalfNormalizedSample:
     normalized = _normalize_for_config(sample, config)
-    labels = cast(Int[torch.Tensor, "elements"], normalized["labels"]).long()
-    bbox = cast(Float[torch.Tensor, "elements 4"], normalized["bbox"]).float()
-    mask = cast(Bool[torch.Tensor, "elements"], normalized["mask"]).bool()
+    labels = normalized["labels"].long()
+    bbox = normalized["bbox"].float()
+    mask = normalized["mask"].bool()
     valid = [idx for idx, flag in enumerate(mask.tolist()) if flag]
     label_order = sorted(
         valid,
@@ -156,7 +186,7 @@ def _retrieved_from_samples(
         )
     images: list[Float[torch.Tensor, "channels height width"]] = []
     saliency: list[Float[torch.Tensor, "1 height width"]] = []
-    layouts: list[dict[str, Shaped[torch.Tensor, ...]]] = []
+    layouts: list[RalfNormalizedSample] = []
     for index in indexes:
         if index < 0 or index >= len(samples):
             raise ValueError(f"retrieval index {index} is outside the training dataset")
@@ -164,9 +194,9 @@ def _retrieved_from_samples(
         layouts.append(_sorted_layout(row, config))
         images.append(_as_image(row.get("image"), channels=3))
         saliency.append(_as_image(row.get("saliency"), channels=1))
-    bbox = torch.stack([cast(Tensor, item["bbox"]) for item in layouts])
-    labels = torch.stack([cast(Tensor, item["labels"]) for item in layouts])
-    mask = torch.stack([cast(Tensor, item["mask"]) for item in layouts])
+    bbox = torch.stack([item["bbox"] for item in layouts])
+    labels = torch.stack([item["labels"] for item in layouts])
+    mask = torch.stack([item["mask"] for item in layouts])
     return RalfRetrievedBatch(
         image=torch.stack(images).unsqueeze(0),
         saliency=torch.stack(saliency).unsqueeze(0),
@@ -185,12 +215,12 @@ def encode_training_sample(
     retrieval_samples: Sequence[
         Mapping[str, RalfSampleValue | Shaped[torch.Tensor, ...]]
     ],
-) -> dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]:
+) -> RalfTrainingSample:
     """Encode one sample with the package tokenizer and explicit retrieval."""
     layout = _sorted_layout(sample, config)
-    labels = cast(Tensor, layout["labels"]).unsqueeze(0)
-    bbox = cast(Tensor, layout["bbox"]).unsqueeze(0)
-    mask = cast(Tensor, layout["mask"]).unsqueeze(0)
+    labels = layout["labels"].unsqueeze(0)
+    bbox = layout["bbox"].unsqueeze(0)
+    mask = layout["mask"].unsqueeze(0)
     encoded = RalfLayoutTokenizer(config).encode_layout(
         labels=labels,
         bbox=bbox,
@@ -216,9 +246,7 @@ def encode_training_sample(
     }
 
 
-class RalfTrainingDataset(
-    Dataset[dict[str, Shaped[torch.Tensor, "..."] | RalfRetrievedBatch]]
-):
+class RalfTrainingDataset(Dataset[RalfTrainingSample]):
     """Indexable deterministic dataset for package-local RALF training."""
 
     def __init__(
@@ -249,9 +277,7 @@ class RalfTrainingDataset(
         """Return the number of training samples."""
         return len(self.samples)
 
-    def __getitem__(
-        self, index: int
-    ) -> dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]:
+    def __getitem__(self, index: int) -> RalfTrainingSample:
         """Encode one indexed sample for package training."""
         sample = self.samples[index]
         sample_id = sample.get("id", index)
@@ -271,31 +297,34 @@ class RalfTrainingDataset(
 
 
 def collate_training_batch(
-    batch: Sequence[dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]],
-) -> dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]:
+    batch: Sequence[RalfTrainingSample],
+) -> RalfTrainingBatch:
     """Collate package samples without substituting retrieval data."""
-    output: dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch] = {}
-    for key in (
-        "input_ids",
-        "labels",
-        "attention_mask",
-        "pixel_values",
-        "saliency",
-        "layout_labels",
-        "layout_bbox",
-        "layout_mask",
-    ):
-        output[key] = torch.stack([cast(Tensor, item[key]) for item in batch])
-    retrieved = [cast(RalfRetrievedBatch, item["retrieved"]) for item in batch]
-    output["retrieved"] = RalfRetrievedBatch(
+    retrieved = [item["retrieved"] for item in batch]
+    indexes: list[Int[torch.Tensor, "batch candidates"]] = []
+    for item in retrieved:
+        if item.indexes is None:
+            raise ValueError("retrieval indexes are required for training batches")
+        indexes.append(item.indexes)
+    retrieved_batch = RalfRetrievedBatch(
         image=torch.cat([item.image for item in retrieved]),
         saliency=torch.cat([item.saliency for item in retrieved]),
         bbox=torch.cat([item.bbox for item in retrieved]),
         labels=torch.cat([item.labels for item in retrieved]),
         mask=torch.cat([item.mask for item in retrieved]),
-        indexes=torch.cat([cast(Tensor, item.indexes) for item in retrieved]),
+        indexes=torch.cat(indexes),
     )
-    return output
+    return {
+        "input_ids": torch.stack([item["input_ids"] for item in batch]),
+        "labels": torch.stack([item["labels"] for item in batch]),
+        "attention_mask": torch.stack([item["attention_mask"] for item in batch]),
+        "pixel_values": torch.stack([item["pixel_values"] for item in batch]),
+        "saliency": torch.stack([item["saliency"] for item in batch]),
+        "layout_labels": torch.stack([item["layout_labels"] for item in batch]),
+        "layout_bbox": torch.stack([item["layout_bbox"] for item in batch]),
+        "layout_mask": torch.stack([item["layout_mask"] for item in batch]),
+        "retrieved": retrieved_batch,
+    }
 
 
 class RalfDataModule(LightningDataModule):
@@ -349,7 +378,7 @@ class RalfDataModule(LightningDataModule):
 
     def train_dataloader(
         self,
-    ) -> DataLoader[dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]]:
+    ) -> DataLoader[RalfTrainingBatch]:
         """Return the package training dataloader."""
         if self.train_dataset is None:
             self.setup("fit")
@@ -366,7 +395,7 @@ class RalfDataModule(LightningDataModule):
 
     def val_dataloader(
         self,
-    ) -> DataLoader[dict[str, Shaped[torch.Tensor, ...] | RalfRetrievedBatch]]:
+    ) -> DataLoader[RalfTrainingBatch]:
         """Return the package validation dataloader."""
         if self.validation_dataset is None:
             self.setup("fit")
