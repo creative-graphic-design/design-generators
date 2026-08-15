@@ -8,37 +8,59 @@ tags:
 
 # RADM Training
 
-This document records the phase-1 package training surfaces and staged
-reproduction status for RADM. The supported Python 3.11/V100 rerun accepts S0,
-S1, and S2 on the source-generated fixed batch, and S4 accepts the bounded CGL
-loader stream. Because the natural S3 trajectory leaves the S0-S2 contract,
-S3 is accepted as a bounded numerical result through the required synchronized
-layer, with the natural trajectory retained as drift evidence and production
-wiring recorded independently. The approved RADM data archive is available
-through the local cache. No released checkpoint is present in this worktree.
-S5 evidence is not claimed.
+## Result at a glance
+
+The accepted RADM evidence covers S0-S4 for the claimed CGL and
+source-generated scopes. S0, S1, and S2 agree on the source-generated fixed
+batch; S4 agrees on the bounded CGL loader stream. S3 is a bounded numerical
+result because the natural trajectory leaves the S0-S2 contract: the required
+synchronized layer passes, the natural trajectory is retained as drift
+evidence, and the production wiring representative passes independently. S5
+and trained-checkpoint evidence are not claimed.
+
+The source-generated fixed batch is an in-memory parity fixture for S1-S3, not
+a substitute for the approved CGL loader stream. The approved RADM data archive
+is available through the local cache, and no released checkpoint is present in
+this worktree.
+
+The stages used below are:
+
+- **S0 — static configuration and initialized state:** model, state-dict,
+  optimizer, scheduler, dataset encoding, and initial-state agreement.
+- **S1 — fixed-batch pre-optimizer trace:** prepared inputs, RNG-dependent
+  values, outputs, losses, and total loss before optimizer mutation.
+- **S2 — one optimizer step:** backward values, clipping, optimizer state,
+  post-step parameters, and learning rate.
+- **S3 — repeated training batches:** natural multi-step behavior, with a
+  synchronized diagnostic required if natural evidence leaves the S0-S2
+  contract; the bounded production wiring representative is reported
+  separately.
+- **S4 — deterministic loader stream:** sample order, transforms, masks,
+  padding, class ids, and validation-stream behavior.
+- **S5 — full-run statistical comparison:** matched training and evaluation
+  checkpoints under the original evaluation protocol.
+
+## Install
 
 Run commands from the repository root. Keep generated data, logs, checkpoints,
 converted local pipelines, and evaluation artifacts under `.cache/radm/`.
-
-## Install
 
 ```bash
 uv sync --package radm --extra training
 ```
 
-The checked optional `vendor` extra uses the repository lock's Detectron2 v0.6,
-fvcore, and iopath pins. It is required only for the original-code reference
-adapter and has been validated on CPU in this worktree. Supported-runtime
-diagnostic evidence and disposable environments remain outside the repository
-under `.cache/radm/`.
+Install the optional `vendor` extra only for original-code reference checks.
+It uses the repository lock's Detectron2 v0.6, fvcore, and iopath pins. It has
+been validated on CPU in this worktree; supported-runtime diagnostic evidence
+and disposable environments remain outside the repository under
+`.cache/radm/`.
 
 ```bash
 uv sync --package radm --extra training --extra vendor
 ```
 
-The vendor extra is not required for package-local static checks. This phase
-does not download data or checkpoints and does not launch training or
+The vendor extra is not required for package-local static checks. The accepted
+phase does not download data or checkpoints and does not launch training or
 evaluation jobs.
 
 ## Data
@@ -47,12 +69,12 @@ The original recipe consumes CGL and CGL-v2 image annotations plus precomputed
 768-dimensional text features. The package adapter accepts explicit local paths
 and never downloads data.
 
-The approved S4 gate requires, at minimum, the authorized CGL train/test
-annotations, the cleaned CGL training images produced through the original
-LaMa preprocessing requirement, the matching train/test 768-D text-feature
-trees, and a recorded license/data-provenance decision. These assets must be
-available at the selected local paths before S4; the source-generated S1-S3
-fixtures are not substitutes for them.
+The approved S4 gate requires the authorized CGL train/test annotations, the
+cleaned CGL training images produced through the original LaMa preprocessing
+requirement, the matching train/test 768-D text-feature trees, and a recorded
+license/data-provenance decision. These assets must be available at the
+selected local paths before S4; the source-generated S1-S3 fixtures are not
+substitutes for them.
 
 | Dataset | Source | Config or path |
 | --- | --- | --- |
@@ -96,6 +118,45 @@ Training configs live under `models/radm/configs/training`.
 | `radm_s0_deterministic.yaml` | CGL | deterministic | S0/initialization wiring; data and original-code state are still unavailable. |
 | `radm_smoke.yaml` | CGL fixture | deterministic | Package-local CPU wiring only; not reproduction evidence. |
 
+## Training Commands
+
+These commands regenerate the accepted S0 and S1 checks without training data,
+checkpoints, or optimizer mutation.
+
+Run the S0 contracts:
+
+```bash
+PARITY_REQUIRE=1 uv run --package radm --extra training --extra vendor pytest \
+  models/radm/tests/test_training_s0_contracts.py \
+  models/radm/tests/vendor_parity/test_s0_reference_adapter.py \
+  models/radm/tests/vendor_parity/test_s0_radm_topology.py \
+  -m "not integration" -q -rs
+```
+
+Regenerate the S1 trace from the pinned original mapper and graph with the
+ignored in-memory fixture:
+
+```bash
+CUDA_VISIBLE_DEVICES='' PARITY_REQUIRE=1 \
+RADM_S1_EVIDENCE_PATH=.cache/radm/s1/fixed_batch_trace.json \
+uv run --package radm --extra training --extra vendor pytest \
+  models/radm/tests/vendor_parity/test_s1_radm_training.py -s -q
+```
+
+When the optional reference runtime and approved local assets are available,
+capture initialized original-code state only:
+
+```bash
+uv run --package radm --extra vendor \
+  python models/radm/tests/vendor_parity/capture_reference_state.py \
+  --vendor-root ./vendor/radm \
+  --output .cache/radm/reference-state/initialized.json
+```
+
+The accepted S2-S4 commands and their evidence are listed in the Stage Evidence
+table below. The future package training command is recorded in the Reference
+Checkpoint Gate; it must not be run in the current scope.
+
 ## Scheduler and Recipe Notes
 
 The effective original recipe uses one GPU, batch size 16, AdamW with learning
@@ -110,14 +171,14 @@ GRAM, and dynamic convolution with two projections of width 64.
 The effective class state is intentionally asymmetric: the model predicts four
 classes while the CGL vocabulary contains five labels. The fifth vocabulary
 entry is preserved in metadata and is not silently normalized into the model
-output space. The post-correction supported rerun's package training loop and
-loss passed the recorded S1 fixed-batch pre-optimizer comparison and S2
-one-step backward, full-model clipping, AdamW state, post-step parameter, and
-step-cadence scheduler comparison. The bounded production wiring representative
-also exercised the same loss path through validation, step-cadence scheduler,
-CSV logging, and monitored checkpoint creation. The natural three-batch S3
-trajectory still records its accepted-contract step-2 drift; this is separate
-from the wiring PASS and is not a multi-batch trajectory parity claim.
+output space. The accepted package training loop and loss passed the recorded
+S1 fixed-batch pre-optimizer comparison and S2 one-step backward, full-model
+clipping, AdamW state, post-step parameter, and step-cadence scheduler
+comparison. The bounded production wiring representative also exercised the
+same loss path through validation, step-cadence scheduler, CSV logging, and
+monitored checkpoint creation. The natural three-batch S3 trajectory records
+its accepted-contract step-2 drift; this is separate from the wiring PASS and
+is not a multi-batch trajectory parity claim.
 
 ## Seed Policy
 
@@ -134,11 +195,32 @@ required after a contract breach, and the bounded production wiring result is
 reported separately. S5 and the real-scale 300-step lockstep probe remain
 stopped by scope.
 
-## S3 Evidence Layers
+## Validation Stages
 
-S3 evidence intentionally separates diagnostic state synchronization from the
-natural trajectory and from the production wiring boundary. Existing tolerances
-are unchanged.
+The stage table gives the result before the detailed evidence locations. A
+`natural trajectory` is the ordinary unsynchronized multi-step run. A
+`synchronized diagnostic` copies model, buffer, optimizer, and scheduler state
+at each optimizer boundary before applying the existing S0-S2 comparisons. A
+`production wiring representative` exercises the real console, validation,
+logging, scheduler, and checkpoint boundaries at bounded scale; it is not
+numerical trajectory parity.
+
+| Stage | Scope | Purpose |
+| --- | --- | --- |
+| S0 | Static config and initialized state | Accepted on the supported V100 rerun: 23 passed in 26.50s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; text encoding fields are derived from the selected mapper, and class-mapping and derived-output guards passed. |
+| S1 | Fixed-batch pre-optimizer trace parity | Accepted: 1 passed in 33.76s, 0 skipped, executed=1, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`. |
+| S2 | One optimizer-step parity | Accepted: 1 passed in 59.98s, 0 skipped, executed=1, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25` under the existing S2 tolerance. |
+| S3 | Bounded numerical result plus production wiring representative | `PASS` through the required synchronized layer: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs remain `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. This is not unconstrained natural trajectory parity. |
+| S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; the S3 natural trajectory remains a separate diagnostic boundary and CGL-v2 coverage is not claimed. |
+| S5 | Full-run statistical comparison | Not claimed; stopped by current scope. |
+
+### S3 Evidence Layers
+
+S3 evidence separates the three questions that readers should keep distinct:
+whether the ordinary trajectory stays within contract, whether the graph and
+state remain aligned under synchronized boundaries after a contract breach, and
+whether the production training wiring reaches its observable boundaries.
+Existing tolerances are unchanged.
 
 | Layer | Result | Evidence |
 | --- | --- | --- |
@@ -151,17 +233,6 @@ required by the natural contract breach; together with the retained natural
 record it establishes only the bounded S3 numerical result. The natural and
 synchronized layers do not establish a trained-checkpoint or full-run
 reproduction claim. Production wiring is an independent third layer.
-
-## Validation Stages
-
-| Stage | Scope | Purpose |
-| --- | --- | --- |
-| S0 | Static config and initialized state | Accepted on the supported V100 rerun: 23 passed in 26.50s, 0 skipped, vendor revision `413f87a45760ceac5635b6a08c8047f86478acf5`; text encoding fields are derived from the selected mapper, and class-mapping and derived-output guards passed. |
-| S1 | Fixed-batch pre-optimizer trace parity | Accepted post-correction: 1 passed in 33.76s, 0 skipped, executed=1, first divergence `none`, max abs `6.103515625e-05`, max rel `7.620204911518158e-08`. |
-| S2 | One optimizer-step parity | Accepted post-correction: 1 passed in 59.98s, 0 skipped, executed=1, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25` under the existing S2 tolerance. |
-| S3 | Bounded numerical result plus production wiring representative | `PASS` through the required synchronized layer: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs remain `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. This is not unconstrained natural trajectory parity. |
-| S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; the S3 natural trajectory remains a separate diagnostic boundary and CGL-v2 coverage is not claimed. |
-| S5 | Full-run statistical comparison | Not claimed; stopped by current scope. |
 
 ## Stage Evidence
 
@@ -176,22 +247,12 @@ reproduction claim. Production wiring is an independent third layer.
 
 ## Reproduction Results
 
-RADM S2 one-optimizer-step parity is accepted for one source-generated
-in-memory fixture after accepted S1 fixed-batch pre-optimizer parity on the
-supported V100 runtime. S3 now has a bounded production wiring representative
-PASS and two numerical layers: the synchronized lockstep has
-`first_divergence=None`, while the natural trajectory runs record the same
-step-2 pre-clip gradient drift. Together these layers satisfy the bounded S3
-numerical path required after the natural contract breach. This is not a natural trajectory, dataset,
-training-seed, evaluation-seed, trained-checkpoint, or full training
-reproduction result. The package trace uses the runtime `RADMDenoiser`; it does
-not inject the original model into the package module. Text inputs are
-generated as two deterministic 768-D rows and then padded by the original
-mapper. No tolerance was changed. The approved archive is materialized locally,
-and the bounded CGL S4
-loader boundary is exact for order, labels, fallback, image preprocessing, and
-boxes. This does not make the untested CGL-v2 stream a reproduction claim. S5
-and the real-scale 300-step lockstep probe remain prohibited.
+RADM has accepted bounded S0-S4 evidence for the source-generated fixture and
+the approved CGL loader scope at the supported V100 runtime. S3 combines the
+required synchronized bounded numerical PASS with retained natural drift and
+an independent production wiring PASS. No trained checkpoint, full training
+run, training-seed reproduction, evaluation-seed reproduction, or full-run
+statistical claim is made; CGL-v2 loader parity is not claimed.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -200,11 +261,22 @@ and the real-scale 300-step lockstep probe remain prohibited.
 | CGL-v2 | original | `blocked (S4 coverage not claimed; no trained checkpoint)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
 | CGL-v2 | package | `not-yet-run (phase-1 scope; no trained checkpoint)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
 
-There is no released checkpoint. The eventual reference checkpoint must first
-be created by the pinned original training procedure, then the package must be
-trained under the same approved dataset/config/seed conditions. Only after both
-checkpoints exist may the matched evaluation protocol compare them. That work
-is outside this phase and is not claimed here.
+The accepted S3 result is bounded rather than unconstrained natural trajectory
+parity because the natural three-batch run records the same step-2 pre-clip
+gradient drift in both runs. Synchronization at optimizer boundaries makes the
+graph/operation diagnostic contract-internal; it does not create a trained
+checkpoint or full-run result. The approved archive is materialized locally,
+and the bounded CGL S4 loader boundary is exact for order, labels, fallback,
+image preprocessing, and boxes.
+
+Evidence JSON, run roots, and disposable wiring outputs remain outside git:
+
+- `.cache/radm/s3/two-layer-20260814-rerun.json` (SHA-256
+  `b4498680c80c04eb193e7166e79553fa8d9ab2e93120b039e4ba291f9b60677d`)
+- `.cache/radm/s3/wiring/run-002.json` (SHA-256
+  `3709a048fbfd2044464c55d5aa10207af1cfbbad450d72c463e341f509a38c01`)
+- `.cache/radm/s4/run-012-image-box-resampling.json` (SHA-256
+  `304892b296c24f7bec86e92ffcc4b6ab380ab62bfc9a7ce70dc414b3a9c59415`)
 
 ## Regeneration Metadata
 
@@ -245,39 +317,6 @@ run root `.cache/radm/s3/runs/run-005`. The production wiring evidence is
 disposable checkpoint and CSV metric hashes are recorded in the S3 evidence
 layer above. These artifacts remain outside git.
 
-## Training Commands
-
-Run the accepted S0 contracts without training data or checkpoints.
-
-```bash
-PARITY_REQUIRE=1 uv run --package radm --extra training --extra vendor pytest \
-  models/radm/tests/test_training_s0_contracts.py \
-  models/radm/tests/vendor_parity/test_s0_reference_adapter.py \
-  models/radm/tests/vendor_parity/test_s0_radm_topology.py \
-  -m "not integration" -q -rs
-```
-
-Regenerate the accepted S1 trace from the pinned original mapper and graph with
-the ignored in-memory fixture; this command does not download data or mutate
-an optimizer.
-
-```bash
-CUDA_VISIBLE_DEVICES='' PARITY_REQUIRE=1 \
-RADM_S1_EVIDENCE_PATH=.cache/radm/s1/fixed_batch_trace.json \
-uv run --package radm --extra training --extra vendor pytest \
-  models/radm/tests/vendor_parity/test_s1_radm_training.py -s -q
-```
-
-When the optional reference runtime and approved local assets are available,
-capture initialized original-code state only; this command does not train.
-
-```bash
-uv run --package radm --extra vendor \
-  python models/radm/tests/vendor_parity/capture_reference_state.py \
-  --vendor-root ./vendor/radm \
-  --output .cache/radm/reference-state/initialized.json
-```
-
 ## Reference Checkpoint Gate
 
 The pinned source documents this exact single-GPU training command from the
@@ -315,8 +354,8 @@ COCO/evaluator settings. The source `metrics.py` additionally requires explicit
 test-image, annotation, and label paths and does not provide all internal
 `R_shm`/`R_sub` functions; those limitations must be recorded rather than
 silently replaced by another metric. The seed matrix is therefore
-`{vendor, package} x {1, 2, 3}` for future training-seed-n=3 evidence, with
-the same evaluation seed scope for each pair. No vendor or package training,
+`{vendor, package} x {1, 2, 3}` for future training-seed-n=3 evidence, with the
+same evaluation seed scope for each pair. No vendor or package training,
 checkpoint generation, or evaluation has started in this phase.
 
 The following package training command is a future recipe and must not be run
