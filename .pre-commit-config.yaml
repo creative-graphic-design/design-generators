@@ -100,6 +100,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: reader-facing-references
+        name: reader-facing references
+        entry: uv run --package design-generators python scripts/check_reader_facing_references.py
+        language: system
+        pass_filenames: false
+
       - id: readme-links
         name: README repository links
         entry: uv run --package design-generators python scripts/check_readme_links.py
