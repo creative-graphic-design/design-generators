@@ -24,6 +24,9 @@ class RADMDataModule(LightningDataModule):
         val_annotations: str | Path | None = None,
         val_image_root: str | Path | None = None,
         val_text_feature_root: str | Path | None = None,
+        test_annotations: str | Path | None = None,
+        test_image_root: str | Path | None = None,
+        test_text_feature_root: str | Path | None = None,
         batch_size: int = 16,
         num_workers: int = 0,
         allow_missing_text_features: bool = False,
@@ -39,12 +42,24 @@ class RADMDataModule(LightningDataModule):
         self.val_text_feature_root = (
             Path(val_text_feature_root) if val_text_feature_root else None
         )
+        self.test_annotations = (
+            Path(test_annotations) if test_annotations else self.val_annotations
+        )
+        self.test_image_root = (
+            Path(test_image_root) if test_image_root else self.val_image_root
+        )
+        self.test_text_feature_root = (
+            Path(test_text_feature_root)
+            if test_text_feature_root
+            else self.val_text_feature_root
+        )
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.allow_missing_text_features = allow_missing_text_features
         self.effective = effective
         self.train_dataset: RADMCOCODataset | None = None
         self.val_dataset: RADMCOCODataset | None = None
+        self.test_dataset: RADMCOCODataset | None = None
 
     def setup(self, stage: str | None = None) -> None:
         """Create datasets for the requested Lightning stage."""
@@ -65,6 +80,17 @@ class RADMDataModule(LightningDataModule):
                     self.val_image_root,
                     self.val_text_feature_root,
                 )
+        if stage in {None, "test"}:
+            if (
+                self.test_annotations is not None
+                and self.test_image_root is not None
+                and self.test_text_feature_root is not None
+            ):
+                self.test_dataset = self._dataset(
+                    self.test_annotations,
+                    self.test_image_root,
+                    self.test_text_feature_root,
+                )
 
     def train_dataloader(self) -> DataLoader[RADMTrainingExample]:
         """Return the deterministic worker-zero training loader."""
@@ -82,6 +108,16 @@ class RADMDataModule(LightningDataModule):
             None
             if self.val_dataset is None
             else self._loader(self.val_dataset, shuffle=False)
+        )
+
+    def test_dataloader(self) -> DataLoader[RADMTrainingExample] | None:
+        """Return the approved CGL test loader without reshuffling its stream."""
+        if self.test_dataset is None:
+            self.setup("test")
+        return (
+            None
+            if self.test_dataset is None
+            else self._loader(self.test_dataset, shuffle=False)
         )
 
     def _dataset(
