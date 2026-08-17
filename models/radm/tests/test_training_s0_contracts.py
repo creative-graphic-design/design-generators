@@ -523,6 +523,27 @@ def test_s0_loss_exposes_dynamic_k_focal_l1_giou_and_auxiliary_branches() -> Non
             ],
             requires_grad=True,
         ),
+        auxiliary_boxes_absolute_xyxy=torch.tensor(
+            [
+                [
+                    [
+                        [10.0, 10.0, 40.0, 40.0],
+                        [20.0, 20.0, 50.0, 50.0],
+                        [30.0, 30.0, 60.0, 60.0],
+                        [40.0, 40.0, 70.0, 70.0],
+                    ]
+                ],
+                [
+                    [
+                        [10.0, 10.0, 40.0, 40.0],
+                        [20.0, 20.0, 50.0, 50.0],
+                        [30.0, 30.0, 60.0, 60.0],
+                        [40.0, 40.0, 70.0, 70.0],
+                    ]
+                ],
+            ],
+            requires_grad=True,
+        ),
     )
     target = {
         "labels": torch.tensor([0]),
@@ -575,7 +596,7 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
             "image": torch.zeros(3, 32, 48),
             "boxes_xyxy": torch.zeros(1, 4),
             "labels": torch.tensor([0]),
-            "text_features": torch.zeros(20, 768),
+            "text_features": torch.ones(20, 768),
             "text_mask": torch.ones(20, 1, dtype=torch.bool),
             "image_size_xyxy": torch.tensor([48.0, 32.0, 48.0, 32.0]),
         },
@@ -583,7 +604,7 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
             "image": torch.zeros(3, 64, 32),
             "boxes_xyxy": torch.zeros(0, 4),
             "labels": torch.zeros(0, dtype=torch.long),
-            "text_features": torch.zeros(20, 768),
+            "text_features": torch.full((20, 768), 2.0),
             "text_mask": torch.zeros(20, 1, dtype=torch.bool),
             "image_size_xyxy": torch.tensor([32.0, 64.0, 32.0, 64.0]),
         },
@@ -596,3 +617,15 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
         [48.0, 32.0, 48.0, 32.0],
         [32.0, 64.0, 32.0, 64.0],
     ]
+    assert batch["forward_image_scales"].tolist() == [
+        [32.0, 48.0, 32.0, 48.0],
+        [64.0, 32.0, 64.0, 32.0],
+    ]
+    assert tuple(batch["text_features"].shape) == (1, 40, 768)
+    torch.testing.assert_close(batch["text_features"][0, :20], torch.ones(20, 768))
+    torch.testing.assert_close(
+        batch["text_features"][0, 20:], torch.full((20, 768), 2.0)
+    )
+    assert batch["text_mask"].shape == (2, 20, 1)
+    assert batch["text_mask"][0].all()
+    assert not batch["text_mask"][1].any()

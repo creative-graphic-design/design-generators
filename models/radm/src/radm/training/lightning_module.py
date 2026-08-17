@@ -74,6 +74,7 @@ class RADMTrainingModule(LightningModule):
         text_mask: Bool[torch.Tensor, "batch text 1"],
         images: Float[torch.Tensor, "batch channels height width"],
         image_scales: Float[torch.Tensor, "batch 4"] | None = None,
+        absolute_boxes_xyxy: Float[torch.Tensor, "batch proposals 4"] | None = None,
     ) -> RADMDenoiserOutput:
         """Run the package model inside the training loop."""
         return self.model(
@@ -83,6 +84,7 @@ class RADMTrainingModule(LightningModule):
             text_mask=text_mask,
             images=images,
             image_scales=image_scales,
+            absolute_boxes_xyxy=absolute_boxes_xyxy,
         )
 
     def training_step(
@@ -145,6 +147,9 @@ class RADMTrainingModule(LightningModule):
                 }
             )
         diffusion_input = torch.stack(diffused_boxes)
+        diffusion_input_absolute = (
+            diffusion_input * batch["forward_image_scales"][:, None, :]
+        )
         noise = torch.stack(noises)
         timestep_batch = torch.cat(timesteps)
         output = self(
@@ -154,6 +159,7 @@ class RADMTrainingModule(LightningModule):
             text_mask=batch["text_mask"],
             images=batch["images"],
             image_scales=batch["image_scales"],
+            absolute_boxes_xyxy=diffusion_input_absolute,
         )
         losses = _radm_loss(
             output,
@@ -207,7 +213,7 @@ def _radm_loss(
 ) -> dict[str, Float[torch.Tensor, ""]]:
     """Compute dynamic-K focal, L1, GIoU, and deep-supervision losses."""
     logits_by_head = output.auxiliary_logits
-    boxes_by_head = output.auxiliary_boxes_xyxy
+    boxes_by_head = output.auxiliary_boxes_absolute_xyxy
     if logits_by_head is None or boxes_by_head is None:
         raise ValueError("RADM output must expose auxiliary heads for training")
     losses: dict[str, Float[torch.Tensor, ""]] = {}
@@ -266,9 +272,8 @@ def _dynamic_k_match(
             torch.empty(0, dtype=torch.long, device=boxes.device),
         )
     probabilities = logits.sigmoid()
-    image_size = target["image_size_xyxy"]
     target_boxes = target["boxes_xyxy"]
-    predicted_boxes = boxes * image_size
+    predicted_boxes = boxes
     query_cxcywh = _xyxy_to_cxcywh(predicted_boxes)
     target_cxcywh = _xyxy_to_cxcywh(target_boxes)
     in_boxes, in_boxes_and_center = _in_boxes_info(query_cxcywh, target_cxcywh)
@@ -277,7 +282,7 @@ def _dynamic_k_match(
     positive = alpha * (1 - probabilities) ** gamma * (-(probabilities + 1e-8).log())
     class_cost = positive[:, labels] - negative[:, labels]
     normalized_target = target_boxes / target["image_size_xyxy_tgt"]
-    box_cost = torch.cdist(boxes, normalized_target, p=1)
+    box_cost = torch.cdist(boxes / target["image_size_xyxy"], normalized_target, p=1)
     giou_cost = -_generalized_box_iou(predicted_boxes, target_boxes)
     cost = (
         l1_weight * box_cost
@@ -339,7 +344,8 @@ def _classification_loss(
         logits.flatten(0, 1), target.flatten(0, 1), alpha, gamma
     )
     del no_object_weight
-    return focal.sum() / max(1, sum(int(item["labels"].numel()) for item in targets))
+    matched_target_count = sum(int(matched.numel()) for _, matched in indices)
+    return focal.sum() / max(1, matched_target_count)
 
 
 def _box_losses(
@@ -373,8 +379,8 @@ def _box_losses(
     normalized_expected_xyxy = _cxcywh_to_xyxy(normalized_expected)
     normalized_predicted = torch.cat(
         [
-            boxes[batch_index, selected]
-            for batch_index, ((selected, _), _) in enumerate(
+            boxes[batch_index, selected] / item["image_size_xyxy"]
+            for batch_index, ((selected, _), item) in enumerate(
                 zip(indices, targets, strict=True)
             )
             if selected.any()
@@ -384,15 +390,7 @@ def _box_losses(
         F.l1_loss(normalized_predicted, normalized_expected_xyxy, reduction="sum")
         / normalized_predicted.shape[0]
     )
-    absolute_predicted = torch.cat(
-        [
-            boxes[batch_index, selected] * item["image_size_xyxy"]
-            for batch_index, ((selected, _), item) in enumerate(
-                zip(indices, targets, strict=True)
-            )
-            if selected.any()
-        ]
-    )
+    absolute_predicted = torch.cat(predicted)
     giou = (
         1 - torch.diag(_generalized_box_iou(absolute_predicted, expected_boxes))
     ).mean()
@@ -456,9 +454,10 @@ def _xyxy_to_cxcywh(
     boxes: Float[torch.Tensor, "... 4"],
 ) -> Float[torch.Tensor, "... 4"]:
     left, top, right, bottom = boxes.unbind(-1)
-    width = right - left
-    height = bottom - top
-    return torch.stack((left + width / 2, top + height / 2, width, height), dim=-1)
+    return torch.stack(
+        ((left + right) / 2, (top + bottom) / 2, right - left, bottom - top),
+        dim=-1,
+    )
 
 
 def _cxcywh_to_xyxy(

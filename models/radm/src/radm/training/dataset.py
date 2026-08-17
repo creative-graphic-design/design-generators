@@ -209,9 +209,6 @@ class RADMDataCollator:
         boxes = images.new_zeros(batch, self.effective.num_proposals, 4)
         labels = torch.zeros(batch, self.effective.num_proposals, dtype=torch.long)
         mask = torch.zeros(batch, self.effective.num_proposals, dtype=torch.bool)
-        text_features = images.new_zeros(
-            batch, self.effective.max_text_num, self.effective.text_feature_dim
-        )
         text_mask = torch.zeros(batch, self.effective.max_text_num, 1, dtype=torch.bool)
         for index, example in enumerate(examples):
             element_count = min(
@@ -220,14 +217,26 @@ class RADMDataCollator:
             boxes[index, :element_count] = example["boxes_xyxy"][:element_count]
             labels[index, :element_count] = example["labels"][:element_count]
             mask[index, :element_count] = True
-            text_features[index] = example["text_features"]
             text_mask[index] = example["text_mask"]
+        text_features = (
+            torch.cat([example["text_features"] for example in examples], dim=0)
+            .unsqueeze(0)
+            .to(device=images.device, dtype=images.dtype)
+        )
+        forward_image_scales = torch.stack(
+            [
+                images.new_tensor((height, width, height, width))
+                for example in examples
+                for height, width in (example["image"].shape[-2:],)
+            ]
+        )
         return {
             "images": images,
             "image_mask": image_mask,
             "image_scales": torch.stack(
                 [example["image_size_xyxy"] for example in examples]
             ),
+            "forward_image_scales": forward_image_scales,
             "boxes_xyxy": boxes,
             "labels": labels,
             "mask": mask,
