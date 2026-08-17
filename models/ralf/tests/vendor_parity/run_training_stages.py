@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal, TypedDict, cast
 
 import torch
+import torch.version
 from jaxtyping import Shaped
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
@@ -1404,6 +1405,41 @@ def _fresh_s3_run_root(base_root: Path) -> Path:
     raise RuntimeError(f"no unused S3 run directory under {runs_root}")
 
 
+def _s3_child_import_gate() -> None:
+    """Resolve every class path passed to the spawned production trainer."""
+    callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(callback_root), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
+    paths = (
+        "run_training_stages.RalfS3TraceCallback",
+        "run_training_stages.RalfS3ModelCheckpoint",
+        "run_training_stages.RalfS3CSVLogger",
+    )
+    probe = (
+        "from importlib import import_module\n"
+        f"paths = {paths!r}\n"
+        "for path in paths:\n"
+        "    module_name, attribute_name = path.rsplit('.', 1)\n"
+        "    getattr(import_module(module_name), attribute_name)\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "S3 child import gate failed before the production trainer: "
+            f"{completed.stdout.strip()}"
+        )
+
+
 def _s0(
     args: argparse.Namespace,
     config: RalfConfig,
@@ -1585,6 +1621,7 @@ def _run_s3_fit(
     )
     train_index_path = _retrieval_path(args.cache_dir, args.dataset, "train")
     validation_index_path = _retrieval_path(args.cache_dir, args.dataset, "val")
+    callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
     for path in (trace_root, checkpoint_root, logger_root):
         path.mkdir(parents=True, exist_ok=True)
     command = [
@@ -1623,10 +1660,13 @@ def _run_s3_fit(
         f"--data.init_args.data_root={args.cache_dir / 'dataset'}",
         f"--data.init_args.retrieval_index_path={train_index_path}",
         f"--data.init_args.validation_retrieval_index_path={validation_index_path}",
-        "--trainer.callbacks=[models.ralf.tests.vendor_parity.run_training_stages.RalfS3TraceCallback,models.ralf.tests.vendor_parity.run_training_stages.RalfS3ModelCheckpoint]",
-        "--trainer.logger=models.ralf.tests.vendor_parity.run_training_stages.RalfS3CSVLogger",
+        "--trainer.callbacks=[run_training_stages.RalfS3TraceCallback,run_training_stages.RalfS3ModelCheckpoint]",
+        "--trainer.logger=run_training_stages.RalfS3CSVLogger",
     ]
     env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(callback_root), env.get("PYTHONPATH", "")]
+    ).rstrip(os.pathsep)
     env["RALF_RESNET_WEIGHTS_PATH"] = str(resnet_path)
     env["RALF_FIDNET_WEIGHTS_PATH"] = str(fidnet_path)
     env["RALF_DATA_ROOT"] = str(args.cache_dir / "dataset")
@@ -1745,6 +1785,7 @@ def _s3(
         raise RuntimeError(
             "S3 requires initialized package train and validation datasets"
         )
+    _s3_child_import_gate()
 
     run_base = ROOT / ".cache" / "ralf" / "training-reproduction" / args.dataset / "s3"
     train_batch_count = (
@@ -2229,6 +2270,11 @@ def main() -> int:
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
             "gpu_name": torch.cuda.get_device_name(device),
             "torch_version": torch.__version__,
+            "runtime_environment": {
+                "python": sys.executable,
+                "cuda_runtime": torch.version.cuda,
+                "pytorch_cuda_alloc_conf": os.environ.get("PYTORCH_CUDA_ALLOC_CONF"),
+            },
             "cache_dir": str(args.cache_dir),
             "package_commit": subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True

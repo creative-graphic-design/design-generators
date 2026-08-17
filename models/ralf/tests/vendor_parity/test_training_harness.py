@@ -17,9 +17,11 @@ from run_training_stages import (
     _compare_state_dicts,
     _fresh_s3_run_root,
     _natural_run_envelope,
+    _s3_child_import_gate,
     _run_s3_fit,
     _s3,
     _s4,
+    main,
     RalfS3TraceCallback,
 )
 
@@ -149,21 +151,31 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
     assert "validation_limit" in source
 
 
-def test_s3_uses_member_imports_without_manual_workspace_pythonpath() -> None:
+def test_s3_child_uses_repo_root_for_callback_imports() -> None:
     source = inspect.getsource(_run_s3_fit)
 
-    assert (
-        "models.ralf.tests.vendor_parity.run_training_stages.RalfS3TraceCallback"
-        in source
-    )
-    assert (
-        "models.ralf.tests.vendor_parity.run_training_stages.RalfS3CSVLogger" in source
-    )
-    assert 'env["PYTHONPATH"]' not in source
+    assert "run_training_stages.RalfS3TraceCallback" in source
+    assert "run_training_stages.RalfS3CSVLogger" in source
+    assert 'callback_root = ROOT / "models" / "ralf"' in source
+    assert 'env["PYTHONPATH"]' in source
+    assert "str(callback_root)" in source
+    assert "os.pathsep" in source
+    assert "models.ralf.tests.vendor_parity" not in source
     assert "lib/laygen/src" not in source
     assert "lib/posgen/src" not in source
     assert "lib/traingen/src" not in source
     assert "lib/traingen-parity/src" not in source
+
+
+def test_s3_child_import_gate_resolves_spawned_paths() -> None:
+    _s3_child_import_gate()
+
+
+def test_stage_evidence_records_runtime_allocator_environment() -> None:
+    source = inspect.getsource(main)
+
+    assert '"runtime_environment"' in source
+    assert '"pytorch_cuda_alloc_conf"' in source
 
 
 def test_s3_does_not_disable_deterministic_training() -> None:

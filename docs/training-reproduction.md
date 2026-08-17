@@ -153,6 +153,8 @@ Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the
 
 ### S3 Evidence Recording
 
+Before any long S3 run, execute the runner's CPU child-import gate for the exact callback and logger paths with its derived child `PYTHONPATH`; a failed gate blocks the GPU run.
+
 Record the natural multi-step layer for every model with the same seed and data
 on both systems. Repeat it to measure the run-to-run envelope, and preserve
 per-step state drift, loss, gradients, post-step parameters, learning rates,
