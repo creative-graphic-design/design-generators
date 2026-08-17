@@ -40,6 +40,7 @@ dependencies = [
     "posterllava",
     "postero",
     "posgen",
+    "radm",
     "ralf",
     "smarttext",
     "traingen",
@@ -202,6 +203,9 @@ conflicts = [
     ],
 ]
 
+[tool.uv.extra-build-dependencies]
+detectron2 = ["torch"]
+
 [tool.uv.workspace]
 members = ["lib/*", "models/*"]
 
@@ -234,6 +238,7 @@ posterllama = { workspace = true }
 posterllava = { workspace = true }
 postero = { workspace = true }
 posgen = { workspace = true }
+radm = { workspace = true }
 ralf = { workspace = true }
 smarttext = { workspace = true }
 traingen = { workspace = true }

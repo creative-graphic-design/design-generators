@@ -1,0 +1,54 @@
+seed_everything: 1
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: 32-true
+  deterministic: true
+  max_steps: 250000
+  gradient_clip_val: 0.0
+  limit_val_batches: 1.0
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
+  log_every_n_steps: 1
+  logger:
+    class_path: lightning.pytorch.loggers.CSVLogger
+    init_args:
+      save_dir: .cache/radm/training-runs/cgl
+      name: csv
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        dirpath: .cache/radm/training-runs/cgl/checkpoints
+        monitor: val_loss
+        mode: min
+        save_top_k: 1
+        save_last: false
+model:
+  class_path: radm.training.lightning_module.RADMTrainingModule
+  init_args:
+    config:
+      class_path: radm.configuration_radm.RADMConfig
+      init_args:
+        dataset_name: cgl
+        num_classes: 4
+        num_proposals: 100
+        hidden_dim: 256
+        text_feature_dim: 768
+        max_text_num: 20
+        num_train_timesteps: 1000
+        snr_scale: 2.0
+        sample_step: 1
+        backbone_depth: 50
+    effective: {}
+data:
+  class_path: radm.training.datamodule.RADMDataModule
+  init_args:
+    train_annotations: .cache/radm/data/cgl/annotations/train.json
+    train_image_root: .cache/radm/data/cgl/images/train
+    train_text_feature_root: .cache/radm/data/cgl/text_features/train
+    val_annotations: .cache/radm/data/cgl/annotations/test.json
+    val_image_root: .cache/radm/data/cgl/images/test
+    val_text_feature_root: .cache/radm/data/cgl/text_features/test
+    batch_size: 16
+    num_workers: 0
+    effective: {}

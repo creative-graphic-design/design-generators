@@ -16,6 +16,9 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 IGNORE_PATH = ROOT / ".lycheeignore"
 URL_RE = re.compile(r"https?://[^\s<>'\"\\]+")
+VCS_GIT_REVISION_RE = re.compile(
+    r"^(?P<repo>https?://[^\s<>'\"\\]+?\.git)@(?P<revision>[^/?#]+)(?:[?#].*)?$"
+)
 TRAILING_PUNCTUATION = ".,;:!?"
 TRANSIENT_STATUS_MIN = 500
 HARD_FAIL_STATUSES = {404, 410}
@@ -63,6 +66,14 @@ def normalize_url(raw_url: str) -> str:
     url = raw_url.rstrip(TRAILING_PUNCTUATION)
     while url.endswith((")", "]", "}")) and url.count("(") < url.count(")"):
         url = url[:-1]
+    return url
+
+
+def probe_url(url: str) -> str:
+    """Return the HTTP URL used for probing an extracted URL."""
+    match = VCS_GIT_REVISION_RE.match(url)
+    if match is not None:
+        return match.group("repo")
     return url
 
 
@@ -206,12 +217,13 @@ def check_changed_urls(
         if is_ignored(changed_url.url, ignore_patterns):
             results.append(UrlCheckResult(url=changed_url.url, outcome="ignored"))
             continue
-        if local_main_blob_path(changed_url.url, root=root) is not None:
+        url_to_probe = probe_url(changed_url.url)
+        if local_main_blob_path(url_to_probe, root=root) is not None:
             results.append(
                 UrlCheckResult(url=changed_url.url, outcome="ok", status=200)
             )
             continue
-        result = checker(changed_url.url)
+        result = checker(url_to_probe)
         if result.url != changed_url.url:
             result = UrlCheckResult(
                 url=changed_url.url,
