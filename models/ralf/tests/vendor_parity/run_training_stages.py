@@ -833,6 +833,7 @@ class RalfS3TraceCallback(Callback):
                 "first divergence at S3.deterministic_warn_only; "
                 "PyTorch deterministic algorithms are not configured for warning mode"
             )
+        torch.cuda.reset_peak_memory_stats()
         package_rng = capture_rng_state()
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
@@ -1202,6 +1203,9 @@ class RalfS3TraceCallback(Callback):
                     "trajectory": self.train_trajectory,
                     "state_sync": self.state_sync_records,
                     "first_divergence": self.first_divergence,
+                    "peak_memory_allocated_bytes": int(
+                        torch.cuda.max_memory_allocated()
+                    ),
                 },
                 indent=2,
                 sort_keys=True,
@@ -1350,6 +1354,7 @@ class RalfS3TraceCallback(Callback):
             "final_learning_rates": final_learning_rates,
             "logging": self.logging_trace,
             "state_synchronized_lockstep": self.state_sync_records,
+            "peak_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
             "checkpoint": {
                 "best_model_path": best_path.as_posix(),
                 "last_model_path": last_path.as_posix(),

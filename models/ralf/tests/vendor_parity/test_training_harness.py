@@ -178,6 +178,13 @@ def test_stage_evidence_records_runtime_allocator_environment() -> None:
     assert '"pytorch_cuda_alloc_conf"' in source
 
 
+def test_s3_trace_records_peak_cuda_memory() -> None:
+    source = inspect.getsource(RalfS3TraceCallback.on_fit_end)
+
+    assert '"peak_memory_allocated_bytes"' in source
+    assert "torch.cuda.max_memory_allocated()" in source
+
+
 def test_s3_does_not_disable_deterministic_training() -> None:
     source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
 
