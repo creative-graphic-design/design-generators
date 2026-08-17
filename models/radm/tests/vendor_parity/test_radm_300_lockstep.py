@@ -1836,6 +1836,394 @@ def _next_batch(loader: Any, iterator: Any) -> tuple[list[dict[str, Any]], Any]:
         return next(iterator), iterator
 
 
+def _move_optimizer_state(
+    optimizer: torch.optim.Optimizer, device: torch.device | str
+) -> None:
+    """Move optimizer tensor state with its model during streamed comparison."""
+    for values in optimizer.state.values():
+        for name, value in tuple(values.items()):
+            if isinstance(value, torch.Tensor):
+                values[name] = value.to(device=device)
+
+
+def _run_lockstep_streaming(
+    state: ReferenceTrainingState,
+    record_path: Path,
+    output_path: Path,
+    *,
+    vendor_root: Path,
+    data_root: Path,
+    text_feature_root: Path,
+    weights_path: Path,
+    device: torch.device,
+    steps: int,
+    seed: int,
+) -> dict[str, object]:
+    """Compare each recorded package step before recording the next one.
+
+    The package and source graphs take turns on the single reference device.
+    This preserves the record-then-compare values while keeping only the
+    current step's CPU snapshot alive; no full-run tensor spool is created.
+    """
+    del vendor_root, data_root, text_feature_root, weights_path
+    _check_lockstep_free_space(record_path)
+    package_kwargs = state.package_model_kwargs()
+    effective = state.effective
+    allowlist = state.reviewed_state_allowlist
+    header = _lockstep_header(
+        seed=seed,
+        device=device,
+        steps=steps,
+        code_state_digest=_lockstep_code_state_digest(),
+    )
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if record_path.exists():
+        raise FileExistsError(f"refusing to overwrite package record: {record_path}")
+    if output_path.exists():
+        raise FileExistsError(f"refusing to overwrite lockstep evidence: {output_path}")
+
+    record_initial_state = _capture_record_model_state(state.model)
+    record_initial_state_sha256 = _state_mapping_digest(record_initial_state)
+    state.model.to("cpu")
+    package = RADMDenoiser(config=RADMConfig(**package_kwargs)).to(device)
+    key_map = build_reviewed_state_key_map(state.model, package)
+    copy_reviewed_state_dict(state.model, package, key_map, allowlist=allowlist)
+    module = RADMTrainingModule(
+        config=package.radm_config,
+        model=package,
+        effective=effective,
+    ).to(device)
+    configured = cast(dict[str, Any], module.configure_optimizers())
+    package_optimizer = cast(torch.optim.Optimizer, configured["optimizer"])
+    package_scheduler = cast(
+        torch.optim.lr_scheduler.LRScheduler,
+        cast(dict[str, Any], configured["lr_scheduler"])["scheduler"],
+    )
+    loader = _source_loader(state)
+    iterator = iter(loader)
+    source_model = cast(Any, state.model)
+    source_compare_initial_state_sha256 = _state_mapping_digest(
+        state.model.state_dict()
+    )
+    assert source_compare_initial_state_sha256 == record_initial_state_sha256
+    source_model.eval()
+    module.train()
+
+    lines: list[dict[str, object]] = []
+    first_divergence: dict[str, object] | None = None
+    record_handle = record_path.open("w", encoding="utf-8")
+    record_handle.write(
+        json.dumps({"header": header}, ensure_ascii=False, sort_keys=True) + "\n"
+    )
+
+    for step in range(1, steps + 1):
+        package = module.model
+        source_batch, iterator = _next_batch(loader, iterator)
+        package_batch = {
+            name: value.to(device)
+            for name, value in _package_batch(
+                source_batch, source_model, effective
+            ).items()
+        }
+        batch_ids = [int(item["image_id"]) for item in source_batch]
+        package_optimizer.zero_grad()
+        rng_before = capture_rng_state()
+        package_total = module._compute_step_loss(package_batch, record_trace=True)
+        package_trace_cpu = _cpu_tree(module.latest_step_trace)
+        package_losses = {
+            name: value
+            for name, value in package_trace_cpu.items()
+            if name.startswith("loss_")
+        }
+        rng_after_forward = capture_rng_state()
+        package_total.backward()
+        package_gradients = _snapshot_gradients(package, package_optimizer)
+        package_preclip_norm = _gradient_norm(package_gradients)
+        package_optimizer.step()
+        package_postclip = _snapshot_gradients(package, package_optimizer)
+        package_parameters = _snapshot_parameters(package, package_optimizer)
+        package_optimizer_state = _snapshot_optimizer_state(package, package_optimizer)
+        package_scheduler.step()
+        package_loss_values = {
+            name: float(value.detach()) for name, value in package_losses.items()
+        }
+        package_loss_values["total"] = float(package_total.detach())
+        package_step: dict[str, Any] = {
+            "step": step,
+            "batch_image_ids": batch_ids,
+            "loss": package_loss_values,
+            "preclip_gradient_norm": package_preclip_norm,
+            "rng_before": _rng_digest(rng_before),
+            "rng_after_forward": _rng_digest(rng_after_forward),
+            "scheduler": {
+                "last_epoch": package_scheduler.last_epoch,
+                "lr": [float(value) for value in package_scheduler.get_last_lr()],
+            },
+            "model_sha256": _state_digest(
+                state.model, package, key_map, side="package"
+            ),
+            "optimizer_sha256": _optimizer_digest(
+                package_optimizer_state, key_map, package=True
+            ),
+            "_gradients": dict(package_gradients),
+            "_postclip": dict(package_postclip),
+            "_parameters": dict(package_parameters),
+            "_optimizer_state": {
+                name: dict(values) for name, values in package_optimizer_state.items()
+            },
+        }
+        record_handle.write(
+            json.dumps(
+                {
+                    key: value
+                    for key, value in package_step.items()
+                    if not key.startswith("_")
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        record_handle.flush()
+        package_step = cast(dict[str, Any], _cpu_tree(package_step))
+        module.latest_step_trace = {}
+        del (
+            package_batch,
+            package_trace_cpu,
+            package_gradients,
+            package_postclip,
+            package_parameters,
+            package_optimizer_state,
+        )
+        module.to("cpu")
+        _move_optimizer_state(package_optimizer, "cpu")
+        del package
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        source_model.to(device)
+        _move_optimizer_state(state.optimizer, device)
+        source_state = state
+        source_state.optimizer.zero_grad()
+        source_model.train()
+        restore_rng_state(rng_before)
+        source_rng_before = capture_rng_state()
+        source_losses = source_model(source_batch)
+        source_total = source_losses["loss_ce"] * 0
+        for value in source_losses.values():
+            source_total = source_total + value
+        source_rng_after_forward = capture_rng_state()
+        source_total.backward()
+        source_gradients = _snapshot_gradients(source_model, source_state.optimizer)
+        source_preclip_norm = _gradient_norm(source_gradients)
+        source_state.optimizer.step()
+        source_postclip = _snapshot_gradients(source_model, source_state.optimizer)
+        source_parameters = _snapshot_parameters(source_model, source_state.optimizer)
+        source_optimizer_state = _snapshot_optimizer_state(
+            source_model, source_state.optimizer
+        )
+        source_state.scheduler.step()
+        source_loss_values = {
+            name: float(value.detach()) for name, value in source_losses.items()
+        }
+        source_loss_values["total"] = float(source_total.detach())
+        package_loss_values = cast(dict[str, float], package_step["loss"])
+        loss_errors = {
+            name: {
+                "source": source_loss_values[name],
+                "package": package_loss_values.get(name, float("nan")),
+                "max_abs": abs(
+                    source_loss_values[name]
+                    - package_loss_values.get(name, float("nan"))
+                ),
+                "max_rel": _max_relative_error(
+                    source_loss_values[name],
+                    package_loss_values.get(name, float("nan")),
+                ),
+            }
+            for name in source_loss_values
+        }
+        parameter_abs, parameter_rel, parameter_name = _mapped_parameter_errors(
+            source_parameters, package_step["_parameters"], key_map
+        )
+        gradient_abs, gradient_rel, gradient_name = _mapped_gradient_errors(
+            source_gradients, package_step["_gradients"], key_map
+        )
+        postclip_abs, postclip_rel, postclip_name = _mapped_gradient_errors(
+            source_postclip, package_step["_postclip"], key_map
+        )
+        optimizer_abs, optimizer_rel, optimizer_name = _optimizer_state_errors(
+            source_optimizer_state, package_step["_optimizer_state"], key_map
+        )
+        rng_equal = package_step["rng_before"] == _rng_digest(
+            source_rng_before
+        ) and package_step["rng_after_forward"] == _rng_digest(source_rng_after_forward)
+        batch_order_equal = package_step["batch_image_ids"] == batch_ids
+        row: dict[str, object] = {
+            "step": step,
+            "batch_image_ids": batch_ids,
+            "batch_order_equal": batch_order_equal,
+            "loss": loss_errors,
+            "preclip_gradient_norm": {
+                "source": source_preclip_norm,
+                "package": package_step["preclip_gradient_norm"],
+                "max_rel": _max_relative_error(
+                    source_preclip_norm, package_step["preclip_gradient_norm"]
+                ),
+            },
+            "postclip_gradient_max_abs": postclip_abs,
+            "postclip_gradient_max_rel": postclip_rel,
+            "parameter_max_abs": parameter_abs,
+            "parameter_max_rel": parameter_rel,
+            "parameter_first_name": parameter_name,
+            "gradient_max_abs": gradient_abs,
+            "gradient_max_rel": gradient_rel,
+            "gradient_first_name": gradient_name,
+            "postclip_gradient_first_name": postclip_name,
+            "optimizer_state_max_abs": optimizer_abs,
+            "optimizer_state_max_rel": optimizer_rel,
+            "optimizer_state_first_name": optimizer_name,
+            "scheduler": {
+                "source_last_epoch": source_state.scheduler.last_epoch,
+                "package_last_epoch": package_step["scheduler"]["last_epoch"],
+                "source_lr": [
+                    float(value) for value in source_state.scheduler.get_last_lr()
+                ],
+                "package_lr": package_step["scheduler"]["lr"],
+            },
+            "rng_equal": rng_equal,
+            "model_sha256": {
+                "source": _state_digest(
+                    source_state.model, source_state.model, key_map, side="source"
+                ),
+                "package": package_step["model_sha256"],
+            },
+            "optimizer_sha256": {
+                "source": _optimizer_digest(
+                    source_optimizer_state, key_map, package=False
+                ),
+                "package": package_step["optimizer_sha256"],
+            },
+        }
+        lines.append(row)
+        if first_divergence is None:
+            if not batch_order_equal:
+                first_divergence = {"step": step, "surface": "batch_order"}
+            for name, error in loss_errors.items():
+                if first_divergence is not None:
+                    break
+                if not _within_contract(
+                    float(error["source"]), float(error["package"])
+                ) or (
+                    name == "total" and float(error["max_rel"]) > _LOSS_RELATIVE_LIMIT
+                ):
+                    first_divergence = {
+                        "step": step,
+                        "surface": f"loss.{name}",
+                        "max_abs": error["max_abs"],
+                        "max_rel": error["max_rel"],
+                    }
+                    break
+            if first_divergence is None and not _within_contract(
+                source_preclip_norm, package_step["preclip_gradient_norm"]
+            ):
+                first_divergence = {
+                    "step": step,
+                    "surface": "preclip_gradient_norm",
+                    "max_rel": row["preclip_gradient_norm"]["max_rel"],
+                }
+            if first_divergence is None and gradient_abs > _S2_ATOL:
+                first_divergence = {
+                    "step": step,
+                    "surface": f"preclip_gradients.{gradient_name}",
+                    "max_abs": gradient_abs,
+                    "max_rel": gradient_rel,
+                }
+            if first_divergence is None and parameter_abs > _S2_ATOL:
+                first_divergence = {
+                    "step": step,
+                    "surface": f"parameters.{parameter_name}",
+                    "max_abs": parameter_abs,
+                    "max_rel": parameter_rel,
+                }
+            if first_divergence is None and optimizer_abs > _S2_ATOL:
+                first_divergence = {
+                    "step": step,
+                    "surface": f"optimizer_state.{optimizer_name}",
+                    "max_abs": optimizer_abs,
+                    "max_rel": optimizer_rel,
+                }
+            if first_divergence is None and not rng_equal:
+                first_divergence = {"step": step, "surface": "rng_after_forward"}
+
+        del (
+            package_step,
+            source_gradients,
+            source_postclip,
+            source_parameters,
+            source_optimizer_state,
+        )
+        source_model.to("cpu")
+        _move_optimizer_state(source_state.optimizer, "cpu")
+        # Restore the package graph from its current CPU state before the next
+        # step; the state is held by the module while it is off the device.
+        module = module.to(device)
+        _move_optimizer_state(package_optimizer, device)
+        module.train()
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    record_handle.write(
+        json.dumps(
+            {"summary": {"mode": "package_record", "steps": steps, "records": steps}},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    record_handle.close()
+    del module, package_optimizer, package_scheduler, loader, iterator, state
+    torch.cuda.empty_cache()
+    report: dict[str, object] = {
+        "mode": "record_then_compare_300_step_lockstep",
+        "storage_strategy": "stream_compare_current_step",
+        "steps": steps,
+        "devices": {"package": str(device), "source": str(device)},
+        "package_record_path": record_path.as_posix(),
+        "loss_relative_limit": _LOSS_RELATIVE_LIMIT,
+        "s2_tolerance": {"atol": _S2_ATOL, "rtol": _S2_RTOL},
+        "initial_state": {
+            "record_sha256": record_initial_state_sha256,
+            "source_compare_sha256": source_compare_initial_state_sha256,
+            "bitwise": source_compare_initial_state_sha256
+            == record_initial_state_sha256,
+        },
+        "first_divergence": first_divergence,
+        "records": len(lines),
+        "step1_sidecar_path": None,
+        "step1_sidecar_sha256": None,
+        "step1_localization_path": None,
+        "step1_localization_sha256": None,
+        "step1_head_comparison": None,
+        "step1_roi_plumbing": None,
+        "step1_time_mlp_invocation_comparison": None,
+        "step1_time_mlp_internal_comparison": None,
+    }
+    output_path.write_text(
+        json.dumps({"header": header}, ensure_ascii=False, sort_keys=True)
+        + "\n"
+        + "".join(
+            json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n"
+            for line in lines
+        )
+        + json.dumps({"summary": report}, ensure_ascii=False, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+    return report
+
+
 def _run_lockstep(
     state: ReferenceTrainingState,
     record_path: Path,
@@ -2733,7 +3121,11 @@ def test_radm_300_step_cgl_lockstep() -> None:
                 "detectron2.checkpoint"
             ).DetectionCheckpointer(state.model)
             checkpointer.load(str(weights_path))
-            report = _run_lockstep(
+            use_streaming = os.environ.get(
+                "RADM_300_LOCKSTEP_STREAM_COMPARE"
+            ) == "1" or (steps == _STEPS and not _step1_sidecar_enabled())
+            runner = _run_lockstep_streaming if use_streaming else _run_lockstep
+            report = runner(
                 state,
                 record_path,
                 output_path,
