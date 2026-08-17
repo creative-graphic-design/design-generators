@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib
 import json
 import os
 import subprocess
 import tempfile
+import traceback
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +25,10 @@ from radm import RADMConfig, RADMDenoiser
 from radm.training.lightning_module import (
     RADMTarget,
     RADMTrainingModule,
+    _classification_loss,
     _dynamic_k_match,
+    _sigmoid_focal_loss,
+    _xyxy_to_cxcywh,
 )
 from radm.training.topology import (
     build_reviewed_state_key_map,
@@ -54,6 +59,67 @@ _SEED = 261
 _VENDOR_REVISION = "413f87a45760ceac5635b6a08c8047f86478acf5"
 _FLOAT_TOLERANCE = TensorTolerance(atol=2e-5, rtol=2e-5)
 _S2_FLOAT_TOLERANCE = TensorTolerance(atol=5e-5, rtol=2e-4)
+
+
+def _write_s1_guard_evidence(path: Path, payload: Mapping[str, Any]) -> Path:
+    artifact = dict(payload)
+    artifact["sha256"] = hashlib.sha256(
+        json.dumps(artifact, ensure_ascii=False, sort_keys=True).encode()
+    ).hexdigest()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(artifact, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_s1_guard_evidence_records_a_payload_digest(tmp_path: Path) -> None:
+    path = _write_s1_guard_evidence(
+        tmp_path / "batch16-guard.json",
+        {"per_surface": {"backbone": {"bitwise": True}}},
+    )
+    artifact = json.loads(path.read_text(encoding="utf-8"))
+    digest_payload = dict(artifact)
+    digest = digest_payload.pop("sha256")
+    assert (
+        digest
+        == hashlib.sha256(
+            json.dumps(digest_payload, ensure_ascii=False, sort_keys=True).encode()
+        ).hexdigest()
+    )
+    assert artifact["per_surface"]["backbone"]["bitwise"] is True
+
+
+def test_classification_loss_normalizes_by_matched_targets() -> None:
+    logits = torch.tensor([[[0.2, -0.4], [0.7, 0.1], [-0.3, 0.5]]])
+    targets: list[RADMTarget] = [
+        {
+            "labels": torch.tensor([0, 1]),
+            "boxes": torch.zeros(2, 4),
+            "boxes_xyxy": torch.zeros(2, 4),
+            "image_size_xyxy": torch.ones(4),
+            "image_size_xyxy_tgt": torch.ones(2, 4),
+        }
+    ]
+    indices = [(torch.tensor([True, False, False]), torch.tensor([1]))]
+
+    actual = _classification_loss(
+        logits,
+        targets,
+        indices,
+        num_classes=2,
+        alpha=0.25,
+        gamma=2.0,
+        no_object_weight=0.1,
+    )
+    target = torch.zeros(1, 3, 3)
+    target[0, 0, 1] = 1
+    expected = _sigmoid_focal_loss(
+        logits.flatten(0, 1), target[..., :2].flatten(0, 1), 0.25, 2.0
+    ).sum()
+
+    torch.testing.assert_close(actual, expected)
 
 
 @dataclass
@@ -208,6 +274,9 @@ def _build_source_fixture(
     package_batch = {
         "images": images.tensor,
         "image_scales": image_scales,
+        "forward_image_scales": image_scales.new_tensor(
+            (images.tensor.shape[-2], images.tensor.shape[-1])
+        ).repeat(1, 2),
         "boxes_xyxy": normalized_boxes.unsqueeze(0),
         "labels": labels.unsqueeze(0),
         "mask": torch.ones(1, labels.numel(), dtype=torch.bool),
@@ -279,6 +348,301 @@ def _build_parity_case(
     )
 
 
+_REAL_BACKBONE_IMAGE_IDS = (
+    41061,
+    14431,
+    21733,
+    52182,
+    35920,
+    79726,
+    9908,
+    67798,
+    8097,
+    6364,
+    251,
+    1140,
+    34124,
+    59245,
+    55077,
+    27566,
+)
+
+
+@pytest.mark.vendor_parity
+def test_s1_radm_real_batch16_backbone_bitwise_parity() -> None:
+    """Compare the five source/package backbone outputs on the R-50 fixture."""
+    data_root = Path(os.environ.get("RADM_S4_DATA_ROOT", ".cache/radm/data/cgl"))
+    text_root = data_root / "text_features"
+    weights_path = Path(
+        os.environ.get("RADM_R50_WEIGHTS", ".cache/radm/weights/R-50.pkl")
+    )
+    evidence_path = Path(
+        os.environ.get(
+            "RADM_S1_BATCH16_EVIDENCE_PATH", ".cache/radm/s1/batch16_guard.json"
+        )
+    )
+    if not data_root.exists() or not text_root.exists() or not weights_path.is_file():
+        message = f"CGL/R-50 assets are missing: {data_root}, {weights_path}"
+        if os.environ.get("PARITY_REQUIRE") == "1":
+            pytest.fail(message)
+        pytest.skip(message)
+    state = RADMReferenceAdapter(
+        vendor_root=Path("vendor/radm"),
+        dataset_root=data_root,
+        text_feature_root=text_root,
+        device=os.environ.get("RADM_REFERENCE_DEVICE", "cpu"),
+    ).build_initialized_state()
+    with _vendor_import_root(Path("vendor/radm")), _legacy_pillow_compat():
+        checkpointer = importlib.import_module(
+            "detectron2.checkpoint"
+        ).DetectionCheckpointer(state.model)
+        checkpointer.load(str(weights_path))
+        data = importlib.import_module("detectron2.data")
+        mapper_class = importlib.import_module("RADM.dataset_mapper").RADMDatasetMapper
+        mapper = mapper_class(state.config, is_train=True)
+        rows = data.DatasetCatalog.get("layout_train")
+        by_id = {int(row["image_id"]): row for row in rows}
+        missing = [
+            image_id for image_id in _REAL_BACKBONE_IMAGE_IDS if image_id not in by_id
+        ]
+        if missing:
+            pytest.fail(f"recorded CGL batch IDs are missing: {missing}")
+        apply_determinism(DeterminismConfig(seed=_SEED))
+        batch = [
+            mapper(copy.deepcopy(by_id[image_id]))
+            for image_id in _REAL_BACKBONE_IMAGE_IDS
+        ]
+
+    package = RADMDenoiser(config=RADMConfig(**state.package_model_kwargs())).to(
+        next(state.model.parameters()).device
+    )
+    key_map = build_reviewed_state_key_map(state.model, package)
+    copy_reviewed_state_dict(
+        state.model,
+        package,
+        key_map,
+        allowlist=state.reviewed_state_allowlist,
+    )
+    state.model.train()
+    package.train()
+    with torch.no_grad():
+        images, _ = cast(Any, state.model).preprocess_image(batch)
+        source_features = list(cast(Any, state.model).backbone(images.tensor).values())
+        package_features = list(
+            cast(Any, package).backbone.body(images.tensor).values()
+        )
+    backbone_levels = [
+        torch.equal(source_value, package_value)
+        for source_value, package_value in zip(
+            source_features, package_features, strict=False
+        )
+    ]
+    backbone_bitwise = len(source_features) == len(package_features) == 5 and all(
+        backbone_levels
+    )
+    backbone_shape_counts = (len(source_features), len(package_features))
+    backbone_hashes = {
+        f"level_{index}": {
+            "source": tensor_sha256(source_value),
+            "package": tensor_sha256(package_value),
+            "bitwise": bitwise,
+        }
+        for index, (source_value, package_value, bitwise) in enumerate(
+            zip(source_features, package_features, backbone_levels, strict=False)
+        )
+    }
+    del images, source_features, package_features
+    if next(state.model.parameters()).is_cuda:
+        torch.cuda.empty_cache()
+
+    from test_radm_300_lockstep import _package_batch
+
+    package_batch = _package_batch(batch, state.model, state.effective)
+    module = RADMTrainingModule(
+        config=package.radm_config,
+        model=package,
+        effective=state.effective,
+    )
+    source_capture, source_handles = _install_trace_hooks(state.model)
+    package_capture, package_handles = _install_trace_hooks(package)
+    source_prepare: dict[str, Any] = {}
+    source_loss_surfaces: dict[str, torch.Tensor] = {}
+    original_prepare_targets = cast(Any, state.model).prepare_targets
+
+    def capture_prepare_targets(targets: Any) -> Any:
+        prepared = original_prepare_targets(targets)
+        source_prepare["targets"] = _capture_cpu_tree(prepared[0])
+        source_prepare["diffusion_input"] = (
+            prepared[1].detach().to(device="cpu", copy=True)
+        )
+        return prepared
+
+    try:
+        state.model.train()
+        module.train()
+        step_rng = capture_rng_state()
+        with patch.object(state.model, "prepare_targets", new=capture_prepare_targets):
+            with torch.no_grad():
+                source_output = state.model(batch)
+        source_loss_surfaces = {
+            name: value.detach().to(device="cpu", copy=True)
+            for name, value in source_output.items()
+        }
+        source_total = source_loss_surfaces["loss_ce"] * 0
+        for value in source_loss_surfaces.values():
+            source_total = source_total + value
+        source_loss_surfaces["train_loss"] = source_total
+        source_forward_rng = _rng_digest(capture_rng_state())
+        restore_rng_state(step_rng)
+        with torch.no_grad():
+            module._compute_step_loss(package_batch, record_trace=True)
+        package_forward_rng = _rng_digest(capture_rng_state())
+    finally:
+        for handle in (*source_handles, *package_handles):
+            handle.remove()
+
+    rng_bitwise = source_forward_rng == package_forward_rng
+    package_diffusion_input = (
+        module.latest_step_trace["diffusion_input"].detach().to(device="cpu", copy=True)
+    )
+    diffusion_input_bitwise = torch.equal(
+        source_prepare["diffusion_input"], package_diffusion_input
+    )
+    stage0_boxes_bitwise = torch.equal(
+        source_capture["block_input_boxes"], package_capture["block_input_boxes"]
+    )
+    source_logits = source_capture["head_logits"]
+    source_boxes = source_capture["head_boxes"]
+    package_logits = package_capture["head_logits"]
+    package_boxes = package_capture["head_boxes"]
+    source_targets = source_prepare["targets"]
+    package_targets: list[RADMTarget] = []
+    for index in range(len(batch)):
+        valid = package_batch["mask"][index]
+        normalized_boxes = (
+            package_batch["boxes_xyxy"][index][valid]
+            .detach()
+            .to(device="cpu", copy=True)
+        )
+        scale = (
+            package_batch["image_scales"][index].detach().to(device="cpu", copy=True)
+        )
+        package_targets.append(
+            {
+                "labels": package_batch["labels"][index][valid]
+                .detach()
+                .to(device="cpu", copy=True),
+                "boxes": _xyxy_to_cxcywh(normalized_boxes),
+                "boxes_xyxy": normalized_boxes * scale,
+                "image_size_xyxy": scale,
+                "image_size_xyxy_tgt": scale.expand(normalized_boxes.shape[0], -1),
+            }
+        )
+    assignment_surfaces: list[dict[str, Any]] = []
+    for head_index in range(source_logits.shape[0]):
+        source_matches, _ = cast(Any, state.model).criterion.matcher(
+            {
+                "pred_logits": source_logits[head_index],
+                "pred_boxes": source_boxes[head_index],
+            },
+            source_targets,
+        )
+        for batch_index in range(len(batch)):
+            package_match = _dynamic_k_match(
+                package_logits[head_index, batch_index],
+                package_boxes[head_index, batch_index],
+                package_targets[batch_index],
+                alpha=state.effective.alpha,
+                gamma=state.effective.gamma,
+                ota_k=state.effective.ota_k,
+                class_weight=state.effective.class_weight,
+                l1_weight=state.effective.l1_weight,
+                giou_weight=state.effective.giou_weight,
+            )
+            selected_bitwise = torch.equal(
+                source_matches[batch_index][0], package_match[0]
+            )
+            matched_bitwise = torch.equal(
+                source_matches[batch_index][1], package_match[1]
+            )
+            assignment_surfaces.append(
+                {
+                    "head": head_index,
+                    "batch": batch_index,
+                    "selected_bitwise": selected_bitwise,
+                    "matched_bitwise": matched_bitwise,
+                    "source_selected_sha256": tensor_sha256(
+                        source_matches[batch_index][0]
+                    ),
+                    "package_selected_sha256": tensor_sha256(package_match[0]),
+                    "source_matched_sha256": tensor_sha256(
+                        source_matches[batch_index][1]
+                    ),
+                    "package_matched_sha256": tensor_sha256(package_match[1]),
+                }
+            )
+
+    assignments_bitwise = all(
+        item["selected_bitwise"] and item["matched_bitwise"]
+        for item in assignment_surfaces
+    )
+    package_loss_surfaces = {
+        name: value.detach().to(device="cpu", copy=True)
+        for name, value in module.latest_step_trace.items()
+        if name.startswith("loss_") or name == "train_loss"
+    }
+    loss_surface_comparisons: dict[str, dict[str, Any]] = {}
+    loss_surfaces_bitwise = set(source_loss_surfaces) == set(package_loss_surfaces)
+    if loss_surfaces_bitwise:
+        for name in sorted(source_loss_surfaces):
+            source_value = source_loss_surfaces[name]
+            package_value = package_loss_surfaces[name]
+            difference = (source_value - package_value).abs()
+            loss_surface_comparisons[name] = {
+                "source": tensor_sha256(source_value),
+                "package": tensor_sha256(package_value),
+                "max_abs_diff": float(difference.max().item()),
+                "bitwise": torch.equal(source_value, package_value),
+            }
+        loss_surfaces_bitwise = all(
+            comparison["bitwise"] for comparison in loss_surface_comparisons.values()
+        )
+    guard_payload = {
+        "vendor_revision": _VENDOR_REVISION,
+        "seed": _SEED,
+        "batch_image_ids": list(_REAL_BACKBONE_IMAGE_IDS),
+        "per_surface": {
+            "backbone": {"bitwise": backbone_bitwise, "levels": backbone_hashes},
+            "rng_after_forward": {"bitwise": rng_bitwise},
+            "diffusion_input": {"bitwise": diffusion_input_bitwise},
+            "stage0_absolute_boxes": {"bitwise": stage0_boxes_bitwise},
+            "assignments": {
+                "bitwise": assignments_bitwise,
+                "surfaces": assignment_surfaces,
+            },
+            "loss_surfaces": {
+                "bitwise": loss_surfaces_bitwise,
+                "surfaces": loss_surface_comparisons,
+            },
+        },
+        "state_sha256": _mapped_state_digest(state.model, package, key_map),
+        "rng": {"source": source_forward_rng, "package": package_forward_rng},
+    }
+    _write_s1_guard_evidence(evidence_path, guard_payload)
+    print(
+        "S1 batch16 guard evidence "
+        f"path={evidence_path} sha256={hashlib.sha256(evidence_path.read_bytes()).hexdigest()} "
+        f"payload_sha256={json.loads(evidence_path.read_text(encoding='utf-8'))['sha256']}"
+    )
+    assert backbone_shape_counts == (5, 5)
+    assert backbone_bitwise
+    assert rng_bitwise
+    assert diffusion_input_bitwise
+    assert stage0_boxes_bitwise
+    assert assignments_bitwise
+    assert loss_surfaces_bitwise
+
+
 def _build_s3_followup_fixtures(
     state: ReferenceTrainingState, root: Path
 ) -> list[tuple[dict[str, Any], dict[str, torch.Tensor], dict[str, torch.Tensor]]]:
@@ -327,29 +691,181 @@ def _build_s3_followup_fixtures(
     ]
 
 
+def _capture_cpu_tree(value: Any) -> Any:
+    if isinstance(value, torch.Tensor):
+        return value.detach().to(device="cpu", copy=True)
+    if isinstance(value, Mapping):
+        return {key: _capture_cpu_tree(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_capture_cpu_tree(item) for item in value)
+    if isinstance(value, list):
+        return [_capture_cpu_tree(item) for item in value]
+    return value
+
+
 def _install_trace_hooks(model: torch.nn.Module) -> tuple[dict[str, Any], list[Any]]:
     captured: dict[str, Any] = {}
     dynamic_model = cast(Any, model)
+
+    def tensor_summary(value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, torch.Tensor):
+            return None
+        original_device = str(value.device)
+        cpu_value = value.detach().to(device="cpu", copy=True)
+        return {
+            "shape": list(cpu_value.shape),
+            "dtype": str(cpu_value.dtype),
+            "device": original_device,
+            "stride": list(cpu_value.stride()),
+            "sha256": tensor_sha256(cpu_value),
+        }
+
+    def module_identity(module: torch.nn.Module) -> dict[str, Any]:
+        return {
+            "class": module.__class__.__qualname__,
+            "approximate": getattr(module, "approximate", None),
+        }
+
+    time_mlp = dynamic_model.head.time_mlp
+    captured["time_mlp_identity"] = {
+        "activation": module_identity(time_mlp[2]),
+    }
+    captured["time_mlp_linear2_parameters"] = {
+        "weight": tensor_summary(time_mlp[3].weight),
+        "bias": tensor_summary(time_mlp[3].bias),
+    }
+
+    def trace_value(value: Any) -> Any:
+        return _capture_cpu_tree(value)
+
+    def first_output(value: Any) -> Any:
+        if isinstance(value, tuple) and value:
+            return value[0]
+        return value
+
+    def capture_head_inputs(_module: torch.nn.Module, inputs: tuple[Any, ...]) -> None:
+        if hasattr(dynamic_model.head, "head_series"):
+            text_index, mask_index, timestep_index = 3, 4, 5
+            roi_scale = None
+        else:
+            text_index, mask_index, timestep_index = 2, 3, 4
+            roi_scale = inputs[5]
+        captured["head_inputs"] = {
+            "text_features": trace_value(inputs[text_index]),
+            "text_mask": trace_value(inputs[mask_index]),
+            "timesteps": trace_value(inputs[timestep_index]),
+            "roi_scale": trace_value(roi_scale),
+        }
+
+    def capture_time_embedding(
+        _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        captured["time_embedding"] = trace_value(output)
+
+    def capture_time_mlp_invocation(
+        _module: torch.nn.Module, inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        frames = traceback.extract_stack()[:-1]
+        stack = [
+            f"{frame.filename.rsplit('/', 1)[-1]}:{frame.lineno}:{frame.name}"
+            for frame in frames
+            if frame.name
+            not in {
+                "_call_impl",
+                "_wrapped_call_impl",
+                "capture_time_mlp_invocation",
+            }
+            and "/torch/" not in frame.filename
+        ]
+        captured.setdefault("time_mlp_invocations", []).append(
+            {
+                "invocation": len(captured.get("time_mlp_invocations", [])),
+                "input": tensor_summary(inputs[0] if inputs else None),
+                "output": tensor_summary(output),
+                "autocast": {
+                    "cuda": torch.is_autocast_enabled("cuda"),
+                    "cpu": torch.is_autocast_enabled("cpu"),
+                },
+                "grad_enabled": torch.is_grad_enabled(),
+                "stack": stack[-6:],
+            }
+        )
+
+    def capture_box_pooler(
+        _module: torch.nn.Module, inputs: tuple[Any, ...], output: Any
+    ) -> None:
+        if not isinstance(output, torch.Tensor):
+            return
+        if not inputs:
+            return
+        boxes = inputs[1] if len(inputs) > 1 else None
+        if isinstance(boxes, list):
+            batch_size = len(boxes)
+            proposal_count = len(boxes[0]) if batch_size else 0
+            output = output.reshape(batch_size, proposal_count, *output.shape[1:])
+        if "stage0_roi_features" not in captured:
+            captured["stage0_roi_features"] = trace_value(output)
 
     def capture_backbone(
         _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
     ) -> None:
         captured["backbone"] = {
-            str(name): value.detach() for name, value in output.items()
+            str(name): value.detach().to(device="cpu", copy=True)
+            for name, value in output.items()
         }
 
     def capture_head(
         _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
     ) -> None:
-        captured["head_logits"] = output[0].detach()
-        captured["head_boxes"] = output[1].detach()
+        captured["head_logits"] = output[0].detach().to(device="cpu", copy=True)
+        captured["head_boxes"] = output[1].detach().to(device="cpu", copy=True)
 
     def capture_block(
         _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
     ) -> None:
-        captured["block_logits"] = output[0].detach()
-        captured["block_boxes"] = output[1].detach()
-        captured["block_features"] = output[2].detach()
+        if hasattr(dynamic_model.head, "head_series"):
+            roi_index, input_index, proposal_index = 0, 1, 5
+        else:
+            roi_index, input_index, proposal_index = 1, 2, 0
+        if "stage0_roi_features" not in captured:
+            captured["stage0_roi_features"] = trace_value(_inputs[roi_index])
+        captured["block_input_boxes"] = (
+            _inputs[input_index].detach().to(device="cpu", copy=True)
+        )
+        captured.setdefault(
+            "stage0_initial_proposal_features", trace_value(_inputs[proposal_index])
+        )
+        captured["block_logits"] = output[0].detach().to(device="cpu", copy=True)
+        captured["block_boxes"] = output[1].detach().to(device="cpu", copy=True)
+        captured["block_features"] = output[2].detach().to(device="cpu", copy=True)
+        captured["stage0_output_logits"] = (
+            output[0].detach().to(device="cpu", copy=True)
+        )
+        captured["stage0_output_boxes_absolute"] = (
+            output[1].detach().to(device="cpu", copy=True)
+        )
+        captured["stage0_box_renewal"] = output[1].detach().to(device="cpu", copy=True)
+
+    def capture_self_attn_input(
+        _module: torch.nn.Module, inputs: tuple[Any, ...]
+    ) -> None:
+        if inputs:
+            captured["stage0_self_attn_input"] = trace_value(inputs[0])
+            captured["stage0_initial_proposal_features"] = trace_value(inputs[0])
+
+    def capture_module_output(
+        name: str,
+        *,
+        module: torch.nn.Module,
+        output_index: int | None = None,
+    ) -> Any:
+        def capture(
+            _module: torch.nn.Module, _inputs: tuple[Any, ...], output: Any
+        ) -> None:
+            value = output[output_index] if output_index is not None else output
+            captured[name] = trace_value(first_output(value))
+
+        return module.register_forward_hook(capture)
 
     first_block = (
         dynamic_model.head.head_series[0]
@@ -357,10 +873,55 @@ def _install_trace_hooks(model: torch.nn.Module) -> tuple[dict[str, Any], list[A
         else dynamic_model.head.blocks[0]
     )
     handles = [
+        dynamic_model.head.register_forward_pre_hook(capture_head_inputs),
+        dynamic_model.head.time_mlp.register_forward_hook(capture_time_embedding),
+        dynamic_model.head.time_mlp.register_forward_hook(capture_time_mlp_invocation),
         dynamic_model.backbone.register_forward_hook(capture_backbone),
         dynamic_model.head.register_forward_hook(capture_head),
         first_block.register_forward_hook(capture_block),
     ]
+    if hasattr(dynamic_model.head, "box_pooler"):
+        handles.append(
+            dynamic_model.head.box_pooler.register_forward_hook(capture_box_pooler)
+        )
+    handles.extend(
+        [
+            first_block.self_attn.register_forward_pre_hook(capture_self_attn_input),
+            capture_module_output(
+                "time_sinusoidal", module=dynamic_model.head.time_mlp[0]
+            ),
+            capture_module_output(
+                "time_linear1", module=dynamic_model.head.time_mlp[1]
+            ),
+            capture_module_output(
+                "time_activation", module=dynamic_model.head.time_mlp[2]
+            ),
+            capture_module_output(
+                "time_linear2", module=dynamic_model.head.time_mlp[3]
+            ),
+            capture_module_output(
+                "stage0_self_attn_output", module=first_block.self_attn
+            ),
+            capture_module_output(
+                "stage0_inst_interact_output", module=first_block.inst_interact
+            ),
+            capture_module_output(
+                "stage0_vis_text_att_output", module=first_block.vis_text_att
+            ),
+            capture_module_output(
+                "stage0_time_scale_shift", module=first_block.block_time_mlp
+            ),
+            capture_module_output(
+                "stage0_cls_tower_output", module=first_block.cls_module[-1]
+            ),
+            capture_module_output(
+                "stage0_reg_tower_output", module=first_block.reg_module[-1]
+            ),
+            capture_module_output(
+                "stage0_bboxes_delta", module=first_block.bboxes_delta
+            ),
+        ]
+    )
     return captured, handles
 
 
@@ -459,7 +1020,7 @@ def _run_paired_forward(
         restore_rng_state(step_rng)
         package_loss = case.module.training_step(package_inputs, 0)
         package_forward_rng = _rng_digest(capture_rng_state())
-        package_trace = dict(case.module.latest_step_trace)
+        package_trace = _capture_cpu_tree(case.module.latest_step_trace)
     finally:
         for handle in handles:
             handle.remove()
@@ -1274,6 +1835,12 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
                 "diffusion_input",
             },
         )
+        torch.testing.assert_close(
+            source["diffusion_input"],
+            package_trace["diffusion_input"],
+            rtol=0.0,
+            atol=0.0,
+        )
         consumed_features = tuple(state.config.MODEL.ROI_HEADS.IN_FEATURES)
         source_backbone = {
             name: source_capture["backbone"][name] for name in consumed_features
@@ -1320,10 +1887,7 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
         source_logits = source_capture["head_logits"]
         package_logits = package_capture["head_logits"]
         source_boxes = source_capture["head_boxes"]
-        package_boxes = (
-            package_capture["head_boxes"]
-            * package_batch["image_scales"][None, :, None, :]
-        )
+        package_boxes = package_capture["head_boxes"]
         _assert_trace(
             {
                 "block_features": source_capture["block_features"],
@@ -1372,7 +1936,7 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
         ):
             package_indices = _dynamic_k_match(
                 logits[0],
-                boxes[0] / package_batch["image_scales"][0],
+                boxes[0],
                 cast(RADMTarget, package_targets[0]),
                 alpha=state.effective.alpha,
                 gamma=state.effective.gamma,
@@ -1394,6 +1958,8 @@ def test_s1_radm_fixed_batch_pre_optimizer_parity() -> None:
                     float_names=set(),
                 )
             )
+            assert torch.equal(source_indices, package_indices[0])
+            assert torch.equal(source_matched, package_indices[1])
 
         fixture_hash_payload = {
             name: tensor_sha256(value) for name, value in fixture_tensors.items()
