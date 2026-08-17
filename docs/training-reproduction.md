@@ -64,6 +64,19 @@ Before the first S5 launch, and after any training-path change, run a full-scale
 
 Record per-step loss, gradient norm, maximum parameter difference, and sampler state to JSONL. Report the first step where relative loss difference exceeds `1e-3`, the state that differed at that step, and why any first divergence is attributable to floating-point noise only. Keep the probe script under `.cache` or gated `tests/vendor_parity` tooling, and do not commit generated artifacts.
 
+### Discrete Assignment Operators
+
+For architectures whose loss includes a discrete assignment operator, such as
+Hungarian or dynamic-k matching, per-step loss lockstep beyond a documented
+ULP-amplification horizon is not a valid parity signal when differently
+composed graphs are forward-equivalent but accumulate backward values in a
+different order. The amended pre-S5 gate for that case is bitwise initial
+state, 300-record RNG and batch alignment, step-1 forward/loss agreement,
+step-1 gradient absolute error within the existing S2 `atol`, and a recorded
+chaos analysis. The training-reproduction claim remains the S5 multi-seed
+package/original full-run training and evaluation distribution comparison; this
+rule changes the endpoint evidence, not the S2 tolerances.
+
 ### Vendor Stack Modes
 
 Choose the adapter that matches the original implementation and state the mode in `TRAINING.md`.
