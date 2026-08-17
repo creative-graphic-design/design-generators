@@ -339,26 +339,38 @@ layer above. These artifacts remain outside git.
 
 ## Reference Checkpoint Gate
 
+To reproduce one matched CGL training seed, substitute the same value for
+`<seed>` in the original and package commands below, using `1`, `2`, or `3`.
+Before launching, confirm the approved data, dependency, and provenance
+requirements described here. A successful source run writes checkpoints and
+evaluation output below its `.cache/radm/s5/cgl/original-seed-<seed>/` root.
+
 The pinned source command is launched once per approved CGL training seed from
-the repository root through the validated reference environment:
+the repository root through the validated reference environment. The source
+parser accepts configuration overrides as positional arguments after the
+flags; the process-local Pillow alias preserves the legacy constant expected
+by the pinned Detectron2 release without modifying the environment:
+
+The source README requires the CGL annotations, clean training images, test
+images, and train/test text features; the pinned source also requires its
+Detectron2/fvcore/iopath stack and documents Python 3.7, PyTorch 1.8.0, and
+CUDA 11.1. The data license and provenance must be recorded before downloading
+or using any of those assets. The approved archive has missing feature files;
+the source mapper's effective behavior is an all-padding fallback, so the
+package launch enables the same behavior explicitly below. Keep the package
+default strict outside this reproduction command.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 PYTHONUNBUFFERED=1 \
 OMP_NUM_THREADS=4 \
-.cache/radm/reference-env/bin/python vendor/radm/train_net.py --num-gpus 1 \
-  --config-file vendor/radm/configs/radm.yaml \
-  --opts DATASETS.DATASET_PATH .cache/radm/data/cgl \
+.cache/radm/reference-env/bin/python -c \
+  'import sys; sys.path.insert(0, "vendor/radm"); from PIL import Image; Image.LINEAR = Image.BILINEAR; import runpy; runpy.run_path("vendor/radm/train_net.py", run_name="__main__")' \
+  --num-gpus 1 --config-file vendor/radm/configs/radm.yaml \
+  MODEL.WEIGHTS .cache/radm/weights/R-50.pkl \
+  DATASETS.DATASET_PATH .cache/radm/data/cgl \
   DATASETS.TEXT_FEATURE_PATH .cache/radm/data/cgl/text_features \
   OUTPUT_DIR .cache/radm/s5/cgl/original-seed-<seed> SEED <seed>
 ```
-
-Before that command is authorized, `configs/radm.yaml` must point
-`DATASETS.DATASET_PATH`, `DATASETS.TEXT_FEATURE_PATH`, and `OUTPUT_DIR` at
-approved runtime paths. The source README requires the CGL annotations, clean
-training images, test images, and train/test text features; the pinned source
-also requires its Detectron2/fvcore/iopath stack and documents Python 3.7,
-PyTorch 1.8.0, and CUDA 11.1. The data license and provenance must be recorded
-before downloading or using any of those assets.
 
 The original run is expected to produce Detectron2 checkpoint state under its
 selected `OUTPUT_DIR` (including `model_*.pth` and `last_checkpoint`), training
@@ -374,14 +386,20 @@ python3 train_net.py --num-gpus 1 \
 
 The matching package run uses the same approved dataset/config and seed:
 
+Run the package command with the same `<seed>` used for the source run. Its
+checkpoint and metrics are written below
+`.cache/radm/s5/cgl/package-seed-<seed>/`; the callback configuration keeps the
+best validation checkpoint there.
+
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 PYTHONUNBUFFERED=1 \
-OMP_NUM_THREADS=1 uv run --package radm --extra training traingen fit \
+OMP_NUM_THREADS=1 .cache/radm/reference-env/bin/traingen fit \
   --config models/radm/configs/training/radm_cgl.yaml \
   --seed_everything=<seed> \
+  --data.allow_missing_text_features=true \
   --trainer.logger.init_args.save_dir=.cache/radm/s5/cgl/package-seed-<seed> \
   --trainer.logger.init_args.name=metrics \
-  --trainer.callbacks.0.init_args.dirpath=.cache/radm/s5/cgl/package-seed-<seed>/checkpoints
+  --trainer.callbacks='[{"class_path":"lightning.pytorch.callbacks.ModelCheckpoint","init_args":{"dirpath":".cache/radm/s5/cgl/package-seed-<seed>/checkpoints","monitor":"val_loss","mode":"min","save_top_k":1,"save_last":false}}]'
 ```
 
 Each checkpoint is evaluated on the same test stream with the same COCO/evaluator
