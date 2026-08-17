@@ -37,6 +37,7 @@ from reference_adapter import (
 from test_s1_radm_training import (
     _gradient_norm,
     _install_trace_hooks,
+    _named_optimizer_parameters,
     _rng_digest,
     _snapshot_gradients,
     _snapshot_optimizer_state,
@@ -244,6 +245,38 @@ def _write_json_evidence(path: Path, payload: Mapping[str, Any]) -> str:
 
 def test_step1_head_sidecar_surface_order_is_complete() -> None:
     assert _step1_head_surface_order() == _STEP1_HEAD_SURFACE_ORDER
+
+
+def test_backward_probe_comparison_preserves_backward_order() -> None:
+    source_gradients = {
+        "source.first": torch.tensor([1.0, 2.0]),
+        "source.second": torch.tensor([3.0, 4.0]),
+    }
+    package_gradients = {
+        "package.first": torch.tensor([1.0, 2.0]),
+        "package.second": torch.tensor([3.0, 4.5]),
+    }
+    comparison = _compare_backward_probe(
+        {
+            "parameter_order": ["source.second", "source.first"],
+            "parameters": [],
+        },
+        {
+            "parameter_order": ["package.second", "package.first"],
+            "parameters": [],
+        },
+        source_gradients,
+        package_gradients,
+        {
+            "package.first": "source.first",
+            "package.second": "source.second",
+        },
+    )
+
+    assert comparison["order_equal"] is True
+    assert comparison["first_divergent_parameter"] == "package.second"
+    assert comparison["gradient_table"][0]["package_name"] == "package.second"
+    assert comparison["gradient_table"][0]["bitwise"] is False
 
 
 def test_roi_output_order_evidence_separates_permutation_from_value_change() -> None:
@@ -1377,6 +1410,43 @@ def _step1_sidecar_enabled() -> bool:
     return "RADM_300_LOCKSTEP_MAX_STEPS" in os.environ
 
 
+def _backward_probe_enabled() -> bool:
+    return os.environ.get("RADM_300_LOCKSTEP_BACKWARD_PROBE") == "1"
+
+
+def _install_backward_probe(
+    model: torch.nn.Module, optimizer: torch.optim.Optimizer
+) -> tuple[dict[str, Any], list[Any]]:
+    """Capture CPU-only per-parameter gradients in autograd callback order."""
+    captured: dict[str, Any] = {
+        "parameter_order": [],
+        "parameters": [],
+    }
+    handles: list[Any] = []
+
+    def make_hook(name: str) -> Any:
+        def hook(gradient: torch.Tensor) -> torch.Tensor:
+            cpu_gradient = gradient.detach().to(device="cpu", copy=True)
+            captured["parameter_order"].append(name)
+            captured["parameters"].append(
+                {
+                    "name": name,
+                    "gradient": _tensor_evidence_from_cpu(
+                        cpu_gradient, original_device=str(gradient.device)
+                    ),
+                }
+            )
+            del cpu_gradient
+            return gradient
+
+        return hook
+
+    for name, parameter in _named_optimizer_parameters(model, optimizer).items():
+        if parameter.requires_grad:
+            handles.append(parameter.register_hook(make_hook(name)))
+    return captured, handles
+
+
 def test_lockstep_seed_uses_fixed_default_and_env_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1611,6 +1681,109 @@ def _mapped_gradient_errors(
             first_name = package_name
         max_rel = max(max_rel, current_rel)
     return max_abs, max_rel, first_name
+
+
+def _compare_backward_probe(
+    source_capture: Mapping[str, Any],
+    package_capture: Mapping[str, Any],
+    source_gradients: Mapping[str, torch.Tensor | None],
+    package_gradients: Mapping[str, torch.Tensor | None],
+    key_map: Mapping[str, str],
+) -> dict[str, Any]:
+    """Compare every gradient in the observed autograd backward order."""
+    source_order = [str(name) for name in source_capture.get("parameter_order", [])]
+    package_order = [str(name) for name in package_capture.get("parameter_order", [])]
+    source_to_package = {
+        source_name: package_name for package_name, source_name in key_map.items()
+    }
+    mapped_package_order = [key_map.get(package_name) for package_name in package_order]
+    source_names = list(source_gradients)
+    ordered_source_names = list(dict.fromkeys(source_order))
+    ordered_source_names.extend(
+        name for name in source_names if name not in ordered_source_names
+    )
+    source_hook_by_name = {
+        str(entry["name"]): cast(dict[str, Any], entry["gradient"])
+        for entry in source_capture.get("parameters", [])
+    }
+    package_hook_by_name = {
+        str(entry["name"]): cast(dict[str, Any], entry["gradient"])
+        for entry in package_capture.get("parameters", [])
+    }
+    source_backward_index = {name: index for index, name in enumerate(source_order)}
+    package_backward_index = {name: index for index, name in enumerate(package_order)}
+    gradient_table: list[dict[str, Any]] = []
+    first_divergent_parameter: str | None = None
+    for source_name in ordered_source_names:
+        package_name = source_to_package.get(source_name)
+        source_value = source_gradients.get(source_name)
+        package_value = (
+            package_gradients.get(package_name) if package_name is not None else None
+        )
+        source_present = source_value is not None
+        package_present = package_value is not None
+        if source_present != package_present:
+            bitwise = False
+            max_abs = max_rel = math.inf
+        elif not source_present or package_value is None or source_value is None:
+            bitwise = True
+            max_abs = max_rel = 0.0
+        else:
+            source_cpu = source_value.detach().to(device="cpu", copy=True)
+            package_cpu = package_value.detach().to(device="cpu", copy=True)
+            if source_cpu.shape != package_cpu.shape:
+                bitwise = False
+                max_abs = max_rel = math.inf
+            else:
+                difference = (source_cpu - package_cpu).abs()
+                max_abs = float(difference.max()) if difference.numel() else 0.0
+                max_rel = _max_relative_error(
+                    float(source_cpu.abs().max()) if source_cpu.numel() else 0.0,
+                    float(package_cpu.abs().max()) if package_cpu.numel() else 0.0,
+                )
+                bitwise = torch.equal(source_cpu, package_cpu)
+        package_hook = package_hook_by_name.get(package_name or "")
+        source_hook = source_hook_by_name.get(source_name)
+        hook_matches_snapshot = (
+            source_hook is not None
+            and package_hook is not None
+            and source_hook["sha256"] == tensor_sha256(source_value.to(device="cpu"))
+            if source_value is not None
+            else source_hook is None
+        ) and (
+            package_hook is not None
+            and package_value is not None
+            and package_hook["sha256"] == tensor_sha256(package_value.to(device="cpu"))
+            if package_value is not None
+            else package_hook is None
+        )
+        row = {
+            "source_name": source_name,
+            "package_name": package_name,
+            "source_backward_index": source_backward_index.get(source_name),
+            "package_backward_index": package_backward_index.get(package_name),
+            "source": source_hook,
+            "package": package_hook,
+            "bitwise": bitwise,
+            "max_abs": max_abs,
+            "max_rel": max_rel,
+            "hook_matches_snapshot": hook_matches_snapshot,
+        }
+        gradient_table.append(row)
+        if first_divergent_parameter is None and not bitwise:
+            first_divergent_parameter = package_name or source_name
+    return {
+        "schema": "radm.lockstep.step1.backward-probe.v1",
+        "source_backward_order": source_order,
+        "package_backward_order": package_order,
+        "package_backward_order_mapped_to_source": mapped_package_order,
+        "order_equal": source_order == mapped_package_order,
+        "source_hook_count": len(source_order),
+        "package_hook_count": len(package_order),
+        "gradient_table": gradient_table,
+        "gradient_parameter_count": len(gradient_table),
+        "first_divergent_parameter": first_divergent_parameter,
+    }
 
 
 def _optimizer_state_errors(
@@ -2290,6 +2463,20 @@ def _run_lockstep(
         raise FileExistsError(
             f"refusing to overwrite step-1 localization: {localization_path}"
         )
+    backward_probe_path = (
+        Path(
+            os.environ.get(
+                "RADM_300_LOCKSTEP_BACKWARD_PROBE_PATH",
+                record_path.with_name("run-007-step1-backward-probe.json").as_posix(),
+            )
+        )
+        if _backward_probe_enabled()
+        else None
+    )
+    if backward_probe_path is not None and backward_probe_path.exists():
+        raise FileExistsError(
+            f"refusing to overwrite backward probe evidence: {backward_probe_path}"
+        )
     record_initial_state = _capture_record_model_state(state.model)
     record_initial_state_sha256 = _state_mapping_digest(record_initial_state)
     source_compare_initial_state_sha256: str | None = None
@@ -2301,6 +2488,9 @@ def _run_lockstep(
     step1_time_mlp_invocation_comparison: dict[str, Any] | None = None
     step1_time_mlp_internal_comparison: dict[str, Any] | None = None
     step1_package_roi_capture: dict[str, Any] | None = None
+    step1_backward_probe: dict[str, Any] | None = None
+    step1_backward_probe_sha256: str | None = None
+    step1_backward_probe_file_sha256: str | None = None
     snapshot_dir.mkdir(parents=True)
     # The reference graph is deliberately constructed on the configured
     # device, then released to CPU before the package graph is allocated.  The
@@ -2353,6 +2543,12 @@ def _run_lockstep(
             package_roi_capture, package_roi_handles = _install_roi_plumbing_hooks(
                 package=True
             )
+        package_backward_capture: dict[str, Any] = {}
+        package_backward_handles: list[Any] = []
+        if step == 1 and backward_probe_path is not None:
+            package_backward_capture, package_backward_handles = (
+                _install_backward_probe(package, package_optimizer)
+            )
         try:
             rng_before = capture_rng_state()
             package_total = module._compute_step_loss(package_batch, record_trace=True)
@@ -2368,9 +2564,13 @@ def _run_lockstep(
                 handle.remove()
             for handle in package_roi_handles:
                 handle.stop()
+        try:
+            package_total.backward()
+        finally:
+            for handle in package_backward_handles:
+                handle.remove()
         if step == 1 and sidecar_path is not None:
             step1_package_roi_capture = package_roi_capture
-        package_total.backward()
         package_gradients = _snapshot_gradients(package, package_optimizer)
         package_preclip_norm = _gradient_norm(package_gradients)
         package_optimizer.step()
@@ -2410,6 +2610,8 @@ def _run_lockstep(
                 for name, values in package_optimizer_state.items()
             },
         }
+        if step == 1 and backward_probe_path is not None:
+            package_step["_backward_probe"] = _cpu_tree(package_backward_capture)
         package_batch_cpu: Any = None
         if step == 1 and sidecar_path is not None:
             package_batch_cpu = _cpu_tree(package_batch)
@@ -2559,6 +2761,8 @@ def _run_lockstep(
             source_handles: list[Any] = []
             source_roi_capture: dict[str, Any] = {}
             source_roi_handles: list[Any] = []
+            source_backward_capture: dict[str, Any] = {}
+            source_backward_handles: list[Any] = []
             capture_preprocess_image: Any = None
             capture_prepare_targets: Any = None
             if step == 1 and sidecar_path is not None:
@@ -2619,7 +2823,15 @@ def _run_lockstep(
                     dict[str, Any], source_capture.setdefault("head_inputs", {})
                 )
                 source_head_inputs["roi_scale"] = source_capture_extra["image_scales"]
-            source_total.backward()
+            if step == 1 and backward_probe_path is not None:
+                source_backward_capture, source_backward_handles = (
+                    _install_backward_probe(source_state.model, source_state.optimizer)
+                )
+            try:
+                source_total.backward()
+            finally:
+                for handle in source_backward_handles:
+                    handle.remove()
             source_gradients = _snapshot_gradients(
                 source_state.model, source_state.optimizer
             )
@@ -2640,6 +2852,17 @@ def _run_lockstep(
             }
             source_loss_values["total"] = float(source_total.detach())
             package_loss_values = cast(dict[str, float], package_step["loss"])
+            if step == 1 and backward_probe_path is not None:
+                package_backward_capture = cast(
+                    dict[str, Any], package_step.get("_backward_probe", {})
+                )
+                step1_backward_probe = _compare_backward_probe(
+                    source_backward_capture,
+                    package_backward_capture,
+                    source_gradients,
+                    cast(dict[str, torch.Tensor | None], package_step["_gradients"]),
+                    key_map,
+                )
             if step == 1 and sidecar_path is not None:
                 if step1_package_sidecar is None:
                     raise AssertionError("package step-1 sidecar capture is missing")
@@ -2856,6 +3079,35 @@ def _run_lockstep(
                 }
                 for name in source_loss_values
             }
+            if step == 1 and backward_probe_path is not None:
+                if step1_backward_probe is None:
+                    raise AssertionError("backward probe comparison is missing")
+                step1_backward_probe_sha256 = _write_json_evidence(
+                    backward_probe_path,
+                    {
+                        "schema": "radm.lockstep.step1.backward-probe.v1",
+                        "step": 1,
+                        "seed": seed,
+                        "batch_image_ids": batch_ids,
+                        "initial_state": {
+                            "record_sha256": record_initial_state_sha256,
+                            "source_compare_sha256": source_compare_initial_state_sha256,
+                        },
+                        "loss": loss_errors,
+                        "preclip_gradient_norm": {
+                            "source": source_preclip_norm,
+                            "package": package_step["preclip_gradient_norm"],
+                            "max_rel": _max_relative_error(
+                                source_preclip_norm,
+                                package_step["preclip_gradient_norm"],
+                            ),
+                        },
+                        "comparison": step1_backward_probe,
+                    },
+                )
+                step1_backward_probe_file_sha256 = hashlib.sha256(
+                    backward_probe_path.read_bytes()
+                ).hexdigest()
             parameter_abs, parameter_rel, parameter_name = _mapped_parameter_errors(
                 source_parameters, package_step["_parameters"], key_map
             )
@@ -3009,6 +3261,12 @@ def _run_lockstep(
         "step1_roi_plumbing": step1_roi_plumbing,
         "step1_time_mlp_invocation_comparison": step1_time_mlp_invocation_comparison,
         "step1_time_mlp_internal_comparison": step1_time_mlp_internal_comparison,
+        "step1_backward_probe_path": (
+            backward_probe_path.as_posix() if backward_probe_path is not None else None
+        ),
+        "step1_backward_probe_sha256": step1_backward_probe_sha256,
+        "step1_backward_probe_file_sha256": step1_backward_probe_file_sha256,
+        "step1_backward_probe": step1_backward_probe,
     }
     output_path.write_text(
         json.dumps({"header": header}, ensure_ascii=False, sort_keys=True)

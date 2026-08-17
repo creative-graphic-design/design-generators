@@ -10,13 +10,15 @@ tags:
 
 ## Result at a glance
 
-The accepted RADM evidence covers S0-S4 for the claimed CGL and
-source-generated scopes. S0, S1, and S2 agree on the source-generated fixed
-batch; S4 agrees on the bounded CGL loader stream. S3 is a bounded numerical
-result because the natural trajectory leaves the S0-S2 contract: the required
-synchronized layer passes, the natural trajectory is retained as drift
-evidence, and the production wiring representative passes independently. S5
-and trained-checkpoint evidence are not claimed.
+The accepted RADM evidence covers S0-S4 for the approved CGL scope and the
+source-generated diagnostics. Run-007 is a PASS for the amended discrete-
+assignment preflight: initial state is bitwise equal, RNG and batch order
+match for 300/300 records, step-1 losses are exact apart from a
+`1.1920928955078125e-07` GIoU surface difference, and step-1 gradient absolute
+error is `8.106231689453125e-06` (S2 `atol=5e-5`). CGL S5 training-seed n=3
+package/original runs are now in progress; no trained-checkpoint or full-run
+statistical result is claimed until those runs and their matched evaluation
+finish.
 
 The source-generated fixed batch is an in-memory parity fixture for S1-S3, not
 a substitute for the approved CGL loader stream. The approved RADM data archive
@@ -113,7 +115,7 @@ Training configs live under `models/radm/configs/training`.
 | Config | Dataset | Seed mode | Purpose |
 | --- | --- | --- | --- |
 | `effective_radm_config.yaml` | CGL and CGL-v2 | captured static state | Mechanical record of effective model, optimizer, scheduler, sampler, and input values. |
-| `radm_cgl.yaml` | CGL | deterministic | Bounded production wiring representative; not a full training run. |
+| `radm_cgl.yaml` | CGL | deterministic | Package S5 training recipe and bounded production wiring representative. |
 | `radm_cgl_v2.yaml` | CGL-v2 | default | Future one-GPU package training launch; not run in phase 1. |
 | `radm_s0_deterministic.yaml` | CGL | deterministic | S0/initialization wiring; data and original-code state are still unavailable. |
 | `radm_smoke.yaml` | CGL fixture | deterministic | Package-local CPU wiring only; not reproduction evidence. |
@@ -154,8 +156,8 @@ uv run --package radm --extra vendor \
 ```
 
 The accepted S2-S4 commands and their evidence are listed in the Stage Evidence
-table below. The future package training command is recorded in the Reference
-Checkpoint Gate; it must not be run in the current scope.
+table below. The package and original-code S5 commands are recorded in the
+Reference Checkpoint Gate and use only the approved CGL scope.
 
 ## Scheduler and Recipe Notes
 
@@ -184,16 +186,35 @@ is not a multi-batch trajectory parity claim.
 
 The S1-S3 source-generated checks use fixed parity seed `261`; they are not
 training-seed or evaluation-seed reproduction results. The static configuration
-records seed `1`, matching the checked original recipe. The eventual matched
-S5 matrix is vendor and package runs for the same approved data/config under
-training seeds `1`, `2`, and `3`, followed by the same evaluation seed scope;
-only seed `1` is currently documented and no matrix run has started. The
+records seed `1`, matching the checked original recipe. The approved S5 matrix
+is original-code and package runs for the same CGL data/config under training
+seeds `1`, `2`, and `3`, followed by matched evaluation. The
 general S3 evidence rule in
 [`docs/training-reproduction.md`](../../docs/training-reproduction.md) governs
 this result: the natural trajectory is retained, synchronized diagnostics are
 required after a contract breach, and the bounded production wiring result is
-reported separately. S5 and the real-scale 300-step lockstep probe remain
-stopped by scope.
+reported separately.
+
+## Amended S5 Preflight
+
+Run-007 passes the amended pre-S5 contract for discrete-assignment models:
+bitwise initial state, 300/300 RNG and batch-order matches, exact step-1
+forward/loss behavior apart from `loss_giou_1` at `1.1920928955078125e-07`,
+step-1 gradient absolute error `8.106231689453125e-06` within S2 `atol=5e-5`,
+and documented ULP-seed accumulation with discrete jumps at steps 7 and 9.
+The retained natural trajectory first diverges at step 2 in
+`preclip_gradients.backbone.body.body.layer3.2.conv2.weight`; its maximum loss
+relative error is `0.3235995773795563` at step 261. Per-step loss lockstep
+beyond this amplification horizon is not used as the S5 endpoint. The
+training-reproduction claim is the matched CGL training-seed n=3 distribution
+comparison and evaluation.
+
+Evidence:
+
+- `.cache/radm/s5-preflight/run-007-lockstep-300.jsonl` — SHA-256
+  `a5e039e00c9230e58a8222cc8d6ed430eb1be8f8ba053e9173013033d8a91995`
+- `.cache/radm/s5-preflight/run-007-step1-backward-retry-probe.json` —
+  SHA-256 `9310612248c6927a58c563b9b80f94c2ff0bb29536ab3d4ac3ce286d9175232c`
 
 ## Validation Stages
 
@@ -212,7 +233,7 @@ numerical trajectory parity.
 | S2 | One optimizer-step parity | Accepted: 1 passed in 59.98s, 0 skipped, executed=1, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25` under the existing S2 tolerance. |
 | S3 | Bounded numerical result plus production wiring representative | `PASS` through the required synchronized layer: `first_divergence=None`, `1 executed`, `0 skipped`; natural runs remain `RECORDED` with first divergence at S3 step 2 on `pre_clip_gradients.backbone.bottom_up.res3.0.conv1.weight`; wiring representative: `1 passed` with exit code 0, two optimizer steps, scheduler/checkpoint cadence, CSV `train_loss`/`val_loss`, and monitored checkpoint. This is not unconstrained natural trajectory parity. |
 | S4 | Deterministic loader stream | The supported V100 loader boundary is exact for train/test order, labels, image preprocessing, boxes, and missing-feature fallback in the recorded CGL fixture; the S3 natural trajectory remains a separate diagnostic boundary and CGL-v2 coverage is not claimed. |
-| S5 | Full-run statistical comparison | Not claimed; stopped by current scope. |
+| S5 | Full-run statistical comparison | `IN PROGRESS` for CGL only; original-code/package training-seed n=3 runs launched after the amended run-007 preflight PASS. |
 
 ### S3 Evidence Layers
 
@@ -243,29 +264,28 @@ reproduction claim. Production wiring is an independent third layer.
 | S2 | `CUDA_VISIBLE_DEVICES=0 PYTHONPATH="models/radm/src:models/radm/tests/vendor_parity:lib/laygen/src:lib/posgen/src:lib/traingen-parity/src" PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S1_EVIDENCE_PATH=.cache/radm/supported-v100/s3-wiring-20260814/s1_fixed_batch_trace.json RADM_S2_EVIDENCE_PATH=.cache/radm/supported-v100/s3-wiring-20260814/s2_one_step_trace.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s1_radm_training.py::test_s2_radm_one_optimizer_step_parity -s -q -rs` | `.cache/radm/supported-v100/s3-wiring-20260814/s2_one_step_trace.json` | Accepted: 1 passed, 0 skipped, first divergence `none`, max abs `1.9073486328125e-06`, max rel `11.25`, evidence SHA-256 `0af1cbd069e43f4e0005f8d728e569dd1b77e6800a2ea23bc1e750d974518181`. |
 | S3 | `CUDA_VISIBLE_DEVICES=0 RADM_PHYSICAL_GPU=0 PARITY_REQUIRE=1 RADM_S3_WIRING_EVIDENCE_PATH=.cache/radm/s3/wiring/run-002.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s3_radm_wiring.py -s -q -rs` plus the recorded synchronized/natural runs | `.cache/radm/s3/two-layer-20260814-rerun.json` | Synchronized diagnostic `first_divergence=None`; natural drift recorded; wiring representative `1 passed` in 193.97s with exit code 0, `global_step=2`, `optimizer_steps=2`, `scheduler_last_epoch=2`, final LR `2.9950000000000005e-07`, CSV `train_loss`/`val_loss`, and monitored checkpoint. |
 | S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 RADM_REFERENCE_DEVICE=cuda:0 RADM_S4_ALLOW_MISSING=1 RADM_S4_DATA_ROOT=.cache/radm/data/cgl RADM_S4_ARCHIVE_SHA256=1348a2ad70513c90287c5d2ae6d4aa87b70c49676cac5f3531cbff62610fb75b RADM_S4_EVIDENCE_PATH=.cache/radm/s4/run-012-image-box-resampling.json .cache/radm/reference-env/bin/python -m pytest models/radm/tests/vendor_parity/test_s4_radm_loader_stream.py -s -q -rs` | `.cache/radm/s4/run-012-image-box-resampling.json` | Supported V100 (physical GPU 0, logical `cuda:0`; Tesla V100-SXM2-32GB, torch `2.6.0+cu124`, CUDA `12.4`): `1 passed, 0 skipped`, `first_divergence: none`; evidence SHA-256 `304892b296c24f7bec86e92ffcc4b6ab380ab62bfc9a7ce70dc414b3a9c59415`. Train order `fbf1603af946c5b606d154bf0acf02f7ab651bd1e65aab21b41e4003314a4e0c`, test order `2c6e86368deb082930d4be32fd4403634157f172880f7e7f4b43f4ef19fe964d`; aligned labels, image, boxes, text features, masks, and fallback are exact (`max_abs=0.0`). |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package radm --extra training traingen fit --config models/radm/configs/training/radm_cgl.yaml` | `.cache/radm/full-run/` | Not run and stopped by current scope; S5 is not claimed. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 PYTHONUNBUFFERED=1 OMP_NUM_THREADS=1 uv run --package radm --extra training traingen fit --config models/radm/configs/training/radm_cgl.yaml --seed_everything=<seed>` | `.cache/radm/s5/cgl/` | `IN PROGRESS`; six one-GPU runs launched, final metrics and matched evaluation pending. |
 
 ## Reproduction Results
 
-RADM has accepted bounded S0-S4 evidence for the source-generated fixture and
-the approved CGL loader scope at the supported V100 runtime. S3 combines the
-required synchronized bounded numerical PASS with retained natural drift and
-an independent production wiring PASS. No trained checkpoint, full training
-run, training-seed reproduction, evaluation-seed reproduction, or full-run
-statistical claim is made; CGL-v2 loader parity is not claimed.
+RADM has accepted bounded S0-S4 evidence and the amended run-007 preflight for
+the approved CGL scope at the supported V100 runtime. CGL original-code and
+package training-seed n=3 runs are in progress; final S5 metrics and matched
+evaluation are pending. CGL-v2 is outside the approved S5 scope and is not
+claimed.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CGL | original | `blocked (no trained checkpoint; S5 not run)` | not run | not measured | not measured | `models/radm/tests/vendor_parity/reference_adapter.py` |
-| CGL | package | `not-yet-run (phase-1 scope; no trained checkpoint)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
-| CGL-v2 | original | `blocked (S4 coverage not claimed; no trained checkpoint)` | not run | not measured | not measured | `models/radm/configs/training/effective_radm_config.yaml` |
-| CGL-v2 | package | `not-yet-run (phase-1 scope; no trained checkpoint)` | not run | not measured | not measured | `models/radm/src/radm/training/` |
+| CGL | original | `not-yet-run (S5 training-seed n=3 in progress; run-007 amended preflight PASS)` | `training-seed n=3` | pending | run-007 amended preflight PASS | `.cache/radm/s5/cgl/original-seed-{1,2,3}/` |
+| CGL | package | `not-yet-run (S5 training-seed n=3 in progress; run-007 amended preflight PASS)` | `training-seed n=3` | pending | run-007 amended preflight PASS | `.cache/radm/s5/cgl/package-seed-{1,2,3}/` |
+| CGL-v2 | original | `not-yet-run (CGL-v2 outside approved S5 scope)` | not run | not measured | outside approved scope | `.cache/radm/data/cgl/` |
+| CGL-v2 | package | `not-yet-run (CGL-v2 outside approved S5 scope)` | not run | not measured | outside approved scope | `models/radm/configs/training/radm_cgl_v2.yaml` |
 
 The accepted S3 result is bounded rather than unconstrained natural trajectory
-parity because the natural three-batch run records the same step-2 pre-clip
-gradient drift in both runs. Synchronization at optimizer boundaries makes the
-graph/operation diagnostic contract-internal; it does not create a trained
-checkpoint or full-run result. The approved archive is materialized locally,
+parity because the natural trajectory records the same step-2 pre-clip gradient
+drift in both runs. Run-007's amended preflight makes the forward/loss and
+step-1 gradient boundary explicit; multi-seed full-run training and evaluation
+remain the endpoint evidence. The approved archive is materialized locally,
 and the bounded CGL S4 loader boundary is exact for order, labels, fallback,
 image preprocessing, and boxes.
 
@@ -319,13 +339,17 @@ layer above. These artifacts remain outside git.
 
 ## Reference Checkpoint Gate
 
-The pinned source documents this exact single-GPU training command from the
-`vendor/radm` directory:
+The pinned source command is launched once per approved CGL training seed from
+the repository root through the validated reference environment:
 
 ```bash
-cd vendor/radm
-python3 train_net.py --num-gpus 1 \
-  --config-file configs/radm.yaml
+CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 PYTHONUNBUFFERED=1 \
+OMP_NUM_THREADS=4 \
+.cache/radm/reference-env/bin/python vendor/radm/train_net.py --num-gpus 1 \
+  --config-file vendor/radm/configs/radm.yaml \
+  --opts DATASETS.DATASET_PATH .cache/radm/data/cgl \
+  DATASETS.TEXT_FEATURE_PATH .cache/radm/data/cgl/text_features \
+  OUTPUT_DIR .cache/radm/s5/cgl/original-seed-<seed> SEED <seed>
 ```
 
 Before that command is authorized, `configs/radm.yaml` must point
@@ -348,22 +372,23 @@ python3 train_net.py --num-gpus 1 \
   --eval-only --resume
 ```
 
-The matching package run must use the same approved dataset/config and seed,
-then its checkpoint must be evaluated on the same test stream with the same
-COCO/evaluator settings. The source `metrics.py` additionally requires explicit
+The matching package run uses the same approved dataset/config and seed:
+
+```bash
+CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 PYTHONUNBUFFERED=1 \
+OMP_NUM_THREADS=1 uv run --package radm --extra training traingen fit \
+  --config models/radm/configs/training/radm_cgl.yaml \
+  --seed_everything=<seed> \
+  --trainer.logger.init_args.save_dir=.cache/radm/s5/cgl/package-seed-<seed> \
+  --trainer.logger.init_args.name=metrics \
+  --trainer.callbacks.0.init_args.dirpath=.cache/radm/s5/cgl/package-seed-<seed>/checkpoints
+```
+
+Each checkpoint is evaluated on the same test stream with the same COCO/evaluator
+settings. The source `metrics.py` additionally requires explicit
 test-image, annotation, and label paths and does not provide all internal
 `R_shm`/`R_sub` functions; those limitations must be recorded rather than
 silently replaced by another metric. The seed matrix is therefore
-`{vendor, package} x {1, 2, 3}` for future training-seed-n=3 evidence, with the
-same evaluation seed scope for each pair. No vendor or package training,
-checkpoint generation, or evaluation has started in this phase.
-
-The following package training command is a future recipe and must not be run
-in phase 1. It is shown only to preserve the member-scoped LightningCLI entry
-surface.
-
-```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> \
-uv run --package radm --extra training traingen fit \
-  --config models/radm/configs/training/radm_cgl.yaml
-```
+`{original, package} x {1, 2, 3}`. Full-run artifacts and evaluation manifests
+remain outside git under `.cache/radm/s5/cgl/` until the multi-seed comparison
+is complete.
