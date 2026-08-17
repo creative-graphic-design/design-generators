@@ -211,6 +211,22 @@ def _load_context(
     return config, data, {"batch": batch, "samples": samples, "table": table}
 
 
+def _recipe_epochs(dataset: str) -> int:
+    """Read the selected member recipe instead of duplicating its epoch count."""
+    import yaml
+
+    recipe_path = ROOT / "models" / "ralf" / "configs" / "training" / f"{dataset}.yaml"
+    recipe = yaml.safe_load(recipe_path.read_text())
+    if not isinstance(recipe, dict):
+        raise RuntimeError(f"training recipe is not a mapping: {recipe_path}")
+    trainer = recipe.get("trainer")
+    if not isinstance(trainer, dict) or not isinstance(trainer.get("max_epochs"), int):
+        raise RuntimeError(
+            f"training recipe has no integer trainer.max_epochs: {recipe_path}"
+        )
+    return trainer["max_epochs"]
+
+
 def _device() -> torch.device:
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required for RALF training parity")
@@ -255,7 +271,7 @@ def _models(
         learning_rate=1e-4,
         weight_decay=1e-4,
         clip_max_norm=0.1,
-        epochs=70 if config.dataset_name == "cgl" else 50,
+        epochs=_recipe_epochs(str(config.dataset_name)),
         scheduler="multi_step",
         scheduler_milestones=(0.7,),
         condition_type="unconditional",
@@ -1417,7 +1433,9 @@ def _s0(
         "state_dict_keys": len(package_state),
         "state_sha256": state_sha256(package_state),
         "optimizer_groups": {"package": package_groups, "vendor": vendor_groups},
-        "scheduler_milestone_epoch": int(0.7 * (70 if args.dataset == "cgl" else 50)),
+        "scheduler_milestone_epoch": int(
+            package_module.scheduler_milestones[0] * package_module.epochs
+        ),
         "tokenizer": {
             "vocab_size": config.vocab_size,
             "max_token_length": config.max_token_length,
@@ -1587,7 +1605,7 @@ def _run_s3_fit(
         f"--seed_everything={args.seed}",
         "--trainer.accelerator=gpu",
         "--trainer.devices=1",
-        "--trainer.max_epochs=70",
+        f"--trainer.max_epochs={_recipe_epochs(args.dataset)}",
         f"--trainer.limit_train_batches={train_limit}",
         f"--trainer.limit_val_batches={validation_limit}",
         "--trainer.num_sanity_val_steps=0",

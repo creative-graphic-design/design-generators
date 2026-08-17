@@ -328,7 +328,7 @@ def test_training_module_runs_forward_steps_optimizer_and_scheduler() -> None:
         learning_rate=1e-4,
         weight_decay=1e-4,
         clip_max_norm=0.05,
-        epochs=70,
+        epochs=30,
         scheduler="multi_step",
         scheduler_milestones=(0.7,),
     )
@@ -356,7 +356,7 @@ def test_training_module_runs_forward_steps_optimizer_and_scheduler() -> None:
     scheduler = configured["lr_scheduler"]
     assert isinstance(optimizer, torch.optim.AdamW)
     assert isinstance(scheduler, torch.optim.lr_scheduler.MultiStepLR)
-    assert set(scheduler.milestones) == {49}
+    assert set(scheduler.milestones) == {21}
     assert {group["lr"] for group in optimizer.param_groups} == {1e-5, 1e-4}
 
     loss.backward()

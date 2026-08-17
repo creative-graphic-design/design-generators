@@ -218,10 +218,10 @@ def test_s3_optimizer_state_sync_separates_tensor_storage(tmp_path: Path) -> Non
     callback.vendor_model = vendor
     callback.vendor_optimizer = vendor_optimizer
     callback.package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        package_optimizer, milestones=[49]
+        package_optimizer, milestones=[21]
     )
     callback.vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        vendor_optimizer, milestones=[49]
+        vendor_optimizer, milestones=[21]
     )
     callback.optimizer_step_count = 1
 
