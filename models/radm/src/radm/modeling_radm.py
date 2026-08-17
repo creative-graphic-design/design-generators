@@ -32,6 +32,37 @@ class RADMDenoiserOutput(BaseOutput):
     pred_noise: Float[torch.Tensor, "batch proposals 4"]
     auxiliary_logits: Float[torch.Tensor, "heads batch proposals classes"] | None = None
     auxiliary_boxes_xyxy: Float[torch.Tensor, "heads batch proposals 4"] | None = None
+    auxiliary_boxes_absolute_xyxy: (
+        Float[torch.Tensor, "heads batch proposals 4"] | None
+    ) = None
+
+
+class RADMFrozenBatchNorm2d(FrozenBatchNorm2d):
+    """Frozen normalization with the effective training-time branches."""
+
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels height width"]
+    ) -> Float[torch.Tensor, "batch channels height width"]:
+        """Normalize with a fused no-gradient or explicit gradient path."""
+        weight = cast(torch.Tensor, self.weight)
+        bias_value = cast(torch.Tensor, self.bias)
+        running_mean = cast(torch.Tensor, self.running_mean)
+        running_var = cast(torch.Tensor, self.running_var)
+        if x.requires_grad:
+            scale = weight * (running_var + self.eps).rsqrt()
+            bias = bias_value - running_mean * scale
+            return x * scale.reshape(1, -1, 1, 1).to(x.dtype) + bias.reshape(
+                1, -1, 1, 1
+            ).to(x.dtype)
+        return F.batch_norm(
+            x,
+            running_mean,
+            running_var,
+            weight,
+            bias_value,
+            training=False,
+            eps=self.eps,
+        )
 
 
 class RADMBackbone(nn.Module):
@@ -46,15 +77,33 @@ class RADMBackbone(nn.Module):
             backbone_name=f"resnet{depth}",
             weights=None,
             trainable_layers=5 - freeze_at,
-            norm_layer=FrozenBatchNorm2d,
+            norm_layer=RADMFrozenBatchNorm2d,
         )
         self.strides: tuple[int, int, int, int] = (4, 8, 16, 32)
+
+    def _forward_bottom_up(
+        self, images: Float[torch.Tensor, "batch channels height width"]
+    ) -> OrderedDict[str, Float[torch.Tensor, "batch channels height width"]]:
+        """Run the bottom-up graph with the fixed stem operation sequence."""
+        body = self.body.body
+        x = body.conv1(images)
+        x = body.bn1(x)
+        x = F.relu_(x)
+        x = F.max_pool2d(x, kernel_size=3, stride=2, padding=1)
+        outputs: OrderedDict[
+            str, Float[torch.Tensor, "batch channels height width"]
+        ] = OrderedDict()
+        for name in ("layer1", "layer2", "layer3", "layer4"):
+            x = getattr(body, name)(x)
+            if name in body.return_layers:
+                outputs[body.return_layers[name]] = x
+        return outputs
 
     def forward(
         self, images: Float[torch.Tensor, "batch channels height width"]
     ) -> OrderedDict[str, Float[torch.Tensor, "batch channels height width"]]:
         """Return ``p2`` through ``p5`` feature maps."""
-        bottom_up = self.body.body(images)
+        bottom_up = self._forward_bottom_up(images)
         fpn = self.body.fpn
         names = list(bottom_up)
         values = list(bottom_up.values())
@@ -612,6 +661,7 @@ class RADMProposalHead(nn.Module):
         text_mask: Bool[torch.Tensor, "batch text 1"] | None,
         timesteps: Int[torch.Tensor, "batch"],
         image_scales: Float[torch.Tensor, "batch 4"],
+        absolute_boxes_xyxy: Float[torch.Tensor, "batch proposals 4"] | None = None,
     ) -> tuple[
         Float[torch.Tensor, "heads batch proposals classes"],
         Float[torch.Tensor, "heads batch proposals 4"],
@@ -623,7 +673,11 @@ class RADMProposalHead(nn.Module):
         initial_norm_boxes = boxes_xyxy.to(dtype=features["p2"].dtype)
         proposal_features: Float[torch.Tensor, "batch proposals hidden"] | None = None
         image_scale = image_scales[:, None, :].to(device=boxes_xyxy.device)
-        current_boxes = boxes_xyxy * image_scale
+        current_boxes = (
+            boxes_xyxy * image_scale
+            if absolute_boxes_xyxy is None
+            else absolute_boxes_xyxy.to(device=boxes_xyxy.device)
+        )
         for block in self.blocks:
             roi_features = self._roi_features(features, current_boxes)
             logits, predicted_boxes, proposal_features = block(
@@ -636,10 +690,10 @@ class RADMProposalHead(nn.Module):
                 time_embedding,
             )
             class_outputs.append(logits)
-            # The current head's boxes remain attached for its regression loss;
+            # Keep raw absolute boxes attached for the training loss;
             # only the boxes fed into the next repeated head are detached, as
             # in the corresponding repeated-head update.
-            box_outputs.append(predicted_boxes / image_scale)
+            box_outputs.append(predicted_boxes)
             current_boxes = predicted_boxes.detach()
         if not self.deep_supervision:
             class_outputs = class_outputs[-1:]
@@ -944,6 +998,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
         text_mask: Bool[torch.Tensor, "batch text 1"] | None = None,
         images: Float[torch.Tensor, "batch channels height width"] | None = None,
         image_scales: Float[torch.Tensor, "batch 4"] | None = None,
+        absolute_boxes_xyxy: Float[torch.Tensor, "batch proposals 4"] | None = None,
     ) -> RADMDenoiserOutput:
         """Predict proposal classes and denoised boxes."""
         if text_features.ndim != 3:
@@ -964,14 +1019,17 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
                 (images.shape[-1], images.shape[-2], images.shape[-1], images.shape[-2])
             ).expand(boxes_xyxy.shape[0], -1)
         resolved_scales = default_scale if image_scales is None else image_scales
-        auxiliary_logits, auxiliary_boxes = self.head(
+        auxiliary_logits, auxiliary_boxes_absolute = self.head(
             features,
             boxes_xyxy,
             text_features,
             text_mask,
             timestep_batch,
             resolved_scales,
+            absolute_boxes_xyxy,
         )
+        image_scale = resolved_scales[:, None, :].to(device=boxes_xyxy.device)
+        auxiliary_boxes = auxiliary_boxes_absolute / image_scale
         logits = auxiliary_logits[-1]
         pred_original = auxiliary_boxes[-1]
         return RADMDenoiserOutput(
@@ -981,6 +1039,7 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
             pred_noise=boxes_xyxy - pred_original,
             auxiliary_logits=auxiliary_logits,
             auxiliary_boxes_xyxy=auxiliary_boxes,
+            auxiliary_boxes_absolute_xyxy=auxiliary_boxes_absolute,
         )
 
     def _fallback_features(
