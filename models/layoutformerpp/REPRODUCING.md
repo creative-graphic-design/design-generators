@@ -2,6 +2,11 @@
 
 This guide reproduces the original-implementation agreement checks for the LayoutFormer++ package.
 
+To reproduce the package's original-implementation agreement checks from the
+repository root, follow this workflow. Workflow order: download assets,
+generate references, run parity checks, convert checkpoints, then smoke-test
+local loading with `from_pretrained`.
+
 Prerequisites:
 
 - Run commands from the repository root.
