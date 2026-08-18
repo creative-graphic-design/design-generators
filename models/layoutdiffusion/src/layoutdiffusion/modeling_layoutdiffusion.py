@@ -49,6 +49,8 @@ class LayoutDiffusionTransformer(ModelMixin, ConfigMixin):
 
     config_name = "transformer_config.json"
 
+    position_ids: Int[torch.Tensor, "1 max_positions"]
+
     @register_to_config
     def __init__(
         self,

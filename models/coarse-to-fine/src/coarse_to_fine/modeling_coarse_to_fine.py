@@ -216,6 +216,8 @@ class VAE(nn.Module):
 class GroupDecoder(nn.Module):
     """Autoregressive group box and label-histogram decoder."""
 
+    square_subsequent_mask: Bool[torch.Tensor, "max_seq max_seq"]
+
     def __init__(
         self, config: CoarseToFineConfig, layout_embd: LayoutEmbedding
     ) -> None:
@@ -330,6 +332,8 @@ class GroupDecoder(nn.Module):
 
 class ElementDecoder(nn.Module):
     """Autoregressive element decoder conditioned on group memory."""
+
+    square_subsequent_mask: Bool[torch.Tensor, "max_seq max_seq"]
 
     def __init__(
         self, config: CoarseToFineConfig, layout_embd: LayoutEmbedding

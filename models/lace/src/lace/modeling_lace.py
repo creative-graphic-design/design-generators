@@ -84,6 +84,8 @@ class LaceTransformerModel(ModelMixin, ConfigMixin):
 
     config_name = "model_config.json"
 
+    pos_embed: Float[torch.Tensor, "max_seq_length dim_transformer"]
+
     @register_to_config
     def __init__(
         self,

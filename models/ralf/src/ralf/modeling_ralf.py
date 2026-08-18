@@ -127,6 +127,8 @@ class ImageReshaper(nn.Module):
 class PositionalEncoding1d(nn.Module):
     """RALF sine positional encoding for token sequences."""
 
+    pe: Float[torch.Tensor, "..."]
+
     def __init__(
         self,
         d_model: int,
@@ -158,11 +160,10 @@ class PositionalEncoding1d(nn.Module):
         self, x: Float[torch.Tensor, "... channels"]
     ) -> Float[torch.Tensor, "... channels"]:
         h = x * math.sqrt(self.d_model) if self.scale_input else x
-        pe = cast(Tensor, self.pe)
         if self.batch_first:
-            h = h + pe[:, : h.size(1)]
+            h = h + self.pe[:, : h.size(1)]
         else:
-            h = h + pe[: h.size(0)]
+            h = h + self.pe[: h.size(0)]
         return self.dropout(h)
 
 
@@ -352,6 +353,8 @@ class ResnetFeatureExtractor(nn.Module):
 class TransformerWithToken(nn.Module):
     """FIDNet transformer encoder with a learned summary token."""
 
+    token_mask: Bool[torch.Tensor, "1 1"]
+
     def __init__(
         self, d_model: int, nhead: int, dim_feedforward: int, num_layers: int
     ) -> None:
@@ -375,7 +378,7 @@ class TransformerWithToken(nn.Module):
         batch = x.size(1)
         token = self.token.expand(-1, batch, -1)
         x = torch.cat([token, x], dim=0)
-        token_mask = cast(Tensor, self.token_mask).expand(batch, -1)
+        token_mask = self.token_mask.expand(batch, -1)
         padding_mask = torch.cat([token_mask, src_key_padding_mask], dim=1)
         return self.core(x, src_key_padding_mask=padding_mask)
 
@@ -971,6 +974,9 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     base_model_prefix = "ralf"
     main_input_name = "input_ids"
     _tied_weights_keys: dict[str, str] = {}
+
+    flag_img: Int[torch.Tensor, "1"]
+    flag_user_const: Int[torch.Tensor, "1"]
 
     def __init__(self, config: RalfConfig) -> None:
         """Initialize a local module tree matching original RALF checkpoint keys."""

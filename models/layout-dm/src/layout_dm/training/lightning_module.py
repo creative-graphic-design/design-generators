@@ -41,6 +41,9 @@ from .losses import (
 class LayoutDMTrainingModule(LightningModule):
     """Lightning wrapper reproducing LayoutDM categorical-diffusion training."""
 
+    lt_history: Float[torch.Tensor, "timesteps"]
+    lt_count: Float[torch.Tensor, "timesteps"]
+
     def __init__(
         self,
         *,
@@ -200,8 +203,8 @@ class LayoutDMTrainingModule(LightningModule):
         return sample_time_importance(
             batch_size,
             num_timesteps=self.num_timesteps,
-            lt_history=cast(torch.Tensor, self.lt_history),
-            lt_count=cast(torch.Tensor, self.lt_count),
+            lt_history=self.lt_history,
+            lt_count=self.lt_count,
         )
 
     def _q_sample_full(
@@ -269,8 +272,8 @@ class LayoutDMTrainingModule(LightningModule):
         update_loss_history(
             kl_loss,
             t,
-            cast(torch.Tensor, self.lt_history),
-            cast(torch.Tensor, self.lt_count),
+            self.lt_history,
+            self.lt_count,
         )
 
         losses: dict[str, Float[torch.Tensor, ""]] = {"kl_loss": (kl_loss / pt).mean()}

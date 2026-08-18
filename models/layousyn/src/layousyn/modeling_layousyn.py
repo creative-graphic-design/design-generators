@@ -137,6 +137,9 @@ class CaptionEmbedderIdentity(nn.Module):
 class CaptionEmbedder(nn.Module):
     """Project caption embeddings and apply classifier-free label dropout."""
 
+    y_embedding: Float[torch.Tensor, "tokens embedding_dim"]
+    y_padding_mask: Bool[torch.Tensor, "tokens"]
+
     def __init__(
         self,
         in_channels: int,
@@ -148,8 +151,6 @@ class CaptionEmbedder(nn.Module):
         """Initialize caption projection and null caption buffers."""
         super().__init__()
         self.proj = Mlp(in_channels, hidden_size, hidden_size)
-        self.y_embedding: Float[torch.Tensor, "tokens embedding_dim"]
-        self.y_padding_mask: Bool[torch.Tensor, "tokens"]
         self.register_buffer("y_embedding", y_null_embedding.float())
         self.register_buffer("y_padding_mask", y_null_embedding_mask.bool())
         self.uncond_prob = uncond_prob
