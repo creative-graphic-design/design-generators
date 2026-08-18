@@ -164,6 +164,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         _name_or_path: str | None = None,
         _commit_hash: str | None = None,
         attn_implementation: str | None = None,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize architecture and task-specific generation defaults."""
         _ = (condition_type, model_type, transformers_version)
@@ -248,3 +249,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.name_or_path = name_or_path if _name_or_path is None else _name_or_path
         self._commit_hash = _commit_hash
         self._attn_implementation = attn_implementation
+        # Transformers v5 passes legacy and model-specific fields through the
+        # tolerant config-loading path; preserve them as ordinary attributes.
+        for key, value in kwargs.items():
+            setattr(self, key, value)

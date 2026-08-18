@@ -42,6 +42,17 @@ evaluation seeds; for example, the PubLayNet `gen_t` recipe uses 150 and 500,
 while the PubLayNet `completion` recipe uses 150 and 100. The package defaults
 above preserve those per-dataset and per-condition recipes.
 
+The provenance is pinned to upstream LayoutGeneration commit
+`1498ff300710b4fc204aece537582d37ca447fc7`. The base `num_pos_embed` default
+is defined at `LayoutFormer++/src/utils/config.py:77`; the task-specific
+`decode_max_length` and `eval_seed` values are set in
+`LayoutFormer++/src/scripts/rico_gen_t.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_gen_ts.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_completion.sh:48,58`,
+`LayoutFormer++/src/scripts/publaynet_gen_t.sh:52,62`,
+`LayoutFormer++/src/scripts/publaynet_gen_ts.sh:53,63`, and
+`LayoutFormer++/src/scripts/publaynet_completion.sh:50,60` at that commit.
+
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
 ```bash
