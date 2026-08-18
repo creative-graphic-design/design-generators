@@ -12,6 +12,36 @@ Prerequisites:
 - Keep downloaded weights and generated outputs under `.cache/layoutformerpp/`; these files are local artifacts and are not committed. The full public checkpoint sweep needs several GB of local space.
 - Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to the GPU you want to use for the parity pytest run when CUDA is available.
 
+## Evaluation default mapping
+
+The converted configuration stores the evaluation recipe for each dataset and
+condition. `max_position_embeddings` is the input token-sequence bound,
+`decode_max_length` is the evaluation-time decoding budget, and `eval_seed` is
+the evaluation-time seed for stochastic decoding. These values are recipe
+settings, not universal limits: use the row matching the checkpoint being
+reproduced.
+
+| Dataset | Task | `max_position_embeddings` | `decode_max_length` | `eval_seed` |
+| --- | --- | ---: | ---: | ---: |
+| RICO25 | `gen_t` | 150 | 120 | 500 |
+| RICO25 | `gen_ts` | 120 | 120 | 500 |
+| RICO25 | `gen_r` | 400 | 150 | 500 |
+| RICO25 | `refinement` | 120 | 120 | 100 |
+| RICO25 | `completion` | 120 | 120 | 100 |
+| RICO25 | `ugen` | 350 | 120 | 100 |
+| PubLayNet | `gen_t` | 400 | 150 | 500 |
+| PubLayNet | `gen_ts` | 400 | 150 | 500 |
+| PubLayNet | `gen_r` | 400 | 150 | 500 |
+| PubLayNet | `refinement` | 400 | 150 | 100 |
+| PubLayNet | `completion` | 400 | 150 | 100 |
+| PubLayNet | `ugen` | 400 | 150 | 100 |
+
+The original implementation's configuration sets the base positional-token
+bound to 150. The task scripts provide the per-task decoding budgets and
+evaluation seeds; for example, the PubLayNet `gen_t` recipe uses 150 and 500,
+while the PubLayNet `completion` recipe uses 150 and 100. The package defaults
+above preserve those per-dataset and per-condition recipes.
+
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
 ```bash

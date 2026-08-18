@@ -29,6 +29,22 @@ def test_config_roundtrip_preserves_dataset_defaults() -> None:
     assert restored.parser_subfolder == "semantic_parser"
 
 
+def test_config_roundtrip_preserves_token_fields() -> None:
+    config = ParseThenPlaceConfig(
+        pad_token_id=7,
+        eos_token_id=8,
+        decoder_start_token_id=9,
+        name_or_path="parse-then-place-test",
+    )
+
+    restored = ParseThenPlaceConfig.from_dict(config.to_dict())
+
+    assert restored.pad_token_id == 7
+    assert restored.eos_token_id == 8
+    assert restored.decoder_start_token_id == 9
+    assert restored.name_or_path == "parse-then-place-test"
+
+
 def test_dataset_and_stage2_name_normalization() -> None:
     assert (
         normalize_dataset_name(ParseThenPlaceDatasetName.rico)

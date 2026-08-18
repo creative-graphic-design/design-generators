@@ -42,6 +42,26 @@ def test_save_load_smoke(tmp_path: Path) -> None:
     assert cast(torch.Tensor, out.sequences).shape[0] == 1
 
 
+def test_config_roundtrip_preserves_token_fields() -> None:
+    config = LayoutFormerPPConfig(
+        vocab_size=17,
+        bos_token_id=3,
+        eos_token_id=4,
+        pad_token_id=5,
+        name_or_path="layoutformerpp-test",
+        task_specific_params={"decode_max_length": 9},
+    )
+
+    restored = LayoutFormerPPConfig.from_dict(config.to_dict())
+
+    assert restored.vocab_size == 17
+    assert restored.bos_token_id == 3
+    assert restored.eos_token_id == 4
+    assert restored.pad_token_id == 5
+    assert restored.name_or_path == "layoutformerpp-test"
+    assert restored.task_specific_params == {"decode_max_length": 9}
+
+
 def test_pipeline_passes_public_condition_arguments_to_processor(
     monkeypatch: MonkeyPatch,
 ) -> None:
