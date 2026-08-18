@@ -2,8 +2,6 @@
 
 This guide reproduces the original-implementation agreement checks for the LayoutFormer++ package.
 
-Workflow order: download assets, generate references, run parity checks, convert checkpoints or save prompt configuration, then smoke-test local loading.
-
 Prerequisites:
 
 - Run commands from the repository root.
@@ -41,17 +39,6 @@ bound to 150. The task scripts provide the per-task decoding budgets and
 evaluation seeds; for example, the PubLayNet `gen_t` recipe uses 150 and 500,
 while the PubLayNet `completion` recipe uses 150 and 100. The package defaults
 above preserve those per-dataset and per-condition recipes.
-
-The provenance is pinned to upstream LayoutGeneration commit
-`1498ff300710b4fc204aece537582d37ca447fc7`. The base `num_pos_embed` default
-is defined at `LayoutFormer++/src/utils/config.py:77`; the task-specific
-`decode_max_length` and `eval_seed` values are set in
-`LayoutFormer++/src/scripts/rico_gen_t.sh:48,58`,
-`LayoutFormer++/src/scripts/rico_gen_ts.sh:48,58`,
-`LayoutFormer++/src/scripts/rico_completion.sh:48,58`,
-`LayoutFormer++/src/scripts/publaynet_gen_t.sh:52,62`,
-`LayoutFormer++/src/scripts/publaynet_gen_ts.sh:53,63`, and
-`LayoutFormer++/src/scripts/publaynet_completion.sh:50,60` at that commit.
 
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
@@ -117,3 +104,28 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/smoke_from_
   --path .cache/layoutformerpp/converted/publaynet_completion \
   --path .cache/layoutformerpp/converted/publaynet_ugen
 ```
+
+### Pinned source audit
+
+To audit the mapping table after reproduction, compare each dataset/task row
+with the following locations in the pinned upstream source. The audit is
+pinned to the [upstream LayoutGeneration source commit](https://github.com/microsoft/LayoutGeneration/commit/1498ff300710b4fc204aece537582d37ca447fc7).
+The base `num_pos_embed` default is defined at
+`LayoutFormer++/src/utils/config.py:77`. For each script below, the first line
+number identifies `decode_max_length`, the second identifies `eval_seed`, and
+the intervening line sets `num_pos_embed`, which supplies the table's
+`max_position_embeddings` value. The dataset/task names in each path map
+directly to the rows above.
+
+`LayoutFormer++/src/scripts/rico_gen_t.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_gen_ts.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_completion.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_gen_r.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_refinement.sh:48,58`,
+`LayoutFormer++/src/scripts/rico_ugen.sh:48,58`,
+`LayoutFormer++/src/scripts/publaynet_gen_t.sh:52,62`,
+`LayoutFormer++/src/scripts/publaynet_gen_ts.sh:53,63`, and
+`LayoutFormer++/src/scripts/publaynet_completion.sh:50,60`,
+`LayoutFormer++/src/scripts/publaynet_gen_r.sh:55,65`,
+`LayoutFormer++/src/scripts/publaynet_refinement.sh:54,64`, and
+`LayoutFormer++/src/scripts/publaynet_ugen.sh:50,60`.
