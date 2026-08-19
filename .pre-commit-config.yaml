@@ -82,6 +82,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: semantic-blank-lines
+        name: semantic blank lines
+        entry: uv run --package design-generators python scripts/check_semantic_blank_lines.py
+        language: system
+        pass_filenames: false
+
       - id: module-naming
         name: model module naming
         entry: uv run --package design-generators python scripts/check_module_naming.py

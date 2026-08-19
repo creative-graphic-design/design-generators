@@ -58,6 +58,10 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   module-level aliases such as `FooTensor = Float[...]` or
   `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
   `scripts/jaxtyping_alias_baseline.txt`.
+- Within function bodies, separate semantic units (configuration branches,
+  submodule construction, transformations, and return preparation) with single
+  blank lines; always leave a blank line after a raise block when ordinary code
+  follows.
 
 ## Repo-Local Skills
 
