@@ -318,6 +318,11 @@ class _NestedTensor:  # pragma: no cover
 
 
 class _FrozenBatchNorm2d(nn.Module):  # pragma: no cover
+    weight: Float[torch.Tensor, "channels"]
+    bias: Float[torch.Tensor, "channels"]
+    running_mean: Float[torch.Tensor, "channels"]
+    running_var: Float[torch.Tensor, "channels"]
+
     def __init__(self, channels: int) -> None:
         super().__init__()
         self.register_buffer("weight", torch.ones(channels))
@@ -328,14 +333,10 @@ class _FrozenBatchNorm2d(nn.Module):  # pragma: no cover
     def forward(
         self, x: Float[torch.Tensor, "batch channels height width"]
     ) -> Float[torch.Tensor, "batch channels height width"]:
-        weight = cast(Shaped[torch.Tensor, "..."], self.weight).reshape(1, -1, 1, 1)
-        bias = cast(Shaped[torch.Tensor, "..."], self.bias).reshape(1, -1, 1, 1)
-        running_var = cast(Shaped[torch.Tensor, "..."], self.running_var).reshape(
-            1, -1, 1, 1
-        )
-        running_mean = cast(Shaped[torch.Tensor, "..."], self.running_mean).reshape(
-            1, -1, 1, 1
-        )
+        weight = self.weight.reshape(1, -1, 1, 1)
+        bias = self.bias.reshape(1, -1, 1, 1)
+        running_var = self.running_var.reshape(1, -1, 1, 1)
+        running_mean = self.running_mean.reshape(1, -1, 1, 1)
         scale = weight * (running_var + 1e-5).rsqrt()
         return x * scale + (bias - running_mean * scale)
 
@@ -773,6 +774,8 @@ def _build_reference_bert_lm_head(
 
 
 class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
+    position_ids: Int[torch.Tensor, "1 max_positions"]
+
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.word_embeddings = nn.Embedding(
@@ -814,7 +817,7 @@ class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
             raise ValueError("input_ids or inputs_embeds must be provided")
         seq_length = input_shape[1]
         if position_ids is None:
-            position_ids = cast(Int[torch.Tensor, "batch tokens"], self.position_ids)[
+            position_ids = self.position_ids[
                 :,
                 past_key_values_length : seq_length + past_key_values_length,
             ]
