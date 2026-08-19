@@ -94,7 +94,7 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ### Reproducibility
 
-Each package documents its reproduction commands in `REPRODUCING.md`. Generated artifacts stay untracked (typically under `.cache/`); do not commit weights, tensors, images, or other large files.
+Each package documents its reproduction commands in `REPRODUCING.md`.
 
 ### Training
 
