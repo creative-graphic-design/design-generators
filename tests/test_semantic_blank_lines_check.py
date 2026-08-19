@@ -33,12 +33,15 @@ def write_source(root: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def write_baseline(path: Path, entries: set[str]) -> None:
+def write_baseline(path: Path, counts: dict[tuple[str, str], int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "# Baseline entries for tests.\n"
-        + "\n".join(sorted(entries))
-        + ("\n" if entries else ""),
+        "# Baseline counts for tests.\n"
+        + "\n".join(
+            f"{path_name}\t{rule}\t{count}"
+            for (path_name, rule), count in sorted(counts.items())
+        )
+        + ("\n" if counts else ""),
         encoding="utf-8",
     )
 
@@ -61,7 +64,7 @@ def test_heuristic_flags_more_than_fifteen_statement_lines(tmp_path: Path) -> No
     statements = "\n".join(f"    value_{index} = {index}" for index in range(16))
     write_source(tmp_path, f"def dense():\n{statements}\n")
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert any("heuristic" in entry for entry in entries)
 
@@ -73,7 +76,7 @@ def test_heuristic_ignores_nested_class_body(tmp_path: Path) -> None:
         f"def container():\n    class Nested:\n{assignments}\n    return Nested\n",
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert not any("heuristic" in entry for entry in entries)
 
@@ -93,7 +96,7 @@ def missing():
 """,
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert any("raise-block" in entry for entry in entries)
 
@@ -112,7 +115,7 @@ def missing():
 """,
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert any("raise-block" in entry for entry in entries)
 
@@ -130,7 +133,7 @@ def present():
 """,
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert not any("raise-block" in entry for entry in entries)
 
@@ -171,7 +174,7 @@ def terminal():
 """,
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
     assert not any("raise-block" in entry for entry in entries)
 
@@ -196,9 +199,9 @@ def attribute():
 """,
     )
 
-    entries = checker.current_entries(tmp_path)
+    entries = checker.current_counts(tmp_path)
 
-    assert sum("raise-block" in entry for entry in entries) == 3
+    assert entries[("models/example/src/example/module.py", "raise-block")] == 3
 
 
 def test_checker_reports_entries_not_in_baseline(
@@ -216,7 +219,7 @@ def missing():
     baseline.write_text("", encoding="utf-8")
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
-    assert "raise-block" in capsys.readouterr().err
+    assert "Baseline counts differ from current scan" in capsys.readouterr().err
 
 
 def test_checker_rejects_baseline_entries_absent_from_current_scan(
@@ -224,18 +227,20 @@ def test_checker_rejects_baseline_entries_absent_from_current_scan(
 ) -> None:
     write_source(tmp_path, "def terminal():\n    raise ValueError()\n")
     baseline = tmp_path / "baseline.txt"
-    stale_entry = "models/example/src/example/module.py\t99\theuristic\tstale"
-    baseline.write_text(stale_entry + "\n", encoding="utf-8")
+    write_baseline(
+        baseline,
+        {("models/example/src/example/module.py", "heuristic"): 1},
+    )
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
-    assert "Baseline entries absent from current scan" in capsys.readouterr().err
+    assert "Baseline counts differ from current scan" in capsys.readouterr().err
 
 
 def test_checker_rejects_adding_fresh_violation_to_committed_baseline(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
-    write_baseline(baseline, set())
+    write_baseline(baseline, {})
     write_source(tmp_path, "def terminal():\n    raise ValueError()\n")
     initialize_git_repository(tmp_path)
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
@@ -253,7 +258,63 @@ def missing():
     return 1
 """,
     )
-    write_baseline(baseline, checker.current_entries(tmp_path))
+    write_baseline(baseline, checker.current_counts(tmp_path))
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
-    assert "Baseline entries added relative to HEAD" in capsys.readouterr().err
+    assert (
+        "Baseline counts added or increased relative to HEAD" in capsys.readouterr().err
+    )
+
+
+def test_checker_accepts_legacy_location_baseline_as_initial_counts(
+    tmp_path: Path,
+) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    baseline.parent.mkdir(parents=True, exist_ok=True)
+    baseline.write_text(
+        "models/example/src/example/module.py\t1\traise-block\t"
+        "ordinary code follows raise on line 2 without a blank line\n",
+        encoding="utf-8",
+    )
+    write_source(
+        tmp_path,
+        "def missing():\n    raise ValueError()\n    return 1\n",
+    )
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "legacy baseline"],
+        cwd=tmp_path,
+        check=True,
+    )
+    write_baseline(
+        baseline,
+        {("models/example/src/example/module.py", "raise-block"): 1},
+    )
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
+
+
+def test_checker_accepts_same_file_rule_swap_at_count_granularity(
+    tmp_path: Path,
+) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    write_source(
+        tmp_path,
+        "def first():\n    raise ValueError()\n    return 1\n",
+    )
+    write_baseline(baseline, checker.current_counts(tmp_path))
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "count baseline"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    write_source(
+        tmp_path,
+        "def second():\n    raise TypeError()\n    return 2\n",
+    )
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0

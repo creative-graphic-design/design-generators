@@ -1,618 +1,219 @@
-# Baseline entries for the semantic blank-line checker.
-# Remove entries as violations are fixed; do not add entries to hide new violations.
-lib/laygen/src/laygen/agents/core.py	298	raise-block	ordinary code follows raise on line 299 without a blank line
-lib/laygen/src/laygen/agents/core.py	301	raise-block	ordinary code follows raise on line 302 without a blank line
-lib/laygen/src/laygen/agents/core.py	309	raise-block	ordinary code follows raise on line 310 without a blank line
-lib/laygen/src/laygen/agents/core.py	361	raise-block	ordinary code follows raise on line 362 without a blank line
-lib/laygen/src/laygen/common/bbox.py	222	raise-block	ordinary code follows raise on line 223 without a blank line
-lib/laygen/src/laygen/common/discrete.py	412	raise-block	ordinary code follows raise on line 413 without a blank line
-lib/laygen/src/laygen/common/discrete.py	78	raise-block	ordinary code follows raise on line 79 without a blank line
-lib/laygen/src/laygen/common/vendor.py	64	raise-block	ordinary code follows raise on line 65 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	160	raise-block	ordinary code follows raise on line 161 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	183	raise-block	ordinary code follows raise on line 184 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	348	raise-block	ordinary code follows raise on line 349 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	405	raise-block	ordinary code follows raise on line 406 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	413	raise-block	ordinary code follows raise on line 414 without a blank line
-lib/laygen/src/laygen/pipelines/base.py	422	raise-block	ordinary code follows raise on line 423 without a blank line
-models/basnet/src/basnet/configuration_basnet.py	51	raise-block	ordinary code follows raise on line 52 without a blank line
-models/basnet/src/basnet/conversion.py	77	raise-block	ordinary code follows raise on line 78 without a blank line
-models/basnet/src/basnet/image_processing_basnet.py	137	raise-block	ordinary code follows raise on line 138 without a blank line
-models/basnet/src/basnet/image_processing_basnet.py	144	raise-block	ordinary code follows raise on line 145 without a blank line
-models/basnet/src/basnet/image_processing_basnet.py	51	raise-block	ordinary code follows raise on line 52 without a blank line
-models/basnet/src/basnet/image_processing_basnet.py	89	raise-block	ordinary code follows raise on line 90 without a blank line
-models/basnet/src/basnet/modeling_basnet.py	113	heuristic	forward: 20 consecutive statement lines
-models/basnet/src/basnet/modeling_basnet.py	152	heuristic	__init__: 83 consecutive statement lines
-models/basnet/src/basnet/modeling_basnet.py	261	heuristic	_forward_impl: 48 consecutive statement lines
-models/basnet/src/basnet/modeling_basnet.py	72	heuristic	__init__: 35 consecutive statement lines
-models/cgb-dm/src/cgb_dm/configuration_cgb_dm.py	103	heuristic	__init__: 18 consecutive statement lines
-models/cgb-dm/src/cgb_dm/configuration_cgb_dm.py	107	raise-block	ordinary code follows raise on line 108 without a blank line
-models/cgb-dm/src/cgb_dm/conversion.py	91	raise-block	ordinary code follows raise on line 92 without a blank line
-models/cgb-dm/src/cgb_dm/data.py	112	raise-block	ordinary code follows raise on line 113 without a blank line
-models/cgb-dm/src/cgb_dm/modeling_cgb_dm.py	143	raise-block	ordinary code follows raise on line 144 without a blank line
-models/cgb-dm/src/cgb_dm/pipeline_cgb_dm.py	283	raise-block	ordinary code follows raise on line 284 without a blank line
-models/cgb-dm/src/cgb_dm/pipeline_cgb_dm.py	75	raise-block	ordinary code follows raise on line 76 without a blank line
-models/cgb-dm/src/cgb_dm/pipeline_cgb_dm.py	77	raise-block	ordinary code follows raise on line 78 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	132	raise-block	ordinary code follows raise on line 133 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	223	raise-block	ordinary code follows raise on line 224 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	341	raise-block	ordinary code follows raise on line 342 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	390	raise-block	ordinary code follows raise on line 391 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	437	raise-block	ordinary code follows raise on line 438 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	463	raise-block	ordinary code follows raise on line 464 without a blank line
-models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	494	raise-block	ordinary code follows raise on line 495 without a blank line
-models/cgb-dm/src/cgb_dm/scheduling_cgb_dm.py	220	heuristic	condition_mask: 21 consecutive statement lines
-models/cgb-dm/src/cgb_dm/training/datamodule.py	68	raise-block	ordinary code follows raise on line 69 without a blank line
-models/cgb-dm/src/cgb_dm/training/datamodule.py	91	raise-block	ordinary code follows raise on line 92 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	80	raise-block	ordinary code follows raise on line 81 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	91	heuristic	__init__: 28 consecutive statement lines
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	162	raise-block	ordinary code follows raise on line 163 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	232	heuristic	flatten_hierarchy: 20 consecutive statement lines
-models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	124	raise-block	ordinary code follows raise on line 125 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	168	raise-block	ordinary code follows raise on line 169 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	170	raise-block	ordinary code follows raise on line 171 without a blank line
-models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	172	raise-block	ordinary code follows raise on line 173 without a blank line
-models/dlt/src/dlt/configuration_dlt.py	46	raise-block	ordinary code follows raise on line 47 without a blank line
-models/dlt/src/dlt/configuration_dlt.py	99	heuristic	__init__: 18 consecutive statement lines
-models/dlt/src/dlt/conversion.py	78	raise-block	ordinary code follows raise on line 79 without a blank line
-models/dlt/src/dlt/pipeline_dlt.py	293	raise-block	ordinary code follows raise on line 294 without a blank line
-models/dlt/src/dlt/pipeline_dlt.py	66	raise-block	ordinary code follows raise on line 67 without a blank line
-models/dlt/src/dlt/pipeline_dlt.py	68	raise-block	ordinary code follows raise on line 69 without a blank line
-models/dlt/src/dlt/processing_dlt.py	168	raise-block	ordinary code follows raise on line 169 without a blank line
-models/dlt/src/dlt/processing_dlt.py	261	raise-block	ordinary code follows raise on line 262 without a blank line
-models/dlt/src/dlt/scheduling_dlt.py	68	raise-block	ordinary code follows raise on line 69 without a blank line
-models/dlt/src/dlt/training/callbacks.py	198	raise-block	ordinary code follows raise on line 199 without a blank line
-models/dlt/src/dlt/training/callbacks.py	74	raise-block	ordinary code follows raise on line 75 without a blank line
-models/dlt/src/dlt/training/callbacks.py	90	raise-block	ordinary code follows raise on line 91 without a blank line
-models/dlt/src/dlt/training/dataset.py	136	heuristic	get_data_by_ix: 19 consecutive statement lines
-models/dlt/src/dlt/training/lightning_module.py	54	raise-block	ordinary code follows raise on line 55 without a blank line
-models/ds-gan/src/ds_gan/configuration_ds_gan.py	87	raise-block	ordinary code follows raise on line 88 without a blank line
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	184	raise-block	ordinary code follows raise on line 185 without a blank line
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	187	raise-block	ordinary code follows raise on line 188 without a blank line
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	57	raise-block	ordinary code follows raise on line 58 without a blank line
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	290	raise-block	ordinary code follows raise on line 291 without a blank line
-models/ds-gan/src/ds_gan/pipeline_ds_gan.py	80	raise-block	ordinary code follows raise on line 81 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	105	raise-block	ordinary code follows raise on line 106 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	239	raise-block	ordinary code follows raise on line 240 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	266	raise-block	ordinary code follows raise on line 267 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	284	raise-block	ordinary code follows raise on line 285 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	321	raise-block	ordinary code follows raise on line 322 without a blank line
-models/ds-gan/src/ds_gan/processing_ds_gan.py	421	heuristic	annotations_from_pku_example: 18 consecutive statement lines
-models/ds-gan/src/ds_gan/processing_ds_gan.py	472	heuristic	_canvas_size_from_example: 17 consecutive statement lines
-models/ds-gan/src/ds_gan/processing_ds_gan.py	73	raise-block	ordinary code follows raise on line 74 without a blank line
-models/flex-dm/src/flex_dm/configuration_flex_dm.py	153	heuristic	__init__: 18 consecutive statement lines
-models/flex-dm/src/flex_dm/configuration_flex_dm.py	211	raise-block	ordinary code follows raise on line 212 without a blank line
-models/flex-dm/src/flex_dm/data_specs.py	183	heuristic	_vocabulary_size: 24 consecutive statement lines
-models/flex-dm/src/flex_dm/masking.py	115	heuristic	filter_padding: 19 consecutive statement lines
-models/flex-dm/src/flex_dm/masking.py	169	raise-block	ordinary code follows raise on line 170 without a blank line
-models/flex-dm/src/flex_dm/masking.py	211	raise-block	ordinary code follows raise on line 212 without a blank line
-models/flex-dm/src/flex_dm/masking.py	289	raise-block	ordinary code follows raise on line 290 without a blank line
-models/flex-dm/src/flex_dm/masking.py	79	raise-block	ordinary code follows raise on line 80 without a blank line
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	188	raise-block	ordinary code follows raise on line 189 without a blank line
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	291	raise-block	ordinary code follows raise on line 292 without a blank line
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	293	raise-block	ordinary code follows raise on line 294 without a blank line
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	287	raise-block	ordinary code follows raise on line 288 without a blank line
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	289	raise-block	ordinary code follows raise on line 290 without a blank line
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	293	raise-block	ordinary code follows raise on line 294 without a blank line
-models/flex-dm/src/flex_dm/processing_flex_dm.py	211	raise-block	ordinary code follows raise on line 212 without a blank line
-models/flex-dm/src/flex_dm/processing_flex_dm.py	405	raise-block	ordinary code follows raise on line 406 without a blank line
-models/flex-dm/src/flex_dm/tf_checkpoint.py	36	raise-block	ordinary code follows raise on line 37 without a blank line
-models/housegan/src/housegan/configuration_housegan.py	102	heuristic	__init__: 17 consecutive statement lines
-models/housegan/src/housegan/graph_schema.py	108	raise-block	ordinary code follows raise on line 109 without a blank line
-models/housegan/src/housegan/graph_schema.py	123	raise-block	ordinary code follows raise on line 124 without a blank line
-models/housegan/src/housegan/graph_schema.py	179	raise-block	ordinary code follows raise on line 180 without a blank line
-models/housegan/src/housegan/graph_schema.py	258	raise-block	ordinary code follows raise on line 259 without a blank line
-models/housegan/src/housegan/graph_schema.py	88	raise-block	ordinary code follows raise on line 89 without a blank line
-models/housegan/src/housegan/modeling_housegan.py	171	raise-block	ordinary code follows raise on line 172 without a blank line
-models/housegan/src/housegan/modeling_housegan.py	175	raise-block	ordinary code follows raise on line 176 without a blank line
-models/housegan/src/housegan/modeling_housegan.py	177	raise-block	ordinary code follows raise on line 178 without a blank line
-models/housegan/src/housegan/pipeline_housegan.py	178	raise-block	ordinary code follows raise on line 179 without a blank line
-models/housegan/src/housegan/processing_housegan.py	114	raise-block	ordinary code follows raise on line 115 without a blank line
-models/housegan/src/housegan/processing_housegan.py	152	raise-block	ordinary code follows raise on line 153 without a blank line
-models/housegan/src/housegan/processing_housegan.py	200	raise-block	ordinary code follows raise on line 201 without a blank line
-models/housegan/src/housegan/processing_housegan.py	238	raise-block	ordinary code follows raise on line 239 without a blank line
-models/housegan/src/housegan/vendor_state_dict.py	51	raise-block	ordinary code follows raise on line 52 without a blank line
-models/lace/src/lace/constraints.py	78	heuristic	beautify_layout: 33 consecutive statement lines
-models/lace/src/lace/conversion.py	36	raise-block	ordinary code follows raise on line 37 without a blank line
-models/lace/src/lace/conversion.py	87	raise-block	ordinary code follows raise on line 88 without a blank line
-models/lace/src/lace/pipeline_lace.py	225	raise-block	ordinary code follows raise on line 226 without a blank line
-models/lace/src/lace/pipeline_lace.py	362	heuristic	_build_fix_mask: 18 consecutive statement lines
-models/lace/src/lace/pipeline_lace.py	96	raise-block	ordinary code follows raise on line 97 without a blank line
-models/lace/src/lace/pipeline_lace.py	98	raise-block	ordinary code follows raise on line 99 without a blank line
-models/lace/src/lace/processing_lace.py	191	raise-block	ordinary code follows raise on line 192 without a blank line
-models/layousyn/src/layousyn/configuration_layousyn.py	79	raise-block	ordinary code follows raise on line 80 without a blank line
-models/layousyn/src/layousyn/conversion.py	44	raise-block	ordinary code follows raise on line 45 without a blank line
-models/layousyn/src/layousyn/conversion.py	66	raise-block	ordinary code follows raise on line 67 without a blank line
-models/layousyn/src/layousyn/modeling_layousyn.py	432	raise-block	ordinary code follows raise on line 433 without a blank line
-models/layousyn/src/layousyn/modeling_layousyn.py	464	heuristic	initialize_weights: 20 consecutive statement lines
-models/layousyn/src/layousyn/modeling_layousyn.py	505	raise-block	ordinary code follows raise on line 506 without a blank line
-models/layousyn/src/layousyn/pipeline_layousyn.py	182	raise-block	ordinary code follows raise on line 183 without a blank line
-models/layousyn/src/layousyn/pipeline_layousyn.py	98	raise-block	ordinary code follows raise on line 99 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	138	raise-block	ordinary code follows raise on line 139 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	224	raise-block	ordinary code follows raise on line 225 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	304	raise-block	ordinary code follows raise on line 305 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	326	raise-block	ordinary code follows raise on line 327 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	330	raise-block	ordinary code follows raise on line 331 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	394	raise-block	ordinary code follows raise on line 395 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	396	raise-block	ordinary code follows raise on line 397 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	418	raise-block	ordinary code follows raise on line 419 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	440	raise-block	ordinary code follows raise on line 441 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	460	raise-block	ordinary code follows raise on line 461 without a blank line
-models/layousyn/src/layousyn/processing_layousyn.py	476	raise-block	ordinary code follows raise on line 477 without a blank line
-models/layousyn/src/layousyn/scheduling_layousyn.py	175	raise-block	ordinary code follows raise on line 176 without a blank line
-models/layousyn/src/layousyn/scheduling_layousyn.py	281	raise-block	ordinary code follows raise on line 282 without a blank line
-models/layousyn/src/layousyn/scheduling_layousyn.py	45	raise-block	ordinary code follows raise on line 46 without a blank line
-models/layousyn/src/layousyn/scheduling_layousyn.py	47	raise-block	ordinary code follows raise on line 48 without a blank line
-models/layousyn/src/layousyn/scheduling_layousyn.py	92	heuristic	set_timesteps: 17 consecutive statement lines
-models/layousyn/src/layousyn/scheduling_layousyn.py	95	raise-block	ordinary code follows raise on line 96 without a blank line
-models/layout-action/src/layout_action/configuration_layout_action.py	194	raise-block	ordinary code follows raise on line 195 without a blank line
-models/layout-action/src/layout_action/configuration_layout_action.py	208	raise-block	ordinary code follows raise on line 209 without a blank line
-models/layout-action/src/layout_action/conversion.py	120	raise-block	ordinary code follows raise on line 121 without a blank line
-models/layout-action/src/layout_action/modeling_layout_action.py	170	raise-block	ordinary code follows raise on line 171 without a blank line
-models/layout-action/src/layout_action/modeling_layout_action.py	31	raise-block	ordinary code follows raise on line 32 without a blank line
-models/layout-action/src/layout_action/modeling_layout_action.py	44	heuristic	forward: 16 consecutive statement lines
-models/layout-action/src/layout_action/processing_layout_action.py	117	raise-block	ordinary code follows raise on line 118 without a blank line
-models/layout-action/src/layout_action/processing_layout_action.py	120	raise-block	ordinary code follows raise on line 121 without a blank line
-models/layout-action/src/layout_action/processing_layout_action.py	133	raise-block	ordinary code follows raise on line 134 without a blank line
-models/layout-action/src/layout_action/tokenization_layout_action.py	172	raise-block	ordinary code follows raise on line 173 without a blank line
-models/layout-action/src/layout_action/tokenization_layout_action.py	236	heuristic	encode_action_layout: 20 consecutive statement lines
-models/layout-action/src/layout_action/tokenization_layout_action.py	321	raise-block	ordinary code follows raise on line 322 without a blank line
-models/layout-action/src/layout_action/tokenization_layout_action.py	327	raise-block	ordinary code follows raise on line 328 without a blank line
-models/layout-action/src/layout_action/tokenization_layout_action.py	364	heuristic	decode_action_tokens: 21 consecutive statement lines
-models/layout-action/src/layout_action/tokenization_layout_action.py	51	heuristic	__init__: 16 consecutive statement lines
-models/layout-action/src/layout_action/tokenization_layout_action.py	56	raise-block	ordinary code follows raise on line 57 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	210	raise-block	ordinary code follows raise on line 211 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	214	raise-block	ordinary code follows raise on line 215 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	216	raise-block	ordinary code follows raise on line 217 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	218	raise-block	ordinary code follows raise on line 219 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	220	raise-block	ordinary code follows raise on line 221 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	230	raise-block	ordinary code follows raise on line 231 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	232	raise-block	ordinary code follows raise on line 233 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	238	raise-block	ordinary code follows raise on line 239 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	240	raise-block	ordinary code follows raise on line 241 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	250	heuristic	__init__: 27 consecutive statement lines
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	66	raise-block	ordinary code follows raise on line 67 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	70	raise-block	ordinary code follows raise on line 71 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	74	raise-block	ordinary code follows raise on line 75 without a blank line
-models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	78	raise-block	ordinary code follows raise on line 79 without a blank line
-models/layout-corrector/src/layout_corrector/modeling_layout_corrector.py	247	raise-block	ordinary code follows raise on line 248 without a blank line
-models/layout-corrector/src/layout_corrector/modeling_layout_corrector.py	252	raise-block	ordinary code follows raise on line 253 without a blank line
-models/layout-corrector/src/layout_corrector/modeling_layout_corrector.py	84	raise-block	ordinary code follows raise on line 85 without a blank line
-models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	209	raise-block	ordinary code follows raise on line 210 without a blank line
-models/layout-corrector/src/layout_corrector/sampling.py	202	raise-block	ordinary code follows raise on line 203 without a blank line
-models/layout-detr/src/layout_detr/configuration_layout_detr.py	62	heuristic	__init__: 29 consecutive statement lines
-models/layout-detr/src/layout_detr/datasets.py	71	raise-block	ordinary code follows raise on line 72 without a blank line
-models/layout-detr/src/layout_detr/datasets.py	97	raise-block	ordinary code follows raise on line 98 without a blank line
-models/layout-detr/src/layout_detr/image_processing_layout_detr.py	72	raise-block	ordinary code follows raise on line 73 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	172	raise-block	ordinary code follows raise on line 173 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	177	raise-block	ordinary code follows raise on line 178 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	179	raise-block	ordinary code follows raise on line 180 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	185	raise-block	ordinary code follows raise on line 186 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	365	raise-block	ordinary code follows raise on line 366 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	814	raise-block	ordinary code follows raise on line 815 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	901	raise-block	ordinary code follows raise on line 902 without a blank line
-models/layout-detr/src/layout_detr/modeling_layout_detr.py	969	raise-block	ordinary code follows raise on line 970 without a blank line
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	178	raise-block	ordinary code follows raise on line 179 without a blank line
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	180	raise-block	ordinary code follows raise on line 181 without a blank line
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	182	raise-block	ordinary code follows raise on line 183 without a blank line
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	184	raise-block	ordinary code follows raise on line 185 without a blank line
-models/layout-detr/src/layout_detr/pipeline_layout_detr.py	80	raise-block	ordinary code follows raise on line 81 without a blank line
-models/layout-detr/src/layout_detr/postprocessing.py	126	raise-block	ordinary code follows raise on line 127 without a blank line
-models/layout-detr/src/layout_detr/postprocessing.py	43	raise-block	ordinary code follows raise on line 44 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	151	raise-block	ordinary code follows raise on line 152 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	155	raise-block	ordinary code follows raise on line 156 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	159	raise-block	ordinary code follows raise on line 160 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	165	raise-block	ordinary code follows raise on line 166 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	166	raise-block	ordinary code follows raise on line 167 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	183	raise-block	ordinary code follows raise on line 184 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	210	raise-block	ordinary code follows raise on line 211 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	255	raise-block	ordinary code follows raise on line 256 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	277	raise-block	ordinary code follows raise on line 278 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	333	raise-block	ordinary code follows raise on line 334 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	415	raise-block	ordinary code follows raise on line 416 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	426	raise-block	ordinary code follows raise on line 427 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	448	raise-block	ordinary code follows raise on line 449 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	89	raise-block	ordinary code follows raise on line 90 without a blank line
-models/layout-detr/src/layout_detr/processing_layout_detr.py	92	raise-block	ordinary code follows raise on line 93 without a blank line
-models/layout-detr/src/layout_detr/vendor_state.py	281	raise-block	ordinary code follows raise on line 282 without a blank line
-models/layout-dm/src/layout_dm/configuration_layout_dm.py	78	heuristic	__init__: 24 consecutive statement lines
-models/layout-dm/src/layout_dm/conversion.py	24	raise-block	ordinary code follows raise on line 25 without a blank line
-models/layout-dm/src/layout_dm/conversion.py	53	raise-block	ordinary code follows raise on line 54 without a blank line
-models/layout-dm/src/layout_dm/pipeline_layout_dm.py	163	raise-block	ordinary code follows raise on line 164 without a blank line
-models/layout-dm/src/layout_dm/pipeline_layout_dm.py	236	raise-block	ordinary code follows raise on line 237 without a blank line
-models/layout-dm/src/layout_dm/processing_layout_dm.py	105	raise-block	ordinary code follows raise on line 106 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	259	raise-block	ordinary code follows raise on line 260 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	264	raise-block	ordinary code follows raise on line 265 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	269	raise-block	ordinary code follows raise on line 270 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	326	raise-block	ordinary code follows raise on line 327 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	507	raise-block	ordinary code follows raise on line 508 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	632	raise-block	ordinary code follows raise on line 633 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	640	raise-block	ordinary code follows raise on line 641 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	651	raise-block	ordinary code follows raise on line 652 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	661	raise-block	ordinary code follows raise on line 662 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	672	raise-block	ordinary code follows raise on line 673 without a blank line
-models/layout-dm/src/layout_dm/tokenization_layout_dm.py	87	raise-block	ordinary code follows raise on line 88 without a blank line
-models/layout-dm/src/layout_dm/training/datamodule.py	115	raise-block	ordinary code follows raise on line 116 without a blank line
-models/layout-dm/src/layout_dm/training/datamodule.py	147	raise-block	ordinary code follows raise on line 148 without a blank line
-models/layout-dm/src/layout_dm/training/datamodule.py	43	heuristic	__init__: 18 consecutive statement lines
-models/layout-dm/src/layout_dm/training/datamodule.py	58	raise-block	ordinary code follows raise on line 59 without a blank line
-models/layout-dm/src/layout_dm/training/dataset.py	266	raise-block	ordinary code follows raise on line 267 without a blank line
-models/layout-dm/src/layout_dm/training/dataset.py	330	raise-block	ordinary code follows raise on line 331 without a blank line
-models/layout-dm/src/layout_dm/training/dataset.py	373	raise-block	ordinary code follows raise on line 374 without a blank line
-models/layout-dm/src/layout_dm/training/dataset.py	391	raise-block	ordinary code follows raise on line 392 without a blank line
-models/layout-dm/src/layout_dm/training/dataset.py	405	raise-block	ordinary code follows raise on line 406 without a blank line
-models/layout-dm/src/layout_dm/training/lightning_module.py	115	heuristic	__init__: 17 consecutive statement lines
-models/layout-dm/src/layout_dm/training/lightning_module.py	213	heuristic	_q_sample_full: 20 consecutive statement lines
-models/layout-fid/src/layout_fid/configuration_layout_fid.py	162	raise-block	ordinary code follows raise on line 163 without a blank line
-models/layout-fid/src/layout_fid/configuration_layout_fid.py	164	raise-block	ordinary code follows raise on line 165 without a blank line
-models/layout-fid/src/layout_fid/configuration_layout_fid.py	166	raise-block	ordinary code follows raise on line 167 without a blank line
-models/layout-fid/src/layout_fid/configuration_layout_fid.py	170	heuristic	__init__: 16 consecutive statement lines
-models/layout-fid/src/layout_fid/conversion.py	175	raise-block	ordinary code follows raise on line 176 without a blank line
-models/layout-fid/src/layout_fid/evaluation.py	141	heuristic	calculate_frechet_distance: 17 consecutive statement lines
-models/layout-fid/src/layout_fid/evaluation.py	146	raise-block	ordinary code follows raise on line 147 without a blank line
-models/layout-fid/src/layout_fid/evaluation.py	148	raise-block	ordinary code follows raise on line 149 without a blank line
-models/layout-fid/src/layout_fid/evaluation.py	97	raise-block	ordinary code follows raise on line 98 without a blank line
-models/layout-fid/src/layout_fid/modeling_layout_fid.py	221	raise-block	ordinary code follows raise on line 222 without a blank line
-models/layout-fid/src/layout_fid/modeling_layout_fid.py	223	raise-block	ordinary code follows raise on line 224 without a blank line
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	199	raise-block	ordinary code follows raise on line 200 without a blank line
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	279	raise-block	ordinary code follows raise on line 280 without a blank line
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	310	raise-block	ordinary code follows raise on line 311 without a blank line
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	383	raise-block	ordinary code follows raise on line 384 without a blank line
-models/layout-fid/src/layout_fid/pipeline_layout_fid.py	415	raise-block	ordinary code follows raise on line 416 without a blank line
-models/layout-fid/src/layout_fid/processing_layout_fid.py	140	raise-block	ordinary code follows raise on line 141 without a blank line
-models/layout-fid/src/layout_fid/processing_layout_fid.py	146	raise-block	ordinary code follows raise on line 147 without a blank line
-models/layout-fid/src/layout_fid/testing.py	27	raise-block	ordinary code follows raise on line 28 without a blank line
-models/layout-flow/src/layout_flow/configuration_layout_flow.py	135	raise-block	ordinary code follows raise on line 136 without a blank line
-models/layout-flow/src/layout_flow/configuration_layout_flow.py	194	heuristic	__init__: 20 consecutive statement lines
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	112	raise-block	ordinary code follows raise on line 113 without a blank line
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	135	raise-block	ordinary code follows raise on line 136 without a blank line
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	305	raise-block	ordinary code follows raise on line 306 without a blank line
-models/layout-flow/src/layout_flow/modeling_layout_flow.py	317	raise-block	ordinary code follows raise on line 318 without a blank line
-models/layout-flow/src/layout_flow/processing_layout_flow.py	100	raise-block	ordinary code follows raise on line 101 without a blank line
-models/layout-flow/src/layout_flow/processing_layout_flow.py	212	raise-block	ordinary code follows raise on line 213 without a blank line
-models/layout-flow/src/layout_flow/processing_layout_flow.py	246	raise-block	ordinary code follows raise on line 247 without a blank line
-models/layout-flow/src/layout_flow/processing_layout_flow.py	257	raise-block	ordinary code follows raise on line 258 without a blank line
-models/layout-flow/src/layout_flow/training/datamodule.py	95	raise-block	ordinary code follows raise on line 96 without a blank line
-models/layout-flow/src/layout_flow/training/dataset.py	159	raise-block	ordinary code follows raise on line 160 without a blank line
-models/layout-flow/src/layout_flow/training/dataset.py	67	raise-block	ordinary code follows raise on line 68 without a blank line
-models/layout-flow/src/layout_flow/training/lightning_module.py	145	raise-block	ordinary code follows raise on line 146 without a blank line
-models/layout-flow/src/layout_flow/training/lightning_module.py	198	raise-block	ordinary code follows raise on line 199 without a blank line
-models/layout-flow/src/layout_flow/training/lightning_module.py	219	raise-block	ordinary code follows raise on line 220 without a blank line
-models/layout-gpt/src/layout_gpt/agent.py	278	raise-block	ordinary code follows raise on line 279 without a blank line
-models/layout-gpt/src/layout_gpt/exemplars.py	107	raise-block	ordinary code follows raise on line 108 without a blank line
-models/layout-gpt/src/layout_gpt/exemplars.py	121	raise-block	ordinary code follows raise on line 122 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	61	raise-block	ordinary code follows raise on line 62 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/conditioning.py	70	raise-block	ordinary code follows raise on line 71 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	76	heuristic	__init__: 21 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	41	raise-block	ordinary code follows raise on line 42 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	45	raise-block	ordinary code follows raise on line 46 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/conversion.py	65	raise-block	ordinary code follows raise on line 66 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	182	raise-block	ordinary code follows raise on line 183 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	268	raise-block	ordinary code follows raise on line 269 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	81	raise-block	ordinary code follows raise on line 82 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	178	raise-block	ordinary code follows raise on line 179 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	258	raise-block	ordinary code follows raise on line 259 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	262	heuristic	_init_buffers: 16 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	279	heuristic	_init_buffers: 28 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	467	heuristic	_gaussian_matrix2: 17 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	534	heuristic	_alpha_schedule: 16 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	210	raise-block	ordinary code follows raise on line 211 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	265	heuristic	decode_layout: 23 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	286	raise-block	ordinary code follows raise on line 287 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	338	heuristic	build_initial_tokens: 19 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	471	raise-block	ordinary code follows raise on line 472 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	477	raise-block	ordinary code follows raise on line 478 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	109	raise-block	ordinary code follows raise on line 110 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	172	raise-block	ordinary code follows raise on line 173 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	205	raise-block	ordinary code follows raise on line 206 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	80	raise-block	ordinary code follows raise on line 81 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	88	raise-block	ordinary code follows raise on line 89 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	89	heuristic	__init__: 19 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/training/dataset.py	225	raise-block	ordinary code follows raise on line 226 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/lightning_module.py	318	raise-block	ordinary code follows raise on line 319 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/lightning_module.py	322	raise-block	ordinary code follows raise on line 323 without a blank line
-models/layoutdiffusion/src/layoutdiffusion/training/lightning_module.py	82	heuristic	__init__: 16 consecutive statement lines
-models/layoutdiffusion/src/layoutdiffusion/training/vocab.py	22	raise-block	ordinary code follows raise on line 23 without a blank line
-models/layoutformerpp/src/layoutformerpp/configuration_layoutformerpp.py	208	heuristic	__init__: 19 consecutive statement lines
-models/layoutformerpp/src/layoutformerpp/conversion.py	74	raise-block	ordinary code follows raise on line 75 without a blank line
-models/layoutformerpp/src/layoutformerpp/geometry.py	53	raise-block	ordinary code follows raise on line 54 without a blank line
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	137	raise-block	ordinary code follows raise on line 138 without a blank line
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	156	raise-block	ordinary code follows raise on line 157 without a blank line
-models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	182	raise-block	ordinary code follows raise on line 183 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	167	raise-block	ordinary code follows raise on line 168 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	169	raise-block	ordinary code follows raise on line 170 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	220	raise-block	ordinary code follows raise on line 221 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	222	raise-block	ordinary code follows raise on line 223 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	226	raise-block	ordinary code follows raise on line 227 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	247	raise-block	ordinary code follows raise on line 248 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	348	raise-block	ordinary code follows raise on line 349 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	351	raise-block	ordinary code follows raise on line 352 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	418	raise-block	ordinary code follows raise on line 419 without a blank line
-models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	424	raise-block	ordinary code follows raise on line 425 without a blank line
-models/layoutformerpp/src/layoutformerpp/serialization.py	127	raise-block	ordinary code follows raise on line 128 without a blank line
-models/layoutformerpp/src/layoutformerpp/serialization.py	144	heuristic	build_input_seq: 19 consecutive statement lines
-models/layoutformerpp/src/layoutformerpp/tasks.py	57	raise-block	ordinary code follows raise on line 58 without a blank line
-models/layoutganpp/src/layoutganpp/datasets.py	96	raise-block	ordinary code follows raise on line 97 without a blank line
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	171	raise-block	ordinary code follows raise on line 172 without a blank line
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	173	raise-block	ordinary code follows raise on line 174 without a blank line
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	177	raise-block	ordinary code follows raise on line 178 without a blank line
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	269	raise-block	ordinary code follows raise on line 270 without a blank line
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	271	raise-block	ordinary code follows raise on line 272 without a blank line
-models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	206	raise-block	ordinary code follows raise on line 207 without a blank line
-models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	253	raise-block	ordinary code follows raise on line 254 without a blank line
-models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	353	raise-block	ordinary code follows raise on line 354 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	171	heuristic	_normalize_rows: 20 consecutive statement lines
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	176	raise-block	ordinary code follows raise on line 177 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	182	raise-block	ordinary code follows raise on line 183 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	188	raise-block	ordinary code follows raise on line 189 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	195	raise-block	ordinary code follows raise on line 196 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	93	raise-block	ordinary code follows raise on line 94 without a blank line
-models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	97	raise-block	ordinary code follows raise on line 98 without a blank line
-models/layoutprompter/src/layoutprompter/parsing.py	116	raise-block	ordinary code follows raise on line 117 without a blank line
-models/layoutprompter/src/layoutprompter/parsing.py	145	raise-block	ordinary code follows raise on line 146 without a blank line
-models/layoutprompter/src/layoutprompter/parsing.py	169	raise-block	ordinary code follows raise on line 170 without a blank line
-models/layoutprompter/src/layoutprompter/parsing.py	35	raise-block	ordinary code follows raise on line 36 without a blank line
-models/layoutvae/src/layoutvae/configuration_layoutvae.py	80	raise-block	ordinary code follows raise on line 81 without a blank line
-models/layoutvae/src/layoutvae/conversion.py	120	raise-block	ordinary code follows raise on line 121 without a blank line
-models/layoutvae/src/layoutvae/conversion.py	76	raise-block	ordinary code follows raise on line 77 without a blank line
-models/layoutvae/src/layoutvae/modeling_layoutvae.py	476	raise-block	ordinary code follows raise on line 477 without a blank line
-models/layoutvae/src/layoutvae/modeling_layoutvae.py	490	raise-block	ordinary code follows raise on line 491 without a blank line
-models/layoutvae/src/layoutvae/pipeline_layoutvae.py	260	raise-block	ordinary code follows raise on line 261 without a blank line
-models/layoutvae/src/layoutvae/pipeline_layoutvae.py	297	raise-block	ordinary code follows raise on line 298 without a blank line
-models/layoutvae/src/layoutvae/pipeline_layoutvae.py	378	heuristic	__call__: 19 consecutive statement lines
-models/layoutvae/src/layoutvae/pipeline_layoutvae.py	380	raise-block	ordinary code follows raise on line 381 without a blank line
-models/layoutvae/src/layoutvae/pipeline_layoutvae.py	431	raise-block	ordinary code follows raise on line 432 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	101	raise-block	ordinary code follows raise on line 102 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	206	raise-block	ordinary code follows raise on line 207 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	211	raise-block	ordinary code follows raise on line 212 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	214	raise-block	ordinary code follows raise on line 215 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	223	raise-block	ordinary code follows raise on line 224 without a blank line
-models/layoutvae/src/layoutvae/processing_layoutvae.py	67	raise-block	ordinary code follows raise on line 68 without a blank line
-models/ltnet/src/ltnet/configuration_ltnet.py	134	heuristic	__init__: 30 consecutive statement lines
-models/ltnet/src/ltnet/conversion.py	144	raise-block	ordinary code follows raise on line 145 without a blank line
-models/ltnet/src/ltnet/conversion.py	146	raise-block	ordinary code follows raise on line 147 without a blank line
-models/ltnet/src/ltnet/modeling_lt_compatible.py	1288	raise-block	ordinary code follows raise on line 1289 without a blank line
-models/ltnet/src/ltnet/modeling_lt_compatible.py	145	raise-block	ordinary code follows raise on line 146 without a blank line
-models/ltnet/src/ltnet/modeling_lt_compatible.py	475	raise-block	ordinary code follows raise on line 476 without a blank line
-models/ltnet/src/ltnet/modeling_lt_compatible.py	49	raise-block	ordinary code follows raise on line 50 without a blank line
-models/ltnet/src/ltnet/modeling_lt_compatible.py	738	heuristic	sample_bivariate_normal: 24 consecutive statement lines
-models/ltnet/src/ltnet/modeling_lt_compatible.py	97	raise-block	ordinary code follows raise on line 98 without a blank line
-models/ltnet/src/ltnet/modeling_ltnet.py	110	raise-block	ordinary code follows raise on line 111 without a blank line
-models/ltnet/src/ltnet/processing_ltnet.py	148	raise-block	ordinary code follows raise on line 149 without a blank line
-models/ltnet/src/ltnet/processing_ltnet.py	184	raise-block	ordinary code follows raise on line 185 without a blank line
-models/ltnet/src/ltnet/processing_ltnet.py	191	heuristic	_normalize_scene_graph: 16 consecutive statement lines
-models/ltnet/src/ltnet/processing_ltnet.py	258	heuristic	_serialize_graph: 18 consecutive statement lines
-models/ltnet/src/ltnet/processing_ltnet.py	346	raise-block	ordinary code follows raise on line 347 without a blank line
-models/ltnet/src/ltnet/processing_ltnet.py	351	raise-block	ordinary code follows raise on line 352 without a blank line
-models/ltnet/src/ltnet/processing_ltnet.py	74	raise-block	ordinary code follows raise on line 75 without a blank line
-models/ltnet/src/ltnet/tokenization_ltnet.py	110	raise-block	ordinary code follows raise on line 111 without a blank line
-models/parse-then-place/src/parse_then_place/configuration_parse_then_place.py	56	heuristic	__init__: 19 consecutive statement lines
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	186	raise-block	ordinary code follows raise on line 187 without a blank line
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	211	raise-block	ordinary code follows raise on line 212 without a blank line
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	270	raise-block	ordinary code follows raise on line 271 without a blank line
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	282	raise-block	ordinary code follows raise on line 283 without a blank line
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	290	raise-block	ordinary code follows raise on line 291 without a blank line
-models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	306	raise-block	ordinary code follows raise on line 307 without a blank line
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	203	raise-block	ordinary code follows raise on line 204 without a blank line
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	280	raise-block	ordinary code follows raise on line 281 without a blank line
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	292	raise-block	ordinary code follows raise on line 293 without a blank line
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	306	heuristic	layout_text_to_output: 26 consecutive statement lines
-models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	353	raise-block	ordinary code follows raise on line 354 without a blank line
-models/posterllama/src/posterllama/configuration_posterllama.py	103	heuristic	__init__: 27 consecutive statement lines
-models/posterllama/src/posterllama/image_processing_posterllama.py	115	raise-block	ordinary code follows raise on line 116 without a blank line
-models/posterllama/src/posterllama/image_processing_posterllama.py	44	raise-block	ordinary code follows raise on line 45 without a blank line
-models/posterllama/src/posterllama/modeling_posterllama.py	81	raise-block	ordinary code follows raise on line 82 without a blank line
-models/posterllama/src/posterllama/pipeline_posterllama.py	234	raise-block	ordinary code follows raise on line 235 without a blank line
-models/posterllama/src/posterllama/pipeline_posterllama.py	285	raise-block	ordinary code follows raise on line 286 without a blank line
-models/posterllama/src/posterllama/postprocessing.py	232	raise-block	ordinary code follows raise on line 233 without a blank line
-models/posterllama/src/posterllama/processing_posterllama.py	231	raise-block	ordinary code follows raise on line 232 without a blank line
-models/posterllama/src/posterllama/processing_posterllama.py	233	raise-block	ordinary code follows raise on line 234 without a blank line
-models/posterllama/src/posterllama/processing_posterllama.py	434	raise-block	ordinary code follows raise on line 435 without a blank line
-models/posterllama/src/posterllama/processing_posterllama.py	445	raise-block	ordinary code follows raise on line 446 without a blank line
-models/posterllama/src/posterllama/processing_posterllama.py	598	heuristic	_rect_for_condition: 17 consecutive statement lines
-models/posterllava/src/posterllava/configuration_posterllava.py	155	raise-block	ordinary code follows raise on line 156 without a blank line
-models/posterllava/src/posterllava/configuration_posterllava.py	157	raise-block	ordinary code follows raise on line 158 without a blank line
-models/posterllava/src/posterllava/configuration_posterllava.py	159	raise-block	ordinary code follows raise on line 160 without a blank line
-models/posterllava/src/posterllava/generation_posterllava.py	39	raise-block	ordinary code follows raise on line 40 without a blank line
-models/posterllava/src/posterllava/generation_posterllava.py	69	raise-block	ordinary code follows raise on line 70 without a blank line
-models/posterllava/src/posterllava/image_processing_posterllava.py	72	raise-block	ordinary code follows raise on line 73 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	337	raise-block	ordinary code follows raise on line 338 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	355	raise-block	ordinary code follows raise on line 356 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	357	raise-block	ordinary code follows raise on line 358 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	359	raise-block	ordinary code follows raise on line 360 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	361	raise-block	ordinary code follows raise on line 362 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	412	raise-block	ordinary code follows raise on line 413 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	420	raise-block	ordinary code follows raise on line 421 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	503	raise-block	ordinary code follows raise on line 504 without a blank line
-models/posterllava/src/posterllava/pipeline_posterllava.py	550	raise-block	ordinary code follows raise on line 551 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	214	raise-block	ordinary code follows raise on line 215 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	305	raise-block	ordinary code follows raise on line 306 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	350	raise-block	ordinary code follows raise on line 351 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	389	raise-block	ordinary code follows raise on line 390 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	424	raise-block	ordinary code follows raise on line 425 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	428	raise-block	ordinary code follows raise on line 429 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	432	raise-block	ordinary code follows raise on line 433 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	434	raise-block	ordinary code follows raise on line 435 without a blank line
-models/posterllava/src/posterllava/processing_posterllava.py	487	heuristic	decode_layout: 19 consecutive statement lines
-models/posterllava/src/posterllava/processing_posterllava.py	530	heuristic	_extract_json_array: 24 consecutive statement lines
-models/posterllava/src/posterllava/processing_posterllava.py	532	raise-block	ordinary code follows raise on line 533 without a blank line
-models/postero/src/postero/agent.py	317	raise-block	ordinary code follows raise on line 318 without a blank line
-models/postero/src/postero/agent.py	320	raise-block	ordinary code follows raise on line 321 without a blank line
-models/postero/src/postero/exemplars.py	43	raise-block	ordinary code follows raise on line 44 without a blank line
-models/postero/src/postero/parser.py	113	raise-block	ordinary code follows raise on line 114 without a blank line
-models/postero/src/postero/parser.py	51	raise-block	ordinary code follows raise on line 52 without a blank line
-models/postero/src/postero/parser.py	91	raise-block	ordinary code follows raise on line 92 without a blank line
-models/postero/src/postero/records.py	119	raise-block	ordinary code follows raise on line 120 without a blank line
-models/postero/src/postero/records.py	134	raise-block	ordinary code follows raise on line 135 without a blank line
-models/postero/src/postero/records.py	142	raise-block	ordinary code follows raise on line 143 without a blank line
-models/ralf/src/ralf/configuration_ralf.py	141	heuristic	__init__: 42 consecutive statement lines
-models/ralf/src/ralf/configuration_ralf.py	220	raise-block	ordinary code follows raise on line 221 without a blank line
-models/ralf/src/ralf/datasets.py	171	raise-block	ordinary code follows raise on line 172 without a blank line
-models/ralf/src/ralf/datasets.py	177	raise-block	ordinary code follows raise on line 178 without a blank line
-models/ralf/src/ralf/datasets.py	244	heuristic	build_retrieved_batch: 16 consecutive statement lines
-models/ralf/src/ralf/image_processing_ralf.py	102	raise-block	ordinary code follows raise on line 103 without a blank line
-models/ralf/src/ralf/image_processing_ralf.py	40	raise-block	ordinary code follows raise on line 41 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	1066	raise-block	ordinary code follows raise on line 1067 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	123	raise-block	ordinary code follows raise on line 124 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	1259	raise-block	ordinary code follows raise on line 1260 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	184	raise-block	ordinary code follows raise on line 185 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	296	raise-block	ordinary code follows raise on line 297 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	314	raise-block	ordinary code follows raise on line 315 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	436	raise-block	ordinary code follows raise on line 437 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	716	raise-block	ordinary code follows raise on line 717 without a blank line
-models/ralf/src/ralf/modeling_ralf.py	976	heuristic	__init__: 17 consecutive statement lines
-models/ralf/src/ralf/pipeline_ralf.py	242	raise-block	ordinary code follows raise on line 243 without a blank line
-models/ralf/src/ralf/processing_ralf.py	231	raise-block	ordinary code follows raise on line 232 without a blank line
-models/ralf/src/ralf/tokenization_ralf.py	216	raise-block	ordinary code follows raise on line 217 without a blank line
-models/ralf/src/ralf/tokenization_ralf.py	270	raise-block	ordinary code follows raise on line 271 without a blank line
-models/ralf/src/ralf/tokenization_ralf.py	49	heuristic	__init__: 16 consecutive statement lines
-models/ralf/src/ralf/tokenization_ralf.py	54	raise-block	ordinary code follows raise on line 55 without a blank line
-models/smarttext/src/smarttext/candidate_generation.py	73	raise-block	ordinary code follows raise on line 74 without a blank line
-models/smarttext/src/smarttext/configuration_smarttext.py	113	heuristic	__init__: 34 consecutive statement lines
-models/smarttext/src/smarttext/conversion.py	96	raise-block	ordinary code follows raise on line 97 without a blank line
-models/smarttext/src/smarttext/image_processing_smarttext.py	141	heuristic	_ensure_pil_batch: 16 consecutive statement lines
-models/smarttext/src/smarttext/image_processing_smarttext.py	89	raise-block	ordinary code follows raise on line 90 without a blank line
-models/smarttext/src/smarttext/modeling_smarttext.py	103	raise-block	ordinary code follows raise on line 104 without a blank line
-models/smarttext/src/smarttext/modeling_smarttext.py	294	raise-block	ordinary code follows raise on line 295 without a blank line
-models/smarttext/src/smarttext/pipeline_smarttext.py	345	raise-block	ordinary code follows raise on line 346 without a blank line
-models/smarttext/src/smarttext/pipeline_smarttext.py	73	raise-block	ordinary code follows raise on line 74 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	186	raise-block	ordinary code follows raise on line 187 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	194	raise-block	ordinary code follows raise on line 195 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	283	raise-block	ordinary code follows raise on line 284 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	309	raise-block	ordinary code follows raise on line 310 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	340	heuristic	_ensure_image_list: 18 consecutive statement lines
-models/smarttext/src/smarttext/processing_smarttext.py	380	raise-block	ordinary code follows raise on line 381 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	384	raise-block	ordinary code follows raise on line 385 without a blank line
-models/smarttext/src/smarttext/processing_smarttext.py	387	raise-block	ordinary code follows raise on line 388 without a blank line
-scripts/check_draft_prs.py	125	raise-block	ordinary code follows raise on line 126 without a blank line
-scripts/check_draft_prs.py	136	raise-block	ordinary code follows raise on line 137 without a blank line
-scripts/check_draft_prs.py	359	raise-block	ordinary code follows raise on line 360 without a blank line
-scripts/check_draft_prs.py	644	raise-block	ordinary code follows raise on line 645 without a blank line
-scripts/check_jaxtyping_annotations.py	679	raise-block	ordinary code follows raise on line 680 without a blank line
-scripts/check_jaxtyping_annotations.py	721	heuristic	check_jaxtyping_annotations: 17 consecutive statement lines
-scripts/check_jaxtyping_annotations.py	741	heuristic	check_jaxtyping_aliases: 17 consecutive statement lines
-scripts/check_jaxtyping_annotations.py	761	heuristic	check_object_annotations: 17 consecutive statement lines
-scripts/check_jaxtyping_annotations.py	781	heuristic	check_weak_cast_types: 17 consecutive statement lines
-scripts/check_model_readmes.py	1033	raise-block	ordinary code follows raise on line 1034 without a blank line
-scripts/check_model_readmes.py	1066	raise-block	ordinary code follows raise on line 1067 without a blank line
-scripts/check_model_readmes.py	1075	raise-block	ordinary code follows raise on line 1076 without a blank line
-scripts/check_model_readmes.py	1082	raise-block	ordinary code follows raise on line 1083 without a blank line
-scripts/check_model_readmes.py	1101	raise-block	ordinary code follows raise on line 1102 without a blank line
-scripts/check_model_readmes.py	1131	raise-block	ordinary code follows raise on line 1132 without a blank line
-scripts/check_model_readmes.py	1150	raise-block	ordinary code follows raise on line 1151 without a blank line
-scripts/check_model_readmes.py	1215	raise-block	ordinary code follows raise on line 1216 without a blank line
-scripts/check_model_readmes.py	1250	raise-block	ordinary code follows raise on line 1251 without a blank line
-scripts/check_model_readmes.py	1255	raise-block	ordinary code follows raise on line 1256 without a blank line
-scripts/check_model_readmes.py	1281	raise-block	ordinary code follows raise on line 1282 without a blank line
-scripts/check_model_readmes.py	1286	raise-block	ordinary code follows raise on line 1287 without a blank line
-scripts/check_model_readmes.py	1297	raise-block	ordinary code follows raise on line 1298 without a blank line
-scripts/check_model_readmes.py	1304	raise-block	ordinary code follows raise on line 1305 without a blank line
-scripts/check_model_readmes.py	1310	raise-block	ordinary code follows raise on line 1311 without a blank line
-scripts/check_model_readmes.py	1314	raise-block	ordinary code follows raise on line 1315 without a blank line
-scripts/check_model_readmes.py	1321	raise-block	ordinary code follows raise on line 1322 without a blank line
-scripts/check_model_readmes.py	1336	raise-block	ordinary code follows raise on line 1337 without a blank line
-scripts/check_model_readmes.py	1341	raise-block	ordinary code follows raise on line 1342 without a blank line
-scripts/check_model_readmes.py	1347	raise-block	ordinary code follows raise on line 1348 without a blank line
-scripts/check_model_readmes.py	1354	raise-block	ordinary code follows raise on line 1355 without a blank line
-scripts/check_model_readmes.py	1359	raise-block	ordinary code follows raise on line 1360 without a blank line
-scripts/check_model_readmes.py	1362	raise-block	ordinary code follows raise on line 1363 without a blank line
-scripts/check_model_readmes.py	1367	raise-block	ordinary code follows raise on line 1368 without a blank line
-scripts/check_model_readmes.py	1369	raise-block	ordinary code follows raise on line 1370 without a blank line
-scripts/check_model_readmes.py	1417	raise-block	ordinary code follows raise on line 1418 without a blank line
-scripts/check_model_readmes.py	1466	raise-block	ordinary code follows raise on line 1467 without a blank line
-scripts/check_model_readmes.py	1469	raise-block	ordinary code follows raise on line 1470 without a blank line
-scripts/check_model_readmes.py	1472	raise-block	ordinary code follows raise on line 1473 without a blank line
-scripts/check_model_readmes.py	1475	raise-block	ordinary code follows raise on line 1476 without a blank line
-scripts/check_model_readmes.py	1477	raise-block	ordinary code follows raise on line 1478 without a blank line
-scripts/check_model_readmes.py	1479	raise-block	ordinary code follows raise on line 1480 without a blank line
-scripts/check_model_readmes.py	1498	heuristic	check: 34 consecutive statement lines
-scripts/check_model_readmes.py	367	raise-block	ordinary code follows raise on line 368 without a blank line
-scripts/check_model_readmes.py	370	raise-block	ordinary code follows raise on line 371 without a blank line
-scripts/check_model_readmes.py	389	raise-block	ordinary code follows raise on line 390 without a blank line
-scripts/check_model_readmes.py	394	raise-block	ordinary code follows raise on line 395 without a blank line
-scripts/check_model_readmes.py	442	raise-block	ordinary code follows raise on line 443 without a blank line
-scripts/check_model_readmes.py	659	raise-block	ordinary code follows raise on line 660 without a blank line
-scripts/check_model_readmes.py	664	raise-block	ordinary code follows raise on line 665 without a blank line
-scripts/check_model_readmes.py	678	raise-block	ordinary code follows raise on line 679 without a blank line
-scripts/check_model_readmes.py	698	raise-block	ordinary code follows raise on line 699 without a blank line
-scripts/check_model_readmes.py	704	raise-block	ordinary code follows raise on line 705 without a blank line
-scripts/check_model_readmes.py	707	raise-block	ordinary code follows raise on line 708 without a blank line
-scripts/check_model_readmes.py	718	raise-block	ordinary code follows raise on line 719 without a blank line
-scripts/check_model_readmes.py	751	raise-block	ordinary code follows raise on line 752 without a blank line
-scripts/check_model_readmes.py	754	raise-block	ordinary code follows raise on line 755 without a blank line
-scripts/check_model_readmes.py	759	raise-block	ordinary code follows raise on line 760 without a blank line
-scripts/check_model_readmes.py	764	raise-block	ordinary code follows raise on line 765 without a blank line
-scripts/check_model_readmes.py	791	raise-block	ordinary code follows raise on line 792 without a blank line
-scripts/check_model_readmes.py	797	raise-block	ordinary code follows raise on line 798 without a blank line
-scripts/check_model_readmes.py	819	raise-block	ordinary code follows raise on line 820 without a blank line
-scripts/check_model_readmes.py	830	raise-block	ordinary code follows raise on line 831 without a blank line
-scripts/check_model_readmes.py	841	raise-block	ordinary code follows raise on line 842 without a blank line
-scripts/check_model_readmes.py	862	raise-block	ordinary code follows raise on line 863 without a blank line
-scripts/check_model_readmes.py	872	raise-block	ordinary code follows raise on line 873 without a blank line
-scripts/check_model_readmes.py	889	raise-block	ordinary code follows raise on line 890 without a blank line
-scripts/check_model_readmes.py	897	raise-block	ordinary code follows raise on line 898 without a blank line
-scripts/check_model_readmes.py	905	raise-block	ordinary code follows raise on line 906 without a blank line
-scripts/check_model_readmes.py	964	raise-block	ordinary code follows raise on line 965 without a blank line
-scripts/check_model_readmes.py	973	raise-block	ordinary code follows raise on line 974 without a blank line
-scripts/check_model_readmes.py	977	raise-block	ordinary code follows raise on line 978 without a blank line
-scripts/check_model_readmes.py	980	raise-block	ordinary code follows raise on line 981 without a blank line
-scripts/check_model_readmes.py	984	raise-block	ordinary code follows raise on line 985 without a blank line
-scripts/check_model_readmes.py	989	raise-block	ordinary code follows raise on line 990 without a blank line
-scripts/check_model_readmes.py	998	raise-block	ordinary code follows raise on line 999 without a blank line
-scripts/check_module_naming.py	225	raise-block	ordinary code follows raise on line 226 without a blank line
-scripts/check_module_naming.py	240	heuristic	check_module_naming: 16 consecutive statement lines
-scripts/check_pr_issue_reference.py	139	raise-block	ordinary code follows raise on line 140 without a blank line
-scripts/check_reader_facing_references.py	124	heuristic	mask_markdown_links: 19 consecutive statement lines
-scripts/check_reader_facing_references.py	194	heuristic	_empty_marker: 17 consecutive statement lines
-scripts/check_reader_facing_references.py	214	heuristic	_unfenced_lines: 19 consecutive statement lines
-scripts/check_reader_facing_references.py	288	heuristic	violations_for_document: 25 consecutive statement lines
-scripts/check_reader_facing_references.py	96	heuristic	reference_definitions: 20 consecutive statement lines
-scripts/check_readme_badges.py	194	raise-block	ordinary code follows raise on line 195 without a blank line
-scripts/check_readme_badges.py	211	heuristic	_allowed_logos: 57 consecutive statement lines
-scripts/check_readme_badges.py	271	heuristic	_expected_color: 67 consecutive statement lines
-scripts/check_readme_badges.py	351	raise-block	ordinary code follows raise on line 352 without a blank line
-scripts/check_readme_badges.py	355	raise-block	ordinary code follows raise on line 356 without a blank line
-scripts/check_readme_badges.py	371	raise-block	ordinary code follows raise on line 372 without a blank line
-scripts/check_readme_badges.py	373	raise-block	ordinary code follows raise on line 374 without a blank line
-scripts/check_readme_badges.py	385	raise-block	ordinary code follows raise on line 386 without a blank line
-scripts/check_readme_badges.py	396	raise-block	ordinary code follows raise on line 397 without a blank line
-scripts/check_readme_badges.py	403	raise-block	ordinary code follows raise on line 404 without a blank line
-scripts/check_readme_badges.py	410	raise-block	ordinary code follows raise on line 411 without a blank line
-scripts/check_readme_badges.py	415	raise-block	ordinary code follows raise on line 416 without a blank line
-scripts/check_readme_badges.py	447	raise-block	ordinary code follows raise on line 448 without a blank line
-scripts/check_readme_badges.py	467	raise-block	ordinary code follows raise on line 468 without a blank line
-scripts/check_readme_badges.py	489	raise-block	ordinary code follows raise on line 490 without a blank line
-scripts/check_readme_badges.py	500	raise-block	ordinary code follows raise on line 501 without a blank line
-scripts/check_readme_badges.py	506	raise-block	ordinary code follows raise on line 507 without a blank line
-scripts/check_src_vendor_language.py	64	raise-block	ordinary code follows raise on line 65 without a blank line
-scripts/check_src_vendor_language.py	78	heuristic	main: 16 consecutive statement lines
-scripts/check_training_doc_template.py	111	heuristic	iter_tables: 22 consecutive statement lines
-scripts/check_training_doc_template.py	141	heuristic	supported_checkpoint_datasets: 16 consecutive statement lines
-scripts/check_training_doc_template.py	174	heuristic	is_valid_status: 16 consecutive statement lines
-scripts/check_training_doc_template.py	83	heuristic	heading_sections: 17 consecutive statement lines
-scripts/check_training_stage_evidence.py	180	heuristic	iter_unfenced_lines: 16 consecutive statement lines
-scripts/check_training_stage_evidence.py	201	heuristic	iter_heading_sections_with_level: 19 consecutive statement lines
-scripts/check_training_stage_evidence.py	293	heuristic	parse_stage_evidence: 16 consecutive statement lines
-scripts/check_training_stage_evidence.py	389	raise-block	ordinary code follows raise on line 390 without a blank line
-scripts/gen_ref_pages.py	1106	raise-block	ordinary code follows raise on line 1107 without a blank line
-scripts/gen_ref_pages.py	407	raise-block	ordinary code follows raise on line 408 without a blank line
-scripts/gen_ref_pages.py	415	raise-block	ordinary code follows raise on line 416 without a blank line
-scripts/gen_ref_pages.py	420	raise-block	ordinary code follows raise on line 421 without a blank line
-scripts/gen_ref_pages.py	430	raise-block	ordinary code follows raise on line 431 without a blank line
-scripts/gen_ref_pages.py	455	raise-block	ordinary code follows raise on line 456 without a blank line
-scripts/gen_ref_pages.py	467	raise-block	ordinary code follows raise on line 468 without a blank line
-scripts/gen_ref_pages.py	480	raise-block	ordinary code follows raise on line 481 without a blank line
-scripts/gen_ref_pages.py	485	raise-block	ordinary code follows raise on line 486 without a blank line
-scripts/gen_ref_pages.py	611	raise-block	ordinary code follows raise on line 612 without a blank line
-scripts/gen_ref_pages.py	630	heuristic	imported_public_modules: 20 consecutive statement lines
-scripts/gen_ref_pages.py	820	raise-block	ordinary code follows raise on line 821 without a blank line
-scripts/gen_ref_pages.py	921	raise-block	ordinary code follows raise on line 922 without a blank line
-scripts/gen_ref_pages.py	960	heuristic	model_overview_venue: 16 consecutive statement lines
-scripts/gen_ref_pages.py	997	raise-block	ordinary code follows raise on line 998 without a blank line
-scripts/verify_badge_rendering.py	101	raise-block	ordinary code follows raise on line 102 without a blank line
-scripts/verify_badge_rendering.py	103	raise-block	ordinary code follows raise on line 104 without a blank line
-scripts/verify_badge_rendering.py	107	raise-block	ordinary code follows raise on line 108 without a blank line
-scripts/verify_badge_rendering.py	68	raise-block	ordinary code follows raise on line 69 without a blank line
-scripts/verify_badge_rendering.py	97	raise-block	ordinary code follows raise on line 98 without a blank line
-scripts/verify_badge_rendering.py	99	raise-block	ordinary code follows raise on line 100 without a blank line
-scripts/verify_evaluate_layout_metrics.py	181	raise-block	ordinary code follows raise on line 182 without a blank line
-scripts/verify_evaluate_layout_metrics.py	204	raise-block	ordinary code follows raise on line 205 without a blank line
-scripts/verify_evaluate_layout_metrics.py	440	raise-block	ordinary code follows raise on line 441 without a blank line
+# Baseline counts for the semantic blank-line checker.
+# Remove counts as violations are fixed; do not add counts to hide new violations.
+lib/laygen/src/laygen/agents/core.py	raise-block	4
+lib/laygen/src/laygen/common/bbox.py	raise-block	1
+lib/laygen/src/laygen/common/discrete.py	raise-block	2
+lib/laygen/src/laygen/common/vendor.py	raise-block	1
+lib/laygen/src/laygen/pipelines/base.py	raise-block	6
+models/basnet/src/basnet/configuration_basnet.py	raise-block	1
+models/basnet/src/basnet/conversion.py	raise-block	1
+models/basnet/src/basnet/image_processing_basnet.py	raise-block	4
+models/basnet/src/basnet/modeling_basnet.py	heuristic	4
+models/cgb-dm/src/cgb_dm/configuration_cgb_dm.py	heuristic	1
+models/cgb-dm/src/cgb_dm/configuration_cgb_dm.py	raise-block	1
+models/cgb-dm/src/cgb_dm/conversion.py	raise-block	1
+models/cgb-dm/src/cgb_dm/data.py	raise-block	1
+models/cgb-dm/src/cgb_dm/modeling_cgb_dm.py	raise-block	1
+models/cgb-dm/src/cgb_dm/pipeline_cgb_dm.py	raise-block	3
+models/cgb-dm/src/cgb_dm/processing_cgb_dm.py	raise-block	7
+models/cgb-dm/src/cgb_dm/scheduling_cgb_dm.py	heuristic	1
+models/cgb-dm/src/cgb_dm/training/datamodule.py	raise-block	2
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	heuristic	1
+models/coarse-to-fine/src/coarse_to_fine/configuration_coarse_to_fine.py	raise-block	1
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	heuristic	1
+models/coarse-to-fine/src/coarse_to_fine/hierarchy.py	raise-block	1
+models/coarse-to-fine/src/coarse_to_fine/pipeline_coarse_to_fine.py	raise-block	1
+models/coarse-to-fine/src/coarse_to_fine/processing_coarse_to_fine.py	raise-block	3
+models/dlt/src/dlt/configuration_dlt.py	heuristic	1
+models/dlt/src/dlt/configuration_dlt.py	raise-block	1
+models/dlt/src/dlt/conversion.py	raise-block	1
+models/dlt/src/dlt/pipeline_dlt.py	raise-block	3
+models/dlt/src/dlt/processing_dlt.py	raise-block	2
+models/dlt/src/dlt/scheduling_dlt.py	raise-block	1
+models/dlt/src/dlt/training/callbacks.py	raise-block	3
+models/dlt/src/dlt/training/dataset.py	heuristic	1
+models/dlt/src/dlt/training/lightning_module.py	raise-block	1
+models/ds-gan/src/ds_gan/configuration_ds_gan.py	raise-block	1
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	raise-block	3
+models/ds-gan/src/ds_gan/pipeline_ds_gan.py	raise-block	2
+models/ds-gan/src/ds_gan/processing_ds_gan.py	heuristic	2
+models/ds-gan/src/ds_gan/processing_ds_gan.py	raise-block	6
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	heuristic	1
+models/flex-dm/src/flex_dm/configuration_flex_dm.py	raise-block	1
+models/flex-dm/src/flex_dm/data_specs.py	heuristic	1
+models/flex-dm/src/flex_dm/masking.py	heuristic	1
+models/flex-dm/src/flex_dm/masking.py	raise-block	4
+models/flex-dm/src/flex_dm/modeling_flex_dm.py	raise-block	3
+models/flex-dm/src/flex_dm/pipeline_flex_dm.py	raise-block	3
+models/flex-dm/src/flex_dm/processing_flex_dm.py	raise-block	2
+models/flex-dm/src/flex_dm/tf_checkpoint.py	raise-block	1
+models/housegan/src/housegan/configuration_housegan.py	heuristic	1
+models/housegan/src/housegan/graph_schema.py	raise-block	5
+models/housegan/src/housegan/modeling_housegan.py	raise-block	3
+models/housegan/src/housegan/pipeline_housegan.py	raise-block	1
+models/housegan/src/housegan/processing_housegan.py	raise-block	4
+models/housegan/src/housegan/vendor_state_dict.py	raise-block	1
+models/lace/src/lace/constraints.py	heuristic	1
+models/lace/src/lace/conversion.py	raise-block	2
+models/lace/src/lace/pipeline_lace.py	heuristic	1
+models/lace/src/lace/pipeline_lace.py	raise-block	3
+models/lace/src/lace/processing_lace.py	raise-block	1
+models/layousyn/src/layousyn/configuration_layousyn.py	raise-block	1
+models/layousyn/src/layousyn/conversion.py	raise-block	2
+models/layousyn/src/layousyn/modeling_layousyn.py	heuristic	1
+models/layousyn/src/layousyn/modeling_layousyn.py	raise-block	2
+models/layousyn/src/layousyn/pipeline_layousyn.py	raise-block	2
+models/layousyn/src/layousyn/processing_layousyn.py	raise-block	11
+models/layousyn/src/layousyn/scheduling_layousyn.py	heuristic	1
+models/layousyn/src/layousyn/scheduling_layousyn.py	raise-block	5
+models/layout-action/src/layout_action/configuration_layout_action.py	raise-block	2
+models/layout-action/src/layout_action/conversion.py	raise-block	1
+models/layout-action/src/layout_action/modeling_layout_action.py	raise-block	2
+models/layout-action/src/layout_action/processing_layout_action.py	raise-block	3
+models/layout-action/src/layout_action/tokenization_layout_action.py	heuristic	3
+models/layout-action/src/layout_action/tokenization_layout_action.py	raise-block	4
+models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	heuristic	1
+models/layout-corrector/src/layout_corrector/configuration_layout_corrector.py	raise-block	13
+models/layout-corrector/src/layout_corrector/modeling_layout_corrector.py	raise-block	3
+models/layout-corrector/src/layout_corrector/pipeline_layout_corrector.py	raise-block	1
+models/layout-corrector/src/layout_corrector/sampling.py	raise-block	1
+models/layout-detr/src/layout_detr/configuration_layout_detr.py	heuristic	1
+models/layout-detr/src/layout_detr/datasets.py	raise-block	2
+models/layout-detr/src/layout_detr/image_processing_layout_detr.py	raise-block	1
+models/layout-detr/src/layout_detr/modeling_layout_detr.py	raise-block	8
+models/layout-detr/src/layout_detr/pipeline_layout_detr.py	raise-block	5
+models/layout-detr/src/layout_detr/postprocessing.py	raise-block	2
+models/layout-detr/src/layout_detr/processing_layout_detr.py	raise-block	15
+models/layout-detr/src/layout_detr/vendor_state.py	raise-block	1
+models/layout-dm/src/layout_dm/configuration_layout_dm.py	heuristic	1
+models/layout-dm/src/layout_dm/conversion.py	raise-block	2
+models/layout-dm/src/layout_dm/pipeline_layout_dm.py	raise-block	2
+models/layout-dm/src/layout_dm/processing_layout_dm.py	raise-block	1
+models/layout-dm/src/layout_dm/tokenization_layout_dm.py	raise-block	11
+models/layout-dm/src/layout_dm/training/datamodule.py	heuristic	1
+models/layout-dm/src/layout_dm/training/datamodule.py	raise-block	3
+models/layout-dm/src/layout_dm/training/dataset.py	raise-block	5
+models/layout-dm/src/layout_dm/training/lightning_module.py	heuristic	2
+models/layout-fid/src/layout_fid/configuration_layout_fid.py	heuristic	1
+models/layout-fid/src/layout_fid/configuration_layout_fid.py	raise-block	3
+models/layout-fid/src/layout_fid/conversion.py	raise-block	1
+models/layout-fid/src/layout_fid/evaluation.py	heuristic	1
+models/layout-fid/src/layout_fid/evaluation.py	raise-block	3
+models/layout-fid/src/layout_fid/modeling_layout_fid.py	raise-block	2
+models/layout-fid/src/layout_fid/pipeline_layout_fid.py	raise-block	5
+models/layout-fid/src/layout_fid/processing_layout_fid.py	raise-block	2
+models/layout-fid/src/layout_fid/testing.py	raise-block	1
+models/layout-flow/src/layout_flow/configuration_layout_flow.py	heuristic	1
+models/layout-flow/src/layout_flow/configuration_layout_flow.py	raise-block	1
+models/layout-flow/src/layout_flow/modeling_layout_flow.py	raise-block	4
+models/layout-flow/src/layout_flow/processing_layout_flow.py	raise-block	4
+models/layout-flow/src/layout_flow/training/datamodule.py	raise-block	1
+models/layout-flow/src/layout_flow/training/dataset.py	raise-block	2
+models/layout-flow/src/layout_flow/training/lightning_module.py	raise-block	3
+models/layout-gpt/src/layout_gpt/agent.py	raise-block	1
+models/layout-gpt/src/layout_gpt/exemplars.py	raise-block	2
+models/layoutdiffusion/src/layoutdiffusion/conditioning.py	raise-block	2
+models/layoutdiffusion/src/layoutdiffusion/configuration_layoutdiffusion.py	heuristic	1
+models/layoutdiffusion/src/layoutdiffusion/conversion.py	raise-block	3
+models/layoutdiffusion/src/layoutdiffusion/pipeline_layoutdiffusion.py	raise-block	2
+models/layoutdiffusion/src/layoutdiffusion/processing_layoutdiffusion.py	raise-block	1
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	heuristic	4
+models/layoutdiffusion/src/layoutdiffusion/scheduling_layoutdiffusion.py	raise-block	2
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	heuristic	2
+models/layoutdiffusion/src/layoutdiffusion/tokenization_layoutdiffusion.py	raise-block	4
+models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	heuristic	1
+models/layoutdiffusion/src/layoutdiffusion/training/datamodule.py	raise-block	5
+models/layoutdiffusion/src/layoutdiffusion/training/dataset.py	raise-block	1
+models/layoutdiffusion/src/layoutdiffusion/training/lightning_module.py	heuristic	1
+models/layoutdiffusion/src/layoutdiffusion/training/lightning_module.py	raise-block	2
+models/layoutdiffusion/src/layoutdiffusion/training/vocab.py	raise-block	1
+models/layoutformerpp/src/layoutformerpp/configuration_layoutformerpp.py	heuristic	1
+models/layoutformerpp/src/layoutformerpp/conversion.py	raise-block	1
+models/layoutformerpp/src/layoutformerpp/geometry.py	raise-block	1
+models/layoutformerpp/src/layoutformerpp/modeling_layoutformerpp.py	raise-block	3
+models/layoutformerpp/src/layoutformerpp/processing_layoutformerpp.py	raise-block	10
+models/layoutformerpp/src/layoutformerpp/serialization.py	heuristic	1
+models/layoutformerpp/src/layoutformerpp/serialization.py	raise-block	1
+models/layoutformerpp/src/layoutformerpp/tasks.py	raise-block	1
+models/layoutganpp/src/layoutganpp/datasets.py	raise-block	1
+models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	raise-block	5
+models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	raise-block	3
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	heuristic	1
+models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	raise-block	6
+models/layoutprompter/src/layoutprompter/parsing.py	raise-block	4
+models/layoutvae/src/layoutvae/configuration_layoutvae.py	raise-block	1
+models/layoutvae/src/layoutvae/conversion.py	raise-block	2
+models/layoutvae/src/layoutvae/modeling_layoutvae.py	raise-block	2
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	heuristic	1
+models/layoutvae/src/layoutvae/pipeline_layoutvae.py	raise-block	4
+models/layoutvae/src/layoutvae/processing_layoutvae.py	raise-block	6
+models/ltnet/src/ltnet/configuration_ltnet.py	heuristic	1
+models/ltnet/src/ltnet/conversion.py	raise-block	2
+models/ltnet/src/ltnet/modeling_lt_compatible.py	heuristic	1
+models/ltnet/src/ltnet/modeling_lt_compatible.py	raise-block	5
+models/ltnet/src/ltnet/modeling_ltnet.py	raise-block	1
+models/ltnet/src/ltnet/processing_ltnet.py	heuristic	2
+models/ltnet/src/ltnet/processing_ltnet.py	raise-block	5
+models/ltnet/src/ltnet/tokenization_ltnet.py	raise-block	1
+models/parse-then-place/src/parse_then_place/configuration_parse_then_place.py	heuristic	1
+models/parse-then-place/src/parse_then_place/pipeline_parse_then_place.py	raise-block	6
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	heuristic	1
+models/parse-then-place/src/parse_then_place/processing_parse_then_place.py	raise-block	4
+models/posterllama/src/posterllama/configuration_posterllama.py	heuristic	1
+models/posterllama/src/posterllama/image_processing_posterllama.py	raise-block	2
+models/posterllama/src/posterllama/modeling_posterllama.py	raise-block	1
+models/posterllama/src/posterllama/pipeline_posterllama.py	raise-block	2
+models/posterllama/src/posterllama/postprocessing.py	raise-block	1
+models/posterllama/src/posterllama/processing_posterllama.py	heuristic	1
+models/posterllama/src/posterllama/processing_posterllama.py	raise-block	4
+models/posterllava/src/posterllava/configuration_posterllava.py	raise-block	3
+models/posterllava/src/posterllava/generation_posterllava.py	raise-block	2
+models/posterllava/src/posterllava/image_processing_posterllava.py	raise-block	1
+models/posterllava/src/posterllava/pipeline_posterllava.py	raise-block	9
+models/posterllava/src/posterllava/processing_posterllava.py	heuristic	2
+models/posterllava/src/posterllava/processing_posterllava.py	raise-block	9
+models/postero/src/postero/agent.py	raise-block	2
+models/postero/src/postero/exemplars.py	raise-block	1
+models/postero/src/postero/parser.py	raise-block	3
+models/postero/src/postero/records.py	raise-block	3
+models/ralf/src/ralf/configuration_ralf.py	heuristic	1
+models/ralf/src/ralf/configuration_ralf.py	raise-block	1
+models/ralf/src/ralf/datasets.py	heuristic	1
+models/ralf/src/ralf/datasets.py	raise-block	2
+models/ralf/src/ralf/image_processing_ralf.py	raise-block	2
+models/ralf/src/ralf/modeling_ralf.py	heuristic	1
+models/ralf/src/ralf/modeling_ralf.py	raise-block	8
+models/ralf/src/ralf/pipeline_ralf.py	raise-block	1
+models/ralf/src/ralf/processing_ralf.py	raise-block	1
+models/ralf/src/ralf/tokenization_ralf.py	heuristic	1
+models/ralf/src/ralf/tokenization_ralf.py	raise-block	3
+models/smarttext/src/smarttext/candidate_generation.py	raise-block	1
+models/smarttext/src/smarttext/configuration_smarttext.py	heuristic	1
+models/smarttext/src/smarttext/conversion.py	raise-block	1
+models/smarttext/src/smarttext/image_processing_smarttext.py	heuristic	1
+models/smarttext/src/smarttext/image_processing_smarttext.py	raise-block	1
+models/smarttext/src/smarttext/modeling_smarttext.py	raise-block	2
+models/smarttext/src/smarttext/pipeline_smarttext.py	raise-block	2
+models/smarttext/src/smarttext/processing_smarttext.py	heuristic	1
+models/smarttext/src/smarttext/processing_smarttext.py	raise-block	7
+scripts/check_draft_prs.py	raise-block	4
+scripts/check_jaxtyping_annotations.py	heuristic	4
+scripts/check_jaxtyping_annotations.py	raise-block	1
+scripts/check_model_readmes.py	heuristic	1
+scripts/check_model_readmes.py	raise-block	65
+scripts/check_module_naming.py	heuristic	1
+scripts/check_module_naming.py	raise-block	1
+scripts/check_pr_issue_reference.py	raise-block	1
+scripts/check_reader_facing_references.py	heuristic	5
+scripts/check_readme_badges.py	heuristic	2
+scripts/check_readme_badges.py	raise-block	15
+scripts/check_semantic_blank_lines.py	raise-block	4
+scripts/check_src_vendor_language.py	heuristic	1
+scripts/check_src_vendor_language.py	raise-block	1
+scripts/check_training_doc_template.py	heuristic	4
+scripts/check_training_stage_evidence.py	heuristic	3
+scripts/check_training_stage_evidence.py	raise-block	1
+scripts/gen_ref_pages.py	heuristic	2
+scripts/gen_ref_pages.py	raise-block	13
+scripts/verify_badge_rendering.py	raise-block	6
+scripts/verify_evaluate_layout_metrics.py	raise-block	3

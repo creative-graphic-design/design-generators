@@ -58,6 +58,14 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   module-level aliases such as `FooTensor = Float[...]` or
   `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in
   `scripts/jaxtyping_alias_baseline.txt`.
+- Keep `__init__` bodies to variable initialization only. Make data-holding
+  classes `dataclass`es; put unavoidable initialization logic in
+  `__post_init__` or a classmethod factory. Consider pydantic models at
+  serialization boundaries where runtime validation pays for itself; do not
+  duplicate validation LightningCLI/jsonargparse already performs. Classes
+  bound by framework constructor contracts (`PretrainedConfig`,
+  `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
+
 - Within function bodies, separate semantic units (configuration branches,
   submodule construction, transformations, and return preparation) with single
   blank lines; always leave a blank line after a raise block when ordinary code

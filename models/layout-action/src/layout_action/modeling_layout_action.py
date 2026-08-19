@@ -22,8 +22,10 @@ from .generation_layout_action import (
 class LayoutActionCausalSelfAttention(nn.Module):
     """Checkpoint-compatible masked multi-head self-attention."""
 
+    mask: Float[torch.Tensor, "1 1 block block"]
+
     def __init__(
-        self, config: LayoutActionConfig, mask: Bool[torch.Tensor, "1 1 block block"]
+        self, config: LayoutActionConfig, mask: Float[torch.Tensor, "1 1 block block"]
     ) -> None:
         """Initialize key, query, value, and output projections."""
         super().__init__()
@@ -50,8 +52,7 @@ class LayoutActionCausalSelfAttention(nn.Module):
         query = query.transpose(1, 2)
         value = value.transpose(1, 2)
         att = (query @ key.transpose(-2, -1)) * (1.0 / math.sqrt(key.size(-1)))
-        mask = cast(torch.Tensor, self.mask)
-        att = att.masked_fill(mask[:, :, :steps, :steps] == 0, float("-inf"))
+        att = att.masked_fill(self.mask[:, :, :steps, :steps] == 0, float("-inf"))
         att = F.softmax(att, dim=-1)
         att = self.attn_drop(att)
         y = att @ value
@@ -63,7 +64,7 @@ class LayoutActionBlock(nn.Module):
     """Checkpoint-compatible GPT block."""
 
     def __init__(
-        self, config: LayoutActionConfig, mask: Bool[torch.Tensor, "1 1 block block"]
+        self, config: LayoutActionConfig, mask: Float[torch.Tensor, "1 1 block block"]
     ) -> None:
         """Initialize layer norms, self-attention, and MLP."""
         super().__init__()

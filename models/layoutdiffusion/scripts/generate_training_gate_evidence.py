@@ -181,8 +181,8 @@ def collect_package_evidence(
         },
         "trajectory": trajectory,
         "batch_heads": batch_heads,
-        "lt_history": cast(torch.Tensor, module.lt_history).detach().cpu().clone(),
-        "lt_count": cast(torch.Tensor, module.lt_count).detach().cpu().clone(),
+        "lt_history": module.lt_history.detach().cpu().clone(),
+        "lt_count": module.lt_count.detach().cpu().clone(),
         "ema": module.ema_state_dict(),
         "model_state": {
             key: value.detach().cpu()

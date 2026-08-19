@@ -42,6 +42,8 @@ def _get_activation_fn(
 class PositionalEncoding(nn.Module):
     """Sinusoidal positional encoding used by the LayoutFlow backbone."""
 
+    pe: Float[torch.Tensor, "1 tokens channels"]
+
     def __init__(
         self, d_model: int, dropout: float = 0.1, max_len: int = 10000
     ) -> None:
@@ -55,7 +57,6 @@ class PositionalEncoding(nn.Module):
         pe = torch.zeros(1, max_len, d_model)
         pe[0, :, 0::2] = torch.sin(position * div_term)
         pe[0, :, 1::2] = torch.cos(position * div_term)
-        self.pe: Float[torch.Tensor, "1 tokens channels"]
         self.register_buffer("pe", pe)
 
     def forward(

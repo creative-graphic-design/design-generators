@@ -8,12 +8,19 @@ later line requires a blank line unless that code is a block-continuation
 keyword (``except``, ``elif``, ``else``, ``finally``, or an AST-confirmed
 ``match`` ``case`` clause).
 
-The baseline is shrink-only. The checker fails when its entries differ from the
-current scan, and once a baseline exists in committed ``HEAD``, it fails if the
-working baseline adds entries relative to that commit. This permits only
-removing resolved violations and prevents hiding a new violation by appending
-it to the baseline. Initial baseline creation is allowed when ``HEAD`` has no
-baseline file yet.
+The baseline is a shrink-only ratchet keyed by ``(file, rule)``. Each
+tab-separated entry stores a violation count rather than a line number, so
+source edits that move a violation do not churn the baseline. This deliberately
+accepts a same-file swap (one residual violation fixed and one added) when the
+file/rule count is unchanged; that is the granularity of this heuristic.
+
+The checker fails when the working baseline counts differ from the current scan.
+Once a count-format baseline exists in committed ``HEAD``, it also fails if a
+working count is added or increased relative to that commit. This permits only
+decreasing or removing residual counts and prevents hiding a new violation by
+appending it to the baseline. A missing or legacy location-format baseline in
+``HEAD`` is treated as an initial baseline, which permits the merge that first
+introduces this checker to establish counts for content inherited from main.
 """
 
 from __future__ import annotations
@@ -24,6 +31,7 @@ import io
 import subprocess
 import sys
 import tokenize
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,10 +56,6 @@ class Violation:
     line: int
     rule: str
     detail: str
-
-    def as_baseline_entry(self) -> str:
-        """Return the stable tab-separated baseline representation."""
-        return f"{self.path}\t{self.line}\t{self.rule}\t{self.detail}"
 
 
 def source_files(root: Path) -> list[Path]:
@@ -225,33 +229,50 @@ def violations_for_file(root: Path, path: Path) -> Iterator[Violation]:
     yield from _raise_violations(tree, source, relative_path)
 
 
-def current_entries(root: Path) -> set[str]:
-    """Return all current violations as baseline-compatible strings."""
-    return {
-        violation.as_baseline_entry()
-        for path in source_files(root)
-        for violation in violations_for_file(root, path)
-    }
+def current_counts(root: Path) -> dict[tuple[str, str], int]:
+    """Return current violation counts keyed by file and rule."""
+    return dict(
+        Counter(
+            (violation.path, violation.rule)
+            for path in source_files(root)
+            for violation in violations_for_file(root, path)
+        )
+    )
 
 
-def _parse_baseline_text(text: str) -> set[str]:
-    """Parse non-comment entries from baseline text."""
-    return {
-        line.strip()
-        for line in text.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    }
+def _parse_baseline_text(text: str) -> dict[tuple[str, str], int]:
+    """Parse count-format baseline entries."""
+    counts: dict[tuple[str, str], int] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 3:
+            raise ValueError(f"invalid semantic blank-line baseline entry: {line}")
+        path, rule, count_text = fields
+        try:
+            count = int(count_text)
+        except ValueError as exc:
+            raise ValueError(f"invalid semantic blank-line count: {line}") from exc
+        if count < 0:
+            raise ValueError(f"negative semantic blank-line count: {line}")
+        key = (path, rule)
+        if key in counts:
+            raise ValueError(f"duplicate semantic blank-line baseline key: {line}")
+        counts[key] = count
+    return counts
 
 
-def baseline_entries(path: Path) -> set[str]:
-    """Read non-comment entries from a shrink-only baseline file."""
+def baseline_counts(path: Path) -> dict[tuple[str, str], int]:
+    """Read file/rule violation counts from a shrink-only baseline file."""
     if not path.exists():
-        return set()
+        return {}
     return _parse_baseline_text(path.read_text(encoding="utf-8"))
 
 
-def committed_baseline_entries(root: Path) -> set[str] | None:
-    """Return the committed baseline, or ``None`` before its initial commit."""
+def committed_baseline_counts(root: Path) -> dict[tuple[str, str], int] | None:
+    """Return committed counts, or ``None`` before the count-format baseline."""
     result = subprocess.run(
         [
             "git",
@@ -266,39 +287,67 @@ def committed_baseline_entries(root: Path) -> set[str] | None:
     )
     if result.returncode != 0:
         return None
+    non_comment_lines = [
+        line.strip()
+        for line in result.stdout.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if non_comment_lines and all(
+        len(line.split("\t")) == 4 for line in non_comment_lines
+    ):
+        return None
     return _parse_baseline_text(result.stdout)
 
 
 def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
     """Enforce an exact, shrink-only match between scan and baseline."""
-    current = current_entries(root)
-    baseline_current = baseline_entries(baseline)
-
-    new_entries = sorted(current - baseline_current)
-    stale_entries = sorted(baseline_current - current)
-
-    committed = committed_baseline_entries(root)
-    added_entries = (
-        sorted(baseline_current - committed) if committed is not None else []
+    current = current_counts(root)
+    baseline_current = baseline_counts(baseline)
+    mismatches = sorted(
+        (
+            path,
+            rule,
+            baseline_current.get((path, rule), 0),
+            current.get((path, rule), 0),
+        )
+        for path, rule in baseline_current.keys() | current.keys()
+        if baseline_current.get((path, rule), 0) != current.get((path, rule), 0)
     )
-    if not new_entries and not stale_entries and not added_entries:
+
+    committed = committed_baseline_counts(root)
+    increased_counts = (
+        sorted(
+            (
+                path,
+                rule,
+                committed.get((path, rule), 0),
+                count,
+            )
+            for (path, rule), count in baseline_current.items()
+            if count > committed.get((path, rule), 0)
+        )
+        if committed is not None
+        else []
+    )
+    if not mismatches and not increased_counts:
         return 0
 
     print("Semantic blank-line baseline is not shrink-only:", file=sys.stderr)
-    if new_entries:
-        print("New violations absent from baseline:", file=sys.stderr)
-        for entry in new_entries:
-            print(entry, file=sys.stderr)
+    if mismatches:
+        print("Baseline counts differ from current scan:", file=sys.stderr)
+        for path, rule, baseline_count, current_count in mismatches:
+            print(
+                f"{path}\t{rule}\tbaseline={baseline_count}\tcurrent={current_count}",
+                file=sys.stderr,
+            )
 
-    if stale_entries:
-        print("Baseline entries absent from current scan:", file=sys.stderr)
-        for entry in stale_entries:
-            print(entry, file=sys.stderr)
-
-    if added_entries:
-        print("Baseline entries added relative to HEAD:", file=sys.stderr)
-        for entry in added_entries:
-            print(entry, file=sys.stderr)
+    if increased_counts:
+        print("Baseline counts added or increased relative to HEAD:", file=sys.stderr)
+        for path, rule, committed_count, current_count in increased_counts:
+            print(
+                f"{path}\t{rule}\tHEAD={committed_count}\tcurrent={current_count}",
+                file=sys.stderr,
+            )
     return 1
 
 
