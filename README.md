@@ -12,9 +12,9 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Highlights
 
-- **Run in minutes**: converted weights load with `from_pretrained`; no vendor-repo setup required.
-- **One schema for every layout model**: the same `bbox` / `labels` / `mask` / `id2label` output with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
-- **Verified against the originals**: every port is numerically checked, with copy-pasteable reproduction commands per package.
+- ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no vendor-repo setup required.
+- 📐 **One output schema**: every layout model returns the same `bbox` / `labels` / `mask` / `id2label` with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
+- ✅ **Vendor-verified**: every port is numerically checked, with copy-pasteable reproduction commands per package.
 
 ## Models
 
