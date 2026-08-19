@@ -13,8 +13,8 @@ design-generators ports layout, poster, and graphic-design generation research r
 ## Highlights
 
 - ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no vendor-repo setup required.
-- 📐 **One output schema**: every layout model returns the same interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
-- ✅ **Reference-verified**: every port is numerically checked against the original implementation, with copy-pasteable reproduction commands per package.
+- 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
+- ✅ **Reference-verified**: our ports are numerically checked against the original implementations, with copy-pasteable reproduction commands per package.
 
 ## Models
 
@@ -82,7 +82,7 @@ from layout_dm import LayoutDMPipeline
 print(LayoutDMPipeline.__name__)
 ```
 
-For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`. Scripts that load the org's Hugging Face layout metrics need the root `evaluation` extra.
+For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
