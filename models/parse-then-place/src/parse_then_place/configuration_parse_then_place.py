@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from transformers import PretrainedConfig
 
 from .labels import (
@@ -35,6 +37,20 @@ class ParseThenPlaceConfig(PretrainedConfig):
         eos_token_id: int = 1,
         decoder_start_token_id: int = 0,
         is_encoder_decoder: bool = True,
+        transformers_version: str | None = None,
+        architectures: list[str] | None = None,
+        output_hidden_states: bool | None = False,
+        return_dict: bool | None = True,
+        dtype: str | None = None,
+        torch_dtype: str | None = None,
+        chunk_size_feed_forward: int = 0,
+        problem_type: Literal[
+            "regression", "single_label_classification", "multi_label_classification"
+        ]
+        | None = None,
+        name_or_path: str = "",
+        _commit_hash: str | None = None,
+        attn_implementation: str | None = None,
         **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize the composite checkpoint configuration."""
@@ -55,13 +71,25 @@ class ParseThenPlaceConfig(PretrainedConfig):
         label2id = {value: key for key, value in normalized_id2label.items()}
         _ = kwargs.pop("id2label", None)
         _ = kwargs.pop("label2id", None)
-        super_init = getattr(super(), "__init__")
-        super_init(
-            pad_token_id=pad_token_id,
-            eos_token_id=eos_token_id,
-            decoder_start_token_id=decoder_start_token_id,
+        super().__init__(
+            transformers_version=transformers_version,
+            architectures=architectures,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            dtype=dtype or torch_dtype,
+            chunk_size_feed_forward=chunk_size_feed_forward,
             is_encoder_decoder=is_encoder_decoder,
             id2label=normalized_id2label,
             label2id=label2id,
-            **kwargs,
+            problem_type=problem_type,
         )
+        # Transformers v5 keeps model-specific token fields on the subclass;
+        # only common configuration fields belong in the base call.
+        self.pad_token_id = pad_token_id
+        self.eos_token_id = eos_token_id
+        self.decoder_start_token_id = decoder_start_token_id
+        self.name_or_path = name_or_path
+        self._commit_hash = _commit_hash
+        self._attn_implementation = attn_implementation
+        for key, value in kwargs.items():
+            setattr(self, key, value)

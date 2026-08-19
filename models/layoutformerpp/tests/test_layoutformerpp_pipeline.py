@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import cast
 
@@ -40,6 +41,52 @@ def test_save_load_smoke(tmp_path: Path) -> None:
     assert isinstance(out, LayoutGenerationOutput)
     assert out.sequences is not None
     assert cast(torch.Tensor, out.sequences).shape[0] == 1
+
+
+def test_config_roundtrip_preserves_token_fields() -> None:
+    config = LayoutFormerPPConfig(
+        vocab_size=17,
+        bos_token_id=3,
+        eos_token_id=4,
+        pad_token_id=5,
+        name_or_path="layoutformerpp-test",
+        task_specific_params={"decode_max_length": 9},
+    )
+
+    restored = LayoutFormerPPConfig.from_dict(config.to_dict())
+
+    assert restored.vocab_size == 17
+    assert restored.bos_token_id == 3
+    assert restored.eos_token_id == 4
+    assert restored.pad_token_id == 5
+    assert restored.name_or_path == "layoutformerpp-test"
+    assert restored.task_specific_params == {"decode_max_length": 9}
+
+
+def test_config_from_pretrained_accepts_legacy_and_unknown_keys(
+    tmp_path: Path,
+) -> None:
+    config = LayoutFormerPPConfig(vocab_size=17)
+    config.save_pretrained(tmp_path)
+
+    config_path = tmp_path / "config.json"
+    payload = json.loads(config_path.read_text())
+    payload.update(
+        {
+            "add_cross_attention": True,
+            "use_cache": False,
+            "num_beams": 3,
+            "legacy_unknown": "kept",
+        }
+    )
+    config_path.write_text(json.dumps(payload))
+
+    restored = LayoutFormerPPConfig.from_pretrained(tmp_path)
+
+    assert restored.add_cross_attention is True
+    assert restored.use_cache is False
+    assert restored.num_beams == 3
+    assert restored.legacy_unknown == "kept"
 
 
 def test_pipeline_passes_public_condition_arguments_to_processor(
