@@ -5,7 +5,15 @@ The consecutive-statement check is intentionally a crude heuristic: more than
 that semantic units need separation, but the checker does not judge semantics.
 The raise-block check is exact: after a ``raise`` statement, ordinary code on a
 later line requires a blank line unless that code is a block-continuation
-keyword (``except``, ``elif``, ``else``, ``finally``, or ``case``).
+keyword (``except``, ``elif``, ``else``, ``finally``, or an AST-confirmed
+``match`` ``case`` clause).
+
+The baseline is shrink-only. The checker fails when its entries differ from the
+current scan, and once a baseline exists in committed ``HEAD``, it fails if the
+working baseline adds entries relative to that commit. This permits only
+removing resolved violations and prevents hiding a new violation by appending
+it to the baseline. Initial baseline creation is allowed when ``HEAD`` has no
+baseline file yet.
 """
 
 from __future__ import annotations
@@ -13,6 +21,7 @@ from __future__ import annotations
 import argparse
 import ast
 import io
+import subprocess
 import sys
 import tokenize
 from collections.abc import Iterable, Iterator
@@ -21,8 +30,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "semantic_blank_lines_baseline.txt"
+BASELINE_RELATIVE_PATH = Path("scripts/semantic_blank_lines_baseline.txt")
 MAX_CONSECUTIVE_STATEMENTS = 15
-CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally", "case"})
+CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally"})
 SCAN_GLOBS = (
     "models/*/src/**/*.py",
     "lib/*/src/**/*.py",
@@ -54,7 +64,7 @@ def source_files(root: Path) -> list[Path]:
 
 def _collect_statement_lines(node: ast.AST, lines: set[int]) -> None:
     """Collect statement-start lines while treating nested functions as leaves."""
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+    if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
         lines.add(node.lineno)
         return
     if isinstance(node, ast.stmt):
@@ -135,12 +145,39 @@ def _first_code_tokens(source: str) -> dict[int, tokenize.TokenInfo]:
     return first_tokens
 
 
+def _match_case_lines(
+    tree: ast.Module, first_tokens: dict[int, tokenize.TokenInfo]
+) -> set[int]:
+    """Return lines whose ``case`` token starts an AST ``match`` clause."""
+    case_lines: set[int] = set()
+    for match in ast.walk(tree):
+        if not isinstance(match, ast.Match):
+            continue
+        match_end = match.end_lineno or match.lineno
+        candidates = sorted(
+            line
+            for line, token in first_tokens.items()
+            if token.string == "case"
+            and match.lineno < line <= match_end
+            and token.start[1] > match.col_offset
+        )
+        for match_case in match.cases:
+            pattern_line = getattr(match_case.pattern, "lineno", None)
+            if pattern_line is None:
+                continue
+            preceding = [line for line in candidates if line <= pattern_line]
+            if preceding:
+                case_lines.add(max(preceding))
+    return case_lines
+
+
 def _raise_violations(
     tree: ast.Module, source: str, relative_path: str
 ) -> Iterator[Violation]:
     """Yield exact missing blank lines after raises before ordinary code."""
     lines = source.splitlines()
     first_tokens = _first_code_tokens(source)
+    match_case_lines = _match_case_lines(tree, first_tokens)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Raise):
             continue
@@ -155,7 +192,10 @@ def _raise_violations(
         )
         if next_line is None:
             continue
-        if first_tokens[next_line].string in CONTINUATION_KEYWORDS:
+        next_token = first_tokens[next_line]
+        if next_token.string in CONTINUATION_KEYWORDS or (
+            next_token.string == "case" and next_line in match_case_lines
+        ):
             continue
         if end_line < len(lines) and not lines[end_line].strip():
             continue
@@ -194,25 +234,71 @@ def current_entries(root: Path) -> set[str]:
     }
 
 
-def baseline_entries(path: Path) -> set[str]:
-    """Read non-comment entries from a shrink-only baseline file."""
-    if not path.exists():
-        return set()
+def _parse_baseline_text(text: str) -> set[str]:
+    """Parse non-comment entries from baseline text."""
     return {
         line.strip()
-        for line in path.read_text(encoding="utf-8").splitlines()
+        for line in text.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     }
 
 
+def baseline_entries(path: Path) -> set[str]:
+    """Read non-comment entries from a shrink-only baseline file."""
+    if not path.exists():
+        return set()
+    return _parse_baseline_text(path.read_text(encoding="utf-8"))
+
+
+def committed_baseline_entries(root: Path) -> set[str] | None:
+    """Return the committed baseline, or ``None`` before its initial commit."""
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "show",
+            f"HEAD:{BASELINE_RELATIVE_PATH.as_posix()}",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return _parse_baseline_text(result.stdout)
+
+
 def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
-    """Report current violations that are not present in the baseline."""
-    new_entries = sorted(current_entries(root) - baseline_entries(baseline))
-    if not new_entries:
+    """Enforce an exact, shrink-only match between scan and baseline."""
+    current = current_entries(root)
+    baseline_current = baseline_entries(baseline)
+
+    new_entries = sorted(current - baseline_current)
+    stale_entries = sorted(baseline_current - current)
+
+    committed = committed_baseline_entries(root)
+    added_entries = (
+        sorted(baseline_current - committed) if committed is not None else []
+    )
+    if not new_entries and not stale_entries and not added_entries:
         return 0
-    print("New semantic blank-line violations:", file=sys.stderr)
-    for entry in new_entries:
-        print(entry, file=sys.stderr)
+
+    print("Semantic blank-line baseline is not shrink-only:", file=sys.stderr)
+    if new_entries:
+        print("New violations absent from baseline:", file=sys.stderr)
+        for entry in new_entries:
+            print(entry, file=sys.stderr)
+
+    if stale_entries:
+        print("Baseline entries absent from current scan:", file=sys.stderr)
+        for entry in stale_entries:
+            print(entry, file=sys.stderr)
+
+    if added_entries:
+        print("Baseline entries added relative to HEAD:", file=sys.stderr)
+        for entry in added_entries:
+            print(entry, file=sys.stderr)
     return 1
 
 
