@@ -14,7 +14,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 - ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no vendor-repo setup required.
 - 📐 **One output schema**: every layout model returns the same `bbox` / `labels` / `mask` / `id2label` with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
-- ✅ **Vendor-verified**: every port is numerically checked, with copy-pasteable reproduction commands per package.
+- ✅ **Reference-verified**: every port is numerically checked against the original implementation, with copy-pasteable reproduction commands per package.
 
 ## Models
 
@@ -68,7 +68,7 @@ Install the shared layout library directly from this repository:
 pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
 ```
 
-Install a model package by listing its shared workspace dependencies in the same command. Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` alongside the model package.
+Model packages depend on workspace libraries that are not published on PyPI, so install `laygen` together with the model package:
 
 ```bash
 pip install \
@@ -76,15 +76,13 @@ pip install \
   "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
-If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
-
 ```python
 from layout_dm import LayoutDMPipeline
 
 print(LayoutDMPipeline.__name__)
 ```
 
-For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member. Use the root `evaluation` extra when running scripts that load the org's Hugging Face `evaluate` layout-metric modules; `scripts/verify_evaluate_layout_metrics.py` checks the 12 org metric repos against the layout-dm and PosterLLaMA/PKU vendor implementations.
+For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`. Scripts that load the org's Hugging Face layout metrics need the root `evaluation` extra.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -96,9 +94,7 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ### Reproducibility
 
-Model-specific reproduction commands live in each package's `REPRODUCING.md`, covering source asset download, reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
-
-Converted checkpoint directories and reference fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+Each package's `REPRODUCING.md` has copy-pasteable commands from asset download to a `from_pretrained` smoke test. Generated artifacts go under `.cache/`; do not commit weights, tensors, images, or other large files.
 
 ### Training
 
@@ -106,8 +102,7 @@ For models we reproduce by training ourselves, each package provides [`PyTorch L
 
 ### Extension
 
-> [!WARNING]
-> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on [`🤗transformers`](https://huggingface.co/docs/transformers/index) / [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
+Extend by installing pinned released packages and subclassing — never copy framework or repository source trees into your project and mutate them in place. This applies to human developers and AI coding agents alike; see [Extending](docs/extending.md).
 
 ## Documentation
 
