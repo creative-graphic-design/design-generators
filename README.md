@@ -10,6 +10,12 @@
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
+## Highlights
+
+- **Run in minutes** — converted weights load with `from_pretrained`; no vendor-repo setup required.
+- **One schema for every model** — the same `bbox` / `labels` / `mask` / `id2label` output with [`jaxtyping`](https://docs.kidger.site/jaxtyping/)-shaped tensor annotations.
+- **Verified against the originals** — every port is numerically checked, with copy-pasteable reproduction commands per package.
+
 ## Models
 
 Framework, task, and dataset details are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
