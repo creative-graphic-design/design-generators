@@ -127,7 +127,10 @@ class ImageReshaper(nn.Module):
 class PositionalEncoding1d(nn.Module):
     """RALF sine positional encoding for token sequences."""
 
-    pe: Float[torch.Tensor, "..."]
+    pe: (
+        Float[torch.Tensor, "1 max_len d_model"]
+        | Float[torch.Tensor, "max_len 1 d_model"]
+    )
 
     def __init__(
         self,
