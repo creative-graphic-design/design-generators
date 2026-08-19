@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -27,6 +29,48 @@ def test_config_roundtrip_preserves_dataset_defaults() -> None:
     assert id2label[11] == "textarea"
     assert restored.placement_subfolder == "placement"
     assert restored.parser_subfolder == "semantic_parser"
+
+
+def test_config_roundtrip_preserves_token_fields() -> None:
+    config = ParseThenPlaceConfig(
+        pad_token_id=7,
+        eos_token_id=8,
+        decoder_start_token_id=9,
+        name_or_path="parse-then-place-test",
+    )
+
+    restored = ParseThenPlaceConfig.from_dict(config.to_dict())
+
+    assert restored.pad_token_id == 7
+    assert restored.eos_token_id == 8
+    assert restored.decoder_start_token_id == 9
+    assert restored.name_or_path == "parse-then-place-test"
+
+
+def test_config_from_pretrained_accepts_legacy_and_unknown_keys(
+    tmp_path: Path,
+) -> None:
+    config = ParseThenPlaceConfig()
+    config.save_pretrained(tmp_path)
+
+    config_path = tmp_path / "config.json"
+    payload = json.loads(config_path.read_text())
+    payload.update(
+        {
+            "add_cross_attention": True,
+            "use_cache": False,
+            "num_beams": 3,
+            "legacy_unknown": "kept",
+        }
+    )
+    config_path.write_text(json.dumps(payload))
+
+    restored = ParseThenPlaceConfig.from_pretrained(tmp_path)
+
+    assert restored.add_cross_attention is True
+    assert restored.use_cache is False
+    assert restored.num_beams == 3
+    assert restored.legacy_unknown == "kept"
 
 
 def test_dataset_and_stage2_name_normalization() -> None:
