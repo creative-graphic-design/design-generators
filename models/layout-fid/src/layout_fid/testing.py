@@ -25,5 +25,6 @@ def assert_statistics_shape(
     """Assert reference statistics have compatible shapes."""
     if mu.ndim != 1:
         raise AssertionError("mu must be one-dimensional")
+
     if sigma.shape != (mu.shape[0], mu.shape[0]):
         raise AssertionError("sigma must be square with feature_dim rows")

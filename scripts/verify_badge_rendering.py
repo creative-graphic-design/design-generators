@@ -66,6 +66,7 @@ def _fetch(url: str, timeout: float) -> tuple[int, str, bytes]:
         if result.returncode != 0:
             stderr = result.stderr.decode("utf-8", errors="replace").strip()
             raise AssertionError(f"curl exited {result.returncode}: {stderr}")
+
         status = 0
         content_type = ""
         for block in [block for block in headers.split("\r\n\r\n") if block.strip()]:
@@ -95,16 +96,21 @@ def _validate_svg(
     text = body.decode("utf-8", errors="replace")
     if status != 200:
         raise AssertionError(f"HTTP {status}")
+
     if "svg" not in content_type.lower():
         raise AssertionError(f"content-type is not SVG: {content_type!r}")
+
     if "<svg" not in text:
         raise AssertionError("response body does not contain <svg")
+
     if ERROR_WORD_RE.search(text):
         raise AssertionError("response SVG contains an error marker")
+
     if logo is not None and "<path" not in text:
         raise AssertionError(
             f"logo={logo!r} was requested but rendered SVG has no icon path"
         )
+
     if logo is None and "logo=" in url and "<path" not in text:
         raise AssertionError("logo query is present but no icon path rendered")
 

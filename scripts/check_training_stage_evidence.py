@@ -180,10 +180,13 @@ def iter_unfenced_lines(text: str) -> Iterable[str]:
     """Yield Markdown lines outside fenced code blocks."""
     in_fence = False
     fence_marker = ""
+
     for line in text.splitlines():
         match = FENCE_START_RE.match(line)
+
         if match:
             marker = match.group(1)
+
             if not in_fence:
                 in_fence = True
                 fence_marker = marker
@@ -191,6 +194,7 @@ def iter_unfenced_lines(text: str) -> Iterable[str]:
                 in_fence = False
                 fence_marker = ""
             continue
+
         if not in_fence:
             yield line
 
@@ -202,6 +206,7 @@ def iter_heading_sections_with_level(
     current_heading: str | None = None
     current_level: int | None = None
     current_lines: list[str] = []
+
     for line in iter_unfenced_lines(text):
         match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
         if match:
@@ -209,11 +214,13 @@ def iter_heading_sections_with_level(
                 assert current_level is not None
                 yield current_level, current_heading, current_lines
                 current_lines = []
+
             current_level = len(match.group(1))
             current_heading = match.group(2).strip()
             continue
         if current_heading is not None:
             current_lines.append(line)
+
     if current_heading is not None:
         assert current_level is not None
         yield current_level, current_heading, current_lines
@@ -292,19 +299,24 @@ def parse_stage_evidence(
             }
             evidence: dict[str, StageEvidence] = {}
             duplicates: set[str] = set()
+
             for row in lines[row_start:]:
                 if not row.lstrip().startswith("|"):
                     break
+
                 if is_table_delimiter(row):
                     continue
                 cells = split_markdown_row(row)
                 if len(cells) < len(headers):
                     continue
+
                 stage = cells[positions["stage"]].strip().upper()
                 if stage not in STAGES:
                     continue
+
                 if stage in evidence:
                     duplicates.add(stage)
+
                 evidence[stage] = StageEvidence(
                     stage=stage,
                     command=cells[positions["command"]],
@@ -387,6 +399,7 @@ def baseline_entries(path: Path) -> set[str]:
     """Return committed shrink-only baseline entries."""
     if not path.is_file():
         raise FileNotFoundError(path)
+
     entries: set[str] = set()
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         if raw_line and not raw_line.startswith("#"):

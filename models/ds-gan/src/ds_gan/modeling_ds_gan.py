@@ -55,6 +55,7 @@ class ResnetBackbone(nn.Module):
             channels = (256, 512)
         else:
             raise ValueError(f"Unsupported DS-GAN backbone: {config.backbone}")
+
         resnet = timm.create_model(config.backbone, pretrained=False)
         resnet.conv1 = nn.Conv2d(
             4,
@@ -182,9 +183,11 @@ class DSGANModel(PreTrainedModel):
         """
         if pixel_values.ndim != 4 or pixel_values.shape[1] != 4:
             raise ValueError("pixel_values must have shape (batch, 4, height, width)")
+
         expected_layout = (pixel_values.shape[0], self.config.max_elem, 2, 4)
         if tuple(layout.shape) != expected_layout:
             raise ValueError(f"layout must have shape {expected_layout}")
+
         pixel_values = pixel_values.to(dtype=self.dtype)
         layout = layout.to(device=pixel_values.device, dtype=self.dtype)
         h0 = self.resnet_fpn(pixel_values)

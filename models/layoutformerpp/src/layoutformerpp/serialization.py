@@ -125,6 +125,7 @@ class T5LayoutSequenceForGenT(T5LayoutSequence):
                 tokens.extend(str(int(value)) for value in bbox[idx][2:])
             else:
                 raise ValueError(f"Unsupported gen_t serializer task: {task}")
+
             if self.add_sep_token and idx < len(labels) - 1:
                 tokens.append(SEP_TOKEN)
         return " ".join(tokens)
@@ -143,21 +144,26 @@ class T5LayoutSequenceForGenR(T5LayoutSequence):
     ) -> str:
         """Build relation-conditioned input sequence."""
         tokens: list[str] = []
+
         for idx, label_id in enumerate(labels):
             tokens.append(self.id2label[int(label_id)].lower())
             if add_unk_token:
                 tokens.extend(["<unk>", "<unk>", "<unk>", "<unk>"])
             if self.add_sep_token and idx < len(labels) - 1:
                 tokens.append(SEP_TOKEN)
+
         tokens.append(REL_BEG_TOKEN)
         for label_j, index_j, label_i, index_i, relation_type in relations:
             tokens.append(f"label_{label_i} index_{index_i}" if label_i else "label_0")
+
             if not compact:
                 tokens.append(REL_ELE_SEP_TOKEN)
             tokens.append(f"relation_{relation_type}")
+
             if not compact:
                 tokens.append(REL_ELE_SEP_TOKEN)
             tokens.append(f"label_{label_j} index_{index_j}" if label_j else "label_0")
+
             tokens.append(REL_SEP_TOKEN)
         return " ".join(tokens)
 

@@ -86,6 +86,7 @@ def normalize_scene_graph(
     if scene_graph is None:
         if labels is None:
             raise ValueError("scene_graph or labels must be provided")
+
         label_values = _to_label_sequence(labels)
         nodes = tuple(
             HouseGanRoomNode(id=index, label=label)
@@ -106,6 +107,7 @@ def normalize_scene_graph(
         raw_label = item.get("label_id", item.get("label"))
         if raw_label is None:
             raise ValueError("Each House-GAN node requires a label")
+
         raw_bbox = item.get("bbox")
         bbox = tuple(cast(Sequence[float], raw_bbox)) if raw_bbox is not None else None
         nodes.append(
@@ -121,6 +123,7 @@ def normalize_scene_graph(
     edges = scene_graph.get("edges", scene_graph.get("relations", relations))
     if not nodes:
         raise ValueError("House-GAN relation graphs require at least one node")
+
     _ = id2label
     return HouseGanSceneGraph(
         nodes=tuple(nodes),
@@ -177,6 +180,7 @@ def graph_to_node_features(
         int(labels_t.min().item()) < 0 or int(labels_t.max().item()) >= num_labels
     ):
         raise ValueError("House-GAN labels must be dataset-local ids in range")
+
     return cast(
         torch.FloatTensor,
         torch.nn.functional.one_hot(labels_t, num_classes=num_labels).to(
@@ -256,6 +260,7 @@ def _normalize_relations(
         values = list(cast(Sequence[HouseGanScalar], item))
         if len(values) != 3:
             raise ValueError("Relation tuples must have three values")
+
         source, middle, target = values
         if middle in (-1, 1, "-1", "1"):
             adjacent = int(cast(int | str, middle)) > 0

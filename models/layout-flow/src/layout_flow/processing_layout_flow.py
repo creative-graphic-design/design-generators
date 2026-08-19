@@ -98,6 +98,7 @@ class LayoutFlowProcessor(ProcessorMixin):
             if not normalized:
                 if canvas_size is None:
                     raise ValueError("canvas_size is required when normalized=False")
+
                 bbox_t = normalize_boxes(
                     bbox_t, canvas_size=canvas_size, box_format=box_format
                 )
@@ -210,6 +211,7 @@ class LayoutFlowProcessor(ProcessorMixin):
             pass
         else:
             raise ValueError(f"Unsupported LayoutFlow condition_type: {condition_type}")
+
         return cond_mask
 
     def postprocess(
@@ -244,6 +246,7 @@ class LayoutFlowProcessor(ProcessorMixin):
         if fmt is not BoxFormat.xywh:
             if not normalized and canvas_size is None:
                 raise ValueError("canvas_size is required for denormalized output")
+
             if canvas_size is None:
                 canvas_size = (1, 1)
             bbox = denormalize_boxes(bbox, canvas_size=canvas_size, box_format=fmt)
@@ -255,6 +258,7 @@ class LayoutFlowProcessor(ProcessorMixin):
         elif not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required for denormalized output")
+
             bbox = denormalize_boxes(
                 bbox, canvas_size=canvas_size, box_format=BoxFormat.xywh
             )

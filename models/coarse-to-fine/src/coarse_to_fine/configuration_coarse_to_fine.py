@@ -78,6 +78,7 @@ class CoarseToFineConfig(PretrainedConfig):
         normalized_dataset = normalize_dataset_name(dataset)
         if normalized_dataset not in SUPPORTED_DATASETS:
             raise ValueError(f"Unsupported Coarse-to-Fine dataset: {dataset}")
+
         resolved_id2label = (
             {int(key): str(value) for key, value in id2label.items()}
             if id2label is not None
@@ -92,6 +93,7 @@ class CoarseToFineConfig(PretrainedConfig):
         super().__init__(id2label=resolved_id2label, label2id=resolved_label2id)
         for key, value in kwargs.items():
             setattr(self, key, value)
+
         self.dataset = str(normalized_dataset)
         self.num_labels = resolved_num_labels
         self.max_num_elements = max_num_elements
@@ -104,10 +106,12 @@ class CoarseToFineConfig(PretrainedConfig):
         self.n_heads = n_heads
         self.dim_feedforward = dim_feedforward
         self.dropout = dropout
+
         self.internal_box_format = str(normalize_box_format(internal_box_format))
         self.public_box_format = str(normalize_box_format(public_box_format))
         self.vendor_label_offset = vendor_label_offset
         self.eval_batch_size = eval_batch_size or max_num_elements
+
         self.element_sos_id = resolved_num_labels + 1
         self.element_eos_id = resolved_num_labels + 2
         self.group_sos_index = 0

@@ -140,12 +140,14 @@ class H5DLTDataset(Dataset[DLTExample]):
             box = np.asarray(row["bbox"], dtype=np.float32)
             cat = np.asarray(row["categories"], dtype=int)
             length = int(row["length"][()])
+
         box = box[:length]
         cat = cat[:length]
         valid = _valid_ltwh_mask(box)
         box = box[valid]
         cat = cat[valid]
         length = box.shape[0]
+
         order = list(range(length))
         random.shuffle(order)
         box = box[order]

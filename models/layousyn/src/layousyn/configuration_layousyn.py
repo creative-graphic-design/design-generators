@@ -77,6 +77,7 @@ def resolve_model_shape(
         match = _DIT_REGEX.match(model_name)
         if match is None:
             raise ValueError(f"Unsupported LayouSyn model_name: {model_name}")
+
         shape = {
             "hidden_size": int(match.group("hidden_size")),
             "depth": int(match.group("depth")),

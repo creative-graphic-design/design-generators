@@ -176,6 +176,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         del num_elements, num_inference_steps
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
+
         graph_batch = _expand_graph_batch(scene_graph, batch_size)
         outputs: list[LayoutGenerationOutput] = []
         torch_generator = self.prepare_generator(

@@ -63,6 +63,7 @@ class LayoutDetrConfig(PretrainedConfig):
         raw_id2label = id2label or DEFAULT_ID2LABEL
         normalized_id2label = {int(key): value for key, value in raw_id2label.items()}
         super().__init__(id2label=normalized_id2label, **kwargs)  # ty: ignore[invalid-argument-type]
+
         self.dataset_name = dataset_name
         self.id2label = normalized_id2label
         self.label2id = {value: key for key, value in self.id2label.items()}
@@ -72,6 +73,7 @@ class LayoutDetrConfig(PretrainedConfig):
         self.img_height = int(img_height)
         self.img_width = int(img_width)
         self.background_size = int(background_size)
+
         self.hidden_dim = int(hidden_dim)
         self.bert_f_dim = int(bert_f_dim)
         self.bert_num_encoder_layers = int(bert_num_encoder_layers)
@@ -79,6 +81,7 @@ class LayoutDetrConfig(PretrainedConfig):
         self.bert_num_heads = int(bert_num_heads)
         self.max_text_length = int(max_text_length)
         self.text_vocab_size = int(text_vocab_size)
+
         self.med_config = dict(med_config or {})
         self.backbone_name = backbone_name
         self.image_mean = tuple(float(value) for value in image_mean)

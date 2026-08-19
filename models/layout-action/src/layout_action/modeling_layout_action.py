@@ -31,6 +31,7 @@ class LayoutActionCausalSelfAttention(nn.Module):
         super().__init__()
         if config.n_embd % config.n_head != 0:
             raise ValueError("n_embd must be divisible by n_head")
+
         self.key = nn.Linear(config.n_embd, config.n_embd)
         self.query = nn.Linear(config.n_embd, config.n_embd)
         self.value = nn.Linear(config.n_embd, config.n_embd)
@@ -169,6 +170,7 @@ class LayoutActionForCausalLM(PreTrainedModel):
         batch, steps = input_ids.size()
         if steps > self.block_size:
             raise ValueError("Cannot forward; model block size is exhausted.")
+
         token_embeddings = self.tok_emb(input_ids)
         position_embeddings = self.pos_emb[:, :steps, :]
         hidden_states = self.drop(token_embeddings + position_embeddings)

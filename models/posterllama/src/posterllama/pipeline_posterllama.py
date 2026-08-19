@@ -232,6 +232,7 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
                 "can build prompts and parse outputs, but generation requires a "
                 "converted local runtime."
             )
+
         active_generator = self.prepare_generator(generator=generator, seed=seed)
         generation_args = {
             "max_new_tokens": max_new_tokens or self.config.default_max_new_tokens,
@@ -283,4 +284,5 @@ class PosterLlamaPipeline(LayoutGenerationPipeline):
             return dict(result)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return result

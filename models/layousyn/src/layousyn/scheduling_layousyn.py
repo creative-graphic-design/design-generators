@@ -43,8 +43,10 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         """Initialize scheduler buffers."""
         if prediction_type != "epsilon":
             raise ValueError("LayouSyn only supports prediction_type='epsilon'")
+
         if variance_type != "learned_range":
             raise ValueError("LayouSyn only supports variance_type='learned_range'")
+
         self.num_train_timesteps = num_train_timesteps
         self.sampling_type = sampling_type
         self.original_betas = get_layousyn_beta_schedule(
@@ -93,6 +95,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
         steps = num_inference_steps or self.num_train_timesteps
         if steps > self.num_train_timesteps:
             raise ValueError("num_inference_steps cannot exceed num_train_timesteps")
+
         use_timesteps = _space_timesteps(self.num_train_timesteps, steps)
         base_alphas = torch.cumprod(1.0 - self.original_betas.double(), dim=0)
         last_alpha_cumprod = torch.tensor(1.0, dtype=torch.float64)
@@ -173,6 +176,7 @@ class LayouSynScheduler(SchedulerMixin, ConfigMixin):
             )
         else:
             raise ValueError(f"Unsupported sampling_type: {mode}")
+
         output = LayouSynSchedulerOutput(
             prev_sample=prev_sample, pred_original_sample=pred_xstart
         )
@@ -279,6 +283,7 @@ def _space_timesteps(num_timesteps: int, section_count: int) -> set[int]:
         raise ValueError(
             f"cannot divide section of {num_timesteps} into {section_count}"
         )
+
     frac_stride = (
         1.0 if section_count <= 1 else (num_timesteps - 1) / (section_count - 1)
     )

@@ -250,16 +250,20 @@ def _parse_baseline_text(text: str) -> dict[tuple[str, str], int]:
         fields = line.split("\t")
         if len(fields) != 3:
             raise ValueError(f"invalid semantic blank-line baseline entry: {line}")
+
         path, rule, count_text = fields
         try:
             count = int(count_text)
         except ValueError as exc:
             raise ValueError(f"invalid semantic blank-line count: {line}") from exc
+
         if count < 0:
             raise ValueError(f"negative semantic blank-line count: {line}")
+
         key = (path, rule)
         if key in counts:
             raise ValueError(f"duplicate semantic blank-line baseline key: {line}")
+
         counts[key] = count
     return counts
 

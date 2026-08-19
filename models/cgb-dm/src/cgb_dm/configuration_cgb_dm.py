@@ -105,6 +105,7 @@ class CGBDMConfig(ConfigMixin):
         spec = DATASET_SPECS.get(dataset)
         if spec is None:
             raise ValueError(f"Unsupported CGB-DM dataset_name: {dataset_name}")
+
         self.dataset_name = str(dataset)
         self.num_labels = int(num_labels or spec.num_labels)
         self.max_seq_length = int(max_seq_length)

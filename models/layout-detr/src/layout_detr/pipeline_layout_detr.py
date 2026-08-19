@@ -78,6 +78,7 @@ def normalize_condition_type(condition_type: ConditionType | str) -> ConditionTy
         raise NotImplementedError(
             "LayoutDETR supports only condition_type='content_image' with image, texts, and labels"
         )
+
     return canonical
 
 
@@ -176,12 +177,16 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         normalize_condition_type(condition_type)
         if bbox is not None:
             raise ValueError("LayoutDETR does not condition on existing bbox")
+
         if num_elements is not None:
             raise ValueError("LayoutDETR infers num_elements from labels/mask")
+
         if box_format != BoxFormat.xywh and box_format != "xywh":
             raise ValueError("LayoutDETR outputs normalized xywh boxes only")
+
         if not normalized:
             raise ValueError("LayoutDETR expects normalized public boxes")
+
         if num_inference_steps is not None:
             raise ValueError("LayoutDETR is a single forward pass, not iterative")
 

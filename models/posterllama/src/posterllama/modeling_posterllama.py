@@ -79,6 +79,7 @@ class PosterLlamaRuntime(torch.nn.Module):
                 "PosterLlama runtime assets are missing. Run the local conversion "
                 "script with the raw checkpoint and backbone paths before inference."
             )
+
         return [self.generated_text for _ in prompts]
 
     def save_pretrained(

@@ -229,8 +229,10 @@ class PosterLlamaProcessor(ProcessorMixin):
         condition = normalize_condition_type(condition_type)
         if condition in UNSUPPORTED_CONDITIONS:
             raise NotImplementedError(f"PosterLlama does not support {condition}")
+
         if condition not in SUPPORTED_CONDITIONS:
             raise NotImplementedError(f"PosterLlama does not support {condition}")
+
         return condition
 
     def __call__(
@@ -432,6 +434,7 @@ class PosterLlamaProcessor(ProcessorMixin):
             raise ValueError(
                 "canvas_size is required when generated SVG lacks width/height"
             )
+
         resolved_canvas = (int(canvas[0]), int(canvas[1]))
         output = rect_ltwh_to_output(
             parsed,
@@ -443,6 +446,7 @@ class PosterLlamaProcessor(ProcessorMixin):
             return dict(output)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return output
 
     def _resolve_canvas_size(
@@ -597,20 +601,26 @@ class PosterLlamaProcessor(ProcessorMixin):
     ) -> tuple[str, int]:
         label_name = str(cast(dict[int, str], self.config.id2label)[label])
         x, y, width, height = bbox_ltwh
+
         if condition is ConditionType.label:
             x, y, width, height = self._fill_values(fill_index, 4)
             fill_index += 4
+
         elif condition is ConditionType.label_size:
             x, y = self._fill_values(fill_index, 2)
             fill_index += 2
+
         elif condition is ConditionType.completion:
             x, y, width, height = self._fill_values(fill_index, 4)
             fill_index += 4
+
         elif condition is ConditionType.refinement:
             width, height = self._fill_values(fill_index, 2)
             fill_index += 2
+
         elif condition in {ConditionType.content_image, ConditionType.unconditional}:
             return "", fill_index
+
         x, y, width, height = (
             _format_source_number(value) for value in (x, y, width, height)
         )

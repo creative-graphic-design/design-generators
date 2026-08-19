@@ -176,6 +176,7 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         """Compute ``p_theta(x_{t-1} | x_t)`` from predicted start logits."""
         if t.min().item() < 0 or t.max().item() >= self.num_timesteps:
             raise ValueError("timestep outside scheduler range")
+
         batch_size = log_x_start.shape[0]
         onehot_x_t = log_onehot_to_index(log_x_t)
         mask = onehot_x_t.eq(self.mask_token_id).unsqueeze(1)
@@ -256,19 +257,23 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
             raise NotImplementedError(
                 "Only gaussian_refine_pow2.5 LayoutDiffusion schedule is supported"
             )
+
         at, at1, bt1, bt2, ct, ct1, att, att1, btt1, btt2, ctt, ctt1 = _alpha_schedule(
             self.num_timesteps, type_classes=25
         )
         at1_t = torch.tensor(at1.astype("float64"))
         ct1_t = torch.tensor(ct1.astype("float64"))
+
         log_at1 = torch.log(at1_t).clamp(-70, 0)
         log_ct1 = torch.log(ct1_t).clamp(-70, 0)
+
         att1_t = torch.tensor(att1.astype("float64"))
         ctt1_t = torch.tensor(ctt1.astype("float64"))
         log_cumprod_at1 = torch.log(att1_t).clamp(-70, 0)
         log_cumprod_ct1 = torch.log(ctt1_t).clamp(-70, 0)
         log_1_min_ct1 = _log_1_min_a(log_ct1)
         log_1_min_cumprod_ct1 = _log_1_min_a(log_cumprod_ct1)
+
         self.log_ct1 = log_ct1.float()
         self.log_at1 = log_at1.float()
         self.log_cumprod_at1 = log_cumprod_at1.float()
@@ -280,10 +285,12 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         bt1_t = torch.tensor(bt1.astype("float64"))
         bt2_t = torch.tensor(bt2.astype("float64"))
         ct_t = torch.tensor(ct.astype("float64"))
+
         log_at = torch.log(at_t)
         log_bt1 = torch.log(bt1_t)
         log_bt2 = torch.log(bt2_t)
         log_ct = torch.log(ct_t).clamp(-70, 0)
+
         att_t = torch.tensor(att.astype("float64"))
         btt1_t = torch.tensor(btt1.astype("float64"))
         btt2_t = torch.tensor(btt2.astype("float64"))
@@ -294,6 +301,7 @@ class LayoutDiffusionScheduler(SchedulerMixin, ConfigMixin):
         log_cumprod_ct = torch.log(ctt_t).clamp(-70, 0)
         log_1_min_ct = _log_1_min_a(log_ct)
         log_1_min_cumprod_ct = _log_1_min_a(log_cumprod_ct)
+
         self.log_at = log_at.float()
         self.log_bt1 = log_bt1.float()
         self.log_bt2 = log_bt2.float()
@@ -468,13 +476,16 @@ def _gaussian_matrix2(
     transition_bands = num_pixel_vals - 1
     beta_t = bt.numpy()[t]
     mat = np.zeros((num_pixel_vals, num_pixel_vals), dtype=np.float64)
+
     values = np.linspace(0.0, 127.0, num_pixel_vals, endpoint=True, dtype=np.float64)
     values = values * 2.0 / (num_pixel_vals - 1.0)
     values = values[: transition_bands + 1]
     values = -values * values / beta_t
+
     values = np.concatenate([values[:0:-1], values], axis=0)
     values = np.exp(values) / np.sum(np.exp(values), axis=0)
     values = values[transition_bands:]
+
     for k in range(1, transition_bands + 1):
         off_diag = np.full((num_pixel_vals - k,), values[k], dtype=np.float64)
         mat += np.diag(off_diag, k=k)
@@ -533,17 +544,21 @@ def _alpha_schedule(
     )
     ctt1 = np.concatenate(([0], ctt1))
     ct1 = 1 - (1 - ctt1[1:]) / (1 - ctt1[:-1])
+
     att = np.concatenate((att[1:], [1]))
     ctt = np.concatenate((ctt[1:], [0]))
     att1 = np.concatenate((att1[1:], [1]))
     ctt1 = np.concatenate((ctt1[1:], [0]))
+
     btt1 = (1 - att1 - ctt1) / type_classes
     btt2 = 1 - att - ctt
     bt1 = (1 - at1 - ct1) / type_classes
+
     btt2_for_step = np.concatenate(([0], btt2))
     bt2 = 1 - (1 - btt2_for_step[1:]) / (1 - btt2_for_step[:-1])
     btt2 = (1 - att - ctt) / 128
     bt2 = np.concatenate((bt2[:first], at1[first:] / 128))
+
     at = np.concatenate((at[:first], (1 - ct - bt2 * 128)[first:])).clip(min=1e-30)
     ct = np.concatenate(((1 - at - bt2)[:first], ct[first:])).clip(min=1e-30)
     return at, at1, bt1, bt2, ct, ct1, att, att1, btt1, btt2, ctt, ctt1

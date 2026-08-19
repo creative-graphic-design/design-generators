@@ -264,6 +264,7 @@ def _extract_layout(
     label_obj = _first_present(flat, _LABEL_KEYS)
     if bbox_obj is None or label_obj is None:
         raise KeyError("sample must contain bbox/labels or annotation objects")
+
     bbox = torch.as_tensor(
         cast(Sequence[Sequence[float]], bbox_obj),
         dtype=torch.float32,
@@ -328,6 +329,7 @@ def _label_id(value: str, label2id: Mapping[str, int]) -> int:
     key = value.casefold()
     if key not in label2id:
         raise KeyError(f"Unknown dataset label: {value}")
+
     return label2id[key]
 
 
@@ -371,6 +373,7 @@ def _load_processed_split(
             "Install the optional dependencies for processed data before selecting "
             "`dataset_source='processed'`."
         ) from exc
+
     try:
         loaded = torch.load(path, map_location="cpu", weights_only=False)
     except TypeError:
@@ -389,6 +392,7 @@ def _processed_length(
         slice_obj = slices.get("y")
     if not isinstance(slice_obj, torch.Tensor):
         raise TypeError("processed LayoutDM split must contain x/y slice tensors")
+
     return int(slice_obj.numel() - 1)
 
 
@@ -403,6 +407,7 @@ def _processed_row(
     y_slices = slices.get("y")
     if not isinstance(x_slices, torch.Tensor) or not isinstance(y_slices, torch.Tensor):
         raise TypeError("processed LayoutDM split must contain x/y slice tensors")
+
     x = data.x
     y = data.y
     x_start, x_end = int(x_slices[index]), int(x_slices[index + 1])

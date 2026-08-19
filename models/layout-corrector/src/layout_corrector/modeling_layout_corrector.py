@@ -82,6 +82,7 @@ class AggregatedCategoricalTransformer(nn.Module):
             raise ValueError(
                 "max_token_length must divide by num_attributes_per_element"
             )
+
         self.num_attributes_per_element = num_attributes_per_element
         self.cat_emb = nn.Embedding(vocab_size, hidden_size)
         self.drop = nn.Dropout(dropout)
@@ -245,11 +246,13 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             raise ValueError(
                 f"Unsupported corrector_mask_mode: {corrector_mask_mode}"
             ) from exc
+
         try:
             dataset_name = str(normalize_dataset_name(dataset_name))
         except ValueError:
             if id2label is None:
                 raise
+
             dataset_name = str(dataset_name)
         normalized_id2label = {
             int(k): v

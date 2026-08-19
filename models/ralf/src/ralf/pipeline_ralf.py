@@ -240,6 +240,7 @@ class RalfPipeline(LayoutGenerationPipeline):
                 "content_image; "
                 f"got {condition}"
             )
+
         encoded = self.processor(
             images=images,
             saliency=saliency,

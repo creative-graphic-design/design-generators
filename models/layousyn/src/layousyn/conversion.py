@@ -42,6 +42,7 @@ def convert_checkpoint(
     """
     if push_to_hub:
         raise ValueError("Hub push is disabled for implementation PR conversion")
+
     del hub_repo_id
     config = LayouSynConfig.from_reference_json(config_path)
     model = LayouSynDiTModel(
@@ -64,6 +65,7 @@ def convert_checkpoint(
         raise ValueError(
             f"Unexpected checkpoint keys for {variant_name}: {unexpected[:5]}"
         )
+
     scheduler = LayouSynScheduler(
         num_train_timesteps=config.diffusion_steps,
         beta_schedule=config.noise_schedule,

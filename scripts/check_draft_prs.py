@@ -123,6 +123,7 @@ class GhCliClient:
                 f"`{' '.join(command)}` failed with exit code "
                 f"{result.returncode}: {message}"
             )
+
         return result.stdout
 
     def _graphql(self, query: str, **variables: JsonValue) -> JsonObject:
@@ -134,6 +135,7 @@ class GhCliClient:
         payload = json.loads(self._run_gh(command))
         if not isinstance(payload, dict):
             raise TypeError("GraphQL response must be a JSON object")
+
         return payload
 
     def _rest(
@@ -357,6 +359,7 @@ def _object(value: JsonValue) -> JsonObject:
 def _required_object(value: JsonValue, path: str) -> JsonObject:
     if not isinstance(value, dict):
         raise ValueError(f"GitHub API response is missing object `{path}`")
+
     return cast("JsonObject", value)
 
 
@@ -642,6 +645,7 @@ def _default_repo() -> str:
         raise ValueError(
             "Could not infer repository from GITHUB_REPOSITORY or remote.origin.url"
         )
+
     return match.group("repo")
 
 

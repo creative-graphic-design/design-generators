@@ -137,6 +137,7 @@ def required_checklist_items(template_path: Path) -> list[str]:
     section = checklist_section(template)
     if section is None:
         raise ValueError(f"{template_path} is missing a ## Checklist section")
+
     return [match.group("text") for match in CHECKBOX_RE.finditer(section)]
 
 

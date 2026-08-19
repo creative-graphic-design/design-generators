@@ -37,6 +37,7 @@ def infer_conversation_mode(
     if override is not None:
         if override not in {"llava_v0", "llava_v1"}:
             raise ValueError(f"Unsupported conversation mode: {override}")
+
         return cast(Literal["llava_v0", "llava_v1"], override)
     lowered = model_name.lower()
     if "v1" in lowered or "llava-1.5" in lowered:
@@ -67,6 +68,7 @@ def tokenizer_image_token(
     """
     if return_tensors != "pt":
         raise ValueError("tokenizer_image_token only supports return_tensors='pt'")
+
     chunks = prompt.split(IMAGE_TOKEN)
     token_ids: list[int] = []
     for idx, chunk in enumerate(chunks):

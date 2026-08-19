@@ -51,6 +51,7 @@ def public_to_discrete_ltwh(
     ltwh = xywh_to_ltwh(bbox.float()) if fmt is BoxFormat.xywh else bbox.float()
     if fmt is not BoxFormat.xywh and fmt is not BoxFormat.ltwh:
         raise ValueError(f"Unsupported box_format: {box_format}")
+
     return discretize_ltwh(ltwh, x_grid=x_grid, y_grid=y_grid)
 
 

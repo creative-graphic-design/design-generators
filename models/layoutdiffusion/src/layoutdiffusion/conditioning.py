@@ -59,6 +59,7 @@ def build_condition(
         case ConditionType.label:
             if labels is None:
                 raise ValueError("labels are required for condition_type='label'")
+
             return LayoutDiffusionCondition(
                 type=canonical,
                 input_ids=input_ids,
@@ -68,6 +69,7 @@ def build_condition(
         case ConditionType.refinement:
             if input_ids is None:
                 raise ValueError("bbox and labels are required for refinement")
+
             return LayoutDiffusionCondition(
                 type=canonical,
                 input_ids=input_ids,
