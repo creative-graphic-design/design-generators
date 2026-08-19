@@ -154,7 +154,7 @@ def test_training_step_records_required_trace_points() -> None:
         "train_loss",
     ]:
         assert key in module.latest_step_trace
-    lt_count = cast(torch.Tensor, module.lt_count)
+    lt_count = module.lt_count
     assert module.lt_history.shape == (10,)
     assert lt_count.shape == (10,)
     assert lt_count.sum() == 2

@@ -209,8 +209,8 @@ def test_s0_training_static_optimizer_ema_and_sampler_state(
     for name, parameter in module.model.named_parameters():
         if parameter.requires_grad:
             assert torch.equal(module._ema_params[name], parameter.detach())
-    lt_history = cast(torch.Tensor, module.lt_history)
-    lt_count = cast(torch.Tensor, module.lt_count)
+    lt_history = module.lt_history
+    lt_count = module.lt_count
     assert torch.equal(lt_history, torch.zeros_like(lt_history))
     assert torch.equal(lt_count, torch.zeros_like(lt_count))
     _, vendor_diffusion = _build_vendor_training_components(config)

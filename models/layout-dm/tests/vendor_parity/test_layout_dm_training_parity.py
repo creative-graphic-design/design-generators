@@ -258,8 +258,8 @@ def _build_fixture(
     target.model.transformer.load_state_dict(
         vendor_model.transformer.state_dict(), strict=True
     )
-    cast(torch.Tensor, target.lt_history).copy_(vendor_model.Lt_history)
-    cast(torch.Tensor, target.lt_count).copy_(vendor_model.Lt_count)
+    target.lt_history.copy_(vendor_model.Lt_history)
+    target.lt_count.copy_(vendor_model.Lt_count)
     bbox = torch.tensor(
         [
             [

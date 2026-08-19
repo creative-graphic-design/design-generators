@@ -16,6 +16,8 @@ from .configuration_layout_fid import LayoutFIDConfig, LayoutFIDSource, normaliz
 class TransformerWithToken(nn.Module):
     """Transformer encoder with a learned summary token."""
 
+    token_mask: Bool[torch.Tensor, "1 1"]
+
     def __init__(
         self,
         *,
@@ -27,7 +29,6 @@ class TransformerWithToken(nn.Module):
         """Initialize the token encoder."""
         super().__init__()
         self.token = nn.Parameter(torch.randn(1, 1, d_model))
-        self.token_mask: Bool[torch.Tensor, "1 1"]
         self.register_buffer("token_mask", torch.zeros(1, 1, dtype=torch.bool))
         layer = nn.TransformerEncoderLayer(
             d_model=d_model,
