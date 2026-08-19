@@ -10,6 +10,12 @@
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
+## Highlights
+
+- Explore a broad collection of layout, poster, and graphic-design generation models.
+- Use consistent interfaces across Transformers, Diffusers, and Pydantic AI integrations.
+- Reproduce published results with documented checkpoints, datasets, and validation workflows.
+
 ## Models
 
 Framework, task, and dataset details are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
