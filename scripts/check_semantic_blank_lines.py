@@ -7,6 +7,10 @@ The raise-block check is exact: after a ``raise`` statement, ordinary code on a
 later line requires a blank line unless that code is a block-continuation
 keyword (``except``, ``elif``, ``else``, ``finally``, or an AST-confirmed
 ``match`` ``case`` clause).
+The block-end check is also exact: after an ``if``, ``for``, ``while``,
+``try``, or ``with`` suite, ordinary code at the compound statement's
+enclosing indentation requires one blank line. Continuation clauses and the
+end of a suite or file are exempt.
 
 The baseline is a shrink-only ratchet keyed by ``(file, rule)``. Each
 tab-separated entry stores a violation count rather than a line number, so
@@ -21,6 +25,9 @@ decreasing or removing residual counts and prevents hiding a new violation by
 appending it to the baseline. A missing or legacy location-format baseline in
 ``HEAD`` is treated as an initial baseline, which permits the merge that first
 introduces this checker to establish counts for content inherited from main.
+When a new rule is introduced, its first count-format baseline is also allowed
+through the ``INTRODUCED_RULES`` exception below; later changes to that rule
+are ratcheted against its committed counts like every existing rule.
 """
 
 from __future__ import annotations
@@ -41,6 +48,17 @@ BASELINE_PATH = ROOT / "scripts" / "semantic_blank_lines_baseline.txt"
 BASELINE_RELATIVE_PATH = Path("scripts/semantic_blank_lines_baseline.txt")
 MAX_CONSECUTIVE_STATEMENTS = 15
 CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally"})
+INTRODUCED_RULES = frozenset({"block-end"})
+COMPOUND_STATEMENT_TYPES = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.Try,
+    ast.TryStar,
+    ast.With,
+    ast.AsyncWith,
+)
 SCAN_GLOBS = (
     "models/*/src/**/*.py",
     "lib/*/src/**/*.py",
@@ -175,6 +193,34 @@ def _match_case_lines(
     return case_lines
 
 
+def _next_code_line(
+    first_tokens: dict[int, tokenize.TokenInfo], end_line: int, line_count: int
+) -> int | None:
+    """Return the next physical line containing a non-layout token."""
+    return next(
+        (
+            line_number
+            for line_number in range(end_line + 1, line_count + 1)
+            if line_number in first_tokens
+        ),
+        None,
+    )
+
+
+def _is_continuation(
+    token: tokenize.TokenInfo, line_number: int, match_case_lines: set[int]
+) -> bool:
+    """Return whether a token starts an exempt compound-statement continuation."""
+    return token.string in CONTINUATION_KEYWORDS or (
+        token.string == "case" and line_number in match_case_lines
+    )
+
+
+def _has_blank_line_after(lines: list[str], end_line: int) -> bool:
+    """Return whether the physical line immediately after ``end_line`` is blank."""
+    return end_line < len(lines) and not lines[end_line].strip()
+
+
 def _raise_violations(
     tree: ast.Module, source: str, relative_path: str
 ) -> Iterator[Violation]:
@@ -182,32 +228,72 @@ def _raise_violations(
     lines = source.splitlines()
     first_tokens = _first_code_tokens(source)
     match_case_lines = _match_case_lines(tree, first_tokens)
+
     for node in ast.walk(tree):
         if not isinstance(node, ast.Raise):
             continue
+
         end_line = node.end_lineno or node.lineno
-        next_line = next(
-            (
-                line_number
-                for line_number in range(end_line + 1, len(lines) + 1)
-                if line_number in first_tokens
-            ),
-            None,
-        )
+        next_line = _next_code_line(first_tokens, end_line, len(lines))
+
         if next_line is None:
             continue
+
         next_token = first_tokens[next_line]
-        if next_token.string in CONTINUATION_KEYWORDS or (
-            next_token.string == "case" and next_line in match_case_lines
-        ):
+        if _is_continuation(next_token, next_line, match_case_lines):
             continue
-        if end_line < len(lines) and not lines[end_line].strip():
+
+        if _has_blank_line_after(lines, end_line):
             continue
+
         yield Violation(
             relative_path,
             end_line,
             "raise-block",
             f"ordinary code follows raise on line {next_line} without a blank line",
+        )
+
+
+def _block_end_violations(
+    tree: ast.Module, source: str, relative_path: str
+) -> Iterator[Violation]:
+    """Yield missing blank lines after compound suites at their enclosing indent."""
+    lines = source.splitlines()
+    first_tokens = _first_code_tokens(source)
+    match_case_lines = _match_case_lines(tree, first_tokens)
+    seen_boundaries: set[tuple[int, int]] = set()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, COMPOUND_STATEMENT_TYPES):
+            continue
+
+        end_line = node.end_lineno or node.lineno
+        next_line = _next_code_line(first_tokens, end_line, len(lines))
+
+        if next_line is None:
+            continue
+
+        next_token = first_tokens[next_line]
+        if _is_continuation(next_token, next_line, match_case_lines):
+            continue
+
+        if next_token.start[1] != node.col_offset:
+            continue
+
+        if _has_blank_line_after(lines, end_line):
+            continue
+
+        boundary = (end_line, node.col_offset)
+        if boundary in seen_boundaries:
+            continue
+
+        seen_boundaries.add(boundary)
+        yield Violation(
+            relative_path,
+            end_line,
+            "block-end",
+            f"ordinary code follows {type(node).__name__} suite on line "
+            f"{next_line} at the enclosing indentation without a blank line",
         )
 
 
@@ -227,6 +313,7 @@ def violations_for_file(root: Path, path: Path) -> Iterator[Violation]:
         return
     yield from _heuristic_violations(tree, relative_path)
     yield from _raise_violations(tree, source, relative_path)
+    yield from _block_end_violations(tree, source, relative_path)
 
 
 def current_counts(root: Path) -> dict[tuple[str, str], int]:
@@ -319,6 +406,9 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
     )
 
     committed = committed_baseline_counts(root)
+    committed_rules = (
+        {rule for _, rule in committed} if committed is not None else set()
+    )
     increased_counts = (
         sorted(
             (
@@ -329,6 +419,7 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
             )
             for (path, rule), count in baseline_current.items()
             if count > committed.get((path, rule), 0)
+            and not (rule in INTRODUCED_RULES and rule not in committed_rules)
         )
         if committed is not None
         else []

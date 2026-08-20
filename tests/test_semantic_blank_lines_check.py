@@ -179,6 +179,157 @@ def terminal():
     assert not any("raise-block" in entry for entry in entries)
 
 
+def test_block_end_rule_covers_each_compound_statement_kind(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        """
+def compound_statements(items, enabled):
+    if enabled:
+        pass
+    value = 1
+    for item in items:
+        value += item
+    value += 1
+    while enabled:
+        enabled = False
+    value += 1
+    try:
+        value += 1
+    except Exception:
+        value += 2
+    value += 1
+    with open("example.txt") as handle:
+        value += len(handle.read())
+    return value
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert entries[("models/example/src/example/module.py", "block-end")] == 5
+
+
+def test_block_end_rule_flags_nested_suites_at_enclosing_indents(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+def nested():
+    if True:
+        if True:
+            pass
+        value = 1
+    return value
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert entries[("models/example/src/example/module.py", "block-end")] == 2
+
+
+def test_block_end_rule_ignores_suite_at_function_end(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        """
+def terminal_if():
+    if True:
+        return 1
+
+
+def terminal_with():
+    with open("example.txt") as handle:
+        return handle.read()
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert not any("block-end" in entry for entry in entries)
+
+
+def test_block_end_rule_exempts_continuation_clauses(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        """
+def continuations(value):
+    if value == 1:
+        pass
+    elif value == 2:
+        pass
+    else:
+        pass
+
+    try:
+        pass
+    except ValueError:
+        pass
+    finally:
+        pass
+
+    return value
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert not any("block-end" in entry for entry in entries)
+
+
+def test_block_end_rule_handles_with_statements(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        """
+def missing():
+    with open("example.txt") as handle:
+        value = handle.read()
+    return value
+
+
+def present():
+    with open("example.txt") as handle:
+        value = handle.read()
+
+    return value
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert entries[("models/example/src/example/module.py", "block-end")] == 1
+
+
+def test_block_end_rule_treats_case_identifiers_as_ordinary_code(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        """
+def assignment():
+    if True:
+        pass
+    case = 1
+
+
+def call():
+    if True:
+        pass
+    case(value)
+
+
+def attribute():
+    if True:
+        pass
+    case.value = 1
+""",
+    )
+
+    entries = checker.current_counts(tmp_path)
+
+    assert entries[("models/example/src/example/module.py", "block-end")] == 3
+
+
 def test_case_identifiers_are_ordinary_code(tmp_path: Path) -> None:
     write_source(
         tmp_path,
@@ -264,6 +415,26 @@ def missing():
     assert (
         "Baseline counts added or increased relative to HEAD" in capsys.readouterr().err
     )
+
+
+def test_checker_accepts_initial_baseline_for_new_rule(tmp_path: Path) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    write_source(
+        tmp_path,
+        "def missing():\n    if True:\n        pass\n    return 1\n",
+    )
+    write_baseline(baseline, {})
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "empty baseline"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    write_baseline(baseline, checker.current_counts(tmp_path))
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
 
 
 def test_checker_accepts_legacy_location_baseline_as_initial_counts(
