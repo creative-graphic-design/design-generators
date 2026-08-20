@@ -170,19 +170,23 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         )
         if bbox_labels.ndim != 2:
             raise ValueError("bbox_labels must have shape (batch, elements)")
+
         if (
             latents.shape[:2] != bbox_labels.shape
             or latents.shape[-1] != self.config.z_dim
         ):
             raise ValueError("latents must have shape (batch, elements, z_dim)")
+
         if input_ids.shape[:2] != bbox_labels.shape:
             raise ValueError("input_ids must have shape (batch, elements, tokens)")
+
         labels = bbox_labels.to(dtype=torch.long)
         if labels.numel() and (
             int(labels.min().item()) < 0
             or int(labels.max().item()) >= self.config.num_bbox_labels
         ):
             raise ValueError("bbox_labels contain ids outside config.num_bbox_labels")
+
         device = labels.device
         pixel_values = pixel_values.to(device=device, dtype=self.dtype)
         latents = latents.to(device=device, dtype=self.dtype)
@@ -318,6 +322,11 @@ class _NestedTensor:  # pragma: no cover
 
 
 class _FrozenBatchNorm2d(nn.Module):  # pragma: no cover
+    weight: Float[torch.Tensor, "channels"]
+    bias: Float[torch.Tensor, "channels"]
+    running_mean: Float[torch.Tensor, "channels"]
+    running_var: Float[torch.Tensor, "channels"]
+
     def __init__(self, channels: int) -> None:
         super().__init__()
         self.register_buffer("weight", torch.ones(channels))
@@ -328,14 +337,10 @@ class _FrozenBatchNorm2d(nn.Module):  # pragma: no cover
     def forward(
         self, x: Float[torch.Tensor, "batch channels height width"]
     ) -> Float[torch.Tensor, "batch channels height width"]:
-        weight = cast(Shaped[torch.Tensor, "..."], self.weight).reshape(1, -1, 1, 1)
-        bias = cast(Shaped[torch.Tensor, "..."], self.bias).reshape(1, -1, 1, 1)
-        running_var = cast(Shaped[torch.Tensor, "..."], self.running_var).reshape(
-            1, -1, 1, 1
-        )
-        running_mean = cast(Shaped[torch.Tensor, "..."], self.running_mean).reshape(
-            1, -1, 1, 1
-        )
+        weight = self.weight.reshape(1, -1, 1, 1)
+        bias = self.bias.reshape(1, -1, 1, 1)
+        running_var = self.running_var.reshape(1, -1, 1, 1)
+        running_mean = self.running_mean.reshape(1, -1, 1, 1)
         scale = weight * (running_var + 1e-5).rsqrt()
         return x * scale + (bias - running_mean * scale)
 
@@ -363,6 +368,7 @@ class _Backbone(_BackboneBase):  # pragma: no cover
     def __init__(self, name: str) -> None:
         if name != "resnet50":
             raise ValueError(f"Unsupported LayoutDETR backbone: {name}")
+
         backbone = resnet50(
             weights=None,
             replace_stride_with_dilation=[False, False, False],
@@ -773,6 +779,8 @@ def _build_reference_bert_lm_head(
 
 
 class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
+    position_ids: Int[torch.Tensor, "1 max_positions"]
+
     def __init__(self, config: BertConfig) -> None:
         super().__init__()
         self.word_embeddings = nn.Embedding(
@@ -812,9 +820,10 @@ class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
             input_shape = inputs_embeds.size()[:-1]
         else:
             raise ValueError("input_ids or inputs_embeds must be provided")
+
         seq_length = input_shape[1]
         if position_ids is None:
-            position_ids = cast(Int[torch.Tensor, "batch tokens"], self.position_ids)[
+            position_ids = self.position_ids[
                 :,
                 past_key_values_length : seq_length + past_key_values_length,
             ]
@@ -899,6 +908,7 @@ class _ReferenceBertModel(nn.Module):  # pragma: no cover
             raise ValueError(
                 f"Unsupported attention_mask shape: {attention_mask.shape}"
             )
+
         extended = extended.to(dtype=next(self.parameters()).dtype)
         return (1.0 - extended) * -10000.0
 
@@ -967,6 +977,7 @@ class _ReferenceBertLayer(nn.Module):  # pragma: no cover
         if mode == "multimodal":
             if encoder_hidden_states is None:
                 raise ValueError("encoder_hidden_states is required for multimodal")
+
             attention_output = self.crossattention(
                 attention_output,
                 attention_mask=encoder_attention_mask,

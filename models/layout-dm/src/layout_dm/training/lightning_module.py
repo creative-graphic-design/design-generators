@@ -41,6 +41,9 @@ from .losses import (
 class LayoutDMTrainingModule(LightningModule):
     """Lightning wrapper reproducing LayoutDM categorical-diffusion training."""
 
+    lt_history: Float[torch.Tensor, "timesteps"]
+    lt_count: Float[torch.Tensor, "timesteps"]
+
     def __init__(
         self,
         *,
@@ -114,16 +117,19 @@ class LayoutDMTrainingModule(LightningModule):
         )
         self.num_timesteps = config.num_timesteps
         self.num_classes = config.vocab_size
+
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.betas = betas
         self.auxiliary_loss_weight = auxiliary_loss_weight
         self.adaptive_auxiliary_loss = adaptive_auxiliary_loss
+
         self.time_sampler: LayoutDMTimeSampler = time_sampler
         self.scheduler = scheduler
         self.scheduler_factor = scheduler_factor
         self.scheduler_patience = scheduler_patience
         self.scheduler_threshold = scheduler_threshold
+
         self.seed_mode = LayoutDMSeedMode(seed_mode)
         self.mat_size = {key: len(ids) for key, ids in (per_var_full_ids or {}).items()}
         self.register_buffer("lt_history", torch.zeros(self.num_timesteps))
@@ -200,8 +206,8 @@ class LayoutDMTrainingModule(LightningModule):
         return sample_time_importance(
             batch_size,
             num_timesteps=self.num_timesteps,
-            lt_history=cast(torch.Tensor, self.lt_history),
-            lt_count=cast(torch.Tensor, self.lt_count),
+            lt_history=self.lt_history,
+            lt_count=self.lt_count,
         )
 
     def _q_sample_full(
@@ -216,12 +222,14 @@ class LayoutDMTrainingModule(LightningModule):
             log_qpred = self.diffusion_scheduler._vanilla_q_pred(log_x_start, t)
             xt = log_sample_categorical(log_qpred)
             return index_to_log_onehot(xt, self.num_classes), xt
+
         batch_size = x_start.shape[0]
         step = len(self.var_order)
         seq_len = x_start.shape[1] // step
         reshaped = x_start.reshape(batch_size, seq_len, step)
         log_xt_full_parts: list[Float[torch.Tensor, "batch vocab tokens"]] = []
         xt_full_parts: list[Int[torch.Tensor, "batch tokens"]] = []
+
         for i, key in enumerate(self.var_order):
             col_full = reshaped[..., i]
             col_partial = self.tokenizer.full_to_partial_ids(col_full, key)
@@ -233,6 +241,7 @@ class LayoutDMTrainingModule(LightningModule):
                 self.tokenizer.partial_to_full_log_probs(log_xt, key)
             )
             xt_full_parts.append(self.tokenizer.partial_to_full_ids(sampled, key))
+
         log_x_t_full = torch.stack(log_xt_full_parts, dim=-1).reshape(
             batch_size, self.num_classes, -1
         )
@@ -269,8 +278,8 @@ class LayoutDMTrainingModule(LightningModule):
         update_loss_history(
             kl_loss,
             t,
-            cast(torch.Tensor, self.lt_history),
-            cast(torch.Tensor, self.lt_count),
+            self.lt_history,
+            self.lt_count,
         )
 
         losses: dict[str, Float[torch.Tensor, ""]] = {"kl_loss": (kl_loss / pt).mean()}

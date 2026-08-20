@@ -41,6 +41,7 @@ def select_exemplars(
     if not pool:
         msg = "PosterO exemplar selection requires at least one candidate"
         raise ValueError(msg)
+
     ranked = _rank(query, pool, config=config, seed=seed, generator=generator)
     return ranked[: config.sample_size]
 

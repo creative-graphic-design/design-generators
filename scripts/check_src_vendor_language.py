@@ -62,6 +62,7 @@ def baseline_entries() -> set[str]:
     """Return committed baseline entries."""
     if not BASELINE_PATH.is_file():
         raise FileNotFoundError(BASELINE_PATH)
+
     return {
         line
         for line in BASELINE_PATH.read_text(encoding="utf-8").splitlines()
@@ -76,20 +77,26 @@ def main() -> int:
             "\n".join(sorted(current_entries())) + "\n", encoding="utf-8"
         )
         return 0
+
     current = current_entries()
     baseline = baseline_entries()
+
     unexpected = sorted(current - baseline)
     stale = sorted(baseline - current)
+
     if not unexpected and not stale:
         return 0
+
     if unexpected:
         print("New vendor language in package source:", file=sys.stderr)
         for entry in unexpected:
             print(f"  + {entry}", file=sys.stderr)
+
     if stale:
         print("Stale vendor language baseline entries:", file=sys.stderr)
         for entry in stale:
             print(f"  - {entry}", file=sys.stderr)
+
     return 1
 
 

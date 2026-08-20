@@ -192,6 +192,7 @@ class LayoutActionConfig(PretrainedConfig):
         id2label = cast(dict[int, str], self.id2label)
         if label_id not in id2label:
             raise ValueError(f"Unknown LayoutAction label id: {label_id}")
+
         return self.label_token_offset + int(label_id)
 
     def label_id_from_token(self, token_id: int) -> int | None:
@@ -206,6 +207,7 @@ class LayoutActionConfig(PretrainedConfig):
         """Return the token id for a previous-object back reference."""
         if not 1 <= back_reference <= self.max_elements:
             raise ValueError("back_reference must be in [1, max_elements]")
+
         return self.no_obj_token_id + back_reference
 
     def back_reference_from_token(self, token_id: int) -> int | None:

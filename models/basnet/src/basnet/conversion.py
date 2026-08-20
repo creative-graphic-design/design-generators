@@ -75,6 +75,7 @@ def convert_original_checkpoint(
     }
     if missing or unexpected:
         raise RuntimeError(json.dumps(report, indent=2, sort_keys=True))
+
     config.conversion_report = dict[str, str | int | float | bool | list[str]](report)
     model.config = config
     model.save_pretrained(output_dir)

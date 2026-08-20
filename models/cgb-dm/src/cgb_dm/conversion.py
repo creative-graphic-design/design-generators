@@ -89,6 +89,7 @@ def build_pipeline_from_checkpoint(
         raise ValueError(
             f"State dict mismatch: missing={missing}, unexpected={unexpected}"
         )
+
     return CGBDMPipeline(
         model=model,
         scheduler=CGBDMScheduler(

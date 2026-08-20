@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
@@ -46,6 +45,9 @@ EMA_CHECKPOINT_KEY = "layoutdiffusion_ema_state_dict"
 class LayoutDiffusionTrainingModule(LightningModule):
     """Lightning wrapper reproducing LayoutDiffusion categorical diffusion training."""
 
+    lt_history: Float[torch.Tensor, "timesteps"]
+    lt_count: Float[torch.Tensor, "timesteps"]
+
     def __init__(
         self,
         *,
@@ -80,17 +82,20 @@ class LayoutDiffusionTrainingModule(LightningModule):
             max_position_embeddings=config.max_position_embeddings,
         )
         self.diffusion_scheduler = LayoutDiffusionScheduler.from_layout_config(config)
+
         self.num_timesteps = config.diffusion_steps
         self.num_classes = config.vocab_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.betas = betas
+
         self.auxiliary_loss_weight = auxiliary_loss_weight
         self.time_sampler: LayoutDiffusionTimeSampler = time_sampler
         self.scheduler = scheduler
         self.lr_anneal_steps = lr_anneal_steps
         self.ema_rate = ema_rate
         self.seed_mode = LayoutDiffusionSeedMode(seed_mode)
+
         self.register_buffer("lt_history", torch.zeros(self.num_timesteps))
         self.register_buffer("lt_count", torch.zeros(self.num_timesteps))
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
@@ -150,8 +155,8 @@ class LayoutDiffusionTrainingModule(LightningModule):
             return sample_time_importance(
                 batch_size,
                 num_timesteps=self.num_timesteps,
-                lt_history=cast(torch.Tensor, self.lt_history),
-                lt_count=cast(torch.Tensor, self.lt_count),
+                lt_history=self.lt_history,
+                lt_count=self.lt_count,
             )
         raise ValueError(f"Unsupported time_sampler: {self.time_sampler}")
 
@@ -196,8 +201,8 @@ class LayoutDiffusionTrainingModule(LightningModule):
         update_loss_history(
             kl_loss,
             t,
-            cast(torch.Tensor, self.lt_history),
-            cast(torch.Tensor, self.lt_count),
+            self.lt_history,
+            self.lt_count,
         )
 
         loss1 = kl_loss / pt
@@ -225,8 +230,8 @@ class LayoutDiffusionTrainingModule(LightningModule):
             "kl": kl.detach(),
             "decoder_nll": decoder_nll.detach(),
             "kl_loss": kl_loss.detach(),
-            "lt_history": cast(torch.Tensor, self.lt_history).detach().clone(),
-            "lt_count": cast(torch.Tensor, self.lt_count).detach().clone(),
+            "lt_history": self.lt_history.detach().clone(),
+            "lt_count": self.lt_count.detach().clone(),
             "aux_loss": aux_loss.detach(),
         }
         return losses, trace
@@ -316,9 +321,11 @@ class LayoutDiffusionTrainingModule(LightningModule):
             return
         if not isinstance(ema_state, dict):
             raise TypeError(f"{EMA_CHECKPOINT_KEY} must be a dict")
+
         restored: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for name, value in ema_state.items():
             if not isinstance(value, torch.Tensor):
                 raise TypeError(f"{EMA_CHECKPOINT_KEY}[{name}] must be a tensor")
+
             restored[str(name)] = value.detach().clone()
         self._ema_params = restored

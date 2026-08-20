@@ -114,18 +114,22 @@ class SmartTextConfig(PretrainedConfig):
         raw_id2label = id2label or DEFAULT_ID2LABEL
         normalized_id2label = {int(key): value for key, value in raw_id2label.items()}
         super().__init__(id2label=normalized_id2label, **kwargs)  # ty: ignore[invalid-argument-type]
+
         self.id2label = normalized_id2label
         self.label2id = {value: key for key, value in self.id2label.items()}
+
         self.scorer_scale = scorer_scale
         self.scorer_backbone = SmartTextBackbone(scorer_backbone).value
         self.align_size = int(align_size)
         self.reduction_dim = int(reduction_dim)
         self.downsample = int(downsample)
+
         self.model_type_name = SmartTextRegionMode(model_type_name).value
         self.image_size = int(image_size)
         self.ratio_list = tuple(float(value) for value in ratio_list)
         self.text_spacing = int(text_spacing)
         self.exp_prop = int(exp_prop)
+
         self.grid_num = int(grid_num)
         self.saliency_coef = float(saliency_coef)
         self.max_text_area_coef = float(max_text_area_coef)
@@ -139,9 +143,11 @@ class SmartTextConfig(PretrainedConfig):
         self.mos_std = float(mos_std)
         self.rgb_mean = tuple(float(value) for value in rgb_mean)
         self.rgb_std = tuple(float(value) for value in rgb_std)
+
         self.scorer_subfolder = scorer_subfolder
         self.saliency_subfolder = saliency_subfolder
         self.processor_subfolder = processor_subfolder
+
         self.original_options = dict(original_options or {})
         self.conversion_report = dict(conversion_report or {})
 

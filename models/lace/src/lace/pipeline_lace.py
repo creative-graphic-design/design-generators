@@ -94,8 +94,10 @@ def normalize_condition_type(
                 raise ValueError(
                     f"Unsupported LACE condition_type: {condition_type}"
                 ) from exc
+
     if canonical not in _SUPPORTED_CONDITION_TYPES:
         raise ValueError(f"Unsupported LACE condition_type: {condition_type}")
+
     return canonical
 
 
@@ -223,6 +225,7 @@ class LacePipeline(DiffusionPipeline):
                 raise ValueError(
                     f"bbox and labels are required for condition_type={condition_type}"
                 )
+
             encoded = self.processor(
                 bbox=bbox,
                 labels=labels,
@@ -362,17 +365,21 @@ class LacePipeline(DiffusionPipeline):
         """Build the fixed-channel mask for conditional generation."""
         if real_layout is None or condition_type is ConditionType.refinement:
             return None
+
         batch_size, seq_len, seq_dim = real_layout.shape
         num_class = seq_dim - 4
+
         if condition_type is ConditionType.label:
             fix_mask = torch.zeros_like(real_layout, dtype=torch.bool)
             fix_mask[:, :, :num_class] = True
             return fix_mask
+
         if condition_type is ConditionType.label_size:
             fix_mask = torch.zeros_like(real_layout, dtype=torch.bool)
             fix_indices = list(range(num_class)) + [num_class + 2, num_class + 3]
             fix_mask[:, :, fix_indices] = True
             return fix_mask
+
         if condition_type is ConditionType.completion:
             labels = real_layout[:, :, :num_class].argmax(dim=2)
             real_mask = labels != (num_class - 1)
@@ -389,6 +396,7 @@ class LacePipeline(DiffusionPipeline):
                 <= cutoff * completion_ratio
             ) & real_mask
             return element_mask.unsqueeze(-1).expand(-1, -1, seq_dim)
+
         if condition_type is ConditionType.unconditional:
             return None
         raise ValueError(f"Unsupported LACE condition_type: {condition_type}")

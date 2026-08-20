@@ -160,10 +160,13 @@ class LayoutFIDConfig(PretrainedConfig):
         box_format = normalize_box_format(bbox_format_for_model)
         if num_public_labels <= 0:
             raise ValueError("num_public_labels must be positive")
+
         if num_label_embeddings < num_public_labels:
             raise ValueError("num_label_embeddings must cover public labels")
+
         if max_length <= 0:
             raise ValueError("max_length must be positive")
+
         if pad_label_id < 0 or pad_label_id >= num_label_embeddings:
             raise ValueError("pad_label_id must be inside the embedding table")
 
@@ -173,12 +176,14 @@ class LayoutFIDConfig(PretrainedConfig):
         self.label2id = {label: idx for idx, label in self.id2label.items()}
         self.architecture = str(arch)
         self.source = str(src)
+
         self.num_public_labels = num_public_labels
         self.num_label_embeddings = num_label_embeddings
         self.max_length = max_length
         self.d_model = d_model
         self.nhead = nhead
         self.num_layers = num_layers
+
         self.bbox_format_for_model = str(box_format)
         self.label_id_offset = label_id_offset
         self.pad_label_id = pad_label_id

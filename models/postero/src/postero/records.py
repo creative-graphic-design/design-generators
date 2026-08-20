@@ -117,6 +117,7 @@ def _element_from_mapping(
     if isinstance(label, int) and label not in id2label:
         msg = f"Unknown label id for PosterO record: {label}"
         raise ValueError(msg)
+
     return PosterLayoutElement(
         label=label if isinstance(label, int) else str(label),
         bbox_ltrb=_bbox(mapping.get("bbox_ltrb", mapping.get("bbox"))),
@@ -132,6 +133,7 @@ def _bbox(value: JSONValue | Sequence[JSONValue]) -> tuple[float, float, float, 
     if len(values) != 4:
         msg = "bbox values must contain four numbers"
         raise ValueError(msg)
+
     return (values[0], values[1], values[2], values[3])
 
 
@@ -140,6 +142,7 @@ def _canvas_size(value: JSONValue | Sequence[JSONValue]) -> tuple[int, int]:
     if len(values) != 2:
         msg = "canvas_size values must contain width and height"
         raise ValueError(msg)
+
     return (values[0], values[1])
 
 

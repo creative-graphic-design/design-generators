@@ -200,6 +200,7 @@ def select_tokens_to_remask(
     """
     if confidence_logits.ndim != 2:
         raise ValueError("confidence_logits must be rank-2")
+
     normalized_mode = normalize_corrector_mask_mode(mode)
     if normalized_mode is CorrectorMaskMode.thresh:
         confidence = torch.sigmoid(confidence_logits / temperature)

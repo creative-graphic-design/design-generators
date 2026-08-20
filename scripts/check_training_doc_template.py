@@ -83,10 +83,12 @@ def heading_sections(text: str) -> dict[str, tuple[int, list[str]]]:
     """Return first matching heading sections keyed by heading name."""
     lines = list(iter_unfenced_lines(text))
     sections: dict[str, tuple[int, list[str]]] = {}
+
     for index, line in enumerate(lines):
         match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
         if match is None:
             continue
+
         level = len(match.group(1))
         heading = match.group(2).strip()
         content: list[str] = []
@@ -112,6 +114,7 @@ def iter_tables(lines: Iterable[str]) -> Iterable[tuple[list[str], list[list[str
     table_started = False
     headers: list[str] = []
     rows: list[list[str]] = []
+
     for line in lines:
         if not line.lstrip().startswith("|"):
             if table_started:
@@ -120,14 +123,17 @@ def iter_tables(lines: Iterable[str]) -> Iterable[tuple[list[str], list[list[str
                 headers = []
                 rows = []
             continue
+
         cells = split_markdown_row(line)
         if not table_started:
             headers = [normalize_header(cell) for cell in cells]
             table_started = True
             continue
+
         if is_table_delimiter(line):
             continue
         rows.append(cells)
+
     if table_started:
         yield headers, rows
 
@@ -142,16 +148,21 @@ def supported_checkpoint_datasets(readme_path: Path) -> tuple[set[str], str | No
     if not readme_path.is_file():
         return set(), "README.md is missing"
     text = readme_path.read_text(encoding="utf-8")
+
     lines = section_lines(text, SUPPORTED_CHECKPOINTS_HEADING)
     if not lines:
         return set(), "README.md missing Supported Checkpoints section"
+
     saw_table = False
+
     for headers, rows in iter_tables(lines):
         saw_table = True
         for column_name in DATASET_COLUMN_NAMES:
             normalized_column = normalize_header(column_name)
+
             if normalized_column not in headers:
                 continue
+
             column_index = headers.index(normalized_column)
             datasets = {
                 normalize_dataset(row[column_index])
@@ -174,16 +185,20 @@ def is_valid_status(value: str) -> bool:
     """Return whether a Reproduction Results status uses the allowed enum."""
     raw_status = value.strip().strip("`").strip()
     status = normalize_status(value)
+
     if status in TERMINAL_STATUSES:
         return True
+
     match = NON_TERMINAL_STATUS_RE.fullmatch(status)
     if match is None:
         return False
     raw_match = NON_TERMINAL_STATUS_RE.fullmatch(raw_status.lower())
     detail = match.group(2).strip()
     raw_detail = raw_match.group(2).strip() if raw_match is not None else detail
+
     if not detail or detail in {"#", "()"}:
         return False
+
     if is_placeholder_detail(raw_detail):
         return False
     return True

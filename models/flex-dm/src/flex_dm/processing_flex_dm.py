@@ -209,6 +209,7 @@ class FlexDmProcessor(ProcessorMixin):
         """Convert public layout fields into Flex-DM model tensors."""
         if return_tensors != "pt":
             raise ValueError("FlexDmProcessor only supports return_tensors='pt'")
+
         if bbox is None or labels is None:
             count = self._num_elements_tensor(num_elements, batch_size)
             max_len = int(count.max().item()) if count.numel() else 0
@@ -403,6 +404,7 @@ class FlexDmProcessor(ProcessorMixin):
             return dict(result)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return result
 
     def _decode_logits(

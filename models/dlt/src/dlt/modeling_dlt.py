@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 import os
-from typing import cast
 
 import numpy as np
 import torch
@@ -33,6 +32,8 @@ class DLTModelOutput(BaseOutput):
 class PositionalEncoding(nn.Module):
     """Sinusoidal positional encoding used by the DLT denoiser."""
 
+    pe: Float[torch.Tensor, "max_len 1 d_model"]
+
     def __init__(
         self, d_model: int, dropout: float = 0.05, max_len: int = 5000
     ) -> None:
@@ -53,8 +54,7 @@ class PositionalEncoding(nn.Module):
         self, x: Float[torch.Tensor, "sequence batch channels"]
     ) -> Float[torch.Tensor, "sequence batch channels"]:
         """Add positional encodings to a sequence tensor."""
-        pe = cast(torch.Tensor, self.pe)
-        x = x + pe[: x.shape[0], :]
+        x = x + self.pe[: x.shape[0], :]
         return self.dropout(x)
 
 
@@ -75,8 +75,7 @@ class TimestepEmbedder(nn.Module):
         self, timesteps: Int[torch.Tensor, "batch"]
     ) -> Float[torch.Tensor, "1 batch channels"]:
         """Embed diffusion timesteps."""
-        pe = cast(torch.Tensor, self.seq_pos_enc.pe)
-        return self.time_embed(pe[timesteps]).permute(1, 0, 2)
+        return self.time_embed(self.seq_pos_enc.pe[timesteps]).permute(1, 0, 2)
 
 
 class DLT(ModelMixin, ConfigMixin):

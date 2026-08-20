@@ -121,11 +121,17 @@ class ImageReshaper(nn.Module):
     ) -> Float[torch.Tensor, "batch pixels channels"]:
         if x.size(1) != self.d_model:
             raise ValueError(f"{x.size(1)} != {self.d_model}")
+
         return rearrange(x, "b c h w -> b (h w) c")
 
 
 class PositionalEncoding1d(nn.Module):
     """RALF sine positional encoding for token sequences."""
+
+    pe: (
+        Float[torch.Tensor, "1 max_len d_model"]
+        | Float[torch.Tensor, "max_len 1 d_model"]
+    )
 
     def __init__(
         self,
@@ -158,11 +164,10 @@ class PositionalEncoding1d(nn.Module):
         self, x: Float[torch.Tensor, "... channels"]
     ) -> Float[torch.Tensor, "... channels"]:
         h = x * math.sqrt(self.d_model) if self.scale_input else x
-        pe = cast(Tensor, self.pe)
         if self.batch_first:
-            h = h + pe[:, : h.size(1)]
+            h = h + self.pe[:, : h.size(1)]
         else:
-            h = h + pe[: h.size(0)]
+            h = h + self.pe[: h.size(0)]
         return self.dropout(h)
 
 
@@ -182,6 +187,7 @@ class PositionEmbeddingSine(nn.Module):
         self.normalize = normalize
         if scale is not None and not normalize:
             raise ValueError("normalize should be True if scale is passed")
+
         self.scale = 2 * math.pi if scale is None else scale
         self.reshape = ImageReshaper(d_model)
 
@@ -298,6 +304,7 @@ class ResnetBackbone(nn.Module):
         super().__init__()
         if backbone != "resnet50":
             raise ValueError("RALF converted checkpoints use resnet50")
+
         resnet = timm.create_model("resnet50", pretrained=False)
         if weights_path is not None:
             weights = torch.load(weights_path, map_location="cpu", weights_only=False)
@@ -321,6 +328,7 @@ class ResnetBackbone(nn.Module):
         self.proj = nn.Conv2d(512, d_model, 1, 1, 0)
         if head != "transformer":
             raise ValueError("RALF converted checkpoints use transformer image head")
+
         self.head = head
 
     def forward(
@@ -367,6 +375,8 @@ class ResnetFeatureExtractor(nn.Module):
 class TransformerWithToken(nn.Module):
     """FIDNet transformer encoder with a learned summary token."""
 
+    token_mask: Bool[torch.Tensor, "1 1"]
+
     def __init__(
         self, d_model: int, nhead: int, dim_feedforward: int, num_layers: int
     ) -> None:
@@ -390,7 +400,7 @@ class TransformerWithToken(nn.Module):
         batch = x.size(1)
         token = self.token.expand(-1, batch, -1)
         x = torch.cat([token, x], dim=0)
-        token_mask = cast(Tensor, self.token_mask).expand(batch, -1)
+        token_mask = self.token_mask.expand(batch, -1)
         padding_mask = torch.cat([token_mask, src_key_padding_mask], dim=1)
         return self.core(x, src_key_padding_mask=padding_mask)
 
@@ -462,6 +472,7 @@ class BaseDecoder(nn.Module):
             raise ValueError(
                 "RALF converted checkpoints use layout positional encoding"
             )
+
         self.tie_weights = False
         self.transformer = nn.TransformerDecoder(
             decoder_layer=nn.TransformerDecoderLayer(
@@ -742,6 +753,7 @@ class RalfTaskPreprocessor:
     ) -> Int[torch.Tensor, "batch tokens"]:
         if inputs.seq is None:
             raise ValueError(f"condition_type={self.task_name!r} requires labels")
+
         seq = inputs.seq
         if self.task_name == "partial" and inputs.mask is not None:
             seq = seq.clone()
@@ -1000,6 +1012,9 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     main_input_name = "input_ids"
     _tied_weights_keys: dict[str, str] = {}
 
+    flag_img: Int[torch.Tensor, "1"]
+    flag_user_const: Int[torch.Tensor, "1"]
+
     def __init__(self, config: RalfConfig) -> None:
         """Initialize a local module tree matching original RALF checkpoint keys."""
         super().__init__(config)
@@ -1007,16 +1022,20 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.dataset_name = config.dataset_name
         self.d_model = config.d_model
         self.max_seq_length = config.max_seq_length
+
         self.use_reference_image = config.use_reference_image
         self.layout_backbone = config.layout_backbone
         self.top_k = config.top_k
         self.weight_init = True
+
         self.retrieval_backbone = config.retrieval_backbone
         self.random_retrieval = False
         self.saliency_k = str(config.saliency_k)
+
         self.num_layers = config.encoder_layers
         self.nhead = config.num_attention_heads
         self.dropout = config.dropout
+
         self.encoder = ResnetFeatureExtractor(
             backbone="resnet50",
             d_model=config.d_model,
@@ -1101,6 +1120,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     def _canonical_to_task_name(task: RalfConfigTaskName | str) -> RalfTaskName:
         if task not in TASK_BY_CONDITION:
             raise ValueError(f"Unsupported RALF task or condition: {task}")
+
         return TASK_BY_CONDITION[cast(RalfConfigTaskName, task)]
 
     def _default_retrieved(
@@ -1294,6 +1314,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         )
         if input_ids is None:
             raise ValueError("input_ids is required")
+
         encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,

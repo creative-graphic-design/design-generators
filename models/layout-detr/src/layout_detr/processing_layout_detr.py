@@ -87,9 +87,11 @@ class LayoutDetrProcessor(ProcessorMixin):
         config_payload = payload.get("config", {})
         if not isinstance(config_payload, dict):
             raise TypeError("processor config payload must be a dictionary")
+
         id2label_payload = payload.get("id2label")
         if id2label_payload is not None and not isinstance(id2label_payload, dict):
             raise TypeError("processor id2label payload must be a dictionary")
+
         config = LayoutDetrConfig.from_dict(config_payload)
         image_processor = LayoutDetrImageProcessor.from_pretrained(root)
         return cls(
@@ -149,21 +151,26 @@ class LayoutDetrProcessor(ProcessorMixin):
         """Encode public inputs for the LayoutDETR model."""
         if return_tensors != "pt":
             raise ValueError("LayoutDetrProcessor only supports return_tensors='pt'")
+
         if condition_type not in {"content_image", "content", "image", "visual"}:
             raise NotImplementedError(
                 "LayoutDETR supports only condition_type='content_image'"
             )
+
         content = dict(content or {})
         resolved_images = images or content.get("image") or content.get("images")
         if resolved_images is None:
             raise ValueError("LayoutDETR requires images or content['image']")
+
         resolved_texts = texts if texts is not None else content.get("texts")
         if resolved_texts is None:
             if prompt is not None:
                 raise ValueError(
                     "LayoutDETR requires per-element texts; prompt alone is not supported"
                 )
+
             raise ValueError("LayoutDETR requires per-element texts")
+
         resolved_labels = labels if labels is not None else content.get("labels")
         if resolved_labels is None:
             raise ValueError("LayoutDETR requires per-element labels")
@@ -181,6 +188,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         )
         if len(text_rows) != len(label_rows):
             raise ValueError("texts and labels must have the same batch size")
+
         if len(text_rows) == 1 and batch_size > 1:
             text_rows = text_rows * batch_size
             label_rows = label_rows * batch_size
@@ -208,6 +216,7 @@ class LayoutDetrProcessor(ProcessorMixin):
             )
         elif image_batch != bbox_labels.shape[0]:
             raise ValueError("image batch size must match texts/labels batch size")
+
         return BatchEncoding(
             {
                 "pixel_values": image_features["pixel_values"],
@@ -253,6 +262,7 @@ class LayoutDetrProcessor(ProcessorMixin):
             return dict(payload)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return payload
 
     def _normalize_label_rows(
@@ -275,6 +285,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         if isinstance(label, int):
             if label < 0 or label >= len(self.id2label):
                 raise ValueError(f"Unknown Ad Banner label id: {label}")
+
             return label
         try:
             return self.label2id[label]
@@ -331,6 +342,7 @@ class LayoutDetrProcessor(ProcessorMixin):
         ):
             if len(label_row) > max_len:
                 raise ValueError(f"LayoutDETR supports at most {max_len} elements")
+
             pad = max_len - len(label_row)
             labels.append(label_row + [self.config.pad_label_id] * pad)
             masks.append(mask_row + [False] * pad)
@@ -413,6 +425,7 @@ def _normalize_text_rows(
 ) -> list[list[str]]:
     if not texts:
         raise ValueError("texts must not be empty")
+
     first = texts[0]
     if isinstance(first, str):
         return [[str(text) for text in cast(Sequence[str], texts)]]
@@ -424,6 +437,7 @@ def _normalize_label_sequence(
 ) -> list[list[int | str]]:
     if not labels:
         raise ValueError("labels must not be empty")
+
     first = labels[0]
     if isinstance(first, (int, str)):
         return [[label for label in cast(Sequence[int | str], labels)]]
@@ -446,6 +460,7 @@ def _normalize_mask_rows(
         return [[bool(value) for value in row] for row in tensor.tolist()]
     if not mask:
         raise ValueError("mask must not be empty")
+
     first = mask[0]
     if isinstance(first, bool):
         return [[bool(value) for value in cast(Sequence[bool], mask)]]

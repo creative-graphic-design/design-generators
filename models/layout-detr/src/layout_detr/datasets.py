@@ -69,6 +69,7 @@ def normalize_ad_banner_annotation(
     label2id = label2id_for_ad_banner()
     if label not in label2id:
         raise ValueError(f"Unknown Ad Banner label: {label}")
+
     width = int(cast(int | str, sample["width"]))
     height = int(cast(int | str, sample["height"]))
     xyxy = torch.tensor(
@@ -95,6 +96,7 @@ def load_ad_banner_dataset(
     """
     if source != "ad_banner":
         raise ValueError("LayoutDETR currently supports only source='ad_banner'")
+
     split_name = "val" if split == "validation" else "train"
     root_path = Path(root)
     json_paths = sorted(root_path.glob(f"{split_name}/**/*.json"))

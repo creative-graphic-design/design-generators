@@ -141,6 +141,7 @@ class CGBDMImageEncoder(nn.Module):
         patch_height, patch_width = _pair(patch_size)
         if image_height % patch_height or image_width % patch_width:
             raise ValueError("image_size must be divisible by patch_size")
+
         num_patches = (image_height // patch_height) * (image_width // patch_width)
         patch_dim = in_channels * patch_height * patch_width
         self.to_patch_embedding = nn.Sequential(

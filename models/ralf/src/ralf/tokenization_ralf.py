@@ -52,6 +52,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
                 config = RalfConfig(**json.load(f)["config"])
         if config is None:
             raise ValueError("RalfLayoutTokenizer requires an explicit config")
+
         self.config = config
         self._token2id = self._build_vocab()
         self._id2token = {idx: token for token, idx in self._token2id.items()}
@@ -214,6 +215,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         """
         if labels.ndim != 2 or bbox.ndim != 3 or bbox.shape[-1] != 4:
             raise ValueError("labels must be (B,S) and bbox must be (B,S,4)")
+
         if mask is None:
             mask = torch.ones_like(labels, dtype=torch.bool)
         batch, elements = labels.shape
@@ -268,6 +270,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         """
         if sequences.ndim != 2:
             raise ValueError("sequences must have shape (B,T)")
+
         if sequences.size(1) and torch.all(sequences[:, 0] == self.config.bos_token_id):
             sequences = sequences[:, 1:]
         usable = sequences[:, : self.config.max_token_length]

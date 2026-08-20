@@ -137,6 +137,9 @@ class CaptionEmbedderIdentity(nn.Module):
 class CaptionEmbedder(nn.Module):
     """Project caption embeddings and apply classifier-free label dropout."""
 
+    y_embedding: Float[torch.Tensor, "tokens embedding_dim"]
+    y_padding_mask: Bool[torch.Tensor, "tokens"]
+
     def __init__(
         self,
         in_channels: int,
@@ -148,8 +151,6 @@ class CaptionEmbedder(nn.Module):
         """Initialize caption projection and null caption buffers."""
         super().__init__()
         self.proj = Mlp(in_channels, hidden_size, hidden_size)
-        self.y_embedding: Float[torch.Tensor, "tokens embedding_dim"]
-        self.y_padding_mask: Bool[torch.Tensor, "tokens"]
         self.register_buffer("y_embedding", y_null_embedding.float())
         self.register_buffer("y_padding_mask", y_null_embedding_mask.bool())
         self.uncond_prob = uncond_prob
@@ -430,6 +431,7 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         else:
             if y_in_channels is None or max_y_len is None:
                 raise ValueError("y_in_channels and max_y_len are required")
+
             y_null = torch.zeros(max_y_len, y_in_channels)
             y_mask = torch.ones(max_y_len, dtype=torch.bool)
             self.y_embedder = CaptionEmbedder(
@@ -466,17 +468,21 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
         nn.init.xavier_uniform_(self.x_embedder.proj.weight)
         nn.init.constant_(self.x_embedder.proj.bias, 0)
+
         if not self.is_unconditional and isinstance(self.y_embedder, CaptionEmbedder):
             nn.init.normal_(self.y_embedder.proj.fc1.weight, std=0.02)
             nn.init.normal_(self.y_embedder.proj.fc2.weight, std=0.02)
+
         nn.init.normal_(self.concept_embedder.proj.fc1.weight, std=0.02)
         nn.init.normal_(self.concept_embedder.proj.fc2.weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.t_embedder.mlp[2].weight, std=0.02)
         nn.init.normal_(self.ar_embedder.mlp[0].weight, std=0.02)
         nn.init.normal_(self.ar_embedder.mlp[2].weight, std=0.02)
+
         for block in self.blocks:
             block.initialize_weights()
+
         nn.init.constant_(self.final_layer.adaLN_modulation[-1].weight, 0)
         nn.init.constant_(self.final_layer.adaLN_modulation[-1].bias, 0)
         nn.init.constant_(self.final_layer.linear.weight, 0)
@@ -503,6 +509,7 @@ class LayouSynDiTModel(ModelMixin, ConfigMixin):
         else:
             if caption_embeds is None or caption_padding_mask is None:
                 raise ValueError("caption_embeds and caption_padding_mask are required")
+
             y, y_padding_mask = self.y_embedder(
                 caption_embeds, caption_padding_mask, self.training
             )

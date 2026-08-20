@@ -78,6 +78,7 @@ class LayoutDiffusionDataModule(LightningDataModule):
         super().__init__()
         if preconsume_train_batches < 0:
             raise ValueError("preconsume_train_batches must be non-negative")
+
         if dataset_source == "hf" and (
             vocab_file is not None or config.id2label != default_id2label(dataset_name)
         ):
@@ -86,27 +87,33 @@ class LayoutDiffusionDataModule(LightningDataModule):
                 "numeric labels would be interpreted under a different id2label; "
                 "use dataset_source='processed'"
             )
+
         if vocab_file is not None:
             _validate_vocab_label_count(vocab_file, dataset_name)
+
         self.dataset_name: LayoutDiffusionTrainingDatasetName = dataset_name
         self.config = config
         self.batch_size = batch_size
         self.max_num_elements = max_num_elements or self.config.max_num_elements
+
         self.num_workers = num_workers
         self.box_format = box_format
         self.normalized = normalized
         self.synthetic_size = synthetic_size
         self.dataset_source = dataset_source
         self.processed_data_dir = processed_data_dir
+
         self.vocab_file = vocab_file
         self.preconsume_train_batches = preconsume_train_batches
         self.processed_stream_rng_warmup = processed_stream_rng_warmup
         self.train_transforms = tuple(train_transforms or ())
+
         unsupported = set(self.train_transforms) - {"LexicographicOrder"}
         if unsupported:
             raise ValueError(
                 f"Unsupported LayoutDiffusion train transforms: {unsupported}"
             )
+
         self.tokenizer = build_training_tokenizer(self.config, vocab_file=vocab_file)
         self.train_dataset: (
             Dataset[dict[str, Shaped[torch.Tensor, ...] | str]] | None
@@ -170,6 +177,7 @@ class LayoutDiffusionDataModule(LightningDataModule):
                 raise ValueError(
                     "processed_data_dir is required when dataset_source='processed'"
                 )
+
             return LayoutDiffusionProcessedDataset(
                 dataset_name=self.dataset_name,
                 split=split,
@@ -203,6 +211,7 @@ class LayoutDiffusionDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, Shaped[torch.Tensor, ...] | str]]:
         if dataset is None:
             raise RuntimeError("Dataset has not been initialized")
+
         if rng_warmup:
             _warmup_processed_stream_rng(self.config.vocab_size)
         if preconsume_batches == 0:

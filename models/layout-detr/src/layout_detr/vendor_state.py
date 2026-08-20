@@ -279,6 +279,7 @@ def strict_load_converted_state(
         or report["mismatched_shapes"]
     ):
         raise RuntimeError(f"LayoutDETR state dict is not strict-loadable: {report}")
+
     model.load_state_dict(dict(state), strict=True)
     return report
 

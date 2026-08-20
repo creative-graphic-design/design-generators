@@ -204,6 +204,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         labels = preprocess_parameters.pop("labels", input_)
         if labels is None:
             raise ValueError("labels are required for LayoutGANPPPipeline")
+
         encoded = self._layoutganpp_processor()(
             cast(list[list[str | int]] | list[str | int] | torch.Tensor, labels)
         )
@@ -251,6 +252,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         if model_inputs:
             unknown = ", ".join(sorted(model_inputs))
             raise ValueError(f"Unsupported generation kwargs: {unknown}")
+
         return self._layoutganpp_model().generate(
             condition_type=condition_type,
             bbox=bbox,
@@ -351,6 +353,7 @@ class LayoutGANPPPipeline(LayoutGenerationPipeline):
         del batch_size
         if labels is None:
             raise ValueError("labels are required for layoutganpp v1")
+
         if isinstance(labels, torch.Tensor):
             encoded_labels = labels
             resolved_mask = attention_mask if attention_mask is not None else mask

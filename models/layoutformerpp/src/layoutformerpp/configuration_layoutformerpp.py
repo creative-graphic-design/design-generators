@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Final, TypedDict
+from typing import Final, Literal, TypedDict
 
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common import ConditionType, DatasetName
@@ -18,7 +18,17 @@ from .tasks import (
 
 
 class TaskDefaults(TypedDict, total=False):
-    """Generation defaults for one dataset/condition pair."""
+    """Evaluation defaults for one dataset/condition pair.
+
+    Attributes:
+        max_position_embeddings: Upper bound for the model's input token
+            sequence.
+        decode_max_length: Evaluation-time budget for generated tokens.
+        eval_seed: Evaluation-time seed used by stochastic decoding.
+
+    Values are selected per dataset and condition to reproduce the evaluation
+    recipes documented in ``models/layoutformerpp/REPRODUCING.md``.
+    """
 
     max_position_embeddings: int
     decode_max_length: int
@@ -133,6 +143,14 @@ class LayoutFormerPPConfig(PretrainedConfig):
         model_type: str | None = None,
         transformers_version: str | None = None,
         architectures: list[str] | None = None,
+        output_hidden_states: bool | None = False,
+        output_attentions: bool | None = False,
+        return_dict: bool | None = True,
+        chunk_size_feed_forward: int = 0,
+        problem_type: Literal[
+            "regression", "single_label_classification", "multi_label_classification"
+        ]
+        | None = None,
         id2label: dict[int | str, str] | None = None,
         label2id: dict[str, int] | None = None,
         torch_dtype: str | None = None,
@@ -143,8 +161,10 @@ class LayoutFormerPPConfig(PretrainedConfig):
         ]
         | None = None,
         name_or_path: str = "",
+        _name_or_path: str | None = None,
         _commit_hash: str | None = None,
         attn_implementation: str | None = None,
+        **kwargs: str | int | float | bool | None,
     ) -> None:
         """Initialize architecture and task-specific generation defaults."""
         _ = (condition_type, model_type, transformers_version)
@@ -161,6 +181,12 @@ class LayoutFormerPPConfig(PretrainedConfig):
             decode_max_length = int(defaults.get("decode_max_length", 120))
         if eval_seed is None:
             eval_seed = int(defaults.get("eval_seed", 100))
+
+        normalized_id2label = (
+            {int(key): str(value) for key, value in id2label.items()}
+            if id2label is not None
+            else None
+        )
 
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
@@ -183,6 +209,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.max_num_elements = max_num_elements
         self.bbox_format = str(normalize_box_format(bbox_format))
         self.default_box_format = str(normalize_box_format(default_box_format))
+
         self.discrete_x_grid = discrete_x_grid
         self.discrete_y_grid = discrete_y_grid
         self.add_sep_token = add_sep_token
@@ -191,36 +218,41 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.add_task_prompt_token_in_model = add_task_prompt_token_in_model
         self.num_task_prompt_token = num_task_prompt_token
         self.task_id = task_id
+
         self.decode_max_length = decode_max_length
         self.eval_seed = eval_seed
         self.gen_t_add_unk_token = gen_t_add_unk_token
         self.gen_ts_add_unk_token = gen_ts_add_unk_token
         self.gen_r_add_unk_token = gen_r_add_unk_token
         self.gen_r_compact = gen_r_compact
-        pretrained_kwargs: dict[str, object] = {
-            "bos_token_id": bos_token_id,
-            "eos_token_id": eos_token_id,
-            "pad_token_id": pad_token_id,
-            "is_encoder_decoder": is_encoder_decoder,
-            "vocab_size": vocab_size,
-            "tie_word_embeddings": tie_word_embeddings,
-        }
-        optional_pretrained_kwargs: dict[str, object | None] = {
-            "architectures": architectures,
-            "id2label": id2label,
-            "label2id": label2id,
-            "torch_dtype": torch_dtype or dtype,
-            "task_specific_params": task_specific_params,
-            "name_or_path": name_or_path,
-            "_commit_hash": _commit_hash,
-            "attn_implementation": attn_implementation,
-        }
-        pretrained_kwargs.update(
-            {
-                key: value
-                for key, value in optional_pretrained_kwargs.items()
-                if value is not None
-            }
+
+        super().__init__(
+            transformers_version=transformers_version,
+            architectures=architectures,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            chunk_size_feed_forward=chunk_size_feed_forward,
+            problem_type=problem_type,
+            is_encoder_decoder=is_encoder_decoder,
+            id2label=normalized_id2label,
+            label2id=label2id,
+            dtype=torch_dtype or dtype,
         )
-        super_init = getattr(super(), "__init__")
-        super_init(**pretrained_kwargs)
+        # Transformers v5 keeps model-specific token/vocabulary fields on the
+        # subclass; only the common fields above belong in the base call.
+        self.vocab_size = vocab_size
+        self.bos_token_id = bos_token_id
+        self.eos_token_id = eos_token_id
+        self.pad_token_id = pad_token_id
+        self.tie_word_embeddings = tie_word_embeddings
+        if output_attentions is not None:
+            self.output_attentions = output_attentions
+        if task_specific_params is not None:
+            self.task_specific_params = task_specific_params
+        self.name_or_path = name_or_path if _name_or_path is None else _name_or_path
+        self._commit_hash = _commit_hash
+        self._attn_implementation = attn_implementation
+        # Transformers v5 passes legacy and model-specific fields through the
+        # tolerant config-loading path; preserve them as ordinary attributes.
+        for key, value in kwargs.items():
+            setattr(self, key, value)

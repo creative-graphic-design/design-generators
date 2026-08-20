@@ -76,6 +76,7 @@ def index_to_log_onehot(
         raise ValueError(
             f"input id {input_ids.max().item()} exceeds vocab_size {vocab_size}"
         )
+
     onehot = F.one_hot(input_ids.long(), vocab_size)
     order = (0, -1) + tuple(range(1, input_ids.ndim))
     return torch.log(onehot.permute(order).float().clamp(min=1e-30))
@@ -410,6 +411,7 @@ def batch_topk_mask(
 
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
+
     max_k = int(k.max().item()) if k.numel() else 0
     if max_k == 0:
         return torch.zeros_like(scores, dtype=torch.bool)

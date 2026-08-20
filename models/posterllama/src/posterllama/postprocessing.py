@@ -230,4 +230,5 @@ def _normalize_label(label: str) -> str:
 def _warn_or_raise(message: str, strict: bool, warnings: list[str]) -> None:
     if strict:
         raise ValueError(message)
+
     warnings.append(message)

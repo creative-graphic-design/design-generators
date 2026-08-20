@@ -94,6 +94,7 @@ def convert_original_checkpoints(
     }
     if scorer_missing or scorer_unexpected or basnet_missing or basnet_unexpected:
         raise RuntimeError(json.dumps(report, indent=2, sort_keys=True))
+
     processor = SmartTextProcessor(
         image_processor=SmartTextImageProcessor.from_config(config),
         config=config,

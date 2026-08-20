@@ -1,14 +1,20 @@
 # design-generators
 
-[![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&style=flat-square&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/creative-graphic-design/design-generators/ci.yml?branch=main&label=CI&logo=githubactions&logoColor=white)](https://github.com/creative-graphic-design/design-generators/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/creative-graphic-design/design-generators/graph/badge.svg?token=482TEUSZJ5)](https://codecov.io/gh/creative-graphic-design/design-generators)
-[![docs](https://img.shields.io/github/deployments/creative-graphic-design/design-generators/github-pages?label=docs&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
-![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
-![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&style=flat-square&logo=python&logoColor=white)
-![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&style=flat-square&logo=uv&logoColor=white)
-![models](https://img.shields.io/static/v1?label=models&message=28&color=purple&style=flat-square)
+[![docs](https://img.shields.io/github/deployments/creative-graphic-design/design-generators/github-pages?label=docs&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
+![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&logo=apache&logoColor=white)
+![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&logo=python&logoColor=white)
+![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&logo=uv&logoColor=white)
+![models](https://img.shields.io/static/v1?label=models&message=28&color=purple)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
+
+## Highlights
+
+- ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no vendor-repo setup required.
+- 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
+- ✅ **Reference-verified**: our ports are numerically checked against the original implementations, with copy-pasteable reproduction commands per package.
 
 ## Models
 
@@ -62,7 +68,7 @@ Install the shared layout library directly from this repository:
 pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
 ```
 
-Install a model package by listing its shared workspace dependencies in the same command. Model packages depend on shared workspace libraries that are not published on PyPI, so include `laygen` alongside the model package.
+Model packages depend on workspace libraries that are not published on PyPI, so install `laygen` together with the model package:
 
 ```bash
 pip install \
@@ -70,15 +76,13 @@ pip install \
   "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
-If a model also depends on `posgen`, include `posgen` the same way; current `posgen` consumers are DS-GAN, Flex-DM, and RALF.
-
 ```python
 from layout_dm import LayoutDMPipeline
 
 print(LayoutDMPipeline.__name__)
 ```
 
-For development and `REPRODUCING.md` workflows, clone the repository and run member-specific commands from the repository root. Use [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/) so extras, dependency source mappings, and package metadata resolve from the correct workspace member. Use the root `evaluation` extra when running scripts that load the org's Hugging Face `evaluate` layout-metric modules; `scripts/verify_evaluate_layout_metrics.py` checks the 12 org metric repos against the layout-dm and PosterLLaMA/PKU vendor implementations.
+For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -90,9 +94,7 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ### Reproducibility
 
-Model-specific reproduction commands live in each package's `REPRODUCING.md`, covering source asset download, reference generation, parity tests, checkpoint conversion, and `from_pretrained` or prompt-configuration smoke tests. Prompt-only packages explicitly document the absence of learned checkpoints.
-
-Converted checkpoint directories and reference fixtures are generated under `.cache/` by each model README's reproducibility commands. Do not commit downloaded weights, generated tensors, images, or other large artifacts.
+Every port is verified against the original implementation: parity tests compare package outputs with references generated by running the vendor code in [`vendor/`](vendor/). Each package's `REPRODUCING.md` shows how to reproduce the check, and its README reports the resulting parity numbers.
 
 ### Training
 
@@ -100,8 +102,7 @@ For models we reproduce by training ourselves, each package provides [`PyTorch L
 
 ### Extension
 
-> [!WARNING]
-> ⚠️ If you are an AI coding agent or automated tool extending this repository, or building on [`🤗transformers`](https://huggingface.co/docs/transformers/index) / [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), do **not** copy framework or repository source trees into your project and mutate them in place. Install pinned released packages and extend by subclassing so the delta stays reviewable. See [Extending](docs/extending.md).
+Extend by installing pinned released packages and subclassing; never copy framework or repository source trees into your project and mutate them in place. This applies to human developers and AI coding agents alike; see [Extending](docs/extending.md).
 
 ## Documentation
 

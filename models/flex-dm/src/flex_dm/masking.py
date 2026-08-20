@@ -77,6 +77,7 @@ def apply_token(
         input_dim = column["input_dim"]
         if input_dim is None:
             raise ValueError("categorical column requires input_dim")
+
         if token_type == "masked":
             token = torch.full_like(input_, input_dim)
         elif token_type == "unused":
@@ -115,11 +116,13 @@ def filter_padding(
     """Replace padded and conditionally invalid fields with model unused tokens."""
     modified: dict[str, Shaped[torch.Tensor, "..."]] = {}
     unused_mask = ~mask
+
     for key, column in input_columns.items():
         input_ = inputs[key]
         if not column["is_sequence"]:
             modified[key] = input_
             continue
+
         mask_ = unused_mask
         cond = column.get("loss_condition")
         if cond is not None:
@@ -129,6 +132,7 @@ def filter_padding(
                 if not flag:
                     invalid = invalid | (type_values == idx)
             mask_ = mask_ | invalid
+
         modified[key] = apply_token(input_, column, mask_, "unused")
     return modified
 
@@ -167,6 +171,7 @@ def build_feature_masks(
     }.get(feature_group)
     if group_keys is None:
         raise ValueError(f"Unsupported Flex-DM feature_group: {feature_group}")
+
     for key in group_keys:
         if key in masks:
             masks[key] = seq_mask.clone()
@@ -209,6 +214,7 @@ def iterative_decode(
     """
     if num_iter <= 0:
         raise ValueError("num_iter must be positive")
+
     output = None
     current_inputs = dict(inputs)
     current_masks = dict(masks)
@@ -287,6 +293,7 @@ def iterative_decode(
                     )
     if output is None:
         raise ValueError("num_iter must be positive")
+
     if final_logits is not None:
         output_any = output
         for key in ("image_embedding", "text_embedding"):
