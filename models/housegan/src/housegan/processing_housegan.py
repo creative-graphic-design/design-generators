@@ -112,6 +112,7 @@ class HouseGanProcessor(ProcessorMixin):
         config_payload = payload.get("config")
         if not isinstance(config_payload, dict):
             raise TypeError("processor config payload must be a dictionary")
+
         return cls(
             config=HouseGanConfig.from_dict(config_payload),
             default_missing_relation=payload.get(
@@ -150,6 +151,7 @@ class HouseGanProcessor(ProcessorMixin):
         """Encode public relation inputs into House-GAN tensors."""
         if return_tensors != "pt":
             raise ValueError("HouseGanProcessor only supports return_tensors='pt'")
+
         self.normalize_condition_type(condition_type)
         relation_payload = relations
         if relation_payload is None and bbox is not None and labels is not None:
@@ -198,6 +200,7 @@ class HouseGanProcessor(ProcessorMixin):
             raise ValueError(
                 "House-GAN requires relations when missing-pair policy is 'error'"
             )
+
         node_features = graph_to_node_features(
             graph.nodes,
             label2id=self.label2id,
@@ -236,6 +239,7 @@ class HouseGanProcessor(ProcessorMixin):
                 "House-GAN supports only condition_type='relation' and aliases "
                 "'scene_graph', 'graph', or 'gen_r'."
             )
+
         return condition
 
     def post_process_masks(

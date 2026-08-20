@@ -47,6 +47,7 @@ class MultiHeadedAttention(nn.Module):
         super().__init__()
         if size % num_heads != 0:
             raise ValueError("attention size must be divisible by num_heads")
+
         self.head_size = size // num_heads
         self.model_size = size
         self.num_heads = num_heads
@@ -95,6 +96,7 @@ class ContMultiHeadedAttention(nn.Module):
         super().__init__()
         if size % num_heads != 0:
             raise ValueError("attention size must be divisible by num_heads")
+
         self.head_size = size // num_heads
         self.model_size = size
         self.num_heads = num_heads
@@ -143,6 +145,7 @@ class CustomAttention(nn.Module):
         super().__init__()
         if size % num_heads != 0:
             raise ValueError("attention size must be divisible by num_heads")
+
         self.head_size = size // num_heads
         self.model_size = size
         self.num_heads = num_heads
@@ -473,6 +476,7 @@ class CustomTransformerDecoder(nn.Module):
         _ = (encoder_hidden, unroll_steps, hidden)
         if trg_mask is None:
             raise ValueError("trg_mask required for Transformer")
+
         trg_mask = trg_mask & self.subsequent_mask(trg_embed_0.size(1)).type_as(
             trg_mask
         ).to(trg_mask.device)
@@ -737,26 +741,32 @@ class GMMHead(nn.Module):
     ) -> Float[torch.Tensor, "items 2"]:
         if greedy:
             return torch.cat((u_x, u_y), dim=-1).to(device)
+
         sample_device = u_x.device
         if generator is not None:
             sample_device = generator.device
+
         mean = torch.cat((u_x, u_y), dim=1).to(sample_device)
         scale = math.sqrt(1.0 if temperature is None else temperature)
         sigma_x *= scale
         sigma_y *= scale
+
         sigma_x = sigma_x.to(sample_device)
         sigma_y = sigma_y.to(sample_device)
         rho_xy = rho_xy.to(sample_device)
+
         cov = torch.zeros((u_x.size(0), 2, 2), device=sample_device)
         cov[:, 0, 0] = sigma_x.flatten() * sigma_x.flatten()
         cov[:, 0, 1] = rho_xy.flatten() * sigma_x.flatten() * sigma_y.flatten()
         cov[:, 1, 0] = rho_xy.flatten() * sigma_x.flatten() * sigma_y.flatten()
         cov[:, 1, 1] = sigma_y.flatten() * sigma_y.flatten()
         det = cov[:, 0, 0] * cov[:, 1, 1] - cov[:, 0, 1] * cov[:, 1, 0]
+
         for idx in (det == 0).nonzero():
             cov[idx] *= 0.0
             cov[idx, 0, 0] += 1.0
             cov[idx, 1, 1] += 1.0
+
         noise = torch.randn(mean.shape, generator=generator, device=sample_device)
         sample = mean + torch.bmm(
             torch.linalg.cholesky(cov), noise.unsqueeze(-1)
@@ -1286,6 +1296,7 @@ def greedy_pdf(
             if wh_gmm is not None and xy_gmm is not None:
                 if ys_wh_gmm is None or ys_xy_gmm is None:
                     raise ValueError("GMM history tensors must be initialized")
+
                 ys_wh_gmm = torch.cat([ys_wh_gmm, wh_gmm[:, -1].unsqueeze(1)], dim=1)
                 ys_xy_gmm = torch.cat([ys_xy_gmm, xy_gmm[:, -1].unsqueeze(1)], dim=1)
                 if xy_pdf is not None and ys_xy_pdf is not None:

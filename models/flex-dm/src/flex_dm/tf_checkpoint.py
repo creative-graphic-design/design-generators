@@ -34,6 +34,7 @@ def _load_tensorflow() -> _TensorFlowModule:
         raise ImportError(
             "TensorFlow is required for Flex-DM checkpoint helpers"
         ) from exc
+
     return cast(_TensorFlowModule, module)
 
 

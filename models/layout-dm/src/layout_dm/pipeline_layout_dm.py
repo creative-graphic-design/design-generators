@@ -161,6 +161,7 @@ class LayoutDMPipeline(DiffusionPipeline):
                     f"bbox and labels are required for condition_type={condition_type}"
                 )
                 raise ValueError(message)
+
             processor_inputs = {
                 "bbox": bbox,
                 "labels": labels,
@@ -234,6 +235,7 @@ class LayoutDMPipeline(DiffusionPipeline):
             return dict(output)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return output
 
     generate = __call__

@@ -105,25 +105,31 @@ class PosterLlamaConfig(PretrainedConfig):
         self.alternate_base_llm_repo_ids = list(alternate_base_llm_repo_ids)
         self.vision_encoder_repo_id = vision_encoder_repo_id
         self.vision_model_name = vision_model_name
+
         self.lora_r = int(lora_r)
         self.lora_alpha = int(lora_alpha)
         self.lora_dropout = float(lora_dropout)
         self.lora_target_modules = list(lora_target_modules)
+
         self.prompt_template = prompt_template
         self.image_placeholder = image_placeholder
         self.image_end_token = image_end_token
+
         self.max_txt_len = int(max_txt_len)
         self.max_context_len = int(max_context_len)
+
         self.default_max_new_tokens = int(default_max_new_tokens)
         self.default_do_sample = bool(default_do_sample)
         self.default_temperature = float(default_temperature)
         self.default_top_p = float(default_top_p)
         self.default_top_k = int(default_top_k)
         self.default_num_beams = int(default_num_beams)
+
         self.dataset_name = dataset_name
         self.canvas_size = tuple(canvas_size) if canvas_size is not None else None
         self.checkpoint_license_status = checkpoint_license_status
         self.processor_subfolder = processor_subfolder
         self.runtime_subfolder = runtime_subfolder
+
         for key, value in kwargs.items():
             setattr(self, key, value)

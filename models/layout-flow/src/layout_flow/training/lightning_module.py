@@ -143,6 +143,7 @@ class LayoutFlowTrainingModule(LightningModule):
             raise ValueError(
                 "LayoutFlow training parity currently supports gaussian x0 sampling"
             )
+
         for i, length_tensor in enumerate(batch["length"]):
             length = int(length_tensor.item())
             x0[i, :length] = torch.randn(
@@ -196,6 +197,7 @@ class LayoutFlowTrainingModule(LightningModule):
         )
         if self.condition_policy != "random4":
             raise ValueError(f"Unsupported condition_policy: {self.condition_policy}")
+
         div = batch // 4
         for i, length_tensor in enumerate(lengths[:div]):
             length = int(length_tensor.item())
@@ -217,6 +219,7 @@ class LayoutFlowTrainingModule(LightningModule):
         labels = batch.get("type", batch.get("labels"))
         if labels is None:
             raise ValueError("LayoutFlow training batch requires 'type' labels")
+
         mask = batch["mask"]
         if mask.ndim == 3:
             mask = mask.squeeze(-1)

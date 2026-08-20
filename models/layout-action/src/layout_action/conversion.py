@@ -118,6 +118,7 @@ def convert_layout_action_checkpoint(
     raw = torch.load(checkpoint_path, map_location="cpu")
     if not isinstance(raw, dict):
         raise TypeError("LayoutAction checkpoint must be a state-dict mapping")
+
     remapped, report = remap_state_dict(raw, model)
     missing, unexpected = model.load_state_dict(remapped, strict=strict)
     out_dir = Path(output_dir)

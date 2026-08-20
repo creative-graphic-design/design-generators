@@ -64,8 +64,10 @@ def normalize_condition_type(
                 raise ValueError(
                     f"Unsupported DLT condition_type: {condition_type}"
                 ) from exc
+
     if canonical not in _SUPPORTED_CONDITION_TYPES:
         raise ValueError(f"Unsupported DLT condition_type: {condition_type}")
+
     return canonical
 
 
@@ -291,6 +293,7 @@ class DLTPipeline(DiffusionPipeline):
             self.scheduler.temperature = original_temperature
         if bbox_step is None:
             raise RuntimeError("DLT denoising did not run any scheduler steps")
+
         final_box = (
             sample["mask_box"] * bbox_step.pred_original_sample
             + (1 - sample["mask_box"]) * sample["box_cond"]

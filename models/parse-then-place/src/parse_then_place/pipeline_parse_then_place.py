@@ -184,6 +184,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         """Generate logical-form token ids with the parser stage."""
         if self.parser is None:
             raise ValueError("Parser stage is not loaded")
+
         generated = cast(_GenerationModel, self.parser).generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -209,6 +210,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         """Generate layout token ids with the placement stage."""
         if self.placement is None:
             raise ValueError("Placement stage is not loaded")
+
         if generator is not None:
             generate_kwargs["generator"] = generator
         generated = cast(_GenerationModel, self.placement).generate(
@@ -268,6 +270,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
             raise NotImplementedError(
                 "Parse-Then-Place only supports condition_type='text'"
             )
+
         if layout_text is not None:
             layout_items = (
                 [layout_text] if isinstance(layout_text, str) else layout_text
@@ -280,6 +283,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
             )
         if prompt is None:
             raise ValueError("prompt is required for Parse-Then-Place generation")
+
         generation_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
@@ -288,6 +292,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
         parser_inputs = self.processor(prompts)
         if "input_ids" not in parser_inputs:
             raise ValueError("processor requires parser_tokenizer for model inference")
+
         parser_ids = self.parse(
             parser_inputs["input_ids"],
             attention_mask=parser_inputs.get("attention_mask"),
@@ -304,6 +309,7 @@ class ParseThenPlacePipeline(LayoutGenerationPipeline):
             raise ValueError(
                 "processor requires placement_tokenizer for model inference"
             )
+
         return_sequences = num_return_sequences or self.config.num_return_sequences
         placement_ids = self.place(
             placement_encoded["input_ids"],

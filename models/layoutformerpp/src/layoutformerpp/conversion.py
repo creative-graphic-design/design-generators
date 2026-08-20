@@ -72,6 +72,7 @@ def load_original_state_dict(path: Path) -> dict[str, Shaped[torch.Tensor, "..."
     state = raw.get("state_dict", raw) if isinstance(raw, dict) else raw
     if not isinstance(state, dict):
         raise TypeError("checkpoint must contain a state-dict mapping")
+
     return {str(key).removeprefix("module."): value for key, value in state.items()}
 
 

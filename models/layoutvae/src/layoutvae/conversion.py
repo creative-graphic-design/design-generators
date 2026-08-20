@@ -74,6 +74,7 @@ def _load_pickled_module(path: Path, source_dir: Path) -> torch.nn.Module:
         module = torch.load(path, map_location="cpu", weights_only=False)
         if not isinstance(module, torch.nn.Module):
             raise TypeError(f"{path} did not load as a torch.nn.Module")
+
         return module
     finally:
         try:
@@ -118,6 +119,7 @@ def convert_state_dicts(
     target = Path(output_dir)
     if any((target / name).exists() for name in DISALLOWED_OUTPUT_NAMES):
         raise ValueError("output_dir contains non-HF checkpoint filenames")
+
     config = build_default_config()
     model = LayoutVAEModel(config)
     model.countvae.load_state_dict(count_state_dict, strict=True)

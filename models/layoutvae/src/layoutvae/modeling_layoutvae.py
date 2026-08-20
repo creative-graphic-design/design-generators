@@ -474,6 +474,7 @@ class LayoutVAEModel(PreTrainedModel):
             raise ValueError(
                 "label_set must have shape (batch, config.internal_num_labels)"
             )
+
         if class_counts is None:
             class_counts = self.countvae(
                 label_set,
@@ -488,6 +489,7 @@ class LayoutVAEModel(PreTrainedModel):
             )
             if class_counts.shape != label_set.shape:
                 raise ValueError("class_counts must match label_set shape")
+
         class_labels = self._labels_from_counts(class_counts)
         raw_ltwh = self.bboxvae(
             class_counts,

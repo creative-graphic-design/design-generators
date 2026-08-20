@@ -96,6 +96,7 @@ class LayouSynPipeline(DiffusionPipeline):
         pipe = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
         if not isinstance(pipe, cls):
             raise TypeError(f"Expected {cls.__name__}, got {type(pipe).__name__}")
+
         processor_config = (
             Path(pretrained_model_name_or_path) / LayouSynProcessor.config_name
         )
@@ -180,6 +181,7 @@ class LayouSynPipeline(DiffusionPipeline):
             raise NotImplementedError(
                 f"LayouSyn public pipeline supports condition_type='text', got {condition_type}"
             )
+
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
         encoded = self.processor(

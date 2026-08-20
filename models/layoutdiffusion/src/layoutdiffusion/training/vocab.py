@@ -20,6 +20,7 @@ def build_training_tokenizer(
     vocab_path = Path(vocab_file)
     if not vocab_path.is_file():
         raise FileNotFoundError(vocab_path)
+
     raw_vocab = json.loads(vocab_path.read_text(encoding="utf-8"))
     vocab = {str(token): int(index) for token, index in raw_vocab.items()}
     if "MASK" not in vocab:

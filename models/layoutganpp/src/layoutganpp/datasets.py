@@ -94,6 +94,7 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
         alias = DatasetAlias(dataset_name.lower().replace("-", "_"))
     except ValueError as exc:
         raise ValueError(f"Unknown layoutganpp dataset_name: {dataset_name}") from exc
+
     return _ALIASES[alias]
 
 

@@ -99,20 +99,24 @@ class HouseGanConfig(PretrainedConfig):
             int(key): value
             for key, value in (relation_id2label or DEFAULT_RELATION_ID2LABEL).items()
         }
+
         self.latent_dim = latent_dim
         self.node_feature_dim = node_feature_dim
         self.graph_edge_values = tuple(graph_edge_values)
         self.mask_size = mask_size
         self.canvas_size = tuple(canvas_size)
+
         self.cmp_channels = cmp_channels
         self.num_cmp_layers = num_cmp_layers
         self.postprocess_threshold = postprocess_threshold
         self.bbox_source = bbox_source
         self.source_checkpoint = source_checkpoint
+
         self.conversion_report = conversion_report or {}
         self.license_note = license_note
         self.num_labels = len(self.id2label)
         self.max_supported_room_type_id = self.num_labels - 1
+
         super().__init__(id2label=self.id2label, label2id=self.label2id)
         for key, value in kwargs.items():
             setattr(self, key, value)

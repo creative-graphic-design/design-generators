@@ -22,6 +22,7 @@ def remap_denoiser_key(key: str) -> str:
         return key.removeprefix("model.model.")
     if not key.startswith("model.module.transformer."):
         raise KeyError(key)
+
     return key.removeprefix("model.module.")
 
 
@@ -51,6 +52,7 @@ def split_original_state_dict(
             continue
         else:
             raise KeyError(key)
+
     return denoiser
 
 

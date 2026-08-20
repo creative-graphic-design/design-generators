@@ -71,6 +71,7 @@ def normalize_condition_type(
         raise NotImplementedError(
             "SmartText requires condition_type='content_image' with image/content and text payloads"
         )
+
     return canonical
 
 
@@ -343,6 +344,7 @@ class SmartTextPipeline(LayoutGenerationPipeline):
         )
         if len(encoded["images"]) != 1 or batch_size != 1:
             raise ValueError("SmartText currently decodes one image at a time")
+
         image = encoded["images"][0]
         prompt_text = encoded["prompts"][0]
         resolved_saliency = encoded["saliency"]

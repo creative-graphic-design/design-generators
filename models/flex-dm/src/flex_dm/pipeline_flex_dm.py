@@ -285,12 +285,15 @@ class FlexDmPipeline(LayoutGenerationPipeline):
                 "Flex-DM has no standalone label-conditioned mode; use "
                 'condition_type="completion", feature_group="type".'
             )
+
         if condition_type is ConditionType.label_size:
             raise NotImplementedError("Flex-DM does not support label_size generation")
+
         if condition_type is ConditionType.unconditional:
             raise NotImplementedError(
                 "Flex-DM released MFP checkpoints require an input document"
             )
+
         raise NotImplementedError(
             f"Flex-DM does not support condition_type={condition_type}"
         )

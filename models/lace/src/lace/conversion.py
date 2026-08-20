@@ -34,6 +34,7 @@ def load_vendor_state_dict(path: str | Path) -> dict[str, Shaped[torch.Tensor, "
         loaded = loaded["state_dict"]
     if not isinstance(loaded, dict):
         raise TypeError(f"Expected a state_dict-like checkpoint at {path}")
+
     return dict(loaded)
 
 
@@ -85,6 +86,7 @@ def build_pipeline_from_vendor_checkpoint(
         raise ValueError(
             f"State dict mismatch: missing={missing[:10]}, unexpected={unexpected[:10]}"
         )
+
     model.load_state_dict(converted, strict=True)
     processor = LaceProcessor.from_dataset(dataset)
     scheduler = LaceScheduler(ddim_num_steps=ddim_num_steps)

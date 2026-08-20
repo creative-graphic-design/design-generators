@@ -677,6 +677,7 @@ def baseline_entries(path: Path) -> set[str]:
     """Return committed baseline entries."""
     if not path.is_file():
         raise FileNotFoundError(path)
+
     return {
         line
         for line in path.read_text(encoding="utf-8").splitlines()
@@ -720,8 +721,10 @@ def write_baseline(path: Path, entries: Iterable[str]) -> None:
 def check_jaxtyping_annotations(root: Path, baseline_path: Path) -> int:
     """Check current raw annotations against the shrink-only baseline."""
     current = current_entries(root)
+
     baseline = baseline_entries(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
+
     baseline_additions = sorted(baseline - reference) if reference is not None else []
     unexpected = sorted(current - baseline)
     if not baseline_additions and not unexpected:
@@ -740,8 +743,10 @@ def check_jaxtyping_annotations(root: Path, baseline_path: Path) -> int:
 def check_jaxtyping_aliases(root: Path, baseline_path: Path) -> int:
     """Check current jaxtyping aliases against the shrink-only baseline."""
     current = current_alias_entries(root)
+
     baseline = baseline_entries(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
+
     baseline_additions = sorted(baseline - reference) if reference is not None else []
     unexpected = sorted(current - baseline)
     if not baseline_additions and not unexpected:
@@ -760,8 +765,10 @@ def check_jaxtyping_aliases(root: Path, baseline_path: Path) -> int:
 def check_object_annotations(root: Path, baseline_path: Path) -> int:
     """Check current function object annotations against the shrink-only baseline."""
     current = current_object_entries(root)
+
     baseline = baseline_entries(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
+
     baseline_additions = sorted(baseline - reference) if reference is not None else []
     unexpected = sorted(current - baseline)
     if not baseline_additions and not unexpected:
@@ -780,8 +787,10 @@ def check_object_annotations(root: Path, baseline_path: Path) -> int:
 def check_weak_cast_types(root: Path, baseline_path: Path) -> int:
     """Check weak cast target types against the shrink-only baseline."""
     current = current_weak_cast_entries(root)
+
     baseline = baseline_entries(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
+
     baseline_additions = sorted(baseline - reference) if reference is not None else []
     unexpected = sorted(current - baseline)
     if not baseline_additions and not unexpected:

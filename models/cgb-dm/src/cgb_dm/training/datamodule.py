@@ -66,6 +66,7 @@ class CGBDMDataModule(LightningDataModule):
         if self.source == "original_zip":
             if self.data_root is None:
                 raise ValueError("data_root is required for source='original_zip'")
+
             processor = CGBDMProcessor(
                 dataset_name=self.config.dataset_name,
                 id2label=self.config.id2label,
@@ -89,6 +90,7 @@ class CGBDMDataModule(LightningDataModule):
             return
         if self.source != "synthetic":
             raise ValueError(f"Unsupported CGB-DM data source: {self.source}")
+
         kwargs: _CGBDMSyntheticDatasetKwargs = {
             "max_seq_length": self.config.max_seq_length,
             "seq_dim": self.config.seq_dim,

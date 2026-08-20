@@ -276,6 +276,7 @@ class LayoutGPTAgent(BaseLayoutAgent[RawLayoutResponse]):
             if query_embedding is None or example_embeddings is None:
                 msg = "k-similar selection requires query_embedding and example_embeddings"
                 raise ValueError(msg)
+
             return select_k_similar(
                 train_examples,
                 query=prompt,

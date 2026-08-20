@@ -220,6 +220,7 @@ def prepare_layout_tensors(
     if not normalized:
         if canvas_size is None:
             raise ValueError("canvas_size is required when normalized=False")
+
         bbox_t = normalize_boxes(bbox_t, canvas_size=canvas_size, box_format=fmt)
     elif fmt is BoxFormat.ltwh:
         bbox_t = ltwh_to_xywh(bbox_t)

@@ -212,6 +212,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         canvas_size = cast(list[int], data["canvas_size"])
         if len(canvas_size) != 2:
             raise ValueError("canvas_size must contain width and height")
+
         return cls.from_config(
             dataset_name=cast(str, data["dataset_name"]),
             canvas_size=(canvas_size[0], canvas_size[1]),
@@ -303,6 +304,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         )
         if bbox_t.shape[1] != len(label_items):
             raise ValueError("labels and bbox must contain the same element count")
+
         ltrb = self._xywh_to_ltrb(bbox_t[0])
         elements: list[PosterLlavaJsonElement] = []
         for idx, label in enumerate(label_items):
@@ -348,6 +350,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         """
         if num_elements <= 0:
             raise ValueError("num_elements must be positive")
+
         element_list = list(elements)
         initial = ""
         if element_list:
@@ -387,6 +390,7 @@ class PosterLlavaProcessor(ProcessorMixin):
         """
         if self.tokenizer is None:
             raise ValueError("tokenizer is required to encode PosterLLaVA prompts")
+
         prompts = [prompt] if isinstance(prompt, str) else list(prompt)
         encoded = [
             tokenizer_image_token(item, self.tokenizer, return_tensors=return_tensors)
@@ -422,16 +426,20 @@ class PosterLlavaProcessor(ProcessorMixin):
         raw_items = json.loads(span.replace("'", '"'))
         if not isinstance(raw_items, list):
             raise ValueError("PosterLLaVA output JSON must be a list")
+
         elements: list[PosterLlavaJsonElement] = []
         for item in raw_items:
             if not isinstance(item, Mapping):
                 raise ValueError("PosterLLaVA output elements must be objects")
+
             label = item.get("label")
             box = item.get("box")
             if not isinstance(label, str):
                 raise ValueError("PosterLLaVA output element label must be a string")
+
             if not isinstance(box, Sequence) or len(box) != 4:
                 raise ValueError("PosterLLaVA output element box must have four values")
+
             elements.append(
                 {
                     "label": label,
@@ -486,6 +494,7 @@ class PosterLlavaProcessor(ProcessorMixin):
             )
             labels = torch.tensor([item["label"] for item in numeric], dtype=torch.long)
             mask = torch.ones(len(numeric), dtype=torch.bool)
+
             if len(numeric) == 0:
                 boxes = torch.zeros(max_len, 4, dtype=torch.float32)
                 labels = torch.zeros(max_len, dtype=torch.long)
@@ -495,11 +504,14 @@ class PosterLlavaProcessor(ProcessorMixin):
                 boxes = torch.nn.functional.pad(boxes, (0, 0, 0, pad))
                 labels = torch.nn.functional.pad(labels, (0, pad))
                 mask = torch.nn.functional.pad(mask, (0, pad))
+
             bbox_rows.append(boxes)
             label_rows.append(labels)
             mask_rows.append(mask)
         raw_ltrb = torch.stack(bbox_rows)
+
         bbox = self._ltrb_to_xywh(raw_ltrb).clamp(0.0, 1.0)
+
         intermediates: PosterLlavaIntermediates | None = None
         if return_intermediates:
             intermediates = {
@@ -530,9 +542,11 @@ class PosterLlavaProcessor(ProcessorMixin):
         start = text.find("[")
         if start < 0:
             raise ValueError("PosterLLaVA output does not contain a JSON array")
+
         depth = 0
         in_string: str | None = None
         escaped = False
+
         for idx, char in enumerate(text[start:], start=start):
             if in_string is not None:
                 if escaped:
@@ -542,14 +556,18 @@ class PosterLlavaProcessor(ProcessorMixin):
                 elif char == in_string:
                     in_string = None
                 continue
+
             if char in {"'", '"'}:
                 in_string = char
             elif char == "[":
                 depth += 1
+
             elif char == "]":
                 depth -= 1
+
                 if depth == 0:
                     return text[start : idx + 1]
+
         raise ValueError("PosterLLaVA output contains an unterminated JSON array")
 
     def _wrap_conversation(

@@ -38,6 +38,7 @@ def _image_to_tensor(
         tensor = image.detach().clone()
     else:
         raise TypeError(f"Unsupported image input type: {type(image)!r}")
+
     if tensor.ndim == 2:
         tensor = tensor.unsqueeze(-1)
     if tensor.ndim == 3 and tensor.shape[0] in {1, 3, 4}:
@@ -100,6 +101,7 @@ class RalfImageProcessor(BaseImageProcessor):
         _ = kwargs
         if return_tensors != "pt":
             raise ValueError("RalfImageProcessor supports return_tensors='pt' only")
+
         image_items = (
             _as_list(images) if images is not None else [torch.zeros(3, 64, 64)]
         )

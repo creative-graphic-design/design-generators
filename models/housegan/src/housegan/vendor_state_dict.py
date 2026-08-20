@@ -49,6 +49,7 @@ def convert_state_dict(
     for key, tensor in source.items():
         if not key.startswith(EXPECTED_PREFIXES):
             raise KeyError(key)
+
         converted[key] = tensor
     report = ConversionReport(
         key_count=len(converted),

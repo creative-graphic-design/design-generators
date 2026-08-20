@@ -39,10 +39,12 @@ def find_ema_checkpoint(
         path = root / checkpoint_name
         if not path.exists():
             raise FileNotFoundError(path)
+
         return path
     matches = sorted(root.glob("ema_0.9999_*.pt"))
     if not matches:
         raise FileNotFoundError(f"No ema_0.9999_*.pt checkpoint under {root}")
+
     return matches[-1]
 
 
@@ -63,6 +65,7 @@ def validate_checkpoint_artifacts(checkpoint_dir: str | Path) -> dict[str, Path]
     missing = [str(path) for path in artifacts.values() if not path.exists()]
     if missing:
         raise FileNotFoundError(", ".join(missing))
+
     artifacts["checkpoint"] = find_ema_checkpoint(root)
     return artifacts
 

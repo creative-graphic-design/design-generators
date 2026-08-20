@@ -72,6 +72,7 @@ class LTNetProcessor(ProcessorMixin):
         }
         if object_reduce not in {"first", "last", "mean"}:
             raise ValueError("object_reduce must be 'first', 'last', or 'mean'")
+
         self.object_reduce = object_reduce
         super().__init__(tokenizer=tokenizer)
 
@@ -146,6 +147,7 @@ class LTNetProcessor(ProcessorMixin):
                 "LT-Net only supports condition_type='relation' "
                 "and aliases 'scene_graph', 'graph', or 'gen_r'."
             )
+
         return condition
 
     def _label_to_id(self, label: int | str) -> int:
@@ -182,6 +184,7 @@ class LTNetProcessor(ProcessorMixin):
         if scene_graph is None:
             if objects is None:
                 raise ValueError("scene_graph or objects must be provided")
+
             return SceneGraphInput(
                 objects=tuple(objects),
                 relations=tuple(relations or ()),
@@ -190,13 +193,16 @@ class LTNetProcessor(ProcessorMixin):
             )
         nodes = scene_graph.get("nodes", scene_graph.get("objects", ()))
         edges = scene_graph.get("edges", scene_graph.get("relations", ()))
+
         normalized_objects: list[LayoutObject] = []
+
         for node in cast(Sequence[SceneGraphItemMapping], nodes):
             item = node
             node_id = cast(int | str, item["id"])
             label = cast(int | str, item.get("label_id", item.get("label")))
             bbox = cast(tuple[float, float, float, float] | None, item.get("bbox"))
             normalized_objects.append(LayoutObject(id=node_id, label=label, bbox=bbox))
+
         normalized_relations: list[LayoutRelation] = []
         for edge in cast(Sequence[SceneGraphItemMapping], edges):
             item = edge
@@ -211,6 +217,7 @@ class LTNetProcessor(ProcessorMixin):
                     score=cast(float | None, item.get("score")),
                 )
             )
+
         return SceneGraphInput(
             objects=tuple(normalized_objects),
             relations=tuple(normalized_relations),
@@ -259,12 +266,14 @@ class LTNetProcessor(ProcessorMixin):
                 segment_label.extend([segment, segment])
                 token_type.extend([1, 0])
                 segment += 1
+
         input_token = self.tokenizer.encode_scene_graph_tokens(tokens)
         length = min(len(input_token), self.max_sequence_length)
         input_token = input_token[:length]
         input_obj_id = input_obj_id[:length]
         segment_label = segment_label[:length]
         token_type = token_type[:length]
+
         src_mask = [1] * length
         pad_length = self.max_sequence_length - length
         input_token.extend([self.tokenizer.pad_token_id] * pad_length)
@@ -344,11 +353,13 @@ class LTNetProcessor(ProcessorMixin):
         _ = (canvas_size, normalize_box_format(box_format))
         if not normalized:
             raise ValueError("LT-Net outputs normalized boxes only")
+
         raw_box = model_outputs.refine_box
         if raw_box is None:
             raw_box = model_outputs.coarse_box
         if raw_box is None:
             raise ValueError("model_outputs must contain coarse_box or refine_box")
+
         batch_boxes: list[Float[torch.Tensor, "elements 4"]] = []
         batch_labels: list[Int[torch.Tensor, "elements"]] = []
         batch_masks: list[Bool[torch.Tensor, "elements"]] = []

@@ -65,6 +65,7 @@ class LayoutFlowH5Dataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]])
         path = self.data_path / file_name
         if not path.exists():
             raise FileNotFoundError(path)
+
         import h5pickle as h5py
 
         self.data = h5py.File(str(path))
@@ -157,6 +158,7 @@ def collate_layout_flow_batch(
             bbox[:, 3] += bbox[:, 1]
         elif fmt is not BoxFormat.ltwh:
             raise ValueError(f"Unsupported box_format: {box_format}")
+
         item["bbox"] = bbox
         collated.append(item)
     ids = [str(item.pop("id")) for item in collated if "id" in item]

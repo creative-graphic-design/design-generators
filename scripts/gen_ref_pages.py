@@ -405,6 +405,7 @@ def require_str_sequence(
         raise TypeError(
             model_metadata_error(member_dir, key, "must be a non-empty list of strings")
         )
+
     items: list[str] = []
     for item in value:
         if not isinstance(item, str):
@@ -413,11 +414,13 @@ def require_str_sequence(
                     member_dir, key, "must be a non-empty list of strings"
                 )
             )
+
         items.append(item.strip())
     if not items or any(not item for item in items):
         raise ValueError(
             model_metadata_error(member_dir, key, "must be a non-empty list of strings")
         )
+
     return tuple(items)
 
 
@@ -428,6 +431,7 @@ def require_str_or_sequence(
     if isinstance(value, str):
         if not value.strip():
             raise ValueError(model_metadata_error(member_dir, key, "must not be empty"))
+
         return (value.strip(),)
     return require_str_sequence(value, key=key, member_dir=member_dir)
 
@@ -453,6 +457,7 @@ def required_metadata_value(
     """Return a required metadata value or fail with an actionable error."""
     if key not in table:
         raise KeyError(model_metadata_error(member_dir, key, "is required"))
+
     return table[key]
 
 
@@ -465,6 +470,7 @@ def read_model_design_metadata(member_dir: Path) -> ModelDesignMetadata:
     table = tool.get(DESIGN_METADATA_TOOL_KEY)
     if not isinstance(table, dict):
         raise KeyError(model_metadata_error(member_dir, "table", "is required"))
+
     metadata_table = cast(Mapping[str, TomlValue], table)
     framework = required_metadata_value(
         metadata_table, key="framework", member_dir=member_dir
@@ -478,11 +484,13 @@ def read_model_design_metadata(member_dir: Path) -> ModelDesignMetadata:
         raise TypeError(
             model_metadata_error(member_dir, "framework", "must be a non-empty string")
         )
+
     framework = framework.strip()
     if framework not in FRAMEWORK_TAGS:
         raise ValueError(
             model_metadata_error(member_dir, "framework", f"is unknown: {framework}")
         )
+
     validate_values(tasks, allowed=TASK_TAGS, key="task", member_dir=member_dir)
     conditions = require_str_sequence(
         required_metadata_value(
@@ -609,6 +617,7 @@ def reproducing_page_path_for(
             f"Model package {member_dir.relative_to(ROOT)} must include REPRODUCING.md"
         )
         raise FileNotFoundError(msg)
+
     if not reproducing_file.is_file():
         return None
     return Path("api", group.lower(), package_slug(project_name), "reproducing.md")
@@ -631,6 +640,7 @@ def imported_public_modules(init_file: Path) -> set[str]:
     imported_modules: set[str] = set()
     package_name = init_file.parent.name
     module = ast.parse(init_file.read_text(encoding="utf-8"), filename=str(init_file))
+
     for node in ast.walk(module):
         if isinstance(node, ast.ImportFrom):
             if node.level == 1 and node.module:
@@ -641,6 +651,7 @@ def imported_public_modules(init_file: Path) -> set[str]:
                     imported_modules.add(parts[1])
                 elif node.module == package_name:
                     imported_modules.update(alias.name for alias in node.names)
+
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 parts = alias.name.split(".")
@@ -818,6 +829,7 @@ def render_page_frontmatter(icon: str, tags: tuple[str, ...]) -> list[str]:
     """Render YAML frontmatter for docs pages."""
     if not tags:
         raise ValueError("Docs page frontmatter must include at least one tag")
+
     lines = ["---", f"icon: {icon}", "tags:"]
     lines.extend(f"  - {tag}" for tag in tags)
     lines.extend(["---", ""])
@@ -919,6 +931,7 @@ def render_model_overview_runtime_badge(framework: str) -> str:
         color, logo = MODEL_OVERVIEW_RUNTIME_BADGES[framework]
     except KeyError as exc:
         raise ValueError(f"No model overview runtime badge for {framework!r}") from exc
+
     return render_static_badge(
         alt_label="framework",
         label=".",
@@ -959,18 +972,23 @@ def render_model_overview_dataset_badges(
 def model_overview_venue(package: ApiPackage) -> str | None:
     """Read the canonical venue badge message for a model package."""
     root_readme = ROOT / "README.md"
+
     if root_readme.is_file():
         root_line_prefix = f"models/{package.member_dir.name}/README.md"
+
         for line in root_readme.read_text(encoding="utf-8").splitlines():
             if root_line_prefix not in line:
                 continue
             root_match = re.search(r"!\[venue: ([^\]]+)\]", line)
             if root_match is not None:
                 return root_match.group(1)
+
     readme_path = package.member_dir / "README.md"
     if not readme_path.is_file():
         return None
+
     text = readme_path.read_text(encoding="utf-8")
+
     for match in re.finditer(r"https://img\.shields\.io/static/v1\?([^)\s]+)", text):
         query = parse_qs(
             urlparse(f"https://img.shields.io/static/v1?{match.group(1)}").query
@@ -995,6 +1013,7 @@ def render_model_overview_venue_badge(package: ApiPackage) -> str:
         color = MODEL_OVERVIEW_VENUE_BADGE_COLORS[venue]
     except KeyError as exc:
         raise ValueError(f"No model overview venue color for {venue!r}") from exc
+
     return render_static_badge(
         alt_label="venue",
         label="🎓",
@@ -1104,6 +1123,7 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
         metadata = package.design_metadata
         if metadata is None:
             raise ValueError(f"Missing model metadata for {package.project_name}")
+
         package_link = f"[{package.display_name}]({docs_route(package.index_path)})"
         lines.append(
             " | ".join(

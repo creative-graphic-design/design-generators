@@ -62,6 +62,7 @@ def vendor_root(
             f"Found vendor/{repo}, but required marker `{marker_path}` is missing. "
             f"{hint}\nChecked initialized paths:\n{missing}"
         )
+
     raise FileNotFoundError(
         f"Could not find initialized vendor/{repo}. {hint}\nSearched:\n{searched}"
     )

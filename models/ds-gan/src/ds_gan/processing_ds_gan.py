@@ -71,6 +71,7 @@ class DSGANProcessor(ProcessorMixin):
         dataset = normalize_dataset_name(dataset_name)
         if dataset is not DatasetName.pku_posterlayout:
             raise ValueError(f"Unsupported DS-GAN dataset_name: {dataset_name}")
+
         self.dataset_name = str(dataset)
         default_id2label = {0: "text", 1: "logo", 2: "underlay"}
         raw_id2label = id2label or default_id2label
@@ -103,6 +104,7 @@ class DSGANProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("DSGANProcessor only supports return_tensors='pt'")
+
         image_rows = _ensure_batch(images)
         saliency_rows = self._resolve_saliency(
             len(image_rows),
@@ -237,6 +239,7 @@ class DSGANProcessor(ProcessorMixin):
         """Pad layout tensors to DS-GAN ``max_elem`` slots."""
         if bbox.shape[1] > max_elem:
             raise ValueError(f"DS-GAN supports at most {max_elem} elements")
+
         pad_count = max_elem - bbox.shape[1]
         if pad_count:
             bbox = torch.cat((bbox, torch.zeros(bbox.shape[0], pad_count, 4)), dim=1)
@@ -264,6 +267,7 @@ class DSGANProcessor(ProcessorMixin):
             rows = _ensure_batch(saliency)
             if len(rows) != batch_size:
                 raise ValueError("saliency batch size must match images")
+
             return cast(
                 list[DSGANImageInput | Float[torch.Tensor, "1 height width"] | None],
                 rows,
@@ -282,6 +286,7 @@ class DSGANProcessor(ProcessorMixin):
         )
         if len(first) != batch_size or len(second) != batch_size:
             raise ValueError("saliency batch size must match images")
+
         merged: list[Float[torch.Tensor, "1 height width"]] = []
         for left, right in zip(first, second, strict=True):
             if left is None:
@@ -319,6 +324,7 @@ def _to_rgb_tensor(
     tensor = _to_tensor(image, image_size=image_size, mode="RGB")
     if tensor.shape[0] != 3:
         raise ValueError("RGB image must have three channels")
+
     return tensor
 
 
@@ -422,6 +428,7 @@ def annotations_from_pku_example(
     model_labels: list[int] = []
     public_labels: list[int] = []
     boxes: list[list[float]] = []
+
     for raw_label, raw_box in zip(raw_labels, raw_boxes, strict=True):
         label = str(raw_label)
         if label == "INVALID":
@@ -430,6 +437,7 @@ def annotations_from_pku_example(
         model_labels.append(PKU_MODEL_LABEL2ID[label])
         public_labels.append(public_id)
         boxes.append(_parse_box(raw_box))
+
     if boxes:
         box_t = torch.tensor(boxes, dtype=torch.float32)
         order = _designseq_reorder(model_labels, box_t, max_elem=max_elem)
@@ -473,12 +481,15 @@ def _canvas_size_from_example(
         value = example.get(key)
         if isinstance(value, Image.Image):
             return value.size
+
         if isinstance(value, torch.Tensor):
             if value.ndim >= 2:
                 return int(value.shape[-1]), int(value.shape[-2])
+
         if value is not None:
             pil = _to_pil(cast(DSGANImageInput, value))
             return pil.size
+
     width = example.get("width")
     height = example.get("height")
     if width is not None and height is not None:

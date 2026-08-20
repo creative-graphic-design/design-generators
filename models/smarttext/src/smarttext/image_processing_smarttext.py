@@ -87,6 +87,7 @@ class SmartTextImageProcessor(BaseImageProcessor):
             raise ValueError(
                 "SmartTextImageProcessor only supports return_tensors='pt'"
             )
+
         mean = np.asarray(rgb_mean or self.rgb_mean, dtype=np.float32)
         std = np.asarray(rgb_std or self.rgb_std, dtype=np.float32)
         tensors = []
@@ -140,10 +141,12 @@ class SmartTextImageProcessor(BaseImageProcessor):
 def _ensure_pil_batch(images: ImageInput | Sequence[ImageInput]) -> list[Image.Image]:
     if isinstance(images, Image.Image):
         return [images]
+
     if isinstance(images, torch.Tensor):
         tensor = images.detach().cpu()
         if tensor.ndim == 3:
             tensor = tensor.unsqueeze(0)
+
         rows = []
         for item in tensor:
             if item.shape[0] in (1, 3):
@@ -152,6 +155,7 @@ def _ensure_pil_batch(images: ImageInput | Sequence[ImageInput]) -> list[Image.I
             if array.max() <= 1.0:
                 array = array * 255.0
             rows.append(Image.fromarray(array.astype(np.uint8)).convert("RGB"))
+
         return rows
     return [_to_pil(image) for image in images]
 

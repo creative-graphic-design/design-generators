@@ -220,7 +220,9 @@ class LayoutFIDModel(PreTrainedModel):
     ) -> None:
         if bbox.ndim != 3 or bbox.shape[-1] != 4:
             raise ValueError("bbox must have shape (batch, elements, 4)")
+
         if labels.shape != bbox.shape[:2]:
             raise ValueError("labels must have shape (batch, elements)")
+
         if padding_mask.shape != bbox.shape[:2]:
             raise ValueError("padding_mask must have shape (batch, elements)")

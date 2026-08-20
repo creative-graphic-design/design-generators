@@ -192,6 +192,7 @@ def _semantic_label(alt: str, query_label: str) -> str:
         raise AssertionError(
             f"badge with label=> must use '<semantic label>: ...' alt text: {alt!r}"
         )
+
     semantic_alt_prefixes = {
         "checkpoint",
         "dataset",
@@ -212,6 +213,7 @@ def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | Non
         return {"githubactions"}
     if label == "coverage":
         return {None}
+
     if label == "docs":
         return {"readthedocs"}
     if label == "license":
@@ -219,49 +221,64 @@ def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | Non
             return {"apache"}
         if message and message.startswith("CC-"):
             return {"creativecommons"}
+
         if message == "review-needed":
             return {None}
         return {"opensourceinitiative"}
+
     if label == "python":
         return {"python"}
     if label == "uv":
         return {"uv"}
+
     if label in {"models", "package", "core", "extras", "runtime", "status"}:
         return {None}
+
     if label == "arXiv":
         return {"arxiv"}
     if label == "DOI":
         return {"doi"}
     if label in {"paper", "OpenReview"}:
         return {None}
+
     if label == "venue":
         return {None}
+
     if label == "model":
         return {None}
+
     if label == "library":
         return {None}
+
     if label == "task":
         return {None}
+
     if label == "framework":
         policy = RUNTIME_BADGE_POLICY.get(message or "")
         return {policy[1]} if policy else set()
+
     if label == "base":
         if _is_root_readme(path):
             policy = RUNTIME_BADGE_POLICY.get(message or "")
             return {policy[1]} if policy else set()
         return {"pydantic"} if message == "pydantic-ai" else {"huggingface"}
+
     if label == "dataset":
         if _is_root_readme(path):
             return {None}
         return {None, "huggingface"}
+
     if label == "training":
         return {None}
+
     if label == "checkpoint":
         return {None}
+
     if label == "hub":
         if message == "n/a":
             return {None}
         return {"huggingface"}
+
     if label == "vendor-parity":
         return {None}
     raise AssertionError(f"no badge logo rule for label={label!r} message={message!r}")
@@ -274,6 +291,7 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
         return None
     if label == "docs":
         return None
+
     if label == "license":
         if message in {"Apache-2.0", "MIT"}:
             return "green"
@@ -281,57 +299,72 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
             return "orange"
         if message == "review-needed":
             return "yellow"
+
     if label in {"python", "package", "paper", "OpenReview", "DOI"}:
         return "blue"
+
     if label == "model":
         if _is_root_readme(path):
             return None
         return "blue"
+
     if label == "library":
         if _is_root_readme(path) and message in ROOT_LIBRARY_BADGE_COLORS:
             return ROOT_LIBRARY_BADGE_COLORS[message]
         return "blue"
+
     if label == "task":
         if _is_root_readme(path) and message in ROOT_TASK_LEGEND_BADGE_COLORS:
             return ROOT_TASK_LEGEND_BADGE_COLORS[message]
         return "purple"
+
     if label == "framework" and message:
         policy = RUNTIME_BADGE_POLICY.get(message)
         if policy is not None:
             return policy[0]
+
     if label == "base" and message and _is_root_readme(path):
         policy = RUNTIME_BADGE_POLICY.get(message)
         if policy is not None:
             return policy[0]
+
     if label == "base":
         return "blue"
     if label == "arXiv":
         return "b31b1b"
+
     if label in {"uv", "extras", "runtime"}:
         return "informational"
+
     if label == "dataset":
         if _is_root_readme(path):
             return None
         return "informational"
+
     if label == "venue":
         if _is_root_readme(path) and message in ROOT_VENUE_BADGE_COLORS:
             return ROOT_VENUE_BADGE_COLORS[message]
         return "purple"
+
     if label == "models":
         return "purple"
+
     if label == "vendor-parity" and message == "not-run":
         return "lightgrey"
+
     if label == "core" or label == "vendor-parity":
         return "success"
     if label == "status":
         return "lightgrey"
     if label == "checkpoint" and message == "ckpt":
         return "success"
+
     if label == "training":
         if message == "train":
             return "success"
         if message == "n/a":
             return "lightgrey"
+
     if label == "hub":
         return "lightgrey" if message == "n/a" else "orange"
     raise AssertionError(f"no badge color rule for label={label!r} message={message!r}")
@@ -349,10 +382,12 @@ def _iter_badges(path: Path) -> list[Badge]:
                 raise AssertionError(
                     f"{path}:{line}: unexpected Codecov badge URL: {url}"
                 )
+
             if match.group("alt") != "codecov":
                 raise AssertionError(
                     f"{path}:{line}: Codecov badge alt must be codecov: {url}"
                 )
+
             badges.append(
                 Badge(
                     path=path,
@@ -369,8 +404,10 @@ def _iter_badges(path: Path) -> list[Badge]:
             continue
         if parsed.netloc != "img.shields.io":
             raise AssertionError(f"{path}: non-static shields badge URL: {url}")
+
         if " " in url:
             raise AssertionError(f"{path}: badge URL contains a literal space: {url}")
+
         query = parse_qs(parsed.query)
         if parsed.path == "/static/v1":
             if "label" not in query or "message" not in query or "color" not in query:
@@ -383,6 +420,7 @@ def _iter_badges(path: Path) -> list[Badge]:
             == "/github/deployments/creative-graphic-design/design-generators/github-pages"
         ):
             raise AssertionError(f"{path}: unsupported shields badge path: {url}")
+
         if "label" not in query:
             raise AssertionError(f"{path}: badge missing label: {url}")
         else:
@@ -394,6 +432,7 @@ def _iter_badges(path: Path) -> list[Badge]:
                     raise AssertionError(
                         f"{path}:{line}: static/v1 badge {key} must not contain '--': {url}"
                     )
+
         color = query.get("color", [None])[0]
         logo = query.get("logo", [None])[0]
         allowed_logos = _allowed_logos(path, label, message)
@@ -401,6 +440,7 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(
                 f"{path}: badge {label!r} logo {logo!r} not in {allowed_logos!r}: {url}"
             )
+
         if logo is None:
             if "logoColor" in query:
                 raise AssertionError(f"{path}: logoColor requires logo: {url}")
@@ -408,11 +448,13 @@ def _iter_badges(path: Path) -> list[Badge]:
             raise AssertionError(f"{path}: unverified Simple Icons slug {logo!r}")
         elif query.get("logoColor") != ["white"]:
             raise AssertionError(f"{path}: badge logoColor must be white: {url}")
+
         expected_color = _expected_color(path, label, message)
         if expected_color is not None and color != expected_color:
             raise AssertionError(
                 f"{path}: badge {label!r} color {color!r} != {expected_color!r}: {url}"
             )
+
         badges.append(
             Badge(
                 path=path,
@@ -445,6 +487,7 @@ def _expected_link(badge: Badge) -> str | None:
             raise AssertionError(
                 f"{badge.path}:{badge.line}: Hugging Face dataset badge {badge.message!r} must have an explicit DATASET_LINKS entry"
             )
+
         return None
     if badge.label == "hub":
         if badge.message in {"n/a", "not-published"}:
@@ -465,6 +508,7 @@ def _assert_badge_links() -> None:
                     raise AssertionError(
                         f"{badge.path}:{badge.line}: hub badge {badge.message!r} must not link to an unpublished Hub repo"
                     )
+
                 continue
             expected = _expected_link(badge)
             if expected is None:
@@ -487,6 +531,7 @@ def _assert_model_order(path: Path) -> None:
     labels = _badge_labels(path)
     if not labels:
         raise AssertionError(f"{path}: no badges found")
+
     cursor = 0
     for aliases in MODEL_ORDER:
         positions = [
@@ -498,12 +543,14 @@ def _assert_model_order(path: Path) -> None:
             if aliases == ("venue",):
                 continue
             raise AssertionError(f"{path}: missing badge for {aliases}")
+
         cursor = positions[-1] + 1 if aliases[0] == "dataset" else positions[0] + 1
 
     text = path.read_text(encoding="utf-8")
     h1 = re.search(r"^# .+$", text, re.MULTILINE)
     if h1 is None:
         raise AssertionError(f"{path}: missing H1")
+
     after_h1 = text[h1.end() :].lstrip()
     if not after_h1.startswith("![") and not after_h1.startswith("[!["):
         raise AssertionError(f"{path}: badges must be directly below the H1")

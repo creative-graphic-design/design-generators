@@ -229,6 +229,7 @@ class RalfProcessor(ProcessorMixin):
         if not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
+
             return normalize_boxes(
                 tensor, canvas_size=canvas_size, box_format=box_format
             )

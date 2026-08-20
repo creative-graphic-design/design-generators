@@ -222,19 +222,23 @@ class CGBDMScheduler(SchedulerMixin, ConfigMixin):
         num_labels = layout.shape[-1] - 4
         if condition_type is ConditionType.content_image:
             return mask
+
         if condition_type is ConditionType.label:
             mask[:, :, :num_labels] = True
             return mask
+
         if condition_type is ConditionType.label_size:
             mask[:, :, :num_labels] = True
             mask[:, :, num_labels + 2 : num_labels + 4] = True
             return mask
+
         if condition_type is ConditionType.completion:
             label_ids = layout[:, :, :num_labels].argmax(dim=-1)
             valid = label_ids != 0
             rand = torch.rand(valid.shape, device=layout.device, generator=generator)
             elem_mask = (rand <= completion_ratio) & valid
             return elem_mask.unsqueeze(-1).expand_as(layout)
+
         if condition_type is ConditionType.refinement:
             return torch.ones_like(mask)
         raise ValueError(f"Unsupported CGB-DM condition_type: {condition_type}")

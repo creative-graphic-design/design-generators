@@ -207,6 +207,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                     f"for condition_type={condition_type}; "
                     f"missing {', '.join(missing_inputs)}"
                 )
+
             processor_inputs = {
                 "bbox": bbox,
                 "labels": labels,

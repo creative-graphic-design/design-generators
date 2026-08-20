@@ -85,6 +85,7 @@ class DSGANConfig(PretrainedConfig):
         dataset = normalize_dataset_name(dataset_name)
         if dataset is not DatasetName.pku_posterlayout:
             raise ValueError(f"Unsupported DS-GAN dataset_name: {dataset_name}")
+
         public_id2label = {
             int(k): v for k, v in (id2label or _semantic_pku_id2label()).items()
         }

@@ -78,6 +78,7 @@ def normalize_condition_type(
             canonical = normalize_shared_condition_type(condition_type)
     if canonical not in _SUPPORTED_CONDITION_TYPES:
         raise ValueError(f"Unsupported DS-GAN condition_type: {condition_type}")
+
     return canonical
 
 
@@ -288,6 +289,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
         if pixel_values is None:
             if images is None:
                 raise ValueError("images or pixel_values are required for DS-GAN")
+
             encoded = self.processor(
                 images,
                 saliency=saliency,

@@ -169,12 +169,14 @@ def load_ralf_dataset(
     """
     if source != "hf_org":
         raise ValueError("Only source='hf_org' is supported")
+
     try:
         from datasets import load_dataset
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise ImportError(
             "Install the optional reference dependencies to load org datasets"
         ) from exc
+
     dataset = normalize_dataset_name(dataset_name)
     if dataset is DatasetName.cgl:
         return cast(
@@ -246,15 +248,18 @@ def build_retrieved_batch(
             bbox[:length] = sample_bbox[:length]
             labels[:length] = sample_labels[:length]
             mask[:length] = True
+
             bbox_candidates.append(bbox)
             label_candidates.append(labels)
             mask_candidates.append(mask)
+
         bbox_rows.append(torch.stack(bbox_candidates))
         label_rows.append(torch.stack(label_candidates))
         mask_rows.append(torch.stack(mask_candidates))
     bbox_tensor = torch.stack(bbox_rows)
     labels_tensor = torch.stack(label_rows)
     mask_tensor = torch.stack(mask_rows)
+
     batch, candidates = indexes.shape
     return RalfRetrievedBatch(
         image=torch.zeros(batch, candidates, 3, 1, 1),

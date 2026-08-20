@@ -335,6 +335,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
             raise NotImplementedError(
                 "PosterLLaVA only supports condition_type='content_image'"
             )
+
         image_list = self._resolve_images(images=images, content=content)
         prompts = self._build_prompts(
             prompt=prompt,
@@ -353,12 +354,16 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         )
         if len(image_list) != len(prompts):
             raise ValueError("images and prompts must resolve to the same batch size")
+
         if self.model is None:
             raise ValueError("model is required for PosterLLaVA generation")
+
         if self.tokenizer is None:
             raise ValueError("tokenizer is required for PosterLLaVA generation")
+
         if self.image_processor is None:
             raise ValueError("image_processor is required for PosterLLaVA generation")
+
         encoded = self.processor(prompts)
         input_ids = cast(Int[torch.Tensor, "batch tokens"], encoded["input_ids"])
         attention_mask = cast(
@@ -410,6 +415,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
         if images is None:
             if content is None:
                 raise ValueError("images or content['image'] is required")
+
             content_items = [content] if isinstance(content, Mapping) else list(content)
             raw_images = [item.get("image") for item in content_items]
         else:
@@ -418,6 +424,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
             not isinstance(item, Image.Image) for item in raw_images
         ):
             raise ValueError("PosterLLaVA images must be PIL.Image.Image instances")
+
         return cast(list[Image.Image], raw_images)
 
     def _build_prompts(
@@ -501,6 +508,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
             )
         else:
             raise ValueError("image_processor must provide preprocess")
+
         return cast(
             Float[torch.Tensor, "batch channels height width"],
             processed["pixel_values"],
@@ -548,6 +556,7 @@ class PosterLlavaPipeline(LayoutGenerationPipeline):
             ]
             if any(value is None for value in values):
                 raise ValueError("num_elements is required for PosterLLaVA generation")
+
             return [int(cast(int | str, value)) for value in values]
         if isinstance(num_elements, int):
             return [num_elements] * batch_size

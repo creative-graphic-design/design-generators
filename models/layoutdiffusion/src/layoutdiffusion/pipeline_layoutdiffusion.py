@@ -180,6 +180,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
         if condition is not None and canonical is ConditionType.refinement:
             if condition.input_ids is None:
                 raise ValueError("refinement condition is missing input_ids")
+
             start_ids = condition.input_ids.to(self.device)
         else:
             start_ids = self.tokenizer.build_initial_tokens(
@@ -266,6 +267,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
             return cast(LayoutDiffusionOutputDict, dict(output))
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return output
 
     generate = __call__

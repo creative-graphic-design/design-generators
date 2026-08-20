@@ -189,6 +189,7 @@ class LaceProcessor(ProcessorMixin):
         max_len = max_seq_length or self.max_seq_length
         if bbox.shape[1] > max_len:
             raise ValueError(f"LACE supports at most {max_len} elements")
+
         if mask is None:
             mask = torch.ones(labels.shape, dtype=torch.bool, device=labels.device)
         pad_count = max_len - bbox.shape[1]

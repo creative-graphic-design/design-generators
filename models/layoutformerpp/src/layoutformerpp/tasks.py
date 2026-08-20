@@ -55,6 +55,7 @@ def normalize_layoutformerpp_dataset(dataset: DatasetName | str) -> DatasetName:
     normalized = normalize_dataset_name(dataset)
     if normalized not in SUPPORTED_DATASETS:
         raise ValueError(f"Unsupported LayoutFormer++ dataset: {dataset}")
+
     return normalized
 
 

@@ -111,6 +111,7 @@ class LayoutFlowBlock(nn.Module):
         super().__init__()
         if not norm_first:
             raise ValueError("LayoutFlow transformer expects prenorm blocks")
+
         self.norm_first = norm_first
         self.self_attn = nn.MultiheadAttention(
             d_model, nhead, dropout=dropout, batch_first=batch_first
@@ -134,6 +135,7 @@ class LayoutFlowBlock(nn.Module):
         """Apply self-attention and feed-forward layers."""
         if timestep is None:
             raise ValueError("timestep is required")
+
         x = self.norm1(src, timestep)
         x = x + self._sa_block(x, src_mask, src_key_padding_mask)
         return x + self._ff_block(self.norm2(x))
@@ -304,6 +306,7 @@ class LayoutDMBackbone(nn.Module):
             x, ps = pack(geom_parts + [attr], "b * d")
         else:
             raise ValueError(f"Unsupported seq_type: {self.seq_type}")
+
         x = self.elem_embed(x)
         if self.use_pose_enc:
             x = x + self.pos_enc(x)
@@ -316,6 +319,7 @@ class LayoutDMBackbone(nn.Module):
         if self.seq_type is not SeqType.stacked:
             if ps is None:
                 raise ValueError(f"Unsupported seq_type: {self.seq_type}")
+
             x = unpack(x, ps, "b * d")
             x = rearrange(x, "k b s d -> b s (k d)")
             x = self.to_attrdim(x)

@@ -49,6 +49,7 @@ class BASNetConfig(PretrainedConfig):
         """Initialize BASNet configuration."""
         if input_size <= 0:
             raise ValueError("input_size must be positive")
+
         raw_id2label = id2label or DEFAULT_ID2LABEL
         normalized_id2label = {int(key): value for key, value in raw_id2label.items()}
         super().__init__(id2label=normalized_id2label, **kwargs)  # ty: ignore[invalid-argument-type]

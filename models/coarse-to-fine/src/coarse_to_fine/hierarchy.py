@@ -160,6 +160,7 @@ def build_cut_hierarchy(
     """
     if bbox_ltwh.numel() == 0:
         raise ValueError("Cannot build a hierarchy for an empty layout")
+
     bbox_ltrb = ltwh_to_ltrb(bbox_ltwh.to(dtype=torch.float64))
     sorted_boxes = _sort_boxes(bbox_ltrb, labels_1based.long())
     sorted_bbox_with_idx = [(box, idx) for idx, (box, _) in enumerate(sorted_boxes)]
@@ -234,6 +235,7 @@ def flatten_hierarchy(
     rows_labels: list[Int[torch.Tensor, "elements"]] = []
     rows_mask: list[Bool[torch.Tensor, "elements"]] = []
     rows_group_index: list[Int[torch.Tensor, "elements"]] = []
+
     for batch_idx in range(batch):
         bbox_values: list[Float[torch.Tensor, "4"]] = []
         label_values: list[Int[torch.Tensor, ""]] = []

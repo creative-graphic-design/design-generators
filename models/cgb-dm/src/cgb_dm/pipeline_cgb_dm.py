@@ -73,8 +73,10 @@ def normalize_condition_type(
         raise ValueError(
             "CGB-DM requires image/content; use condition_type='content_image'"
         )
+
     if canonical not in _SUPPORTED_CONDITION_TYPES:
         raise ValueError(f"Unsupported CGB-DM condition_type: {condition_type}")
+
     return canonical
 
 
@@ -281,6 +283,7 @@ class CGBDMPipeline(DiffusionPipeline):
                 raise ValueError(
                     f"bbox and labels are required for condition_type={condition_type}"
                 )
+
             encoded_layout = self.processor.encode_layout(
                 bbox=bbox,
                 labels=labels,

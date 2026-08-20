@@ -85,6 +85,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             raise NotImplementedError(
                 "Only c-x-y-w-h LayoutDM token order is supported"
             )
+
         if (
             "mask" in self.config.special_tokens
             and self.config.special_tokens[-1] != "mask"
@@ -257,16 +258,19 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 raise ValueError(
                     "LayoutDMTokenizer requires a LayoutDMConfig or layout_config_file"
                 )
+
             layout_config = json.loads(
                 Path(layout_config_file).read_text(encoding="utf-8")
             )
         if not isinstance(layout_config, Mapping):
             raise TypeError("layout_config must be a mapping")
+
         config_data = dict(layout_config)
         if cluster_centers_file is not None and Path(cluster_centers_file).exists():
             centers = json.loads(Path(cluster_centers_file).read_text(encoding="utf-8"))
             if not isinstance(centers, Mapping):
                 raise TypeError("cluster centers must be a mapping")
+
             config_data["cluster_centers"] = _cluster_centers(centers)
         return _layout_config_from_mapping(config_data)
 
@@ -324,6 +328,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
             raise ValueError(
                 f"seq_length {seq_length} exceeds max_seq_length {self.config.max_seq_length}"
             )
+
         bbox_ids = self._encode_bbox(bbox) + self.config.num_categories
         seq = torch.cat((labels.unsqueeze(-1), bbox_ids), dim=-1)
         pad_len = self.config.max_seq_length - seq_length
@@ -505,6 +510,7 @@ class LayoutDMTokenizer(PreTrainedTokenizer):
                 raise ValueError(
                     f"Unsupported bbox_quantization: {self.config.bbox_quantization}"
                 )
+
             offset = (
                 KEY_MULT_DICT[self.config.shared_bbox_vocab].get(key, 0)
                 * self.config.num_bin_bboxes
@@ -630,6 +636,7 @@ def _string_tuple(
         return default
     if isinstance(value, str) or not isinstance(value, Sequence):
         raise TypeError(f"Expected string sequence, got {type(value).__name__}")
+
     return tuple(_string(item) for item in cast(Sequence[str], value))
 
 
@@ -638,6 +645,7 @@ def _id2label(value: LayoutDMConfigValue) -> dict[int | str, str] | None:
         return None
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected id2label mapping, got {type(value).__name__}")
+
     id2label = cast(Mapping[int | str, str], value)
     return {_label_id(key): _string(item) for key, item in id2label.items()}
 
@@ -649,6 +657,7 @@ def _cluster_centers_or_none(
         return None
     if not isinstance(value, Mapping):
         raise TypeError(f"Expected cluster center mapping, got {type(value).__name__}")
+
     return _cluster_centers(cast(Mapping[str, Sequence[int | float]], value))
 
 
@@ -659,6 +668,7 @@ def _cluster_centers(
     for key, items in value.items():
         if isinstance(items, str) or not isinstance(items, Sequence):
             raise TypeError("Cluster center values must be numeric sequences")
+
         centers[_string(key)] = [_floating(item, 0.0) for item in items]
     return centers
 
@@ -670,6 +680,7 @@ def _load_cluster_centers_file(
         models = pickle.load(f)
     if not isinstance(models, Mapping):
         raise TypeError("Cluster center file must contain a mapping")
+
     centers: dict[str, list[float]] = {}
     for key in ("x", "y", "w", "h"):
         model = models[f"{key}-{num_bin_bboxes}"]

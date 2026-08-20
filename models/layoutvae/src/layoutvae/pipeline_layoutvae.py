@@ -258,6 +258,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         labels = preprocess_parameters.pop("labels", input_)
         if labels is None:
             raise ValueError("labels are required for LayoutVAEPipeline")
+
         encoded = self.processor(
             cast(
                 list[list[str | int]] | list[str | int] | Int[torch.Tensor, "..."],
@@ -295,6 +296,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         if model_inputs:
             unknown = ", ".join(sorted(model_inputs))
             raise ValueError(f"Unsupported generation kwargs: {unknown}")
+
         return self._generate(
             label_set=label_set,
             condition_type=condition_type,
@@ -378,8 +380,10 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         if labels is None:
             if batch_size < 1:
                 raise ValueError("batch_size must be positive")
+
             labels = [["text"] for _ in range(batch_size)]
         encoded = self.processor(labels)
+
         option_kwargs: GenerationOptionsKwargs = {}
         option_kwargs["bbox"] = bbox
         option_kwargs["mask"] = mask
@@ -392,7 +396,9 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         option_kwargs["num_inference_steps"] = num_inference_steps
         option_kwargs["output_type"] = output_type
         option_kwargs["return_intermediates"] = return_intermediates
+
         options = _make_generation_options(option_kwargs)
+
         return self._generate(
             label_set=cast(
                 Float[torch.Tensor, "batch internal_labels"], encoded["label_set"]
@@ -429,6 +435,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         canonical = normalize_condition_type(condition_type)
         if canonical is not ConditionType.label:
             raise ValueError(f"Unsupported condition_type for layoutvae: {canonical}")
+
         device = next(self.model.parameters()).device
         prepared_generator = self.prepare_generator(
             generator=options.generator,

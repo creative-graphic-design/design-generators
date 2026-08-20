@@ -179,6 +179,7 @@ def _load_layout_dm_metric(vendor_root: Path) -> ModuleType:
         )
         if spec is None or spec.loader is None:
             raise ImportError(f"Could not load import spec for {metric_path}")
+
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
     finally:
@@ -202,6 +203,7 @@ def _load_posterllama_eval(vendor_root: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("posterllama_vendor_eval", eval_path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load import spec for {eval_path}")
+
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -438,6 +440,7 @@ def _compare(
             f"{metric}: shape mismatch for {vendor_key}/{evaluate_key}: "
             f"{vendor_array.shape} != {evaluate_array.shape}"
         )
+
     max_abs_diff = float(np.max(np.abs(vendor_array - evaluate_array)))
     verdict = (
         "bit-identical"

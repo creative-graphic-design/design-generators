@@ -72,6 +72,7 @@ class DLTReferenceEpochSamplingCallback(Callback):
                 "DLTReferenceEpochSamplingCallback requires a datamodule with "
                 "a prepared val_dataset"
             )
+
         consume_reference_epoch_sampling_rng(
             pl_module,
             val_data,
@@ -88,6 +89,7 @@ def consume_reference_epoch_sampling_rng(
     """Consume reference post-epoch sampling RNG without logging images."""
     if num_samples > len(val_data):
         raise ValueError("num_samples cannot exceed validation dataset length")
+
     module = cast("DLTTrainingModule", pl_module)
     model = cast(torch.nn.Module, module.model)
     scheduler = cast(_JointScheduler, module.scheduler)
@@ -196,4 +198,5 @@ def _sample_from_model(
             noisy_batch["cat"] = cat_pred["cat"]
     if bbox_pred is None or cat_pred is None:
         raise RuntimeError("Reference epoch sampling did not run")
+
     return bbox_pred.pred_original_sample, cat_pred["cat"]

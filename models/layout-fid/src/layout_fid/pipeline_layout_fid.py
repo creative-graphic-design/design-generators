@@ -197,6 +197,7 @@ class LayoutFIDEvaluator:
         """Compute candidate feature statistics."""
         if features is not None and (layouts is not None or layout_kwargs):
             raise ValueError("Pass either features or layout inputs, not both")
+
         if features is None:
             features = self.extract_features(
                 layouts=layouts,
@@ -277,6 +278,7 @@ class LayoutFIDEvaluator:
         provided = sum(value is not None for value in (layouts, features, statistics))
         if provided + bool(layout_kwargs) == 0:
             raise ValueError("Pass candidate layouts, features, or statistics")
+
         if statistics is None:
             statistics = self.compute_statistics(
                 layouts=layouts, features=features, **layout_kwargs
@@ -308,6 +310,7 @@ class LayoutFIDEvaluator:
                 raise ValueError(
                     f"Reference statistics split is not loaded: {split}"
                 ) from exc
+
         candidate = (
             LayoutFIDStatistics.from_mapping(
                 cast(
@@ -381,6 +384,7 @@ class LayoutFIDEvaluator:
             value is not None for value in (bbox, labels, mask)
         ):
             raise ValueError("Pass either layouts or explicit bbox/labels/mask")
+
         if layouts is not None:
             if isinstance(layouts, LayoutGenerationOutput):
                 bbox = layouts.bbox
@@ -413,6 +417,7 @@ class LayoutFIDEvaluator:
                 )
         if bbox is None or labels is None:
             raise ValueError("bbox and labels are required")
+
         return {
             "bbox": bbox,
             "labels": labels,

@@ -77,10 +77,12 @@ def beautify_layout(
     """
     if torch.sum(mask) == 1:
         return bbox, mask
+
     bbox_in = bbox
     if xy_only:
         wh = torch.abs(bbox[:, :, 2:].clone().detach())
         bbox_in = torch.cat([bbox[:, :, :2], wh], dim=2)
+
     bbox_in = bbox_in.clone()
     bbox_in[:, :, [0, 2]] *= 10 / 4
     bbox_in[:, :, [1, 3]] *= 10 / 6
@@ -89,6 +91,7 @@ def beautify_layout(
     optimizer = torch.optim.Adam([bbox_param], lr=lr)
     mse_loss = nn.MSELoss()
     mask_out = mask.clone()
+
     with torch.enable_grad():
         for _ in range(num_steps):
             bbox_relu = torch.relu(bbox_param)
@@ -104,6 +107,7 @@ def beautify_layout(
             optimizer.step()
             min_wh = torch.min(bbox_relu[:, :, [2, 3]], dim=2).values
             mask_out = mask_out * (min_wh > 0.01)
+
     bbox_out = torch.relu(bbox_param.detach())
     bbox_out[:, :, [0, 2]] *= 4 / 10
     bbox_out[:, :, [1, 3]] *= 6 / 10

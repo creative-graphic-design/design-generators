@@ -115,9 +115,11 @@ class LayoutActionProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("LayoutActionProcessor only supports return_tensors='pt'")
+
         condition = normalize_condition_type(condition_type)
         if condition not in SUPPORTED_CONDITIONS:
             raise NotImplementedError(f"LayoutAction does not support {condition}.")
+
         if condition is ConditionType.unconditional:
             input_ids = torch.full(
                 (int(batch_size), 1), self.config.bos_token_id, dtype=torch.long
@@ -131,6 +133,7 @@ class LayoutActionProcessor(ProcessorMixin):
             )
         if labels is None:
             raise ValueError(f"{condition} generation requires labels")
+
         if bbox is None:
             label_tensor = torch.as_tensor(labels)
             if label_tensor.ndim == 1:

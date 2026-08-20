@@ -133,6 +133,7 @@ def default_id2label(dataset_name: DatasetName | str) -> dict[int, str]:
         labels = PUBLAYNET_LAYOUT_FLOW_LABELS
     else:
         raise ValueError(f"Unsupported LayoutFlow dataset_name: {dataset_name}")
+
     return dict(enumerate(labels))
 
 
@@ -194,6 +195,7 @@ class LayoutFlowConfig(ConfigMixin):
         self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or default_id2label(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
+
         self.max_length = max_length
         self.latent_dim = latent_dim
         self.d_model = d_model
@@ -203,10 +205,12 @@ class LayoutFlowConfig(ConfigMixin):
         self.dropout = dropout
         self.use_pos_enc = use_pos_enc
         self.tr_enc_only = tr_enc_only
+
         self.attr_encoding = str(AttrEncoding(attr_encoding))
         self.seq_type = str(SeqType(seq_type))
         self.distribution = str(InitialDistributionName(distribution))
         self.sample_padding = sample_padding
+
         self.inference_steps = inference_steps
         self.ode_solver = str(OdeSolverName(ode_solver))
         self.bbox_format = str(BoxFormat(bbox_format))

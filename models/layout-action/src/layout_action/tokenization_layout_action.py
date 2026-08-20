@@ -54,6 +54,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 config = LayoutActionConfig(**json.load(f)["config"])
         if config is None:
             raise ValueError("LayoutActionTokenizer requires an explicit config")
+
         self.config = config
         self._token2id = self._build_vocab()
         self._id2token = {idx: token for token, idx in self._token2id.items()}
@@ -170,6 +171,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 f"Could not resolve {TOKENIZER_CONFIG_FILE} from "
                 f"{pretrained_model_name_or_path!s}"
             )
+
         with Path(metadata).open(encoding="utf-8") as f:
             config = LayoutActionConfig(**json.load(f)["config"])
         return cls(config=config)
@@ -234,10 +236,12 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
             device=quantized_bbox.device,
         )
         sequences[:, 0] = self.config.bos_token_id
+
         for batch_idx in range(batch):
             cursor = 1
             valid = torch.nonzero(mask[batch_idx], as_tuple=False).flatten()
             encoded_boxes: list[Int[torch.Tensor, "4"]] = []
+
             for elem_idx in valid[: self.config.max_elements]:
                 label_id = int(labels[batch_idx, elem_idx].item())
                 qbox = quantized_bbox[batch_idx, elem_idx].long()
@@ -251,6 +255,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                     sequences[batch_idx, cursor + 2] = value_id
                     cursor += 3
                 encoded_boxes.append(qbox.detach().clone())
+
             sequences[batch_idx, cursor] = self.config.eos_token_id
         return sequences
 
@@ -319,12 +324,14 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 )
             else:
                 raise ValueError("LayoutAction action selection produced no option")
+
         return triples
 
     def _latest_back_reference(self, hits: Bool[torch.Tensor, "elements"]) -> int:
         hit_indices = torch.nonzero(hits, as_tuple=False).flatten()
         if hit_indices.numel() == 0:
             raise ValueError("Expected at least one back-reference hit")
+
         return int(hits.numel() - hit_indices[-1].item())
 
     def decode_layout(
@@ -361,6 +368,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 : (tokens.numel() // self.config.element_token_width)
                 * self.config.element_token_width
             ]
+
             boxes: list[Int[torch.Tensor, "4"]] = []
             out_idx = 0
             for start in range(0, usable.numel(), self.config.element_token_width):
@@ -373,6 +381,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                 qbox = torch.zeros(4, dtype=torch.long)
                 valid = True
                 deferred_margins: list[tuple[int, int, int]] = []
+
                 for geo_idx in range(4):
                     triple = element[1 + geo_idx * 3 : 1 + (geo_idx + 1) * 3]
                     opt_id = int(triple[0])
@@ -407,6 +416,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                         break
                 if not valid:
                     continue
+
                 for geo_idx, ref, val_id in deferred_margins:
                     base = self.continuize_bbox(boxes[-ref].unsqueeze(0))[0]
                     cur = self.continuize_bbox(qbox.unsqueeze(0))[0]
@@ -420,6 +430,7 @@ class LayoutActionTokenizer(PreTrainedTokenizer):
                     qbox[geo_idx] = int(
                         round(float(coord.item()) * (self.config.size - 1))
                     )
+
                 boxes.append(qbox.clone())
                 bbox[batch_idx, out_idx] = self.continuize_bbox(qbox)
                 labels[batch_idx, out_idx] = label_id

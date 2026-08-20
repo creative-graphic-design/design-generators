@@ -49,6 +49,7 @@ def extract_svg(text: str) -> str:
     if match is None:
         msg = "No <svg> block found in PosterO response"
         raise ValueError(msg)
+
     return match.group(0)
 
 
@@ -89,6 +90,7 @@ def parse_svg_response(
         except KeyError as exc:
             msg = f"Unknown generated PosterO label: {raw_label}"
             raise ValueError(msg) from exc
+
         left = float(node.attrib.get("x", "0"))
         top = float(node.attrib.get("y", "0"))
         width = float(node.attrib.get("width", "0"))
@@ -111,6 +113,7 @@ def parse_svg_response(
     if not elements:
         msg = "No valid <rect> elements found in PosterO response"
         raise ValueError(msg)
+
     return elements, diagnostics
 
 

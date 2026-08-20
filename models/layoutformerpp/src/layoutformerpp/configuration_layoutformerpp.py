@@ -209,6 +209,7 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.max_num_elements = max_num_elements
         self.bbox_format = str(normalize_box_format(bbox_format))
         self.default_box_format = str(normalize_box_format(default_box_format))
+
         self.discrete_x_grid = discrete_x_grid
         self.discrete_y_grid = discrete_y_grid
         self.add_sep_token = add_sep_token
@@ -217,12 +218,14 @@ class LayoutFormerPPConfig(PretrainedConfig):
         self.add_task_prompt_token_in_model = add_task_prompt_token_in_model
         self.num_task_prompt_token = num_task_prompt_token
         self.task_id = task_id
+
         self.decode_max_length = decode_max_length
         self.eval_seed = eval_seed
         self.gen_t_add_unk_token = gen_t_add_unk_token
         self.gen_ts_add_unk_token = gen_ts_add_unk_token
         self.gen_r_add_unk_token = gen_r_add_unk_token
         self.gen_r_compact = gen_r_compact
+
         super().__init__(
             transformers_version=transformers_version,
             architectures=architectures,

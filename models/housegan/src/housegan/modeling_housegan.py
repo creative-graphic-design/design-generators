@@ -169,12 +169,15 @@ class HouseGanGenerator(PreTrainedModel):
         """
         if latents.ndim != 2 or latents.shape[-1] != self.config.latent_dim:
             raise ValueError("latents must have shape (elements, latent_dim)")
+
         if node_features.shape != (latents.shape[0], self.config.node_feature_dim):
             raise ValueError(
                 "node_features must have shape (elements, node_feature_dim)"
             )
+
         if edges.ndim != 2 or edges.shape[-1] != 3:
             raise ValueError("edges must have shape (edges, 3)")
+
         dtype = next(self.parameters()).dtype
         latents = latents.to(dtype=dtype, device=self.device)
         node_features = node_features.to(dtype=dtype, device=self.device)

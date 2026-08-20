@@ -166,6 +166,7 @@ class DLTProcessor(ProcessorMixin):
         """Pad a layout batch to ``max_num_comp``."""
         if bbox.shape[1] > self.max_num_comp:
             raise ValueError(f"DLT supports at most {self.max_num_comp} elements")
+
         if mask is None:
             mask = torch.ones(labels.shape, dtype=torch.bool, device=labels.device)
         pad_count = self.max_num_comp - bbox.shape[1]
@@ -259,6 +260,7 @@ class DLTProcessor(ProcessorMixin):
             pass
         else:
             raise ValueError(f"Unsupported DLT condition_type: {condition_type}")
+
         mask_box = mask_box * mask.unsqueeze(-1).long()
         mask_cat = mask_cat * mask.long()
         return mask_box, mask_cat

@@ -296,9 +296,11 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
         if batch_size != 1:
             msg = "provider-backed layout agents currently support batch_size=1."
             raise ValueError(msg)
+
         if normalized_condition_type not in supported_condition_types:
             msg = f"unsupported condition_type for this agent: {normalized_condition_type}"
             raise ValueError(msg)
+
         if canvas_size is not None and canvas_size != (
             configured_canvas_size,
             configured_canvas_size,
@@ -307,6 +309,7 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
                 "provider-backed layout agents use their configured square canvas_size."
             )
             raise ValueError(msg)
+
         return normalized_condition_type, normalized_box_format
 
     def output_to_dict(self, output: LayoutOutputLike) -> LayoutOutputDict:
@@ -359,4 +362,5 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
                     exc, attempt=attempt
                 ):
                     raise
+
                 attempt += 1

@@ -82,17 +82,20 @@ class LayoutDiffusionTrainingModule(LightningModule):
             max_position_embeddings=config.max_position_embeddings,
         )
         self.diffusion_scheduler = LayoutDiffusionScheduler.from_layout_config(config)
+
         self.num_timesteps = config.diffusion_steps
         self.num_classes = config.vocab_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.betas = betas
+
         self.auxiliary_loss_weight = auxiliary_loss_weight
         self.time_sampler: LayoutDiffusionTimeSampler = time_sampler
         self.scheduler = scheduler
         self.lr_anneal_steps = lr_anneal_steps
         self.ema_rate = ema_rate
         self.seed_mode = LayoutDiffusionSeedMode(seed_mode)
+
         self.register_buffer("lt_history", torch.zeros(self.num_timesteps))
         self.register_buffer("lt_count", torch.zeros(self.num_timesteps))
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
@@ -318,9 +321,11 @@ class LayoutDiffusionTrainingModule(LightningModule):
             return
         if not isinstance(ema_state, dict):
             raise TypeError(f"{EMA_CHECKPOINT_KEY} must be a dict")
+
         restored: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for name, value in ema_state.items():
             if not isinstance(value, torch.Tensor):
                 raise TypeError(f"{EMA_CHECKPOINT_KEY}[{name}] must be a tensor")
+
             restored[str(name)] = value.detach().clone()
         self._ema_params = restored

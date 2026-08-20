@@ -223,6 +223,7 @@ def _extract_layout(
     label_obj = _first_present(flat, _LABEL_KEYS)
     if bbox_obj is None or label_obj is None:
         raise KeyError("sample must contain bbox/labels or annotation objects")
+
     bbox = _bbox_tensor(bbox_obj)
     label_strings = _label_strings(label_obj, public_id2label)
     labels = torch.tensor(

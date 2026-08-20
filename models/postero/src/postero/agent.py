@@ -315,9 +315,11 @@ class PosterOAgent(BaseLayoutAgent[RawPosterOResponse]):
         if batch_size != 1:
             msg = "PosterO currently supports batch_size=1."
             raise ValueError(msg)
+
         if normalized_condition not in SUPPORTED_CONDITION_TYPES:
             msg = f"unsupported condition_type for PosterO: {normalized_condition}"
             raise ValueError(msg)
+
         if canvas_size is not None and canvas_size != self.config.canvas_size:
             msg = "PosterO canvas_size must match the saved prompt config."
             raise ValueError(msg)

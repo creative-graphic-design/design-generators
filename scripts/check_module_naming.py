@@ -223,6 +223,7 @@ def baseline_entries(path: Path) -> set[str]:
     """Return committed shrink-only baseline entries."""
     if not path.is_file():
         raise FileNotFoundError(path)
+
     return {
         line
         for line in path.read_text(encoding="utf-8").splitlines()
@@ -240,16 +241,20 @@ def check_module_naming(root: Path, baseline_path: Path) -> int:
     """Check current violations against the shrink-only baseline."""
     current = current_entries(root)
     baseline = baseline_entries(baseline_path)
+
     unexpected = sorted(current - baseline)
     stale = sorted(baseline - current)
+
     if not unexpected and not stale:
         return 0
+
     if unexpected:
         print("New non-conforming model module filenames:", file=sys.stderr)
         for entry in unexpected:
             print(f"  + {entry}", file=sys.stderr)
     if stale:
         print("Stale module naming baseline entries:", file=sys.stderr)
+
         for entry in stale:
             print(f"  - {entry}", file=sys.stderr)
     return 1

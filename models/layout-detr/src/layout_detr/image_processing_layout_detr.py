@@ -70,6 +70,7 @@ class LayoutDetrImageProcessor(BaseImageProcessor):
             raise ValueError(
                 "LayoutDetrImageProcessor only supports return_tensors='pt'"
             )
+
         mode = normalize_background_preprocessing(background_preprocessing)
         tensors: list[Float[torch.Tensor, "channels height width"]] = []
         sizes: list[tuple[int, int]] = []

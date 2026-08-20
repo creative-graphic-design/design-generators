@@ -170,19 +170,23 @@ class LayoutDetrForConditionalGeneration(PreTrainedModel):
         )
         if bbox_labels.ndim != 2:
             raise ValueError("bbox_labels must have shape (batch, elements)")
+
         if (
             latents.shape[:2] != bbox_labels.shape
             or latents.shape[-1] != self.config.z_dim
         ):
             raise ValueError("latents must have shape (batch, elements, z_dim)")
+
         if input_ids.shape[:2] != bbox_labels.shape:
             raise ValueError("input_ids must have shape (batch, elements, tokens)")
+
         labels = bbox_labels.to(dtype=torch.long)
         if labels.numel() and (
             int(labels.min().item()) < 0
             or int(labels.max().item()) >= self.config.num_bbox_labels
         ):
             raise ValueError("bbox_labels contain ids outside config.num_bbox_labels")
+
         device = labels.device
         pixel_values = pixel_values.to(device=device, dtype=self.dtype)
         latents = latents.to(device=device, dtype=self.dtype)
@@ -364,6 +368,7 @@ class _Backbone(_BackboneBase):  # pragma: no cover
     def __init__(self, name: str) -> None:
         if name != "resnet50":
             raise ValueError(f"Unsupported LayoutDETR backbone: {name}")
+
         backbone = resnet50(
             weights=None,
             replace_stride_with_dilation=[False, False, False],
@@ -815,6 +820,7 @@ class _ReferenceBertEmbeddings(nn.Module):  # pragma: no cover
             input_shape = inputs_embeds.size()[:-1]
         else:
             raise ValueError("input_ids or inputs_embeds must be provided")
+
         seq_length = input_shape[1]
         if position_ids is None:
             position_ids = self.position_ids[
@@ -902,6 +908,7 @@ class _ReferenceBertModel(nn.Module):  # pragma: no cover
             raise ValueError(
                 f"Unsupported attention_mask shape: {attention_mask.shape}"
             )
+
         extended = extended.to(dtype=next(self.parameters()).dtype)
         return (1.0 - extended) * -10000.0
 
@@ -970,6 +977,7 @@ class _ReferenceBertLayer(nn.Module):  # pragma: no cover
         if mode == "multimodal":
             if encoder_hidden_states is None:
                 raise ValueError("encoder_hidden_states is required for multimodal")
+
             attention_output = self.crossattention(
                 attention_output,
                 attention_mask=encoder_attention_mask,

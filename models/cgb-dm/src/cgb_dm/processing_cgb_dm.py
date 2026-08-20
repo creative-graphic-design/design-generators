@@ -130,6 +130,7 @@ class CGBDMProcessor(ProcessorMixin):
         """Encode image and saliency inputs into model tensors."""
         if return_tensors != "pt":
             raise ValueError("CGBDMProcessor only supports return_tensors='pt'")
+
         image_rows = _ensure_batch(images)
         saliency_rows = self._resolve_saliency(
             len(image_rows),
@@ -221,6 +222,7 @@ class CGBDMProcessor(ProcessorMixin):
             mask = torch.ones(labels.shape, dtype=torch.bool, device=labels.device)
         if bbox.shape[1] > self.max_seq_length:
             raise ValueError(f"CGB-DM supports at most {self.max_seq_length} elements")
+
         pad_count = self.max_seq_length - bbox.shape[1]
         if pad_count:
             bbox = torch.nn.functional.pad(bbox, (0, 0, 0, pad_count))
@@ -339,6 +341,7 @@ class CGBDMProcessor(ProcessorMixin):
             rows = _ensure_batch(saliency)
             if len(rows) != batch_size:
                 raise ValueError("saliency batch size must match images")
+
             return cast(
                 list[
                     Float[torch.Tensor, "..."]
@@ -388,6 +391,7 @@ def _ensure_batch(
 ) -> list[Float[torch.Tensor, "..."] | Image.Image | str | bytes | Path | IO[bytes]]:
     if value is None:
         raise ValueError("images or pixel_values are required")
+
     if isinstance(value, torch.Tensor):
         if value.ndim in {2, 3}:
             return [value]
@@ -435,6 +439,7 @@ def _optional_batch(
     rows = _ensure_batch(value)
     if len(rows) != batch_size:
         raise ValueError("saliency batch size must match images")
+
     return cast(
         list[
             Float[torch.Tensor, "..."]
@@ -461,6 +466,7 @@ def _to_rgb_tensor(
             tensor = tensor.permute(2, 0, 1).unsqueeze(0)
         else:
             raise ValueError("RGB tensor must be CHW or HWC")
+
         tensor = torch.nn.functional.interpolate(
             tensor, size=image_size, mode="bilinear", align_corners=False
         )[0]
@@ -492,6 +498,7 @@ def _to_l_tensor(
             tensor = tensor.permute(2, 0, 1).unsqueeze(0)
         else:
             raise ValueError("saliency tensor must be HW or single-channel")
+
         tensor = torch.nn.functional.interpolate(
             tensor, size=image_size, mode="bilinear", align_corners=False
         )[0]

@@ -108,6 +108,7 @@ class LTNetForLayoutGeneration(PreTrainedModel):
         _ = bbox_mask
         if input_token.shape != input_obj_id.shape:
             raise ValueError("input_token and input_obj_id must have the same shape")
+
         effective_src_mask = (
             src_mask
             if src_mask is not None

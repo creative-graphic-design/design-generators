@@ -65,6 +65,7 @@ class LayoutVAEProcessor(ProcessorMixin):
         canonical_dataset = normalize_dataset_name(dataset_name)
         if canonical_dataset is not DatasetName.publaynet:
             raise ValueError("LayoutVAEProcessor supports only PubLayNet")
+
         self.dataset_name = str(canonical_dataset)
         raw_id2label = id2label or id2label_for_dataset(canonical_dataset)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
@@ -99,6 +100,7 @@ class LayoutVAEProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("LayoutVAEProcessor only supports return_tensors='pt'")
+
         rows = self._normalize_rows(labels)
         label_set = torch.zeros(
             len(rows), len(self.internal_id2label), dtype=torch.float32
@@ -204,14 +206,17 @@ class LayoutVAEProcessor(ProcessorMixin):
         if isinstance(labels, torch.Tensor):
             if labels.ndim == 0 or labels.ndim > 2:
                 raise ValueError("labels tensor must have one or two dimensions")
+
             if labels.ndim == 1:
                 return [[int(value) for value in labels.tolist()]]
             return [[int(value) for value in row] for row in labels.tolist()]
         if not labels:
             raise ValueError("labels must not be empty")
+
         contains_rows = [isinstance(item, list) for item in labels]
         if any(contains_rows) and not all(contains_rows):
             raise ValueError("labels must be a flat list or list of rows")
+
         if all(contains_rows):
             return [list(row) for row in cast(list[list[str | int]], labels)]
         return [list(cast(list[str | int], labels))]
@@ -221,6 +226,7 @@ class LayoutVAEProcessor(ProcessorMixin):
             if label in self.label2id:
                 return self.label2id[label]
             raise ValueError(f"Unknown label: {label}")
+
         if 0 <= label < len(self.id2label):
             return label
         raise ValueError(f"Unknown label id: {label}")

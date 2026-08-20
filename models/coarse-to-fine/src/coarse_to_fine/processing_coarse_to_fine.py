@@ -166,10 +166,13 @@ class CoarseToFineProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
+
         if not normalized:
             raise ValueError("CoarseToFineProcessor expects normalized boxes")
+
         if labels is None or bbox is None:
             raise ValueError("labels and bbox are required for processor encoding")
+
         label_tensor = self._coerce_labels(labels)
         bbox_tensor = torch.as_tensor(bbox, dtype=torch.float32)
         encoded_mask = (

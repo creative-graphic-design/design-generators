@@ -201,6 +201,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         if isinstance(generated_ids, torch.Tensor):
             if self.parser_tokenizer is None:
                 raise ValueError("parser_tokenizer is required to decode generated ids")
+
             parser_tokenizer = self.parser_tokenizer
             logical_forms = parser_tokenizer.batch_decode(
                 generated_ids, skip_special_tokens=True
@@ -278,6 +279,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
                 raise ValueError(
                     "placement_tokenizer is required to decode generated ids"
                 )
+
             placement_tokenizer = self.placement_tokenizer
             flat = placement_tokenizer.batch_decode(
                 generated_ids, skip_special_tokens=True
@@ -290,6 +292,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
                 "Generated layout count does not match batch_size * num_return_sequences: "
                 f"{len(flat)} != {expected}"
             )
+
         return [
             flat[idx * num_return_sequences : (idx + 1) * num_return_sequences]
             for idx in range(batch_size)
@@ -308,13 +311,16 @@ class ParseThenPlaceProcessor(ProcessorMixin):
         selected = self._select_candidates(candidate_groups, output_candidate)
         parsed_groups = [self._parse_layout_text(item) for item in selected]
         max_len = max((len(item) for item in parsed_groups), default=0) or 1
+
         bbox_rows: list[Float[torch.Tensor, "elements 4"]] = []
         label_rows: list[Int[torch.Tensor, ...]] = []
         mask_rows: list[Bool[torch.Tensor, ...]] = []
+
         for parsed in parsed_groups:
             labels = torch.tensor([item["label"] for item in parsed], dtype=torch.long)
             boxes = torch.tensor([item["bbox"] for item in parsed], dtype=torch.float32)
             mask = torch.ones(len(parsed), dtype=torch.bool)
+
             if len(parsed) == 0:
                 labels = torch.zeros(max_len, dtype=torch.long)
                 boxes = torch.zeros(max_len, 4, dtype=torch.float32)
@@ -324,9 +330,11 @@ class ParseThenPlaceProcessor(ProcessorMixin):
                 labels = torch.nn.functional.pad(labels, (0, pad))
                 boxes = torch.nn.functional.pad(boxes, (0, 0, 0, pad))
                 mask = torch.nn.functional.pad(mask, (0, pad))
+
             label_rows.append(labels)
             bbox_rows.append(boxes)
             mask_rows.append(mask)
+
         raw_bbox = torch.stack(bbox_rows)
         bbox = normalize_boxes(
             raw_bbox,
@@ -351,6 +359,7 @@ class ParseThenPlaceProcessor(ProcessorMixin):
             return dict(output)
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return output
 
     def _normalize_layout_text_groups(

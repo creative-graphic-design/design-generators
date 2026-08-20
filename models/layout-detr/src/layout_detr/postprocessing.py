@@ -41,6 +41,7 @@ def jitter_boxes(
         return bbox
     if strength < 0.0 or strength >= 1.0:
         raise ValueError("strength must be in [0, 1)")
+
     low = torch.log(bbox.new_tensor(1.0 - strength))
     high = torch.log(bbox.new_tensor(1.0 + strength))
     noise = torch.rand(
@@ -124,4 +125,5 @@ def apply_postprocessing(
         out = horizontal_left_aligned(out, mask)
     elif normalized_mode is not PostprocessingMode.none:
         raise ValueError(f"Unsupported out_postprocessing: {mode}")
+
     return clamp_boxes(de_overlap(out, mask))

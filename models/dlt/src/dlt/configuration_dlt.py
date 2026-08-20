@@ -44,6 +44,7 @@ def normalize_dataset(dataset_name: DatasetName | str) -> DatasetName:
     dataset = normalize_dataset_name(dataset_name)
     if dataset not in SUPPORTED_DATASETS:
         raise ValueError(f"Unsupported DLT dataset_name: {dataset_name}")
+
     return dataset
 
 
@@ -99,10 +100,12 @@ class DLTConfig(ConfigMixin):
         """Initialize DLT configuration."""
         dataset = normalize_dataset(dataset_name)
         labels = default_id2label(dataset) if id2label is None else id2label
+
         self.dataset_name = str(dataset)
         self.id2label = {int(key): value for key, value in labels.items()}
         self.max_num_comp = max_num_comp or max_elements_for_dataset(dataset)
         self.categories_num = categories_num or len(self.id2label) + 2
+
         self.latent_dim = latent_dim
         self.num_layers = num_layers
         self.num_heads = num_heads

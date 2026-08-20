@@ -136,6 +136,7 @@ class LayouSynProcessor(ProcessorMixin):
         del kwargs
         if push_to_hub:
             raise ValueError("LayouSynProcessor does not push to Hub directly")
+
         path = Path(save_directory)
         path.mkdir(parents=True, exist_ok=True)
         out = path / self.config_name
@@ -222,6 +223,7 @@ class LayouSynProcessor(ProcessorMixin):
             prompts = prompts * batch_size
         if len(prompts) != batch_size:
             raise ValueError("prompt and labels batch sizes must match")
+
         concept_padding_mask = self._concept_padding_mask(label_texts, mask=mask)
         if concept_embeds is None:
             concept_embeds = self._encode_concepts(label_texts)
@@ -302,6 +304,7 @@ class LayouSynProcessor(ProcessorMixin):
             return cast(LayouSynOutputDict, dict(output))
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
+
         return output
 
     def _normalize_prompts(self, prompt: str | Sequence[str] | None) -> list[str]:
@@ -324,10 +327,12 @@ class LayouSynProcessor(ProcessorMixin):
     ) -> tuple[list[list[str]], dict[int, str], list[dict[int, str]]]:
         if labels is None:
             raise ValueError("LayouSyn requires labels/concepts for object slots")
+
         mapping = id2label or self.id2label
         if isinstance(labels, torch.Tensor | np.ndarray):
             if mapping is None:
                 raise ValueError("id2label is required when labels are integer ids")
+
             labels_t = torch.as_tensor(labels, dtype=torch.long)
             if labels_t.ndim == 1:
                 labels_t = labels_t.unsqueeze(0)
@@ -392,8 +397,10 @@ class LayouSynProcessor(ProcessorMixin):
     ) -> Float[torch.Tensor, "batch elements embedding_dim"]:
         if embeds.ndim != 3:
             raise ValueError("concept_embeds must have shape (batch, seq, dim)")
+
         if embeds.shape[0] != batch_size:
             raise ValueError("concept_embeds batch size must match labels")
+
         if embeds.shape[1] > self.max_in_len:
             return embeds[:, : self.max_in_len]
         if embeds.shape[1] == self.max_in_len:
@@ -416,6 +423,7 @@ class LayouSynProcessor(ProcessorMixin):
             raise ValueError(
                 "concept_embeds are required without sentence-transformers"
             ) from exc
+
         flat = [text for row in labels for text in row]
         if not flat:
             return torch.zeros(len(labels), 0, self.concept_in_channels)
@@ -438,6 +446,7 @@ class LayouSynProcessor(ProcessorMixin):
             raise ValueError(
                 "caption_embeds are required for prompt-conditioned tests/offline use"
             )
+
         return (
             torch.zeros(len(prompts), self.max_y_len, self.y_in_channels),
             torch.ones(len(prompts), self.max_y_len, dtype=torch.bool),
@@ -458,6 +467,7 @@ class LayouSynProcessor(ProcessorMixin):
             out = out.repeat(batch_size)
         if out.shape != (batch_size,):
             raise ValueError("aspect_ratio must be scalar or match batch size")
+
         return out
 
     def _normalize_optional_bbox(
@@ -474,6 +484,7 @@ class LayouSynProcessor(ProcessorMixin):
         if not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
+
             bbox_t = normalize_boxes(
                 bbox_t, canvas_size=canvas_size, box_format=box_format
             )

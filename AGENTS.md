@@ -68,6 +68,11 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Prefer guard clauses: return or raise early for simple or invalid cases so
   the main path reads at minimal nesting; do not build tail-return pyramids.
 
+- Within function bodies, separate semantic units (configuration branches,
+  submodule construction, transformations, and return preparation) with single
+  blank lines; always leave a blank line after a raise block when ordinary code
+  follows.
+
 ## Repo-Local Skills
 
 - Skill source of truth is `.agents/skills/<name>/SKILL.md`.

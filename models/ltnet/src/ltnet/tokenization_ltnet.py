@@ -108,6 +108,7 @@ class LTNetRelationTokenizer(WhitespaceTokenizerMixin, PreTrainedTokenizer):
             token_id = self._convert_token_to_id(token)
             if token_id == self.unk_token_id and token != self.unk_token:
                 raise ValueError(f"Unknown scene-graph token: {token}")
+
             ids.append(token_id)
         return ids
 

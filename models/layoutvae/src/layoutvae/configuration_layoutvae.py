@@ -78,6 +78,7 @@ class LayoutVAEConfig(PretrainedConfig):
         canonical_dataset = normalize_dataset_name(dataset_name)
         if canonical_dataset is not DatasetName.publaynet:
             raise ValueError("LayoutVAE v1 supports only dataset_name='publaynet'")
+
         raw_id2label = id2label or id2label_for_dataset(canonical_dataset)
         normalized_id2label = {int(k): v for k, v in raw_id2label.items()}
         normalized_label2id = label2id or label2id_for_dataset(canonical_dataset)

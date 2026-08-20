@@ -208,6 +208,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         else:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
+
             xywh = normalize_boxes(bbox, canvas_size=canvas_size, box_format=box_format)
         ltrb_ids = (xywh_to_ltrb(xywh).clamp(0.0, 1.0) * 127).round().long()
         batch_size = labels.shape[0]
@@ -264,26 +265,32 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         """
         if input_ids.ndim == 1:
             input_ids = input_ids.unsqueeze(0)
+
         batch_boxes = []
         batch_labels = []
         batch_masks = []
+
         for row in input_ids.cpu().long():
             tokens = [self._convert_id_to_token(int(idx)) for idx in row.tolist()]
             elements = self._parse_elements(tokens)
             boxes = torch.zeros(self.config.max_num_elements, 4, dtype=torch.float32)
             labels = torch.zeros(self.config.max_num_elements, dtype=torch.long)
             masks = torch.zeros(self.config.max_num_elements, dtype=torch.bool)
+
             for i, element in enumerate(elements[: self.config.max_num_elements]):
                 label, *coords = element
                 labels[i] = self.config.label2id[label]
                 ltrb = torch.tensor([int(v) for v in coords], dtype=torch.float32) / 127
                 boxes[i] = ltrb_to_xywh(ltrb) if output_box_format == "xywh" else ltrb
                 masks[i] = True
+
             batch_boxes.append(clamp_boxes(boxes))
             batch_labels.append(labels)
             batch_masks.append(masks)
+
         if output_box_format not in {"xywh", "ltrb"}:
             raise ValueError(f"Unsupported output_box_format: {output_box_format}")
+
         return {
             "bbox": torch.stack(batch_boxes, dim=0),
             "labels": torch.stack(batch_labels, dim=0),
@@ -339,6 +346,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         start = self.config.special_token_ids["START"]
         sep = self.config.special_token_ids["|"]
         end = self.config.special_token_ids["END"]
+
         for batch_idx in range(batch_size):
             n = int(counts[batch_idx].item())
             tokens = [start, mask_id, mask_id, mask_id, mask_id, mask_id]
@@ -346,6 +354,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                 tokens.extend([sep, mask_id, mask_id, mask_id, mask_id, mask_id])
             tokens.append(end)
             input_ids[batch_idx, : len(tokens)] = torch.tensor(tokens, device=device)
+
         if condition_type == "label" and labels is not None:
             label_ids = torch.as_tensor(labels, dtype=torch.long, device=device)
             for batch_idx in range(batch_size):
@@ -353,6 +362,7 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                     pos = 1 + elem_idx * 6
                     label = self.config.id2label[int(label_ids[batch_idx, elem_idx])]
                     input_ids[batch_idx, pos] = self._token_to_id[label]
+
                 coord_noise = (
                     torch.randint(
                         self.config.num_coordinate_bins,
@@ -469,12 +479,14 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
         layout_config = kwargs.pop("layout_config", None)
         if layout_config is None and layout_config_file is None:
             raise ValueError("LayoutDiffusionTokenizer requires layout_config_file")
+
         if layout_config is None:
             config_file = Path(cast(str | Path, layout_config_file))
             config_text = config_file.read_text(encoding="utf-8")
             layout_config = json.loads(config_text)
         if not isinstance(layout_config, Mapping):
             raise TypeError("layout_config must be a mapping")
+
         normalized = {str(key): value for key, value in layout_config.items()}
         return _config_from_mapping(
             cast(Mapping[str, LayoutDiffusionConfigValue], normalized)

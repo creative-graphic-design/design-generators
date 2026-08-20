@@ -184,6 +184,7 @@ class SmartTextProcessor(ProcessorMixin):
         del kwargs
         if return_tensors != "pt":
             raise ValueError("SmartTextProcessor only supports return_tensors='pt'")
+
         content = dict(content or {})
         resolved_images = images
         if resolved_images is None:
@@ -192,6 +193,7 @@ class SmartTextProcessor(ProcessorMixin):
             resolved_images = content.get("images")
         if resolved_images is None:
             raise ValueError("SmartText requires an image/content payload")
+
         image_rows = _ensure_image_list(
             cast(
                 ImageInput
@@ -281,6 +283,7 @@ class SmartTextProcessor(ProcessorMixin):
         """
         if not candidates:
             raise ValueError("SmartText cannot decode an empty candidate list")
+
         raw_scores = scores.detach().cpu().float().flatten()
         order = sorted(
             range(len(candidates)),
@@ -307,6 +310,7 @@ class SmartTextProcessor(ProcessorMixin):
             public_scores = public_scores * self.config.mos_std + self.config.mos_mean
         elif score_normalization != "raw":
             raise ValueError(f"Unsupported score_normalization: {score_normalization}")
+
         merged_intermediates = dict(intermediates or {})
         merged_intermediates.update(
             {
@@ -339,11 +343,13 @@ def _ensure_image_list(
 ) -> list[Image.Image]:
     if isinstance(images, Image.Image):
         return [images.convert("RGB")]
+
     if isinstance(images, torch.Tensor):
         tensor = images.detach().cpu()
         if tensor.ndim == 3:
             tensor = tensor.unsqueeze(0)
         rows = []
+
         for image in tensor:
             if image.shape[0] in (1, 3):
                 image = image.permute(1, 2, 0)
@@ -352,8 +358,10 @@ def _ensure_image_list(
                 array = array * 255.0
             rows.append(Image.fromarray(array.astype("uint8")).convert("RGB"))
         return rows
+
     if isinstance(images, Sequence) and not isinstance(images, str):
         return [cast(Image.Image, image).convert("RGB") for image in images]
+
     raise TypeError(f"Unsupported image input: {type(images)!r}")
 
 
@@ -378,13 +386,16 @@ def _resolve_prompt_rows(
         payload = content.get("texts") or content.get("text") or content.get("prompt")
     if payload is None:
         raise ValueError("SmartText requires prompt/text with content_image")
+
     if isinstance(payload, str):
         return [payload] * batch_size
     if not isinstance(payload, Sequence):
         raise TypeError("prompt/text must be a string or a sequence of strings")
+
     rows = [str(item) for item in payload]
     if len(rows) != batch_size:
         raise ValueError("Prompt/text batch size must match images")
+
     return rows
 
 

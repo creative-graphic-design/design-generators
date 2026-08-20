@@ -42,6 +42,7 @@ def _image_to_tensor(image: ImageInput) -> Float[torch.Tensor, "channels height 
         tensor = image.detach().clone()
     else:
         raise TypeError(f"Unsupported image input type: {type(image)!r}")
+
     if tensor.ndim == 2:
         tensor = tensor.unsqueeze(-1)
     if (
@@ -113,6 +114,7 @@ class PosterLlamaImageProcessor(BaseImageProcessor):
         _ = kwargs
         if return_tensors != "pt":
             raise ValueError("PosterLlamaImageProcessor supports return_tensors='pt'")
+
         items = (
             _as_image_list(images) if images is not None else [torch.zeros(3, 64, 64)]
         )

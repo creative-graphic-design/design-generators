@@ -133,6 +133,7 @@ class LTNetConfig(PretrainedConfig):
     ) -> None:
         """Initialize LT-Net architecture and metadata fields."""
         _ = (model_type, transformers_version)
+
         self.dataset_name = dataset_name
         self.vocab_size = vocab_size
         self.obj_classes_size = obj_classes_size
@@ -142,6 +143,7 @@ class LTNetConfig(PretrainedConfig):
         self.dropout = dropout
         self.enable_noise = enable_noise
         self.noise_size = noise_size
+
         self.decoder_head_type = str(_normalize_head_type(decoder_head_type))
         self.decoder_box_loss = str(_normalize_box_loss(decoder_box_loss))
         self.decoder_schedule_sample = decoder_schedule_sample
@@ -151,12 +153,14 @@ class LTNetConfig(PretrainedConfig):
         self.xy_temperature = xy_temperature
         self.wh_temperature = wh_temperature
         self.refine = refine
+
         self.refine_head_type = str(_normalize_head_type(refine_head_type))
         self.refine_box_loss = str(_normalize_box_loss(refine_box_loss))
         self.refine_x_softmax = refine_x_softmax
         self.max_sequence_length = max_sequence_length
         self.mask_token_id = mask_token_id
         _ = kwargs
+
         super().__init__()
         normalized_id2label = id2label or DEFAULT_ID2LABEL
         normalized_relation_id2label = relation_id2label or DEFAULT_RELATION_ID2LABEL

@@ -153,10 +153,13 @@ class PosterLlavaConfig(PretrainedConfig):
         conv_mode = normalize_conversation_mode(default_conv_mode)
         if max_new_tokens <= 0:
             raise ValueError("max_new_tokens must be positive")
+
         if default_temperature < 0:
             raise ValueError("default_temperature must be non-negative")
+
         if image_aspect_ratio != "pad":
             raise ValueError("PosterLLaVA currently supports image_aspect_ratio='pad'")
+
         self.checkpoint_id = checkpoint_id
         self.dataset_name = str(dataset)
         self.id2label = {

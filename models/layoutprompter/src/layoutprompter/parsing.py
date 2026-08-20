@@ -33,6 +33,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
             self.output_format = PromptFormat(output_format)
         except ValueError as exc:
             raise ValueError(f"Unsupported output format: {output_format}") from exc
+
         self.id2label = id2label(self.dataset)
         self.label2id = label2id(self.dataset)
         self.canvas_size = CANVAS_SIZE[self.dataset]
@@ -114,6 +115,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         height = re.findall(r"height:\s*(\d+)px", prediction)[1:]
         if not (len(labels) == len(left) == len(top) == len(width) == len(height)):
             raise RuntimeError("HTML prediction has mismatched label and bbox counts")
+
         label_array = np.asarray(
             [self.label2id[label.strip().lower()] for label in labels], dtype=np.int64
         )
@@ -143,6 +145,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         matches = re.findall(pattern, prediction.lower())
         if not matches:
             raise RuntimeError("No seq layout elements parsed")
+
         label_array = np.asarray(
             [self.label2id[item[0]] for item in matches], dtype=np.int64
         )
@@ -167,6 +170,7 @@ class Parser(BaseResponseParser[LayoutGenerationOutput]):
         matches = re.findall(pattern, prediction.lower())
         if not matches:
             raise RuntimeError("No seq layout elements parsed")
+
         label_array = np.asarray(
             [self.label2id[item[0]] for item in matches], dtype=np.int64
         )

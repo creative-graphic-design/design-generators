@@ -91,10 +91,12 @@ class LayoutGANPPProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("LayoutGANPPProcessor only supports return_tensors='pt'")
+
         rows = self._normalize_rows(labels)
         max_len = max(len(row) for row in rows)
         if not padding and len({len(row) for row in rows}) != 1:
             raise ValueError("Ragged labels require padding=True")
+
         encoded = []
         attention = []
         for row in rows:
@@ -174,18 +176,21 @@ class LayoutGANPPProcessor(ProcessorMixin):
             return [[int(v) for v in row] for row in labels.tolist()]
         if not labels:
             raise ValueError("labels must not be empty")
+
         first = labels[0]
         if isinstance(first, list):
             rows: list[list[str | int]] = []
             for row in labels:
                 if not isinstance(row, list):
                     raise ValueError("labels must be a flat list or list of rows")
+
                 rows.append(row)
             return rows
         row = []
         for label in labels:
             if isinstance(label, list):
                 raise ValueError("labels must be a flat list or list of rows")
+
             row.append(label)
         return [row]
 
@@ -193,6 +198,7 @@ class LayoutGANPPProcessor(ProcessorMixin):
         if isinstance(label, int):
             if label < 0 or label >= len(self.id2label):
                 raise ValueError(f"Unknown label id: {label}")
+
             return label
         try:
             return self.label2id[label]

@@ -95,6 +95,7 @@ def compute_feature_statistics(
         raise ValueError(
             "features must have shape (samples, channels) with samples >= 2"
         )
+
     array = array.astype(np.float64, copy=False)
     return LayoutFIDStatistics(
         mu=np.mean(array, axis=0),
@@ -144,8 +145,10 @@ def calculate_frechet_distance(
     sigma2 = np.atleast_2d(sigma2).astype(np.float64)
     if mu1.shape != mu2.shape:
         raise ValueError("mean vectors must have matching dimensions")
+
     if sigma1.shape != sigma2.shape:
         raise ValueError("covariance matrices must have matching dimensions")
+
     diff = mu1 - mu2
     covmean, _ = linalg.sqrtm(sigma1.dot(sigma2), disp=False)
     if not np.isfinite(covmean).all():

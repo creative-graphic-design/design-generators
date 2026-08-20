@@ -169,12 +169,15 @@ class LayoutGANPPModel(PreTrainedModel):
         labels = labels.to(dtype=torch.long)
         if labels.ndim != 2:
             raise ValueError("labels must have shape (batch, sequence)")
+
         if latents.shape[:2] != labels.shape:
             raise ValueError("latents must have shape (batch, sequence, latent_size)")
+
         if latents.shape[-1] != self.config.latent_size:
             raise ValueError(
                 f"latents last dimension must be {self.config.latent_size}"
             )
+
         if labels.numel() and (
             int(labels.min().item()) < 0
             or int(labels.max().item()) >= self.config.num_labels
@@ -267,8 +270,10 @@ class LayoutGANPPModel(PreTrainedModel):
             raise ValueError(
                 "layoutganpp v1 requires labels; unconditional is unsupported"
             )
+
         if canonical is not ConditionType.label:
             raise ValueError(f"Unsupported condition_type for layoutganpp: {canonical}")
+
         if labels is None:
             raise ValueError("labels are required for layoutganpp generation")
 

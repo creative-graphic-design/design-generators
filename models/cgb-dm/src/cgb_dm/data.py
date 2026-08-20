@@ -110,6 +110,7 @@ class CGBDMOriginalDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
             )
         if self.encoding != "public":
             raise ValueError(f"Unsupported CGB-DM dataset encoding: {self.encoding}")
+
         content = self.processor(
             image,
             saliency_isnet=saliency,

@@ -101,6 +101,7 @@ class _ShuffleNetV2(nn.Module):
         stage_repeats = [4, 8, 4]
         if width_mult != 1.0:
             raise ValueError("SmartText released SMT checkpoint uses width_mult=1.0")
+
         stage_out_channels = [-1, 24, 116, 232, 464, 1024]
         input_channel = stage_out_channels[1]
         self.conv1 = _conv_bn(3, input_channel, 2)
@@ -292,6 +293,7 @@ class SmartTextScorer(PreTrainedModel):
             raise ValueError(
                 "Only the released multi-scale ShuffleNetV2 SMT scorer is supported"
             )
+
         self.Feat_ext = _ShuffleNetV2Base()
         self.DimRed = nn.Conv2d(812, config.reduction_dim, kernel_size=1, padding=0)
         self.downsample2 = nn.UpsamplingBilinear2d(scale_factor=1.0 / 2.0)

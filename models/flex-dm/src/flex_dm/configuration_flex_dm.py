@@ -152,6 +152,7 @@ class FlexDmConfig(PretrainedConfig):
 
             attribute_groups = dict(attribute_groups_for_dataset(dataset_name))
         groups = attribute_groups
+
         self.attribute_groups = {key: tuple(value) for key, value in groups.items()}
         self.max_seq_length = max_seq_length
         self.latent_dim = latent_dim
@@ -162,6 +163,7 @@ class FlexDmConfig(PretrainedConfig):
         self.arch_type = arch_type
         self.context = context
         self.input_dtype = input_dtype
+
         self.use_elemwise_noise = use_elemwise_noise
         self.dropout = dropout
         self.layer_norm_epsilon = layer_norm_epsilon
@@ -209,6 +211,7 @@ class FlexDmConfig(PretrainedConfig):
         input_dim = self.input_columns[key]["input_dim"]
         if input_dim is None:
             raise ValueError(f"{key} is not categorical")
+
         return input_dim
 
     def unused_token_id_for(self, key: str) -> int:
