@@ -57,15 +57,6 @@ models/ds-gan/src/ds_gan/conversion.py	block-end	4
 models/ds-gan/src/ds_gan/modeling_ds_gan.py	block-end	4
 models/ds-gan/src/ds_gan/pipeline_ds_gan.py	block-end	8
 models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	32
-models/flex-dm/src/flex_dm/configuration_flex_dm.py	block-end	5
-models/flex-dm/src/flex_dm/conversion.py	block-end	11
-models/flex-dm/src/flex_dm/data_specs.py	block-end	17
-models/flex-dm/src/flex_dm/masking.py	block-end	16
-models/flex-dm/src/flex_dm/modeling_flex_dm.py	block-end	18
-models/flex-dm/src/flex_dm/pipeline_flex_dm.py	block-end	8
-models/flex-dm/src/flex_dm/processing_flex_dm.py	block-end	20
-models/flex-dm/src/flex_dm/testing.py	block-end	2
-models/flex-dm/src/flex_dm/tf_checkpoint.py	block-end	1
 models/housegan/src/housegan/conversion.py	block-end	1
 models/housegan/src/housegan/datasets.py	block-end	1
 models/housegan/src/housegan/graph_schema.py	block-end	20

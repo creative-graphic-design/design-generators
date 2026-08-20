@@ -19,8 +19,10 @@ def tiny_config() -> FlexDmConfig:
             and key not in {"left", "top", "width", "height"}
         ):
             column["input_dim"] = min(int(column["input_dim"] or 4), 4)
+
         if key in {"image_embedding", "text_embedding"}:
             column["shape"] = (4,)
+
     return FlexDmConfig(
         dataset_name="crello",
         id2label={0: "coloredBackground", 1: "imageElement", 2: "textElement"},
