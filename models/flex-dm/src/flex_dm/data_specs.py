@@ -65,6 +65,7 @@ RICO_TYPE_VOCABULARY: Final[tuple[str, ...]] = tuple(
 def _normalize_dataset(dataset_name: FlexDmDatasetName | str) -> FlexDmDatasetName:
     if isinstance(dataset_name, FlexDmDatasetName):
         return dataset_name
+
     try:
         return FlexDmDatasetName(dataset_name.lower().replace("-", "_"))
     except ValueError as exc:
@@ -134,6 +135,7 @@ def load_builtin_spec(dataset_name: FlexDmDatasetName | str) -> FlexDmBuiltinSpe
                 },
             },
         }
+
     return {
         "name": "rico",
         "columns": {
@@ -167,6 +169,7 @@ def attribute_groups_for_dataset(
             "img": ("image_embedding",),
             "txt": ("text_embedding",),
         }
+
     return {
         "type": ("type",),
         "pos": ("left", "top", "width", "height"),
@@ -182,10 +185,13 @@ def _vocabulary_size(
 ) -> int:
     if key in ("left", "top", "width", "height"):
         return 64
+
     if key == "opacity":
         return 8
+
     if key == "color":
         return 16
+
     if key == "clickable":
         return 2
 
@@ -211,6 +217,7 @@ def _vocabulary_size(
 
     if key in ("font_family", "icon", "text_button"):
         return 2
+
     return 1
 
 
@@ -223,12 +230,16 @@ def _lookup_vocabulary(
     raw = vocabulary.get(key)
     if isinstance(raw, Mapping):
         return ("", *tuple(str(item) for item in raw))
+
     if isinstance(raw, list | tuple):
         return ("", *tuple(str(item) for item in raw))
+
     if dataset_name is FlexDmDatasetName.crello and key == "type":
         return CRELLO_MODEL_TYPE_VOCABULARY
+
     if dataset_name is FlexDmDatasetName.rico and key == "type":
         return ("", *RICO_TYPE_VOCABULARY)
+
     return ()
 
 
@@ -277,6 +288,7 @@ def build_column_specs(
                     "primary_label": 0 if key == "type" else None,
                 },
             )
+
         if dataset is FlexDmDatasetName.crello and key in {
             "color",
             "image_embedding",
@@ -293,8 +305,10 @@ def build_column_specs(
                 "key": "type",
                 "mask": tuple(label in allowed for label in type_vocabulary),
             }
+
         _ = dtype
         input_columns[key] = item
+
     return input_columns
 
 
@@ -308,8 +322,11 @@ def id2label_from_vocabulary(
     if isinstance(raw, Mapping):
         ordered = sorted(raw.items(), key=lambda item: int(cast(int, item[1])))
         return {idx: str(label) for idx, (label, _count) in enumerate(ordered)}
+
     if isinstance(raw, list | tuple):
         return {idx: str(label) for idx, label in enumerate(raw)}
+
     if dataset is FlexDmDatasetName.crello:
         return posgen_id2label_for_dataset("crello")
+
     return laygen_id2label_for_dataset("rico25")

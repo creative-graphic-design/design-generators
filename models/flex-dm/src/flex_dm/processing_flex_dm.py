@@ -73,6 +73,7 @@ class FlexDmProcessor(ProcessorMixin):
         }
         if "opacity" in config.input_columns:
             self.discretizers.setdefault("opacity", {"min": 0.0, "max": 1.0, "bins": 8})
+
         if "color" in config.input_columns:
             self.discretizers.setdefault(
                 "color", {"min": 0.0, "max": 255.0, "bins": 16}
@@ -136,6 +137,7 @@ class FlexDmProcessor(ProcessorMixin):
         root = Path(pretrained_model_name_or_path)
         if subfolder is not None:
             root = root / subfolder
+
         data = json.loads((root / "processor_config.json").read_text())
         return cls(
             config=FlexDmConfig.from_dict(data["config"]),
@@ -226,6 +228,7 @@ class FlexDmProcessor(ProcessorMixin):
                 canvas_size=canvas_size,
                 clamp_converted_normalized=True,
             )
+
         inputs = self._layout_to_inputs(
             bbox=bbox_t,
             labels=labels_t,
@@ -233,6 +236,7 @@ class FlexDmProcessor(ProcessorMixin):
             attributes=attributes,
             content=content,
         )
+        # Keep the zero-based length lookup valid for non-empty model inputs.
         length = mask_t.long().sum(dim=1).clamp(min=1) - 1
         inputs["length"] = length.reshape(-1, 1).long()
         seq_mask = get_seq_mask(inputs["length"].reshape(-1), maxlen=bbox_t.size(1))
@@ -268,9 +272,11 @@ class FlexDmProcessor(ProcessorMixin):
         aliases = {"random", "elem", "type", "pos", "attr", "img", "txt"}
         if isinstance(condition_type, str) and condition_type in aliases:
             return ConditionType.completion, condition_type
+
         canonical = normalize_condition_type(condition_type)
         if canonical is ConditionType.content_image and feature_group is None:
             return canonical, "img"
+
         return canonical, feature_group
 
     def _num_elements_tensor(
@@ -282,9 +288,11 @@ class FlexDmProcessor(ProcessorMixin):
             return torch.full(
                 (batch_size,), min(1, self.config.max_seq_length), dtype=torch.long
             )
+
         tensor = torch.as_tensor(num_elements, dtype=torch.long)
         if tensor.ndim == 0:
             tensor = tensor.repeat(batch_size)
+
         return tensor
 
     def _layout_to_inputs(
@@ -300,17 +308,20 @@ class FlexDmProcessor(ProcessorMixin):
         inputs: dict[str, Shaped[torch.Tensor, "..."]] = {}
         for idx, key in enumerate(GEOMETRY_KEYS):
             inputs[key] = self._discretize(key, ltwh[..., idx : idx + 1]).long()
+
         inputs["type"] = labels.unsqueeze(-1).long()
         attrs = attributes or {}
         cnt = content or {}
         for key, column in self.config.input_columns.items():
             if key in inputs or key == "length":
                 continue
+
             if not column["is_sequence"]:
                 inputs[key] = torch.zeros((bbox.size(0), 1), dtype=torch.long)
             else:
                 source = cnt.get(key, attrs.get(key))
                 inputs[key] = self._coerce_column_value(key, column, source, mask)
+
         return inputs
 
     def _coerce_column_value(
@@ -325,11 +336,14 @@ class FlexDmProcessor(ProcessorMixin):
         if value is None:
             dtype = torch.float32 if column["type"] == "numerical" else torch.long
             return torch.zeros(shape, dtype=dtype)
+
         tensor = torch.as_tensor(value)
         if tensor.ndim == 2:
             tensor = tensor.unsqueeze(-1)
+
         if key in self.discretizers and tensor.dtype.is_floating_point:
             tensor = self._discretize(key, tensor.float())
+
         return tensor.reshape(shape).to(
             dtype=torch.float32 if column["type"] == "numerical" else torch.long
         )
@@ -393,6 +407,7 @@ class FlexDmProcessor(ProcessorMixin):
                 intermediates["refinement_input"] = {
                     key: value.detach().cpu() for key, value in refinement_input.items()
                 }
+
         result = LayoutGenerationOutput(
             bbox=bbox,
             labels=labels,
@@ -402,6 +417,7 @@ class FlexDmProcessor(ProcessorMixin):
         )
         if output_type == "dict":
             return dict(result)
+
         if output_type != "dataclass":
             raise ValueError(f"Unsupported output_type: {output_type}")
 
@@ -417,6 +433,7 @@ class FlexDmProcessor(ProcessorMixin):
         for key, column in self.config.input_columns.items():
             if not column["is_sequence"]:
                 continue
+
             if key in logits:
                 pred = (
                     logits[key].argmax(dim=-1)
@@ -425,6 +442,7 @@ class FlexDmProcessor(ProcessorMixin):
                 )
             else:
                 pred = original_inputs[key]
+
             mask = masks.get(key)
             if mask is not None:
                 pred = torch.where(
@@ -432,7 +450,10 @@ class FlexDmProcessor(ProcessorMixin):
                     pred,
                     original_inputs[key].to(pred.device),
                 )
+
             if key in self.discretizers and column["type"] == "categorical":
                 pred = self._continuize(key, pred)
+
             decoded[key] = pred
+
         return decoded

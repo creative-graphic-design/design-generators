@@ -74,4 +74,5 @@ def tensorflow_version() -> str:
         tf = import_module("tensorflow")
     except ImportError:
         return "not-installed"
+
     return str(tf.__version__)

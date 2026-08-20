@@ -60,6 +60,7 @@ def get_initial_masks(
             if not column["is_sequence"]
             else torch.zeros_like(seq_mask, dtype=torch.bool)
         )
+
     return masks
 
 
@@ -90,7 +91,9 @@ def apply_token(
                 dtype=input_.dtype,
                 generator=generator,
             )
+
         return torch.where(mask_expanded, token, input_)
+
     if token_type == "masked":
         token_f = torch.full_like(input_, MASK_VALUE)
     elif token_type == "unused":
@@ -105,6 +108,7 @@ def apply_token(
             )
             * 0.1
         )
+
     return torch.where(mask_expanded, token_f, input_)
 
 
@@ -131,9 +135,11 @@ def filter_padding(
             for idx, flag in enumerate(cond["mask"]):
                 if not flag:
                     invalid = invalid | (type_values == idx)
+
             mask_ = mask_ | invalid
 
         modified[key] = apply_token(input_, column, mask_, "unused")
+
     return modified
 
 
@@ -150,18 +156,22 @@ def build_feature_masks(
     masks = get_initial_masks(input_columns, seq_mask)
     if feature_group is None or feature_group == "random":
         return masks
+
     if feature_group == "elem":
         if target_indices is None:
             target_indices = torch.zeros(
                 seq_mask.size(0), dtype=torch.long, device=seq_mask.device
             )
+
         selected = torch.zeros_like(seq_mask)
         selected.scatter_(1, target_indices.reshape(-1, 1), True)
         selected = selected & seq_mask
         for key, column in input_columns.items():
             if column["is_sequence"]:
                 masks[key] = selected
+
         return masks
+
     group_keys = {
         "type": ("type",),
         "pos": ("left", "top", "width", "height"),
@@ -175,6 +185,7 @@ def build_feature_masks(
     for key in group_keys:
         if key in masks:
             masks[key] = seq_mask.clone()
+
     return masks
 
 
@@ -243,6 +254,7 @@ def iterative_decode(
         logits = output.logits
         if index == 0:
             final_logits = dict(logits)
+
         confidence = {
             key: torch.where(
                 current_masks[key],
@@ -283,6 +295,7 @@ def iterative_decode(
                         logits[key],
                         final_logits[key],
                     )
+
             for key, column in input_columns.items():
                 if column["is_sequence"]:
                     current_inputs[key] = apply_token(
@@ -291,6 +304,7 @@ def iterative_decode(
                         current_masks[key],
                         "masked",
                     )
+
     if output is None:
         raise ValueError("num_iter must be positive")
 
@@ -299,6 +313,8 @@ def iterative_decode(
         for key in ("image_embedding", "text_embedding"):
             if key in output_any.logits:
                 final_logits[key] = output_any.logits[key]
+
         output_any.logits = final_logits
         output_any["logits"] = final_logits
+
     return output

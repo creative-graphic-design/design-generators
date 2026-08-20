@@ -60,6 +60,7 @@ def _normalize_id2label(id2label: dict[int | str, str] | None) -> dict[int, str]
             3: "svgElement",
             4: "textElement",
         }
+
     return {int(key): str(value) for key, value in id2label.items()}
 
 
@@ -70,6 +71,7 @@ def _normalize_columns(
         from .data_specs import build_column_specs
 
         return build_column_specs(dataset_name=FlexDmDatasetName.crello, vocabulary={})
+
     normalized: dict[str, FlexDmColumnSpec] = {}
     for key, value in input_columns.items():
         item = dict(value)
@@ -79,7 +81,9 @@ def _normalize_columns(
             raw_mask = cast(tuple[bool, ...] | list[bool], cond["mask"])
             cond["mask"] = tuple(bool(v) for v in raw_mask)
             item["loss_condition"] = cast(FlexDmLossCondition, cond)
+
         normalized[key] = cast(FlexDmColumnSpec, item)
+
     return normalized
 
 
@@ -151,6 +155,7 @@ class FlexDmConfig(PretrainedConfig):
             from .data_specs import attribute_groups_for_dataset
 
             attribute_groups = dict(attribute_groups_for_dataset(dataset_name))
+
         groups = attribute_groups
 
         self.attribute_groups = {key: tuple(value) for key, value in groups.items()}
@@ -163,11 +168,11 @@ class FlexDmConfig(PretrainedConfig):
         self.arch_type = arch_type
         self.context = context
         self.input_dtype = input_dtype
-
         self.use_elemwise_noise = use_elemwise_noise
         self.dropout = dropout
         self.layer_norm_epsilon = layer_norm_epsilon
         self.l2 = l2
+
         self.original_args = original_args or {}
         self.conversion_report = conversion_report or {}
 

@@ -68,6 +68,7 @@ def map_tensor_by_rule(
     )
     if name.startswith("optimizer/") or "/.OPTIMIZER_SLOT/" in source_name:
         return None
+
     if name.startswith("model/encoder/input_layer/"):
         rest = name.removeprefix("model/encoder/input_layer/")
         if rest.endswith("/embeddings"):
@@ -78,29 +79,35 @@ def map_tensor_by_rule(
                     f"encoder.special_embeddings.field_{field}.weight",
                     convert_embedding(value),
                 )
+
             return f"encoder.input_embeddings.field_{key}.weight", convert_embedding(
                 value
             )
+
         if rest.endswith("/kernel"):
             key = rest.removesuffix("/kernel")
             return (
                 f"encoder.input_projections.field_{key}.weight",
                 convert_dense_kernel(value),
             )
+
         if rest.endswith("/bias"):
             key = rest.removesuffix("/bias")
             return (
                 f"encoder.input_projections.field_{key}.bias",
                 convert_dense_bias(value),
             )
+
     if name.startswith("model/decoder/decoders/"):
         rest = name.removeprefix("model/decoder/decoders/")
         if rest.endswith("/kernel"):
             key = rest.removesuffix("/kernel")
             return f"decoder.heads.field_{key}.weight", convert_dense_kernel(value)
+
         if rest.endswith("/bias"):
             key = rest.removesuffix("/bias")
             return f"decoder.heads.field_{key}.bias", convert_dense_bias(value)
+
     if name.startswith("model/blocks/seq2seq/seq2seq_"):
         rest = name.removeprefix("model/blocks/seq2seq/seq2seq_")
         block_text, layer = rest.split("/", 1)
@@ -118,12 +125,16 @@ def map_tensor_by_rule(
         for source_prefix, target_prefix in prefixes.items():
             if layer == f"{source_prefix}/kernel":
                 return f"{target_prefix}.weight", convert_dense_kernel(value)
+
             if layer == f"{source_prefix}/bias":
                 return f"{target_prefix}.bias", convert_dense_bias(value)
+
             if layer == f"{source_prefix}/gamma":
                 return f"{target_prefix}.weight", torch.from_numpy(value)
+
             if layer == f"{source_prefix}/beta":
                 return f"{target_prefix}.bias", torch.from_numpy(value)
+
     return None
 
 

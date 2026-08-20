@@ -40,6 +40,7 @@ def _load_model_component(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
         )
+
     return FlexDmForMaskedDocumentModeling.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -58,6 +59,7 @@ def _load_processor_component(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
         )
+
     return FlexDmProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -183,6 +185,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         model_device = next(self.model.parameters()).device
         if generator is None and seed is not None:
             generator = torch.Generator(device=model_device).manual_seed(seed)
+
         encoded = self.processor(
             condition_type=condition_type,
             labels=labels,
@@ -235,6 +238,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
                 )
         finally:
             self.model.train(was_training)
+
         return self.processor.post_process_document(
             outputs,
             original_inputs=inputs,
@@ -257,6 +261,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         for key, mask in masks.items():
             if key not in self.config.input_columns:
                 continue
+
             column = self.config.input_columns[key]
             if column["is_sequence"] and mask.ndim == 2 and mask.any():
                 modified[key] = apply_token(
@@ -266,6 +271,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
                     "masked",
                     generator=generator,
                 )
+
         return modified
 
     def _validate_condition(
@@ -275,11 +281,13 @@ class FlexDmPipeline(LayoutGenerationPipeline):
     ) -> None:
         if condition_type in {ConditionType.completion, ConditionType.refinement}:
             return
+
         if condition_type is ConditionType.content_image and feature_group in {
             "img",
             "txt",
         }:
             return
+
         if condition_type is ConditionType.label:
             raise NotImplementedError(
                 "Flex-DM has no standalone label-conditioned mode; use "

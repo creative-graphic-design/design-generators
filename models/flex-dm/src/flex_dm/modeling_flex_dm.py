@@ -36,10 +36,13 @@ class FlexDmModelOutput(ModelOutput):
         """Keep the logits dictionary as one ModelOutput field."""
         if self.logits is not None:
             self["logits"] = self.logits
+
         if self.loss is not None:
             self["loss"] = self.loss
+
         if self.hidden_states is not None:
             self["hidden_states"] = self.hidden_states
+
         if self.masks is not None:
             self["masks"] = self.masks
 
@@ -69,6 +72,7 @@ class FlexDmInputEncoder(nn.Module):
         for key, column in config.input_columns.items():
             if not column["is_sequence"]:
                 continue
+
             if column["type"] == "categorical":
                 input_dim = cast(int, column["input_dim"])
                 self.input_embeddings[_module_key(key)] = nn.Embedding(
@@ -84,6 +88,7 @@ class FlexDmInputEncoder(nn.Module):
                     2,
                     config.latent_dim,
                 )
+
         self.task_embedding = (
             nn.Embedding(len(config.task_names), config.latent_dim)
             if config.context == "id"
@@ -137,6 +142,7 @@ class FlexDmInputEncoder(nn.Module):
                     embedded = embedded.sum(dim=-2)
             else:
                 projected = self.input_projections[_module_key(key)](value.float())
+                # Preserve distinct sentinels for masked and unused continuous fields.
                 masked = (value == 10.0).all(dim=-1)
                 unused = (value == 0.0).all(dim=-1)
                 special_ids = torch.zeros_like(masked, dtype=torch.long)
@@ -147,14 +153,18 @@ class FlexDmInputEncoder(nn.Module):
                 embedded = torch.where(
                     (masked | unused).unsqueeze(-1), special, projected
                 )
+
             hidden = hidden + embedded
+
         if self.position_embedding is not None:
             positions = torch.arange(seq_len, device=device).clamp(
                 max=self.config.max_seq_length - 1
             )
             hidden = hidden + self.position_embedding(positions).unsqueeze(0)
+
         if self.task_embedding is not None and task_ids is not None:
             hidden = hidden + self.task_embedding(task_ids.to(device)).unsqueeze(1)
+
         if self.length_embedding is not None and "length" in inputs:
             length_ids = (
                 inputs["length"]
@@ -166,6 +176,7 @@ class FlexDmInputEncoder(nn.Module):
                 )
             )
             hidden = hidden + self.length_embedding(length_ids).unsqueeze(1)
+
         if "length" in inputs:
             from .masking import get_seq_mask
 
@@ -175,6 +186,7 @@ class FlexDmInputEncoder(nn.Module):
             )
         else:
             seq_mask = torch.ones(batch, seq_len, dtype=torch.bool, device=device)
+
         return hidden, seq_mask
 
 
@@ -262,6 +274,7 @@ class FlexDmDecoder(nn.Module):
             units = int(column["shape"][-1])
             if column["type"] == "categorical":
                 units *= cast(int, column["input_dim"])
+
             self.heads[_module_key(key)] = nn.Linear(config.latent_dim, units)
 
     def forward(
@@ -279,6 +292,7 @@ class FlexDmDecoder(nn.Module):
                 outputs[key] = raw.view(*raw.shape[:2], shape_dim, input_dim)
             else:
                 outputs[key] = raw.view(*raw.shape[:2], int(column["shape"][-1]))
+
         return outputs
 
 
@@ -330,6 +344,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
         hidden_states, seq_mask = self.encoder(inputs, task_ids=task_ids)
         for block in self.blocks:
             hidden_states = block(hidden_states, seq_mask)
+
         logits = self.decoder(hidden_states)
         loss = self._compute_loss(logits, labels) if labels is not None else None
         output = FlexDmModelOutput(
@@ -340,6 +355,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
         )
         if return_dict is False:
             return logits, loss
+
         return output
 
     def _compute_loss(
@@ -351,6 +367,7 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
         for key, target in labels.items():
             if key not in logits:
                 continue
+
             column: FlexDmColumnSpec = self.config.input_columns[key]
             pred = logits[key]
             if column["type"] == "categorical":
@@ -360,6 +377,8 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
                 )
             else:
                 losses.append(F.mse_loss(pred, target.float()))
+
         if not losses:
             return torch.tensor(0.0, device=next(self.parameters()).device)
+
         return torch.stack(losses).sum()
