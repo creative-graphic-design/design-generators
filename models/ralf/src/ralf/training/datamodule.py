@@ -67,16 +67,19 @@ def _as_image(
         image = value.float()
         if image.ndim == 2:
             image = image.unsqueeze(0)
+
         if image.ndim != 3:
             raise ValueError(
                 f"expected image tensor with 2 or 3 dimensions, got {image.shape}"
             )
+
         if image.numel() and image.max().item() > 1.0:
             image = image / 255.0
     elif isinstance(value, Image.Image):
         image = to_tensor(value)
     else:
         image = torch.zeros(channels, 64, 64)
+
     if image.size(0) != channels:
         if channels == 1:
             image = image.mean(dim=0, keepdim=True)
@@ -84,12 +87,14 @@ def _as_image(
             image = image.expand(channels, -1, -1)
         else:
             image = image[:channels]
+
     return image
 
 
 def _label_mapping(config: RalfConfig) -> dict[str, int]:
     if config.id2label is None:
         raise RuntimeError("RALF config must define id2label for training")
+
     return {str(label): int(index) for index, label in config.id2label.items()}
 
 
@@ -109,6 +114,7 @@ def _normalize_for_config(
         normalized["labels"] = torch.tensor(
             [mapping[str(label)] for label in raw_labels], dtype=torch.long
         )
+
     return normalized
 
 
@@ -154,6 +160,7 @@ def _sorted_layout(
             float((bbox[idx, 1] - bbox[idx, 3] / 2).item())
             for idx in range(len(label_order))
         ]
+
     lexicographic_order = sorted(
         range(len(label_order)),
         key=lambda idx: (source_top[idx], source_left[idx]),
@@ -164,6 +171,7 @@ def _sorted_layout(
     else:
         labels = labels[lexicographic_order]
         bbox = bbox[lexicographic_order]
+
     padded_labels = torch.zeros(config.max_seq_length, dtype=torch.long)
     padded_bbox = torch.zeros(config.max_seq_length, 4, dtype=torch.float32)
     padded_mask = torch.zeros(config.max_seq_length, dtype=torch.bool)
@@ -184,16 +192,19 @@ def _retrieved_from_samples(
         raise ValueError(
             f"retrieval row has {len(indexes)} candidates, expected {config.top_k}"
         )
+
     images: list[Float[torch.Tensor, "channels height width"]] = []
     saliency: list[Float[torch.Tensor, "1 height width"]] = []
     layouts: list[RalfNormalizedSample] = []
     for index in indexes:
         if index < 0 or index >= len(samples):
             raise ValueError(f"retrieval index {index} is outside the training dataset")
+
         row = samples[int(index)]
         layouts.append(_sorted_layout(row, config))
         images.append(_as_image(row.get("image"), channels=3))
         saliency.append(_as_image(row.get("saliency"), channels=1))
+
     bbox = torch.stack([item["bbox"] for item in layouts])
     labels = torch.stack([item["labels"] for item in layouts])
     mask = torch.stack([item["mask"] for item in layouts])
@@ -262,6 +273,7 @@ class RalfTrainingDataset(Dataset[RalfTrainingSample]):
         """Initialize the dataset with samples and retrieval rows."""
         if not retrieval_samples:
             raise ValueError("retrieval samples are required for RALF training")
+
         self.samples = samples
         self.config = config
         self.retrieval_samples = retrieval_samples
@@ -288,6 +300,7 @@ class RalfTrainingDataset(Dataset[RalfTrainingSample]):
             raise ValueError(
                 f"retrieval table has no complete row for sample {sample_id!r}"
             )
+
         return encode_training_sample(
             sample,
             config=self.config,
@@ -305,7 +318,9 @@ def collate_training_batch(
     for item in retrieved:
         if item.indexes is None:
             raise ValueError("retrieval indexes are required for training batches")
+
         indexes.append(item.indexes)
+
     retrieved_batch = RalfRetrievedBatch(
         image=torch.cat([item.image for item in retrieved]),
         saliency=torch.cat([item.saliency for item in retrieved]),
@@ -359,6 +374,7 @@ class RalfDataModule(LightningDataModule):
         """Load package samples and their exact retrieval rows."""
         if stage not in {None, "fit"}:
             return
+
         train_samples = self._load_split(self.train_split)
         validation_samples = self._load_split(self.validation_split)
         self.train_dataset = RalfTrainingDataset(
@@ -382,8 +398,10 @@ class RalfDataModule(LightningDataModule):
         """Return the package training dataloader."""
         if self.train_dataset is None:
             self.setup("fit")
+
         if self.train_dataset is None:
             raise RuntimeError("training dataset was not initialized")
+
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -399,8 +417,10 @@ class RalfDataModule(LightningDataModule):
         """Return the package validation dataloader."""
         if self.validation_dataset is None:
             self.setup("fit")
+
         if self.validation_dataset is None:
             raise RuntimeError("validation dataset was not initialized")
+
         return DataLoader(
             self.validation_dataset,
             batch_size=self.batch_size,
@@ -415,6 +435,7 @@ class RalfDataModule(LightningDataModule):
     ) -> Sequence[Mapping[str, RalfSampleValue | Shaped[torch.Tensor, ...]]]:
         if self.data_root is None:
             raise ValueError("RALF_DATA_ROOT or data_root is required for training")
+
         from datasets import load_dataset
 
         dataset_dir = Path(self.data_root) / (
@@ -423,8 +444,10 @@ class RalfDataModule(LightningDataModule):
         paths = sorted(dataset_dir.glob(f"{split}-*.parquet"))
         if not paths and split == "val":
             paths = sorted(dataset_dir.glob("validation-*.parquet"))
+
         if not paths:
             raise FileNotFoundError(f"no {split} parquet files under {dataset_dir}")
+
         return cast(
             Sequence[Mapping[str, RalfSampleValue | Shaped[torch.Tensor, "..."]]],
             load_dataset(
@@ -444,9 +467,11 @@ class RalfDataModule(LightningDataModule):
         )
         if path is None:
             raise ValueError("retrieval_index_path is required for RALF training")
+
         payload = torch.load(path, map_location="cpu", weights_only=False)
         if not isinstance(payload, Mapping):
             raise TypeError(f"retrieval index at {path} is not a mapping")
+
         _ = split
         return RalfRetrievalTable(
             cast(Mapping[int | str, Sequence[int]], payload), self.config.top_k

@@ -84,6 +84,7 @@ class RalfTrainingModule(LightningModule):
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no training loss")
+
         loss = output.loss
         self.latest_step_trace = {
             "train_loss": loss.detach(),
@@ -111,6 +112,7 @@ class RalfTrainingModule(LightningModule):
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no validation loss")
+
         self.log("val_loss", output.loss, on_epoch=True, prog_bar=True)
         return output.loss
 
@@ -120,6 +122,7 @@ class RalfTrainingModule(LightningModule):
         """Return decay and learning-rate groups matching the reference loop."""
         decay: set[str] = set()
         no_decay: set[str] = set()
+
         whitelist = (
             nn.Linear,
             nn.MultiheadAttention,
@@ -128,10 +131,12 @@ class RalfTrainingModule(LightningModule):
             nn.Parameter,
         )
         blacklist = (nn.LayerNorm, nn.Embedding, nn.BatchNorm2d)
+
         for module_name, module in self.model.named_modules():
             for param_name, parameter in module.named_parameters():
                 if not parameter.requires_grad:
                     continue
+
                 name = f"{module_name}.{param_name}" if module_name else param_name
                 if param_name.endswith("bias"):
                     no_decay.add(name)
@@ -143,6 +148,7 @@ class RalfTrainingModule(LightningModule):
                     decay.add(name)
                 elif "bias_ih" in param_name or "bias_hh" in param_name:
                     no_decay.add(name)
+
         parameters = {
             name: parameter
             for name, parameter in self.model.named_parameters()
@@ -150,10 +156,12 @@ class RalfTrainingModule(LightningModule):
         }
         if missing := set(parameters) - decay - no_decay:
             raise RuntimeError(f"unassigned trainable parameters: {sorted(missing)}")
+
         if overlap := decay & no_decay:
             raise RuntimeError(
                 f"parameters assigned to both optimizer groups: {sorted(overlap)}"
             )
+
         custom_prefix = "encoder.extractor.body"
         groups: list[dict[str, list[Shaped[torch.Tensor, ...]] | float]] = []
         ordered_groups = (
@@ -168,6 +176,7 @@ class RalfTrainingModule(LightningModule):
             }
             if not selected:
                 continue
+
             group_lr = self.learning_rate * 0.1 if custom_group else self.learning_rate
             groups.append(
                 {
@@ -176,6 +185,7 @@ class RalfTrainingModule(LightningModule):
                     "lr": group_lr,
                 }
             )
+
         return groups
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
@@ -185,6 +195,7 @@ class RalfTrainingModule(LightningModule):
         )
         if self.scheduler == "none":
             return optimizer
+
         milestones = [int(value * self.epochs) for value in self.scheduler_milestones]
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=milestones, gamma=0.1

@@ -310,7 +310,9 @@ class ResnetBackbone(nn.Module):
             weights = torch.load(weights_path, map_location="cpu", weights_only=False)
             if not isinstance(weights, Mapping):
                 raise TypeError(f"ResNet weights at {weights_path} are not a mapping")
+
             resnet.load_state_dict(cast(Mapping[str, Tensor], weights), strict=True)
+
         return_nodes = {"layer4": "layer4", "layer3": "layer3"}
         self.body = create_feature_extractor(resnet, return_nodes=return_nodes)
         params = {
@@ -435,6 +437,7 @@ class FIDNetFeatureExtractor(nn.Module):
                 raise TypeError(
                     f"FIDNet weights at {weights_path} are not a checkpoint mapping"
                 )
+
             state_dict = cast(Mapping[str, Tensor], payload["state_dict"])
             target_keys = set(self.state_dict())
             filtered = {
@@ -1114,6 +1117,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         for parameter in self.transformer_encoder.parameters():
             if parameter.dim() > 1:
                 nn.init.xavier_uniform_(parameter)
+
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
@@ -1340,6 +1344,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         if labels is not None:
             targets = labels.clone()
             loss = self.loss_fn_ce(logits.transpose(1, 2), targets)
+
         if return_dict is False:
             return (logits,) if loss is None else (loss, logits)
         return CausalLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)

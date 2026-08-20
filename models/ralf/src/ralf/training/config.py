@@ -55,13 +55,16 @@ class RalfTrainingConfig:
                 "training dataset and model dataset differ: "
                 f"{self.dataset_name!r} != {config.dataset_name!r}"
             )
+
         if config.max_seq_length != self.max_seq_length:
             raise ValueError(
                 "training max_seq_length and model max_seq_length differ: "
                 f"{self.max_seq_length} != {config.max_seq_length}"
             )
+
         if config.top_k != self.top_k:
             raise ValueError(
                 f"training top_k and model top_k differ: {self.top_k} != {config.top_k}"
             )
+
         return config
