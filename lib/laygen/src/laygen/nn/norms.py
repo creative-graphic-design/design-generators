@@ -35,6 +35,7 @@ class _AdaNorm(nn.Module):
             )
         else:
             self.emb = nn.Embedding(max_timestep, n_embd)
+
         self.silu = nn.SiLU()
         self.linear = nn.Linear(n_embd, n_embd * 2)
 

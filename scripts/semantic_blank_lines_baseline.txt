@@ -3,25 +3,6 @@
 # This introduction records only block-end counts; heuristic and raise-block counts remain at zero.
 # Established rule: block-end
 
-lib/laygen/src/laygen/agents/core.py	block-end	1
-lib/laygen/src/laygen/common/bbox.py	block-end	7
-lib/laygen/src/laygen/common/conditions.py	block-end	1
-lib/laygen/src/laygen/common/discrete.py	block-end	6
-lib/laygen/src/laygen/common/enums.py	block-end	1
-lib/laygen/src/laygen/common/labels.py	block-end	1
-lib/laygen/src/laygen/common/model_card.py	block-end	6
-lib/laygen/src/laygen/common/serialization.py	block-end	5
-lib/laygen/src/laygen/common/testing.py	block-end	8
-lib/laygen/src/laygen/common/tokenization.py	block-end	4
-lib/laygen/src/laygen/common/training.py	block-end	1
-lib/laygen/src/laygen/common/vendor.py	block-end	3
-lib/laygen/src/laygen/common/visualization.py	block-end	3
-lib/laygen/src/laygen/nn/activations.py	block-end	5
-lib/laygen/src/laygen/nn/blocks.py	block-end	2
-lib/laygen/src/laygen/nn/embeddings.py	block-end	1
-lib/laygen/src/laygen/nn/norms.py	block-end	1
-lib/laygen/src/laygen/pipelines/base.py	block-end	20
-lib/laygen/src/laygen/schedulers/continuous.py	block-end	26
 lib/posgen/src/posgen/common/labels.py	block-end	1
 lib/traingen-parity/src/traingen_parity/compare.py	block-end	4
 lib/traingen-parity/src/traingen_parity/determinism.py	block-end	2

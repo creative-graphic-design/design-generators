@@ -80,11 +80,14 @@ def skip_or_fail_vendor_parity(
     if missing_paths:
         lines.append("Missing assets:")
         lines.extend(f"- {path}" for path in missing_paths)
+
     if regeneration_hint:
         lines.append(f"Regeneration hint: {regeneration_hint}")
+
     message = "\n".join(lines)
     if parity_require_enabled():
         pytest.fail(message, pytrace=False)
+
     pytest.skip(message)
 
 
@@ -141,17 +144,22 @@ def assert_normalized_xywh(
     else:
         torch_bbox = cast("torch.Tensor", bbox)
         assert torch_bbox.dtype.is_floating_point
+
     assert getattr(bbox, "shape")[-1] == 4
     values = bbox if mask is None else bbox[mask]
     value_count = values.size if isinstance(values, np.ndarray) else values.numel()
-    if value_count:
-        if isinstance(values, np.ndarray):
-            assert np.all(values >= 0.0)
-            assert np.all(values <= 1.0)
-        else:
-            torch_values = cast("torch.Tensor", values)
-            assert torch_values.ge(0.0).all()
-            assert torch_values.le(1.0).all()
+
+    # Empty layouts have no coordinates to check.
+    if not value_count:
+        return
+
+    if isinstance(values, np.ndarray):
+        assert np.all(values >= 0.0)
+        assert np.all(values <= 1.0)
+    else:
+        torch_values = cast("torch.Tensor", values)
+        assert torch_values.ge(0.0).all()
+        assert torch_values.le(1.0).all()
 
 
 def assert_layout_output_schema(
@@ -230,8 +238,10 @@ def load_torch_checkpoint_state_dict(
             map_location=map_location,
             weights_only=weights_only,
         )
+
     if state_dict_key is not None:
         checkpoint_data = checkpoint_data[state_dict_key]
+
     return cast('dict[str, Shaped[torch.Tensor, "..."]]', checkpoint_data)
 
 
@@ -284,11 +294,13 @@ def vendor_backbone_kwargs(
         if field in overrides:
             kwargs[field] = overrides[field]
             continue
+
         source_field = aliases.get(field, field)
         if isinstance(config, Mapping):
             kwargs[field] = cast("Mapping[str, ConfigValue]", config)[source_field]
         else:
             kwargs[field] = getattr(config, source_field)
+
     return kwargs
 
 

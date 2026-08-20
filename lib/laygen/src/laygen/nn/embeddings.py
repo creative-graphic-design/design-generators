@@ -52,6 +52,7 @@ def normalize_timestep_embedding(
     """
     if timestep_type is None or isinstance(timestep_type, TimestepEmbeddingType):
         return timestep_type
+
     try:
         return TimestepEmbeddingType(timestep_type)
     except ValueError as exc:

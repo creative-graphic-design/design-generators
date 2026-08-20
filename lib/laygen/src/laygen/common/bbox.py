@@ -44,6 +44,7 @@ def normalize_box_format(box_format: BoxFormat | str) -> BoxFormat:
     """
     if isinstance(box_format, BoxFormat):
         return box_format
+
     try:
         return BoxFormat(box_format)
     except ValueError as exc:
@@ -149,10 +150,13 @@ def normalize_boxes(
     fmt = normalize_box_format(box_format)
     if fmt is BoxFormat.xywh:
         return clamp_boxes(normalized)
+
     if fmt is BoxFormat.ltwh:
         return clamp_boxes(ltwh_to_xywh(normalized))
+
     if fmt is BoxFormat.ltrb:
         return clamp_boxes(ltrb_to_xywh(normalized))
+
     assert_never(fmt)
 
 
@@ -209,6 +213,7 @@ def prepare_layout_tensors(
     if labels_t.ndim == 1:
         labels_t = labels_t.unsqueeze(0)
         bbox_t = bbox_t.unsqueeze(0)
+
     if mask is None:
         mask_t = torch.ones(labels_t.shape, dtype=torch.bool)
     else:
@@ -217,10 +222,12 @@ def prepare_layout_tensors(
             mask_t = mask_t.unsqueeze(0)
 
     fmt = normalize_box_format(box_format)
-    if not normalized:
-        if canvas_size is None:
-            raise ValueError("canvas_size is required when normalized=False")
+    # Pixel-space inputs need canvas dimensions before normalization.
+    if not normalized and canvas_size is None:
+        raise ValueError("canvas_size is required when normalized=False")
 
+    if not normalized:
+        assert canvas_size is not None
         bbox_t = normalize_boxes(bbox_t, canvas_size=canvas_size, box_format=fmt)
     elif fmt is BoxFormat.ltwh:
         bbox_t = ltwh_to_xywh(bbox_t)
@@ -230,6 +237,7 @@ def prepare_layout_tensors(
         bbox_t = ltrb_to_xywh(bbox_t)
         if clamp_converted_normalized:
             bbox_t = clamp_boxes(bbox_t)
+
     return bbox_t, labels_t, mask_t
 
 
@@ -261,6 +269,7 @@ def denormalize_boxes(
         out = xywh_to_ltrb(bbox)
     else:
         assert_never(fmt)
+
     scale = _canvas_tensor(canvas_size, out.device, out.dtype)
     return out * scale
 

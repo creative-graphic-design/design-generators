@@ -126,6 +126,7 @@ def normalize_condition_type(condition_type: ConditionType | str) -> ConditionTy
     """
     if isinstance(condition_type, ConditionType):
         return condition_type
+
     try:
         return _CONDITION_ALIASES[
             ConditionAlias(condition_type.lower().replace("-", "_"))

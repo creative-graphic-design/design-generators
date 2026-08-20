@@ -190,6 +190,7 @@ def messages_to_text(messages: str | Sequence[ChatMessageLike]) -> str:
     """
     if isinstance(messages, str):
         return messages
+
     return "\n\n".join(
         f"{message['role'].upper()}:\n{message['content']}" for message in messages
     )
@@ -249,6 +250,7 @@ class BaseLayoutAgent(Generic[RawResponseT], ABC):
         self.model_env_var = model_env_var
         self.raw_response_type = raw_response_type
         self.instructions = instructions
+
         self.agent = self.build_pydantic_agent(model=model)
 
     def resolve_model(self, model: ModelLike = None) -> ModelLike:

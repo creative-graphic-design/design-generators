@@ -20,9 +20,11 @@ def build_token_maps(
     if vocab_file is not None:
         with Path(vocab_file).open() as f:
             raw_vocab = cast(dict[str, str | int], json.load(f))
+
         if numeric_id_vocab and all(str(key).isdigit() for key in raw_vocab):
             id2token = {int(key): str(value) for key, value in raw_vocab.items()}
             return {value: key for key, value in id2token.items()}, id2token
+
         token2id = {str(key): int(str(value)) for key, value in raw_vocab.items()}
         return token2id, {value: key for key, value in token2id.items()}
 
@@ -30,6 +32,7 @@ def build_token_maps(
     for token in tokens or ():
         if token not in token2id:
             token2id[token] = len(token2id)
+
     return token2id, {idx: token for token, idx in token2id.items()}
 
 
@@ -67,6 +70,7 @@ def save_json_vocabulary(
     out_path = out_dir / name
     with out_path.open("w") as f:
         json.dump(data, f, indent=2, sort_keys=True)
+
     return (str(out_path),)
 
 

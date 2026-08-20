@@ -17,6 +17,7 @@ def normalize_enum_value(
     """Normalize a public string-or-enum option to a ``StrEnum`` value."""
     if isinstance(value, enum_type):
         return value
+
     try:
         return enum_type(value)
     except ValueError as exc:

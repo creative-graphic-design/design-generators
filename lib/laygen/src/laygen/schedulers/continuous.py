@@ -78,6 +78,7 @@ def normalize_beta_schedule(schedule: BetaSchedule | str) -> BetaSchedule:
     """
     if isinstance(schedule, BetaSchedule):
         return schedule
+
     try:
         return BetaSchedule(schedule)
     except ValueError as exc:
@@ -90,6 +91,7 @@ def normalize_layoutdiffusion_beta_schedule(
     """Normalize a LayoutDiffusion-only beta schedule name."""
     if isinstance(schedule, LayoutDiffusionBetaSchedule):
         return schedule
+
     try:
         return LayoutDiffusionBetaSchedule(schedule)
     except ValueError as exc:
@@ -118,6 +120,7 @@ def normalize_ddim_discretization(
     """
     if isinstance(method, DDIMDiscretization):
         return method
+
     try:
         return DDIMDiscretization(method)
     except ValueError as exc:
@@ -129,12 +132,16 @@ def _diffusers_beta_schedule(
 ) -> Literal["linear", "scaled_linear", "squaredcos_cap_v2", "sigmoid"] | None:
     if schedule is BetaSchedule.linear:
         return "linear"
+
     if schedule is BetaSchedule.quad:
         return "scaled_linear"
+
     if schedule in (BetaSchedule.cosine, BetaSchedule.cosine_reverse):
         return "squaredcos_cap_v2"
+
     if schedule is BetaSchedule.sigmoid:
         return "sigmoid"
+
     return None
 
 
@@ -151,10 +158,12 @@ def _betas_for_alpha_bar(
         stop = num_timesteps - 1
     else:
         stop = num_timesteps
+
     for i in range(stop):
         t1 = i / num_timesteps
         t2 = (i + 1) / num_timesteps
         betas.append(min(1 - alpha_bar(t2) / alpha_bar(t1), max_beta))
+
     return torch.tensor(betas, dtype=torch.float64)
 
 
@@ -186,6 +195,7 @@ def get_layoutdiffusion_beta_schedule(
     canonical = normalize_layoutdiffusion_beta_schedule(schedule)
     if canonical is LayoutDiffusionBetaSchedule.sqrt:
         return _betas_for_alpha_bar(num_timesteps, lambda t: 1 - np.sqrt(t + 0.0001))
+
     if canonical is LayoutDiffusionBetaSchedule.mix_sqrt:
         return _betas_for_alpha_bar(
             num_timesteps,
@@ -198,12 +208,14 @@ def get_layoutdiffusion_beta_schedule(
                 )
             ),
         )
+
     if canonical is LayoutDiffusionBetaSchedule.trunc_cos:
         return _betas_for_alpha_bar(
             num_timesteps,
             lambda t: np.cos((t + 0.1) / 1.1 * np.pi / 2) ** 2,
             include_initial=True,
         )
+
     if canonical is LayoutDiffusionBetaSchedule.trunc_lin:
         scale = 1000 / num_timesteps
         return torch.from_numpy(
@@ -214,6 +226,7 @@ def get_layoutdiffusion_beta_schedule(
                 dtype=np.float64,
             )
         )
+
     if canonical is LayoutDiffusionBetaSchedule.pw_lin:
         scale = 1000 / num_timesteps
         first_part = np.linspace(
@@ -229,6 +242,7 @@ def get_layoutdiffusion_beta_schedule(
             dtype=np.float64,
         )
         return torch.from_numpy(np.concatenate([first_part, second_part]))
+
     raise ValueError(f"Unsupported LayoutDiffusion beta schedule: {schedule}")
 
 
@@ -266,10 +280,13 @@ def get_beta_schedule(
             beta_end=end,
             beta_schedule=diffusers_schedule,
         ).betas
+
     if canonical is BetaSchedule.const:
         return end * torch.ones(num_timesteps)
+
     if canonical is BetaSchedule.jsd:
         return 1.0 / torch.linspace(num_timesteps, 1, num_timesteps)
+
     if canonical is BetaSchedule.cosine_anneal:
         return torch.tensor(
             [
@@ -280,6 +297,7 @@ def get_beta_schedule(
                 for t in range(num_timesteps)
             ]
         )
+
     raise ValueError(f"Unsupported beta schedule: {schedule}")
 
 
@@ -318,6 +336,7 @@ def get_layousyn_beta_schedule(
         )
         if alpha_scale == 1.0:
             return torch.from_numpy(betas_np)
+
         alpha_cumprod = np.cumprod(1 - betas_np)
         alpha_scaled = (alpha_scale**2 * alpha_cumprod) / (
             (alpha_scale**2 - 1) * alpha_cumprod + 1.0
@@ -325,7 +344,9 @@ def get_layousyn_beta_schedule(
         betas = [1 - alpha_scaled[0]]
         for i in range(1, num_timesteps):
             betas.append(1 - alpha_scaled[i] / alpha_scaled[i - 1])
+
         return torch.from_numpy(np.array(betas))
+
     if schedule == "squaredcos_cap_v2":
         betas = []
         for i in range(num_timesteps):
@@ -334,7 +355,9 @@ def get_layousyn_beta_schedule(
             alpha_1 = _layousyn_scaled_cosine_alpha_bar(t1, alpha_scale)
             alpha_2 = _layousyn_scaled_cosine_alpha_bar(t2, alpha_scale)
             betas.append(min(1 - alpha_2 / alpha_1, 0.999))
+
         return torch.from_numpy(np.array(betas))
+
     raise ValueError(f"Unsupported LayouSyn beta schedule: {schedule}")
 
 
@@ -379,17 +402,20 @@ def get_ddim_timesteps(
         )
         scheduler.set_timesteps(num_ddim_timesteps)
         return scheduler.timesteps.cpu().numpy()[::-1].copy()
+
     if canonical is DDIMDiscretization.quad:
         timesteps = (
             np.linspace(0, np.sqrt(num_ddpm_timesteps * 0.8), num_ddim_timesteps) ** 2
         ).astype(int)
         return timesteps + steps_offset
+
     if canonical is DDIMDiscretization.new:
         c = (num_ddpm_timesteps - 50) // (num_ddim_timesteps - 50)
         timesteps = np.asarray(
             list(range(0, 50)) + list(range(50, num_ddpm_timesteps - 50, c))
         )
         return timesteps + steps_offset
+
     assert_never(canonical)
 
 

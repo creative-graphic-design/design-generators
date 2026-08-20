@@ -50,6 +50,7 @@ def render_layout(
     """
     if ax is None:
         _, ax = plt.subplots()
+
     palette = list(colors or plt.rcParams["axes.prop_cycle"].by_key()["color"])
     width, height = canvas_size
     ax.set_xlim(0, width)
@@ -59,6 +60,7 @@ def render_layout(
     for i, valid in enumerate(mask.detach().cpu().tolist()):
         if not valid:
             continue
+
         left, top, right, bottom = ltrb[i].tolist()
         color = palette[int(labels[i]) % len(palette)]
         rect = Rectangle(
@@ -76,4 +78,5 @@ def render_layout(
             color=color,
             fontsize=8,
         )
+
     return ax
