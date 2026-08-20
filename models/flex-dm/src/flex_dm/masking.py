@@ -264,46 +264,48 @@ def iterative_decode(
             for key in categorical_keys
             if key in logits
         }
-        if confidence:
-            confidence_sorted = torch.sort(
-                torch.cat([confidence[key] for key in confidence], dim=-1),
-                dim=-1,
-                descending=True,
-            ).values
-            threshold = torch.stack(
-                [
-                    confidence_sorted[row, int(update_count)]
-                    for row, update_count in enumerate(updates_per_iter)
-                ]
-            )
-            for key in confidence:
-                pred = logits[key].argmax(dim=-1)
-                update_field = (confidence[key] >= threshold) & (confidence[key] > 0)
-                filtered_inputs[key] = torch.where(
-                    update_field.unsqueeze(-1),
-                    pred,
-                    filtered_inputs[key],
-                )
-                current_masks[key] = torch.where(
-                    current_masks[key] == update_field,
-                    torch.zeros_like(current_masks[key]),
-                    current_masks[key],
-                )
-                if index > 0 and final_logits is not None:
-                    final_logits[key] = torch.where(
-                        update_field[:, :, None, None],
-                        logits[key],
-                        final_logits[key],
-                    )
+        if not confidence:
+            continue
 
-            for key, column in input_columns.items():
-                if column["is_sequence"]:
-                    current_inputs[key] = apply_token(
-                        filtered_inputs[key],
-                        column,
-                        current_masks[key],
-                        "masked",
-                    )
+        confidence_sorted = torch.sort(
+            torch.cat([confidence[key] for key in confidence], dim=-1),
+            dim=-1,
+            descending=True,
+        ).values
+        threshold = torch.stack(
+            [
+                confidence_sorted[row, int(update_count)]
+                for row, update_count in enumerate(updates_per_iter)
+            ]
+        )
+        for key in confidence:
+            pred = logits[key].argmax(dim=-1)
+            update_field = (confidence[key] >= threshold) & (confidence[key] > 0)
+            filtered_inputs[key] = torch.where(
+                update_field.unsqueeze(-1),
+                pred,
+                filtered_inputs[key],
+            )
+            current_masks[key] = torch.where(
+                current_masks[key] == update_field,
+                torch.zeros_like(current_masks[key]),
+                current_masks[key],
+            )
+            if index > 0 and final_logits is not None:
+                final_logits[key] = torch.where(
+                    update_field[:, :, None, None],
+                    logits[key],
+                    final_logits[key],
+                )
+
+        for key, column in input_columns.items():
+            if column["is_sequence"]:
+                current_inputs[key] = apply_token(
+                    filtered_inputs[key],
+                    column,
+                    current_masks[key],
+                    "masked",
+                )
 
     if output is None:
         raise ValueError("num_iter must be positive")
