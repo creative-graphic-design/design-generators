@@ -54,10 +54,13 @@ def sanitize_for_yaml(value: YamlInputValue) -> YamlValue:
     """
     if isinstance(value, Enum):
         return str(value.value)
+
     if is_dataclass(value) and not isinstance(value, type):
         return sanitize_for_yaml(cast(YamlInputValue, asdict(value)))
+
     if isinstance(value, bytearray):
         return bytes(value)
+
     if isinstance(value, Mapping):
         return cast(
             YamlValue,
@@ -68,6 +71,8 @@ def sanitize_for_yaml(value: YamlInputValue) -> YamlValue:
                 for key, item in value.items()
             },
         )
+
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
         return [sanitize_for_yaml(cast(YamlInputValue, item)) for item in value]
+
     return cast(YamlScalar, value)

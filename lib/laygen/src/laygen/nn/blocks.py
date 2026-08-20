@@ -111,6 +111,7 @@ class TimestepTransformerEncoderLayer(nn.Module):
             x = x + self._sa_block(x, src_mask, src_key_padding_mask)
             x = x + self._ff_block(self.norm2(x))
             return x
+
         x = x + self._sa_block(x, src_mask, src_key_padding_mask)
         x = self.norm1(x, timestep) if self.timestep_type else self.norm1(x)
         return self.norm2(x + self._ff_block(x))
@@ -180,6 +181,7 @@ class TimestepTransformerEncoder(nn.Module):
                 src_key_padding_mask=src_key_padding_mask,
                 timestep=timestep,
             )
+
         return self.norm(output) if self.norm is not None else output
 
 

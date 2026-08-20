@@ -160,8 +160,10 @@ class PipelineComponentSpec:
                 )
 
             return root / value
+
         if self.subfolder is not None:
             return root / self.subfolder
+
         return root
 
     def component_subfolder(self, config: PretrainedConfig) -> str | None:
@@ -184,6 +186,7 @@ class PipelineComponentSpec:
                 )
 
             return value
+
         return self.subfolder
 
 
@@ -287,6 +290,7 @@ class LayoutGenerationPipeline(ABC):
             local_files_only=local_files_only,
             config=config,
         )
+
         loaded_components = cls._load_pipeline_components(
             root,
             source,
@@ -294,6 +298,7 @@ class LayoutGenerationPipeline(ABC):
             local_files_only=local_files_only,
             components=components or {},
         )
+
         return cls._from_pretrained_components(
             config=pipeline_config,
             components=loaded_components,
@@ -312,10 +317,13 @@ class LayoutGenerationPipeline(ABC):
                 source,
                 local_files_only=local_files_only,
             )
+
         if isinstance(config, cls.config_class):
             return config
+
         if isinstance(config, PretrainedConfig):
             return cls.config_class.from_dict(config.to_dict())
+
         raise TypeError(f"config must be a {cls.config_class.__name__}")
 
     @classmethod
@@ -333,9 +341,11 @@ class LayoutGenerationPipeline(ABC):
             if name in components:
                 loaded[name] = components[name]
                 continue
+
             if spec.loader is None:
                 loaded[name] = None
                 continue
+
             if root.is_dir():
                 component_path = spec.component_path(root, config)
                 marker = (
@@ -351,16 +361,19 @@ class LayoutGenerationPipeline(ABC):
 
                     loaded[name] = None
                     continue
+
                 loaded[name] = spec.loader(
                     component_path,
                     local_files_only=local_files_only,
                 )
                 continue
+
             loaded[name] = spec.loader(
                 source,
                 local_files_only=local_files_only,
                 subfolder=spec.component_subfolder(config),
             )
+
         return loaded
 
     @classmethod
@@ -408,6 +421,7 @@ class LayoutGenerationPipeline(ABC):
                     raise ValueError(f"Required pipeline component '{name}' is None")
 
                 continue
+
             component_path = spec.component_path(root, self.config)
             component_path.mkdir(parents=True, exist_ok=True)
             if spec.save_with_is_main_process:
@@ -444,13 +458,17 @@ class LayoutGenerationPipeline(ABC):
         """
         if device is not None:
             self.device = torch.device(device)
+
         if dtype is not None:
             self.dtype = dtype
+
         if self.device is None and self.dtype is None:
             return self
+
         for component in self._pipeline_component_values():
             if isinstance(component, TorchMovable):
                 component.to(device=self.device, dtype=self.dtype)
+
         return self
 
     def prepare_generator(
@@ -475,12 +493,15 @@ class LayoutGenerationPipeline(ABC):
         """
         if generator is not None:
             return generator
+
         if seed is None:
             return None
+
         set_seed(seed)
         generator_device = torch.device(device) if device is not None else self.device
         if generator_device is None:
             return None
+
         return torch.Generator(device=generator_device).manual_seed(seed)
 
     def _pipeline_component_values(self) -> tuple[PipelineComponent, ...]:
@@ -489,6 +510,7 @@ class LayoutGenerationPipeline(ABC):
             component = getattr(self, spec.attribute_name, None)
             if component is not None:
                 values.append(cast(PipelineComponent, component))
+
         return tuple(values)
 
     @abstractmethod

@@ -43,6 +43,7 @@ def normalize_sampling_mode(sampling: SamplingMode | str) -> SamplingMode:
     """
     if isinstance(sampling, SamplingMode):
         return sampling
+
     try:
         return SamplingMode(sampling)
     except ValueError as exc:
@@ -179,6 +180,7 @@ def sample_time_importance(
             device=device,
             generator=generator,
         )
+
     lt_sqrt = torch.sqrt(lt_history + 1e-10) + 0.0001
     lt_sqrt[0] = lt_sqrt[1]
     pt_all = lt_sqrt / lt_sqrt.sum()
@@ -313,6 +315,7 @@ def top_k_logits(
 
     if k <= 0 or k >= logits.size(dim):
         return logits
+
     values = torch.topk(logits, k, dim=dim).values
     threshold = values.select(dim, k - 1).unsqueeze(dim)
     return logits.masked_fill(logits < threshold, LOG_EPS)
@@ -325,6 +328,7 @@ def _top_p_logits(
 
     if top_p >= 1.0:
         return logits
+
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
     probs = sorted_logits.softmax(dim=-1)
     cumulative = probs.cumsum(dim=-1)
@@ -392,6 +396,7 @@ def sample_categorical(
             scaled = logits / temperature
             if top_k is not None:
                 scaled = top_k_logits(scaled, top_k, dim=-1)
+
             if top_p is not None:
                 scaled = _top_p_logits(scaled, top_p)
         case _:
@@ -415,6 +420,7 @@ def batch_topk_mask(
     max_k = int(k.max().item()) if k.numel() else 0
     if max_k == 0:
         return torch.zeros_like(scores, dtype=torch.bool)
+
     _, indices = torch.topk(scores, max_k, dim=1)
     ranks = torch.arange(max_k, device=scores.device).unsqueeze(0)
     active = ranks < k.to(scores.device).unsqueeze(1)

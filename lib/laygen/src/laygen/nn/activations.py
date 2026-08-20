@@ -59,6 +59,7 @@ def normalize_activation(
     """
     if callable(name):
         return cast(ActivationFn, name)
+
     try:
         return ActivationName(name)
     except ValueError as exc:
@@ -84,10 +85,14 @@ def get_activation(name: ActivationName | str | ActivationFn) -> ActivationFn:
     canonical = normalize_activation(name)
     if callable(canonical):
         return canonical
+
     if canonical is ActivationName.relu:
         return F.relu
+
     if canonical is ActivationName.gelu:
         return F.gelu
+
     if canonical is ActivationName.gelu2:
         return cast(ActivationFn, ACT2FN["quick_gelu"])
+
     assert_never(canonical)

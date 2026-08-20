@@ -176,6 +176,7 @@ def normalize_dataset_name(dataset_name: DatasetName | str) -> DatasetName:
     """
     if isinstance(dataset_name, DatasetName):
         return dataset_name
+
     key = dataset_name.lower().replace("-", "_")
     try:
         return _ALIASES[key]

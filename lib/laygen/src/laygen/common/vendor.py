@@ -45,6 +45,7 @@ def vendor_root(
         resolved = candidate.expanduser().resolve()
         if resolved in seen:
             continue
+
         seen.add(resolved)
         if marker_path is None:
             if resolved.exists():
@@ -82,7 +83,9 @@ def _candidate_roots(
     if "=" in repo_root.name:
         sibling = repo_root.with_name(repo_root.name.split("=", maxsplit=1)[0])
         candidates.extend([sibling / requested, sibling / repo_dir])
+
     if "=" in cwd.name:
         sibling = cwd.with_name(cwd.name.split("=", maxsplit=1)[0])
         candidates.extend([sibling / requested, sibling / repo_dir])
+
     return candidates

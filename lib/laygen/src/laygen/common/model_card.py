@@ -173,6 +173,7 @@ def build_layout_model_card(
     )
     card_data = ModelCardData(**metadata)
     parity_table = _parity_table(parity_metrics)
+
     card = ModelCard.from_template(
         card_data,
         model_id=model_id,
@@ -470,16 +471,20 @@ print(out.bbox, out.labels, out.mask)
 def _layoutdm_dataset_id(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return "creative-graphic-design/Rico"
+
     if dataset == "publaynet":
         return "creative-graphic-design/PubLayNet"
+
     raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 
 def _layoutdm_dataset_config(dataset: DatasetName | str) -> str:
     if dataset == "rico25":
         return " with config `ui-screenshots-and-hierarchies-with-semantic-annotations`"
+
     if dataset == "publaynet":
         return " with the default config"
+
     raise ValueError(f"Unsupported LayoutDM dataset: {dataset}")
 
 
@@ -520,6 +525,7 @@ def _parity_table(metrics: Sequence[ParityMetricInput]) -> str:
             "| {dataset} | {tokenizer_exact} | {deterministic_exact} | "
             "{logits_max_abs:g} | {logits_max_rel:g} |".format(**item)
         )
+
     return "\n".join(rows)
 
 
@@ -532,6 +538,7 @@ def _metric_dict(metric: ParityMetricInput) -> ParityMetricRow:
             ParityMetricKey.logits_max_abs.value: metric.logits_max_abs,
             ParityMetricKey.logits_max_rel.value: metric.logits_max_rel,
         }
+
     return cast(ParityMetricRow, dict(metric))
 
 
