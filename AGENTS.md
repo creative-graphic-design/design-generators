@@ -71,7 +71,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Within function bodies, separate semantic units (configuration branches,
   submodule construction, transformations, and return preparation) with single
   blank lines; always leave a blank line after a raise block when ordinary code
-  follows.
+  follows; leave one blank line after an if, for, while, try, or with suite when
+  ordinary code follows at the enclosing indentation.
 
 ## Repo-Local Skills
 
