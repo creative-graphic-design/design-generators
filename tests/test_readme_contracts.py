@@ -242,7 +242,7 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
 
 | Model | Venue | Ckpt | Train |
 | :--- | :---: | --- | --- |
-| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layoutformerpp/TRAINING.md) |
 
 ## Libraries
 """,

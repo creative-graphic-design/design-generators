@@ -9,9 +9,10 @@ from pathlib import Path
 from layoutformerpp.tasks import (
     LayoutFormerPPTask,
     SUPPORTED_DATASETS,
-    layoutformerpp_dataset_slug,
+    layoutformerpp_vendor_dataset_slug,
     normalize_layoutformerpp_dataset,
 )
+from layoutformerpp.labels import label_translation_for_dataset
 
 
 def main() -> None:
@@ -53,10 +54,13 @@ def main() -> None:
     )
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    label_translation = label_translation_for_dataset(args.dataset)
     metadata = {
-        "dataset": layoutformerpp_dataset_slug(args.dataset),
+        "dataset": layoutformerpp_vendor_dataset_slug(args.dataset),
         "task": str(args.task),
         "seed": args.seed,
+        "label_translation_metadata": label_translation.metadata(),
+        "label_translation_sha256": label_translation.sha256,
         "source": "vendor/ms-layout-generation/LayoutFormer++",
         "note": "Regenerate token/logit fixtures locally; do not commit generated tensors.",
     }

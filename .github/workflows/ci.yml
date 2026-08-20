@@ -296,6 +296,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Set up Python
         uses: actions/setup-python@v6
