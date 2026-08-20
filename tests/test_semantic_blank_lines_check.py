@@ -33,10 +33,15 @@ def write_source(root: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def write_baseline(path: Path, counts: dict[tuple[str, str], int]) -> None:
+def write_baseline(
+    path: Path,
+    counts: dict[tuple[str, str], int],
+    established_rules: set[str] | frozenset[str] = frozenset(),
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "# Baseline counts for tests.\n"
+        + "".join(f"# Established rule: {rule}\n" for rule in sorted(established_rules))
         + "\n".join(
             f"{path_name}\t{rule}\t{count}"
             for (path_name, rule), count in sorted(counts.items())
@@ -432,9 +437,68 @@ def test_checker_accepts_initial_baseline_for_new_rule(tmp_path: Path) -> None:
         check=True,
     )
 
-    write_baseline(baseline, checker.current_counts(tmp_path))
+    write_baseline(
+        baseline,
+        checker.current_counts(tmp_path),
+        established_rules={"block-end"},
+    )
 
     assert checker.check_semantic_blank_lines(tmp_path, baseline) == 0
+
+
+def test_checker_rejects_growth_after_established_rule_reaches_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    write_source(
+        tmp_path,
+        "def terminal():\n    if True:\n        pass\n",
+    )
+    write_baseline(baseline, {}, established_rules={"block-end"})
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "established zero baseline"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    write_source(
+        tmp_path,
+        "def missing():\n    if True:\n        pass\n    return 1\n",
+    )
+    write_baseline(
+        baseline,
+        checker.current_counts(tmp_path),
+        established_rules={"block-end"},
+    )
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
+    assert (
+        "Baseline counts added or increased relative to HEAD" in capsys.readouterr().err
+    )
+
+
+def test_checker_rejects_removing_established_rule_marker(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    baseline = tmp_path / "scripts" / "semantic_blank_lines_baseline.txt"
+    write_source(tmp_path, "def terminal():\n    pass\n")
+    write_baseline(baseline, {}, established_rules={"block-end"})
+    initialize_git_repository(tmp_path)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "-m", "established marker"],
+        cwd=tmp_path,
+        check=True,
+    )
+
+    write_baseline(baseline, {})
+
+    assert checker.check_semantic_blank_lines(tmp_path, baseline) == 1
+    assert (
+        "Established rule markers removed relative to HEAD" in capsys.readouterr().err
+    )
 
 
 def test_checker_accepts_legacy_location_baseline_as_initial_counts(

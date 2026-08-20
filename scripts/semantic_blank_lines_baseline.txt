@@ -1,6 +1,7 @@
 # Baseline counts for the semantic blank-line checker.
 # Remove counts as violations are fixed; do not add counts to hide new violations.
 # This introduction records only block-end counts; heuristic and raise-block counts remain at zero.
+# Established rule: block-end
 
 lib/laygen/src/laygen/agents/core.py	block-end	1
 lib/laygen/src/laygen/common/bbox.py	block-end	7
@@ -233,7 +234,7 @@ scripts/check_pr_issue_reference.py	block-end	13
 scripts/check_reader_facing_references.py	block-end	22
 scripts/check_readme_badges.py	block-end	42
 scripts/check_readme_links.py	block-end	11
-scripts/check_semantic_blank_lines.py	block-end	19
+scripts/check_semantic_blank_lines.py	block-end	15
 scripts/check_src_vendor_language.py	block-end	4
 scripts/check_training_doc_template.py	block-end	18
 scripts/check_training_stage_evidence.py	block-end	29

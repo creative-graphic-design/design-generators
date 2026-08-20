@@ -25,6 +25,9 @@ decreasing or removing residual counts and prevents hiding a new violation by
 appending it to the baseline. A missing or legacy location-format baseline in
 ``HEAD`` is treated as an initial baseline, which permits the merge that first
 introduces this checker to establish counts for content inherited from main.
+An ``# Established rule: <rule>`` marker records that a rule has been
+introduced even after its residual count reaches zero. Established markers are
+also shrink-only: removing one relative to committed ``HEAD`` fails.
 When a new rule is introduced, its first count-format baseline is also allowed
 through the ``INTRODUCED_RULES`` exception below; later changes to that rule
 are ratcheted against its committed counts like every existing rule.
@@ -48,6 +51,7 @@ BASELINE_PATH = ROOT / "scripts" / "semantic_blank_lines_baseline.txt"
 BASELINE_RELATIVE_PATH = Path("scripts/semantic_blank_lines_baseline.txt")
 MAX_CONSECUTIVE_STATEMENTS = 15
 CONTINUATION_KEYWORDS = frozenset({"except", "elif", "else", "finally"})
+ESTABLISHED_RULE_PREFIX = "# Established rule:"
 INTRODUCED_RULES = frozenset({"block-end"})
 COMPOUND_STATEMENT_TYPES = (
     ast.If,
@@ -327,13 +331,35 @@ def current_counts(root: Path) -> dict[tuple[str, str], int]:
     )
 
 
-def _parse_baseline_text(text: str) -> dict[tuple[str, str], int]:
-    """Parse count-format baseline entries."""
+def _parse_baseline_text(
+    text: str,
+) -> tuple[dict[tuple[str, str], int], set[str]]:
+    """Parse count-format entries and durable established-rule markers."""
     counts: dict[tuple[str, str], int] = {}
+    established_rules: set[str] = set()
     for raw_line in text.splitlines():
         line = raw_line.strip()
-        if not line or line.startswith("#"):
+        if not line:
             continue
+
+        if line.startswith(ESTABLISHED_RULE_PREFIX):
+            rule = line.removeprefix(ESTABLISHED_RULE_PREFIX).strip()
+            if not rule:
+                raise ValueError(
+                    f"invalid established semantic blank-line rule: {line}"
+                )
+
+            if rule in established_rules:
+                raise ValueError(
+                    f"duplicate established semantic blank-line rule: {line}"
+                )
+
+            established_rules.add(rule)
+            continue
+
+        if line.startswith("#"):
+            continue
+
         fields = line.split("\t")
         if len(fields) != 3:
             raise ValueError(f"invalid semantic blank-line baseline entry: {line}")
@@ -352,18 +378,33 @@ def _parse_baseline_text(text: str) -> dict[tuple[str, str], int]:
             raise ValueError(f"duplicate semantic blank-line baseline key: {line}")
 
         counts[key] = count
-    return counts
+    return counts, established_rules
+
+
+def _baseline_state(path: Path) -> tuple[dict[tuple[str, str], int], set[str]]:
+    """Read count entries and established-rule markers from a baseline path."""
+    if not path.exists():
+        return {}, set()
+
+    return _parse_baseline_text(path.read_text(encoding="utf-8"))
 
 
 def baseline_counts(path: Path) -> dict[tuple[str, str], int]:
     """Read file/rule violation counts from a shrink-only baseline file."""
-    if not path.exists():
-        return {}
-    return _parse_baseline_text(path.read_text(encoding="utf-8"))
+    counts, _ = _baseline_state(path)
+    return counts
 
 
-def committed_baseline_counts(root: Path) -> dict[tuple[str, str], int] | None:
-    """Return committed counts, or ``None`` before the count-format baseline."""
+def baseline_established_rules(path: Path) -> set[str]:
+    """Read durable established-rule markers from a baseline file."""
+    _, established_rules = _baseline_state(path)
+    return established_rules
+
+
+def committed_baseline_state(
+    root: Path,
+) -> tuple[dict[tuple[str, str], int], set[str]] | None:
+    """Return committed counts and markers, or ``None`` before count format."""
     result = subprocess.run(
         [
             "git",
@@ -387,13 +428,20 @@ def committed_baseline_counts(root: Path) -> dict[tuple[str, str], int] | None:
         len(line.split("\t")) == 4 for line in non_comment_lines
     ):
         return None
+
     return _parse_baseline_text(result.stdout)
+
+
+def committed_baseline_counts(root: Path) -> dict[tuple[str, str], int] | None:
+    """Return committed counts, or ``None`` before the count-format baseline."""
+    state = committed_baseline_state(root)
+    return state[0] if state is not None else None
 
 
 def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
     """Enforce an exact, shrink-only match between scan and baseline."""
     current = current_counts(root)
-    baseline_current = baseline_counts(baseline)
+    baseline_current, established_rules = _baseline_state(baseline)
     mismatches = sorted(
         (
             path,
@@ -405,10 +453,18 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
         if baseline_current.get((path, rule), 0) != current.get((path, rule), 0)
     )
 
-    committed = committed_baseline_counts(root)
-    committed_rules = (
-        {rule for _, rule in committed} if committed is not None else set()
-    )
+    committed_state = committed_baseline_state(root)
+    if committed_state is None:
+        committed = None
+        committed_rules: set[str] = set()
+        removed_established_rules: list[str] = []
+    else:
+        committed, committed_established_rules = committed_state
+        committed_rules = {rule for _, rule in committed} | committed_established_rules
+        removed_established_rules = sorted(
+            committed_established_rules - established_rules
+        )
+
     increased_counts = (
         sorted(
             (
@@ -424,7 +480,7 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
         if committed is not None
         else []
     )
-    if not mismatches and not increased_counts:
+    if not mismatches and not increased_counts and not removed_established_rules:
         return 0
 
     print("Semantic blank-line baseline is not shrink-only:", file=sys.stderr)
@@ -443,6 +499,12 @@ def check_semantic_blank_lines(root: Path, baseline: Path) -> int:
                 f"{path}\t{rule}\tHEAD={committed_count}\tcurrent={current_count}",
                 file=sys.stderr,
             )
+
+    if removed_established_rules:
+        print("Established rule markers removed relative to HEAD:", file=sys.stderr)
+        for rule in removed_established_rules:
+            print(f"# Established rule: {rule}", file=sys.stderr)
+
     return 1
 
 
