@@ -158,6 +158,7 @@ class PositionalEncoding1d(nn.Module):
             pe = torch.zeros(max_len, 1, d_model)
             pe[:, 0, 0::2] = torch.sin(position * div_term)
             pe[:, 0, 1::2] = torch.cos(position * div_term)
+
         self.register_buffer("pe", pe)
 
     def forward(
@@ -168,6 +169,7 @@ class PositionalEncoding1d(nn.Module):
             h = h + self.pe[:, : h.size(1)]
         else:
             h = h + self.pe[: h.size(0)]
+
         return self.dropout(h)
 
 
@@ -205,6 +207,7 @@ class PositionEmbeddingSine(nn.Module):
             x = x / (w - 1)
             y = y * self.scale
             x = x * self.scale
+
         dim_t = torch.arange(self.d_model).type_as(input)
         dim_t = self.temperature ** (
             2 * torch.div(dim_t, 2, rounding_mode="floor") / self.d_model
@@ -282,6 +285,7 @@ class Attention(nn.Module):
         context = x if context is None else context
         if kv_include_self:
             context = torch.cat((x, context), dim=1)
+
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim=-1))
         q, k, v = (rearrange(t, "b n (h d) -> b h n d", h=h) for t in qkv)
         dots = einsum("b h i d, b h j d -> b h i j", q, k) * self.scale
@@ -468,6 +472,7 @@ class BaseDecoder(nn.Module):
         for p in self.transformer.parameters():
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
+
         nn.init.normal_(self.emb.weight, mean=0.0, std=0.02)
         for module in self.head:
             if isinstance(module, nn.LayerNorm):
@@ -494,6 +499,7 @@ class BaseDecoder(nn.Module):
             )
         else:
             h = self.transformer(h, memory, tgt_key_padding_mask=tgt_key_padding_mask)
+
         return self.head(h)
 
 
@@ -539,6 +545,7 @@ class UserConstraintTransformerEncoder(nn.Module):
         h = self.encoder(src=h, src_key_padding_mask=src_key_padding_mask)
         if task_token is not None:
             h = h + self.emb(task_token)
+
         return h
 
 
@@ -655,8 +662,10 @@ class RalfTaskPreprocessor:
         class_name = item.__class__.__name__
         if not isinstance(name, str):
             return str(name)
+
         if name == "UNKNOWN":
             return "unknown_size" if class_name == "RelSize" else "unknown_loc"
+
         relation_names = {
             "LEFT": "left",
             "TOP": "top",
@@ -709,9 +718,11 @@ class RalfTaskPreprocessor:
         for batch_idx, count in enumerate(non_padding_counts.tolist()):
             if count <= 1:
                 continue
+
             indexes = torch.randperm(count, device=label.device)
             for key, value in seq_vars.items():
                 shuffled[key][batch_idx, :count] = value[batch_idx, indexes]
+
         return shuffled
 
     def _valid_element_mask(
@@ -730,12 +741,14 @@ class RalfTaskPreprocessor:
         if self.task_name == "partial" and inputs.mask is not None:
             seq = seq.clone()
             seq[~inputs.mask.bool()] = self.name_to_id("pad")
+
         seq_vars = self._parse_seq_into_vars(seq)
         if self.task_name == "relation":
             _ = self._shuffle_seq_vars(seq_vars)
             seq_vars = self._shuffle_seq_vars(seq_vars)
         elif self.task_name == "c":
             seq_vars = self._shuffle_seq_vars(seq_vars)
+
         valid = (
             self._valid_element_mask(seq_vars)
             if inputs.element_mask is None
@@ -745,9 +758,11 @@ class RalfTaskPreprocessor:
             valid = torch.zeros_like(valid)
             if valid.size(1) > 0:
                 valid[:, 0] = True
+
         max_valid = int(valid.sum(dim=1).max().item()) if valid.numel() else 0
         if max_valid == 0:
             return self.get_token("pad", inputs.image.size(0))
+
         pieces: list[Int[torch.Tensor, "batch token_piece"]] = []
         sep = self.get_token("sep", inputs.image.size(0))
         for element_idx in range(max_valid):
@@ -759,8 +774,10 @@ class RalfTaskPreprocessor:
                     self.get_token("pad", inputs.image.size(0)),
                 )
                 pieces.append(values)
+
             if element_idx != max_valid - 1:
                 pieces.append(sep)
+
         return torch.cat(pieces, dim=1)
 
     def _relation_ids(
@@ -770,10 +787,13 @@ class RalfTaskPreprocessor:
     ) -> list[str]:
         if ids is None:
             return [""] * batch_size
+
         if isinstance(ids, Tensor):
             return [str(item) for item in ids.detach().cpu().tolist()]
+
         if isinstance(ids, (list, tuple)):
             return [str(item) for item in ids]
+
         return [str(ids)] * batch_size
 
     def _relation_sequence(
@@ -783,11 +803,13 @@ class RalfTaskPreprocessor:
     ) -> Int[torch.Tensor, "batch relation_tokens"]:
         if self.relationship_table is None:
             return label_sequence
+
         batch = label_sequence.size(0)
         label_mask = self.create_pad_mask(label_sequence)
         label_sequence = label_sequence.clone()
         if not self.global_task_embedding:
             label_sequence[:, 1] = self.get_token(self.TASK, batch)[:, 0]
+
         label_sequence[label_sequence == self.name_to_id("eos")] = self.name_to_id(
             "relation_sep"
         )
@@ -802,6 +824,7 @@ class RalfTaskPreprocessor:
                 outputs.append(seq)
                 max_length = max(max_length, seq.size(0))
                 continue
+
             sample_size = max(len(relations) * self.relation_size // 100, 1)
             sampled = random.sample(relations, sample_size)
             relation_tokenized = torch.tensor(
@@ -818,6 +841,7 @@ class RalfTaskPreprocessor:
             seq = torch.cat([seq, relation_with_sep], dim=0)
             outputs.append(seq)
             max_length = max(max_length, seq.size(0))
+
         out = torch.full(
             (batch, max_length),
             fill_value=self.name_to_id("pad"),
@@ -826,6 +850,7 @@ class RalfTaskPreprocessor:
         )
         for batch_idx, seq in enumerate(outputs):
             out[batch_idx, : seq.size(0)] = seq
+
         return out
 
     def __call__(
@@ -844,8 +869,10 @@ class RalfTaskPreprocessor:
             seq = torch.cat([bos, body, eos], dim=-1)
         else:
             seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
+
         if self.task_name == "relation":
             seq = self._relation_sequence(inputs, seq)
+
         return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
 
 
@@ -888,7 +915,9 @@ def _extract_retrieved_features(
         ref_layout_input = _get_ref_layout_input(retrieved_samples, kdx)
         with torch.no_grad():
             feature_layout_ref = layout_encoder.extract_features(ref_layout_input)
+
         ref_layouts.append(layout_adapter(feature_layout_ref))
+
     stacked = torch.stack(ref_layouts, dim=1)
     return pos_emb_1d(stacked)
 
@@ -904,6 +933,7 @@ def _restrict_reliable_label_or_size(
 ) -> Float[torch.Tensor, "batch vocab"]:
     if condition is None:
         return logits
+
     batch = condition.size(0)
     for batch_idx in range(batch):
         given = int(condition[batch_idx, sampling_idx].item())
@@ -917,10 +947,13 @@ def _restrict_reliable_label_or_size(
         if sampling_idx < first_pad_idx:
             if given in (pad_id, -1):
                 continue
+
             mask[given] = False
         else:
             mask[eos_id] = False
+
         logits[batch_idx, mask] = -math.inf
+
     return logits
 
 
@@ -935,6 +968,7 @@ def _restrict_only_category(
 ) -> Float[torch.Tensor, "batch vocab"]:
     if (sampling_idx - 1) % 5 != 0:
         return logits
+
     return _restrict_reliable_label_or_size(
         sampling_idx=sampling_idx,
         condition=condition,
@@ -964,6 +998,7 @@ def _apply_decode_space_restriction(
             eos_id=eos_id,
             max_length=max_length,
         )
+
     if task in {"refinement", "relation"}:
         return _restrict_only_category(
             sampling_idx=step + 1,
@@ -973,6 +1008,7 @@ def _apply_decode_space_restriction(
             eos_id=eos_id,
             max_length=max_length,
         )
+
     return logits
 
 
@@ -999,7 +1035,6 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.layout_backbone = config.layout_backbone
         self.top_k = config.top_k
         self.weight_init = True
-
         self.retrieval_backbone = config.retrieval_backbone
         self.random_retrieval = False
         self.saliency_k = str(config.saliency_k)
@@ -1045,6 +1080,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.layout_encoer.enc_transformer.token.requires_grad = False
         for parameter in self.layout_encoer.parameters():
             parameter.requires_grad = False
+
         self.pos_emb_1d = PositionalEncoding1d(
             d_model=config.d_model,
             max_len=5000 if not config.use_reference_image else 10000,
@@ -1074,6 +1110,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             nn.init.normal_(self.task_emb.weight, mean=0.0, std=0.02)
             self.register_buffer("flag_img", torch.zeros(1).long())
             self.register_buffer("flag_user_const", torch.ones(1).long())
+
         self.attn = Attention(
             config.d_model, config.d_model, heads=8, dim_head=64, dropout=0.0
         )
@@ -1131,6 +1168,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             ).type_as(cast(Tensor, inputs["seq_layout_const"]))
         else:
             task_token = None
+
         user_const_feature = self.user_const_encoder(
             src=cast(Tensor, inputs["seq_layout_const"]),
             src_key_padding_mask=cast(Tensor, inputs["seq_layout_const_pad_mask"]),
@@ -1143,6 +1181,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             user_const_feature = user_const_feature + self.task_emb(
                 self.flag_user_const
             )
+
         return {
             "memory": torch.cat(
                 [img_retrieved_layout_memory, user_const_feature], dim=1
@@ -1173,6 +1212,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             pixel_values = torch.zeros(
                 batch_size, 3, 64, 64, device=device, dtype=dtype
             )
+
         if saliency is None:
             saliency = torch.zeros(
                 pixel_values.size(0),
@@ -1182,6 +1222,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 device=pixel_values.device,
                 dtype=pixel_values.dtype,
             )
+
         if pixel_values.size(-1) < 64 or pixel_values.size(-2) < 64:
             pixel_values = F.interpolate(
                 pixel_values, size=(64, 64), mode="bilinear", align_corners=False
@@ -1189,9 +1230,11 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             saliency = F.interpolate(
                 saliency, size=(64, 64), mode="bilinear", align_corners=False
             )
+
         if pixel_values.size(0) == 1 and batch_size > 1:
             pixel_values = pixel_values.expand(batch_size, -1, -1, -1)
             saliency = saliency.expand(batch_size, -1, -1, -1)
+
         image = torch.cat([pixel_values, saliency], dim=1).to(
             device=device, dtype=dtype
         )
@@ -1209,6 +1252,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             retrieved_dict["image"] = torch.cat(
                 [retrieved_dict["image"], retrieved_dict["saliency"]], dim=2
             )
+
         task = self._canonical_to_task_name(condition_type or self.auxilary_task)
         preprocessor = (
             self.preprocessor
@@ -1308,8 +1352,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 targets.reshape(-1),
                 ignore_index=-100,
             )
+
         if return_dict is False:
             return (logits,) if loss is None else (loss, logits)
+
         return CausalLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)
 
     @torch.no_grad()
@@ -1351,6 +1397,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             prefix = condition_seq[:, 1 : 1 + len(self.config.var_order)]
             generated = torch.cat([generated, prefix.to(generated.device)], dim=1)
             start_step = len(self.config.var_order)
+
         max_length = max_length or self.config.max_token_length
         encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
@@ -1379,6 +1426,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                     next_logits = next_logits.masked_fill(
                         ~token_mask[step].to(next_logits.device), -math.inf
                     )
+
                 next_logits = _apply_decode_space_restriction(
                     task=task,
                     step=step,
@@ -1393,6 +1441,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                     next_logits = next_logits.masked_fill(
                         next_logits < values[:, [-1]], -math.inf
                     )
+
                 probs = F.softmax(next_logits, dim=-1)
                 next_token = torch.multinomial(
                     probs, num_samples=1, generator=generator
@@ -1401,4 +1450,5 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         finally:
             if was_training:
                 self.train()
+
         return generated

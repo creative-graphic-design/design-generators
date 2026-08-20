@@ -115,6 +115,7 @@ class RalfProcessor(ProcessorMixin):
         root = Path(pretrained_model_name_or_path)
         if subfolder is not None:
             root = root / subfolder
+
         config = RalfConfig.from_pretrained(root, local_files_only=local_files_only)
         return cls(
             image_processor=RalfImageProcessor.from_pretrained(root),
@@ -187,12 +188,15 @@ class RalfProcessor(ProcessorMixin):
     ) -> Int[torch.Tensor, "batch elements"]:
         if labels is None:
             return torch.zeros((batch_size, 0), dtype=torch.long)
+
         if isinstance(labels, torch.Tensor):
             tensor = labels.long()
             return tensor.unsqueeze(0) if tensor.ndim == 1 else tensor
+
         labels_list = list(labels)
         if not labels_list:
             return torch.zeros((batch_size, 0), dtype=torch.long)
+
         first = labels_list[0]
         rows = (
             labels_list
@@ -209,7 +213,9 @@ class RalfProcessor(ProcessorMixin):
                     values.append(label2id[item.lower()])
                 else:
                     values.append(int(item))
+
             out.append(values)
+
         return torch.tensor(out, dtype=torch.long)
 
     def _coerce_bbox(
@@ -223,9 +229,11 @@ class RalfProcessor(ProcessorMixin):
     ) -> Float[torch.Tensor, "batch elements 4"]:
         if bbox is None:
             return torch.zeros((labels.size(0), labels.size(1), 4), dtype=torch.float32)
+
         tensor = torch.as_tensor(bbox, dtype=torch.float32)
         if tensor.ndim == 2:
             tensor = tensor.unsqueeze(0)
+
         if not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
@@ -233,13 +241,16 @@ class RalfProcessor(ProcessorMixin):
             return normalize_boxes(
                 tensor, canvas_size=canvas_size, box_format=box_format
             )
+
         fmt = normalize_box_format(box_format)
         if fmt is BoxFormat.xywh:
             return tensor.clamp(0.0, 1.0)
+
         if fmt is BoxFormat.ltwh:
             from laygen.common.bbox import ltwh_to_xywh
 
             return ltwh_to_xywh(tensor).clamp(0.0, 1.0)
+
         from laygen.common.bbox import ltrb_to_xywh
 
         return ltrb_to_xywh(tensor).clamp(0.0, 1.0)
@@ -334,6 +345,7 @@ class RalfProcessor(ProcessorMixin):
             mask_tensor = torch.as_tensor(mask, dtype=torch.bool)
             if mask_tensor.ndim == 1:
                 mask_tensor = mask_tensor.unsqueeze(0)
+
         tokenized = self.layout_tokenizer.encode_layout(
             labels=label_tensor,
             bbox=bbox_tensor,
@@ -384,6 +396,7 @@ class RalfProcessor(ProcessorMixin):
                     else retrieval_payload.get("ids"),
                 ),
             )
+
         return output
 
     def _build_retrieval_batch(
@@ -411,8 +424,10 @@ class RalfProcessor(ProcessorMixin):
         saliency_tensor = torch.zeros(batch, candidates, 1, 1, 1)
         if images is not None:
             image_tensor = torch.as_tensor(images, dtype=torch.float32)
+
         if saliency is not None:
             saliency_tensor = torch.as_tensor(saliency, dtype=torch.float32)
+
         index_tensor = (
             None if indexes is None else torch.as_tensor(indexes, dtype=torch.long)
         )
@@ -454,4 +469,5 @@ class RalfProcessor(ProcessorMixin):
         )
         if output_type == "dict":
             return dict(output.items())
+
         return output

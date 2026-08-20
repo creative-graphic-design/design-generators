@@ -62,6 +62,7 @@ def _load_model_component(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
         )
+
     return RalfForConditionalLayoutGeneration.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -80,6 +81,7 @@ def _load_processor_component(
             pretrained_model_name_or_path,
             local_files_only=local_files_only,
         )
+
     return RalfProcessor.from_pretrained(
         pretrained_model_name_or_path,
         local_files_only=local_files_only,
@@ -271,6 +273,7 @@ class RalfPipeline(LayoutGenerationPipeline):
                 intermediates["retrieval"] = {"indexes": retrieval_batch.indexes}
         elif retrieval_table is not None and query_ids is not None:
             intermediates["retrieval"] = {"indexes": retrieval_table.lookup(query_ids)}
+
         sequences = self.model._generate_sequences(
             encoded["input_ids"].to(model_device),
             pixel_values=encoded["pixel_values"].to(model_device),

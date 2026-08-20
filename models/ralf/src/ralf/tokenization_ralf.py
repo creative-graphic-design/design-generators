@@ -50,6 +50,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         if config is None and tokenizer_config_file is not None:
             with Path(tokenizer_config_file).open() as f:
                 config = RalfConfig(**json.load(f)["config"])
+
         if config is None:
             raise ValueError("RalfLayoutTokenizer requires an explicit config")
 
@@ -82,8 +83,10 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
             start = self.config.bbox_token_offset(key)
             for idx in range(self.config.num_bin):
                 vocab[f"{key}:{idx}"] = start + idx
+
         for token in self.config.special_tokens:
             vocab[f"[{token}]"] = self.config.special_token_id(token)
+
         return vocab
 
     def _tokenize(
@@ -116,6 +119,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         path = out_dir / name
         with path.open("w") as f:
             json.dump({"config": self.config.to_dict()}, f, indent=2, sort_keys=True)
+
         return (str(path),)
 
     def save_pretrained(
@@ -163,6 +167,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
         """Load tokenizer metadata from a checkpoint directory."""
         if config is None:
             config = RalfConfig.from_pretrained(pretrained_model_name_or_path)
+
         loaded = super().from_pretrained(
             pretrained_model_name_or_path,
             *inputs,
@@ -218,6 +223,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
 
         if mask is None:
             mask = torch.ones_like(labels, dtype=torch.bool)
+
         batch, elements = labels.shape
         max_elements = min(elements, self.config.max_seq_length)
         seq = labels.new_full(
@@ -241,13 +247,16 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
                     values = geometry[key][
                         :, element_idx
                     ] + self.config.bbox_token_offset(key)
+
                 seq[:, token_idx] = torch.where(valid, values, seq[:, token_idx])
                 attention_mask[:, token_idx] = valid
+
         lengths = mask[:, :max_elements].sum(dim=1) * len(self.config.var_order)
         for batch_idx, length in enumerate(lengths.tolist()):
             if length < seq.size(1):
                 seq[batch_idx, length] = self.config.eos_token_id
                 attention_mask[batch_idx, length] = True
+
         bos = labels.new_full((batch, 1), self.config.bos_token_id)
         bos_mask = torch.ones((batch, 1), dtype=torch.bool, device=labels.device)
         return BatchEncoding(
@@ -273,6 +282,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
 
         if sequences.size(1) and torch.all(sequences[:, 0] == self.config.bos_token_id):
             sequences = sequences[:, 1:]
+
         usable = sequences[:, : self.config.max_token_length]
         batch = usable.size(0)
         padded = usable.new_full(
@@ -303,6 +313,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
                 local = values - self.config.bbox_token_offset(key)
                 mask &= (local >= 0) & (local < self.config.num_bin)
                 bbox_parts[key] = self._dequantize(local)
+
         bbox = torch.stack(
             (
                 bbox_parts["center_x"],
@@ -335,5 +346,7 @@ class RalfLayoutTokenizer(PreTrainedTokenizer):
                     mask[start : start + self.config.num_bin] = True
                     mask[self.config.eos_token_id] = True
                     mask[self.config.pad_token_id] = True
+
                 masks.append(mask)
+
         return torch.stack(masks, dim=0)

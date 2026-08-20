@@ -60,6 +60,7 @@ class RalfRetrievalTable:
         root = Path(path)
         with (root / "retrieval_table.json").open() as f:
             payload = json.load(f)
+
         return cls(payload["table"], top_k=top_k or int(payload["top_k"]))
 
     def save_pretrained(self, save_directory: str | Path) -> tuple[str]:
@@ -71,6 +72,7 @@ class RalfRetrievalTable:
             json.dump(
                 {"top_k": self.top_k, "table": self.table}, f, indent=2, sort_keys=True
             )
+
         return (str(path),)
 
     def lookup(self, ids: Sequence[int | str]) -> Int[torch.Tensor, "batch candidates"]:
@@ -80,7 +82,9 @@ class RalfRetrievalTable:
             values = self.table[str(item)][: self.top_k]
             if len(values) < self.top_k:
                 values = values + [-1] * (self.top_k - len(values))
+
             rows.append(values)
+
         return torch.tensor(rows, dtype=torch.long)
 
 
@@ -101,6 +105,7 @@ def retrieved_batch_to_model_inputs(
     }
     if batch.indexes is not None:
         output["index"] = batch.indexes
+
     return output
 
 
