@@ -52,6 +52,7 @@ class DLTWarmupCosineSchedulerFactory:
                 "num_training_steps is required unless Lightning estimated "
                 "stepping batches are provided"
             )
+
         return get_cosine_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.num_warmup_steps,

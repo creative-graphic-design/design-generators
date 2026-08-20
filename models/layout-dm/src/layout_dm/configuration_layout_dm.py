@@ -79,6 +79,7 @@ class LayoutDMConfig(ConfigMixin):
         self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or id2label_for_dataset(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
+
         self.max_seq_length = max_seq_length
         self.num_bin_bboxes = num_bin_bboxes
         self.var_order = var_order
@@ -87,6 +88,7 @@ class LayoutDMConfig(ConfigMixin):
         self.special_tokens = tuple(special_tokens)
         self.cluster_centers = cluster_centers
         self.cluster_centers_path = cluster_centers_path
+
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.num_hidden_layers = num_hidden_layers
@@ -95,6 +97,7 @@ class LayoutDMConfig(ConfigMixin):
         self.timestep_type = timestep_type
         self.num_timesteps = num_timesteps
         self.q_type = q_type
+
         self.att_1 = att_1
         self.att_T = att_T
         self.ctt_1 = ctt_1

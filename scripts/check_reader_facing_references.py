@@ -95,10 +95,13 @@ def _reference_key(value: str) -> str:
 def reference_definitions(text: str) -> set[str]:
     """Return defined Markdown reference-link labels outside code fences."""
     definitions: set[str] = set()
+
     in_fence = False
     fence_marker = ""
+
     for line in text.splitlines():
         fence_match = FENCE_RE.match(line)
+
         if fence_match:
             marker = fence_match.group(1)
             if not in_fence:
@@ -110,6 +113,7 @@ def reference_definitions(text: str) -> set[str]:
             continue
         if in_fence:
             continue
+
         if match := REFERENCE_DEFINITION_RE.match(line):
             definitions.add(_reference_key(match.group(1)))
     return definitions
@@ -127,16 +131,19 @@ def mask_markdown_links(line: str, definitions: set[str] | None = None) -> str:
         opening = index
         if line[index] == "!" and index + 1 < len(line) and line[index + 1] == "[":
             opening = index + 1
+
         if line[opening] == "[" and (opening == 0 or line[opening - 1] != "\\"):
             label_end = line.find("]", opening + 1)
             if label_end != -1:
                 end = label_end + 1
+
                 valid_link = False
                 if end < len(line) and line[end] == "(":
                     target_end = _closing_parenthesis(line, end)
                     if target_end is not None:
                         end = target_end + 1
                         valid_link = True
+
                 elif end < len(line) and line[end] == "[":
                     reference_end = line.find("]", end + 1)
                     reference_label = (
@@ -195,18 +202,23 @@ def _empty_marker(paragraph: str) -> tuple[str, str] | None:
     normalized = re.sub(r"\s+", " ", paragraph).strip()
     marker = normalized.rstrip(TRAILING_PUNCTUATION).strip()
     english_marker = marker.casefold()
+
     for candidate in EMPTY_INTRO_MARKERS_EN:
         if english_marker == candidate.casefold():
             return "empty introduction marker", candidate
+
     for candidate in EMPTY_INTRO_MARKERS_JA:
         if marker == candidate:
             return "empty introduction marker", candidate
+
     for candidate in EMPTY_CONCLUSION_MARKERS_EN:
         if english_marker == candidate.casefold():
             return "empty conclusion marker", candidate
+
     for candidate in EMPTY_CONCLUSION_MARKERS_JA:
         if marker == candidate:
             return "empty conclusion marker", candidate
+
     return None
 
 
@@ -215,8 +227,10 @@ def _unfenced_lines(text: str) -> list[tuple[int, str | None]]:
     lines: list[tuple[int, str | None]] = []
     in_fence = False
     fence_marker = ""
+
     for line_number, line in enumerate(text.splitlines(), start=1):
         fence_match = FENCE_RE.match(line)
+
         if fence_match:
             marker = fence_match.group(1)
             if not in_fence:
@@ -225,8 +239,10 @@ def _unfenced_lines(text: str) -> list[tuple[int, str | None]]:
             elif marker == fence_marker:
                 in_fence = False
                 fence_marker = ""
+
             lines.append((line_number, None))
             continue
+
         if not in_fence:
             lines.append((line_number, line))
     return lines
@@ -291,23 +307,30 @@ def violations_for_document(path: Path) -> list[ReferenceViolation]:
     violations: list[ReferenceViolation] = []
     in_fence = False
     fence_marker = ""
+
     for line_number, line in enumerate(text.splitlines(), start=1):
         fence_match = FENCE_RE.match(line)
+
         if fence_match:
             marker = fence_match.group(1)
             if not in_fence:
                 in_fence = True
+
                 fence_marker = marker
             elif marker == fence_marker:
                 in_fence = False
                 fence_marker = ""
             continue
+
         if in_fence:
             continue
+
         if REFERENCE_DEFINITION_RE.match(line):
             continue
+
         location = "heading" if HEADING_RE.match(line) else "body"
         masked_line = mask_markdown_links(line, definitions)
+
         for match in REFERENCE_RE.finditer(masked_line):
             violations.append(
                 ReferenceViolation(path, line_number, match.group(), location)

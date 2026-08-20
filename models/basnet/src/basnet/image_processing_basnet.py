@@ -49,6 +49,7 @@ class BASNetImageProcessor(BaseImageProcessor):
         """Initialize image processor settings."""
         if input_size <= 0:
             raise ValueError("input_size must be positive")
+
         super().__init__(**kwargs)
         self.input_size = int(input_size)
         self.rgb_mean = tuple(float(value) for value in rgb_mean)
@@ -87,6 +88,7 @@ class BASNetImageProcessor(BaseImageProcessor):
         del kwargs
         if return_tensors != "pt":
             raise ValueError("BASNetImageProcessor only supports return_tensors='pt'")
+
         tensors = []
         sizes = []
         for image in _ensure_pil_batch(images):
@@ -135,6 +137,7 @@ class BASNetImageProcessor(BaseImageProcessor):
         if saliency.ndim == 2:
             if not _is_size(output_size):
                 raise ValueError("single saliency map requires one output_size tuple")
+
             return _resize_saliency_png_space(saliency, output_size)
         if _is_size(output_size):
             sizes = [output_size] * int(saliency.shape[0])
@@ -142,6 +145,7 @@ class BASNetImageProcessor(BaseImageProcessor):
             sizes = cast(list[tuple[int, int]], list(output_size))
         if len(sizes) != int(saliency.shape[0]):
             raise ValueError("output_size batch length must match saliency batch")
+
         rows = [
             _resize_saliency_png_space(row, size)
             for row, size in zip(saliency, sizes, strict=True)

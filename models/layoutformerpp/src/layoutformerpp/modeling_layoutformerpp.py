@@ -135,6 +135,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
                 raise ValueError(
                     "task_ids are required when task prompt embeddings are enabled"
                 )
+
             x = self.enc_embedding(input_ids)
             prompts = self.task_prompt_embed[task_ids]
             x = torch.cat([prompts, x], dim=1).permute(1, 0, 2)
@@ -154,6 +155,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
                 raise ValueError(
                     "task_ids are required when task embeddings are enabled"
                 )
+
             enc_hs = enc_hs + self.task_embedding(task_ids).unsqueeze(0)
         return enc_hs, enc_padding_mask
 
@@ -180,6 +182,7 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
         if decoder_input_ids is None:
             if labels is None:
                 raise ValueError("decoder_input_ids or labels must be provided")
+
             decoder_input_ids = self.prepare_decoder_input_ids_from_labels(labels)
         enc_hs, enc_padding_mask = self.encode(input_ids, padding_mask, task_ids)
         dec_input = self.dec_pos_embedding(

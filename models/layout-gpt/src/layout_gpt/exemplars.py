@@ -105,6 +105,7 @@ def select_k_similar(
     if len(examples) != len(example_embeddings):
         msg = "example_embeddings length must match examples"
         raise ValueError(msg)
+
     query_vector = _normalize(query_embedding(query))
     scores = [
         sum(q * e for q, e in zip(query_vector, _normalize(embedding), strict=True))
@@ -119,4 +120,5 @@ def _normalize(values: Sequence[float]) -> tuple[float, ...]:
     if norm == 0:
         msg = "embedding vectors must be non-zero"
         raise ValueError(msg)
+
     return tuple(value / norm for value in values)

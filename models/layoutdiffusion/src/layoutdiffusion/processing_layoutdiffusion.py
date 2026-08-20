@@ -79,6 +79,7 @@ class LayoutDiffusionProcessor(ProcessorMixin):
             raise ValueError(
                 "LayoutDiffusionProcessor only supports return_tensors='pt'"
             )
+
         if bbox is None or labels is None:
             batch_size = 1
             if isinstance(num_elements, list):

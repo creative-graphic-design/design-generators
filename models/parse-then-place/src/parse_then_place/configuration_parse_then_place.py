@@ -56,6 +56,7 @@ class ParseThenPlaceConfig(PretrainedConfig):
         """Initialize the composite checkpoint configuration."""
         dataset = normalize_dataset_name(dataset_name)
         mode = normalize_stage2_mode(stage2_mode)
+
         self.dataset_name = str(dataset)
         self.stage2_mode = str(mode)
         self.parser_model_name = parser_model_name
@@ -66,11 +67,13 @@ class ParseThenPlaceConfig(PretrainedConfig):
         self.canvas_size = tuple(canvas_size or canvas_size_for_dataset(dataset))
         self.parser_subfolder = parser_subfolder
         self.placement_subfolder = placement_subfolder
+
         label_map = id2label or id2label_for_dataset(dataset)
         normalized_id2label = {int(key): str(value) for key, value in label_map.items()}
         label2id = {value: key for key, value in normalized_id2label.items()}
         _ = kwargs.pop("id2label", None)
         _ = kwargs.pop("label2id", None)
+
         super().__init__(
             transformers_version=transformers_version,
             architectures=architectures,

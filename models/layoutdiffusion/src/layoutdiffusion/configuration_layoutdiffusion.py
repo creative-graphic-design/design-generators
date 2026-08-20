@@ -77,20 +77,24 @@ class LayoutDiffusionConfig(ConfigMixin):
         self.dataset_name = str(normalize_dataset_name(dataset_name))
         raw_id2label = id2label or default_id2label(self.dataset_name)
         self.id2label = {int(k): v for k, v in raw_id2label.items()}
+
         self.vocab = vocab or self.default_vocab()
         self.seq_length = seq_length
         self.max_num_elements = max_num_elements
         self.num_coordinate_bins = num_coordinate_bins
+
         self.diffusion_steps = diffusion_steps
         self.noise_schedule = noise_schedule
         self.num_channels = num_channels
         self.bert_config_name = bert_config_name
+
         self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
         self.intermediate_size = intermediate_size
         self.dropout = dropout
+
         self.training_mode = training_mode
         self.vocab_size = vocab_size or len(self.vocab)
         self.refine_start_step = refine_start_step or (

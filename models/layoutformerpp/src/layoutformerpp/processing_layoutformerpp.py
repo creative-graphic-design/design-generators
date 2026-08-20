@@ -165,8 +165,10 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             condition = normalize_common_condition_type(condition_type)
         except ValueError as exc:
             raise ValueError(f"Unsupported condition_type: {condition_type}") from exc
+
         if condition not in SUPPORTED_CONDITIONS:
             raise ValueError(f"Unsupported condition_type: {condition_type}")
+
         return cast(SupportedConditionType, condition)
 
     def _label_to_internal_id(self, label: int | str) -> int:
@@ -218,12 +220,15 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             mask_tensor = mask_tensor.unsqueeze(0)
         if mask_tensor.ndim != 2:
             raise ValueError("mask must have shape (batch, sequence)")
+
         if mask_tensor.size(0) != batch_size:
             raise ValueError("mask batch dimension must match labels or batch_size")
+
         rows = mask_tensor.tolist()
         for row, expected_length in zip(rows, row_lengths, strict=True):
             if len(row) < expected_length:
                 raise ValueError("mask sequence length must cover all labels")
+
         return rows
 
     def _prepare_bbox(
@@ -245,6 +250,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         if not normalized:
             if canvas_size is None:
                 raise ValueError("canvas_size is required when normalized=False")
+
             tensor = normalize_boxes(
                 tensor,
                 canvas_size=canvas_size,
@@ -346,9 +352,11 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                 )
             else:
                 raise ValueError(f"Unsupported condition_type: {condition}")
+
         encoded = self.tokenizer.encode_text(texts, add_eos=True, add_bos=False)
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
+
         return BatchEncoding(encoded)
 
     def post_process_layouts(
@@ -416,10 +424,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             )
         except ValueError as exc:
             raise ValueError(f"Unsupported output_type: {output_type}") from exc
+
         if normalized_output_type is OutputType.dict:
             return dict(output)
         if normalized_output_type is not OutputType.dataclass:
             assert_never(normalized_output_type)
         if return_tensors != "pt":
             raise ValueError("Only return_tensors='pt' is supported")
+
         return output

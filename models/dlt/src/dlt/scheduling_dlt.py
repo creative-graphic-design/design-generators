@@ -66,6 +66,7 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
         steps = list(num_discrete_steps or [10 for _ in features])
         if len(features) != len(steps):
             raise ValueError("Each discrete feature requires a step count")
+
         self.alpha = alpha
         self.beta = beta
         self.seq_max_length = seq_max_length

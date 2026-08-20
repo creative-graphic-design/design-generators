@@ -71,6 +71,7 @@ def split_prompt_lines(prompt: str, ratio_list: Sequence[float]) -> tuple[str, .
     lines = tuple(line for line in prompt.splitlines() if line.strip())
     if not lines:
         raise ValueError("SmartText requires at least one prompt line")
+
     return lines
 
 

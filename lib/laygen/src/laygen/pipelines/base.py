@@ -158,6 +158,7 @@ class PipelineComponentSpec:
                 raise TypeError(
                     f"{self.config_subfolder_attribute} must be a string subfolder"
                 )
+
             return root / value
         if self.subfolder is not None:
             return root / self.subfolder
@@ -181,6 +182,7 @@ class PipelineComponentSpec:
                 raise TypeError(
                     f"{self.config_subfolder_attribute} must be a string subfolder"
                 )
+
             return value
         return self.subfolder
 
@@ -346,6 +348,7 @@ class LayoutGenerationPipeline(ABC):
                         raise FileNotFoundError(
                             f"Required pipeline component '{name}' is missing: {marker}"
                         )
+
                     loaded[name] = None
                     continue
                 loaded[name] = spec.loader(
@@ -403,6 +406,7 @@ class LayoutGenerationPipeline(ABC):
             if component is None:
                 if spec.required:
                     raise ValueError(f"Required pipeline component '{name}' is None")
+
                 continue
             component_path = spec.component_path(root, self.config)
             component_path.mkdir(parents=True, exist_ok=True)
@@ -411,6 +415,7 @@ class LayoutGenerationPipeline(ABC):
                     raise TypeError(
                         f"Pipeline component '{name}' does not support save_pretrained"
                     )
+
                 component.save_pretrained(
                     component_path,
                     is_main_process=is_main_process,
@@ -420,6 +425,7 @@ class LayoutGenerationPipeline(ABC):
                     raise TypeError(
                         f"Pipeline component '{name}' does not support save_pretrained"
                     )
+
                 component.save_pretrained(component_path)
 
     def to(

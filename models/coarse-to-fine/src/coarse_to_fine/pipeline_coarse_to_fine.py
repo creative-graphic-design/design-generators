@@ -122,6 +122,7 @@ class CoarseToFinePipeline(Pipeline):
             raise NotImplementedError(
                 "Coarse-to-Fine released checkpoints support only unconditional generation"
             )
+
         if generator is None and seed is not None:
             generator = torch.Generator(device=self.model.device).manual_seed(seed)
         if latent_z is None:

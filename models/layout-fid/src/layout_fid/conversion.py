@@ -173,6 +173,7 @@ def validate_state_dict_shapes(
     missing = sorted(set(expected) - set(state_dict))
     if missing:
         raise ValueError(f"checkpoint is missing expected keys: {missing}")
+
     mismatched = {
         key: (tuple(state_dict[key].shape), shape)
         for key, shape in expected.items()

@@ -186,6 +186,7 @@ class FlexDmMultiHeadSelfAttention(nn.Module):
         super().__init__()
         if hidden_size % num_heads:
             raise ValueError("hidden_size must be divisible by num_heads")
+
         self.num_heads = num_heads
         self.head_dim = hidden_size // num_heads
         self.q_proj = nn.Linear(hidden_size, hidden_size)
@@ -289,8 +290,10 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
         super().__init__(config)
         if config.arch_type != "oneshot":
             raise ValueError("Only arch_type='oneshot' is supported")
+
         if config.block_type != "deepsvg":
             raise ValueError("Only block_type='deepsvg' is supported")
+
         self.encoder = FlexDmInputEncoder(config)
         self.blocks = nn.ModuleList(
             [FlexDmDeepSvgBlock(config) for _ in range(config.num_blocks)]

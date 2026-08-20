@@ -42,6 +42,7 @@ class LayoutDMDataModule(LightningDataModule):
     ) -> None:
         """Initialize datamodule settings."""
         super().__init__()
+
         self.dataset_name = dataset_name
         self.config = config
         self.batch_size = batch_size
@@ -53,9 +54,11 @@ class LayoutDMDataModule(LightningDataModule):
         self.dataset_source = dataset_source
         self.processed_data_dir = processed_data_dir
         self.train_transforms = tuple(train_transforms or ())
+
         unsupported = set(self.train_transforms) - {"RandomOrder"}
         if unsupported:
             raise ValueError(f"Unsupported LayoutDM train transforms: {unsupported}")
+
         self.tokenizer = LayoutDMTokenizer(self.config)
         self.train_dataset: (
             Dataset[dict[str, Shaped[torch.Tensor, "..."] | str]] | None
@@ -113,6 +116,7 @@ class LayoutDMDataModule(LightningDataModule):
                 raise ValueError(
                     "processed_data_dir is required when dataset_source='processed'"
                 )
+
             return LayoutDMProcessedDataset(
                 dataset_name=self.dataset_name,
                 split=split,
@@ -145,6 +149,7 @@ class LayoutDMDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, Shaped[torch.Tensor, "..."] | str]]:
         if dataset is None:
             raise RuntimeError("Dataset has not been initialized")
+
         return DataLoader(
             dataset,
             batch_size=self.batch_size,

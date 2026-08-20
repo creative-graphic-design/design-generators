@@ -138,6 +138,7 @@ class RalfConfig(PretrainedConfig):
             if id2label is None
             else {int(k): str(v) for k, v in id2label.items()}
         )
+
         self.dataset_name = dataset_name
         self.task = task
         self.id2label = labels
@@ -147,22 +148,26 @@ class RalfConfig(PretrainedConfig):
         self.special_tokens = tuple(special_tokens)
         self.geo_quantization = geo_quantization
         self.is_loc_vocab_shared = bool(is_loc_vocab_shared)
+
         self.d_model = int(d_model)
         self.decoder_d_model = int(decoder_d_model)
         self.encoder_layers = int(encoder_layers)
         self.decoder_layers = int(decoder_layers)
         self.num_attention_heads = int(num_attention_heads)
         self.dropout = float(dropout)
+
         self.retrieval_backbone = retrieval_backbone
         self.saliency_k = saliency_k
         self.top_k = int(top_k)
         self.use_reference_image = bool(use_reference_image)
         self.layout_backbone = layout_backbone
         self.freeze_layout_encoder = bool(freeze_layout_encoder)
+
         self.fusion = fusion
         self.use_flag_embedding = bool(use_flag_embedding)
         self.use_multitask = bool(use_multitask)
         self.global_task_embedding = bool(global_task_embedding)
+
         self.relation_size = int(relation_size)
         self.image_channels = int(image_channels)
         self.image_size = tuple(image_size) if image_size is not None else None
@@ -170,6 +175,7 @@ class RalfConfig(PretrainedConfig):
         self.retrieval_metadata = dict(retrieval_metadata or {})
         self.original_config = dict(original_config or original_hydra_config or {})
         self.original_hydra_config = self.original_config
+
         pad_token_id = self.special_token_id("pad")
         bos_token_id = self.special_token_id("bos")
         eos_token_id = self.special_token_id("eos")
@@ -179,6 +185,7 @@ class RalfConfig(PretrainedConfig):
         kwargs.pop("pad_token_id", None)
         kwargs.pop("bos_token_id", None)
         kwargs.pop("eos_token_id", None)
+
         super().__init__(
             id2label=self.id2label,
             label2id={label: idx for idx, label in self.id2label.items()},
@@ -218,6 +225,7 @@ class RalfConfig(PretrainedConfig):
         """
         if name not in self.special_tokens:
             raise ValueError(f"Unknown special token: {name}")
+
         return self.num_labels + self.num_bbox_tokens + self.special_tokens.index(name)
 
     def bbox_token_offset(self, key: RalfLayoutVariable) -> int:

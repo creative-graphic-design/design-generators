@@ -103,6 +103,7 @@ class LayoutDMProcessor(ProcessorMixin):
         """
         if return_tensors != "pt":
             raise ValueError("LayoutDMProcessor only supports return_tensors='pt'")
+
         bbox_t, labels_t, mask_t = prepare_layout_tensors(
             bbox=bbox,
             labels=labels,

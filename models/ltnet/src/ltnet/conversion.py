@@ -142,8 +142,10 @@ def convert_original_checkpoint(
         raise NotImplementedError(
             "Hub upload is intentionally not part of PR conversion"
         )
+
     if not strict:
         raise ValueError("LT-Net conversion requires strict=True")
+
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     vocab = _load_vocab(vocab_path)

@@ -70,6 +70,7 @@ class PosterLlavaImageProcessor(CLIPImageProcessor):
         """
         if image_aspect_ratio != "pad":
             raise ValueError("PosterLLaVA image preprocessing only supports pad")
+
         image_list = [images] if isinstance(images, Image.Image) else list(images)
         padded = [self.expand_to_square(image.convert("RGB")) for image in image_list]
         return cast(

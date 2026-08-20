@@ -93,6 +93,7 @@ class LayoutFlowDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, Shaped[torch.Tensor, ...] | str]]:
         if dataset is None:
             raise RuntimeError("Dataset has not been initialized")
+
         return DataLoader(
             dataset,
             batch_size=self.batch_size,

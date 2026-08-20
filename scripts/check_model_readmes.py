@@ -365,9 +365,11 @@ def _project_name(member_dir: Path) -> str:
     project = _project_metadata(member_dir)["project"]
     if not isinstance(project, dict):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+
     name = project.get("name")
     if not isinstance(name, str):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: project.name missing")
+
     return name
 
 
@@ -387,11 +389,13 @@ def _project_dependencies(member_dir: Path) -> list[str]:
     project = _project_metadata(member_dir)["project"]
     if not isinstance(project, dict):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
+
     dependencies = project.get("dependencies", [])
     if not isinstance(dependencies, list):
         raise AssertionError(
             f"{member_dir / 'pyproject.toml'}: project.dependencies must be a list"
         )
+
     return [dependency for dependency in dependencies if isinstance(dependency, str)]
 
 
@@ -440,6 +444,7 @@ def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
                 f"{member_dir / 'pyproject.toml'}: workspace dependency "
                 f"{dependency!r} is not a workspace member"
             )
+
         workspace_dependencies.append(
             (_dependency_direct_name(requirement), subdirectory)
         )
@@ -657,11 +662,13 @@ def _assert_pipeline_tag(path: Path, frontmatter: str) -> None:
         raise AssertionError(
             f"{path}: pipeline_tag must be 'other' for layout generation, got {pipeline_tag!r}"
         )
+
     bad_task = re.search(
         r'^\s+type:\s*["\']?text-to-image["\']?\s*$', frontmatter, re.MULTILINE
     )
     if bad_task:
         raise AssertionError(f"{path}: model-index task.type must not be text-to-image")
+
     task_types = re.findall(
         r'^\s+type:\s*["\']?([^"\'\n]+)["\']?\s*$', frontmatter, re.MULTILINE
     )
@@ -676,6 +683,7 @@ def _assert_model_index_policy(path: Path, frontmatter: str) -> None:
             raise AssertionError(
                 f"{path}: prompt-only README must not include model-index"
             )
+
         return
     if not has_model_index:
         raise AssertionError(f"{path}: weight-backed README must include model-index")
@@ -696,15 +704,18 @@ def _assert_heading_order(path: Path, text: str) -> None:
         ]
         if not matches:
             raise AssertionError(f"{path}: missing required heading {heading!r}")
+
         cursor = matches[0].start()
 
 
 def _assert_frontmatter(path: Path, text: str) -> None:
     if not text.startswith("---\n"):
         raise AssertionError(f"{path}: missing YAML frontmatter")
+
     end = text.find("\n---\n", 4)
     if end == -1:
         raise AssertionError(f"{path}: unterminated YAML frontmatter")
+
     frontmatter = _frontmatter(text)
     for key in ("language:", "license:", "library_name:", "pipeline_tag:", "tags:"):
         if key not in frontmatter:
@@ -716,6 +727,7 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
     expected = EXPECTED_FRONTMATTER.get(slug)
     if expected is None:
         raise AssertionError(f"{path}: no expected frontmatter contract for {slug}")
+
     frontmatter = _frontmatter(text)
     _assert_frontmatter_list_unique(path, frontmatter)
     _assert_pipeline_tag(path, frontmatter)
@@ -749,19 +761,23 @@ def _assert_runtime_contract(path: Path, text: str) -> None:
     tool = metadata.get("tool")
     if not isinstance(tool, dict):
         raise AssertionError(f"{path}: missing [tool]")
+
     design_generators = tool.get("design-generators")
     if not isinstance(design_generators, dict):
         raise AssertionError(f"{path}: missing [tool.design-generators]")
+
     pyproject_library = design_generators.get("framework")
     if not isinstance(pyproject_library, str):
         raise AssertionError(
             f"{path}: tool.design-generators.framework must be a string"
         )
+
     base_badges = _badge_messages(text, "base")
     if len(base_badges) != 1:
         raise AssertionError(
             f"{path}: expected exactly one base badge, found {base_badges}"
         )
+
     base_library = base_badges[0]
     values = {
         "frontmatter library_name": frontmatter_library,
@@ -789,12 +805,14 @@ def _assert_model_summary_subject(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: first prose line must use package subject, got {stripped!r}"
             )
+
         if re.search(
             rf"^{re.escape(model_name)}\s+(ports|wraps|implements)\b", stripped
         ):
             raise AssertionError(
                 f"{path}: method name must not be the subject of {model_name} summary"
             )
+
         break
 
 
@@ -817,6 +835,7 @@ def _assert_prompt_only_readme(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: prompt-only README contains stale model-package phrase {phrase!r}"
             )
+
     if "convert checkpoints" in text.lower():
         raise AssertionError(
             f"{path}: prompt-only README must not mention converting checkpoints"
@@ -828,6 +847,7 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
     section = _section(text, "## How to Get Started with the Model")
     if "<<'PY'" in section or '<<"PY"' in section:
         raise AssertionError(f"{path}: Get Started must not use heredoc examples")
+
     if path.parent.name in PROMPT_ONLY_SLUGS:
         required = [
             "git clone https://github.com/creative-graphic-design/design-generators.git",
@@ -839,6 +859,7 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: prompt-only Get Started is missing runnable setup parts {missing}"
             )
+
         return
     if "creative-graphic-design/" not in supported or "not-published" not in supported:
         return
@@ -860,6 +881,7 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
 def _assert_code_fences_tagged(path: Path, text: str) -> None:
     if re.search(r"<<['\"]?(PY|EOF)['\"]?", text):
         raise AssertionError(f"{path}: heredoc examples are not allowed")
+
     in_fence = False
     for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.startswith("```"):
@@ -870,6 +892,7 @@ def _assert_code_fences_tagged(path: Path, text: str) -> None:
         info = line[3:].strip()
         if info == "":
             raise AssertionError(f"{path}: untagged code fence at line {lineno}")
+
         in_fence = True
     if in_fence:
         raise AssertionError(f"{path}: unterminated code fence")
@@ -887,6 +910,7 @@ def _assert_lib_readme_install_contract(path: Path, text: str) -> None:
         raise AssertionError(
             f"{path}: Install must include pip direct-reference subdirectory form"
         )
+
     if f"uv sync --package {package}" not in install:
         raise AssertionError(f"{path}: Install must include workspace uv sync form")
 
@@ -895,6 +919,7 @@ def _assert_parity_table(path: Path, text: str) -> None:
     section = _section(text, "### Parity Results")
     if "| ---" not in section:
         raise AssertionError(f"{path}: Parity Results must contain a markdown table")
+
     rows = [
         line
         for line in section.splitlines()
@@ -903,6 +928,7 @@ def _assert_parity_table(path: Path, text: str) -> None:
     data_rows = rows[1:]
     if not data_rows:
         raise AssertionError(f"{path}: Parity Results table has no data rows")
+
     if not any(re.search(r"\d", row) for row in data_rows):
         raise AssertionError(
             f"{path}: Parity Results table must contain numeric evidence"
@@ -962,6 +988,7 @@ def _assert_arxiv_bibtex_fields(path: Path, fields: dict[str, str]) -> set[str]:
         raise AssertionError(
             f"{path}: Citation arXiv BibTeX is missing required field eprint"
         )
+
     if not has_eprint:
         return citation_ids
 
@@ -971,22 +998,27 @@ def _assert_arxiv_bibtex_fields(path: Path, fields: dict[str, str]) -> set[str]:
         raise AssertionError(
             f"{path}: Citation arXiv BibTeX is missing required fields {missing}"
         )
+
     if fields["archiveprefix"].lower() != "arxiv":
         raise AssertionError(
             f"{path}: Citation archivePrefix must be arXiv for eprint entries"
         )
+
     eprint_match = ARXIV_ID_RE.search(fields["eprint"])
     if eprint_match is None:
         raise AssertionError(f"{path}: Citation eprint must contain an arXiv id")
+
     eprint_id = _normalize_arxiv_id(eprint_match.group(0))
     url_match = ARXIV_URL_RE.search(fields["url"])
     if url_match is None:
         raise AssertionError(f"{path}: Citation url must be an arXiv abs URL")
+
     url_id = _normalize_arxiv_id(url_match.group(1))
     if eprint_id != url_id:
         raise AssertionError(
             f"{path}: Citation eprint {eprint_id} does not match url {url_id}"
         )
+
     return citation_ids | {eprint_id, url_id}
 
 
@@ -996,6 +1028,7 @@ def _assert_citation_bibtex(path: Path, text: str) -> None:
     # requirement; README normalization must preserve citation metadata.
     if "```bibtex" not in section:
         raise AssertionError(f"{path}: Citation must contain a bibtex code fence")
+
     body = _without_frontmatter_and_code(text.replace(section, "", 1))
     body_arxiv_ids = _arxiv_ids(body)
     citation_arxiv_ids: set[str] = set()
@@ -1031,6 +1064,7 @@ def _assert_vendor_parity_badge(path: Path, text: str) -> None:
     badge = re.search(r"!\[vendor-parity\]\([^)]*[?&]message=([^&)]*)", text)
     if badge is None:
         raise AssertionError(f"{path}: missing vendor-parity badge")
+
     expected = (
         "not-run"
         if "not run" in section
@@ -1064,6 +1098,7 @@ def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
         raise AssertionError(
             f"{path}: Reproducibility must link REPRODUCING.md as {repo_root_link} or {absolute_link}"
         )
+
     if "uv run --package " in section or "```" in section:
         raise AssertionError(
             f"{path}: README Reproducibility must be a short link, not a walkthrough"
@@ -1073,6 +1108,7 @@ def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
 def _assert_reproducing_commands(path: Path, text: str) -> None:
     if "uv run --package " not in text:
         raise AssertionError(f"{path}: REPRODUCING.md must contain uv package commands")
+
     lower = text.lower()
     bad_command_shapes = ["python scripts/", "cd models/", "../.cache", "/tmp/"]
     for bad in bad_command_shapes:
@@ -1080,6 +1116,7 @@ def _assert_reproducing_commands(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: stale reproducibility command shape contains {bad!r}"
             )
+
     required_terms: list[str | tuple[str, ...]] = [
         "Workflow order:",
         "download",
@@ -1099,6 +1136,7 @@ def _assert_reproducing_commands(path: Path, text: str) -> None:
         position = max(lower.find(alternative.lower()) for alternative in alternatives)
         if position == -1:
             raise AssertionError(f"{path}: missing reproducibility step {term!r}")
+
     if path.parent.name in {"coarse-to-fine", "layoutganpp"}:
         expected = (
             "Workflow order: download assets, generate references, convert checkpoints, "
@@ -1129,6 +1167,7 @@ def _root_packages_table_lines(text: str) -> list[str]:
     )
     if table_start is None:
         raise AssertionError("root README missing Models table")
+
     table_lines: list[str] = []
     for line in lines[table_start:]:
         if not line.startswith("|"):
@@ -1148,6 +1187,7 @@ def _split_markdown_table_row(line: str) -> list[str]:
     stripped = line.strip()
     if not stripped.startswith("|") or not stripped.endswith("|"):
         raise AssertionError(f"malformed markdown table row: {line}")
+
     return [cell.strip() for cell in stripped.strip("|").split("|")]
 
 
@@ -1213,6 +1253,7 @@ def _static_badge_colors(cell: str, label: str) -> list[str]:
         query = parse_qs(urlparse(match.group(2)).query)
         if "color" not in query:
             raise AssertionError(f"badge missing color: {match.group(0)}")
+
         colors.append(query["color"][0])
     return colors
 
@@ -1248,11 +1289,13 @@ def _assert_root_reproduction_cells(
             raise AssertionError(
                 f"{path}: package {slug} must use one linked training reproduction badge"
             )
+
         return
     if training_badges:
         raise AssertionError(
             f"{path}: package {slug} without TRAINING.md must not link training badge"
         )
+
     if training_messages != ["n/a"]:
         raise AssertionError(
             f"{path}: package {slug} without TRAINING.md must use training n/a badge"
@@ -1279,11 +1322,13 @@ def _root_model_slugs(path: Path) -> set[str]:
         raise AssertionError(
             f"{path}: Models table must use {', '.join(ROOT_MODEL_TABLE_HEADER)}"
         )
+
     slugs: set[str] = set()
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
         if len(cells) != len(ROOT_MODEL_TABLE_HEADER):
             raise AssertionError(f"{path}: malformed Models table row: {line}")
+
         (
             method_cell,
             venue_cell,
@@ -1295,6 +1340,7 @@ def _root_model_slugs(path: Path) -> set[str]:
             raise AssertionError(
                 f"{path}: Model cell must be a `Model` markdown link: {line}"
             )
+
         model_name = model_link.group(1)
         normalized_model_link = _normalize_root_repo_link(model_link.group(2))
         slug_match = re.fullmatch(r"models/([^/)]+)/README\.md", normalized_model_link)
@@ -1302,16 +1348,19 @@ def _root_model_slugs(path: Path) -> set[str]:
             raise AssertionError(
                 f"{path}: Model cell must link models/<slug>/README.md: {line}"
             )
+
         slug = slug_match.group(1)
         expected_name = EXPECTED_MODEL_NAMES.get(slug)
         if expected_name is not None and model_name != expected_name:
             raise AssertionError(
                 f"{path}: model link text {model_name!r} != {expected_name!r}"
             )
+
         if len(_static_badge_messages(venue_cell, "venue")) != 1:
             raise AssertionError(
                 f"{path}: Models table Venue cell must contain exactly one venue badge: {line}"
             )
+
         if (
             "documented" in checkpoint_cell.lower()
             or "documented" in training_cell.lower()
@@ -1319,6 +1368,7 @@ def _root_model_slugs(path: Path) -> set[str]:
             raise AssertionError(
                 f"{path}: Models table reproduction cells must not use status wording"
             )
+
         _assert_root_reproduction_cells(path, slug, checkpoint_cell, training_cell)
         slugs.add(slug)
     return slugs
@@ -1334,17 +1384,20 @@ def _assert_root_libraries_table_matches_members(path: Path) -> None:
         raise AssertionError(
             f"{path}: Libraries table must use Library and Description"
         )
+
     root_slugs: set[str] = set()
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
         if len(cells) != 2:
             raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+
         library_cell, description_cell = cells
         library_badge = _linked_static_badge(library_cell, "library")
         if library_badge is None:
             raise AssertionError(
                 f"{path}: Library cell must be a linked library badge: {line}"
             )
+
         label, library_link = library_badge
         normalized_library_link = _normalize_root_repo_link(library_link)
         slug_match = re.fullmatch(r"lib/([^/)]+)/README\.md", normalized_library_link)
@@ -1352,21 +1405,26 @@ def _assert_root_libraries_table_matches_members(path: Path) -> None:
             raise AssertionError(
                 f"{path}: Library cell must link lib/<slug>/README.md: {line}"
             )
+
         slug = slug_match.group(1)
         if label != slug:
             raise AssertionError(
                 f"{path}: Library badge message {label!r} must match {slug!r}"
             )
+
         expected_color = ROOT_LIBRARY_BADGE_COLORS.get(slug)
         if expected_color is None:
             raise AssertionError(f"{path}: no library badge color for {slug!r}")
+
         library_colors = _static_badge_colors(library_cell, "library")
         if library_colors != [expected_color]:
             raise AssertionError(
                 f"{path}: Library {slug} badge color {library_colors} != {expected_color!r}"
             )
+
         if not description_cell:
             raise AssertionError(f"{path}: Library {slug} must have a description")
+
         root_slugs.add(slug)
     member_slugs = _library_member_slugs()
     missing = sorted(member_slugs - root_slugs)
@@ -1415,6 +1473,7 @@ def _assert_generated_docs_targets_match_members() -> None:
     spec = importlib.util.spec_from_file_location("gen_ref_pages", script_path)
     if spec is None or spec.loader is None:
         raise AssertionError(f"cannot load {script_path}")
+
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -1464,19 +1523,25 @@ def _assert_library_name_style(path: Path) -> None:
             raise AssertionError(
                 f"{path}: use {replacement} instead of prose library name {name!r}"
             )
+
     huggingface_mentions = re.findall(r"`🤗transformers`", text)
     if text.count("🤗") != len(huggingface_mentions):
         raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
+
     diffusers_mentions = re.findall(r"`🧨diffusers`", text)
     if text.count("🧨") != len(diffusers_mentions):
         raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
+
     pydantic_ai_mentions = re.findall(r"`🤖pydantic-ai`", text)
     if text.count("🤖") != len(pydantic_ai_mentions):
         raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
+
     if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+
     if re.search(r"🤗\s+pydantic-ai", text):
         raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+
     required_code_spans = {
         "transformers": "`🤗transformers`",
         "diffusers": "`🧨diffusers`",
@@ -1496,11 +1561,13 @@ def _assert_library_name_style(path: Path) -> None:
 
 def check() -> None:
     _assert_model_doc_sets()
+
     root_slugs = _root_model_slugs(REPO_ROOT / "README.md")
     _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
     _assert_root_models_table_matches_members(root_slugs)
     _assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
     _assert_generated_docs_targets_match_members()
+
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
         _assert_frontmatter(path, text)
@@ -1509,6 +1576,7 @@ def check() -> None:
         _assert_heading_order(path, text)
         _assert_model_pip_install_snippet(path, text)
         _assert_model_summary_subject(path, text)
+
         _assert_expected_repository_links(path, text)
         _assert_prompt_only_readme(path, text)
         _assert_unpublished_hub_get_started_note(path, text)
@@ -1518,11 +1586,13 @@ def check() -> None:
         _assert_vendor_parity_badge(path, text)
         _assert_readme_reproducibility_link(path, text)
         _assert_banned_patterns(path, text)
+
     for path in MODEL_REPRODUCING:
         text = path.read_text(encoding="utf-8")
         _assert_code_fences_tagged(path, text)
         _assert_reproducing_commands(path, text)
         _assert_banned_patterns(path, text)
+
     for path in README_LINK_CONTRACTS:
         _assert_linked_first_reference_policy(path)
         _assert_library_name_style(path)

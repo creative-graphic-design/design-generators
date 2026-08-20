@@ -64,18 +64,22 @@ def normalize_corrector_core_options(
         normalized_recon_type = CorrectorReconType(recon_type)
     except ValueError as exc:
         raise ValueError(f"Unsupported recon_type: {recon_type}") from exc
+
     try:
         normalized_target = CorrectorTarget(target)
     except ValueError as exc:
         raise ValueError(f"Unsupported target: {target}") from exc
+
     try:
         normalized_transformer_type = CorrectorTransformerType(transformer_type)
     except ValueError as exc:
         raise ValueError("Only transformer_type='aggregated' is supported") from exc
+
     try:
         normalized_pos_emb = CorrectorPositionEmbedding(pos_emb)
     except ValueError as exc:
         raise ValueError(f"Unsupported pos_emb: {pos_emb}") from exc
+
     return (
         normalized_recon_type,
         normalized_target,
@@ -208,16 +212,21 @@ class LayoutCorrectorConfig(ConfigMixin):
         except ValueError:
             if id2label is None:
                 raise
+
             dataset_name = str(dataset_name)
         self.register_to_config(dataset_name=dataset_name)
         if vocab_size <= 0:
             raise ValueError("vocab_size must be positive")
+
         if max_seq_length <= 0:
             raise ValueError("max_seq_length must be positive")
+
         if num_attributes_per_element != 5:
             raise ValueError("Layout-Corrector supports 5 attributes per element")
+
         if num_timesteps <= 0:
             raise ValueError("num_timesteps must be positive")
+
         recon_type, target, transformer_type, pos_emb = (
             normalize_corrector_core_options(
                 recon_type,
@@ -228,16 +237,20 @@ class LayoutCorrectorConfig(ConfigMixin):
         )
         if len(attr_loss_weights) != num_attributes_per_element:
             raise ValueError("attr_loss_weights must match num_attributes_per_element")
+
         if corrector_steps <= 0:
             raise ValueError("corrector_steps must be positive")
+
         try:
             corrector_mask_mode = normalize_corrector_mask_mode(corrector_mask_mode)
         except ValueError as exc:
             raise ValueError(
                 f"Unsupported corrector_mask_mode: {corrector_mask_mode}"
             ) from exc
+
         if not 0.0 <= corrector_mask_threshold <= 1.0:
             raise ValueError("corrector_mask_threshold must be in [0, 1]")
+
         self.register_to_config(
             dataset_name=dataset_name,
             recon_type=str(recon_type),
@@ -260,12 +273,14 @@ class LayoutCorrectorConfig(ConfigMixin):
         self.dropout = dropout
         self.timestep_type = timestep_type
         self.num_timesteps = num_timesteps
+
         self.recon_type = str(recon_type)
         self.target = str(target)
         self.attr_loss_weights = tuple(float(v) for v in attr_loss_weights)
         self.use_padding_as_vocab = use_padding_as_vocab
         self.pos_emb = str(pos_emb)
         self.transformer_type = str(transformer_type)
+
         self.corrector_steps = corrector_steps
         self.corrector_t_list = tuple(int(v) for v in corrector_t_list)
         self.corrector_mask_mode = str(corrector_mask_mode)

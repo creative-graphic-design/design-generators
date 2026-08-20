@@ -138,12 +138,14 @@ class LayoutFIDProcessor(ProcessorMixin):
             or int(model_labels[mask_t].max()) >= self.config.num_label_embeddings
         ):
             raise ValueError("labels after label_id_offset exceed embedding table")
+
         normalized_id2label = self._normalize_id2label(id2label)
         if (
             normalized_id2label is not None
             and normalized_id2label != self.config.id2label
         ):
             raise ValueError("id2label does not match the evaluator config")
+
         return LayoutFIDBatch(
             bbox=model_bbox * mask_t.unsqueeze(-1),
             labels=model_labels,
