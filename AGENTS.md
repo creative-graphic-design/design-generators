@@ -65,6 +65,8 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
   duplicate validation LightningCLI/jsonargparse already performs. Classes
   bound by framework constructor contracts (`PretrainedConfig`,
   `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
+- Prefer guard clauses: return or raise early for simple or invalid cases so
+  the main path reads at minimal nesting; do not build tail-return pyramids.
 
 ## Repo-Local Skills
 
