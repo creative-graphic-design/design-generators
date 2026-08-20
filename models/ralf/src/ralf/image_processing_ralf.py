@@ -23,6 +23,7 @@ def _as_list(value: ImageInput | Sequence[ImageInput]) -> list[ImageInput]:
         value, (Image.Image, np.ndarray, torch.Tensor)
     ):
         return list(value)
+
     return [value]  # type: ignore[list-item]
 
 
@@ -41,14 +42,18 @@ def _image_to_tensor(
 
     if tensor.ndim == 2:
         tensor = tensor.unsqueeze(-1)
+
     if tensor.ndim == 3 and tensor.shape[0] in {1, 3, 4}:
         tensor = tensor.permute(1, 2, 0)
+
     tensor = tensor.float()
     if tensor.max() > 1:
         tensor = tensor / 255.0
+
     if tensor.shape[-1] < channels:
         repeats = channels - tensor.shape[-1]
         tensor = torch.cat([tensor, tensor[..., -1:].repeat(1, 1, repeats)], dim=-1)
+
     tensor = tensor[..., :channels]
     return tensor.permute(2, 0, 1).contiguous()
 
@@ -115,6 +120,7 @@ class RalfImageProcessor(BaseImageProcessor):
                 mode="bilinear",
                 align_corners=False,
             )
+
         if saliency is None:
             saliency_values = torch.zeros(
                 pixel_values.size(0),
@@ -127,6 +133,7 @@ class RalfImageProcessor(BaseImageProcessor):
             saliency_items = _as_list(saliency)
             if len(saliency_items) == 1 and pixel_values.size(0) > 1:
                 saliency_items = saliency_items * pixel_values.size(0)
+
             saliency_values = torch.stack(
                 [_image_to_tensor(item, channels=1) for item in saliency_items]
             )
@@ -137,6 +144,7 @@ class RalfImageProcessor(BaseImageProcessor):
                     mode="bilinear",
                     align_corners=False,
                 )
+
         return BatchFeature(
             {"pixel_values": pixel_values, "saliency": saliency_values},
             tensor_type=return_tensors,

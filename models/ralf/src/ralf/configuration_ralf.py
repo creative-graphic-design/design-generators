@@ -232,6 +232,8 @@ class RalfConfig(PretrainedConfig):
         """Return the first token id for a geometry variable."""
         if key == "label":
             return 0
+
         if self.is_loc_vocab_shared:
             return self.num_labels
+
         return self.num_labels + GEOMETRY_KEYS.index(key) * self.num_bin

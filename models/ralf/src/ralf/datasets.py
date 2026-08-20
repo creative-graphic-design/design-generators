@@ -56,8 +56,10 @@ def _remap_retrieval_labels(
 ) -> Int[torch.Tensor, "elements"]:
     if dataset is not DatasetName.pku_posterlayout:
         return labels
+
     if labels.numel() == 0:
         return labels
+
     return PKU_ORG_TO_CHECKPOINT_LABEL_ID[labels.clamp(0, 2)]
 
 
@@ -66,12 +68,14 @@ def _labels_to_tensor(
 ) -> Int[torch.Tensor, "elements"]:
     if isinstance(labels, torch.Tensor):
         return labels.long()
+
     values = list(labels)
     if values and isinstance(values[0], str):
         label2id = RALF_STYLE_LABEL2ID[dataset]
         return torch.tensor(
             [label2id[str(value)] for value in values], dtype=torch.long
         )
+
     return torch.as_tensor(labels, dtype=torch.long)
 
 
@@ -110,12 +114,14 @@ def normalize_org_sample(
             "labels": labels,
             "mask": torch.ones(labels.shape, dtype=torch.bool),
         }
+
     if dataset in {DatasetName.cgl, DatasetName.cgl_v2}:
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("bbox", []), dtype=torch.float32)
         if bbox.numel() == 0:
             bbox = bbox.reshape(0, 4)
+
         labels = torch.as_tensor(annotations.get("category", []), dtype=torch.long)
         width_obj = sample.get("width", 1)
         height_obj = sample.get("height", 1)
@@ -128,12 +134,14 @@ def normalize_org_sample(
             "labels": labels,
             "mask": torch.ones(labels.shape, dtype=torch.bool),
         }
+
     if dataset is DatasetName.pku_posterlayout:
         annotations_obj = sample.get("annotations", {})
         annotations = annotations_obj if isinstance(annotations_obj, Mapping) else {}
         bbox = torch.as_tensor(annotations.get("box_elem", []), dtype=torch.float32)
         if bbox.numel() == 0:
             bbox = bbox.reshape(0, 4)
+
         labels = torch.as_tensor(annotations.get("cls_elem", []), dtype=torch.long)
         valid = labels.ne(3)
         size = sample.get("poster") or sample.get("canvas") or sample.get("image")
@@ -145,6 +153,7 @@ def normalize_org_sample(
             "labels": labels[valid],
             "mask": torch.ones(int(valid.sum()), dtype=torch.bool),
         }
+
     raise ValueError(f"Unsupported RALF dataset: {dataset_name}")
 
 
@@ -185,6 +194,7 @@ def load_ralf_dataset(
                 "creative-graphic-design/CGL-Dataset", name="ralf-style", split=split
             ),
         )
+
     if dataset is DatasetName.cgl_v2:
         return cast(
             _IndexableDataset,
@@ -192,6 +202,7 @@ def load_ralf_dataset(
                 "creative-graphic-design/CGL-Dataset-v2", name="ralf-style", split=split
             ),
         )
+
     if dataset is DatasetName.pku_posterlayout:
         return cast(
             _IndexableDataset,
@@ -201,6 +212,7 @@ def load_ralf_dataset(
                 split=split,
             ),
         )
+
     raise ValueError(f"Unsupported RALF dataset: {dataset_name}")
 
 
@@ -256,6 +268,7 @@ def build_retrieved_batch(
         bbox_rows.append(torch.stack(bbox_candidates))
         label_rows.append(torch.stack(label_candidates))
         mask_rows.append(torch.stack(mask_candidates))
+
     bbox_tensor = torch.stack(bbox_rows)
     labels_tensor = torch.stack(label_rows)
     mask_tensor = torch.stack(mask_rows)
