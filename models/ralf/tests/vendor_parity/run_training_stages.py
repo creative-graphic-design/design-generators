@@ -1726,6 +1726,18 @@ def _run_s3_fit(
     return trace
 
 
+def _natural_metric_entries(value: object) -> list[Mapping[str, object]]:
+    """Normalize one trajectory metric to its per-optimizer entry list.
+
+    Recorded traces store the loss as one mapping but store each gradient
+    norm as a list with one entry per tracked optimizer.
+    """
+    if isinstance(value, list):
+        return cast(list[Mapping[str, object]], value)
+
+    return [cast(Mapping[str, object], value)]
+
+
 def _natural_run_envelope(
     first: Mapping[str, object], second: Mapping[str, object]
 ) -> _NaturalEnvelope:
@@ -1753,14 +1765,23 @@ def _natural_run_envelope(
                 f"second={second_step_number}"
             )
         for metric in max_abs:
-            first_values = cast(Mapping[str, object], first_step[metric])
-            second_values = cast(Mapping[str, object], second_step[metric])
-            for side in ("package", "vendor"):
-                first_value = float(cast(float, first_values[side]))
-                second_value = float(cast(float, second_values[side]))
-                max_abs[metric][side] = max(
-                    max_abs[metric][side], abs(first_value - second_value)
+            first_entries = _natural_metric_entries(first_step[metric])
+            second_entries = _natural_metric_entries(second_step[metric])
+            if len(first_entries) != len(second_entries):
+                raise RuntimeError(
+                    f"first divergence at S3.natural_{metric}_entry_count; "
+                    f"first={len(first_entries)}; second={len(second_entries)}"
                 )
+
+            for first_values, second_values in zip(
+                first_entries, second_entries, strict=True
+            ):
+                for side in ("package", "vendor"):
+                    first_value = float(cast(float, first_values[side]))
+                    second_value = float(cast(float, second_values[side]))
+                    max_abs[metric][side] = max(
+                        max_abs[metric][side], abs(first_value - second_value)
+                    )
         if first_step["package_state_sha256"] != second_step["package_state_sha256"]:
             first_hash_divergence = (
                 step if first_hash_divergence is None else first_hash_divergence

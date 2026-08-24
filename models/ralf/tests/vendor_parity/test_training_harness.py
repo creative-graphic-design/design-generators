@@ -98,13 +98,15 @@ def test_state_comparison_can_record_natural_drift_without_hiding_it() -> None:
 
 
 def test_natural_run_envelope_reports_run_to_run_drift() -> None:
+    # Recorded traces store the loss as one mapping but store each gradient
+    # norm as a list with one entry per tracked optimizer.
     first = {
         "trajectory": [
             {
                 "global_step": 1,
                 "loss": {"package": 2.0, "vendor": 2.1},
-                "raw_gradient_norm": {"package": 3.0, "vendor": 3.1},
-                "clipped_gradient_norm": {"package": 0.5, "vendor": 0.6},
+                "raw_gradient_norm": [{"package": 3.0, "vendor": 3.1}],
+                "clipped_gradient_norm": [{"package": 0.5, "vendor": 0.6}],
                 "package_state_sha256": "a",
             }
         ]
@@ -114,8 +116,8 @@ def test_natural_run_envelope_reports_run_to_run_drift() -> None:
             {
                 "global_step": 1,
                 "loss": {"package": 2.25, "vendor": 2.2},
-                "raw_gradient_norm": {"package": 3.5, "vendor": 3.3},
-                "clipped_gradient_norm": {"package": 0.75, "vendor": 0.8},
+                "raw_gradient_norm": [{"package": 3.5, "vendor": 3.3}],
+                "clipped_gradient_norm": [{"package": 0.75, "vendor": 0.8}],
                 "package_state_sha256": "b",
             }
         ]
@@ -134,6 +136,24 @@ def test_natural_run_envelope_reports_run_to_run_drift() -> None:
     assert max_abs_diff["clipped_gradient_norm"]["vendor"] == pytest.approx(0.2)
     assert result["first_package_state_hash_divergence_step"] == 1
     assert result["package_state_hashes_equal"] is False
+
+
+def test_natural_run_envelope_rejects_optimizer_entry_count_mismatch() -> None:
+    step = {
+        "global_step": 1,
+        "loss": {"package": 2.0, "vendor": 2.0},
+        "raw_gradient_norm": [{"package": 3.0, "vendor": 3.0}],
+        "clipped_gradient_norm": [{"package": 0.5, "vendor": 0.5}],
+        "package_state_sha256": "a",
+    }
+    second_step = dict(step)
+    second_step["raw_gradient_norm"] = [
+        {"package": 3.0, "vendor": 3.0},
+        {"package": 1.0, "vendor": 1.0},
+    ]
+
+    with pytest.raises(RuntimeError, match="raw_gradient_norm"):
+        _natural_run_envelope({"trajectory": [step]}, {"trajectory": [second_step]})
 
 
 def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> None:
