@@ -17,3 +17,14 @@ wheels/
 .cache/
 models/*/tests/vendor_parity/fixtures/
 .pytest_cache/
+
+# Training and evaluation output that tools write to the working directory
+# instead of `.cache/`. Anchored to the repository root: a nested `tmp/` or
+# `outputs/` can be a real source directory, a top-level one cannot.
+/wandb/
+/lightning_logs/
+/outputs/
+/multirun/
+/.hydra/
+/tmp/
+/coverage-reports/
