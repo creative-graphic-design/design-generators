@@ -78,7 +78,10 @@ def _as_image(
     elif isinstance(value, Image.Image):
         image = to_tensor(value)
     else:
-        image = torch.zeros(channels, 64, 64)
+        raise TypeError(
+            "expected a tensor or PIL image for an image column, got "
+            f"{type(value).__name__}"
+        )
 
     if image.size(0) != channels:
         if channels == 1:
@@ -460,19 +463,25 @@ class RalfDataModule(LightningDataModule):
     def _load_retrieval_table(
         self, split: str, *, validation: bool = False
     ) -> RalfRetrievalTable:
-        path = (
-            self.validation_retrieval_index_path
-            if validation and self.validation_retrieval_index_path is not None
-            else self.retrieval_index_path
-        )
-        if path is None:
-            raise ValueError("retrieval_index_path is required for RALF training")
+        if validation:
+            path = self.validation_retrieval_index_path
+            if path is None:
+                raise ValueError(
+                    "validation_retrieval_index_path is required for the "
+                    f"{split} retrieval table; the training table would pair "
+                    "validation samples with the wrong neighbors"
+                )
+        else:
+            path = self.retrieval_index_path
+            if path is None:
+                raise ValueError(
+                    f"retrieval_index_path is required for the {split} retrieval table"
+                )
 
         payload = torch.load(path, map_location="cpu", weights_only=False)
         if not isinstance(payload, Mapping):
             raise TypeError(f"retrieval index at {path} is not a mapping")
 
-        _ = split
         return RalfRetrievalTable(
             cast(Mapping[int | str, Sequence[int]], payload), self.config.top_k
         )

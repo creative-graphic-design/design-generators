@@ -121,10 +121,11 @@ def test_training_image_normalization_and_channel_adaptation() -> None:
 
     expanded = _as_image(torch.ones(1, 2, 2), channels=3)
     truncated = _as_image(torch.ones(4, 2, 2), channels=3)
-    fallback = _as_image("not-an-image", channels=2)
     assert expanded.shape == (3, 2, 2)
     assert truncated.shape == (3, 2, 2)
-    assert fallback.shape == (2, 64, 64)
+
+    with pytest.raises(TypeError, match="tensor or PIL image"):
+        _as_image("not-an-image", channels=2)
 
     with pytest.raises(ValueError, match="2 or 3 dimensions"):
         _as_image(torch.ones(1, 2, 2, 2), channels=1)

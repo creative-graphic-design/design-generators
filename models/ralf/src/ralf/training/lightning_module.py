@@ -208,9 +208,16 @@ class RalfTrainingModule(LightningModule):
         gradient_clip_val: float | None = None,
         gradient_clip_algorithm: str | None = None,
     ) -> None:
-        """Apply the fixed norm clip used by the training configuration."""
+        """Apply the fixed norm clip used by the training configuration.
+
+        The original implementation clips only when the configured norm is
+        positive, so a non-positive value disables clipping instead of
+        multiplying every gradient by zero.
+        """
         del optimizer, gradient_clip_val, gradient_clip_algorithm
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_max_norm)
+        if self.clip_max_norm > 0:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_max_norm)
+
         trace_hook = getattr(self, "_gradient_trace_hook", None)
         if trace_hook is not None:
             trace_hook.on_package_gradients_clipped(self)

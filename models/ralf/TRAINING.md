@@ -8,11 +8,13 @@ tags:
 
 # RALF Training
 
-CGL's vendor-effective recipe is 30 epochs, not 70. The corrected S0 rerun and
-the corrected S3 redo both pass on one Tesla V100-SXM2-32GB with scheduler
-milestone 21. The prior 70-epoch S0 and S3 records remain invalidated; S1/S2
-diagnostics and S4 loader evidence remain retained at `training-seed n=1`, and
-S5 has not run. PKU loader and full-run reproduction are not claimed.
+CGL's vendor-effective recipe is 30 epochs, not 70; the prior 70-epoch S0 and
+S3 records remain invalidated. The CGL unconditional recipe is reproduced end
+to end: the staged checks pass on one Tesla V100-SXM2-32GB with scheduler
+milestone 21, three package/vendor seed pairs trained to 30 epochs score
+inside each other's range on all fifteen original-evaluator metrics, and the
+coordinator's independent gated rerun reports 28 passed, 0 failed, 0 skipped.
+PKU and the other CGL conditions carry no training-reproduction claim.
 
 Here, S0 is static configuration/state, S1 is a fixed-batch pre-optimizer
 trace, S2 is one optimizer step, S3 is production multi-batch training, S4 is
@@ -75,9 +77,9 @@ The package training path uses `RalfTrainingModule` and `RalfDataModule`
 through the member-scoped `traingen fit` construction. The recipe uses AdamW,
 weight decay `1e-4`, gradient clipping at `0.1`, batch size `32`, and
 `accumulate_grad_batches=1`, so every batch reaches the optimizer directly.
-CGL uses the vendor-effective 30-epoch recipe,
-with three train batches and two validation batches per epoch in the planned
-production control.
+CGL uses the vendor-effective 30-epoch recipe. The S3 diagnostic limits each
+epoch to three train batches and two validation batches; production training
+consumes the full loader.
 
 CGL effectively uses 30 epochs, not the vendor base value of 50. This schedule
 is established by
@@ -97,8 +99,10 @@ state on the supported runtime.
 
 ## Seed Policy
 
-CGL uses seed `1` on one selected Tesla V100-SXM2-32GB for the staged checks.
-The staged records are diagnostic evidence, not S5 training-seed evidence.
+The staged checks (S0-S4) use seed `1` on one selected Tesla V100-SXM2-32GB
+and are diagnostic evidence only. The S5 claim rests on its own seed scope:
+training seeds 1-3 on both systems, evaluated under the original protocol
+whose inference samples with the run configuration's evaluation seed.
 
 ## Validation Stages
 
@@ -120,7 +124,7 @@ The staged records are diagnostic evidence, not S5 training-seed evidence.
 | S2    | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json --steps 1 --batch-size 32 --seed 1`                                                                                                             | `.cache/ralf/training-reproduction/cgl/s2-after-loader-order-002/s2.json`     | One-step gradient/optimizer evidence retained as an isolated diagnostic within the existing contract; the artifact SHA-256 is recorded in its evidence manifest.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | S3    | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU to one selected V100}" RALF_S3_OUTPUT=.cache/ralf/training-reproduction/cgl/s3/runs/after-blank-lines-005/s3.json PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S3 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output "$RALF_S3_OUTPUT" --batch-size 4 --seed 1` | `.cache/ralf/training-reproduction/cgl/s3/runs/after-blank-lines-005/s3.json` | Bounded numerical PASS at 30 epochs; artifact SHA-256 `82a20f880c01614e27c3cbda41ded83d46f981b0f18dbc83a4a151edc059ad42`. The natural layer leaves the S0-S2 contract at the first raw-gradient comparison (`epoch[0].batch[1]`, conv1 weight, max abs diff about `2e-6`), so the synchronized layer establishes the bounded PASS with 90/90 lockstep steps and `first_divergence=null`. Natural fits use batch size 4 because batch-32 natural fits peak at 31.0 GiB against the 31.73 GiB V100 ceiling; the batch-32 synchronized surface is covered by the 300-step lockstep probe below. Earlier per-run trace SHA-256 values are retained: `878c76d2fb1872d0cf6fd981fbd4d46f767062c22d9665da79e57734793bacf1` (run-016 natural), `f059356d9c3a32c5acf2a8f472e0388cb2bc43ec94ae5c35601afddb1f7569f9` (run-017 natural), and `09ffe676ffab5252e31812fccbeac8095711124e3f15f0ec13086a2f656f617c` (run-018 synchronized, batch 32).                                      |
 | S4    | `CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json --steps 8 --batch-size 32 --seed 1`                                                                                    | `.cache/ralf/training-reproduction/cgl/s4/runs/run-010/s4.json`               | Authoritative train/validation stream evidence PASS; artifact SHA-256 is recorded in its evidence manifest.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| S5    | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU to one selected V100}" PARITY_REQUIRE=1 uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --trainer.max_epochs=30`                                                                                                                                                                                                                                                     | `.cache/ralf/training-reproduction/cgl/s5/`                                   | Seeds 1-3 trained on both systems to 30 epochs (batch 32, torch 2.8.0+cu128, one V100 per run; package runs under `.cache/ralf/training-reproduction/cgl/s5/seed-<N>/` with launch manifests, vendor runs at pinned revision `c51db6032acbd0bd0ce72433becce08317e7874d` under an operator-selected run root outside the repository). The vendor launch sets `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` because the original targets torch older than 2.6, whose `torch.load` default reads its retrieval cache tables containing `defaultdict`; package launches set `num_workers=4` and `OMP_NUM_THREADS=4`, the original's effective values. The package seed-3 first attempt died when a co-tenant exhausted `/dev/shm`; its artifacts are retained beside the completed rerun. Results are in [Reproduction Results](#reproduction-results); tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44). |
+| S5    | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU to one selected V100}" OMP_NUM_THREADS=4 uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --seed_everything=<N> --model.init_args.config.init_args.resnet_weights_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/resnet50_a1_0-14fe96d1.pth --model.init_args.config.init_args.fidnet_weights_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/fidnet/cgl/model_best.pth.tar --data.init_args.config.init_args.resnet_weights_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/resnet50_a1_0-14fe96d1.pth --data.init_args.config.init_args.fidnet_weights_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/fidnet/cgl/model_best.pth.tar --data.init_args.data_root=$RALF_CACHE_DIR/dataset --data.init_args.retrieval_index_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/retrieval_indexes/cgl_train_dreamsim_wo_head_table_between_dataset_indexes_top_k32.pt --data.init_args.validation_retrieval_index_path=$RALF_CACHE_DIR/PRECOMPUTED_WEIGHT_DIR/retrieval_indexes/cgl_val_dreamsim_wo_head_table_between_dataset_indexes_top_k32.pt --data.init_args.num_workers=4`                                                                                                                                                                                                                                                     | `.cache/ralf/training-reproduction/cgl/s5/`                                   | Seeds 1-3 trained on both systems to 30 epochs (batch 32, torch 2.8.0+cu128, one V100 per run; package runs under `.cache/ralf/training-reproduction/cgl/s5/seed-<N>/` with launch manifests, vendor runs at pinned revision `c51db6032acbd0bd0ce72433becce08317e7874d` under an operator-selected run root outside the repository). The vendor launch sets `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1` because the original targets torch older than 2.6, whose `torch.load` default reads its retrieval cache tables containing `defaultdict`; package launches set `num_workers=4` and `OMP_NUM_THREADS=4`, the original's effective values. The package seed-3 first attempt died when a co-tenant exhausted `/dev/shm`; its artifacts are retained beside the completed rerun. Results are in [Reproduction Results](#reproduction-results); tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44). |
 
 `RALF_CACHE_DIR` in the table is the explicit environment variable shown in
 [Regeneration Metadata](#regeneration-metadata). Set `RALF_GPU` to the selected
@@ -281,7 +285,7 @@ manifest is generated from the authoritative local copy and is not committed.
 
 The repository-default torch and CUDA metadata remain unchanged for the V100
 host constraint. RALF declares its runtime `jaxtyping` dependency in the
-package metadata; `uv.lock` is intentionally unchanged in this checkpoint. To use the currently verified temporary interpreter,
+package metadata, and `uv.lock` records that dependency. To use the currently verified temporary interpreter,
 set `RALF_AUDIT_PYTHON` and activate its containing environment before using
 the member-scoped `uv run --active --no-sync` commands below. This is an
 observed verification condition, not a package requirement. The package and
@@ -430,5 +434,5 @@ CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
 The 300-step real-scale lockstep probe evidence is recorded under
 [Stage Evidence](#stage-evidence), and the three-seed S5 training and
 evaluation results are recorded under
-[Reproduction Results](#reproduction-results). The coordinator's independent
-parity rerun and verdict remain outstanding.
+[Reproduction Results](#reproduction-results), together with the
+coordinator's independent gated rerun (28 passed, 0 failed, 0 skipped).

@@ -256,13 +256,53 @@ def _vendor_move(value: object, device: torch.device) -> object:
     return value
 
 
+def _independent_initialization_record(
+    package_state: Mapping[str, torch.Tensor],
+    vendor_state: Mapping[str, torch.Tensor],
+) -> dict[str, object]:
+    """Summarize each system's own initialization before any state copy.
+
+    The copied-state comparison below only proves that ``load_state_dict``
+    worked, so this record preserves what each initializer produced on its
+    own: per-system digests and the largest per-tensor standard-deviation gap
+    across matching keys. It is recorded evidence, not an enforced gate.
+    """
+    max_std_gap = 0.0
+    max_std_gap_key = None
+    for key in package_state:
+        if key not in vendor_state:
+            continue
+        package_value = package_state[key].float()
+        vendor_value = vendor_state[key].float()
+        if package_value.numel() < 2 or vendor_value.numel() < 2:
+            continue
+        gap = abs(float(package_value.std()) - float(vendor_value.std()))
+        if gap > max_std_gap:
+            max_std_gap = gap
+            max_std_gap_key = key
+    return {
+        "package_state_sha256": state_sha256(package_state),
+        "vendor_state_sha256": state_sha256(vendor_state),
+        "max_parameter_std_gap": max_std_gap,
+        "max_parameter_std_gap_key": max_std_gap_key,
+        "note": (
+            "each system's own seeded initialization, captured before the "
+            "vendor state is copied onto the package model; recorded, not "
+            "enforced"
+        ),
+    }
+
+
 def _models(
     config: RalfConfig, cache_dir: Path, device: torch.device, seed: int
-) -> tuple[RalfTrainingModule, torch.nn.Module]:
+) -> tuple[RalfTrainingModule, torch.nn.Module, dict[str, object]]:
     reseed(seed)
     package_model = RalfForConditionalLayoutGeneration(config)
     reseed(seed)
     vendor_model = build_vendor_model(config, cache_dir=cache_dir)
+    independent_initialization = _independent_initialization_record(
+        package_model.state_dict(), vendor_model.state_dict()
+    )
     package_model.load_state_dict(vendor_model.state_dict(), strict=True)
     package_model.to(device)
     vendor_model.to(device)
@@ -277,7 +317,7 @@ def _models(
         scheduler_milestones=(0.7,),
         condition_type="unconditional",
     )
-    return package_module, vendor_model
+    return package_module, vendor_model, independent_initialization
 
 
 def _loss_pair(
@@ -1452,7 +1492,9 @@ def _s0(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
+    package_module, vendor_model, independent_initialization = _models(
+        config, args.cache_dir, device, args.seed
+    )
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     package_groups = _group_names(package_optimizer, package_module.model)
     vendor_groups = _group_names(vendor_optimizer, vendor_model)
@@ -1468,6 +1510,7 @@ def _s0(
     first_id = data.train_dataset.samples[0].get("id") if data.train_dataset else None
     return {
         "status": "PASS",
+        "independent_initialization": independent_initialization,
         "parameter_count": sum(
             parameter.numel() for parameter in package_module.model.parameters()
         ),
@@ -1504,7 +1547,10 @@ def _s1(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
+    package_module, vendor_model, _unused_independent_initialization = _models(
+        config, args.cache_dir, device, args.seed
+    )
+    del _unused_independent_initialization
     batch = context["batch"]
     vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
     package_ids = batch["input_ids"]
@@ -1538,7 +1584,10 @@ def _s2(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model = _models(config, args.cache_dir, device, args.seed)
+    package_module, vendor_model, _unused_independent_initialization = _models(
+        config, args.cache_dir, device, args.seed
+    )
+    del _unused_independent_initialization
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     learning_rates = _compare_learning_rates(package_optimizer, vendor_optimizer)
     batch = context["batch"]

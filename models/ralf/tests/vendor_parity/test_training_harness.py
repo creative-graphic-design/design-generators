@@ -26,6 +26,9 @@ from run_training_stages import (
 )
 
 
+pytestmark = pytest.mark.vendor_parity
+
+
 def _linear_pair() -> tuple[torch.nn.Linear, torch.nn.Linear]:
     package = torch.nn.Linear(2, 2)
     vendor = torch.nn.Linear(2, 2)

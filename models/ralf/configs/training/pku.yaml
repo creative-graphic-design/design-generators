@@ -24,8 +24,8 @@ model:
         num_bin: 128
         top_k: 16
         retrieval_backbone: dreamsim
-        resnet_weights_path: ${oc.env:RALF_RESNET_WEIGHTS_PATH,null}
-        fidnet_weights_path: ${oc.env:RALF_FIDNET_WEIGHTS_PATH,null}
+        resnet_weights_path: null
+        fidnet_weights_path: null
     learning_rate: 0.0001
     weight_decay: 0.0001
     clip_max_norm: 0.1
@@ -50,10 +50,10 @@ data:
         num_bin: 128
         top_k: 16
         retrieval_backbone: dreamsim
-        resnet_weights_path: ${oc.env:RALF_RESNET_WEIGHTS_PATH,null}
-        fidnet_weights_path: ${oc.env:RALF_FIDNET_WEIGHTS_PATH,null}
-    data_root: ${oc.env:RALF_DATA_ROOT,null}
-    retrieval_index_path: ${oc.env:RALF_RETRIEVAL_INDEX_PATH,null}
-    validation_retrieval_index_path: ${oc.env:RALF_VALIDATION_RETRIEVAL_INDEX_PATH,null}
+        resnet_weights_path: null
+        fidnet_weights_path: null
+    data_root: null
+    retrieval_index_path: null
+    validation_retrieval_index_path: null
     batch_size: 32
     num_workers: 0

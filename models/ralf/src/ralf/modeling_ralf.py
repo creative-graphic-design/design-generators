@@ -307,7 +307,7 @@ class ResnetBackbone(nn.Module):
 
         resnet = timm.create_model("resnet50", pretrained=False)
         if weights_path is not None:
-            weights = torch.load(weights_path, map_location="cpu", weights_only=False)
+            weights = torch.load(weights_path, map_location="cpu", weights_only=True)
             if not isinstance(weights, Mapping):
                 raise TypeError(f"ResNet weights at {weights_path} are not a mapping")
 
@@ -432,7 +432,7 @@ class FIDNetFeatureExtractor(nn.Module):
         )
         self.dec_fc_in = nn.Linear(d_model * 2, d_model)
         if weights_path is not None:
-            payload = torch.load(weights_path, map_location="cpu", weights_only=False)
+            payload = torch.load(weights_path, map_location="cpu", weights_only=True)
             if not isinstance(payload, Mapping) or "state_dict" not in payload:
                 raise TypeError(
                     f"FIDNet weights at {weights_path} are not a checkpoint mapping"
