@@ -8,13 +8,16 @@ tags:
 
 # RALF Training
 
-CGL's vendor-effective recipe is 30 epochs, not 70; the prior 70-epoch S0 and
-S3 records remain invalidated. The CGL unconditional recipe is reproduced end
-to end: the staged checks pass on one Tesla V100-SXM2-32GB with scheduler
-milestone 21, three package/vendor seed pairs trained to 30 epochs score
-inside each other's range on all fifteen original-evaluator metrics, and the
-coordinator's independent gated rerun reports 28 passed, 0 failed, 0 skipped.
-PKU and the other CGL conditions carry no training-reproduction claim.
+CGL's unconditional vendor-effective recipe is 30 epochs, not 70; the prior
+70-epoch S0 and S3 records remain invalidated. The CGL unconditional recipe is
+reproduced end to end: the staged checks pass on one Tesla V100-SXM2-32GB with
+scheduler milestone 21, three package/vendor seed pairs trained to 30 epochs
+score inside each other's range on all fifteen original-evaluator metrics, and
+the coordinator's independent gated rerun reports 28 passed, 0 failed, 0
+skipped. The CGL label-conditioned path has now passed S0-S4; its 300-step
+real-scale lockstep probe is in progress and its S5 seed-1 pair is gated on
+that result. PKU and the other CGL conditions carry no training-reproduction
+claim.
 
 Here, S0 is static configuration/state, S1 is a fixed-batch pre-optimizer
 trace, S2 is one optimizer step, S3 is production multi-batch training, S4 is
@@ -97,6 +100,31 @@ provenance. Both configs retain Lightning's `deterministic: warn` mode; the
 corrected S0 and the corrected S3 redo establish the effective PyTorch warning
 state on the supported runtime.
 
+### CGL label-conditioned recipe
+
+The label recipe selects the vendored `c` task through
+`vendor/ralf/configs/ralf_cgl/c.sh:1-4`, which sets
+`++generator.auxilary_task=c` and does not override the base epoch count. The
+base RALF experiment at
+`vendor/ralf/image2layout/train/config/experiment/ralf.yaml:11-18`
+therefore supplies 50 epochs, batch size 32, learning rate `1e-4`, gradient
+clip norm `0.1`, and AdamW weight decay `1e-4`. Its scheduler override is
+`multi_step_lr` with `milestones: [0.7]` at
+`vendor/ralf/image2layout/train/config/scheduler/multi_step_lr.yaml:1-3`;
+`vendor/ralf/image2layout/train/schedulers/multi_step_lr.py:20-25` converts
+that fraction to epoch 35. The package harness passes `task=label`,
+`condition_type=label`, and the derived 50-epoch count while preserving those
+optimizer, batch, and scheduler settings.
+
+The label condition shares the unconditional architecture, vocabulary, and
+seed-derived initialization; conditioning enters through the data/input
+pipeline rather than extra model modules. Consequently, the label S0
+state-dict digest is byte-identical to the accepted unconditional S0 digest
+(`0c1c915b...`) while the scheduler milestone correctly changes from 21 to 35.
+The label S4 canonical stream digest is also identical to the unconditional
+digest (`664a4213...`), as expected because the loader stream is
+condition-agnostic; label construction occurs after loader output.
+
 ## Seed Policy
 
 The staged checks (S0-S4) use seed `1` on one selected Tesla V100-SXM2-32GB
@@ -133,6 +161,34 @@ records remain below as historical provenance.
 | S4 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json` | `PASS`; artifact SHA-256 `cf03fecba3182c93712f71a3742a09a3f4977a042ce149f5ed82fcf3dc5fc87b`; 16 batches and 512 samples checked, with matching canonical stream SHA-256 `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. |
 | S5 | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU}" uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --seed_everything=<N>` | `.cache/ralf/training-reproduction/cgl/s5/` | Existing three-seed statistical reproduction remains complete; no new S5 run is claimed for this harness-only change. |
 
+### CGL label-conditioned stage evidence
+
+The label S0-S4 ladder was run on GPU 3 with seed `1`, batch size `32`,
+`PARITY_REQUIRE=1`, the audited cu128 interpreter, and the worktree source
+prepended to `PYTHONPATH`. Every stage record reports
+`ralf.__file__=models/ralf/src/ralf/__init__.py`, confirming that the package
+under test came from this worktree. Artifact SHA-256 values below were checked
+against the files on disk.
+
+| Stage | Command | Artifact | Result |
+| ----- | ------- | -------- | ------ |
+| S0 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S0 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s0/label-001/s0.json --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s0/label-001/s0.json` | `PASS`; SHA-256 `be90fe8f33880f12140f6d865c4a32c718049fdf3a674a4f25cb4e67ca470d8e`; 44,386,946 parameters, state SHA-256 `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, scheduler milestone 35. |
+| S1 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S1 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s1/label-002/s1.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s1/label-002/s1.json` | `PASS`; SHA-256 `8288bb8039d2d2e254faa0ae03c9dbce5a4d6d8929b07c418f841382b8f208c1`; prepared ids/labels, logits, and loss max absolute differences all `0.0`. |
+| S2 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s2/label-002/s2.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s2/label-002/s2.json` | `PASS`; SHA-256 `c45b1b765fd829c90639894bef5fa83610a9e51b35d4dd62932194ae80a0987f`; gradient norm `2.372591972351074`, post-step parameter max diff `5.587935447692871e-7`, optimizer-state max diff `5.093170329928398e-11`, and 2,658 storage entries checked. |
+| S3 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" RALF_S3_OUTPUT=.cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S3 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json --batch-size 4 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json` | `bounded-pass`; SHA-256 `d6c3240270d8080de4191a0bb23c3862ac0f205eede8af620423358b4ac15aa7`; natural `LEFT_CONTRACT`, synchronized `PASS`, 150 synchronized steps, scheduler milestone 35, no synchronized divergence. |
+| S4 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s4/label-002/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s4/label-002/s4.json` | `PASS`; SHA-256 `9fabfe34ac92f3c2e8cfbf1e412dcfcbf7c7f848cb4d494ffa4a5323c1f9a140`; 16 batches/512 samples, package/vendor canonical stream SHA-256 both `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. |
+
+The maintained lockstep diagnostic is
+`models/ralf/tests/vendor_parity/probe_s1_faithful.py`. It reproduces the
+natural S1 seeding placement and compares the package and reference condition
+construction, prepared inputs, logits, and losses; its recorded label result
+was byte-identical through loss after the harness reseeding correction. The
+label 300-step real-scale probe uses the production `traingen fit` path with
+the real batch size 32, six limited train batches per epoch, and the 50-epoch
+recipe (300 optimizer steps total). At the time of this update it is still
+running in `.cache/ralf/training-reproduction/cgl/label/probe/runs/gate2-label-001/`;
+the final 300/300 result will be added before S5 is launched.
+
 S3 reports both evidence layers in its machine-readable `status` object:
 `{"natural":"PASS"|"LEFT_CONTRACT","synchronized":"PASS"|"FAIL"|"NOT_RUN","verdict":"pass"|"bounded-pass"|"fail"}`.
 `LEFT_CONTRACT` means an independently initialized natural run diverged after
@@ -142,12 +198,12 @@ independent state-synchronized lockstep layer passed. Each per-run trace uses
 `PASS` for agreement, `LEFT_CONTRACT` for natural divergence, and `FAIL` for
 synchronized divergence.
 
-Provenance for this rerun: S3 run-002 carries relevant source digest
+Provenance for this rerun: S3 `s3/runs/harness-strengthening-002/` carries relevant source digest
 `939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching
 the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the
 pre-commit working tree; the subsequent delta was confined to S3-only
 functions, tests, and documentation. Their key values remain byte-identical
-to the accepted baseline records above: S0 `state_sha256`
+to the accepted baseline records below: S0 `state_sha256`
 `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4
 package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
 
