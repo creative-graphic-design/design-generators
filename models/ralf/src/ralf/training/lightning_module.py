@@ -188,6 +188,17 @@ class RalfTrainingModule(LightningModule):
 
         return groups
 
+    def scheduler_epochs(self) -> int:
+        """Return the epoch count used to construct this run's scheduler."""
+        trainer = self._trainer
+        if trainer is None:
+            return self.epochs
+
+        if trainer.max_epochs is None:
+            raise RuntimeError("Lightning trainer max_epochs must be set")
+
+        return trainer.max_epochs
+
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Build AdamW and the epoch-level MultiStepLR."""
         optimizer = torch.optim.AdamW(
@@ -196,7 +207,8 @@ class RalfTrainingModule(LightningModule):
         if self.scheduler == "none":
             return optimizer
 
-        milestones = [int(value * self.epochs) for value in self.scheduler_milestones]
+        epochs = self.scheduler_epochs()
+        milestones = [int(value * epochs) for value in self.scheduler_milestones]
         scheduler = torch.optim.lr_scheduler.MultiStepLR(
             optimizer, milestones=milestones, gamma=0.1
         )
