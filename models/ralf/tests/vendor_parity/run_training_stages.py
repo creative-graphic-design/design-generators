@@ -7,6 +7,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -14,10 +15,11 @@ import time
 from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
-from typing import Literal, TypedDict, cast
+from typing import Literal, Protocol, TypedDict, cast
 
 import torch
 import torch.version
+import ralf
 from jaxtyping import Shaped
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
@@ -48,6 +50,7 @@ from training_reference import (
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
+ConditionType = Literal["unconditional", "label"]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
 
@@ -139,6 +142,17 @@ class _TrainingContext(TypedDict):
     table: Mapping[str | int, Sequence[int]]
 
 
+class _LossPairPackageModule(Protocol):
+    """Package-module surface exercised by the fixed-batch loss comparison."""
+
+    model: RalfForConditionalLayoutGeneration
+    condition_type: str
+
+    def _condition_kwargs(
+        self, batch: RalfTrainingBatch
+    ) -> dict[str, Shaped[Tensor, "..."]]: ...
+
+
 class _NaturalEnvelope(TypedDict):
     """Run-to-run natural-trajectory envelope."""
 
@@ -155,6 +169,9 @@ def _parse_args() -> argparse.Namespace:
         "--stage", choices=("S0", "S1", "S2", "S3", "S4"), required=True
     )
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
+    parser.add_argument(
+        "--condition", choices=("unconditional", "label"), default="unconditional"
+    )
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--steps", type=int, default=None)
@@ -163,7 +180,17 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _dataset_config(dataset: str, cache_dir: Path) -> RalfConfig:
+def _condition_type(condition: str) -> tuple[ConditionType, str]:
+    if condition == "unconditional":
+        return "unconditional", "uncond"
+    if condition == "label":
+        return "label", "c"
+    raise ValueError(f"unsupported RALF condition: {condition}")
+
+
+def _dataset_config(
+    dataset: str, cache_dir: Path, condition_type: ConditionType = "unconditional"
+) -> RalfConfig:
     if dataset == "cgl":
         with (cache_dir / "dataset" / "cgl" / "vocabulary.json").open() as handle:
             vocabulary = json.load(handle)
@@ -181,7 +208,7 @@ def _dataset_config(dataset: str, cache_dir: Path) -> RalfConfig:
     precomputed = cache_dir / "PRECOMPUTED_WEIGHT_DIR"
     return RalfConfig(
         dataset_name=dataset_name,
-        task="unconditional",
+        task=condition_type,
         id2label=cast(Mapping[int | str, str], labels),
         max_seq_length=10,
         num_bin=128,
@@ -207,7 +234,7 @@ def _retrieval_path(cache_dir: Path, dataset: str, split: str) -> Path:
 def _load_context(
     args: argparse.Namespace,
 ) -> tuple[RalfConfig, RalfDataModule, _TrainingContext]:
-    config = _dataset_config(args.dataset, args.cache_dir)
+    config = _dataset_config(args.dataset, args.cache_dir, args.condition)
     train_index = _retrieval_path(args.cache_dir, args.dataset, "train")
     val_index = _retrieval_path(args.cache_dir, args.dataset, "val")
     for path in (
@@ -241,20 +268,41 @@ def _load_context(
     return config, data, {"batch": batch, "samples": samples, "table": table}
 
 
-def _recipe_epochs(dataset: str) -> int:
-    """Read the selected member recipe instead of duplicating its epoch count."""
+def _recipe_epochs(
+    dataset: str, condition_type: ConditionType = "unconditional"
+) -> int:
+    """Read the effective epoch count from the pinned vendor recipe."""
     import yaml
 
-    recipe_path = ROOT / "models" / "ralf" / "configs" / "training" / f"{dataset}.yaml"
-    recipe = yaml.safe_load(recipe_path.read_text())
-    if not isinstance(recipe, dict):
-        raise RuntimeError(f"training recipe is not a mapping: {recipe_path}")
-    trainer = recipe.get("trainer")
-    if not isinstance(trainer, dict) or not isinstance(trainer.get("max_epochs"), int):
+    _, vendor_task = _condition_type(condition_type)
+    experiment_path = (
+        ROOT
+        / "vendor"
+        / "ralf"
+        / "image2layout"
+        / "train"
+        / "config"
+        / "experiment"
+        / "ralf.yaml"
+    )
+    experiment = yaml.safe_load(experiment_path.read_text())
+    if not isinstance(experiment, Mapping):
         raise RuntimeError(
-            f"training recipe has no integer trainer.max_epochs: {recipe_path}"
+            f"vendor training recipe is not a mapping: {experiment_path}"
         )
-    return trainer["max_epochs"]
+    training = experiment.get("training")
+    if not isinstance(training, Mapping) or not isinstance(training.get("epochs"), int):
+        raise RuntimeError(
+            f"vendor training recipe has no integer training.epochs: {experiment_path}"
+        )
+    epochs = int(training["epochs"])
+    condition_path = (
+        ROOT / "vendor" / "ralf" / "configs" / f"ralf_{dataset}" / f"{vendor_task}.sh"
+    )
+    if not condition_path.is_file():
+        raise FileNotFoundError(f"vendor condition recipe is missing: {condition_path}")
+    match = re.search(r"training\.epochs\s*=\s*(\d+)", condition_path.read_text())
+    return int(match.group(1)) if match else epochs
 
 
 def _build_vendor_scheduler(
@@ -366,7 +414,11 @@ def _independent_initialization_record(
 
 
 def _models(
-    config: RalfConfig, cache_dir: Path, device: torch.device, seed: int
+    config: RalfConfig,
+    cache_dir: Path,
+    device: torch.device,
+    seed: int,
+    condition_type: ConditionType,
 ) -> tuple[RalfTrainingModule, torch.nn.Module, dict[str, object]]:
     reseed(seed)
     package_model = RalfForConditionalLayoutGeneration(config)
@@ -384,29 +436,28 @@ def _models(
         learning_rate=1e-4,
         weight_decay=1e-4,
         clip_max_norm=0.1,
-        epochs=_recipe_epochs(str(config.dataset_name)),
+        epochs=_recipe_epochs(str(config.dataset_name), condition_type),
         scheduler="multi_step",
         scheduler_milestones=(0.7,),
-        condition_type="unconditional",
+        condition_type=condition_type,
     )
     return package_module, vendor_model, independent_initialization
 
 
 def _loss_pair(
-    package_module: RalfTrainingModule,
+    package_module: _LossPairPackageModule,
     vendor_model: torch.nn.Module,
     batch: RalfTrainingBatch,
     device: torch.device,
     seed: int,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
     package_batch = _move_batch(batch, device)
-    vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
-    vendor_inputs = cast(dict[str, object], _vendor_move(vendor_inputs, device))
-    vendor_targets = cast(dict[str, object], _vendor_move(vendor_targets, device))
     package_model = package_module.model
     package_model.train()
     vendor_model.train()
+
     reseed(seed)
+    condition_kwargs = package_module._condition_kwargs(package_batch)
     package_output = package_model(
         input_ids=package_batch["input_ids"],
         labels=package_batch["labels"],
@@ -414,9 +465,14 @@ def _loss_pair(
         pixel_values=package_batch["pixel_values"],
         saliency=package_batch["saliency"],
         retrieved=package_batch["retrieved"],
-        condition_type="unconditional",
+        condition_type=package_module.condition_type,
+        **condition_kwargs,
     )
+
     reseed(seed)
+    vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
+    vendor_inputs = cast(dict[str, object], _vendor_move(vendor_inputs, device))
+    vendor_targets = cast(dict[str, object], _vendor_move(vendor_targets, device))
     vendor_training_model = cast(VendorTrainingModel, vendor_model)
     vendor_output, vendor_losses = vendor_training_model.train_loss(
         vendor_inputs, vendor_targets
@@ -1826,7 +1882,7 @@ def _s0(
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model, independent_initialization = _models(
-        config, args.cache_dir, device, args.seed
+        config, args.cache_dir, device, args.seed, args.condition
     )
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     package_groups = _group_names(package_optimizer, package_module.model)
@@ -1880,7 +1936,9 @@ def _s1(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model, _ = _models(config, args.cache_dir, device, args.seed)
+    package_module, vendor_model, _ = _models(
+        config, args.cache_dir, device, args.seed, args.condition
+    )
     batch = context["batch"]
     vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
     package_ids = batch["input_ids"]
@@ -1914,7 +1972,9 @@ def _s2(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model, _ = _models(config, args.cache_dir, device, args.seed)
+    package_module, vendor_model, _ = _models(
+        config, args.cache_dir, device, args.seed, args.condition
+    )
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     learning_rates = _compare_learning_rates(package_optimizer, vendor_optimizer)
     batch = context["batch"]
@@ -2031,7 +2091,7 @@ def _run_s3_fit(
         f"--seed_everything={args.seed}",
         "--trainer.accelerator=gpu",
         "--trainer.devices=1",
-        f"--trainer.max_epochs={_recipe_epochs(args.dataset)}",
+        f"--trainer.max_epochs={_recipe_epochs(args.dataset, args.condition)}",
         f"--trainer.limit_train_batches={train_limit}",
         f"--trainer.limit_val_batches={validation_limit}",
         "--trainer.num_sanity_val_steps=0",
@@ -2049,10 +2109,20 @@ def _run_s3_fit(
         f"--data.init_args.data_root={args.cache_dir / 'dataset'}",
         f"--data.init_args.retrieval_index_path={train_index_path}",
         f"--data.init_args.validation_retrieval_index_path={validation_index_path}",
+        "--data.init_args.num_workers=4",
         "--trainer.callbacks=[run_training_stages.RalfS3TraceCallback,run_training_stages.RalfS3ModelCheckpoint]",
         "--trainer.logger=run_training_stages.RalfS3CSVLogger",
     ]
+    if args.condition != "unconditional":
+        command.extend(
+            [
+                f"--model.init_args.config.init_args.task={args.condition}",
+                f"--model.init_args.condition_type={args.condition}",
+                f"--model.init_args.epochs={_recipe_epochs(args.dataset, args.condition)}",
+            ]
+        )
     env = os.environ.copy()
+    env["OMP_NUM_THREADS"] = "4"
     env["PYTHONPATH"] = os.pathsep.join(
         [str(callback_root), env.get("PYTHONPATH", "")]
     ).rstrip(os.pathsep)
@@ -2063,6 +2133,7 @@ def _run_s3_fit(
     env["RALF_VALIDATION_RETRIEVAL_INDEX_PATH"] = str(validation_index_path)
     env["RALF_S3_CACHE_DIR"] = str(args.cache_dir)
     env["RALF_S3_SEED"] = str(args.seed)
+    env["RALF_S3_CONDITION"] = args.condition
     env["RALF_S3_MODE"] = mode
     env["RALF_S3_TRACE_DIR"] = str(trace_root)
     env["RALF_S3_CHECKPOINT_DIR"] = str(checkpoint_root)
@@ -2676,6 +2747,7 @@ def main() -> int:
         {
             "stage": args.stage,
             "dataset": args.dataset,
+            "condition": args.condition,
             "command": " ".join(sys.argv),
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
             "gpu_name": torch.cuda.get_device_name(device),
@@ -2686,6 +2758,7 @@ def main() -> int:
                 "pytorch_cuda_alloc_conf": os.environ.get("PYTORCH_CUDA_ALLOC_CONF"),
             },
             "cache_dir": str(args.cache_dir),
+            "ralf_file": str(Path(ralf.__file__).resolve()),
             "package_commit": subprocess.check_output(
                 ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
             ).strip(),
