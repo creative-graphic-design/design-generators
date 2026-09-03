@@ -102,6 +102,34 @@ class _LearningRateComparison(TypedDict):
     groups: list[_LearningRateGroup]
 
 
+class _SchedulerComparison(TypedDict):
+    """Comparison of the values produced by each system's scheduler."""
+
+    first_divergence: str | None
+    max_abs_diff: float
+    package_last_epoch: int
+    vendor_last_epoch: int
+    package_milestones: list[int]
+    vendor_milestones: list[int]
+    package_last_lrs: list[float]
+    vendor_last_lrs: list[float]
+
+
+class _StorageIndependence(TypedDict):
+    """Optimizer-state storage separation between the two systems."""
+
+    checked_entries: int
+    shared_storage_entries: list[str]
+
+
+class _S3Status(TypedDict):
+    """Machine-readable S3 verdict covering both evidence layers."""
+
+    natural: Literal["PASS", "LEFT_CONTRACT"]
+    synchronized: Literal["PASS", "FAIL", "NOT_RUN"]
+    verdict: Literal["pass", "bounded-pass", "fail"]
+
+
 class _TrainingContext(TypedDict):
     """Static package data used by the stage functions."""
 
@@ -538,12 +566,225 @@ def _compare_learning_rates(
     }
 
 
+def _compare_scheduler_outputs(
+    package_scheduler: torch.optim.lr_scheduler.MultiStepLR,
+    vendor_scheduler: torch.optim.lr_scheduler.MultiStepLR,
+    stage: str,
+    *,
+    enforce: bool = True,
+) -> _SchedulerComparison:
+    """Compare the scheduler output produced independently by each system.
+
+    Scheduler state is deliberately not synchronized before this comparison.
+    Milestones, progress, and current learning rates therefore remain capable
+    of detecting an epoch-count or scheduler-path divergence.
+    """
+    package_milestones = sorted(int(item) for item in package_scheduler.milestones)
+    vendor_milestones = sorted(int(item) for item in vendor_scheduler.milestones)
+    package_last_lrs = [float(value) for value in package_scheduler.get_last_lr()]
+    vendor_last_lrs = [float(value) for value in vendor_scheduler.get_last_lr()]
+    max_abs_diff = max(
+        abs(package_scheduler.last_epoch - vendor_scheduler.last_epoch),
+        max(
+            (
+                abs(package_value - vendor_value)
+                for package_value, vendor_value in zip(
+                    package_last_lrs, vendor_last_lrs
+                )
+            ),
+            default=0.0,
+        ),
+    )
+    first_divergence: str | None = None
+    if package_milestones != vendor_milestones:
+        first_divergence = "milestones"
+    elif package_scheduler.last_epoch != vendor_scheduler.last_epoch:
+        first_divergence = "last_epoch"
+    elif len(package_last_lrs) != len(vendor_last_lrs):
+        first_divergence = "group_count"
+    else:
+        for package_lr, vendor_lr in zip(
+            package_last_lrs, vendor_last_lrs, strict=True
+        ):
+            try:
+                _assert_close(
+                    f"{stage}.scheduler_outputs.last_lr",
+                    torch.tensor(package_lr),
+                    torch.tensor(vendor_lr),
+                )
+            except RuntimeError:
+                first_divergence = "last_lr"
+                break
+
+    result: _SchedulerComparison = {
+        "first_divergence": first_divergence,
+        "max_abs_diff": float(max_abs_diff)
+        if first_divergence != "group_count"
+        else float("inf"),
+        "package_last_epoch": package_scheduler.last_epoch,
+        "vendor_last_epoch": vendor_scheduler.last_epoch,
+        "package_milestones": package_milestones,
+        "vendor_milestones": vendor_milestones,
+        "package_last_lrs": package_last_lrs,
+        "vendor_last_lrs": vendor_last_lrs,
+    }
+    if first_divergence is not None and enforce:
+        raise RuntimeError(
+            f"first divergence at {stage}.scheduler_outputs.{first_divergence}; "
+            f"max_abs_diff={result['max_abs_diff']:.8g}; result={result}"
+        )
+
+    return result
+
+
+def _named_optimizer_state_tensors(
+    optimizer: torch.optim.Optimizer, model: torch.nn.Module
+) -> dict[str, Tensor]:
+    """Return non-empty tensor state entries keyed by parameter and field."""
+    by_id = {id(parameter): name for name, parameter in model.named_parameters()}
+    tensors: dict[str, Tensor] = {}
+    for parameter, state in optimizer.state.items():
+        name = by_id[id(parameter)]
+        for key, value in state.items():
+            if not isinstance(value, Tensor) or value.numel() == 0:
+                continue
+            tensors[f"{name}.{key}"] = value
+
+    return tensors
+
+
+def _assert_optimizer_state_storage_independent(
+    package_optimizer: torch.optim.Optimizer,
+    vendor_optimizer: torch.optim.Optimizer,
+    package_model: torch.nn.Module,
+    vendor_model: torch.nn.Module,
+    stage: str,
+) -> _StorageIndependence:
+    """Fail closed when package and vendor optimizer state share storage."""
+    package_tensors = _named_optimizer_state_tensors(package_optimizer, package_model)
+    vendor_tensors = _named_optimizer_state_tensors(vendor_optimizer, vendor_model)
+    package_pointers = {
+        tensor.untyped_storage().data_ptr(): name
+        for name, tensor in package_tensors.items()
+    }
+    shared: list[str] = []
+    for name, tensor in vendor_tensors.items():
+        pointer = tensor.untyped_storage().data_ptr()
+        if pointer in package_pointers:
+            shared.append(
+                f"vendor {name} shares storage with package {package_pointers[pointer]}"
+            )
+
+    if shared:
+        raise RuntimeError(
+            f"first divergence at {stage}.optimizer_state_storage; "
+            f"shared={sorted(shared)}"
+        )
+
+    return {
+        "checked_entries": len(package_tensors) + len(vendor_tensors),
+        "shared_storage_entries": [],
+    }
+
+
+def _load_optimizer_state_without_hyperparameters(
+    target: torch.optim.Optimizer, source: torch.optim.Optimizer
+) -> None:
+    """Copy optimizer state while preserving the target system's settings."""
+    own_hyperparameters = [
+        {key: value for key, value in group.items() if key != "params"}
+        for group in target.param_groups
+    ]
+    target.load_state_dict(copy.deepcopy(source.state_dict()))
+    for group, hyperparameters in zip(
+        target.param_groups, own_hyperparameters, strict=True
+    ):
+        group.update(hyperparameters)
+
+
+def _state_sync_copy_integrity_record(
+    package_optimizer: torch.optim.Optimizer,
+    vendor_optimizer: torch.optim.Optimizer,
+    package_model: torch.nn.Module,
+    vendor_model: torch.nn.Module,
+    stage: str,
+) -> dict[str, object]:
+    """Record integrity of a package-to-vendor diagnostic state copy.
+
+    These comparisons intentionally compare a source with its just-created
+    copy. They prove copy integrity and storage separation, not parity between
+    independently produced system values.
+    """
+    return {
+        "parameters_copy_integrity": _compare_state_dicts(
+            cast(Mapping[str, Tensor], package_model.state_dict()),
+            cast(Mapping[str, Tensor], vendor_model.state_dict()),
+            f"{stage}.copy_integrity.parameters",
+        ),
+        "optimizer_state_copy_integrity": _compare_optimizer_states(
+            package_optimizer,
+            vendor_optimizer,
+            package_model,
+            vendor_model,
+            f"{stage}.copy_integrity.optimizer_state",
+        ),
+        "optimizer_state_storage_independence": (
+            _assert_optimizer_state_storage_independent(
+                package_optimizer,
+                vendor_optimizer,
+                package_model,
+                vendor_model,
+                f"{stage}.copy_integrity",
+            )
+        ),
+        "package_state_sha256_after_copy": state_sha256(package_model.state_dict()),
+        "vendor_state_sha256_after_copy": state_sha256(vendor_model.state_dict()),
+        "note": (
+            "copy integrity and storage separation of the package-to-vendor "
+            "state assignment; not measured divergence"
+        ),
+    }
+
+
+def _s3_status(
+    natural_runs: Sequence[Mapping[str, object]],
+    synchronized_run: Mapping[str, object] | None,
+) -> _S3Status:
+    """Summarize natural and synchronized S3 evidence in one verdict."""
+    if not natural_runs:
+        raise RuntimeError("S3 status requires at least one natural run")
+
+    natural: Literal["PASS", "LEFT_CONTRACT"] = (
+        "PASS"
+        if all(run["first_divergence"] is None for run in natural_runs)
+        else "LEFT_CONTRACT"
+    )
+    if synchronized_run is None:
+        synchronized: Literal["PASS", "FAIL", "NOT_RUN"] = "NOT_RUN"
+    else:
+        synchronized = (
+            "PASS" if synchronized_run["first_divergence"] is None else "FAIL"
+        )
+
+    if synchronized == "FAIL":
+        verdict: Literal["pass", "bounded-pass", "fail"] = "fail"
+    elif natural == "PASS":
+        verdict = "pass"
+    elif synchronized == "PASS":
+        verdict = "bounded-pass"
+    else:
+        verdict = "fail"
+
+    return {"natural": natural, "synchronized": synchronized, "verdict": verdict}
+
+
 def _effective_config_digest(config: RalfConfig, cache_dir: Path) -> str:
     payload = config.to_dict()
     for key in ("resnet_weights_path", "fidnet_weights_path"):
-        value = payload.get(key)
+        value = getattr(config, key)
         if value is None:
             continue
+        payload[key] = value
         path = Path(str(value))
         try:
             payload[key] = path.relative_to(cache_dir).as_posix()
@@ -828,13 +1069,16 @@ class RalfS3TraceCallback(Callback):
         self.scheduler_step_epochs: set[int] = set()
         self.last_global_step = 0
         self.package_batch_lr: _LearningRateComparison | None = None
+        self.package_batch_scheduler: _SchedulerComparison | None = None
         self.package_batch_epoch = -1
         self.package_batch_index = -1
         self.package_loss: float | None = None
         self.vendor_loss: float | None = None
         self.vendor_rng_restored = False
         self.initial_state_sync: dict[str, object] = {}
-        self.state_sync_records: list[dict[str, object]] = []
+        self.initial_scheduler_outputs: _SchedulerComparison | None = None
+        self.batch_start_storage_independence: _StorageIndependence | None = None
+        self.state_sync_copy_integrity_records: list[dict[str, object]] = []
         self.first_divergence: dict[str, object] | None = None
 
     def _remember_divergence(self, location: str, max_abs_diff: float) -> None:
@@ -887,33 +1131,44 @@ class RalfS3TraceCallback(Callback):
         vendor_model.train()
         self.vendor_model = vendor_model
         _, self.vendor_optimizer = _optimizer_for(ralf_module, vendor_model)
+        trainer_epochs = trainer.max_epochs
+        if trainer_epochs is None:
+            raise RuntimeError("first divergence at S3.max_epochs; value is unset")
         self.vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
             self.vendor_optimizer,
             milestones=[
-                int(value * ralf_module.epochs)
+                int(value * trainer_epochs)
                 for value in ralf_module.scheduler_milestones
             ],
             gamma=0.1,
         )
         restore_rng_state(package_rng)
+        package_model_identity = id(ralf_module.model)
         package_state = cast(Mapping[str, Tensor], ralf_module.model.state_dict())
         vendor_state = cast(Mapping[str, Tensor], vendor_model.state_dict())
         package_before_sync = state_sha256(package_state)
         vendor_initial_state = state_sha256(vendor_state)
         ralf_module.model.load_state_dict(vendor_state, strict=True)
-        _compare_state_dicts(
-            cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
-            vendor_state,
-            "S3.initial_parameters",
-        )
         self.initial_state_sync = {
             "package_state_sha256_before_sync": package_before_sync,
             "vendor_state_sha256": vendor_initial_state,
             "package_state_sha256_after_sync": state_sha256(
                 ralf_module.model.state_dict()
             ),
-            "package_model_object_preserved": True,
-            "vendor_model_injected": False,
+            "package_model_object_preserved": (
+                id(ralf_module.model) == package_model_identity
+            ),
+            "vendor_model_injected": ralf_module.model is vendor_model,
+            "parameters_copy_integrity": _compare_state_dicts(
+                cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
+                vendor_state,
+                "S3.initial_parameters_copy_integrity",
+            ),
+            "note": (
+                "the parameters_copy_integrity field compares the package model "
+                "against the vendor state just loaded into it; the digests above "
+                "are each system's own initialization"
+            ),
         }
         ralf_module._gradient_trace_hook = self
 
@@ -945,17 +1200,31 @@ class RalfS3TraceCallback(Callback):
         self.package_scheduler = scheduler_config.scheduler
         if self.vendor_scheduler is None:
             raise RuntimeError("S3 vendor scheduler was not initialized")
-        if self.package_scheduler.milestones != self.vendor_scheduler.milestones:
-            raise RuntimeError(
-                "first divergence at S3.scheduler_milestones; "
-                f"package={self.package_scheduler.milestones}; "
-                f"vendor={self.vendor_scheduler.milestones}"
+        self.initial_scheduler_outputs = _compare_scheduler_outputs(
+            self.package_scheduler,
+            self.vendor_scheduler,
+            "S3.fit_start",
+            enforce=self.synchronized,
+        )
+        if self.initial_scheduler_outputs["first_divergence"] is not None:
+            self._remember_divergence(
+                "S3.fit_start.scheduler_outputs.{}".format(
+                    self.initial_scheduler_outputs["first_divergence"]
+                ),
+                self.initial_scheduler_outputs["max_abs_diff"],
             )
-        _compare_learning_rates(
+        initial_learning_rates = _compare_learning_rates(
             package_optimizer,
             self.vendor_optimizer,
             enforce=self.synchronized,
         )
+        if initial_learning_rates["first_divergence"] is not None:
+            self._remember_divergence(
+                "S3.fit_start.learning_rates.group[{}].lr".format(
+                    initial_learning_rates["first_divergence"]
+                ),
+                initial_learning_rates["max_abs_diff"],
+            )
         self.scheduler_trajectory.append(
             {
                 "epoch": 0,
@@ -980,19 +1249,10 @@ class RalfS3TraceCallback(Callback):
         ralf_module = cast(RalfTrainingModule, pl_module)
         if self.vendor_optimizer is None:
             raise RuntimeError("S3 reference optimizer was not initialized")
+        if self.package_scheduler is None or self.vendor_scheduler is None:
+            raise RuntimeError("S3 schedulers were not initialized")
         package_optimizer = trainer.optimizers[0]
-        if self.synchronized and self.optimizer_step_count:
-            self.vendor_model = self.vendor_model or self._require_models()[0]
-            self.vendor_model.load_state_dict(
-                ralf_module.model.state_dict(), strict=True
-            )
-            self.vendor_optimizer.load_state_dict(
-                copy.deepcopy(package_optimizer.state_dict())
-            )
-            if self.package_scheduler is not None and self.vendor_scheduler is not None:
-                self.vendor_scheduler.load_state_dict(
-                    self.package_scheduler.state_dict()
-                )
+        batch_location = f"S3.epoch[{trainer.current_epoch}].batch[{batch_idx}]"
         package_batch_lr = _compare_learning_rates(
             package_optimizer,
             self.vendor_optimizer,
@@ -1001,21 +1261,51 @@ class RalfS3TraceCallback(Callback):
         self.package_batch_lr = package_batch_lr
         if package_batch_lr["first_divergence"] is not None:
             self._remember_divergence(
-                f"S3.epoch[{trainer.current_epoch}].batch[{batch_idx}].learning_rates",
+                f"{batch_location}.learning_rates",
                 package_batch_lr["max_abs_diff"],
             )
-        if self.package_scheduler is None or self.vendor_scheduler is None:
-            raise RuntimeError("S3 schedulers were not initialized")
+        package_batch_scheduler = _compare_scheduler_outputs(
+            self.package_scheduler,
+            self.vendor_scheduler,
+            batch_location,
+            enforce=self.synchronized,
+        )
+        self.package_batch_scheduler = package_batch_scheduler
+        if package_batch_scheduler["first_divergence"] is not None:
+            self._remember_divergence(
+                f"{batch_location}.scheduler_outputs."
+                f"{package_batch_scheduler['first_divergence']}",
+                package_batch_scheduler["max_abs_diff"],
+            )
+        self.batch_start_storage_independence = None
+        if self.synchronized and self.optimizer_step_count:
+            self.vendor_model = self.vendor_model or self._require_models()[0]
+            self.vendor_model.load_state_dict(
+                ralf_module.model.state_dict(), strict=True
+            )
+            _load_optimizer_state_without_hyperparameters(
+                self.vendor_optimizer, package_optimizer
+            )
+            self.batch_start_storage_independence = (
+                _assert_optimizer_state_storage_independent(
+                    package_optimizer,
+                    self.vendor_optimizer,
+                    ralf_module.model,
+                    self.vendor_model,
+                    f"{batch_location}.state_sync",
+                )
+            )
         self.scheduler_trajectory.append(
             {
                 "epoch": trainer.current_epoch,
                 "package_last_epoch": self.package_scheduler.last_epoch,
                 "vendor_last_epoch": self.vendor_scheduler.last_epoch,
                 "package_lrs": [
-                    float(group["lr"]) for group in package_optimizer.param_groups
+                    float(value)
+                    for value in package_batch_scheduler["package_last_lrs"]
                 ],
                 "vendor_lrs": [
-                    float(group["lr"]) for group in self.vendor_optimizer.param_groups
+                    float(value) for value in package_batch_scheduler["vendor_last_lrs"]
                 ],
             }
         )
@@ -1189,30 +1479,21 @@ class RalfS3TraceCallback(Callback):
             )
         package_state_sha256 = state_sha256(ralf_module.model.state_dict())
         vendor_state_sha256 = state_sha256(vendor_model.state_dict())
-        sync_result: dict[str, object] | None = None
         if self.synchronized:
             package_optimizer = trainer.optimizers[0]
             vendor_model.load_state_dict(ralf_module.model.state_dict(), strict=True)
-            vendor_optimizer.load_state_dict(
-                copy.deepcopy(package_optimizer.state_dict())
+            _load_optimizer_state_without_hyperparameters(
+                vendor_optimizer, package_optimizer
             )
-            sync_result = {
-                "parameters": _compare_state_dicts(
-                    cast(Mapping[str, Tensor], ralf_module.model.state_dict()),
-                    cast(Mapping[str, Tensor], vendor_model.state_dict()),
-                    f"S3.global_step[{optimizer_step_index}].state_sync.parameters",
-                ),
-                "optimizer_state": _compare_optimizer_states(
+            self.state_sync_copy_integrity_records.append(
+                _state_sync_copy_integrity_record(
                     package_optimizer,
                     vendor_optimizer,
                     ralf_module.model,
                     vendor_model,
-                    f"S3.global_step[{optimizer_step_index}].state_sync.optimizer_state",
-                ),
-                "package_state_sha256": state_sha256(ralf_module.model.state_dict()),
-                "vendor_state_sha256": state_sha256(vendor_model.state_dict()),
-            }
-            self.state_sync_records.append(sync_result)
+                    f"S3.global_step[{optimizer_step_index}].state_sync",
+                )
+            )
         self.train_trajectory.append(
             {
                 "evidence_mode": self.evidence_mode,
@@ -1222,6 +1503,10 @@ class RalfS3TraceCallback(Callback):
                 "trainer_global_step_at_batch_end": trainer_global_step,
                 "loss": {"package": self.package_loss, "vendor": self.vendor_loss},
                 "learning_rates": self.package_batch_lr,
+                "scheduler_outputs": self.package_batch_scheduler,
+                "batch_start_storage_independence": (
+                    self.batch_start_storage_independence
+                ),
                 "raw_gradients": self.raw_results,
                 "clipped_gradients": self.clipped_result,
                 "raw_gradient_norm": self.raw_norms,
@@ -1241,7 +1526,9 @@ class RalfS3TraceCallback(Callback):
                     "global_step": optimizer_step_index,
                     "trainer_global_step_at_batch_end": trainer_global_step,
                     "trajectory": self.train_trajectory,
-                    "state_sync": self.state_sync_records,
+                    "state_sync_copy_integrity": (
+                        self.state_sync_copy_integrity_records
+                    ),
                     "first_divergence": self.first_divergence,
                     "peak_memory_allocated_bytes": int(
                         torch.cuda.max_memory_allocated()
@@ -1284,22 +1571,18 @@ class RalfS3TraceCallback(Callback):
         del pl_module
         if self.vendor_scheduler is None or self.package_scheduler is None:
             raise RuntimeError("S3 schedulers were not initialized")
-        if self.package_scheduler.last_epoch != self.vendor_scheduler.last_epoch:
-            message = (
-                "first divergence at S3.final_scheduler.last_epoch; "
-                f"package={self.package_scheduler.last_epoch}; "
-                f"vendor={self.vendor_scheduler.last_epoch}"
-            )
-            if self.synchronized:
-                raise RuntimeError(message)
+        final_scheduler_outputs = _compare_scheduler_outputs(
+            self.package_scheduler,
+            self.vendor_scheduler,
+            "S3.final_scheduler",
+            enforce=self.synchronized,
+        )
+        if final_scheduler_outputs["first_divergence"] is not None:
             self._remember_divergence(
-                "S3.final_scheduler.last_epoch",
-                float(
-                    abs(
-                        self.package_scheduler.last_epoch
-                        - self.vendor_scheduler.last_epoch
-                    )
+                "S3.final_scheduler.scheduler_outputs.{}".format(
+                    final_scheduler_outputs["first_divergence"]
                 ),
+                final_scheduler_outputs["max_abs_diff"],
             )
         if self.vendor_optimizer is None:
             raise RuntimeError("S3 vendor optimizer was not initialized")
@@ -1367,6 +1650,7 @@ class RalfS3TraceCallback(Callback):
             "production_model": "RalfTrainingModule",
             "production_datamodule": "RalfDataModule",
             "initial_state_sync": self.initial_state_sync,
+            "initial_scheduler_outputs": self.initial_scheduler_outputs,
             "epochs": max_epochs,
             "train_batches": trainer.num_training_batches * max_epochs,
             "validation_epochs": len(self.logging_trace["validation"]),
@@ -1392,8 +1676,9 @@ class RalfS3TraceCallback(Callback):
                 "trajectory": self.scheduler_trajectory,
             },
             "final_learning_rates": final_learning_rates,
+            "final_scheduler_outputs": final_scheduler_outputs,
             "logging": self.logging_trace,
-            "state_synchronized_lockstep": self.state_sync_records,
+            "state_sync_copy_integrity": self.state_sync_copy_integrity_records,
             "peak_memory_allocated_bytes": int(torch.cuda.max_memory_allocated()),
             "checkpoint": {
                 "best_model_path": best_path.as_posix(),
@@ -1547,10 +1832,7 @@ def _s1(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model, _unused_independent_initialization = _models(
-        config, args.cache_dir, device, args.seed
-    )
-    del _unused_independent_initialization
+    package_module, vendor_model, _ = _models(config, args.cache_dir, device, args.seed)
     batch = context["batch"]
     vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
     package_ids = batch["input_ids"]
@@ -1584,10 +1866,7 @@ def _s2(
     context: _TrainingContext,
     device: torch.device,
 ) -> dict[str, object]:
-    package_module, vendor_model, _unused_independent_initialization = _models(
-        config, args.cache_dir, device, args.seed
-    )
-    del _unused_independent_initialization
+    package_module, vendor_model, _ = _models(config, args.cache_dir, device, args.seed)
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     learning_rates = _compare_learning_rates(package_optimizer, vendor_optimizer)
     batch = context["batch"]
@@ -1620,6 +1899,13 @@ def _s2(
         raise RuntimeError(
             f"first divergence at post_step.parameter: {parameter_diff:.8g}"
         )
+    storage_independence = _assert_optimizer_state_storage_independent(
+        package_optimizer,
+        vendor_optimizer,
+        package_module.model,
+        vendor_model,
+        "S2.post_step",
+    )
     package_opt_state = named_optimizer_state(package_optimizer, package_module.model)
     vendor_opt_state = named_optimizer_state(vendor_optimizer, vendor_model)
     if package_opt_state.keys() != vendor_opt_state.keys():
@@ -1648,6 +1934,7 @@ def _s2(
             "optimizer_state": optimizer_diff,
         },
         "learning_rates": learning_rates,
+        "optimizer_state_storage_independence": storage_independence,
         "seed": args.seed,
     }
 
@@ -1880,7 +2167,7 @@ def _s3(
     )
     natural_envelope = _natural_run_envelope(natural_runs[0], natural_runs[1])
     return {
-        "status": synchronized_run["status"],
+        "status": _s3_status(natural_runs, synchronized_run),
         "production_model": synchronized_run["production_model"],
         "production_datamodule": synchronized_run["production_datamodule"],
         "evidence_layers": {
