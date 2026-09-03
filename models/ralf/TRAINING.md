@@ -102,9 +102,21 @@ The following CGL S0-S4 rerun was performed on one selected Tesla V100-SXM2-32GB
 
 S3 reports both evidence layers in its machine-readable `status` object: `{"natural":"PASS"|"LEFT_CONTRACT","synchronized":"PASS"|"FAIL"|"NOT_RUN","verdict":"pass"|"bounded-pass"|"fail"}`. `LEFT_CONTRACT` means an independently initialized natural run diverged after leaving the S0-S2 comparison contract; it is not a synchronized parity pass or failure. `bounded-pass` means the natural layer left that contract but the independent state-synchronized lockstep layer passed. Each per-run trace uses `PASS` for agreement, `LEFT_CONTRACT` for natural divergence, and `FAIL` for synchronized divergence.
 
-Provenance for this rerun: S3 run-002 carries relevant source digest `939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the pre-commit working tree; the subsequent delta was confined to S3-only functions, tests, and documentation. Their key values remain byte-identical to the accepted baseline records above: S0 `state_sha256` `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4 package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
+Provenance for this rerun: S3 run-002 carries relevant source digest
+`939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching
+the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the
+pre-commit working tree; the subsequent delta was confined to S3-only
+functions, tests, and documentation. Their key values remain byte-identical
+to the accepted baseline records above: S0 `state_sha256`
+`0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4
+package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
 
-The fresh S3 per-run trace SHA-256 values are `9c1f4873b3ce0cc9c01b66e78ca407de40afb173a622b11666c955c8aae57c6c` (`run-007`, natural), `93a02eb72543e79db034a8028530c7e1a3bced62117af302a49d05fd4ba1bc46` (`run-008`, natural), and `1e864875a7a067492cc13c6eb01069021e3b8035fb244ebff008ca6c5fddfa61` (`run-009`, synchronized). The synchronized trace checked 90 optimizer steps, used scheduler milestone 21, and reported 2,658 storage entries with no shared storage at each post-copy check.
+The fresh S3 per-run trace SHA-256 values are `9c1f4873b3ce0cc9c01b66e78ca407de40afb173a622b11666c955c8aae57c6c`
+(`run-007`, natural), `93a02eb72543e79db034a8028530c7e1a3bced62117af302a49d05fd4ba1bc46`
+(`run-008`, natural), and `1e864875a7a067492cc13c6eb01069021e3b8035fb244ebff008ca6c5fddfa61`
+(`run-009`, synchronized). The synchronized trace checked 90 optimizer steps,
+used scheduler milestone 21, and reported 2,658 storage entries with no shared
+storage at each post-copy check.
 
 ### Earlier stage evidence records
 
