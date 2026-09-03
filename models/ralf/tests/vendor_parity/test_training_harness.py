@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
 
 import pytest
@@ -14,11 +15,13 @@ from run_training_stages import (
     _compare_named_gradients,
     _compare_scheduler_outputs,
     _compare_state_dicts,
+    _build_vendor_scheduler,
     _fresh_s3_run_root,
     _load_optimizer_state_without_hyperparameters,
     _natural_run_envelope,
     _s3_child_import_gate,
     _s3_status,
+    _s3_trace_status,
     _run_s3_fit,
     _s3,
     _s4,
@@ -346,6 +349,23 @@ def test_scheduler_output_comparison_reports_each_system_own_values() -> None:
         _compare_scheduler_outputs(package_scheduler, vendor_scheduler, "S3.epoch[0]")
 
 
+def test_scheduler_reference_uses_the_pinned_vendor_fractional_config() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        package_optimizer, milestones=[20], gamma=0.1
+    )
+    vendor_scheduler = _build_vendor_scheduler(vendor_optimizer, epochs=30)
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.vendor_scheduler", enforce=False
+    )
+
+    assert set(vendor_scheduler.milestones) == {21}
+    assert result["first_divergence"] == "milestones"
+
+
 def test_scheduler_output_comparison_accepts_two_agreeing_schedulers() -> None:
     package, vendor = _linear_pair()
     package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
@@ -366,6 +386,59 @@ def test_scheduler_output_comparison_accepts_two_agreeing_schedulers() -> None:
     assert matched["package_last_lrs"] == matched["vendor_last_lrs"]
     assert matched["package_last_lrs"] != [1e-4]
     assert matched["package_last_epoch"] == 1
+
+
+def test_scheduler_comparison_records_epoch_offset_separately() -> None:
+    package, vendor = _linear_pair()
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(package.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(vendor.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    package_scheduler.last_epoch = 2
+    vendor_scheduler.last_epoch = 1
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.epoch[2]", enforce=False
+    )
+
+    assert result["first_divergence"] == "last_epoch"
+    assert result["epoch_offset"] == 1
+    assert result["max_abs_diff"] == 0.0
+
+
+def test_scheduler_group_mismatch_is_strict_json_safe() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(
+        [
+            {"params": [vendor.weight]},
+            {"params": [vendor.bias]},
+        ],
+        lr=1e-4,
+    )
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        package_optimizer, milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        vendor_optimizer, milestones=[1], gamma=0.1
+    )
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.group_count", enforce=False
+    )
+
+    assert result["first_divergence"] == "group_count"
+    assert result["max_abs_diff"] is None
+    json.dumps(result, allow_nan=False)
+
+
+def test_s3_trace_status_uses_layered_vocabulary() -> None:
+    assert _s3_trace_status("natural", None) == "PASS"
+    assert _s3_trace_status("natural", {"location": "loss"}) == "LEFT_CONTRACT"
+    assert _s3_trace_status("synchronized", None) == "PASS"
+    assert _s3_trace_status("synchronized", {"location": "loss"}) == "FAIL"
 
 
 def test_state_sync_record_names_read_as_copy_integrity() -> None:
@@ -438,9 +511,11 @@ def test_s3_status_reports_both_evidence_layers() -> None:
 
 def test_s3_emits_the_layered_status_structure() -> None:
     source = inspect.getsource(_s3)
+    callback_source = inspect.getsource(RalfS3TraceCallback.on_fit_end)
 
     assert "_s3_status(natural_runs, synchronized_run)" in source
     assert '"status": synchronized_run["status"]' not in source
+    assert '"RECORDED"' not in callback_source
 
 
 def test_s3_run_preserves_prior_artifacts(tmp_path: Path) -> None:

@@ -106,7 +106,8 @@ class _SchedulerComparison(TypedDict):
     """Comparison of the values produced by each system's scheduler."""
 
     first_divergence: str | None
-    max_abs_diff: float
+    max_abs_diff: float | None
+    epoch_offset: int
     package_last_epoch: int
     vendor_last_epoch: int
     package_milestones: list[int]
@@ -254,6 +255,49 @@ def _recipe_epochs(dataset: str) -> int:
             f"training recipe has no integer trainer.max_epochs: {recipe_path}"
         )
     return trainer["max_epochs"]
+
+
+def _build_vendor_scheduler(
+    optimizer: torch.optim.Optimizer, *, epochs: int
+) -> torch.optim.lr_scheduler.MultiStepLR:
+    """Build the pinned original scheduler from its own fractional config."""
+    import yaml
+
+    vendor_root = ROOT / "vendor" / "ralf"
+    scheduler_config_path = (
+        vendor_root
+        / "image2layout"
+        / "train"
+        / "config"
+        / "scheduler"
+        / "multi_step_lr.yaml"
+    )
+    scheduler_config = yaml.safe_load(scheduler_config_path.read_text())
+    if not isinstance(scheduler_config, Mapping):
+        raise RuntimeError(
+            f"vendor scheduler config is not a mapping: {scheduler_config_path}"
+        )
+    raw_milestones = scheduler_config.get("milestones")
+    if not isinstance(raw_milestones, list) or not raw_milestones:
+        raise RuntimeError(
+            f"vendor scheduler config has no milestones: {scheduler_config_path}"
+        )
+    if not all(
+        isinstance(value, (float, int)) and not isinstance(value, bool)
+        for value in raw_milestones
+    ):
+        raise RuntimeError(
+            f"vendor scheduler milestones are not numeric: {scheduler_config_path}"
+        )
+    if str(vendor_root) not in sys.path:
+        sys.path.insert(0, str(vendor_root))
+    from image2layout.train.schedulers.multi_step_lr import MultiStepLRScheduler
+
+    return MultiStepLRScheduler(
+        optimizer,
+        epochs=epochs,
+        milestones=cast(list[float | int], raw_milestones),
+    )
 
 
 def _device() -> torch.device:
@@ -583,17 +627,13 @@ def _compare_scheduler_outputs(
     vendor_milestones = sorted(int(item) for item in vendor_scheduler.milestones)
     package_last_lrs = [float(value) for value in package_scheduler.get_last_lr()]
     vendor_last_lrs = [float(value) for value in vendor_scheduler.get_last_lr()]
-    max_abs_diff = max(
-        abs(package_scheduler.last_epoch - vendor_scheduler.last_epoch),
-        max(
-            (
-                abs(package_value - vendor_value)
-                for package_value, vendor_value in zip(
-                    package_last_lrs, vendor_last_lrs
-                )
-            ),
-            default=0.0,
+    epoch_offset = package_scheduler.last_epoch - vendor_scheduler.last_epoch
+    max_abs_lr_diff = max(
+        (
+            abs(package_value - vendor_value)
+            for package_value, vendor_value in zip(package_last_lrs, vendor_last_lrs)
         ),
+        default=0.0,
     )
     first_divergence: str | None = None
     if package_milestones != vendor_milestones:
@@ -618,9 +658,8 @@ def _compare_scheduler_outputs(
 
     result: _SchedulerComparison = {
         "first_divergence": first_divergence,
-        "max_abs_diff": float(max_abs_diff)
-        if first_divergence != "group_count"
-        else float("inf"),
+        "max_abs_diff": None if first_divergence == "group_count" else max_abs_lr_diff,
+        "epoch_offset": epoch_offset,
         "package_last_epoch": package_scheduler.last_epoch,
         "vendor_last_epoch": vendor_scheduler.last_epoch,
         "package_milestones": package_milestones,
@@ -631,10 +670,23 @@ def _compare_scheduler_outputs(
     if first_divergence is not None and enforce:
         raise RuntimeError(
             f"first divergence at {stage}.scheduler_outputs.{first_divergence}; "
-            f"max_abs_diff={result['max_abs_diff']:.8g}; result={result}"
+            f"max_abs_diff={result['max_abs_diff']}; result={result}"
         )
 
     return result
+
+
+def _s3_trace_status(
+    evidence_mode: str, first_divergence: object | None
+) -> Literal["PASS", "LEFT_CONTRACT", "FAIL"]:
+    """Return the machine-readable status for one S3 evidence layer."""
+    if first_divergence is None:
+        return "PASS"
+    if evidence_mode == "natural":
+        return "LEFT_CONTRACT"
+    if evidence_mode == "synchronized":
+        return "FAIL"
+    raise ValueError(f"unsupported S3 evidence mode: {evidence_mode}")
 
 
 def _named_optimizer_state_tensors(
@@ -1081,7 +1133,7 @@ class RalfS3TraceCallback(Callback):
         self.state_sync_copy_integrity_records: list[dict[str, object]] = []
         self.first_divergence: dict[str, object] | None = None
 
-    def _remember_divergence(self, location: str, max_abs_diff: float) -> None:
+    def _remember_divergence(self, location: str, max_abs_diff: float | None) -> None:
         if self.first_divergence is None:
             self.first_divergence = {
                 "location": location,
@@ -1134,13 +1186,9 @@ class RalfS3TraceCallback(Callback):
         trainer_epochs = trainer.max_epochs
         if trainer_epochs is None:
             raise RuntimeError("first divergence at S3.max_epochs; value is unset")
-        self.vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        self.vendor_scheduler = _build_vendor_scheduler(
             self.vendor_optimizer,
-            milestones=[
-                int(value * trainer_epochs)
-                for value in ralf_module.scheduler_milestones
-            ],
-            gamma=0.1,
+            epochs=trainer_epochs,
         )
         restore_rng_state(package_rng)
         package_model_identity = id(ralf_module.model)
@@ -1645,7 +1693,7 @@ class RalfS3TraceCallback(Callback):
         if max_epochs is None:
             raise RuntimeError("first divergence at S3.max_epochs; value is unset")
         result = {
-            "status": "PASS" if self.synchronized else "RECORDED",
+            "status": _s3_trace_status(self.evidence_mode, self.first_divergence),
             "evidence_mode": self.evidence_mode,
             "production_model": "RalfTrainingModule",
             "production_datamodule": "RalfDataModule",
