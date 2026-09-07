@@ -127,7 +127,7 @@ tensor([[[0.5000, 0.5000, 0.5000, 0.5000]]])
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| NSR-1K | vendor/layout-gpt dataset metadata | not mirrored |
+| NSR-1K | original-implementation dataset metadata | not mirrored |
 
 NSR-1K examples are loaded from the original dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
 
@@ -167,13 +167,13 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
-| Fixed-random exemplar ids | 3 ids | exact list equality against vendor golden seed 42 | pass |
+| Fixed-random exemplar ids | 3 ids | exact list equality against original-implementation golden seed 42 | pass |
 | Fixed-random chat prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
 | Fixed-random completion prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
-| K-similar exemplar ids | 3 ids | exact list equality against vendor golden seed 42 | pass |
+| K-similar exemplar ids | 3 ids | exact list equality against original-implementation golden seed 42 | pass |
 | K-similar completion prompt bytes | 1 prompt | exact UTF-8 byte equality | pass |
-| 2D parser output | golden parser lines | exact normalized vendor parse equality | pass |
-| 3D parser output | golden parser lines | exact normalized vendor parse equality | pass |
+| 2D parser output | golden parser lines | exact normalized original-implementation parse equality | pass |
+| 3D parser output | golden parser lines | exact normalized original-implementation parse equality | pass |
 
 ## Reproducibility
 

@@ -20,13 +20,13 @@ uv sync --package layoutdiffusion --extra training --extra vendor
 
 The training datamodule supports two data sources:
 
-- `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the injected vendor corpus-order `id2label`.
+- `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the `id2label` mapping injected for the original-implementation corpus order.
 - `processed`: preprocessed LayoutDiffusion token streams under `.cache/layoutdiffusion/original-data`. Use this source with `vocab_file` for S4/S5 so package-local training and the original-code training path consume the same `ltrb_lex` stream and vocabulary order. The S5 configs set `preconsume_train_batches: 1` so the package train stream starts after the same initial train-batch read performed before the original training loop begins.
 
 | Dataset   | Source                              | Config / stream                                                                           |
 | --------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; vendor stream `RICO_ltrb_lex` |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default; vendor stream `PublayNet_ltrb_lex`                                               |
+| RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; original-implementation stream `RICO_ltrb_lex` |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default; original-implementation stream `PublayNet_ltrb_lex`                                               |
 
 The `smoke.yaml` config uses a synthetic local dataset and does not download RICO25 or PubLayNet.
 
@@ -58,10 +58,7 @@ when running GPU training in that environment.
 
 ## Seed Policy
 
-S0-S4 parity uses fixed deterministic seeds inside the vendor-parity fixtures.
-S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds
-`102`, `103`, and `104` on both original and package systems. Unconditional sample
-export uses sampling seed `101` for every reported S5 run.
+S0-S4 parity uses fixed deterministic seeds inside fixtures for agreement checks with the original implementation. S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds `102`, `103`, and `104` on both original and package systems. Unconditional sample export uses sampling seed `101` for every reported S5 run.
 
 ## Stage Evidence
 
@@ -113,7 +110,7 @@ Do not launch S5 until all of these checks pass in the same worktree and with th
 3. S4 processed-stream order agreement checks pass, confirming the package first trained batch after `preconsume_train_batches: 1` equals the original first trained batch after the pre-loop `next(data)` read. The LayoutDiffusion training-parity suite records 2 passing S4 processed-stream tests, and the released-checkpoint inference-agreement suite records 8 passing tests.
 4. A one-step processed-stream package/original train-metric probe compares the package/original `train_loss`, KL component, auxiliary component, and total loss for RICO25 and PubLayNet before any full S5 launch. The evidence is recorded in `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
 
-   | Dataset   | Package total | Vendor total | Total ratio | Package KL  | Vendor KL | KL ratio | Package aux | Vendor aux | Aux ratio |
+   | Dataset   | Package total | Original-implementation total | Total ratio | Package KL  | Original-implementation KL | KL ratio | Package aux | Original-implementation aux | Aux ratio |
    | --------- | ------------- | ------------ | ----------- | ----------- | --------- | -------- | ----------- | ---------- | --------- |
    | RICO25    | 87104.96875   | 87100.0      | 1.000057    | 86919.15625 | 86900.0   | 1.000220 | 185.81418   | 186.0      | 0.999001  |
    | PubLayNet | 84603.28125   | 84600.0      | 1.000039    | 84425.15625 | 84400.0   | 1.000298 | 178.12349   | 178.0      | 1.000694  |
@@ -237,7 +234,7 @@ torch.save(
 PY
 ```
 
-Run staged vendor parity checks after local assets are available.
+Run staged agreement checks against the original implementation after local assets are available.
 
 ```bash
 git submodule update --init vendor/ms-layout-generation
@@ -262,9 +259,9 @@ TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
   --trainer.enable_progress_bar=false
 ```
 
-Original-implementation training per dataset and seed uses the vendor README command shape (`improved-diffusion/scripts/train.py`, `--seed <seed>`, `--lr_anneal_steps 175000/400000`) against the same processed streams; run it from the patched vendor copy used by the parity tooling.
+Original-implementation training per dataset and seed uses the original-implementation README command shape (`improved-diffusion/scripts/train.py`, `--seed <seed>`, `--lr_anneal_steps 175000/400000`) against the same processed streams; run it from the patched original-implementation copy used by the parity tooling.
 
-Export unconditional samples from a package checkpoint (EMA weights) in the vendor JSON format. The `--config` JSON must embed the vendor corpus-order vocab used in training (see `.cache/layoutdiffusion/s5/eval/configs/` generation in the evaluation driver); PubLayNet sample paths must contain lowercase `pub` for the vendor evaluator's dataset branch:
+Export unconditional samples from a package checkpoint (EMA weights) in the original-implementation JSON format. The `--config` JSON must embed the original-implementation corpus-order vocabulary used in training (see `.cache/layoutdiffusion/s5/eval/configs/` generation in the evaluation driver); PubLayNet sample paths must contain lowercase `pub` for the original evaluator's dataset branch:
 
 ```bash
 TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
@@ -276,9 +273,9 @@ TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
   --weights ema --num-samples <3728|10998> --batch-size 64 --seed 101
 ```
 
-Original-side sampling uses the patched vendor `text_sample.py` with `--model_path <run>/ema_0.9999_<steps>.pt --top_p -1.0 --constrained ungen` and the same sample counts.
+Original-side sampling uses the patched original-implementation `text_sample.py` with `--model_path <run>/ema_0.9999_<steps>.pt --top_p -1.0 --constrained ungen` and the same sample counts.
 
-Score any samples JSON with the original evaluation stack (run from the vendor LayoutDiffusion root; `seaborn` is required at runtime by `eval_src`):
+Score any samples JSON with the original evaluation stack (run from the original-implementation LayoutDiffusion root; `seaborn` is required at runtime by `eval_src`):
 
 ```bash
 cd vendor/ms-layout-generation/LayoutDiffusion

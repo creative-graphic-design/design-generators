@@ -195,10 +195,10 @@ Metrics are exact tensor equality for model outputs, exact processor pixel-value
 
 | Check | Cases | Match criterion | Result |
 | --- | ---: | --- | --- |
-| Vendor DS-GAN class probabilities | 905 canvases x 32 slots x 4 classes | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
-| Vendor DS-GAN boxes | 905 canvases x 32 slots x 4 values | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
+| Original-implementation DS-GAN class probabilities | 905 canvases x 32 slots x 4 classes | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
+| Original-implementation DS-GAN boxes | 905 canvases x 32 slots x 4 values | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
 | Processor `pixel_values` | 905 canvases x 4 x 350 x 240 pixels | `max_abs=0.0`, `mismatched=0` against regenerated fixture | passed |
-| Public postprocessing | `bbox`, `labels`, and `mask` for 905 decoded layouts | exact equality against decoded vendor fixture | passed |
+| Public postprocessing | `bbox`, `labels`, and `mask` for 905 decoded layouts | exact equality against decoded original-implementation fixture | passed |
 
 ## Reproducibility
 

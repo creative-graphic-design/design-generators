@@ -207,8 +207,8 @@ Metrics are exact key mapping checks, exact model-output checks against regenera
 | Check | Cases | Match criterion | Result |
 | --- | ---: | --- | --- |
 | State-dict key mapping | 1 synthetic model state dict | strict key prefix validation | passed |
-| Forward masks | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated vendor fixture | passed |
-| Mask-to-box postprocessing | 1 unit mask | vendor inclusive `x1+1` / `y1+1` behavior | passed |
+| Forward masks | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated original-implementation fixture | passed |
+| Mask-to-box postprocessing | 1 unit mask | original-implementation inclusive `x1+1` / `y1+1` behavior | passed |
 | Public layout schema | 1 synthetic graph | `assert_layout_output_schema` | passed |
 
 ## Reproducibility

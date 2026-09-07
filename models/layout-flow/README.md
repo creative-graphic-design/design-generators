@@ -135,7 +135,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package includes package-local LightningCLI configs for reproducing LayoutFlow training. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged agreement checks, and trained-checkpoint conversion.
+This package includes package-local LightningCLI configs for reproducing LayoutFlow training. See [TRAINING.md](models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged agreement checks, and trained-checkpoint conversion.
 
 #### Speeds, Sizes, Times
 
@@ -161,9 +161,9 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 | Dataset | Compared path | Cases | Assertion |
 | --- | --- | ---: | --- |
-| PubLayNet | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
-| RICO25 | vendor `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
-| Training parity stages | LightningCLI training wrapper vs. vendor training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
+| PubLayNet | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
+| RICO25 | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
+| Training parity stages | LightningCLI training wrapper vs. original-implementation training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
 
 Agreement checks compare the released checkpoints against the original `LayoutDMBackbone` vector-field path. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed agreement check compares an Euler trajectory against the original implementation.
 

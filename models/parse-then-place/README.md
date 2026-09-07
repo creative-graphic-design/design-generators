@@ -153,7 +153,7 @@ print(out.bbox.shape, out.labels.tolist())
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| Web | unknown | vendor web pretraining split |
+| Web | unknown | original-implementation web pretraining split |
 
 Datasets are RICO text-to-layout and WebUI as distributed by the original repository. WebUI is not yet mirrored under the `creative-graphic-design` org, so conversion scripts accept the original asset tree as the interim source.
 

@@ -196,8 +196,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm \
   --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
 ```
 
-Run the staged vendor parity checks after the submodule and local assets are
-available.
+Run the staged agreement checks against the original implementation after the submodule and local assets are available.
 
 ```bash
 PARITY_REQUIRE=1 \

@@ -49,7 +49,7 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 - **Shared by:** creative-graphic-design.
 - **Model type:** content-image layout generation.
 - **Language(s) (NLP):** English ad-banner text strings.
-- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the vendor-acknowledged [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama) components.
+- **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the components acknowledged by that repository, including [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama).
 
 ### Model Sources
 
@@ -149,7 +149,7 @@ Training follows the original LayoutDETR GAN/DETR objective and environment. Thi
 | --- | ---: | --- | --- |
 | Released Ad Banner pickle unpickle | 1 checkpoint | extract `G_ema` and record conversion report | passes with conversion-time `transformers` 4.15 compatibility shims; `torch_utils.ops` was imported |
 | Strict converted state load | 1 checkpoint | all remapped tensors strict-load into `LayoutDetrForConditionalGeneration` | passes: 852 source keys, 852 target keys, 852 loaded keys, no missing/unexpected/mismatched keys |
-| Vendor `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated vendor tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
+| Original-implementation `G_ema` forward reference | 1 fixed GPU-1 reference fixture | `pytest -m vendor_parity` compares converted raw `bbox_fake` to generated original-implementation tensors | passes with `torch.testing.assert_close(atol=1e-6, rtol=1e-6)` after disabling TF32; manual probes measured GPU `max_abs=1.49e-7`, `mean_abs=3.39e-8` and CPU `max_abs=1.19e-7`, `mean_abs=1.82e-8`; bitwise exact is false from floating-op order differences |
 | Converted `from_pretrained` smoke | 1 synthetic case | schema and local load | passes in ordinary tests |
 | Custom-op boundary | 0 | converted runtime imports no `torch_utils.ops` | documented by parity test hook |
 

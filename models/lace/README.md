@@ -64,7 +64,7 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
 | PubLayNet | [`creative-graphic-design/lace-publaynet`](https://huggingface.co/creative-graphic-design/lace-publaynet) | not-published; denoiser forward exact-match parity only |
-| RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public vendor checkpoint not present in model.tar.gz |
+| RICO13 | [`creative-graphic-design/lace-rico13`](https://huggingface.co/creative-graphic-design/lace-rico13) | planned; public original-implementation checkpoint not present in model.tar.gz |
 | RICO25 | [`creative-graphic-design/lace-rico25`](https://huggingface.co/creative-graphic-design/lace-rico25) | not-published; denoiser forward exact-match parity only |
 
 ## Uses
@@ -160,7 +160,7 @@ print(out.bbox.shape)
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
 | RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | vendor-derived RICO13 mapping |
+| RICO13 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | original-source-derived RICO13 mapping |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 
 The original LACE project trains on PubLayNet and Rico annotations prepared as max-25 layout sequences.

@@ -152,12 +152,12 @@ Training is not implemented in this workspace member. The package focuses on arc
 
 | Check | Cases | Criterion | Result |
 | --- | ---: | --- | --- |
-| BASNet saliency maps | 3 vendor demo images | Bit-exact PNG-space tensor match, `max_abs_diff=0.0`, same-device comparison | Passed |
-| Candidate JSON | 3 vendor demo images / 43 candidates | Exact JSON match against vendor `gen_boxes_multi`, mismatches=0 | Passed |
-| Scorer inputs | 43 candidates | Exact tensor match against vendor `setup_test_dataset` RoE preprocessing, `max_abs_diff=0.0` | Passed |
+| BASNet saliency maps | 3 original demo images | Bit-exact PNG-space tensor match, `max_abs_diff=0.0`, same-device comparison | Passed |
+| Candidate JSON | 3 original demo images / 43 candidates | Exact JSON match against original `gen_boxes_multi`, mismatches=0 | Passed |
+| Scorer inputs | 43 candidates | Exact tensor match against original `setup_test_dataset` RoE preprocessing, `max_abs_diff=0.0` | Passed |
 | Raw SMT scores | 43 candidates | Bit-exact with `torch.use_deterministic_algorithms(True)`, TF32 disabled, cuDNN disabled, `max_abs_diff=0.0` | Passed |
 | Selected boxes | 3 images, top 3 each | Exact selected candidate indices | Passed |
-| Text color | 3 selected top boxes | Exact hex color match against vendor `cal_best_color` with fixed KMeans seed and threadpool limit | Passed |
+| Text color | 3 selected top boxes | Exact hex color match against original `cal_best_color` with fixed KMeans seed and threadpool limit | Passed |
 
 ## Reproducibility
 

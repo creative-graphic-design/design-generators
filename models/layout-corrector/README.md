@@ -248,15 +248,15 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 | Dataset | Seed | Compared path | Cases | Assertion |
 | --- | ---: | --- | ---: | --- |
-| RICO25 | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 
 ## Reproducibility
 
