@@ -23,34 +23,59 @@
 
 ## Repo-Local Skills
 
-- Skill source of truth is `.agents/skills/<name>/SKILL.md`; repo-local skills are named with the `design-generators-` prefix.
+- Skill source of truth is `.agents/skills/<name>/SKILL.md`.
 - `.claude/skills` is a relative symlink to `.agents/skills` for Claude compatibility.
+- Repo-local skills are named with the `design-generators-` prefix.
 - Codex should read the relevant `.agents/skills/<name>/SKILL.md` directly when a repo-local skill applies.
-- For model conversion, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
-- For parity, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
-- For data sources, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
+
+### Model Conversion
+
+- For model conversion, parity, data sources, public interfaces, and layout output schemas, including `laygen`/`posgen` shared-library work, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
+- Scope: this skill owns model conversion, vendor parity, approved data sources, public interfaces, and layout output schemas.
+
+### Documentation
+
 - For documentation, use the `design-generators-documentation` skill (read `.agents/skills/design-generators-documentation/SKILL.md`).
+- Scope: this skill owns documentation, README and model-card, API-docstring, reproduction-instruction, and docs-site guidance.
+
+### Training Reproduction
+
 - For training reproduction, use the `design-generators-training-reproduction` skill (read `.agents/skills/design-generators-training-reproduction/SKILL.md`).
+- Scope: this skill owns package-local S0-S5 training reproduction and training-document guidance.
 
 ## Naming And Core Implementation
+
+### Naming
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
 - Shared packages are `laygen.common` for layout-generation utilities and `posgen.common` for poster/content-aware utilities.
+
+### Class Design And Code Style
+
 - Keep `__init__` bodies to variable initialization only.
 - Make data-holding classes `dataclass`es and put unavoidable initialization logic in `__post_init__` or a classmethod factory.
 - Consider pydantic models at serialization boundaries where runtime validation pays for itself; do not duplicate validation LightningCLI/jsonargparse already performs. Classes bound by framework constructor contracts (`PretrainedConfig`, `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
+- Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
 
 ## Tracking
 
+### Issues
+
 - If the user asks to create or file an issue first, treat issue creation as a hard gate: create the issue and record its URL before implementation, commits, or PR work. Do not substitute a PR for the requested issue.
+
+### Pull Requests
+
 - Every implementation PR must reference its implementation issue in the PR summary with `Closes #N` or `Refs #N`. The standing checklist issue #60 does not count as the implementation issue.
 - Every PR must carry the same lane/topic labels as its implementation issue, such as `ready-heavy`, `documentation`, or `meta`; status labels stay on issues only and must not be added to PRs.
 - PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do not replace the template when creating PRs with `gh pr create --body`.
-- Priority labels select the work lane; status labels move in this order: `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section.
+
+### Status Labels And Milestones
+
+- Priority labels select the work lane; status labels move in this order: `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
 - When creating any issue, set both the milestone and the native Priority issue field; do not leave either unset. Set the native Priority field through GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
@@ -70,13 +95,35 @@
 
 ## Machine-Checked Conventions
 
+### Source Checks
+
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
-- `scripts/check_src_vendor_language.py`, `scripts/check_jaxtyping_annotations.py`, and `scripts/check_config_defaults.py` enforce source-language boundaries, shaped-annotation/baseline rules, and explicit-config construction.
-- `scripts/check_semantic_blank_lines.py` and `scripts/check_module_naming.py` enforce semantic, raise-block, and compound-suite blank lines plus core module-name prefixes, suffixes, and allowlists.
-- `scripts/check_model_readmes.py`, `scripts/check_readme_badges.py`, `scripts/check_readme_links.py`, and `scripts/check_reader_facing_references.py` enforce README/model-card, badge, repository-link, and reader-reference contracts.
-- `scripts/check_training_doc_template.py` and `scripts/check_training_stage_evidence.py` enforce training-document structure and S0-S5 claims.
-- `scripts/check_pr_issue_reference.py`, `scripts/check_changed_urls.py`, and `scripts/check_draft_prs.py` enforce PR issue/checklist/completion gates, excluding standing issues #2 and #60, changed-URL status, and draft completion; their CI entry points are `.github/workflows/ci.yml`, `.github/workflows/draft-pr-audit.yml`, and `.github/workflows/link-check.yml`.
-- `.github/workflows/ci.yml` resolves members with `uv sync --all-packages`, runs pre-commit with `SKIP=uv-lock`, `ty`, root tests without package coverage, `scripts/gen_ref_pages.py` over packages below each member's `src/`, strict Zensical, and workspace-member tests; `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration`, measures each member separately without combined coverage, and enforces separate 90% floors; workspace tests include frontmatter and layout-output schema checks.
+- `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
+- `scripts/check_jaxtyping_annotations.py` enforces shaped-annotation and baseline rules.
+- `scripts/check_config_defaults.py` enforces explicit-config construction.
+- `scripts/check_semantic_blank_lines.py` checks raise-block and compound-suite blank lines.
+- `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
+
+### Documentation Checks
+
+- `scripts/check_model_readmes.py` enforces README and model-card contracts.
+- `scripts/check_readme_badges.py` enforces README badge contracts.
+- `scripts/check_readme_links.py` enforces repository-relative README links.
+- `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
+- `scripts/check_training_doc_template.py` enforces training-document structure.
+- `scripts/check_training_stage_evidence.py` enforces S0-S5 claims.
+- `tests/test_docs_generation.py` checks that every `docs/*.md` page has icon and tags frontmatter.
+- `lib/laygen/tests/test_common.py` checks the shared layout-output schema.
+
+### PR And CI Gates
+
+- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding standing issues #2 and #60.
+- `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
+- `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
+- `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; `.github/workflows/ci.yml` resolves members with `uv sync --all-packages`.
+- `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
+- CI runs root pytest without coverage because the root has no import package, and each workspace member is measured separately without combined coverage.
+- Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
 
 ## CI Policy
 

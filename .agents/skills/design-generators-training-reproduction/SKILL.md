@@ -7,17 +7,11 @@ description: Use this skill whenever implementing, reviewing, documenting, or pl
 
 ## Source Of Truth
 
-Read `docs/training-reproduction.md` before starting training reproduction work.
-That protocol defines stage scope, dataset coverage, seed policy, GPU placement,
-evidence recording, and PR gates. This skill only turns the protocol into an
-execution checklist for coding agents.
+Read `docs/training-reproduction.md` before starting training-reproduction work. That protocol defines stage scope, dataset coverage, seed policy, GPU placement, evidence recording, and PR gates. This skill only turns the protocol into an execution checklist for coding agents.
 
 ## Required Order
 
-Work in stage order: S0, S1, S2, S3, S4, then S5. Do not skip ahead because S5 is
-the visible deliverable. S0-S2 localize model, loss, optimizer, and reference
-adapter differences; S3-S4 localize repeated training and data-stream
-differences. Without those records, an S5 mismatch is not diagnosable.
+Work in stage order: S0, S1, S2, S3, S4, then S5. Do not skip ahead because S5 is the visible deliverable. S0-S2 localize model, loss, optimizer, and reference adapter differences; S3-S4 localize repeated training and data-stream differences. Without those records, an S5 mismatch is not diagnosable.
 
 Use this order for every training-first package:
 
@@ -34,13 +28,9 @@ Use this order for every training-first package:
 
 ## S5 Gate
 
-Do not launch S5-scale GPU jobs, mark an issue as parity-verified, or write a
-README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence
-already exists and is cited. If earlier evidence is missing, stop at the current
-stage and document the blocker instead of using S5 as a substitute.
+Do not launch S5-scale GPU jobs, mark an issue as parity-verified, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
 
-The durable package document must include a machine-readable `Stage Evidence`
-table in `models/<package>/TRAINING.md`:
+The durable package document must include a machine-readable `Stage Evidence` table in `models/<package>/TRAINING.md`:
 
 ```markdown
 ## Stage Evidence
@@ -55,29 +45,19 @@ table in `models/<package>/TRAINING.md`:
 | S5 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 ```
 
-Run `uv run --package design-generators python scripts/check_training_stage_evidence.py`
-before opening or updating a PR that touches training reproduction docs.
+Run `uv run --package design-generators python scripts/check_training_stage_evidence.py` before opening or updating a PR that touches training reproduction docs.
 
 ## Evidence Rules
 
-- Commit commands, seeds, config names, metric summaries, issue-comment URLs, and
-  repository/cache-relative artifact paths. The checker also accepts project
-  issue and PR URLs in the creative-graphic-design/design-generators GitHub
-  repository when evidence already lives in repository discussion.
-- Do not commit generated tensors, checkpoints, images, downloaded datasets, or
-  full-run artifacts.
+- Commit commands, seeds, config names, metric summaries, issue-comment URLs, and repository/cache-relative artifact paths. The checker also accepts project issue and PR URLs in the creative-graphic-design/design-generators GitHub repository when evidence already lives in repository discussion.
+- Do not commit generated tensors, checkpoints, images, downloaded datasets, or full-run artifacts.
 - Use one explicitly selected GPU for CUDA parity or training runs.
-- Label seed scope exactly, such as `training-seed n=3` or
-  `evaluation-seed n=3`.
-- State dataset coverage per dataset; do not imply full reproduction when only a
-  subset has S5 evidence.
+- Label seed scope exactly, such as `training-seed n=3` or `evaluation-seed n=3`.
+- State dataset coverage per dataset; do not imply full reproduction when only a subset has S5 evidence.
 
 ## PR Rules
 
-Keep train-ourselves PRs draft until S5 is complete for every claimed dataset.
-If a PR intentionally lands S0-S4 infrastructure before full runs complete, the
-PR body, README, and `TRAINING.md` must state that S5 trained-checkpoint
-reproduction is not yet claimed.
+Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must state that S5 trained-checkpoint reproduction is not yet claimed.
 
 ## Repository Training Contract
 

@@ -9,8 +9,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 
 ## Reader-first contract
 
-- Reader-facing documents (package `TRAINING.md` and `README.md` files, `docs/*.md`, PR and issue bodies) are written for a first-time reader with no knowledge of this repository's history. Lead with the claim or outcome; define or link internal terms, roles, and stage codes at first use; do not open with corrections to earlier states the reader has never seen. Before writing or editing such a document, declare the intended reader and judge every sentence by its value to that reader.
-- Do not hard-wrap markdown prose mid-sentence at a column width; write each bullet, paragraph, and table cell as one logical line, breaking only at structural boundaries.
+- Follow the reader-first and no-hard-wrap rules in the repository's core `AGENTS.md`.
 
 ## Repository documentation rules
 
@@ -21,6 +20,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
   ```
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
+- Every `docs/*.md` page needs YAML frontmatter with `icon: lucide/...` and non-empty `tags`.
 - Each model package README uses a model-card style: overview, install/usage snippet, supported checkpoints/Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 - Each package README's install snippet uses `pip install "pkg @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=<path>"`, co-specifying required workspace libraries such as `laygen` and `posgen` in the same command; clone + uv flows are for development and `REPRODUCING` docs.
 - README and model-card repository/source links must be copied from `.gitmodules` or the implementation issue, then checked for a resolving HTTP response before commit. Do not write upstream repository, project-page, dataset, or source links from memory. PR CI mechanically verifies newly added external URLs and rejects added 404/410 links.
