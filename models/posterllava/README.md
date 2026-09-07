@@ -136,11 +136,11 @@ The package does not train or fine-tune PosterLLaVA. It provides local processor
 | Prompt token ids | 1 | Exact `IMAGE_TOKEN_INDEX=-200` insertion against original `tokenizer_image_token` | Pass in vendor-parity CPU comparison |
 | JSON parser | 3 | Exact parsed objects against original `cli_multi.py` JSON-slice behavior on supported outputs | Pass in vendor-parity CPU comparison |
 | Image preprocessing | 1 | Exact tensor match against original square-pad CLIP preprocessing | Pass in vendor-parity CPU comparison |
-| Full 13B generation | 513 | Deterministic original-code run on QB-Poster validation with `seed=0`, TF32 disabled, and greedy decoding; 492 layouts parsed and 21 samples matched the original parser's empty-output behavior | Pass in gated vendor-parity validation |
+| Full 13B generation | 513 | Deterministic original-code run on QB-Poster validation with `seed=0`, TF32 disabled, and greedy decoding; 492 layouts parsed and 21 samples matched the original parser's empty-output behavior | Pass in validation against the original implementation with the required local assets |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-preprocessing, gated full-generation parity, and local smoke checks.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) for the commands that reproduce prompt, parser, image-preprocessing, full-generation agreement with the original implementation and required local assets, and local smoke checks.
 
 ## Citation
 

@@ -55,7 +55,7 @@ LayoutPrompter is a prompt-based layout agent that selects in-context exemplars 
 
 ### Direct Use
 
-Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, prompt-serialization checks, and agreement checks against the original implementation for generated layouts.
 
 Pass any `pydantic-ai` model object through `LayoutPrompterConfig.model`. If `model` is omitted, the agent checks `LAYOUTPROMPTER_MODEL`, then `PYDANTIC_AI_MODEL`, and finally falls back to `openai:gpt-4o-mini`.
 
@@ -77,7 +77,7 @@ The packaged behavior follows the upstream prompt fixtures, parser rules, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing prompt configurations or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -145,7 +145,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -161,15 +161,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
+Agreement checks use local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -194,7 +194,7 @@ No new model training is performed by this prompt-only package. Parity costs dep
 
 LayoutPrompter serializes few-shot exemplars, calls a configured `pydantic-ai` model, and parses either `seq` or `html` layout text into normalized boxes and request-local labels. `save_pretrained` stores prompt configuration and parser settings rather than learned weights.
 
-The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the vendor source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
+The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the original source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
 
 ```bash
 uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
@@ -204,11 +204,11 @@ Without `OPENAI_API_KEY`, the demo exits with a skip message.
 
 ### Compute Infrastructure
 
-Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
+Agreement-check commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
 
 #### Hardware
 
-CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
+CPU is sufficient for import, smoke tests, and recorded agreement checks.
 
 #### Software
 

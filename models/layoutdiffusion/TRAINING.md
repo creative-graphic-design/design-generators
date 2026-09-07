@@ -89,7 +89,7 @@ Evaluation protocol: unconditional generation with the original evaluation stack
 
 Interpretation: structural quality metrics (mIoU, Overlap) are equivalent on both datasets. FID is slightly higher for the package on both datasets (RICO25 +0.27, PubLayNet +0.49) with per-seed spreads far smaller than the gap, indicating a small systematic trained-weight endpoint residual rather than seed noise; the staged S0-S3 lockstep evidence (loss/gradient/parameter/EMA agreement) and the aligned one-step probe rule out training-dynamics divergence as the cause. PubLayNet package Alignment is higher in absolute terms but both values are in the strong range for the method.
 
-The original GPU training path uses effective uniform timestep sampling. In the vendor `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid as reproduction evidence.
+The original GPU training path uses effective uniform timestep sampling. In the original `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid reproduction evidence.
 
 Until S5 is confirmed for a claimed dataset, PRs should remain draft and trained checkpoints should not be published as reproduced. The upstream LayoutDiffusion checkout does not provide a LayoutDiffusion-specific top-level license, so trained checkpoints must not claim an OSS license until upstream confirms the license status.
 
@@ -108,17 +108,17 @@ Evidence locations (local, not committed): training runs under `.cache/layoutdif
 
 Do not launch S5 until all of these checks pass in the same worktree and with the same processed stream mirror that the S5 configs will use:
 
-1. Regular training config tests confirm `auxiliary_loss_weight: 0.001`, `preconsume_train_batches: 1`, and matching model/data `vocab_file` paths for every processed S5 config. This is satisfied by the current staged redo; the CPU suite includes these config guards.
-2. S3 repeated short-step parity passes against the generated original-code fixture, comparing loss trajectory, learning-rate cadence, gradients, updated parameters, and EMA within the documented test tolerances. This is satisfied by the current staged redo: S0 has 12 passing tests, S1 has 4 passing tests, and S3 has 2 passing repeated-step tests using the real vendor `TrainLoop` fixture.
-3. S4 processed-stream order parity passes, confirming the package first trained batch after `preconsume_train_batches: 1` equals the original first trained batch after the pre-loop `next(data)` read. This is satisfied by the current staged redo: S4 has 2 passing processed-stream tests, and released inference parity has 8 passing tests.
-4. A corrected one-step processed-stream package/original train-metric probe is rerun for RICO25 and PubLayNet, and the package/original `train_loss`, KL component, auxiliary component, and total loss are compared before any full S5 launch. This is satisfied by `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
+1. Regular training config tests confirm `auxiliary_loss_weight: 0.001`, `preconsume_train_batches: 1`, and matching model/data `vocab_file` paths for every processed S5 config. The current CPU suite passes these config guards.
+2. S3 repeated short-step agreement checks pass against the generated original-code fixture, comparing loss trajectory, learning-rate cadence, gradients, updated parameters, and EMA within the documented test tolerances. The LayoutDiffusion training-parity suite records 12 passing S0 tests, 4 passing S1 tests, and 2 passing S3 repeated-step tests using the original `TrainLoop` fixture.
+3. S4 processed-stream order agreement checks pass, confirming the package first trained batch after `preconsume_train_batches: 1` equals the original first trained batch after the pre-loop `next(data)` read. The LayoutDiffusion training-parity suite records 2 passing S4 processed-stream tests, and the released-checkpoint inference-agreement suite records 8 passing tests.
+4. A one-step processed-stream package/original train-metric probe compares the package/original `train_loss`, KL component, auxiliary component, and total loss for RICO25 and PubLayNet before any full S5 launch. The evidence is recorded in `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
 
    | Dataset   | Package total | Vendor total | Total ratio | Package KL  | Vendor KL | KL ratio | Package aux | Vendor aux | Aux ratio |
    | --------- | ------------- | ------------ | ----------- | ----------- | --------- | -------- | ----------- | ---------- | --------- |
    | RICO25    | 87104.96875   | 87100.0      | 1.000057    | 86919.15625 | 86900.0   | 1.000220 | 185.81418   | 186.0      | 0.999001  |
    | PubLayNet | 84603.28125   | 84600.0      | 1.000039    | 84425.15625 | 84400.0   | 1.000298 | 178.12349   | 178.0      | 1.000694  |
 
-Passing this gate authorizes full S5 launch only after the coordinator reviews the recorded probe numbers and gives a separate launch order.
+Passing this gate authorizes full S5 launch only after the recorded probe numbers have been reviewed and a separate launch order has been given.
 
 ## Training Commands
 

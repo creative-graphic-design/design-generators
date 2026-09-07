@@ -70,7 +70,7 @@ Parse-Then-Place generates layouts through a two-stage `transformers` pipeline: 
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 The pipeline owns the two-stage text-to-layout workflow: semantic parser -> placement constraint -> placement model -> common `LayoutGenerationOutput`. Full checkpoint inference requires converted `semantic_parser/` and `placement/` subfolders containing standard `AutoModelForSeq2SeqLM` weights.
 
@@ -90,7 +90,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -163,7 +163,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -179,15 +179,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -196,16 +196,16 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 | RICO finetune stage-2 token ids | 1 prompt x 5 samples | Exact generated token-id sequence match | 5/5 |
 | RICO finetune stage-2 decoded layouts | 1 prompt x 5 samples | Exact decoded layout string match | 5/5 |
 
-The current parity test loads the original stage-2 placement checkpoint through the converted package wrapper and compares it with references produced by a direct `transformers` generation call using hand-copied vendor generation settings; it does not execute the vendor trainer path or the converted checkpoint artifact.
+The current agreement test loads the original stage-2 placement checkpoint through the converted package wrapper and compares it with references produced by a direct `transformers` generation call using hand-copied original generation settings; it does not execute the original trainer path or the converted checkpoint artifact.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -215,17 +215,17 @@ Parse-Then-Place runs two seq2seq stages: `semantic_parser/` turns text into lay
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 
 Use `uv run --package parse-then-place ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-The original adapter/deepspeed training stack uses legacy pins (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that conflict with this workspace's modern Hugging Face stack. Keep those pins in a separate vendor-parity environment when flattening stage-1 adapter weights; the published runtime artifact should be standard `transformers` weights.
+The original adapter/deepspeed training stack uses legacy pins (`adapter_transformers==3.0.1`, `deepspeed==0.5.10`, `wandb==0.12.10`) that conflict with this workspace's modern Hugging Face stack. Keep those pins in a separate original-implementation environment when flattening stage-1 adapter weights; the published runtime artifact should be standard `transformers` weights.
 
 ## License
 

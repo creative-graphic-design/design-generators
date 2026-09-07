@@ -69,7 +69,7 @@ DS-GAN is a content-aware poster layout generator that predicts text, logo, and 
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of content-aware poster layout generation.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for content-aware poster layout generation.
 
 Conditional generation accepts an RGB content image plus one saliency map, or PFPNet and BASNet saliency maps that are merged before resizing:
 
@@ -114,7 +114,7 @@ The converted behavior follows the upstream checkpoint, saliency preprocessing p
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation. Review generated layouts before downstream use and evaluate separately for each target poster domain.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results. Review generated layouts before downstream use and evaluate separately for each target poster domain.
 
 ## How to Get Started with the Model
 
@@ -165,7 +165,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. RGB canvases and saliency maps are resized to `(350, 240)`. PFPNet and BASNet saliency are merged by native-resolution pixelwise max before resize. Vendor class id `0` represents no object and becomes `mask=False`.
+Inputs and outputs are normalized to the public layout schema at package boundaries. RGB canvases and saliency maps are resized to `(350, 240)`. PFPNet and BASNet saliency are merged by native-resolution pixelwise max before resize. The original class id `0` represents no object and becomes `mask=False`.
 
 #### Training Hyperparameters
 
@@ -181,15 +181,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures from the released DS-GAN checkpoint and PosterLayout test canvases. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures from the released DS-GAN checkpoint and PosterLayout test canvases. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is scoped to the PKU PosterLayout DS-GAN generator, fixed seed `0`, content-image conditioning, and 905 test canvases.
+Agreement checks are scoped to the PKU PosterLayout DS-GAN generator, fixed seed `0`, content-image conditioning, and 905 test canvases.
 
 #### Metrics
 
-Metrics are exact tensor equality for model outputs, exact processor pixel-value equality against the regenerated vendor fixture, and exact public postprocessing equality for `bbox`, `labels`, and `mask`.
+Metrics are exact tensor equality for model outputs, exact processor pixel-value equality against the regenerated original-implementation fixture, and exact public postprocessing equality for `bbox`, `labels`, and `mask`.
 
 ### Parity Results
 
@@ -202,25 +202,25 @@ Metrics are exact tensor equality for model outputs, exact processor pixel-value
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
-No new model training is performed by this conversion package. Conversion and parity costs depend on local hardware and the selected checkpoint.
+No new model training is performed by this conversion package. Conversion and agreement-check costs depend on local hardware and the selected checkpoint.
 
 ## Technical Specifications
 
 ### Model Architecture and Objective
 
-DS-GAN loads the released PosterLayout generator checkpoint. A four-channel ResNet-FPN image encoder initializes a bidirectional LSTM over an initial layout tensor shaped `(B, 32, 2, 4)`. The generator predicts vendor class probabilities over `no_object`, `text`, `logo`, and `underlay`, plus normalized center `xywh` boxes.
+DS-GAN loads the released PosterLayout generator checkpoint. A four-channel ResNet-FPN image encoder initializes a bidirectional LSTM over an initial layout tensor shaped `(B, 32, 2, 4)`. The generator predicts original-implementation class probabilities over `no_object`, `text`, `logo`, and `underlay`, plus normalized center `xywh` boxes.
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and smoke tests. CUDA is recommended for heavyweight vendor parity against the released checkpoint.
+CPU is sufficient for import and smoke tests. CUDA is recommended for heavyweight agreement checks against the original implementation and released checkpoint.
 
 #### Software
 

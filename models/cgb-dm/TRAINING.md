@@ -1,15 +1,6 @@
 # Training CGB-DM
 
-CGB-DM training is reproducible enough to support CGL practical parity with the
-package implementation under the reference architecture, reference dataset
-encoding, and raw-internal S5 evaluation protocol. PKU PosterLayout is not a
-practical-parity claim: the seed-variance matrix shows no-underlay collapse in
-both the original implementation and the package, so the failure is not
-package-exclusive. The observed collapse rates are 3/4 original runs and 4/5
-package runs; that sample is enough to reject a package-only explanation but
-too small to support a stable frequency comparison. This matches the
-trajectory-sensitivity risk tracked in
-[issue #148](https://github.com/creative-graphic-design/design-generators/issues/148).
+CGB-DM training is reproducible enough to support CGL practical parity with the package implementation under the reference architecture, reference dataset encoding, and the S5 full-run evaluation stage defined in the [training reproduction protocol](docs/training-reproduction.md), using the original metric formulas on raw generated classes and boxes. PKU PosterLayout is not a practical-parity claim: the seed-variance matrix shows no-underlay collapse in both the original implementation and the package, so the failure is not package-exclusive. The observed collapse rates are 3/4 original runs and 4/5 package runs; that sample is enough to reject a package-only explanation but too small to support a stable frequency comparison. This matches the trajectory-sensitivity risk tracked in [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148).
 
 Run commands from the repository root. Generated checkpoints, sample tensors,
 metric summaries, converted local pipelines, and downloaded assets stay outside

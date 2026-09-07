@@ -64,6 +64,23 @@ def test_check_readme_links_rejects_parent_relative_docs_link(tmp_path: Path) ->
     assert "../ relative escapes" in violations[0].reason
 
 
+def test_check_readme_links_checks_training_files(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    training = tmp_path / "models" / "example" / "TRAINING.md"
+    training.parent.mkdir(parents=True)
+    training.write_text(
+        "See the [training reproduction protocol](../../docs/training-reproduction.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert violations[0].path == training
+    assert violations[0].link == "../../docs/training-reproduction.md"
+
+
 def test_check_readme_links_rejects_pages_markdown_url(tmp_path: Path) -> None:
     check_readme_links = load_check_readme_links()
     link = check_readme_links.PAGES_BASE_URL + "docs/training-reproduction.md"

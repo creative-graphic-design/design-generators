@@ -1,6 +1,6 @@
 # LayoutFlow Training
 
-This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity rerun for LayoutFlow.
+This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity checks described in the [training reproduction protocol](docs/training-reproduction.md).
 
 Run commands from the repository root. Training data, generated checkpoints, CSV logs, and converted local pipelines stay under `.cache/layout-flow`.
 
@@ -66,9 +66,7 @@ optimizer-step parity controls before recipe changes are used for full runs.
 
 ## Seed Policy
 
-RICO25 and PubLayNet S5 evidence is reported at `training-seed n=3` with
-training seeds `42975`, `42976`, and `42977`. Evaluation uses fixed seed `42975`
-for the recorded vendor-protocol summaries.
+RICO25 and PubLayNet full-run evidence is reported at `training-seed n=3` with training seeds `42975`, `42976`, and `42977`. Evaluation uses fixed seed `42975` for the recorded summaries produced with the original implementation's protocol.
 
 ## Validation Stages
 

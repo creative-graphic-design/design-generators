@@ -68,10 +68,10 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 | --- | --- | --- |
 | RICO25 LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-rico25-layoutflow` | not-published |
 | PubLayNet LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-publaynet-layoutflow` | not-published |
-| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | planned follow-up slice 2 |
-| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | planned follow-up slice 2 |
-| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | planned follow-up slice 2 |
-| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | planned follow-up slice 2 |
+| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | Planned; not yet converted |
+| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | Planned; not yet converted |
+| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | Planned; not yet converted |
+| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | Planned; not yet converted |
 
 ### Checkpoint Families
 
@@ -79,23 +79,23 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 
 | Source family | Architecture | Datasets | Internal boxes | Max length | Status |
 | --- | --- | --- | --- | ---: | --- |
-| `layoutflow` | `layoutnet` | RICO25, PubLayNet | `ltrb` | 20 | This PR converts LayoutFlow-hosted LayoutNet/FIDNet assets and released `FIDNet_musig_{val,test}_*.pt` statistics. |
-| `layoutdm` | `fidnet_v3` | RICO25, PubLayNet | `xywh` | 25 | Follow-up slice 2 rebuilds the LayoutDM FIDNetV3 variants from original assets, using the 2024 Hub repos only as secondary tensor-for-tensor cross-checks. |
-| `ralf` | `fidnet_v3` | PKU10, CGL | `xywh` | checkpoint-specific | Follow-up slice 2 rebuilds the RALF FIDNetV3 variants from the vendored RALF FID model and corresponding weights. |
+| `layoutflow` | `layoutnet` | RICO25, PubLayNet | `ltrb` | 20 | The package converts LayoutFlow-hosted LayoutNet/FIDNet assets and released `FIDNet_musig_{val,test}_*.pt` statistics. |
+| `layoutdm` | `fidnet_v3` | RICO25, PubLayNet | `xywh` | 25 | The package plans to rebuild the LayoutDM FIDNetV3 variants from original assets; they are not yet converted, and the 2024 Hub repos are only secondary tensor-for-tensor cross-checks. |
+| `ralf` | `fidnet_v3` | PKU10, CGL | `xywh` | checkpoint-specific | The package plans to rebuild the RALF FIDNetV3 variants from the vendored RALF FID model and corresponding weights; they are not yet converted. |
 
-The conversion CLI in this PR accepts `--source layoutflow` for the converted slice and keeps `--source layoutdm` for the planned FIDNetV3 path. RALF is documented as a planned checkpoint family but is not a selectable conversion source until the slice 2 implementation lands.
+The conversion CLI accepts `--source layoutflow` for the converted LayoutFlow family and keeps `--source layoutdm` for the planned FIDNetV3 path. RALF is documented as a planned checkpoint family but is not a selectable conversion source because its checkpoints are not yet converted.
 
 ### Artifact Provenance
 
-No checkpoint, statistics, generated tensor, or downloaded archive is committed in this PR. Each row records where a family is expected to come from before conversion.
+No checkpoint, statistics, generated tensor, or downloaded archive is committed in the repository. Each row records where a family is expected to come from before conversion.
 
-| Source family | Primary source | Expected local files | This PR uses |
+| Source family | Primary source | Expected local files | Package uses |
 | --- | --- | --- | --- |
 | `layoutflow` | [JulianGuerreiro/LayoutFlow source repository](https://github.com/julianguerreiro/LayoutFlow) and [JulianGuerreiro/LayoutFlow checkpoint host](https://huggingface.co/JulianGuerreiro/LayoutFlow) | `vendor/layout-flow/pretrained/fid_rico.pth.tar`, `fid_publaynet.pth.tar`, and `FIDNet_musig_{val,test}_{rico,publaynet}.pt` | Yes, for local conversion and parity only. |
-| `layoutdm` | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), archive `layoutdm_starter.zip` | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the release archive | No; planned for slice 2. |
-| `layoutdm` cross-check | 2024 repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check in slice 2, not the primary source. |
-| `ralf` | Vendored RALF FIDNetV3 source at `vendor/ralf/image2layout/train/fid/model.py`; slice 2 must record the exact original weight release before conversion | PKU10 and CGL FIDNetV3 weights selected in slice 2 | No; planned for slice 2. |
-| `ralf` cross-check | 2024 repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check in slice 2, not the primary source. |
+| `layoutdm` | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), archive `layoutdm_starter.zip` | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the release archive | No; planned and not yet converted. |
+| `layoutdm` cross-check | 2024 repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
+| `ralf` | Vendored RALF FIDNetV3 source at `vendor/ralf/image2layout/train/fid/model.py`; the exact original weight release must be recorded before conversion | PKU10 and CGL FIDNetV3 weights selected for conversion | No; planned and not yet converted. |
+| `ralf` cross-check | 2024 repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
 
 ## Uses
 
@@ -113,11 +113,11 @@ Do not compare scores across checkpoint families unless feature-level equivalenc
 
 ## Bias, Risks, and Limitations
 
-Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until publication; LayoutDM and RALF FIDNetV3 variants are planned for follow-up slice 2.
+Scores inherit the label vocabularies, sequence lengths, reference splits, and dataset preprocessing choices of the selected checkpoint family. Converted LayoutFlow statistics are local-use artifacts until publication; LayoutDM and RALF FIDNetV3 variants are planned and not yet converted.
 
 ### Recommendations
 
-Report the checkpoint family, dataset, reference split, and `label_id_offset` with every score. Re-run the parity suite before using newly converted artifacts in benchmark tables.
+Report the checkpoint family, dataset, reference split, and `label_id_offset` with every score. Re-run the agreement-check suite against the original implementation before using newly converted artifacts in benchmark tables.
 
 ## How to Get Started with the Model
 
@@ -180,15 +180,15 @@ Feature extraction is CPU-capable for small batches. Large benchmark runs should
 
 #### Testing Data
 
-Parity tests use local-only LayoutFlow FID checkpoints, released real-distribution statistics, and deterministic synthetic layout batches. No generated tensors, checkpoints, or statistics are committed.
+Agreement checks use local-only LayoutFlow FID checkpoints, released real-distribution statistics, and deterministic synthetic layout batches. No generated tensors, checkpoints, or statistics are committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint family, reference split, bbox convention, and label-offset setting.
+Agreement results are reported separately by dataset, checkpoint family, reference split, bbox convention, and label-offset setting.
 
 #### Metrics
 
-Metrics include feature tensor allclose, Frechet distance equality, reference-statistics conversion equality, and S5-compatible Alignment, Overlap, and mIoU metadata.
+Metrics include feature tensor allclose, Frechet distance equality, reference-statistics conversion equality, and Alignment, Overlap, and mIoU metadata compatible with the full-run comparison described in the [training reproduction protocol](docs/training-reproduction.md).
 
 ### Parity Results
 
@@ -198,13 +198,13 @@ Metrics include feature tensor allclose, Frechet distance equality, reference-st
 | PubLayNet | LayoutFlow `LayoutNet.extract_features` vs. converted `LayoutFIDModel.extract_features` | 1 deterministic CPU batch | `atol=1e-6`, `rtol=1e-5` | max_abs 0.0, max_rel 0.0 |
 | RICO25 statistics | `FIDNet_musig_test_rico.pt` and `FIDNet_musig_val_rico.pt` row conversion | 2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 2.0987218740 |
 | PubLayNet statistics | `FIDNet_musig_test_publaynet.pt` and `FIDNet_musig_val_publaynet.pt` row conversion | 2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 8.1038132169 |
-| S5 RICO25 metadata | Issue #149 reported final metrics | 1 metadata record | FID 6.5372 and 5.0896 recorded | recorded |
+| Full-run RICO25 metadata | [Issue #149](https://github.com/creative-graphic-design/design-generators/issues/149) reported final metrics | 1 metadata record | FID 6.5372 and 5.0896 recorded | recorded |
 
-The LayoutFlow `label_id_offset` default is `0`. The parity suite includes an offset fixture and records any evidence before changing that config value.
+The LayoutFlow `label_id_offset` default is `0`. The agreement-check suite includes an offset fixture and records any evidence before changing that config value.
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
@@ -218,11 +218,11 @@ No model training is performed by this evaluator package. Conversion and parity 
 
 ### Compute Infrastructure
 
-Conversion and feature parity run on CPU for LayoutFlow artifacts. Large generator benchmark scoring may benefit from CUDA but does not require it.
+Conversion and feature agreement checks run on CPU for LayoutFlow artifacts. Large generator benchmark scoring may benefit from CUDA but does not require it.
 
 #### Hardware
 
-CPU is sufficient for unit tests, conversion, LayoutFlow feature parity, and local `from_pretrained` smoke tests.
+CPU is sufficient for unit tests, conversion, LayoutFlow feature agreement checks, and local `from_pretrained` smoke tests.
 
 #### Software
 
@@ -230,7 +230,7 @@ Use `uv run --package layout-fid ...` from the repository root so workspace depe
 
 ## License
 
-Repository code is Apache-2.0. The LayoutFlow source repository is MIT licensed; LayoutDM and RALF source repositories are Apache-2.0 licensed. Converted Layout FID artifacts are not published on the Hub in this PR.
+Repository code is Apache-2.0. The LayoutFlow source repository is MIT licensed; LayoutDM and RALF source repositories are Apache-2.0 licensed. Converted Layout FID artifacts are not published on the Hub.
 
 ## Citation
 

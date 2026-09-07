@@ -46,7 +46,7 @@ This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [
 
 ### Model Description
 
-LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping vendor-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
@@ -71,7 +71,7 @@ LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator 
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 Conditional generation accepts label prompts for the converted generator:
 
@@ -115,7 +115,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -167,7 +167,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -183,15 +183,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -203,12 +203,12 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -218,11 +218,11 @@ LayoutGAN++ loads the released Const-layout generator checkpoints and predicts e
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 

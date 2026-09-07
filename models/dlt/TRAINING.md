@@ -1,9 +1,6 @@
 # Training DLT
 
-DLT training uses the shared class-path-driven LightningCLI entry point. The
-package does not define `dlt.training.cli`. PubLayNet and RICO13 have accepted
-S5 practical reproduction with stochastic residuals disclosed; Magazine remains
-gated until polygon and train-only handling is amended.
+DLT training uses the shared class-path-driven LightningCLI entry point. The package does not define `dlt.training.cli`. PubLayNet and RICO13 have accepted S5 practical reproduction, the full-run statistical stage defined in the [training reproduction protocol](docs/training-reproduction.md), with stochastic residuals disclosed. Magazine is not claimed until polygon and train-only handling is amended.
 
 Run commands from the repository root. Generated checkpoints, result JSON,
 converted local pipelines, and downloaded assets stay outside git under
@@ -30,7 +27,7 @@ uv sync --package dlt --extra training --extra vendor
 | --- | --- | --- |
 | PubLayNet | `creative-graphic-design/PubLayNet` | PubLayNet HDF5 training data under `.cache/dlt/`; validation uses `all` conditioning with batch size 64. |
 | RICO13 | `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` and the DLT label mapping | RICO13 valid-box-filtered data; the aligned preparation kept `train=19204` and `val=1129` records for both vendor and package paths. |
-| Magazine | `creative-graphic-design/magazine` | Gated until polygon and train-only handling is amended. |
+| Magazine | `creative-graphic-design/magazine` | Not claimed until polygon and train-only handling is amended. |
 
 ## Configs
 
@@ -43,7 +40,7 @@ Training configs live under `models/dlt/configs/training`.
 | `dlt_publaynet_deterministic.yaml` | PubLayNet | deterministic | Deterministic PubLayNet diagnostics. |
 | `dlt_rico13.yaml` | RICO13 | default | Full RICO13 package training. |
 | `dlt_rico13_deterministic.yaml` | RICO13 | deterministic | Deterministic RICO13 diagnostics. |
-| `dlt_magazine.yaml` | Magazine | default | Gated Magazine recipe, pending polygon/train-only handling. |
+| `dlt_magazine.yaml` | Magazine | default | Magazine recipe not claimed pending polygon/train-only handling. |
 
 ## Scheduler and Recipe Notes
 
@@ -55,8 +52,7 @@ evaluated S5 checkpoint's `global_step=1994400` and scheduler
 Magazine uses the vendor warmup of `2000` steps; their total training steps are
 resolved by Lightning from the active datamodule.
 
-PubLayNet and RICO13 package training pairs have been evaluated. Magazine
-remains gated until polygon/train-only handling is amended.
+PubLayNet and RICO13 package training pairs have been evaluated. Magazine is not claimed until polygon and train-only handling is amended.
 
 ## Seed Policy
 
@@ -82,7 +78,7 @@ Magazine has no S5 run yet.
 | S2 | One optimizer-step parity | Confirm loss definition parity and real-batch PubLayNet diagnostic deltas. |
 | S3 | Short deterministic multi-batch run | Exercise LightningCLI class-path wiring, AdamW, per-step warmup-cosine scheduling, clipping, synthetic data loading, and one train batch. |
 | S4 | Deterministic loader stream | Verify HDF5 loading, padding/filtering, shuffling, scheduler stepping, and trace adapter coverage. |
-| S5 | Full-run statistical comparison | Accept PubLayNet and RICO13 practical reproduction; keep Magazine gated. |
+| S5 | Full-run statistical comparison | Accept PubLayNet and RICO13 practical reproduction; do not claim Magazine until polygon and train-only handling is amended. |
 
 ## Stage Evidence
 
@@ -119,13 +115,7 @@ implementation bug.
 
 ### Seed-Variance Control Experiment
 
-The final seed-variance control compares three within-implementation seed
-samples against the cross-implementation residual. Vendor samples are
-`vendor42`, `vendor43`, and `vendor44`; package samples are `lr-step` seeds
-`42`, `45`, and `46`; the cross residual is the reference-callback seed-42
-package checkpoint against the vendor seed-42 from-scratch reference. Bit
-parity is impossible for this train-ourselves path because the two
-implementations do not share a full RNG trajectory.
+The final seed-variance control compares three within-implementation seed samples against the cross-implementation residual. Vendor samples are `vendor42`, `vendor43`, and `vendor44`; package samples are `lr-step` seeds `42`, `45`, and `46`; the cross residual is the reference-callback seed-42 package checkpoint against the vendor seed-42 from-scratch reference. Bit parity is impossible for this local-training path because the two implementations do not share a full RNG trajectory.
 
 | Metric | Vendor within-seed variation | Package within-seed variation | Cross residual | Verdict |
 | --- | ---: | ---: | ---: | --- |
@@ -155,13 +145,7 @@ delta `-0.0011934477`, while the per-batch standard deviation is about `0.175`.
 The visible sparse train-loss curve difference is therefore a single-batch
 logging artifact.
 
-RICO13 residuals are inside the previously recorded PubLayNet seed-variance
-reference ranges: `overlap_pred` is within the about `+/-20%` relative range,
-FID is within the tens-of-percent package seed variation range, and
-`alignment_pred` is within the about `+/-4%` range. Loading the vendor seed-42
-weights through the package checkpoint format and running the same S5 evaluator
-produced zero deltas for all reported metrics on all three seeds, which clears
-the package sampling and evaluator paths.
+RICO13 residuals are inside the PubLayNet seed-variance reference ranges reported above: `overlap_pred` is within the about `+/-20%` relative range, FID is within the tens-of-percent package seed variation range, and `alignment_pred` is within the about `+/-4%` range. Loading the vendor seed-42 weights through the package checkpoint format and running the same S5 evaluator produced zero deltas for all reported metrics on all three seeds, which clears the package sampling and evaluator paths.
 
 The PubLayNet HDF5 training data also matches the JSON source by image id for
 normalized LTWH boxes, category ids, filtering, and dataset order. The only

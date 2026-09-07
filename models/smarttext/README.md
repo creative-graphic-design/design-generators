@@ -68,7 +68,7 @@ SmartText places text on natural images with a BASNet/GDI saliency model, determ
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of SmartText text placement over natural images.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for SmartText text placement over natural images.
 
 Conditional generation accepts an RGB content image and prompt text:
 
@@ -96,15 +96,15 @@ The package is not intended for text-only layout generation, document page layou
 
 ## Bias, Risks, and Limitations
 
-The original SmartText training data is not distributed in this repository, and converted-weight redistribution needs upstream license review. The ordinary tests use synthetic images and optional vendor demo assets.
+The original SmartText training data is not distributed in this repository, and converted-weight redistribution needs upstream license review. The ordinary tests use synthetic images and optional original demo assets.
 
-The RoI/RoD alignment modules are PyTorch ports of the vendor forward kernels. The original compiled extensions do not build against the current PyTorch extension API, so the reference harness imports vendor `smtModel.py` with the same PyTorch RoI/RoD shim instead of editing `vendor/`.
+The RoI/RoD alignment modules are PyTorch ports of the original forward kernels. The original compiled extensions do not build against the current PyTorch extension API, so the reference harness imports the original `smtModel.py` with the same PyTorch RoI/RoD shim instead of editing `vendor/`.
 
-The shim follows the vendor CUDA kernel formulas directly: RoIAlign samples the scaled box lattice with `+1` width/height and bilinear interpolation, RoDAlign samples the whole feature lattice with `(height - 1.001)/(aligned_height - 1)` and zeroes samples inside the scaled box, and both `Avg` modules apply the vendor 2x2 stride-1 average pooling. Equivalence to the unavailable compiled extension is source-level rather than binary-verified.
+The shim follows the original CUDA kernel formulas directly: RoIAlign samples the scaled box lattice with `+1` width/height and bilinear interpolation, RoDAlign samples the whole feature lattice with `(height - 1.001)/(aligned_height - 1)` and zeroes samples inside the scaled box, and both `Avg` modules apply the original 2x2 stride-1 average pooling. Equivalence to the unavailable compiled extension is source-level rather than binary-verified.
 
 ### Recommendations
 
-Use the parity commands before comparing research results, and inspect generated boxes visually when moving beyond the vendor demo images.
+Use the agreement-check commands before comparing research results, and inspect generated boxes visually when moving beyond the original demo images.
 
 ## How to Get Started with the Model
 
@@ -144,7 +144,7 @@ The original SmartText training data is not included here. This package document
 
 ### Training Procedure
 
-Training is not implemented in this workspace member. The package focuses on architecture porting, checkpoint conversion, and vendor-parity inference.
+Training is not implemented in this workspace member. The package focuses on architecture porting, checkpoint conversion, and inference agreement with the original implementation.
 
 ## Evaluation
 
@@ -161,7 +161,7 @@ Training is not implemented in this workspace member. The package focuses on arc
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md) to reproduce the original-implementation agreement checks by downloading the released weights, generating vendor references on one GPU, converting checkpoints, and running the gated parity tests. cuDNN is disabled for parity because the first divergent op with cuDNN enabled is the scorer's first ShuffleNetV2 convolution (`Feat_ext.feature3.0.0`), which differs by a few float32 ULPs across processes even with deterministic algorithms enabled.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md) to reproduce the original-implementation agreement checks by downloading the released weights, generating original-implementation references on one GPU, converting checkpoints, and running the agreement tests with missing required assets treated as failures. cuDNN is disabled for agreement checks because the first divergent op with cuDNN enabled is the scorer's first ShuffleNetV2 convolution (`Feat_ext.feature3.0.0`), which differs by a few float32 ULPs across processes even with deterministic algorithms enabled.
 
 ## License
 

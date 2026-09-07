@@ -93,9 +93,9 @@ The package is not intended for text-only layout generation, document layout syn
 
 ## Bias, Risks, and Limitations
 
-The Ad Banner data remains on the vendor Google Drive distribution until an org-hosted dataset exists. Ordinary tests use synthetic images and local fixtures, so they do not measure model quality.
+The Ad Banner data remains on the original Google Drive distribution until an org-hosted dataset exists. Ordinary tests use synthetic images and local fixtures, so they do not measure model quality.
 
-The converted runtime avoids StyleGAN CUDA custom ops. Extracting `G_ema` from the original pickle is a conversion-time vendor operation and records whether `torch_utils.ops` was imported while unpickling.
+The converted runtime avoids StyleGAN CUDA custom ops. Extracting `G_ema` from the original pickle is a conversion-time operation against the original implementation and records whether `torch_utils.ops` was imported while unpickling.
 
 ### Recommendations
 
@@ -135,11 +135,11 @@ pipe = LayoutDetrPipeline.from_pretrained(
 
 ### Training Data
 
-The released checkpoint was trained on the original Ad Banner vendor distribution, which contains 7,672 samples according to the vendor README. The data path is isolated behind the package processor and dataset adapter, with a TODO to switch to an org dataset when available.
+The released checkpoint was trained on the original Ad Banner distribution, which contains 7,672 samples according to the original README. The data path is isolated behind the package processor and dataset adapter, with a TODO to switch to an org dataset when available.
 
 ### Training Procedure
 
-Training follows the original LayoutDETR GAN/DETR objective and vendor environment. This package focuses on conversion and inference; training code is not added.
+Training follows the original LayoutDETR GAN/DETR objective and environment. This package focuses on conversion and inference; training code is not added.
 
 ## Evaluation
 
@@ -159,7 +159,7 @@ Reproduce the original-implementation agreement checks by following [REPRODUCING
 
 ## License
 
-The original LayoutDETR code is Apache-2.0. The vendor README acknowledges StyleGAN3, DETR, Up-DETR, BLIP, LayoutGAN++, Pitt Image Ads, and LaMa components; keep those notices with any redistributed converted checkpoint.
+The original LayoutDETR code is Apache-2.0. The original README acknowledges StyleGAN3, DETR, Up-DETR, BLIP, LayoutGAN++, Pitt Image Ads, and LaMa components; keep those notices with any redistributed converted checkpoint.
 
 ## Citation
 

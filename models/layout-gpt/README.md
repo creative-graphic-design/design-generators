@@ -51,7 +51,7 @@ LayoutGPT is a prompt-based layout agent that turns natural-language scene descr
 
 ### Direct Use
 
-Use this package for research inference, prompt-serialization checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, prompt-serialization checks, and agreement checks against the original implementation for generated layouts.
 
 LayoutGPT builds the same in-context prompts as the original 2D script, calls any `pydantic-ai` compatible chat model, and parses CSS-style layout lines into typed Python objects and the shared layout output schema. The supported settings are `counting` and `spatial`; exemplar selection supports `fixed-random` and `k-similar`.
 
@@ -71,7 +71,7 @@ The packaged behavior follows the upstream prompt fixtures, exemplar metadata, p
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing prompt configurations or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing prompt configurations or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -129,7 +129,7 @@ tensor([[[0.5000, 0.5000, 0.5000, 0.5000]]])
 | --- | --- | --- |
 | NSR-1K | vendor/layout-gpt dataset metadata | not mirrored |
 
-NSR-1K examples are loaded from the vendor dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
+NSR-1K examples are loaded from the original dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
 
 ### Training Procedure
 
@@ -137,7 +137,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -153,15 +153,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
+Agreement checks use local-only generated prompt fixtures and parser-reference JSON. Provider outputs, generated artifacts, and downloaded datasets are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -177,12 +177,12 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run parity checks, save prompt configuration, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run agreement checks, save prompt configuration, and smoke-test local loading.
 
 
 ## Environmental Impact
 
-No new model training is performed by this prompt-only package. Parity costs depend on the selected prompt fixtures, provider configuration, and local hardware.
+No new model training is performed by this prompt-only package. Agreement-check costs depend on the selected prompt fixtures, provider configuration, and local hardware.
 
 ## Technical Specifications
 
@@ -192,17 +192,17 @@ LayoutGPT builds a structured prompt from task examples, calls a configured `pyd
 
 ### Compute Infrastructure
 
-Vendor parity commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
+Agreement-check commands are deterministic CPU checks for prompt serialization, exemplar selection, and parser behavior.
 
 #### Hardware
 
-CPU is sufficient for import, smoke tests, and recorded vendor parity checks.
+CPU is sufficient for import, smoke tests, and recorded agreement checks.
 
 #### Software
 
 Use `uv run --package layout-gpt ...` from the repository root so workspace dependency sources and extras resolve correctly.
 
-The demo script accepts a configured `pydantic-ai` model and a vendor NSR-1K JSON file.
+The demo script accepts a configured `pydantic-ai` model and an original NSR-1K JSON file.
 
 ## License
 

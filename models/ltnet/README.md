@@ -71,7 +71,7 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 ### Direct Use
 
-Use this package for research inference, checkpoint conversion checks, and vendor-parity validation of relation-conditioned layout generation.
+Use this package for research inference, checkpoint conversion checks, and agreement checks against the original implementation for relation-conditioned layout generation.
 
 LT-Net accepts scene graph objects and relations, serializes them through the package tokenizer and processor, and returns common `laygen` layout outputs.
 
@@ -89,7 +89,7 @@ The package follows released checkpoint behavior and the dataset vocabularies us
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints, changing tokenizer metadata, or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints, changing tokenizer metadata, or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -142,7 +142,7 @@ print(out.mask)
 | COCO | unknown | original LT-Net COCO scene-graph preprocessing |
 | VG-MSDN | unknown | original Visual Genome MSDN split and vocabulary |
 
-COCO and VG-MSDN are not yet available in the `creative-graphic-design` Hugging Face org in LT-Net-ready scene-graph form. Parity and conversion scripts therefore follow the original repository's dataset and vocabulary paths.
+COCO and VG-MSDN are not yet available in the `creative-graphic-design` Hugging Face org in LT-Net-ready scene-graph form. Agreement and conversion scripts therefore follow the original repository's dataset and vocabulary paths.
 
 ### Training Procedure
 
@@ -166,15 +166,15 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by checkpoint, dataset, sample index, and seed where the package has recorded evidence.
+Agreement results are reported separately by checkpoint, dataset, sample index, and seed where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -185,11 +185,11 @@ Metrics are exact tensor equality or explicitly stated numeric tolerance against
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) for the commands that download vendor assets, prepare dataset metadata, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) for the commands that download original-implementation assets, prepare dataset metadata, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 
@@ -199,11 +199,11 @@ LT-Net encodes scene-graph token sequences with object, relation, segment, and t
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU because the original path uses CUDA for checkpoint execution.
+Agreement-check commands are intended for one explicitly selected GPU because the original implementation uses CUDA for checkpoint execution.
 
 #### Hardware
 
-CPU is sufficient for import, serialization, and most unit tests. CUDA is required for heavyweight vendor parity against the original implementation.
+CPU is sufficient for import, serialization, and most unit tests. CUDA is required for heavyweight agreement checks against the original implementation.
 
 #### Software
 
