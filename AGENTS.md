@@ -253,6 +253,7 @@ repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
 - Docs and READMEs link the first mention of external projects and repositories.
   Do not use internal validation stage codes such as `S0-S2` in reader-facing docs
   unless that page defines them in place or links directly to the definition.
+- Reader-facing documents (package `TRAINING.md` and `README.md` files, `docs/*.md`, PR and issue bodies) are written for a first-time reader with no knowledge of this repository's history. Lead with the claim or outcome; define or link internal terms, roles, and stage codes at first use; do not open with corrections to earlier states the reader has never seen. Before writing or editing such a document, declare the intended reader and judge every sentence by its value to that reader.
 - Environment-specific documentation must distinguish observed verification
   conditions from general requirements. Write "the currently verified setup is
   ..." or equivalent when only one machine/GPU/driver combination has been
