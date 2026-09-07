@@ -136,12 +136,7 @@ Single-seed evidence can unblock diagnosis, but it is not enough for a final rep
 
 #### Seed-paired claims
 
-A seed-paired claim requires evidence from the real training entrypoints showing
-when and where each seed is applied. Record the seed scope, a pre-model RNG
-digest, a pre-loader RNG digest, and the first loader sample IDs for each
-system. Matching numeric seed values alone do not establish paired model
-initialization or paired training streams when the entrypoints apply those
-seeds at different times.
+A seed-paired claim requires evidence from the real training entrypoints showing when and where each seed is applied. Record the seed scope, a pre-model RNG digest, a pre-loader RNG digest, and the first loader sample IDs for each system. Matching numeric seed values alone do not establish paired model initialization or paired training streams when the entrypoints apply those seeds at different times.
 
 ## Operating Details
 
@@ -158,11 +153,7 @@ CUDA_VISIBLE_DEVICES="${gpus[0]}" setsid ./train-one-seed.sh &
 
 Each training-first package should include `models/<package>/TRAINING.md`. Its `Reproduction Results` section is the durable summary; issue comments and PR bodies may quote it, but they must not be the only place where the result lives.
 
-When auditing a pickle or Torch artifact on CPU, set
-`CUDA_VISIBLE_DEVICES=""` and pass `map_location="cpu"` to loaders that
-support it. CUDA-tagged tensors retain their device tags in serialized
-artifacts, so a CPU audit that does not hide CUDA can initialize an unintended
-GPU or fail before the artifact is inspected.
+When auditing a pickle or Torch artifact on CPU, set `CUDA_VISIBLE_DEVICES=""` and pass `map_location="cpu"` to loaders that support it. CUDA-tagged tensors retain their device tags in serialized artifacts, so a CPU audit that does not hide CUDA can initialize an unintended GPU or fail before the artifact is inspected.
 
 Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, `Reproduction Results` status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`.
 
