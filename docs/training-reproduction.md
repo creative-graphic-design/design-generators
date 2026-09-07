@@ -14,18 +14,18 @@ Use this protocol when a package has no public original weights, when retraining
 
 ## Stage Overview
 
-Run stages on one explicitly selected GPU when CUDA is involved, with fixed seeds and regenerated vendor evidence (results from the original implementation). Generated tensors, checkpoints, images, downloaded datasets, and full-run artifacts stay out of git; commit only metadata needed to rerun the checks.
+Run stages on one explicitly selected GPU when CUDA is involved, with fixed seeds and regenerated original-implementation evidence. Generated tensors, checkpoints, images, downloaded datasets, and full-run artifacts stay out of git; commit only metadata needed to rerun the checks.
 
 The protocol has six ordered stages, S0 through S5. S0-S2 are exact or near-exact step-level checks, S3-S4 expand that surface to repeated training and data order, and S5 is a statistical full-run claim that must be reported separately from S0-S4.
 
-Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures.
+Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures; parity here means agreement with the original implementation.
 
 | Stage | Scope | Required evidence |
 | --- | --- | --- |
 | S0 | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree. |
 | S1 | Fixed-batch pre-optimizer trace | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation. |
 | S2 | One optimizer step | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate. |
-| S3 | N training batches | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The independent wiring representative applies to either path; see [S3 Evidence Layers](#s3-evidence-layers). |
+| S3 | N training batches | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
 | S4 | Deterministic loader stream | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls. |
 | S5 | Full-run statistical comparison | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded. |
 
@@ -42,31 +42,23 @@ When S5 diverges, diagnose the gap in this order before claiming a bug:
 3. Run multi-seed S5 checks to separate sampling stochasticity.
 4. Attribute the remaining gap to the training trajectory.
 
-To separate benign training stochasticity from a training-loop or orchestration difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to an orchestration difference that should be fixed or documented.
+To separate benign training stochasticity from a training-loop control-flow difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to a control-flow difference that should be fixed or documented.
 
 Parity thresholds are per-dataset. Here, practical parity names an accepted full-run result, while qualitative-with-caveat names a result that retains an explicit caveat. Trajectory-sensitive metrics such as saliency and occlusion can make a model practical-parity on one dataset and qualitative-with-caveat on another. The CGB-DM reproduction recorded this pattern for CGL versus PKU, where CGL reached practical parity while PKU retained saliency/occlusion caveats despite passing S0-S2 step checks; use [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148) as the reference example.
 
 ### S3 Evidence Layers
 
-S3 always begins with a natural, unsynchronized multi-step trajectory using
-the same seed and data for both systems. If every step remains within the
-existing S0-S2 contract, that natural trajectory is S3 numerical parity
-`PASS`, and no synchronized layer is needed. If a natural step leaves the
-contract, retain the natural record and add a synchronized diagnostic; its
-contract-internal agreement plus the retained natural evidence is a bounded
-S3 numerical `PASS`. This path distinction does not change tolerances. For
-either path, report the bounded production-wiring representative as an
-independent third layer; it does not establish numerical trajectory parity.
+S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 contract, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves the contract, retain the natural record and add a synchronized diagnostic; its contract-internal agreement plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
 
 ### Activation Thresholds
 
-Any activation threshold or warmup gate in the loss, sampler, optimizer, exponential moving average (EMA), automatic mixed precision (AMP), or scheduler path must be crossed inside S1-S3 evidence on both systems, or S0 must prove that the original run configuration never crosses it in real runs. Tiny-config evidence that never reaches a gate does not validate the gated branch.
+Any activation threshold or warmup condition in the loss, sampler, optimizer, exponential moving average (EMA), automatic mixed precision (AMP), or scheduler path must be exercised inside S1-S3 evidence on both systems, or S0 must prove that the original run configuration never reaches it in real runs. Tiny-config evidence that never reaches the condition does not validate the corresponding branch.
 
 ### Real-Scale Lockstep Probe
 
 Before the first S5 launch, and after any training-path change, run a full-scale lockstep probe on GPU. Copy original initial weights into the package model, stream identical batches, reseed RNG identically before each system step, and run at least 300 optimizer steps at the real model and dataset scale.
 
-Record per-step loss, gradient norm, maximum parameter difference, and sampler state to JSONL (one JSON object per line). Report the first step where relative loss difference exceeds `1e-3`, the state that differed at that step, and why any first divergence is attributable to floating-point noise only. Keep the probe script under `.cache` or gated `tests/vendor_parity` tooling, and do not commit generated artifacts.
+Record per-step loss, gradient norm, maximum parameter difference, and sampler state to JSONL (one JSON object per line). Report the first step where relative loss difference exceeds `1e-3`, the state that differed at that step, and why any first divergence is attributable to floating-point noise only. Keep the probe script under `.cache` or in `tests/vendor_parity` tooling that runs only when explicitly requested, and do not commit generated artifacts.
 
 ### Vendor Stack Modes
 
@@ -78,7 +70,7 @@ Choose the adapter that matches the original implementation and state the mode i
 | accelerate | The original loop uses Hugging Face Accelerate or distributed wrappers. | Build a single-process deterministic adapter that preserves the original prepare, backward, optimizer, and scheduler order. |
 | plain PyTorch | The original loop is hand-written PyTorch. | Wrap the original step in a local reference adapter that exposes the same S0-S2 trace points as the package training module. |
 
-Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside gated vendor-parity tests and documentation.
+Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside explicitly requested vendor-parity tests and their documentation.
 
 ### Effective-Behavior Rule
 
@@ -182,15 +174,7 @@ natural record, and do not widen a tolerance or add a threshold without an
 explicit numerical justification. State observed runtime and hardware
 conditions separately from these general recording requirements.
 
-Per-model `TRAINING.md` files must be result-focused. Open with the conclusion,
-including the reproduction verdict, covered datasets, numeric metrics, and seed
-scope. Include only the reproducible training, evaluation, conversion, and smoke
-test procedure that maintainers should rerun. Do not include discarded attempts,
-failed diagnostic narratives, or process history; move that material to issue
-discussion only when it is still useful. The CGB-DM update is a good example of
-a conclusion-first report with numeric evidence and copy-pasteable commands; see
-[pull request #167](https://github.com/creative-graphic-design/design-generators/pull/167)
-for the CGB-DM example.
+Per-model `TRAINING.md` files must be result-focused. Open with the conclusion, including the reproduction verdict, covered datasets, numeric metrics, and seed scope. Include only the reproducible training, evaluation, conversion, and smoke-test procedure that the person responsible for the package should rerun. Do not include discarded attempts, failed diagnostic narratives, or process history; move that material to issue discussion only when it is still useful. The CGB-DM update is a good example of a conclusion-first report with numeric evidence and copy-pasteable commands; see [pull request #167](https://github.com/creative-graphic-design/design-generators/pull/167) for the CGB-DM example.
 
 Write `Reproduction Results` in this order:
 
@@ -243,7 +227,7 @@ PY
 
 Pull requests for models whose only weight path is self-training must stay draft until S5 is confirmed for the claimed datasets. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must say that trained-checkpoint reproduction is not yet claimed.
 
-Before applying `parity-verified`, the coordinator independently reruns the relevant parity suite with missing local assets treated as failures:
+Before marking a package's agreement as independently verified, the person responsible for that status reruns the relevant agreement-check suite with missing local assets treated as failures:
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
@@ -251,7 +235,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
   models/<package>/tests/vendor_parity -m "vendor_parity and training" -rs
 ```
 
-The coordinator rerun must use the package model in the loop, include the topology guard, and confirm that every claimed dataset has the stated S5 status. An all-skip vendor-parity run is not a pass.
+This independent rerun must use the package model in the loop, include the topology guard, and confirm that every claimed dataset has the stated S5 status. An all-skip agreement-check run is not a pass.
 
 ### Regression Rule
 
