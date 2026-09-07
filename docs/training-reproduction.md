@@ -42,7 +42,7 @@ When S5 diverges, diagnose the gap in this order before claiming a bug:
 3. Run multi-seed S5 checks to separate sampling stochasticity.
 4. Attribute the remaining gap to the training trajectory.
 
-To separate benign training stochasticity from a training-loop control-flow difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to a control-flow difference that should be fixed or documented.
+To separate benign training stochasticity from a training-loop or run-configuration difference, run a full training replicate with a different seed or compare per-epoch checkpoint curves. Run-to-run variance of similar magnitude points to stochasticity; a reproducible same-direction shift points to a training-loop or run-configuration difference that should be fixed or documented.
 
 Parity thresholds are per-dataset. Here, practical parity names an accepted full-run result, while qualitative-with-caveat names a result that retains an explicit caveat. Trajectory-sensitive metrics such as saliency and occlusion can make a model practical-parity on one dataset and qualitative-with-caveat on another. The CGB-DM reproduction recorded this pattern for CGL versus PKU, where CGL reached practical parity while PKU retained saliency/occlusion caveats despite passing S0-S2 step checks; use [issue #148](https://github.com/creative-graphic-design/design-generators/issues/148) as the reference example.
 
@@ -52,7 +52,7 @@ S3 always begins with a natural, unsynchronized multi-step trajectory using the 
 
 ### Activation Thresholds
 
-Any activation threshold or warmup condition in the loss, sampler, optimizer, exponential moving average (EMA), automatic mixed precision (AMP), or scheduler path must be exercised inside S1-S3 evidence on both systems, or S0 must prove that the original run configuration never reaches it in real runs. Tiny-config evidence that never reaches the condition does not validate the corresponding branch.
+Any activation threshold or warmup condition in the loss, sampler, optimizer, exponential moving average (EMA), automatic mixed precision (AMP), or scheduler path must be crossed inside S1-S3 evidence on both systems, or S0 must prove that the original run configuration never reaches it in real runs. Tiny-config evidence that never reaches the condition does not validate the corresponding branch.
 
 ### Real-Scale Lockstep Probe
 
@@ -70,7 +70,7 @@ Choose the adapter that matches the original implementation and state the mode i
 | accelerate | The original loop uses Hugging Face Accelerate or distributed wrappers. | Build a single-process deterministic adapter that preserves the original prepare, backward, optimizer, and scheduler order. |
 | plain PyTorch | The original loop is hand-written PyTorch. | Wrap the original step in a local reference adapter that exposes the same S0-S2 trace points as the package training module. |
 
-Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside explicitly requested vendor-parity tests and their documentation.
+Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside explicitly requested vendor-parity tests and documentation.
 
 ### Effective-Behavior Rule
 
@@ -174,7 +174,7 @@ natural record, and do not widen a tolerance or add a threshold without an
 explicit numerical justification. State observed runtime and hardware
 conditions separately from these general recording requirements.
 
-Per-model `TRAINING.md` files must be result-focused. Open with the conclusion, including the reproduction verdict, covered datasets, numeric metrics, and seed scope. Include only the reproducible training, evaluation, conversion, and smoke-test procedure that the person responsible for the package should rerun. Do not include discarded attempts, failed diagnostic narratives, or process history; move that material to issue discussion only when it is still useful. The CGB-DM update is a good example of a conclusion-first report with numeric evidence and copy-pasteable commands; see [pull request #167](https://github.com/creative-graphic-design/design-generators/pull/167) for the CGB-DM example.
+Per-model `TRAINING.md` files must be result-focused. Open with the conclusion, including the reproduction verdict, covered datasets, numeric metrics, and seed scope. Include only the reproducible training, evaluation, conversion, and smoke-test procedure that maintainers should rerun. Do not include discarded attempts, failed diagnostic narratives, or process history; move that material to issue discussion only when it is still useful. The CGB-DM update is a good example of a conclusion-first report with numeric evidence and copy-pasteable commands; see [pull request #167](https://github.com/creative-graphic-design/design-generators/pull/167) for the CGB-DM example.
 
 Write `Reproduction Results` in this order:
 
@@ -227,7 +227,7 @@ PY
 
 Pull requests for models whose only weight path is self-training must stay draft until S5 is confirmed for the claimed datasets. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must say that trained-checkpoint reproduction is not yet claimed.
 
-Before marking a package's agreement as independently verified, the person responsible for that status reruns the relevant agreement-check suite with missing local assets treated as failures:
+Before applying the `parity-verified` label to an issue, a reviewer who did not produce the evidence independently reruns the relevant agreement-check suite, with missing local assets treated as failures.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> PARITY_REQUIRE=1 \
