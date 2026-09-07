@@ -89,7 +89,7 @@ The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are diag
 
 **Harness-strengthening rerun.**
 
-The following CGL S0-S4 rerun was performed on GPU 3 with seed `1`, using the audited interpreter and the worktree source prepended to `PYTHONPATH`. These records supersede the earlier stage rows for this harness change; the older records remain below as historical provenance.
+The following CGL S0-S4 rerun was performed on one selected Tesla V100-SXM2-32GB with seed `1`, using the audited interpreter and the worktree source prepended to `PYTHONPATH`. These records supersede the earlier stage rows for this harness change; the older records remain below as historical provenance.
 
 | Stage | Command | Artifact | Result |
 | ----- | ------- | -------- | ------ |
