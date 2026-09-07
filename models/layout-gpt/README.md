@@ -127,7 +127,7 @@ tensor([[[0.5000, 0.5000, 0.5000, 0.5000]]])
 
 | Dataset | Dataset ID | Notes |
 | --- | --- | --- |
-| NSR-1K | original-implementation dataset metadata | not mirrored |
+| NSR-1K | vendor/layout-gpt dataset metadata | not mirrored |
 
 NSR-1K examples are loaded from the original dataset JSON files. `layout_output.bbox` is normalized center `xywh` in `[0, 1]`; `layout_output.labels` are request-local integer ids, and `layout_output.id2label` maps those ids back to object names.
 

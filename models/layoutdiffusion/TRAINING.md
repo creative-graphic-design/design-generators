@@ -58,7 +58,7 @@ when running GPU training in that environment.
 
 ## Seed Policy
 
-S0-S4 parity uses fixed deterministic seeds inside fixtures for agreement checks with the original implementation. S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds `102`, `103`, and `104` on both original and package systems. Unconditional sample export uses sampling seed `101` for every reported S5 run.
+S0-S4 parity uses fixed deterministic seeds inside fixtures for agreement checks with the original implementation (`models/layoutdiffusion/tests/vendor_parity`). S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds `102`, `103`, and `104` on both original and package systems. Unconditional sample export uses sampling seed `101` for every reported S5 run.
 
 ## Stage Evidence
 
