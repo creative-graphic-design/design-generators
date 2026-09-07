@@ -363,15 +363,7 @@ CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 \
 
 Use the same command with `--stage S2` for the one-step optimizer check.
 
-For that rerun, set `RALF_GPU`, `RALF_CACHE_DIR`, and `RALF_S3_OUTPUT`
-as shown in the Stage Evidence table and run the complete command below. The
-run follows the protocol's layered S3 rule: the natural trajectory passes on its
-own when every step stays inside the S0-S2 contract, and otherwise the retained
-natural record plus a contract-internal synchronized layer is a bounded pass.
-The runner records the
-nested `traingen fit` command and its artifacts. The recipe supplies 30 epochs
-and the runner supplies the production limits, callbacks, logger, and cache
-paths.
+For that rerun, set `RALF_GPU`, `RALF_CACHE_DIR`, and `RALF_S3_OUTPUT` as shown in the Stage Evidence table and run the complete command below. The run follows the protocol's layered S3 rule: the natural trajectory passes on its own when every step stays inside the S0-S2 contract, and otherwise the retained natural record plus a contract-internal synchronized layer is a bounded pass. The runner records the nested `traingen fit` command and its artifacts. The recipe supplies 30 epochs and the runner supplies the production limits, callbacks, logger, and cache paths.
 
 ```bash
 : "${RALF_GPU:?set RALF_GPU to one selected V100 index}"
