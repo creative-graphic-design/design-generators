@@ -1,5 +1,5 @@
 ---
-name: model-conversion
+name: design-generators-model-conversion
 description: Use when implementing one design-generators model issue, converting a vendor layout/poster generation model into a Transformers or Diffusers-style workspace member with vendor parity, README/model-card documentation, and PR checklist reporting.
 ---
 
@@ -50,6 +50,18 @@ Vendor-language references are limited to conversion-responsibility modules,
 to compare against an original implementation, keep that detail in conversion,
 reference-generation, or parity-test paths rather than the public runtime API.
 
+## Repository Implementation Contract
+
+- Keep original implementations under `vendor/` read-only. Isolate their dependencies behind a model package's `vendor` optional extra.
+- Main package code (`models/*/src`, `lib/*/src`) and configs must not reference the vendor/original implementation in identifiers, docstrings, comments, or config names; vendor references belong only in conversion modules, `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
+- `laygen.common.vendor` is the narrow shared-library exception for resolving parity submodule checkouts; keep it documented in `scripts/check_src_vendor_language.py` if it remains in package source.
+- Tensor and array annotations in package source (`models/*/src`, `lib/*/src`) must use fully qualified jaxtyping shaped types such as `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations are prohibited outside `scripts/jaxtyping_baseline.txt`.
+- Write jaxtyping shaped types inline at the annotation site. Do not introduce module-level aliases such as `FooTensor = Float[...]` or `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in `scripts/jaxtyping_alias_baseline.txt`.
+- Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
+- Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
+- Core model-package modules under `models/*/src/<pkg>/` must follow Hugging Face-style filenames with the package suffix, such as `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`, `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`, `image_processing_<pkg>.py`, and `generation_<pkg>.py`.
+- Repository convention files and domain helpers must be explicitly allowed by `scripts/check_module_naming.py`; do not add new ad hoc core names.
+
 ## Package Shape
 
 Create one uv workspace member under `models/<slug>/`:
@@ -91,6 +103,22 @@ Do not copy common bbox, label, output, or testing helpers into the model
 package.
 
 ## Public Interface
+
+### Repository Public Interface Contract
+
+- Return the common layout schema: `bbox`, `labels`, `mask`, and `id2label`, with optional `sequences`, `scores`, `trajectory`, and `intermediates`.
+- Transformers models return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both are explicit dataclasses and schema tests assert field names, order, and defaults stay aligned.
+- Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`; plain classes and `transformers.Pipeline` subclasses are non-conforming.
+- Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
+- Public `mask=True` means a valid element. Padding is represented by `mask`, never by reserving public label id `0`.
+- `labels` are dataset-local integer ids unless a model explicitly documents request-local open-vocabulary ids.
+- Persist `id2label` in config/model cards and return it with outputs.
+- Public constructors must not synthesize default configs; require explicit config or derive it from a loaded artifact such as `model.config`.
+- `generator` is the exact reproducibility API and takes precedence over `seed`.
+- Canonical `condition_type` names are v1 `unconditional`, `label`, `label_size`, `completion`, `refinement`; v2 adds `text`, `content_image`, `relation`, `hierarchical`, `retrieval`. Normalize vendor aliases and raise explicit errors for unsupported modes.
+- Constrained string options in public APIs use `Literal` aliases or `StrEnum` classes rather than bare `str` annotations.
+- Discrete-vocabulary layout tokenizers subclass `transformers.PreTrainedTokenizer`; serialize auxiliary data with tokenizer files. Use a custom class only when the base class truly conflicts and document the reason.
+- Store hierarchy, retrieval, open-vocabulary, attention, and other auxiliary data in `intermediates`; do not add an `extras` field.
 
 Expose the agreed generation surface even when the model rejects some modes:
 
@@ -181,6 +209,14 @@ Before implementing or reviewing a plan, verify these rules:
 
 ## Data
 
+### Repository Data Contract
+
+- Prefer datasets hosted by the `creative-graphic-design` Hugging Face org. Check [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) before adding a new data source.
+- Use `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` for RICO25; the default config is metadata-only. RICO13 needs a vendor-derived mapping.
+- PubLayNet is `creative-graphic-design/PubLayNet`; avoid any test path that could download the full dataset.
+- Crello uses `cyberagent/crello` as the canonical source until an org mirror exists; `creative-graphic-design/Desigen` is not a Crello substitute.
+- Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
+
 Keep dataset loading behind processors so sources can change without touching
 model code. Prefer `creative-graphic-design/*` datasets and use the pinned
 configs from issue #2 and issue #60.
@@ -195,6 +231,12 @@ that points to the missing import.
 
 ## Vendor Parity
 
+- Golden parity fixtures are generated by running vendor code, not handwritten.
+- Do not commit golden tensors, images, weights, or large downloaded artifacts. Commit only metadata needed to regenerate them: seeds, conditions, environment notes, config hashes, and script arguments.
+- Run parity generation on one explicitly selected GPU with fixed seeds.
+- Coordinator parity reruns must set `PARITY_REQUIRE=1` so missing local assets fail loudly instead of turning an all-skip run into an apparent success.
+- For LLM API or in-context methods, parity means prompt bytes, exemplar selection, parser behavior, and repair policy match the paper/vendor path.
+
 Implement parity in this order:
 
 1. Add scripts that download vendor weights or point to an existing cache.
@@ -207,9 +249,6 @@ Implement parity in this order:
    floating outputs by bitwise equality by default.
 6. Add `save_pretrained` -> `from_pretrained` smoke tests that run without
    network or vendor weights.
-
-For LLM API methods, parity checks cover prompt byte identity, exemplar
-selection, parser behavior, and repair/retry policy.
 
 Use tolerance-based floating parity only after identifying and justifying the
 root cause in the PR body. When outputs diverge, first check alignment of TF32
@@ -228,57 +267,9 @@ passed. A skip-only hook plus a follow-up issue is not a completed parity path:
 the coordinator must be able to independently rerun and accept the parity
 suite, and hooks that only skip leave nothing to verify.
 
-## README And Model Cards
+## Documentation Adapter
 
-Start `models/<slug>/README.md` from
-`references/model-readme-template.md`, which follows the Hugging Face Hub model
-card metadata spec and the `huggingface_hub` official
-`modelcard_template.md` headings. Fill every placeholder with the target
-issue's concrete model, checkpoint, dataset, parity, license, and citation
-details. Keep the final README in model-card style. Include:
-
-- overview and original implementation link
-- install and `from_pretrained` usage
-- supported checkpoints and intended Hub ids
-- datasets and pinned configs
-- reproducibility summary with vendor-parity numbers
-- license status and citation
-- `Reproducibility` link to `models/<slug>/REPRODUCING.md`
-
-The user-facing install snippet must use pip direct references to this
-repository's package subdirectories. Include workspace libraries that are not
-published on PyPI, such as `laygen` or `posgen`, in the same command as the
-model package. Preserve clone + uv commands only for development or
-`REPRODUCING.md` workflows.
-
-```bash
-pip install \
-  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
-  "posgen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/posgen" \
-  "<package-name> @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/<slug>"
-```
-
-Omit `posgen` when the model does not depend on it, and keep extras on the
-shared package requirement when the model depends on one, for example
-`laygen[agents]`.
-
-Every model README must include a `### Parity Results` section under `## Evaluation`. Put
-the vendor-parity summary in a numeric table that states what was compared, the
-number of cases, the match criterion, and the result. Prose inside
-`## Reproducibility` is not enough. Put the mechanical walkthrough in
-`REPRODUCING.md`; reviewers run that file's download, reference-generation,
-parity, conversion, and smoke-test commands.
-`references/model-readme-template.md` as the reference format.
-
-The `Reproducibility` section must open with one sentence that states how to
-reproduce the original-implementation agreement checks. The remaining commands
-must be copy-pasteable and ordered: download vendor assets, generate vendor
-references with `CUDA_VISIBLE_DEVICES`, run `pytest -m vendor_parity`, convert
-checkpoints, and run `from_pretrained` smoke tests.
-
-Generate Hub model cards through `laygen.common.model_card` and the official
-Hugging Face template. Do not push model weights or Hub repos from ordinary
-implementation PRs unless the coordinator explicitly asks for publish.
+For documentation, use the `design-generators-documentation` skill (read `.agents/skills/design-generators-documentation/SKILL.md`).
 
 ## Validation
 

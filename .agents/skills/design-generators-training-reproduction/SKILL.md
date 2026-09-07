@@ -1,5 +1,5 @@
 ---
-name: training-reproduction
+name: design-generators-training-reproduction
 description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the S0-S5 order from docs/training-reproduction.md, requires evidence comments per stage, and blocks S5 claims or S5-scale GPU runs when S0-S4 evidence is missing, even if the user only asks for training, train-ourselves work, TRAINING.md updates, or reproduction evidence.
 ---
 
@@ -7,7 +7,7 @@ description: Use this skill whenever implementing, reviewing, documenting, or pl
 
 ## Source Of Truth
 
-Read `docs/training-reproduction.md` before starting training-reproduction work.
+Read `docs/training-reproduction.md` before starting training reproduction work.
 That protocol defines stage scope, dataset coverage, seed policy, GPU placement,
 evidence recording, and PR gates. This skill only turns the protocol into an
 execution checklist for coding agents.
@@ -78,3 +78,14 @@ Keep train-ourselves PRs draft until S5 is complete for every claimed dataset.
 If a PR intentionally lands S0-S4 infrastructure before full runs complete, the
 PR body, README, and `TRAINING.md` must state that S5 trained-checkpoint
 reproduction is not yet claimed.
+
+## Repository Training Contract
+
+- Train-ourselves models use PyTorch Lightning through the root `training` extra and LightningCLI with YAML configs plus CLI overrides.
+- Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package.
+- Launch training through the `traingen` console script with the model member and training extra selected: `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
+- `traingen fit` requires the training extra; use the member-scoped command above instead of root `uv run traingen fit` or `python -m traingen.lightning.cli` when launching package training.
+- Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for S0-S5 evidence, topology guards, dataset coverage, seed policy, and evidence recording.
+- Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
+- Do not run or claim S5 full-run training reproduction before S0-S4 stage evidence exists; S5-only results are rejected by `scripts/check_training_stage_evidence.py`.
+- PRs for models whose only weight path is self-training stay draft until S5 is confirmed for every claimed dataset; partial coverage must be stated in the package `TRAINING.md`, README, and PR body.

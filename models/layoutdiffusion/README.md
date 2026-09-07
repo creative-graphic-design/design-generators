@@ -190,7 +190,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](TRAINING.md) for package-local LightningCLI training, staged S0-S5 checks, and current training-reproduction status.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](TRAINING.md) for package-local LightningCLI training, staged S0-S5 checks, and current training reproduction status.
 
 ## Environmental Impact
 

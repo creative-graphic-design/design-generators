@@ -5,7 +5,7 @@
 
 ## Project
 
-`design-generators` ports layout, poster, and graphic-design generation research repositories into Transformers/Diffusers-style packages that can load converted weights with `from_pretrained` and run inference immediately. Keep repository rules here stable and concise; procedural implementation guidance lives in repo-local skills such as `.agents/skills/model-conversion/SKILL.md`.
+`design-generators` ports layout, poster, and graphic-design generation research repositories into Transformers/Diffusers-style packages that can load converted weights with `from_pretrained` and run inference immediately. Keep repository rules here stable and concise; procedural implementation guidance lives in repo-local skills.
 
 ## Sources Of Truth
 
@@ -20,28 +20,28 @@
 - Run member-specific commands with the member package selected: `uv run --package <name> ...`. Examples: `uv run --package laygen pytest`, `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends on that member's extras, dependency source mapping, or package metadata.
 - Do not commit host-specific absolute filesystem paths. Pass runtime absolute paths through environment variables or CLI arguments; repository defaults must be repo-root-relative.
-- Keep original implementations under `vendor/` read-only. Isolate their dependencies behind a model package's `vendor` optional extra.
-- Main package code (`models/*/src`, `lib/*/src`) and configs must not reference the vendor/original implementation in identifiers, docstrings, comments, or config names; vendor references belong only in conversion modules, `tests/vendor_parity`, and `REPRODUCING.md` / `TRAINING.md` docs.
-- `laygen.common.vendor` is the narrow shared-library exception for resolving parity submodule checkouts; keep it documented in `scripts/check_src_vendor_language.py` if it remains in package source.
-- Tensor and array annotations in package source (`models/*/src`, `lib/*/src`) must use fully qualified jaxtyping shaped types such as `Float[torch.Tensor, "..."]`; raw `torch.Tensor` and `np.ndarray` annotations are prohibited outside `scripts/jaxtyping_baseline.txt`.
-- Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
-- Write jaxtyping shaped types inline at the annotation site. Do not introduce module-level aliases such as `FooTensor = Float[...]` or `FooTensor: TypeAlias = Float[...]`; existing aliases are tracked only in `scripts/jaxtyping_alias_baseline.txt`.
-- Keep `__init__` bodies to variable initialization only. Make data-holding classes `dataclass`es; put unavoidable initialization logic in `__post_init__` or a classmethod factory. Consider pydantic models at serialization boundaries where runtime validation pays for itself; do not duplicate validation LightningCLI/jsonargparse already performs. Classes bound by framework constructor contracts (`PretrainedConfig`, `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
-- Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
-- Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
 
 ## Repo-Local Skills
 
-- Skill source of truth is `.agents/skills/<name>/SKILL.md`.
+- Skill source of truth is `.agents/skills/<name>/SKILL.md`; repo-local skills are named with the `design-generators-` prefix.
 - `.claude/skills` is a relative symlink to `.agents/skills` for Claude compatibility.
 - Codex should read the relevant `.agents/skills/<name>/SKILL.md` directly when a repo-local skill applies.
+- For model conversion, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
+- For parity, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
+- For data sources, use the `design-generators-model-conversion` skill (read `.agents/skills/design-generators-model-conversion/SKILL.md`).
+- For documentation, use the `design-generators-documentation` skill (read `.agents/skills/design-generators-documentation/SKILL.md`).
+- For training reproduction, use the `design-generators-training-reproduction` skill (read `.agents/skills/design-generators-training-reproduction/SKILL.md`).
 
-## Naming
+## Naming And Core Implementation
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
 - Shared packages are `laygen.common` for layout-generation utilities and `posgen.common` for poster/content-aware utilities.
-- Core model-package modules under `models/*/src/<pkg>/` must follow Hugging Face-style filenames with the package suffix, such as `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`, `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`, `image_processing_<pkg>.py`, and `generation_<pkg>.py`. Repository convention files and domain helpers must be explicitly allowed by `scripts/check_module_naming.py`; do not add new ad hoc core names.
+- Keep `__init__` bodies to variable initialization only.
+- Make data-holding classes `dataclass`es and put unavoidable initialization logic in `__post_init__` or a classmethod factory.
+- Consider pydantic models at serialization boundaries where runtime validation pays for itself; do not duplicate validation LightningCLI/jsonargparse already performs. Classes bound by framework constructor contracts (`PretrainedConfig`, `PreTrainedModel`, `LightningModule`, ...) follow the framework idiom.
+- Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
+- Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
 
 ## Tracking
 
@@ -50,7 +50,7 @@
 - Every PR must carry the same lane/topic labels as its implementation issue, such as `ready-heavy`, `documentation`, or `meta`; status labels stay on issues only and must not be added to PRs.
 - PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do not replace the template when creating PRs with `gh pr create --body`.
 - Priority labels select the work lane; status labels move in this order: `plan-agreed` -> `in-progress` -> `parity-verified` -> published/closed.
-- Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section; `scripts/check_draft_prs.py` enforces this daily.
+- Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section.
 - When creating any issue, set both the milestone and the native Priority issue field; do not leave either unset. Set the native Priority field through GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
@@ -63,77 +63,21 @@
 - Do not silently work around guidance known to be wrong. If the same kind of mistake is raised repeatedly, add or revise a rule, template item, or check so future work can catch it mechanically.
 - Keep PR diffs minimal for the stated task. Do not move dependencies between core `dependencies` and `[project.optional-dependencies]`, or add/modify `[build-system]`, unless the task requires it and the PR explains why.
 
-## Public Interface
+## Reader-First Documentation
 
-- Return the common layout schema: `bbox`, `labels`, `mask`, and `id2label`, with optional `sequences`, `scores`, `trajectory`, and `intermediates`.
-- Transformers models return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both are explicit dataclasses and schema tests assert field names, order, and defaults stay aligned.
-- Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`; plain classes and `transformers.Pipeline` subclasses are non-conforming.
-- Public `bbox` is normalized center `xywh` in `[0, 1]`, regardless of vendor internals such as `ltwh`, `ltrb`, bins, analog bits, or text tokens.
-- Public `mask=True` means a valid element. Padding is represented by `mask`, never by reserving public label id `0`.
-- `labels` are dataset-local integer ids unless a model explicitly documents request-local open-vocabulary ids.
-- Persist `id2label` in config/model cards and return it with outputs.
-- Public constructors must not synthesize default configs; require explicit config or derive it from a loaded artifact such as `model.config`.
-- `generator` is the exact reproducibility API and takes precedence over `seed`.
-- Canonical `condition_type` names are v1 `unconditional`, `label`, `label_size`, `completion`, `refinement`; v2 adds `text`, `content_image`, `relation`, `hierarchical`, `retrieval`. Normalize vendor aliases and raise explicit errors for unsupported modes.
-- Constrained string options in public APIs use `Literal` aliases or `StrEnum` classes rather than bare `str` annotations.
-- Discrete-vocabulary layout tokenizers subclass `transformers.PreTrainedTokenizer`; serialize auxiliary data with tokenizer files. Use a custom class only when the base class truly conflicts and document the reason.
-- Store hierarchy, retrieval, open-vocabulary, attention, and other auxiliary data in `intermediates`; do not add an `extras` field.
-
-## Parity
-
-- Golden parity fixtures are generated by running vendor code, not handwritten.
-- Do not commit golden tensors, images, weights, or large downloaded artifacts. Commit only metadata needed to regenerate them: seeds, conditions, environment notes, config hashes, and script arguments.
-- Run parity generation on one explicitly selected GPU with fixed seeds.
-- Coordinator parity reruns must set `PARITY_REQUIRE=1` so missing local assets fail loudly instead of turning an all-skip run into an apparent success.
-- For LLM API or in-context methods, parity means prompt bytes, exemplar selection, parser behavior, and repair policy match the paper/vendor path.
-- Keep vendor-parity and heavyweight integration tests outside regular CI and behind explicit pytest markers.
-
-## Data
-
-- Prefer datasets hosted by the `creative-graphic-design` Hugging Face org. Check [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) before adding a new data source.
-- Use `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` for RICO25; the default config is metadata-only. RICO13 needs a vendor-derived mapping.
-- PubLayNet is `creative-graphic-design/PubLayNet`; avoid any test path that could download the full dataset.
-- Crello uses `cyberagent/crello` as the canonical source until an org mirror exists; `creative-graphic-design/Desigen` is not a Crello substitute.
-- Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
-
-## Documentation
-
-- The docs site uses `zensical`, `mkdocstrings[python]`, and generated API pages; build it with:
-  ```bash
-  uv run --group docs python scripts/gen_ref_pages.py
-  uv run --group docs zensical build --strict -f mkdocs.generated.yml
-  ```
-- The API reference is generated from workspace members under `lib/*` and `models/*`, using Python packages found below each member's `src/` directory.
-- Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags`.
-- Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
-- `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
-- Each model package README uses a model-card style: overview, install/usage snippet, supported checkpoints/Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
-- Each package README's install snippet uses `pip install "pkg @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=<path>"`, co-specifying required workspace libraries such as `laygen` and `posgen` in the same command; clone + uv flows are for development and `REPRODUCING` docs.
-- README and model-card repository/source links must be copied from `.gitmodules` or the implementation issue, then checked for a resolving HTTP response before commit. Do not write upstream repository, project-page, dataset, or source links from memory. PR CI mechanically verifies newly added external URLs and rejects added 404/410 links.
-- Each README includes `Reproducibility`, opening with one sentence that states how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for download, vendor reference generation, parity tests, conversion, and `from_pretrained` smoke tests.
-- When adding a new conference venue badge to the root README, check the conference's official site, logo, or style assets first and use a badge color that matches that venue rather than choosing an arbitrary generic color.
-- Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.
-- Docs and READMEs link the first mention of external projects and repositories. Do not use internal validation stage codes such as `S0-S2` in reader-facing docs unless that page defines them in place or links directly to the definition.
 - Reader-facing documents (package `TRAINING.md` and `README.md` files, `docs/*.md`, PR and issue bodies) are written for a first-time reader with no knowledge of this repository's history. Lead with the claim or outcome; define or link internal terms, roles, and stage codes at first use; do not open with corrections to earlier states the reader has never seen. Before writing or editing such a document, declare the intended reader and judge every sentence by its value to that reader.
 - Do not hard-wrap markdown prose mid-sentence at a column width; write each bullet, paragraph, and table cell as one logical line, breaking only at structural boundaries.
-- Environment-specific documentation must distinguish observed verification conditions from general requirements. Write "the currently verified setup is ..." or equivalent when only one machine/GPU/driver combination has been tested; do not present that setup as the package's inherent training environment.
-- Package READMEs reference repository docs with repo-root-relative links such as `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
-- Hub model cards are generated through `laygen.common.model_card` using the official Hugging Face model-card template.
 
-## Training
+## Machine-Checked Conventions
 
-- Train-ourselves models use PyTorch Lightning through the root `training` extra and LightningCLI with YAML configs plus CLI overrides.
-- Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package.
-- Launch training through the `traingen` console script with the model member and training extra selected: `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
-- `traingen fit` requires the training extra; use the member-scoped command above instead of root `uv run traingen fit` or `python -m traingen.lightning.cli` when launching package training.
-- Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for S0-S5 evidence, topology guards, dataset coverage, seed policy, and evidence recording.
-- Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
-- Do not run or claim S5 full-run training reproduction before S0-S4 stage evidence exists; S5-only results are rejected by `scripts/check_training_stage_evidence.py`.
-- PRs for models whose only weight path is self-training stay draft until S5 is confirmed for every claimed dataset; partial coverage must be stated in the package `TRAINING.md`, README, and PR body.
+- `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
+- `scripts/check_src_vendor_language.py`, `scripts/check_jaxtyping_annotations.py`, and `scripts/check_config_defaults.py` enforce source-language boundaries, shaped-annotation/baseline rules, and explicit-config construction.
+- `scripts/check_semantic_blank_lines.py` and `scripts/check_module_naming.py` enforce semantic, raise-block, and compound-suite blank lines plus core module-name prefixes, suffixes, and allowlists.
+- `scripts/check_model_readmes.py`, `scripts/check_readme_badges.py`, `scripts/check_readme_links.py`, and `scripts/check_reader_facing_references.py` enforce README/model-card, badge, repository-link, and reader-reference contracts.
+- `scripts/check_training_doc_template.py` and `scripts/check_training_stage_evidence.py` enforce training-document structure and S0-S5 claims.
+- `scripts/check_pr_issue_reference.py`, `scripts/check_changed_urls.py`, and `scripts/check_draft_prs.py` enforce PR issue/checklist/completion gates, excluding standing issues #2 and #60, changed-URL status, and draft completion; their CI entry points are `.github/workflows/ci.yml`, `.github/workflows/draft-pr-audit.yml`, and `.github/workflows/link-check.yml`.
+- `.github/workflows/ci.yml` resolves members with `uv sync --all-packages`, runs pre-commit with `SKIP=uv-lock`, `ty`, root tests without package coverage, `scripts/gen_ref_pages.py` over packages below each member's `src/`, strict Zensical, and workspace-member tests; `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration`, measures each member separately without combined coverage, and enforces separate 90% floors; workspace tests include frontmatter and layout-output schema checks.
 
-## CI
+## CI Policy
 
-- CI resolves workspace members with `uv sync --all-packages`, then runs pre-commit with `SKIP=uv-lock`, `ty`, root tests, and workspace-member tests that are not marked `vendor_parity` or `integration`.
-- CI runs root pytest without coverage because the root has no import package; each workspace member is measured separately and coverage is not combined across members.
-- Coverage has a 90% floor for every workspace member. Do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
-- Do not add `uv lock --check` or uv-lock to CI; local uv global options are intentionally baked into `uv.lock` in this environment.
+- Keep `uv-lock` local because this environment bakes global uv options into `uv.lock`; do not add `uv lock --check` or uv-lock to CI.
