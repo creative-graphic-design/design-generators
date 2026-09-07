@@ -196,16 +196,7 @@ minutes on this host); worker count does not change the outputs.
 | R_shm (VGG distance)    | 14.281 [14.263, 14.294] | 14.326 [14.258, 14.373] |
 | Overlay                 | 0.0051 [0.0047, 0.0059] | 0.0053 [0.0050, 0.0059] |
 
-Every package mean falls inside the vendor three-seed range, which is the basis for the CGL unconditional end-to-end reproduction claim above. An independent rerun of the full vendor-parity test suite (`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity` with regenerated golden references and all twelve converted checkpoints) reported 28 passed, 0 failed, and 0 skipped. The per-seed
-score files (one YAML per run under each run root's `scores/` directory)
-have these SHA-256 values: package seeds 1-3
-`ee58b8ac4d25437e111173c31ebce39c18c288d565c8b0222d357248e95ce985`,
-`2972dc798be946a8f0d073e8d18391121268d8e40e544ec50d98bd7e9d481577`,
-`6a26d8a0a86ec4d335ed06f0d863548b9bc7996d2c157ea653fc6fd428d0ab35`; vendor
-seeds 1-3
-`c7e30d6171127a7d1d87c6b9b958d253bdabb5a8dbeadde646f0f649422539c6`,
-`1f90ceba3cdac32a8250432e1a3d2fbf50eabb690bffadb5ca39bba4abb22c8e`,
-`6113cedcc75854041ea693632c75f71dba0d42264eb9e46fa023cf10aef0ccc7`.
+Every package mean falls inside the vendor three-seed range, which is the basis for the CGL unconditional end-to-end reproduction claim above. An independent rerun of the full vendor-parity test suite (`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity` with regenerated golden references and all twelve converted checkpoints) reported 28 passed, 0 failed, and 0 skipped. The per-seed score files (one YAML per run under each run root's `scores/` directory) have these SHA-256 values: package seeds 1-3 `ee58b8ac4d25437e111173c31ebce39c18c288d565c8b0222d357248e95ce985`, `2972dc798be946a8f0d073e8d18391121268d8e40e544ec50d98bd7e9d481577`, `6a26d8a0a86ec4d335ed06f0d863548b9bc7996d2c157ea653fc6fd428d0ab35`; vendor seeds 1-3 `c7e30d6171127a7d1d87c6b9b958d253bdabb5a8dbeadde646f0f649422539c6`, `1f90ceba3cdac32a8250432e1a3d2fbf50eabb690bffadb5ca39bba4abb22c8e`, `6113cedcc75854041ea693632c75f71dba0d42264eb9e46fa023cf10aef0ccc7`.
 
 S4 run-010 compared the actual package `RalfDataModule.train_dataloader()` and
 `val_dataloader()` with the vendor `DataLoader` and `collate_fn`. Train and
@@ -216,15 +207,7 @@ The loader digests were package
 `2ef173685465a5810cfcaed76f2788cba85c2f48c85b5a83229cf004be1b4f3e` and vendor
 `5970e735922f26706018496a90f4bf9cda40c6dea1dbde0f4e980b4446f92ab7`.
 
-The corrected CGL S0 run-003 used the corrected 30-epoch recipe and passed with 44,386,946 parameters, 664 state-dict keys, and milestone 21. Its
-candidate source digest is
-`cf21004402441022542289debd19a6ac2d3cca5ad1fa3a8b406406222f921b6f`, its
-effective config digest is
-`be54c44b7e677a9aee75c7076ca2d20e04d4c56d58c3defc45ead4a452b93f61`, and its
-pinned vendor revision is `c51db6032acbd0bd0ce72433becce08317e7874d`. The
-recorded source digest identifies the dirty candidate tree used for this
-diagnostic; it is not a claim that the artifact was generated from a clean
-commit.
+The corrected CGL S0 run-003 used the corrected 30-epoch recipe and passed with 44,386,946 parameters, 664 state-dict keys, and milestone 21. Its candidate source digest is `cf21004402441022542289debd19a6ac2d3cca5ad1fa3a8b406406222f921b6f`, its effective config digest is `be54c44b7e677a9aee75c7076ca2d20e04d4c56d58c3defc45ead4a452b93f61`, and its pinned vendor revision is `c51db6032acbd0bd0ce72433becce08317e7874d`. The recorded source digest identifies the dirty candidate tree used for this diagnostic; it is not a claim that the artifact was generated from a clean commit.
 
 ## Evaluator Adapter Diagnostic
 
