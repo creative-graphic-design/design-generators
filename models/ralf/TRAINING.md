@@ -8,20 +8,7 @@ tags:
 
 # RALF Training
 
-This document claims end-to-end package training reproduction for CGL
-unconditional conditioning. The claim is supported by staged comparisons of
-configuration and initialization, a fixed-batch pre-optimizer trace, one
-optimizer step, repeated production batches, and the deterministic data-loader
-stream; the definitions and records are in [Validation Stages](#validation-stages)
-and [Stage Evidence](#stage-evidence). The currently verified setup is one
-Tesla V100-SXM2-32GB. Three package/original-code seed pairs trained for 30
-epochs, and each package mean fell inside the corresponding original-code
-three-seed range for all 15 metrics in the original evaluator's test protocol.
-An independent rerun of the vendor-parity test suite recorded 28 passed tests,
-0 failed tests, and 0 skipped tests. The scheduler milestone is epoch 21,
-derived as `0.7 × 30` epochs. PKU and the other CGL conditioning modes are not
-claimed because this document contains no corresponding staged and full-run
-evidence.
+This document claims end-to-end package training reproduction for CGL unconditional conditioning. The claim is supported by staged comparisons of configuration and initialization, a fixed-batch pre-optimizer trace, one optimizer step, repeated production batches, and the deterministic data-loader stream; the definitions and records are in [Validation Stages](#validation-stages) and [Stage Evidence](#stage-evidence). The currently verified setup is one Tesla V100-SXM2-32GB. Three package/original-code seed pairs trained for 30 epochs, and each package mean fell inside the corresponding original-code three-seed range for all 15 metrics in the original evaluator's test protocol. An independent rerun of the vendor-parity test suite recorded 28 passed tests, 0 failed tests, and 0 skipped tests. The scheduler milestone is epoch 21, derived as `0.7 × 30` epochs. PKU and the other CGL conditioning modes are not claimed because this document contains no corresponding staged and full-run evidence.
 
 Run commands from the repository root. Generated data, logs, checkpoints, and
 downloaded assets remain under `.cache/ralf/` or the authoritative cache
@@ -41,10 +28,7 @@ uv sync --package ralf --extra training --extra vendor
 
 ## Data
 
-The package-local CGL `RalfDataModule` and the original RALF loader consume the
-same authoritative cache for the accepted CGL staged evidence. The cache is
-provided read-only through the `RALF_CACHE_DIR` environment variable; its
-machine-specific mount path is intentionally not recorded in repository docs.
+The package-local CGL `RalfDataModule` and the original RALF loader consume the same authoritative cache for the accepted CGL staged evidence. The cache is provided read-only through the `RALF_CACHE_DIR` environment variable; its machine-specific mount path is intentionally not recorded in repository docs.
 
 | Dataset | Source                                       | Config or path                                                     |
 | ------- | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -61,9 +45,7 @@ currently selected user-provided local copy is supplied through
 per-file SHA256 manifest; the external cache is identified only by
 `RALF_CACHE_DIR`, never by its machine-specific mount path.
 
-The accepted CGL stream uses the transforms `image`,
-`sort_label`, and `sort_lexicographic`, fixed retrieval indexes with
-`top_k=16`, `random_retrieval=false`, and disjoint train/validation membership.
+The accepted CGL stream uses the transforms `image`, `sort_label`, and `sort_lexicographic`, fixed retrieval indexes with `top_k=16`, `random_retrieval=false`, and disjoint train/validation membership.
 
 ## Configs
 
@@ -80,36 +62,17 @@ The package training path uses `RalfTrainingModule` and `RalfDataModule`
 through the member-scoped `traingen fit` construction. The recipe uses AdamW,
 weight decay `1e-4`, gradient clipping at `0.1`, batch size `32`, and
 `accumulate_grad_batches=1`, so every batch reaches the optimizer directly.
-CGL uses a 30-epoch recipe. The multi-batch diagnostic described in
-[Validation Stages](#validation-stages) limits each epoch to three train
-batches and two validation batches; production training consumes the full
-loader.
+CGL uses a 30-epoch recipe. The multi-batch diagnostic described in [Validation Stages](#validation-stages) limits each epoch to three train batches and two validation batches; production training consumes the full loader.
 
-The pinned original training command establishes the 30-epoch schedule through
-`vendor/ralf/scripts/train/ralf_cgl.sh:1-3`, which sources
-`vendor/ralf/scripts/run_job/end_to_end.sh:10-17,30-32`; that launcher sources
-`vendor/ralf/configs/ralf_cgl/uncond.sh:2-5`, where `training.epochs=30` is
-added, and `vendor/ralf/scripts/bin/train.sh:45-52` passes the Hydra override.
-The base `training.epochs=50` in
-`vendor/ralf/image2layout/train/config/__init__.py:14-30` is therefore not the
-schedule used for CGL. The package recipe uses 30 epochs, and
-`RalfTrainingModule.configure_optimizers()` derives the `MultiStepLR` milestone
-as `int(0.7 * epochs)`, giving epoch 21 without a hardcoded milestone.
-Both configs retain Lightning's `deterministic: warn` mode; the staged records
-establish the PyTorch warning state on the currently verified runtime.
+The pinned original training command establishes the 30-epoch schedule through `vendor/ralf/scripts/train/ralf_cgl.sh:1-3`, which sources `vendor/ralf/scripts/run_job/end_to_end.sh:10-17,30-32`; that launcher sources `vendor/ralf/configs/ralf_cgl/uncond.sh:2-5`, where `training.epochs=30` is added, and `vendor/ralf/scripts/bin/train.sh:45-52` passes the Hydra override. The base `training.epochs=50` in `vendor/ralf/image2layout/train/config/__init__.py:14-30` is therefore not the schedule used for CGL. The package recipe uses 30 epochs, and `RalfTrainingModule.configure_optimizers()` derives the `MultiStepLR` milestone as `int(0.7 * epochs)`, giving epoch 21 without a hardcoded milestone. Both configs retain Lightning's `deterministic: warn` mode; the staged records establish the PyTorch warning state on the currently verified runtime.
 
 ### History / errata
 
-Earlier records used 70 epochs and a 49-epoch scheduler milestone; those records
-remain historical provenance and are not evidence for the current 30-epoch
-claim.
+Earlier records used 70 epochs and a 49-epoch scheduler milestone; those records remain historical provenance and are not evidence for the current 30-epoch claim.
 
 ## Seed Policy
 
-The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are
-diagnostic evidence only. The full-run claim rests on its own seed scope:
-training seeds 1-3 on both systems, evaluated under the original protocol
-whose inference samples with the run configuration's evaluation seed.
+The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are diagnostic evidence only. The full-run claim rests on its own seed scope: training seeds 1-3 on both systems, evaluated under the original protocol whose inference samples with the run configuration's evaluation seed.
 
 ## Validation Stages
 
@@ -126,10 +89,7 @@ whose inference samples with the run configuration's evaluation seed.
 
 **Harness-strengthening rerun.**
 
-The following CGL S0-S4 rerun was performed on GPU 3 with seed `1`, using the
-audited interpreter and the worktree source prepended to `PYTHONPATH`. These
-records supersede the earlier stage rows for this harness change; the older
-records remain below as historical provenance.
+The following CGL S0-S4 rerun was performed on GPU 3 with seed `1`, using the audited interpreter and the worktree source prepended to `PYTHONPATH`. These records supersede the earlier stage rows for this harness change; the older records remain below as historical provenance.
 
 | Stage | Command | Artifact | Result |
 | ----- | ------- | -------- | ------ |
@@ -140,30 +100,11 @@ records remain below as historical provenance.
 | S4 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json` | `PASS`; artifact SHA-256 `cf03fecba3182c93712f71a3742a09a3f4977a042ce149f5ed82fcf3dc5fc87b`; 16 batches and 512 samples checked, with matching canonical stream SHA-256 `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. |
 | S5 | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU}" uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --seed_everything=<N>` | `.cache/ralf/training-reproduction/cgl/s5/` | Existing three-seed statistical reproduction remains complete; no new S5 run is claimed for this harness-only change. |
 
-S3 reports both evidence layers in its machine-readable `status` object:
-`{"natural":"PASS"|"LEFT_CONTRACT","synchronized":"PASS"|"FAIL"|"NOT_RUN","verdict":"pass"|"bounded-pass"|"fail"}`.
-`LEFT_CONTRACT` means an independently initialized natural run diverged after
-leaving the S0-S2 comparison contract; it is not a synchronized parity pass or
-failure. `bounded-pass` means the natural layer left that contract but the
-independent state-synchronized lockstep layer passed. Each per-run trace uses
-`PASS` for agreement, `LEFT_CONTRACT` for natural divergence, and `FAIL` for
-synchronized divergence.
+S3 reports both evidence layers in its machine-readable `status` object: `{"natural":"PASS"|"LEFT_CONTRACT","synchronized":"PASS"|"FAIL"|"NOT_RUN","verdict":"pass"|"bounded-pass"|"fail"}`. `LEFT_CONTRACT` means an independently initialized natural run diverged after leaving the S0-S2 comparison contract; it is not a synchronized parity pass or failure. `bounded-pass` means the natural layer left that contract but the independent state-synchronized lockstep layer passed. Each per-run trace uses `PASS` for agreement, `LEFT_CONTRACT` for natural divergence, and `FAIL` for synchronized divergence.
 
-Provenance for this rerun: S3 run-002 carries relevant source digest
-`939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching
-the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the
-pre-commit working tree; the subsequent delta was confined to S3-only
-functions, tests, and documentation. Their key values remain byte-identical
-to the accepted baseline records above: S0 `state_sha256`
-`0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4
-package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
+Provenance for this rerun: S3 run-002 carries relevant source digest `939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the pre-commit working tree; the subsequent delta was confined to S3-only functions, tests, and documentation. Their key values remain byte-identical to the accepted baseline records above: S0 `state_sha256` `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4 package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
 
-The fresh S3 per-run trace SHA-256 values are `9c1f4873b3ce0cc9c01b66e78ca407de40afb173a622b11666c955c8aae57c6c`
-(`run-007`, natural), `93a02eb72543e79db034a8028530c7e1a3bced62117af302a49d05fd4ba1bc46`
-(`run-008`, natural), and `1e864875a7a067492cc13c6eb01069021e3b8035fb244ebff008ca6c5fddfa61`
-(`run-009`, synchronized). The synchronized trace checked 90 optimizer steps,
-used scheduler milestone 21, and reported 2,658 storage entries with no shared
-storage at each post-copy check.
+The fresh S3 per-run trace SHA-256 values are `9c1f4873b3ce0cc9c01b66e78ca407de40afb173a622b11666c955c8aae57c6c` (`run-007`, natural), `93a02eb72543e79db034a8028530c7e1a3bced62117af302a49d05fd4ba1bc46` (`run-008`, natural), and `1e864875a7a067492cc13c6eb01069021e3b8035fb244ebff008ca6c5fddfa61` (`run-009`, synchronized). The synchronized trace checked 90 optimizer steps, used scheduler milestone 21, and reported 2,658 storage entries with no shared storage at each post-copy check.
 
 ### Earlier stage evidence records
 
@@ -180,9 +121,7 @@ storage at each post-copy check.
 [Regeneration Metadata](#regeneration-metadata). Set `RALF_GPU` to the selected
 V100 index and choose a new `RALF_S3_OUTPUT` path before any S3 rerun.
 
-After the semantic blank-line change to the training-path modules, the staged
-checks were rerun under the protocol's [Regression Rule](../../docs/training-reproduction.md#regression-rule).
-Every rerun stage passed:
+After the semantic blank-line change to the training-path modules, the staged checks were rerun under the protocol's [Regression Rule](../../docs/training-reproduction.md#regression-rule). Every rerun stage passed:
 S0 `.cache/ralf/training-reproduction/cgl/s0-after-blank-lines-001/s0.json`
 (SHA-256 `466c427251545dae96b4aa9fea2de8bbcc3e391324cf70c0141ced9e4670730b`,
 initial-state digest identical to the accepted S0), S1
@@ -257,12 +196,7 @@ minutes on this host); worker count does not change the outputs.
 | R_shm (VGG distance)    | 14.281 [14.263, 14.294] | 14.326 [14.258, 14.373] |
 | Overlay                 | 0.0051 [0.0047, 0.0059] | 0.0053 [0.0050, 0.0059] |
 
-Every package mean falls inside the vendor three-seed range, which is the
-basis for the CGL unconditional end-to-end reproduction claim above. An
-independent rerun of the full vendor-parity test suite
-(`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity`
-with regenerated golden references and all twelve converted checkpoints)
-reported 28 passed, 0 failed, and 0 skipped. The per-seed
+Every package mean falls inside the vendor three-seed range, which is the basis for the CGL unconditional end-to-end reproduction claim above. An independent rerun of the full vendor-parity test suite (`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity` with regenerated golden references and all twelve converted checkpoints) reported 28 passed, 0 failed, and 0 skipped. The per-seed
 score files (one YAML per run under each run root's `scores/` directory)
 have these SHA-256 values: package seeds 1-3
 `ee58b8ac4d25437e111173c31ebce39c18c288d565c8b0222d357248e95ce985`,
@@ -282,8 +216,7 @@ The loader digests were package
 `2ef173685465a5810cfcaed76f2788cba85c2f48c85b5a83229cf004be1b4f3e` and vendor
 `5970e735922f26706018496a90f4bf9cda40c6dea1dbde0f4e980b4446f92ab7`.
 
-The corrected CGL S0 run-003 used the corrected 30-epoch recipe and
-passed with 44,386,946 parameters, 664 state-dict keys, and milestone 21. Its
+The corrected CGL S0 run-003 used the corrected 30-epoch recipe and passed with 44,386,946 parameters, 664 state-dict keys, and milestone 21. Its
 candidate source digest is
 `cf21004402441022542289debd19a6ac2d3cca5ad1fa3a8b406406222f921b6f`, its
 effective config digest is
@@ -482,8 +415,4 @@ CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
   --steps 8 --batch-size 32 --seed 1
 ```
 
-The 300-step real-scale lockstep probe evidence is recorded under
-[Stage Evidence](#stage-evidence), and the three-seed full-run training and
-evaluation results are recorded under
-[Reproduction Results](#reproduction-results), together with the independent
-vendor-parity test-suite rerun (28 passed, 0 failed, 0 skipped).
+The 300-step real-scale lockstep probe evidence is recorded under [Stage Evidence](#stage-evidence), and the three-seed full-run training and evaluation results are recorded under [Reproduction Results](#reproduction-results), together with the independent vendor-parity test-suite rerun (28 passed, 0 failed, 0 skipped).
