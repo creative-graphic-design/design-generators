@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+from lightning.pytorch import seed_everything
 import numpy as np
 import pytest
 import torch
@@ -1566,6 +1567,50 @@ def test_s4_all_recipe_deterministic_loader_stream_matches(recipe) -> None:
     assert evidence["first_divergence"] is None, json.dumps(
         evidence["first_divergence"], sort_keys=True
     )
+
+
+def test_s4_publaynet_label_production_seed_timing_is_not_vendor_seed_paired() -> None:
+    """Prove production construction changes the package loader's seeded stream."""
+    recipe = TRAINING_RECIPES_BY_NAME["publaynet_label"]
+    caller_rng = capture_rng_state()
+    try:
+        seed_everything(0, workers=True)
+        rng_after_seed = _rng_sha256(capture_rng_state())
+        module = LayoutFormerPPTrainingModule(
+            recipe_name=recipe.name,
+            config=_s1_package_config(recipe),
+        )
+        rng_after_model = _rng_sha256(capture_rng_state())
+        data_module = LayoutFormerPPDataModule(
+            recipe_name=recipe.name,
+            data_root=str(_real_data_root()),
+            num_workers=0,
+        )
+        data_module.setup("fit")
+        loader = data_module.train_dataloader()
+        rng_before_first_batch = _rng_sha256(capture_rng_state())
+        production_batch = next(iter(loader))
+        rng_after_first_batch = _rng_sha256(capture_rng_state())
+        production_names = tuple(
+            cast(str, value) for value in production_batch["names"]
+        )
+        del production_batch, loader, data_module, module
+
+        isolated_names = cast(
+            tuple[str, ...],
+            _package_loader_stream(recipe, "train", batches=1, seed=0)[0]["names"],
+        )
+    finally:
+        restore_rng_state(caller_rng)
+
+    facts = source_facts()
+    assert facts["model_before_trainer"] is True
+    assert facts["seed_inside_trainer_setup"] is True
+    assert rng_after_seed != rng_after_model
+    assert rng_after_model == rng_before_first_batch
+    assert rng_before_first_batch != rng_after_first_batch
+    assert production_names != isolated_names
+    assert _rng_equal(caller_rng, capture_rng_state())
 
 
 @pytest.mark.parametrize(
