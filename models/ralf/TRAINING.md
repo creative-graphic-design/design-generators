@@ -49,7 +49,7 @@ machine-specific mount path is intentionally not recorded in repository docs.
 | Dataset | Source                                       | Config or path                                                     |
 | ------- | -------------------------------------------- | ------------------------------------------------------------------ |
 | CGL     | RALF cache supplied through `RALF_CACHE_DIR` | `$RALF_CACHE_DIR/dataset/cgl`, CGL train/validation splits         |
-| PKU     | RALF cache supplied through `RALF_CACHE_DIR` | `$RALF_CACHE_DIR/dataset/pku`, not run in the accepted S4 evidence |
+| PKU     | RALF cache supplied through `RALF_CACHE_DIR` | `$RALF_CACHE_DIR/dataset/pku`, not run in the accepted loader-stream evidence |
 
 Its relevant contents include the CGL/PKU dataset trees, retrieval-index
 tables, the ResNet and FIDNet precomputed weights, DreamSim retrieval data,
