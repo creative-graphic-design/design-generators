@@ -8,17 +8,21 @@ tags:
 
 # RALF Training
 
-CGL's vendor-effective recipe is 30 epochs, not 70; the prior 70-epoch S0 and
-S3 records remain invalidated. The CGL unconditional recipe is reproduced end
-to end: the staged checks pass on one Tesla V100-SXM2-32GB with scheduler
-milestone 21, three package/vendor seed pairs trained to 30 epochs score
-inside each other's range on all fifteen original-evaluator metrics, and the
-coordinator's independent gated rerun reports 28 passed, 0 failed, 0 skipped.
-PKU and the other CGL conditions carry no training-reproduction claim.
+This document claims end-to-end package training reproduction for CGL
+unconditional conditioning. The claim is supported by the staged validation
+ladder defined in [Validation Stages](#validation-stages), three package/original-
+code seed pairs trained for 30 epochs, and the original evaluator's test
+protocol. Each package mean fell inside the corresponding original-code
+three-seed range for all 15 metrics. An independent rerun of the full
+vendor-parity test suite recorded 28 passed tests, 0 failed tests, and 0 skipped
+tests. The scheduler milestone is epoch 21, derived as `0.7 × 30` epochs.
 
-Here, S0 is static configuration/state, S1 is a fixed-batch pre-optimizer
-trace, S2 is one optimizer step, S3 is production multi-batch training, S4 is
-the authoritative loader stream, and S5 is full-run statistical comparison.
+The CGL label-conditioned path has passed the same staged validation ladder and
+the mandatory 300-step real-scale lockstep probe. One of its three training
+pairs has completed; the other two remain in progress, so endpoint evaluation
+and a full label-conditioned reproduction claim are pending. PKU and the other
+CGL conditioning modes are not claimed because this document contains no
+corresponding staged and full-run evidence.
 
 Run commands from the repository root. Generated data, logs, checkpoints, and
 downloaded assets remain under `.cache/ralf/` or the authoritative cache
@@ -39,7 +43,7 @@ uv sync --package ralf --extra training --extra vendor
 ## Data
 
 The package-local CGL `RalfDataModule` and the original RALF loader consume the
-same authoritative cache for the accepted CGL S0-S4 evidence. The cache is
+same authoritative cache for the accepted CGL staged evidence. The cache is
 provided read-only through the `RALF_CACHE_DIR` environment variable; its
 machine-specific mount path is intentionally not recorded in repository docs.
 
@@ -58,7 +62,7 @@ currently selected user-provided local copy is supplied through
 per-file SHA256 manifest; the external cache is identified only by
 `RALF_CACHE_DIR`, never by its machine-specific mount path.
 
-The accepted CGL stream uses the vendor-effective transforms `image`,
+The accepted CGL stream uses the transforms `image`,
 `sort_label`, and `sort_lexicographic`, fixed retrieval indexes with
 `top_k=16`, `random_retrieval=false`, and disjoint train/validation membership.
 
@@ -77,30 +81,59 @@ The package training path uses `RalfTrainingModule` and `RalfDataModule`
 through the member-scoped `traingen fit` construction. The recipe uses AdamW,
 weight decay `1e-4`, gradient clipping at `0.1`, batch size `32`, and
 `accumulate_grad_batches=1`, so every batch reaches the optimizer directly.
-CGL uses the vendor-effective 30-epoch recipe. The S3 diagnostic limits each
+CGL uses a 30-epoch recipe. The multi-batch diagnostic described in
+[Validation Stages](#validation-stages) limits each
 epoch to three train batches and two validation batches; production training
 consumes the full loader.
 
-CGL effectively uses 30 epochs, not the vendor base value of 50. This schedule
-is established by
+The pinned original training command establishes the 30-epoch schedule through
 `vendor/ralf/scripts/train/ralf_cgl.sh:1-3`, which sources
 `vendor/ralf/scripts/run_job/end_to_end.sh:10-17,30-32`; that launcher sources
 `vendor/ralf/configs/ralf_cgl/uncond.sh:2-5`, where `training.epochs=30` is
 added, and `vendor/ralf/scripts/bin/train.sh:45-52` passes the Hydra override.
-The vendor base `training.epochs=50` in
+The base `training.epochs=50` in
 `vendor/ralf/image2layout/train/config/__init__.py:14-30` is therefore not the
-effective CGL value. The package recipe now uses 30 epochs, and
+schedule used for CGL. The package recipe uses 30 epochs, and
 `RalfTrainingModule.configure_optimizers()` derives the `MultiStepLR` milestone
 as `int(0.7 * epochs)`, giving epoch 21 without a hardcoded milestone.
-The superseded 70-epoch/49-milestone S3 evidence is retained only as invalidated
-provenance. Both configs retain Lightning's `deterministic: warn` mode; the
-corrected S0 and the corrected S3 redo establish the effective PyTorch warning
-state on the supported runtime.
+Both configs retain Lightning's `deterministic: warn` mode; the staged records
+establish the PyTorch warning state on the currently verified runtime.
+
+### History / errata
+
+Earlier records used 70 epochs and a 49-epoch scheduler milestone; those records
+remain historical provenance and are not evidence for the current 30-epoch
+claim.
+
+### CGL label-conditioned recipe
+
+The label recipe selects the original `c` task through
+`vendor/ralf/configs/ralf_cgl/c.sh:1-4`, which sets
+`++generator.auxilary_task=c` and does not override the base epoch count. The
+base RALF experiment at
+`vendor/ralf/image2layout/train/config/experiment/ralf.yaml:11-18`
+therefore supplies 50 epochs, batch size 32, learning rate `1e-4`, gradient
+clip norm `0.1`, and AdamW weight decay `1e-4`. Its scheduler override is
+`multi_step_lr` with `milestones: [0.7]` at
+`vendor/ralf/image2layout/train/config/scheduler/multi_step_lr.yaml:1-3`;
+`vendor/ralf/image2layout/train/schedulers/multi_step_lr.py:20-25` converts
+that fraction to epoch 35. The package harness passes `task=label`,
+`condition_type=label`, and the derived 50-epoch count while preserving those
+optimizer, batch, and scheduler settings.
+
+The label condition shares the unconditional architecture, vocabulary, and
+seed-derived initialization; conditioning enters through the data/input
+pipeline rather than extra model modules. Consequently, the label initial
+state-dict digest is byte-identical to the accepted unconditional initial-state
+digest (`0c1c915b...`) while the scheduler milestone correctly changes from 21
+to 35. The label canonical loader-stream digest is also identical to the
+unconditional digest (`664a4213...`), as expected because the loader stream is
+condition-agnostic; label construction occurs after loader output.
 
 ## Seed Policy
 
-The staged checks (S0-S4) use seed `1` on one selected Tesla V100-SXM2-32GB
-and are diagnostic evidence only. The S5 claim rests on its own seed scope:
+The staged checks use seed `1` on one selected Tesla V100-SXM2-32GB and are
+diagnostic evidence only. The full-run claim rests on its own seed scope:
 training seeds 1-3 on both systems, evaluated under the original protocol
 whose inference samples with the run configuration's evaluation seed.
 
@@ -117,12 +150,12 @@ whose inference samples with the run configuration's evaluation seed.
 
 ## Stage Evidence
 
-**Harness-strengthening rerun.**
+**Regression rerun after the harness change.**
 
-The following CGL S0-S4 rerun was performed on GPU 3 with seed `1`, using the
-audited interpreter and the worktree source prepended to `PYTHONPATH`. These
-records supersede the earlier stage rows for this harness change; the older
-records remain below as historical provenance.
+The following CGL staged rerun used seed `1`, the audited interpreter, and the
+worktree source prepended to `PYTHONPATH`. These records supersede the earlier
+rows for this harness change; the older records remain below as historical
+provenance.
 
 | Stage | Command | Artifact | Result |
 | ----- | ------- | -------- | ------ |
@@ -133,21 +166,81 @@ records remain below as historical provenance.
 | S4 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/s4/harness-strengthening-001/s4.json` | `PASS`; artifact SHA-256 `cf03fecba3182c93712f71a3742a09a3f4977a042ce149f5ed82fcf3dc5fc87b`; 16 batches and 512 samples checked, with matching canonical stream SHA-256 `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. |
 | S5 | `CUDA_VISIBLE_DEVICES="${RALF_GPU:?set RALF_GPU}" uv run --package ralf --extra training traingen fit --config models/ralf/configs/training/cgl.yaml --seed_everything=<N>` | `.cache/ralf/training-reproduction/cgl/s5/` | Existing three-seed statistical reproduction remains complete; no new S5 run is claimed for this harness-only change. |
 
+### CGL label-conditioned stage evidence
+
+The label staged ladder was run with seed `1`, batch size `32`,
+`PARITY_REQUIRE=1`, the audited cu128 interpreter, and the worktree source
+prepended to `PYTHONPATH`. Every stage record reports
+`ralf.__file__=models/ralf/src/ralf/__init__.py`, confirming that the package
+under test came from this worktree. Artifact SHA-256 values below were checked
+against the files on disk.
+
+| Stage | Command | Artifact | Result |
+| ----- | ------- | -------- | ------ |
+| S0 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S0 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s0/label-001/s0.json --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s0/label-001/s0.json` | `PASS`; SHA-256 `be90fe8f33880f12140f6d865c4a32c718049fdf3a674a4f25cb4e67ca470d8e`; 44,386,946 parameters, state SHA-256 `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, scheduler milestone 35. |
+| S1 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S1 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s1/label-002/s1.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s1/label-002/s1.json` | `PASS`; SHA-256 `8288bb8039d2d2e254faa0ae03c9dbce5a4d6d8929b07c418f841382b8f208c1`; prepared ids/labels, logits, and loss max absolute differences all `0.0`. |
+| S2 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S2 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s2/label-002/s2.json --steps 1 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s2/label-002/s2.json` | `PASS`; SHA-256 `c45b1b765fd829c90639894bef5fa83610a9e51b35d4dd62932194ae80a0987f`; gradient norm `2.372591972351074`, post-step parameter max diff `5.587935447692871e-7`, optimizer-state max diff `5.093170329928398e-11`, and 2,658 storage entries checked. |
+| S3 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" RALF_S3_OUTPUT=.cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S3 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json --batch-size 4 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s3/runs/label-002/s3.json` | `bounded-pass`; SHA-256 `d6c3240270d8080de4191a0bb23c3862ac0f205eede8af620423358b4ac15aa7`; natural `LEFT_CONTRACT`, synchronized `PASS`, 150 synchronized steps, scheduler milestone 35, no synchronized divergence. |
+| S4 | `CUDA_VISIBLE_DEVICES=3 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 VIRTUAL_ENV="$RALF_AUDIT_VENV" PYTHONPATH="$PWD/models/ralf/src:$PWD" uv run --active --no-sync --package ralf --extra training --extra vendor python models/ralf/tests/vendor_parity/run_training_stages.py --stage S4 --dataset cgl --condition label --cache-dir "$RALF_CACHE_DIR" --output .cache/ralf/training-reproduction/cgl/label/s4/label-002/s4.json --steps 8 --batch-size 32 --seed 1` | `.cache/ralf/training-reproduction/cgl/label/s4/label-002/s4.json` | `PASS`; SHA-256 `9fabfe34ac92f3c2e8cfbf1e412dcfcbf7c7f848cb4d494ffa4a5323c1f9a140`; 16 batches/512 samples, package/vendor canonical stream SHA-256 both `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. |
+| S5 | Parameterized `setsid nohup` launchers under `.cache/ralf/training-reproduction/cgl/label/` (stdin `/dev/null`, `OMP_NUM_THREADS=4`, seeds 1-3, 50 epochs, batch size 32) | `.cache/ralf/training-reproduction/cgl/label/s5/seed-1-run-002/launch-manifest.txt`; `.cache/ralf/training-reproduction/cgl/label/s5/seed-2-3-launch-manifest.txt` | `IN_PROGRESS`; seed 1 completed (vendor train/val `1.8892/2.3233`, package train/val `1.850/2.303`); seeds 2-3 are running, and endpoint evaluation remains pending GPU allocation. |
+
+The maintained lockstep diagnostic is
+`models/ralf/tests/vendor_parity/probe_s1_faithful.py`. It reproduces the
+natural S1 seeding placement and compares the package and reference condition
+construction, prepared inputs, logits, and losses; its recorded label result
+was byte-identical through loss after the harness began reseeding each system's
+stochastic preprocessing independently. The
+label 300-step real-scale probe used the production `traingen fit` path with
+the real batch size 32, six limited train batches per epoch, and the 50-epoch
+recipe (300 optimizer steps total). It matched 300/300 optimizer steps with
+`first_divergence=null`; the final trace is
+`.cache/ralf/training-reproduction/cgl/label/probe/runs/gate2-label-001/runs/run-002/trace/s3-trace.json`
+(SHA-256
+`68d1af2686e9ab010e4e1e06dfee522c17e7c7a456fa9fef40353e352ecbecba`). The
+driver log SHA-256 is
+`275a5a40c5fcc9164d26f4f24e1ce4413d36fba013137f4de520884cf9d9ad8f`;
+final parameter and optimizer-state maximum absolute differences were
+`5.960464477539063e-8` and `2.0372681319713593e-10`, respectively.
+
+The S5 seed-1 pair completed. Both runs used 50 epochs, batch size 32, training
+`num_workers=4`, and
+`OMP_NUM_THREADS=4`; the vendor used `++generator.auxilary_task=c`, and the
+package used `condition_type=label`. Vendor final train/validation loss was
+`1.8892/2.3233`, package final train/validation loss was `1.850/2.303`.
+The checkpoint SHA-256 values are vendor
+`895cda39b4477d9e1d6e25f8e4eddc8dfe38b4a6839fd543d49f6bbb57025428` and
+package `d435e072ed7f70dbe3839e69aa6f24df47408c8dfaa8633503adcddc6723152d`.
+The seed-1 launch record is
+`.cache/ralf/training-reproduction/cgl/label/s5/seed-1-run-002/launch-manifest.txt`;
+the input package config SHA-256 is
+`2d4d5c6bc90ab06f53626ec0bc6e182ec882fff5d8aafaf5f31ba3aed49e167f`, the
+effective package config SHA-256 is
+`6142c24514bee3f2aad60ab2ef02869caa8917791a1fec69aacfd260db98b81d`, and
+the effective vendor config SHA-256 is
+`c519c83ad1b9f10a7f1eb11e165bf2816bbe33c310f6e4b0d6c18bb65f22b13d`.
+
+Seeds 2 and 3 are the remaining training pairs. Their launch metadata and
+first-30-minute health evidence are recorded in
+`.cache/ralf/training-reproduction/cgl/label/s5/seed-2-3-launch-manifest.txt`;
+both pairs remained alive with 51.14 and 52.44 package optimizer steps per
+minute at the first-30-minute checkpoint. Endpoint evaluation is pending until
+all six checkpoints exist and an evaluation device is selected.
+
 S3 reports both evidence layers in its machine-readable `status` object:
 `{"natural":"PASS"|"LEFT_CONTRACT","synchronized":"PASS"|"FAIL"|"NOT_RUN","verdict":"pass"|"bounded-pass"|"fail"}`.
 `LEFT_CONTRACT` means an independently initialized natural run diverged after
-leaving the S0-S2 comparison contract; it is not a synchronized parity pass or
-failure. `bounded-pass` means the natural layer left that contract but the
+the S0-S2 comparison checks; it is not a synchronized parity pass or failure.
+`bounded-pass` means the natural layer left those checks but the
 independent state-synchronized lockstep layer passed. Each per-run trace uses
 `PASS` for agreement, `LEFT_CONTRACT` for natural divergence, and `FAIL` for
 synchronized divergence.
 
-Provenance for this rerun: S3 run-002 carries relevant source digest
+Provenance for this rerun: S3 `s3/runs/harness-strengthening-002/` carries relevant source digest
 `939a47a9b963f2e4f5265a259868ac88ec665fd004c948e09409cd0c23a0c6fb`, matching
 the committed source at `a1c9e60`. S0/S1/S2/S4 were emitted from the
 pre-commit working tree; the subsequent delta was confined to S3-only
 functions, tests, and documentation. Their key values remain byte-identical
-to the accepted baseline records above: S0 `state_sha256`
+to the accepted baseline records below: S0 `state_sha256`
 `0c1c915bc1d2a8e321869ad40b3f2bac0314c66a2b3a790f5c90bcb26bcbe88e`, and S4
 package/vendor stream digests `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`.
 
@@ -174,7 +267,8 @@ storage at each post-copy check.
 V100 index and choose a new `RALF_S3_OUTPUT` path before any S3 rerun.
 
 After the semantic blank-line change to the training-path modules, the staged
-ladder was rerun per the protocol's Regression Rule. Every rerun stage passed:
+checks were rerun under the protocol's [Regression Rule](../../docs/training-reproduction.md#regression-rule).
+Every rerun stage passed:
 S0 `.cache/ralf/training-reproduction/cgl/s0-after-blank-lines-001/s0.json`
 (SHA-256 `466c427251545dae96b4aa9fea2de8bbcc3e391324cf70c0141ced9e4670730b`,
 initial-state digest identical to the accepted S0), S1
@@ -206,7 +300,7 @@ records.
 | Dataset           | System                     | Status                                                                                                                                                                 | Seed scope          | Primary metrics                                                                                                                                                | Loss evidence                                                                                      | Artifact summary                                                                        |
 | ----------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | CGL unconditional | package/vendor staged path | `s5-practical-reproduction`                                                                                                                                            | `training-seed n=3` | Layout FID package 2.20/2.22/1.96 vs vendor 2.24/2.26/2.02; validity 0.999 both; overlap means equal at 0.4017; all fifteen evaluator metrics summarized below | Final validation cross-entropy package 2.420/2.447/2.418 vs vendor 2.440/2.436/2.414 from run logs | `.cache/ralf/training-reproduction/cgl/s5/` plus operator-root score files hashed below |
-| CGL label         | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))`              | `training-seed n=1` | CGL staged evidence is unconditional only                                                                                                                      | Not run for this checkpoint                                                                        | `.cache/ralf/training-reproduction/cgl/`                                                |
+| CGL label         | package/vendor staged path | `not-yet-run (seed 1 complete; seeds 2-3 training; endpoint evaluation pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))` | `training-seed n=3 planned; 1 of 3 complete` | CGL label S0-S4 and 300-step lockstep passed; seeds 2-3 training remains in progress                                                                                                                    | Seed 1 vendor/package val loss `2.3233/2.303`; seeds 2-3 pending                                                                        | `.cache/ralf/training-reproduction/cgl/label/s5/`                                                |
 | CGL label-size    | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))`              | `training-seed n=1` | CGL staged evidence is unconditional only                                                                                                                      | Not run for this checkpoint                                                                        | `.cache/ralf/training-reproduction/cgl/`                                                |
 | CGL completion    | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))`              | `training-seed n=1` | CGL staged evidence is unconditional only                                                                                                                      | Not run for this checkpoint                                                                        | `.cache/ralf/training-reproduction/cgl/`                                                |
 | CGL refinement    | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))`              | `training-seed n=1` | CGL staged evidence is unconditional only                                                                                                                      | Not run for this checkpoint                                                                        | `.cache/ralf/training-reproduction/cgl/`                                                |
@@ -250,8 +344,8 @@ minutes on this host); worker count does not change the outputs.
 | Overlay                 | 0.0051 [0.0047, 0.0059] | 0.0053 [0.0050, 0.0059] |
 
 Every package mean falls inside the vendor three-seed range, which is the
-basis for the `s5-practical-reproduction` status above. The coordinator's
-independent rerun of the gated suite
+basis for the CGL unconditional end-to-end reproduction claim above. An
+independent rerun of the full vendor-parity test suite
 (`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity`
 with regenerated golden references and all twelve converted checkpoints)
 reported 28 passed, 0 failed, and 0 skipped. The per-seed
@@ -274,7 +368,7 @@ The loader digests were package
 `2ef173685465a5810cfcaed76f2788cba85c2f48c85b5a83229cf004be1b4f3e` and vendor
 `5970e735922f26706018496a90f4bf9cda40c6dea1dbde0f4e980b4446f92ab7`.
 
-The corrected CGL S0 run-003 used the vendor-effective 30-epoch recipe and
+The corrected CGL S0 run-003 used the corrected 30-epoch recipe and
 passed with 44,386,946 parameters, 664 state-dict keys, and milestone 21. Its
 candidate source digest is
 `cf21004402441022542289debd19a6ac2d3cca5ad1fa3a8b406406222f921b6f`, its
@@ -439,7 +533,7 @@ CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 \
 
 Use the same command with `--stage S2` for the one-step optimizer check.
 
-For that authorized run, set `RALF_GPU`, `RALF_CACHE_DIR`, and `RALF_S3_OUTPUT`
+For that rerun, set `RALF_GPU`, `RALF_CACHE_DIR`, and `RALF_S3_OUTPUT`
 as shown in the Stage Evidence table and run the complete command below. The
 run follows the protocol's layered S3 rule: the natural trajectory passes on its
 own when every step stays inside the S0-S2 contract, and otherwise the retained
@@ -477,5 +571,5 @@ CUDA_VISIBLE_DEVICES=1 PARITY_REQUIRE=1 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
 The 300-step real-scale lockstep probe evidence is recorded under
 [Stage Evidence](#stage-evidence), and the three-seed S5 training and
 evaluation results are recorded under
-[Reproduction Results](#reproduction-results), together with the
-coordinator's independent gated rerun (28 passed, 0 failed, 0 skipped).
+[Reproduction Results](#reproduction-results), together with the independent
+vendor-parity test-suite rerun (28 passed, 0 failed, 0 skipped).
