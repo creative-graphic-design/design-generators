@@ -9,14 +9,21 @@ tags:
 # LayoutFormer++ Training
 
 The retained LayoutFormer++ candidate has accepted S0-S4 evidence for all
-twelve RICO25 and PubLayNet recipe families. S2 uses a stepped authoritative
-reference scheduler at the optimizer cadence; S3 keeps the 12-family manual
-numerical lockstep separate from bounded production `traingen fit` wiring
-evidence over the ten runtime-distinct representative configs; and S4 compares
-the pinned original loaders with the production package DataModule. The
-required 300-step lockstep run is a diagnostic pre-S5 probe through those
-loader outputs. No training-seed parity, trained-checkpoint parity, or S5
-full-run reproduction is claimed.
+twelve RICO25 and PubLayNet recipe families. PubLayNet label-conditioned
+`gen_t` also has documented-bounded-deviation practical status, not a `PASS`:
+under one common 10,998-item standalone test protocol, the package three-seed
+mean mIoU is `0.32663`, which is `0.0039` below the clean original-code
+three-seed minimum. Five of seven reported metrics place the package mean
+inside the clean original-code range. Alignment exceeds that range by only
+`1.2e-6`. The authors' released-checkpoint mIoU is inside the clean
+original-code range.
+
+This S5 evidence covers only PubLayNet label-conditioned `gen_t`. The package
+and clean original-code runs used three distinct numeric seeds, but their
+entrypoints apply those seeds at different construction points. Their test
+results are protocol-comparable, not seed-paired training trajectories. The
+other eleven recipe families remain untested at S5, so no general
+LayoutFormer++ trained-checkpoint reproduction is claimed.
 
 Run commands from the repository root. Keep generated evidence, logs, data, and
 checkpoints under `.cache/layoutformerpp/`.
@@ -130,17 +137,29 @@ only, so exact optimizer/scheduler/RNG resume is not a parity claim.
 
 ## Seed Policy
 
-The original CLI constructs the model before its trainer applies the loader and
-experiment seed. The paired-run harness will therefore seed ambient construction
-separately for each replicate, capture that distinct initialized state, copy it
-to both systems, and record the construction control, `initial_state_sha256`,
-and late loader-transform seed. This is a documented harness deviation from the
-unmodified late-seed CLI. Reusing one initial state for all three replicates does
-not constitute three distinct training-seed replicates.
+The PubLayNet result uses `training-seed n=3` for each system and evaluation
+seed `500` for every checkpoint. It is not a seed-paired claim. Lightning
+applied package `seed_everything=0,1,2` before model and DataModule
+construction. The original CLI constructs the tokenizer, model, optimizer,
+scheduler, and datasets first; its trainer then applies `--seed 0,1,2` during
+experiment setup. The official `publaynet_gen_t.sh` has no `--seed` argument;
+the clean r6 commands added those three values.
 
-No training or evaluation seed scope is claimed. A complete twelve-family
-training-seed claim would require 12 families by 2 systems by 3 training seeds,
-or 72 full runs; PubLayNet relation is counted once. S5 remains stopped.
+The package runs are distinct. Their first recorded training losses are
+`7.39870`, `6.61055`, and `7.31237`, and their selected checkpoints have
+different SHA-256 values. All three recorded `data.init_args.seed=0`, but that
+field is inert: the DataModule stores it and no runtime path reads it. The
+production loader uses `generator=None` with `num_workers=0`, so its
+`RandomSampler` derives its private shuffle seed from the global Torch state
+after package model construction. The S4 regression records this RNG movement
+and proves that reseeding immediately before loader construction produces a
+different first sample order.
+
+The systems therefore share evaluator code, constrained decoding, test split,
+and evaluation seed, while model initialization and training streams are not
+paired. A complete twelve-family training-seed claim would require 12 families
+by 2 systems by 3 training seeds, or 72 full runs; PubLayNet relation is counted
+once.
 
 ## Validation Stages
 
@@ -152,8 +171,8 @@ The stages below follow `docs/training-reproduction.md`.
 | S1 | Fixed-batch pre-optimizer trace parity | all twelve families pass on the selected CUDA device |
 | S2 | One optimizer-step parity | accepted: authoritative scheduler, backward/optimizer state, post-step parameters, LR/cadence, RNG, and first divergence matched for all twelve recipes |
 | S3 | Short deterministic multi-batch run | accepted: 12-family manual numerical lockstep passed; ten representative real-data `traingen fit` runs exercised production scheduler, logging, validation, and `ModelCheckpoint` wiring |
-| S4 | Deterministic loader stream | accepted: production package DataModule/loaders matched pinned original RICO25/PubLayNet train and validation streams |
-| S5 | Full-run statistical comparison | stopped; hard-gated by accepted S0-S4 and the later lockstep probe |
+| S4 | Deterministic loader stream | accepted for isolated same-boundary reseeding; a production-order regression records that package model construction advances RNG before the loader while the original seed is applied after model construction |
+| S5 | Full-run statistical comparison | `CHECK` for PubLayNet label-conditioned `gen_t`: documented bounded deviation under a common standalone test protocol; the other eleven families remain pending |
 
 ## Stage Evidence
 
@@ -163,8 +182,8 @@ The stages below follow `docs/training-reproduction.md`.
 | S1 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s1 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s1` | PASS: 12 tests, zero skips on physical GPU 0 as logical `cuda:0` (`torch 2.12.0+cu126`, CUDA 12.6, SM 7.0, float32); `rtol=1e-4`, `atol=1e-5`; first divergence `null`; max absolute error `3.814697265625e-06`; max relative error `8.155166142387316e-08`. |
 | S2 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s2 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s2` | PASS: 12 tests, zero skips; one real backward and optimizer step per recipe matched gradients, clipping behavior, optimizer state, post-step parameters, authoritative scheduler cadence/LR, RNG, and first divergence within `rtol=1e-4`, `atol=1e-5`. |
 | S3 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s3 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s3` | PASS: 22 tests, zero skips: 12 manual numerical lockstep cases plus 10 production `traingen fit` representative cases (`rico25_label`, `rico25_label_size`, `rico25_relation`, `rico25_refinement`, `rico25_completion`, `rico25_unconditional`, `publaynet_label`, `publaynet_label_size`, `publaynet_relation`, `publaynet_refinement`). Every console run exited 0, reached `global_step=2` and two optimizer steps, recorded scheduler `last_epoch=1` and the expected post-step LR, delivered `train_loss`/`val_loss` to the CSV logger, and selected a real `ModelCheckpoint` file. The ordinary 12-YAML matrix guard proves shared Trainer/DataModule/model/checkpoint wiring for all recipes; manual numerical parity remains the separate all-family claim, while PubLayNet completion/unconditional are not separately claimed as console-fit runs. |
-| S4 | `CUDA_VISIBLE_DEVICES=0 PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" "$LAYOUTFORMERPP_PARITY_PYTHON" -m pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | PASS: 12 tests, zero skips; production package DataModule/loaders matched pinned original RICO25 and PubLayNet train/validation streams, including order, bytes, tokenization, masks/padding, task IDs, and first divergence. |
-| S5 | `PARITY_REQUIRE=1 python -c "print('S5 intentionally stopped before full training/evaluation')"` | `.cache/layoutformerpp/s0/static-parity.json#s5-stop` | STOPPED/NOT CLAIMED: deliberately stopped before full training/evaluation, trained-checkpoint comparison, and training-seed claims. |
+| S4 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 LAYOUTFORMERPP_PARITY_DATA_ROOT="${LAYOUTFORMERPP_PARITY_DATA_ROOT:?set authoritative original processed data root}" uv run --package layoutformerpp --extra training --extra vendor --no-sync pytest models/layoutformerpp/tests/vendor_parity/test_layoutformerpp_training_parity.py -m "vendor_parity and training" -k s4 -rs -q` | `.cache/layoutformerpp/s0/static-parity.json#s4` | CHECK: 12 isolated same-boundary loader comparisons pass; the focused PubLayNet production-order regression records RNG after seed application, model construction, and the first loader batch, then proves that production order differs from the isolated loader reseed path. This bounds S4 and rejects a seed-paired trajectory claim. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> /tmp/layoutformerpp-s1-cu126-BLnm3l/bin/python vendor/ms-layout-generation/LayoutFormer++/src/main.py --test --dataset publaynet --tasks gen_t ... --eval_seed 500 --eval_ckpt_tag <epoch_49\|final> --enable_task_measure --load_vocab` | `.cache/layoutformerpp/s5/eval/publaynet_label/` | CHECK: package, clean original-code r6, and authors' released checkpoints used the same constrained standalone evaluator and complete 10,998-item test split. PubLayNet `gen_t` has documented bounded deviation; the other eleven families remain pending. |
 
 The loader-based 300-step real-scale lockstep diagnostic passed for the
 `rico25_label` recipe after S0-S4. It recorded per-step loss, gradient norm,
@@ -187,10 +206,11 @@ remain covered by the separate 12-family manual numerical gate only.
 
 ## Reproduction Results
 
-No trained-family result exists. All twelve recipe families have accepted S0-S4
-stage evidence; the 300-step result is a diagnostic pre-S5 probe only.
-There is no training-seed, trained-checkpoint, or full-run metric claim. S5
-remains intentionally stopped.
+PubLayNet label-conditioned `gen_t` has documented-bounded-deviation practical
+status under `training-seed n=3` per system and one fixed evaluation seed. This
+is the only family with S5 evidence. The clean comparison does not establish
+strict seed pairing because the two training entrypoints apply their numeric
+seeds at different construction points.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -206,8 +226,8 @@ remains intentionally stopped.
 | RICO25 completion | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | RICO25 unconditional | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | RICO25 unconditional | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
-| PubLayNet label | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet label | clean original code r6 | `s5-practical-reproduction` | training-seed n=3; evaluation seed 500; not seed-paired to package construction | mIoU `0.33282` mean, `0.00365` sample std; full metrics below | epoch 49 selected by minimum original evaluation loss | `.cache/layoutformerpp/s5/publaynet_label/vendor-seed{0,1,2}-r6/`; `.cache/layoutformerpp/s5/eval/publaynet_label/vendor-r6-test/r1/` |
+| PubLayNet label | package | `s5-practical-reproduction` | training-seed n=3; evaluation seed 500; not seed-paired to original construction | mIoU `0.32663` mean, `0.0039` below original seed minimum; full metrics below | epoch 49 selected by minimum package `val_loss` | `.cache/layoutformerpp/s5/publaynet_label/package-seed{0,1,2}/`; `.cache/layoutformerpp/s5/eval/publaynet_label/seed{0,1,2}-r1/` |
 | PubLayNet label-size | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | PubLayNet label-size | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | PubLayNet relation | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
@@ -217,12 +237,67 @@ remains intentionally stopped.
 | PubLayNet completion | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | PubLayNet completion | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
 | PubLayNet unconditional | original | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
-| PubLayNet unconditional | package | `not-yet-run (S0-S4 accepted; 300-step diagnostic only; S5 stopped)` | no training seed | not run | S0-S4 stage evidence; diagnostic pre-S5 probe only | `.cache/layoutformerpp/s0/` |
+| PubLayNet unconditional | package | `not-yet-run (S0-S4 accepted; S5 pending)` | no training seed | not run | S0-S4 stage evidence only | `.cache/layoutformerpp/s0/` |
 
-Released-checkpoint trainer provenance and source/license approval remain
-unresolved. They block comparison against released weights and publication, but
-do not invalidate the accepted bounded S0-S4 candidate. No S5 run is
-authorized by this evidence.
+### Clean PubLayNet `gen_t` comparison
+
+All seven evaluations used the pinned original evaluator with constrained
+decoding, evaluation seed `500`, and the complete 10,998-item PubLayNet test
+stream. The package rows evaluate the selected Lightning checkpoints after
+stripping the `model.` prefix into the original checkpoint shape. The clean
+original-code r6 and authors' release rows evaluate their original-shaped
+checkpoints directly. Every row uses the checkpoint's own matching vocabulary;
+all vocabularies have SHA-256
+`b35377045c8815cdd073583e49e6fab855e62a5019723f6e8b40a9cbb8e87e61`.
+
+| System | Seed | mIoU | FID | Alignment | Overlap | Bbox accuracy | Label accuracy | Violation rate | Metrics SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Package | 0 | 0.326212555 | 16.199593947 | 0.000179652 | 0.009041049 | 0.132921308 | 0.999999940 | 0 | `11a7eb8aa78d4e37bad35d946501cbd97e32f2c208043841d6f72af76f09d81f` |
+| Package | 1 | 0.326852250 | 15.783900173 | 0.000205534 | 0.008726429 | 0.134756923 | 0.999999940 | 0 | `c421259884a03e8e7b32f63904c94f19ba609c7c014d8ac42b1e1ba27423d83a` |
+| Package | 2 | 0.326826790 | 17.345766941 | 0.000193734 | 0.007683629 | 0.132045463 | 0.999999940 | 0 | `821bed52687f056ef720f289c4cb42d0031c14ff683ebb4c0acd0b7b2b38ac03` |
+| Package mean | - | 0.326630532 | 16.443087020 | 0.000192973 | 0.008483702 | 0.133241231 | 0.999999940 | 0 | - |
+| Clean original code r6 | 0 | 0.330498997 | 16.857438909 | 0.000185820 | 0.008018690 | 0.133104220 | 0.999999940 | 0 | `593bcfac1d72ca45e07b8aef8a0b32baf8e9b05a27c5c4125aa4dba8386ac2bc` |
+| Clean original code r6 | 1 | 0.337028043 | 15.467105644 | 0.000187255 | 0.009885931 | 0.136743158 | 0.999999940 | 0 | `1c9e732b5477d5b22bbd01af36245881f12640804e6a91501a6328dc14ddfe47` |
+| Clean original code r6 | 2 | 0.330921058 | 15.104894274 | 0.000191818 | 0.009708703 | 0.137130514 | 0.999999940 | 0 | `021ae24fb18dd4c59ac8f00143345c9da8eab99223d43cf91bad6bf006622d94` |
+| Clean original code r6 mean | - | 0.332816033 | 15.809812942 | 0.000188298 | 0.009204441 | 0.135659297 | 0.999999940 | 0 | - |
+| Authors' released checkpoint | - | 0.334915109 | 14.074759770 | 0.000197474 | 0.008215016 | 0.135372370 | 0.999999940 | 0 | `9b4efaa76b5b869d285da7c4c20e07b971144aba47e58eb096c916a62e3c13ed` |
+
+| Metric | Package mean | Clean original-code mean | Original-code seed range | Package mean inside range? |
+| --- | ---: | ---: | ---: | --- |
+| mIoU | 0.326630532 | 0.332816033 | 0.330498997 to 0.337028043 | No, `0.003868465` below the minimum |
+| FID | 16.443087020 | 15.809812942 | 15.104894274 to 16.857438909 | Yes |
+| Alignment | 0.000192973 | 0.000188298 | 0.000185820 to 0.000191818 | No, `0.000001156` above the maximum |
+| Overlap | 0.008483702 | 0.009204441 | 0.008018690 to 0.009885931 | Yes |
+| Bbox accuracy | 0.133241231 | 0.135659297 | 0.133104220 to 0.137130514 | Yes |
+| Label accuracy | 0.999999940 | 0.999999940 | 0.999999940 to 0.999999940 | Yes |
+| Violation rate | 0 | 0 | 0 to 0 | Yes |
+
+The package mean falls inside the clean original-code range for five of seven
+metrics. Its mIoU is outside that range, and the result does not support an
+unqualified parity `PASS`. The alignment miss is about `1.2e-6`, which is
+negligible at the reported scale. The authors' released-checkpoint mIoU
+`0.334915109` lies inside the clean r6 seed range and supports using r6 as the
+original-code reference.
+
+| System | Seed | Training checkpoint SHA-256 | Evaluated checkpoint SHA-256 |
+| --- | ---: | --- | --- |
+| Package | 0 | `8631d408ecc554688b3cffb2e759d0be5c8e96a773495371cbb7e2e57f36908c` | `f4a4390502231fd59a2ed21bf30c0960c13f7e7efde61575ca11097c4b3074f1` |
+| Package | 1 | `fddbe8ea9ff3abeddab58e950a172404179692e97dbddc5f30aa640edbfa814d` | `9b0413b150dba714b0cda2b7cb7dc521640646a10ee7f90ab7a2b7519c361c34` |
+| Package | 2 | `e705b2ff999d7e2c9315c15804568926a240d45f1841df184d166d958987195c` | `4fd630216025a972a52201db9c627b8681d1555fd3ed12b791ab5b0508a76d21` |
+| Clean original code r6 | 0 | `3530818261703d77ef197158977c687f40cc494a30c0f8da0c1641b3a343b31b` | same as training checkpoint |
+| Clean original code r6 | 1 | `e5a1c5909710ad74ab766b43e23d41b633136d866bb189ee8d6fe8bdf326f5e5` | same as training checkpoint |
+| Clean original code r6 | 2 | `afef4f829a498b4ac05b59e3664353bfa1ff40d5e8d57f6168dbde8507220374` | same as training checkpoint |
+| Authors' released checkpoint | - | `3c5ef9cdb28d606fda778f72ecf792609627f42660d7ec44f688c7af78fb8981` | same as release checkpoint |
+
+### Invalidated r4/r5 original-code runs
+
+The earlier `vendor-seed0-r4`, `vendor-seed1-r5`, and `vendor-seed2-r5` runs
+set `gen_t_add_unk_token=true`. The official `publaynet_gen_t.sh` leaves that
+flag false. Those runs trained on a different input serialization and produced
+standalone mIoU values `0.200176`, `0.204640`, and `0.185452`. They are invalid
+as original-code references and do not indicate a package failure. The clean r6
+runs removed the flag, used the official effective settings, and reproduced the
+authors' released-checkpoint mIoU range.
 
 ## Regeneration Metadata
 
@@ -243,8 +318,10 @@ manifest or helper.
 The [issue #265 evidence comment](https://github.com/creative-graphic-design/design-generators/issues/265#issuecomment-5264137469)
 is the durable record for the rejected predecessor candidate, not the current
 manifest. The current S0-S4 evidence uses the production package DataModule
-and the pinned original loaders. The 300-step artifact is diagnostic only; S5
-remains explicitly stopped.
+and the pinned original loaders. The 300-step artifact is diagnostic only.
+PubLayNet `gen_t` evaluation artifacts live under
+`.cache/layoutformerpp/s5/eval/publaynet_label/`; S5 remains pending for the
+other eleven families.
 
 Official Lightning/PyTorch documentation and the pinned GitHub source were
 consulted before the loader correction. The implementation follows the
@@ -274,5 +351,5 @@ interpreter is `LAYOUTFORMERPP_PARITY_PYTHON`; set
 `LAYOUTFORMERPP_PARITY_DATA_ROOT` to the authoritative processed source tree
 for S3-S4. Keep `PARITY_REQUIRE=1`; missing source assets must fail the run.
 
-`traingen fit` uses the package-local DataModule; checkpoint conversion and S5
-full-run commands remain deferred.
+`traingen fit` uses the package-local DataModule. Checkpoint conversion and S5
+commands for the other eleven families remain deferred.
