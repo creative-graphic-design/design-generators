@@ -3,24 +3,29 @@
 from __future__ import annotations
 
 import inspect
+import json
 from pathlib import Path
-from types import SimpleNamespace
-from typing import cast
 
 import pytest
 import torch
-from lightning.pytorch import LightningModule, Trainer
 
 from run_training_stages import (
+    _assert_optimizer_state_storage_independent,
     _compare_learning_rates,
     _compare_named_gradients,
+    _compare_scheduler_outputs,
     _compare_state_dicts,
+    _build_vendor_scheduler,
     _fresh_s3_run_root,
+    _load_optimizer_state_without_hyperparameters,
     _natural_run_envelope,
     _s3_child_import_gate,
+    _s3_status,
+    _s3_trace_status,
     _run_s3_fit,
     _s3,
     _s4,
+    _state_sync_copy_integrity_record,
     main,
     RalfS3TraceCallback,
 )
@@ -168,6 +173,7 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
     assert '"scheduler_last_epoch": 0' not in source
     assert "natural_run_to_run_envelope" in source
     assert "state_synchronized_lockstep" in source
+    assert "state_sync_copy_integrity" in inspect.getsource(RalfS3TraceCallback)
     assert "--trainer.limit_train_batches=" in source
     assert "--trainer.limit_val_batches=" in source
     assert "train_limit" in source
@@ -242,42 +248,18 @@ def test_s3_reference_backward_restores_package_rng_state() -> None:
 
 
 def test_s3_optimizer_state_sync_separates_tensor_storage(tmp_path: Path) -> None:
-    sync_source = inspect.getsource(
-        RalfS3TraceCallback.on_train_batch_start
-    ) + inspect.getsource(RalfS3TraceCallback.on_train_batch_end)
-    assert sync_source.count("copy.deepcopy(package_optimizer.state_dict())") == 2
-
+    del tmp_path
     package, vendor = _linear_pair()
     package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
     vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
     package(torch.ones(1, 2)).sum().backward()
+    vendor(torch.ones(1, 2)).sum().backward()
     package_optimizer.step()
+    vendor_optimizer.step()
 
-    callback = RalfS3TraceCallback(
-        cache_dir=str(tmp_path), output_dir=str(tmp_path), seed=1
-    )
-    callback.synchronized = True
-    callback.vendor_model = vendor
-    callback.vendor_optimizer = vendor_optimizer
-    callback.package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        package_optimizer, milestones=[21]
-    )
-    callback.vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        vendor_optimizer, milestones=[21]
-    )
-    callback.optimizer_step_count = 1
-
-    callback.on_train_batch_start(
-        cast(
-            Trainer,
-            SimpleNamespace(
-                optimizers=[package_optimizer],
-                current_epoch=0,
-            ),
-        ),
-        cast(LightningModule, SimpleNamespace(model=package)),
-        object(),
-        0,
+    _load_optimizer_state_without_hyperparameters(vendor_optimizer, package_optimizer)
+    result = _assert_optimizer_state_storage_independent(
+        package_optimizer, vendor_optimizer, package, vendor, "S3.state_sync"
     )
 
     for package_parameter, vendor_parameter in zip(
@@ -288,6 +270,252 @@ def test_s3_optimizer_state_sync_separates_tensor_storage(tmp_path: Path) -> Non
         for key in ("step", "exp_avg", "exp_avg_sq"):
             assert package_state[key] is not vendor_state[key]
             assert package_state[key].data_ptr() != vendor_state[key].data_ptr()
+    assert result["checked_entries"] > 0
+    assert result["shared_storage_entries"] == []
+
+
+def test_optimizer_state_storage_check_fails_closed_on_shared_storage() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    package(torch.ones(1, 2)).sum().backward()
+    vendor(torch.ones(1, 2)).sum().backward()
+    package_optimizer.step()
+    vendor_optimizer.step()
+
+    vendor_optimizer.state[vendor.weight]["exp_avg"] = package_optimizer.state[
+        package.weight
+    ]["exp_avg"]
+
+    with pytest.raises(RuntimeError, match=r"weight\.exp_avg") as exc_info:
+        _assert_optimizer_state_storage_independent(
+            package_optimizer, vendor_optimizer, package, vendor, "S3.state_sync"
+        )
+
+    assert "optimizer_state_storage" in str(exc_info.value)
+
+
+def test_optimizer_state_copy_keeps_each_system_hyperparameters() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=5e-4)
+    package(torch.ones(1, 2)).sum().backward()
+    package_optimizer.step()
+
+    _load_optimizer_state_without_hyperparameters(vendor_optimizer, package_optimizer)
+
+    assert vendor_optimizer.param_groups[0]["lr"] == pytest.approx(5e-4)
+    assert set(vendor_optimizer.state) == {vendor.weight, vendor.bias}
+    assert torch.equal(
+        vendor_optimizer.state[vendor.weight]["exp_avg"],
+        package_optimizer.state[package.weight]["exp_avg"],
+    )
+
+
+def test_synchronized_layer_enforces_independently_produced_learning_rates() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=5e-4)
+
+    with pytest.raises(RuntimeError, match="learning_rates"):
+        _compare_learning_rates(package_optimizer, vendor_optimizer)
+
+    assert vendor_optimizer.param_groups[0]["lr"] == pytest.approx(5e-4)
+
+
+def test_scheduler_output_comparison_reports_each_system_own_values() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        package_optimizer, milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        vendor_optimizer, milestones=[2], gamma=0.1
+    )
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.epoch[0]", enforce=False
+    )
+
+    assert result["first_divergence"] == "milestones"
+    assert result["package_milestones"] == [1]
+    assert result["vendor_milestones"] == [2]
+
+    package_scheduler.step()
+    vendor_scheduler.step()
+
+    with pytest.raises(RuntimeError, match=r"S3\.epoch\[0\]\.scheduler_outputs"):
+        _compare_scheduler_outputs(package_scheduler, vendor_scheduler, "S3.epoch[0]")
+
+
+def test_scheduler_reference_uses_the_pinned_vendor_fractional_config() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        package_optimizer, milestones=[20], gamma=0.1
+    )
+    vendor_scheduler = _build_vendor_scheduler(vendor_optimizer, epochs=30)
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.vendor_scheduler", enforce=False
+    )
+
+    assert set(vendor_scheduler.milestones) == {21}
+    assert result["first_divergence"] == "milestones"
+
+
+def test_scheduler_output_comparison_accepts_two_agreeing_schedulers() -> None:
+    package, vendor = _linear_pair()
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(package.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(vendor.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    package_scheduler.step()
+    vendor_scheduler.step()
+
+    matched = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.epoch[1]"
+    )
+
+    assert matched["first_divergence"] is None
+    assert matched["max_abs_diff"] == 0.0
+    assert matched["package_last_lrs"] == matched["vendor_last_lrs"]
+    assert matched["package_last_lrs"] != [1e-4]
+    assert matched["package_last_epoch"] == 1
+
+
+def test_scheduler_comparison_records_epoch_offset_separately() -> None:
+    package, vendor = _linear_pair()
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(package.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        torch.optim.AdamW(vendor.parameters(), lr=1e-4), milestones=[1], gamma=0.1
+    )
+    package_scheduler.last_epoch = 2
+    vendor_scheduler.last_epoch = 1
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.epoch[2]", enforce=False
+    )
+
+    assert result["first_divergence"] == "last_epoch"
+    assert result["epoch_offset"] == 1
+    assert result["max_abs_diff"] == 0.0
+
+
+def test_scheduler_group_mismatch_is_strict_json_safe() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(
+        [
+            {"params": [vendor.weight]},
+            {"params": [vendor.bias]},
+        ],
+        lr=1e-4,
+    )
+    package_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        package_optimizer, milestones=[1], gamma=0.1
+    )
+    vendor_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        vendor_optimizer, milestones=[1], gamma=0.1
+    )
+
+    result = _compare_scheduler_outputs(
+        package_scheduler, vendor_scheduler, "S3.group_count", enforce=False
+    )
+
+    assert result["first_divergence"] == "group_count"
+    assert result["max_abs_diff"] is None
+    json.dumps(result, allow_nan=False)
+
+
+def test_s3_trace_status_uses_layered_vocabulary() -> None:
+    assert _s3_trace_status("natural", None) == "PASS"
+    assert _s3_trace_status("natural", {"location": "loss"}) == "LEFT_CONTRACT"
+    assert _s3_trace_status("synchronized", None) == "PASS"
+    assert _s3_trace_status("synchronized", {"location": "loss"}) == "FAIL"
+
+
+def test_state_sync_record_names_read_as_copy_integrity() -> None:
+    package, vendor = _linear_pair()
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    package(torch.ones(1, 2)).sum().backward()
+    package_optimizer.step()
+    vendor.load_state_dict(package.state_dict())
+    _load_optimizer_state_without_hyperparameters(vendor_optimizer, package_optimizer)
+
+    record = _state_sync_copy_integrity_record(
+        package_optimizer,
+        vendor_optimizer,
+        package,
+        vendor,
+        "S3.global_step[1]",
+    )
+
+    assert set(record) == {
+        "parameters_copy_integrity",
+        "optimizer_state_copy_integrity",
+        "optimizer_state_storage_independence",
+        "package_state_sha256_after_copy",
+        "vendor_state_sha256_after_copy",
+        "note",
+    }
+    assert "copy" in str(record["note"])
+    assert not any(key.endswith("divergence") for key in record)
+
+
+def test_s3_status_reports_both_evidence_layers() -> None:
+    natural_pass = [{"first_divergence": None}, {"first_divergence": None}]
+    natural_left = [
+        {"first_divergence": None},
+        {"first_divergence": {"location": "S3.epoch[0].batch[1].raw_gradients"}},
+    ]
+    synchronized_pass = {"first_divergence": None}
+    synchronized_fail = {"first_divergence": {"location": "S3.global_step[1]"}}
+
+    assert _s3_status(natural_pass, synchronized_pass) == {
+        "natural": "PASS",
+        "synchronized": "PASS",
+        "verdict": "pass",
+    }
+    assert _s3_status(natural_left, synchronized_pass) == {
+        "natural": "LEFT_CONTRACT",
+        "synchronized": "PASS",
+        "verdict": "bounded-pass",
+    }
+    assert _s3_status(natural_left, synchronized_fail) == {
+        "natural": "LEFT_CONTRACT",
+        "synchronized": "FAIL",
+        "verdict": "fail",
+    }
+    assert _s3_status(natural_pass, None) == {
+        "natural": "PASS",
+        "synchronized": "NOT_RUN",
+        "verdict": "pass",
+    }
+    assert _s3_status(natural_left, None) == {
+        "natural": "LEFT_CONTRACT",
+        "synchronized": "NOT_RUN",
+        "verdict": "fail",
+    }
+
+    with pytest.raises(RuntimeError, match="natural"):
+        _s3_status([], synchronized_pass)
+
+
+def test_s3_emits_the_layered_status_structure() -> None:
+    source = inspect.getsource(_s3)
+    callback_source = inspect.getsource(RalfS3TraceCallback.on_fit_end)
+
+    assert "_s3_status(natural_runs, synchronized_run)" in source
+    assert '"status": synchronized_run["status"]' not in source
+    assert '"RECORDED"' not in callback_source
 
 
 def test_s3_run_preserves_prior_artifacts(tmp_path: Path) -> None:

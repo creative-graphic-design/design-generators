@@ -9,7 +9,7 @@ from .retrieval import RalfRetrievalTable, RalfRetrievedBatch
 from .tokenization_ralf import RalfLayoutTokenizer
 
 try:
-    from .training.config import RalfTrainingConfig, RalfTrainingStage
+    from .training.config import RalfTrainingStage
     from .training.datamodule import RalfDataModule, RalfTrainingDataset
     from .training.lightning_module import RalfTrainingModule
 except ImportError:
@@ -30,7 +30,6 @@ __all__ = [
 if "RalfTrainingModule" in globals():
     __all__ += [
         "RalfDataModule",
-        "RalfTrainingConfig",
         "RalfTrainingDataset",
         "RalfTrainingModule",
         "RalfTrainingStage",

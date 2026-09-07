@@ -13,11 +13,10 @@ from PIL import Image
 
 lightning = pytest.importorskip("lightning")
 
+from lightning.pytorch import Trainer  # noqa: E402
+
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration  # noqa: E402
-from ralf.training.config import (  # noqa: E402
-    RalfTrainingConfig,
-    RalfTrainingStage,
-)
+from ralf.training.config import RalfTrainingStage  # noqa: E402
 from ralf.training.datamodule import (  # noqa: E402
     RalfDataModule,
     RalfSampleValue,
@@ -80,34 +79,6 @@ def test_training_stage_order_is_strict() -> None:
         RalfTrainingStage.s4,
         RalfTrainingStage.s5,
     )
-    assert RalfTrainingConfig.stage_order() == tuple(RalfTrainingStage)
-
-
-def test_training_config_accepts_matching_model_config() -> None:
-    training_config = RalfTrainingConfig(max_seq_length=2, top_k=1)
-    model_config = _small_config(max_seq_length=2, top_k=1)
-
-    assert training_config.model_config(model_config) is model_config
-
-
-@pytest.mark.parametrize(
-    ("model_config", "message"),
-    [
-        (
-            RalfConfig(dataset_name="pku_posterlayout", max_seq_length=2, top_k=1),
-            "dataset",
-        ),
-        (_small_config(max_seq_length=3, top_k=1), "max_seq_length"),
-        (_small_config(max_seq_length=2, top_k=2), "top_k"),
-    ],
-)
-def test_training_config_rejects_mismatched_model_config(
-    model_config: RalfConfig, message: str
-) -> None:
-    training_config = RalfTrainingConfig(max_seq_length=2, top_k=1)
-
-    with pytest.raises(ValueError, match=message):
-        training_config.model_config(model_config)
 
 
 def test_training_image_normalization_and_channel_adaptation() -> None:
@@ -374,6 +345,33 @@ def test_training_module_runs_forward_steps_optimizer_and_scheduler() -> None:
 
     module.scheduler = "none"
     assert isinstance(module.configure_optimizers(), torch.optim.Optimizer)
+
+
+def test_scheduler_milestone_follows_the_trainer_epoch_count() -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        epochs=70,
+        scheduler="multi_step",
+        scheduler_milestones=(0.7,),
+    )
+
+    detached = cast(_OptimizerConfig, module.configure_optimizers())["lr_scheduler"]
+    assert isinstance(detached, torch.optim.lr_scheduler.MultiStepLR)
+    assert set(detached.milestones) == {49}
+
+    module.trainer = Trainer(
+        max_epochs=30,
+        accelerator="cpu",
+        logger=False,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+    )
+    attached = cast(_OptimizerConfig, module.configure_optimizers())["lr_scheduler"]
+
+    assert isinstance(attached, torch.optim.lr_scheduler.MultiStepLR)
+    assert set(attached.milestones) == {21}
 
 
 def test_training_dataset_rejects_missing_retrieval_rows() -> None:
