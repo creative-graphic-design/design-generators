@@ -132,7 +132,7 @@ The package does not train or fine-tune PosterLLaVA. It provides local processor
 
 | Check | Cases | Match Criterion | Result |
 | --- | ---: | --- | --- |
-| Prompt bytes | 2 | Exact match against original `conv_templates` output, including `<image>` placement | Pass in CPU agreement check against the original implementation |
+| Prompt bytes | 2 | Exact match against original `conv_templates` output, including `<image>` placement | Pass in vendor-parity CPU comparison against the original implementation |
 | Prompt token ids | 1 | Exact `IMAGE_TOKEN_INDEX=-200` insertion against original `tokenizer_image_token` | Pass in CPU agreement check against the original implementation |
 | JSON parser | 3 | Exact parsed objects against original `cli_multi.py` JSON-slice behavior on supported outputs | Pass in CPU agreement check against the original implementation |
 | Image preprocessing | 1 | Exact tensor match against original square-pad CLIP preprocessing | Pass in CPU agreement check against the original implementation |
