@@ -31,10 +31,11 @@ class LinkViolation:
 
 
 def readme_paths(root: Path = ROOT) -> list[Path]:
-    """Return first-party README files checked by this script."""
+    """Return first-party README and TRAINING files checked by this script."""
     paths = [root / "README.md"]
     paths.extend(sorted((root / "lib").glob("*/README.md")))
     paths.extend(sorted((root / "models").glob("*/README.md")))
+    paths.extend(sorted((root / "models").glob("*/TRAINING.md")))
     return [path for path in paths if path.is_file()]
 
 

@@ -46,7 +46,7 @@ This package ports [LayoutDiffusion](https://arxiv.org/abs/2303.11589), the ICCV
 
 ### Model Description
 
-LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layouts. It samples tokenized label and box sequences with unconditional, label-conditioned, and refinement modes, then converts vendor token coordinates into the shared layout schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layouts. It samples tokenized label and box sequences with unconditional, label-conditioned, and refinement modes, then converts original-implementation token coordinates into the shared layout schema. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
@@ -70,7 +70,7 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 | `condition_type`                                                                             | Required inputs                   | Effect                                  |
 | -------------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------- |
@@ -93,7 +93,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -143,7 +143,7 @@ print(out.bbox.shape)
 
 ### Training Procedure
 
-Package-local training is available through LightningCLI configs under [`configs/training`](configs/training). Staged S0-S5 reproduction against the original implementation is complete for RICO25 and PubLayNet at training-seed n=3: RICO25 is statistically equivalent, and PubLayNet matches on structural metrics with small FID/Alignment endpoint residuals documented in [`TRAINING.md`](TRAINING.md). The S5 configs reproduce the original code's effective GPU behavior, which uses uniform timestep sampling because the original loss-history importance sampler never activates in the documented GPU run configuration.
+Package-local training is available through LightningCLI configs under [`configs/training`](configs/training). Staged training reproduction against the original implementation is complete for RICO25 and PubLayNet at training-seed n=3: RICO25 is statistically equivalent, and PubLayNet matches on structural metrics with small FID/Alignment endpoint residuals documented in [`TRAINING.md`](models/layoutdiffusion/TRAINING.md). The full-run configs reproduce the original code's effective GPU behavior, which uses uniform timestep sampling because the original loss-history importance sampler never activates in the documented GPU run configuration.
 
 #### Preprocessing
 
@@ -165,15 +165,15 @@ Full-run training-time and carbon measurements are not available yet.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
@@ -190,7 +190,7 @@ Metrics are exact tensor equality, exact token or byte equality, or explicitly s
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](TRAINING.md) for package-local LightningCLI training, staged S0-S5 checks, and current training-reproduction status.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) for released-checkpoint conversion commands, and [`TRAINING.md`](models/layoutdiffusion/TRAINING.md) for package-local LightningCLI training, staged training checks, and current training-reproduction status.
 
 ## Environmental Impact
 
@@ -204,11 +204,11 @@ LayoutDiffusion uses a discrete diffusion model over layout token sequences for 
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 

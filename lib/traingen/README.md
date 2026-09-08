@@ -6,7 +6,7 @@
 ![runtime](https://img.shields.io/static/v1?label=runtime&message=torch&color=informational&style=flat-square)
 [![docs](https://img.shields.io/static/v1?label=docs&message=online&color=brightgreen&style=flat-square&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 
-`traingen` contains shared training utilities for [design-generators](https://github.com/creative-graphic-design/design-generators) packages in the train-ourselves lane. It keeps reusable [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) CLI integration points out of individual model packages while leaving model-specific data modules, losses, and training loops in `models/*`.
+`traingen` contains shared training utilities for [design-generators](https://github.com/creative-graphic-design/design-generators) packages that train models locally. It keeps reusable [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) CLI integration points out of individual model packages while leaving model-specific data modules, losses, and training loops in `models/*`.
 
 Use `traingen` for generic training infrastructure such as [LightningCLI](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) helpers. Use [`traingen-parity`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/traingen-parity) for deterministic trace capture and reference/target comparison reports.
 
@@ -50,7 +50,7 @@ class MyLightningCLI(lightning_cli_class()):
 
 ## Scope
 
-- Keep reusable training utilities here only when more than one train-ourselves package can use them.
+- Keep reusable training utilities here only when more than one package that trains models locally can use them.
 - Keep dataset-specific modules, model losses, condition policies, and checkpoint conversion in each model package.
 - Keep deterministic comparison logic in `traingen-parity` so regular training helpers do not depend on parity-only behavior.
 

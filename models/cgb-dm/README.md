@@ -64,8 +64,8 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 | Checkpoint | Hub ID | Status |
 | --- | --- | --- |
-| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training complete; S5 recipe instability documented; Hub publish deferred |
-| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 practical parity complete; Hub publish deferred |
+| PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training complete; S5 (full-run evaluation stage) recipe instability documented in [TRAINING.md](models/cgb-dm/TRAINING.md); Hub publication pending |
+| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 practical parity complete; see [TRAINING.md](models/cgb-dm/TRAINING.md); Hub publication pending |
 
 ## Uses
 
@@ -105,7 +105,7 @@ CGB-DM behavior depends on the upstream data preparation path, including inpaint
 
 ### Recommendations
 
-Run the gated parity workflow before publishing trained checkpoints or comparing generated metrics. Review generated layouts separately for each poster domain and dataset split.
+Run the agreement-check workflow with `PARITY_REQUIRE=1`, which treats missing local assets as failures, before publishing trained checkpoints or comparing generated metrics. Review generated layouts separately for each poster domain and dataset split.
 
 ## How to Get Started with the Model
 
@@ -138,17 +138,17 @@ uv run --package cgb-dm --extra training \
 
 ### Parity Results
 
-The gated original-implementation agreement suite requires local CGB-DM assets and `PARITY_REQUIRE=1`.
+The original-implementation agreement suite requires local CGB-DM assets and `PARITY_REQUIRE=1`; this setting makes missing assets fail the run instead of allowing an all-skip result.
 
 | Dataset | Stage | Cases | Criterion | Result |
 | --- | --- | ---: | --- | --- |
-| PKU PosterLayout | original-code S0-S2 training-step agreement | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
-| PKU PosterLayout | S5 full-run metrics | 3 evaluation seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; seed-variance matrix shows shared no-underlay seed/trajectory instability | not a practical-parity claim: no-underlay collapse is not package-exclusive, with observed collapse rates of 3/4 original runs and 4/5 package runs; `undl`/`unds` are undefined when no underlay is generated, and n is too small for a stable frequency comparison |
+| PKU PosterLayout | original-code [S0-S2](models/cgb-dm/TRAINING.md) training-step agreement | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
+| PKU PosterLayout | S5 full-run metrics | 3 evaluation seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; seed-variance matrix shows shared no-underlay seed/trajectory instability | not a practical-parity claim: no-underlay collapse is not package-exclusive, with observed collapse rates of 3/4 original runs and 4/5 package runs; `undl`/`unds` are undefined when no underlay is generated, and the number of runs is too small for a stable frequency comparison |
 | CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are in practical parity | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/cgb-dm/REPRODUCING.md) for the commands that download original assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](models/cgb-dm/REPRODUCING.md) for the commands that download original assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## License
 

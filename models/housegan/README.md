@@ -69,7 +69,7 @@ House-GAN predicts room masks from a room-relation graph and decodes those masks
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of relation-conditioned floorplan generation.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for relation-conditioned floorplan generation.
 
 Conditional generation accepts a scene graph with room nodes and adjacency relations:
 
@@ -124,7 +124,7 @@ The converted behavior follows the upstream checkpoint format, graph vocabulary,
 
 ### Recommendations
 
-Re-run the vendor parity suite with the released assets before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation with the released assets before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -176,7 +176,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Room labels and relations are normalized into complete graph tensors before generation. Generated masks are decoded to vendor `ltrb` boxes and then converted to the public normalized center `xywh` schema.
+Room labels and relations are normalized into complete graph tensors before generation. Generated masks are decoded to original-implementation `ltrb` boxes and then converted to the public normalized center `xywh` schema.
 
 #### Training Hyperparameters
 
@@ -192,28 +192,28 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures from the released House-GAN checkpoint and vectorized floorplan assets. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures from the released House-GAN checkpoint and vectorized floorplan assets. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is scoped to target set D, fixed seed `0`, relation conditioning, and three selected floorplan graphs when the external assets are present.
+Agreement checks are scoped to target set D, fixed seed `0`, relation conditioning, and three selected floorplan graphs when the external assets are present.
 
 #### Metrics
 
-Metrics are exact key mapping checks, exact model-output checks against regenerated vendor fixtures, and exact public postprocessing checks for `bbox`, `labels`, and `mask`.
+Metrics are exact key mapping checks, exact model-output checks against regenerated original-implementation fixtures, and exact public postprocessing checks for `bbox`, `labels`, and `mask`.
 
 ### Parity Results
 
 | Check | Cases | Match criterion | Result |
 | --- | ---: | --- | --- |
 | State-dict key mapping | 1 synthetic model state dict | strict key prefix validation | passed |
-| Forward masks | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated vendor fixture | passed |
-| Mask-to-box postprocessing | 1 unit mask | vendor inclusive `x1+1` / `y1+1` behavior | passed |
+| Forward masks | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated original-implementation fixture | passed |
+| Mask-to-box postprocessing | 1 unit mask | original-implementation inclusive `x1+1` / `y1+1` behavior | passed |
 | Public layout schema | 1 synthetic graph | `assert_layout_output_schema` | passed |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 ## Environmental Impact
 
@@ -227,11 +227,11 @@ House-GAN loads the released graph-conditioned generator checkpoint. The generat
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and smoke tests. CUDA is recommended for heavyweight vendor parity against the released checkpoint.
+CPU is sufficient for import and smoke tests. CUDA is recommended for heavyweight agreement checks against the original implementation and released checkpoint.
 
 #### Software
 
