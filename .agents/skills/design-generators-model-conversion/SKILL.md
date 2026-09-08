@@ -14,7 +14,7 @@ Use this skill when a model issue is ready for implementation. It assumes the re
    - `AGENTS.md`
    - [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60)
    - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
-   - [issue #64](https://github.com/creative-graphic-design/design-generators/issues/64) for `lib/laygen`, `lib/posgen`, and import direction
+   - [docs/architecture.md](../../../docs/architecture.md) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
    - every comment that amends the target issue's plan, plus every review comment on the target issue
 3. When an amendment conflicts with the original plan, follow the amendment.
