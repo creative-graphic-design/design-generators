@@ -40,7 +40,7 @@ README_LINK_CONTRACTS = [
     REPO_ROOT
     / ".claude"
     / "skills"
-    / "model-conversion"
+    / "design-generators-model-conversion"
     / "references"
     / "model-readme-template.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),

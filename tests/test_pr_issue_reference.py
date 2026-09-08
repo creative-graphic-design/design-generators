@@ -261,14 +261,14 @@ def test_guarded_cross_cutting_paths_include_lib_src_docs_and_agent_skills() -> 
     changed_files = [
         "lib/laygen/src/laygen/common/vendor.py",
         "docs/getting-started.md",
-        ".agents/skills/model-conversion/SKILL.md",
+        ".agents/skills/design-generators-model-conversion/SKILL.md",
         "models/ltnet/README.md",
     ]
 
     assert check_pr_issue_reference.guarded_cross_cutting_paths(changed_files) == [
         "lib/laygen/src/laygen/common/vendor.py",
         "docs/getting-started.md",
-        ".agents/skills/model-conversion/SKILL.md",
+        ".agents/skills/design-generators-model-conversion/SKILL.md",
     ]
 
 
@@ -287,13 +287,15 @@ def test_shared_library_change_errors_require_reason_for_docs_changes() -> None:
 def test_shared_library_change_errors_require_reason_for_agent_skill_changes() -> None:
     errors = check_pr_issue_reference.shared_library_change_errors(
         filled_body() + "\n## Shared Library Changes\n\n- N/A\n",
-        [".agents/skills/model-conversion/references/model-readme-template.md"],
+        [
+            ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
+        ],
     )
 
     assert errors == [
         "PRs changing cross-cutting paths must explain the rationale in "
         "`## Shared Library Changes`: "
-        ".agents/skills/model-conversion/references/model-readme-template.md"
+        ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
     ]
 
 
@@ -303,7 +305,9 @@ def test_shared_library_change_errors_accept_actionable_reason() -> None:
             filled_body_with_shared_library_changes(
                 "Shared template wording changed to keep model READMEs consistent."
             ),
-            [".agents/skills/model-conversion/references/model-readme-template.md"],
+            [
+                ".agents/skills/design-generators-model-conversion/references/model-readme-template.md"
+            ],
         )
         == []
     )
