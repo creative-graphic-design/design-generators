@@ -1,33 +1,33 @@
 ---
 name: design-generators-model-conversion
-description: Use when implementing one design-generators model issue, converting a vendor layout/poster generation model into a Transformers or Diffusers-style workspace member with vendor parity, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
+description: Use when implementing one design-generators model issue, converting an original layout/poster generation implementation into a Transformers or Diffusers-style workspace member with agreement checks against that implementation, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
 ---
 
 # Model Conversion
 
-Use this skill when a model issue is ready for implementation. It assumes the repository-level invariants in `AGENTS.md` and the live checklist in issue #60. Do not copy large checklist text here; read those sources at the start of each conversion.
+Use this skill when a model issue is ready for implementation. It assumes the repository-level invariants in `AGENTS.md` and the live checklist in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60). Do not copy large checklist text here; read those sources at the start of each conversion.
 
 ## Before Editing
 
 1. Create or switch to a fresh worktree based on the current `origin/main`.
 2. Read, in this order:
    - `AGENTS.md`
-   - issue #60
-   - issue #2 body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
-   - issue #64 for `lib/laygen`, `lib/posgen`, and import direction
+   - [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60)
+   - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
+   - [issue #64](https://github.com/creative-graphic-design/design-generators/issues/64) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
-   - every later amendment or review comment on the target issue
-3. Treat target-issue amendments as higher priority than the original plan.
-4. For plans that add public methods or override `from_pretrained`, `save_pretrained`, `generate`, or other entry points on Hugging Face base classes, require an explicit justification line before `plan-agreed`. The coordinator must check that line before applying `plan-agreed`, so non-idiomatic APIs are caught while the plan is still cheap to change.
-5. Add the `in-progress` label to the target model issue.
+   - every comment that amends or reviews the target issue's plan
+3. When an amendment conflicts with the original plan, follow the amendment.
+4. For plans that add public methods or override `from_pretrained`, `save_pretrained`, `generate`, or other entry points on Hugging Face base classes, require an explicit justification line before applying the `plan-agreed` status label. The coordinator, the person responsible for the model issue, must check that line before applying `plan-agreed`, so non-idiomatic APIs are caught while the plan is still cheap to change.
+5. Add the `in-progress` status label to the target model issue.
 6. Confirm the model slug, Python package name, Hub repo ids, datasets, license status, and whether the implementation belongs in Transformers, Diffusers, a recipe, training code, or Pydantic AI.
 7. If the work reveals stale, incorrect, or missing guidance, do not silently work around it; make the small in-scope fix or propose a focused `meta` follow-up.
 
 ## Source Language
 
-Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as vendor wrappers, vendor-compatible surfaces, or ports of vendor code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
+Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-Vendor-language references are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
+References to the original implementation are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
 
 ## Repository Implementation Contract
 
@@ -114,7 +114,7 @@ def __call__(
 
 Normalize vendor aliases to canonical `condition_type` names before dispatch. Unsupported conditions must raise explicit errors. `generator` wins over `seed`. Return normalized center `xywh` boxes and mask-based padding.
 
-For v2 models, add the relevant public inputs from issue #2 (`prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`) without replacing the v1 schema.
+For v2 models, add the relevant public inputs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) (`prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`) without replacing the v1 schema.
 
 Discrete-vocabulary layout tokenizers should subclass `transformers.PreTrainedTokenizer` unless the target issue documents a concrete conflict. Serialize special tokens and auxiliary artifacts such as cluster centers with tokenizer files.
 
@@ -140,15 +140,15 @@ Transformers and Diffusers base classes should keep their upstream contracts. Be
 - Crello uses `cyberagent/crello` as the canonical source until an org mirror exists; `creative-graphic-design/Desigen` is not a Crello substitute.
 - Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
 
-Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from issue #2 and issue #60.
+Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 
 Use builders, streaming, synthetic rows, or tiny local fixtures in ordinary tests. Do not write tests that download PubLayNet, poster datasets, vendor weights, or large cache bundles.
 
-When a required dataset is absent from the org, use the original vendor distribution or the approved external source named in issue #2, and leave a TODO that points to the missing import.
+When a required dataset is absent from the org, use the original vendor distribution or the approved external source named in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2), and leave a TODO that points to the missing import.
 
 ## Vendor Parity
 
-- Golden parity fixtures are generated by running vendor code, not handwritten.
+- Vendor parity, meaning agreement with the original implementation, uses golden fixtures generated by running the original code, not handwritten.
 - Do not commit golden tensors, images, weights, or large downloaded artifacts. Commit only metadata needed to regenerate them: seeds, conditions, environment notes, config hashes, and script arguments.
 - Run parity generation on one explicitly selected GPU with fixed seeds.
 - Coordinator parity reruns must set `PARITY_REQUIRE=1` so missing local assets fail loudly instead of turning an all-skip run into an apparent success.
@@ -190,7 +190,7 @@ For root-only documentation changes, the final pre-commit command is still requi
 Open the PR against `main`. In the PR description, include:
 
 - target issue and implemented scope
-- issue #60 checklist verification, with deviations quoted explicitly
+- [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) checklist verification, with deviations quoted explicitly
 - parity results and commands used
 - tests run locally
 - Hub publish status; normally "not pushed"

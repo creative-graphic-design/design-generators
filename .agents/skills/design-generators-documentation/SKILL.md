@@ -5,7 +5,7 @@ description: Use when writing or reviewing design-generators documentation, mode
 
 # Design Generators Documentation
 
-Use this skill for repository documentation and model-card work. Read `AGENTS.md`, issue #60, and the relevant model issue before editing. The intended reader is a first-time agent or contributor with no knowledge of this repository's history.
+Use this skill for repository documentation and model-card work. Read `AGENTS.md`, [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60), and the relevant model issue before editing. The intended reader is a first-time agent or contributor with no knowledge of this repository's history.
 
 ## Reader-first contract
 
@@ -22,7 +22,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
 - Every `docs/*.md` page needs YAML frontmatter with `icon: lucide/...` and non-empty `tags`.
-- Each model package README uses a model-card style: overview, install/usage snippet, supported checkpoints/Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
+- Each model package README uses a model-card style: overview, install/usage snippet, supported checkpoints/Hub ids, datasets, reproducibility summary with vendor-parity numbers that compare against the original implementation, license, citation, and original implementation link.
 - Each package README's install snippet uses `pip install "pkg @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=<path>"`, co-specifying required workspace libraries such as `laygen` and `posgen` in the same command; clone + uv flows are for development and `REPRODUCING` docs.
 - README and model-card repository/source links must be copied from `.gitmodules` or the implementation issue, then checked for a resolving HTTP response before commit. Do not write upstream repository, project-page, dataset, or source links from memory. PR CI mechanically verifies newly added external URLs and rejects added 404/410 links.
 - Each README includes `Reproducibility`, opening with one sentence that states how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for download, vendor reference generation, parity tests, conversion, and `from_pretrained` smoke tests.
@@ -60,7 +60,7 @@ Every model README must include a `### Parity Results` section under `## Evaluat
 The `Reproducibility` section must open with one sentence that states how to reproduce the original-implementation agreement checks. The remaining commands must be copy-pasteable and ordered: download vendor assets, generate vendor references with `CUDA_VISIBLE_DEVICES`, run `pytest -m vendor_parity`, convert checkpoints, and run `from_pretrained` smoke tests.
 
 - Hub model cards are generated through `laygen.common.model_card` using the official Hugging Face model-card template.
-- Do not push model weights or Hub repos from ordinary implementation PRs unless the coordinator explicitly asks for publish.
+- Do not push model weights or Hub repos from ordinary implementation PRs unless the coordinator, the person responsible for the model issue, explicitly asks for publish.
 
 ## Machine-checked companions
 
@@ -69,7 +69,7 @@ The `Reproducibility` section must open with one sentence that states how to rep
 - Changed external URLs are checked by `scripts/check_changed_urls.py` in `.github/workflows/ci.yml`, and full Markdown links are checked by `.github/workflows/link-check.yml`.
 - Reader-facing internal references are checked by `scripts/check_reader_facing_references.py`.
 - Repository-relative README links are checked by `scripts/check_readme_links.py`.
-- Keep checker-owned clauses in the machine-checked conventions section of `AGENTS.md` rather than duplicating their full procedures here.
+- Keep rules enforced by checkers in the machine-checked conventions section of `AGENTS.md` rather than duplicating their full procedures here.
 
 ## Validation
 
