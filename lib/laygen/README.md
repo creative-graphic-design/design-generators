@@ -145,7 +145,7 @@ class MyPipeline(LayoutGenerationPipeline):
         return {"model": self.model, "config": self.config}
 ```
 
-Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use `diffusers` under the hood while preserving vendor aliases such as `quad`.
+Build shared continuous diffusion schedules through the CompVis latent-diffusion-style adapter. Common schedules use `diffusers` under the hood while preserving aliases used by original implementations, such as `quad`.
 
 ```python
 from laygen.schedulers.continuous import get_beta_schedule, get_ddim_timesteps
@@ -183,7 +183,7 @@ print(id2label_for_dataset("publaynet"))
 print(label2id_for_dataset("rico25")["Text"])
 ```
 
-Normalize public and vendor condition names through the shared condition enum.
+Normalize public condition names and condition names from original implementations through the shared condition enum.
 
 ```bash
 uv run --package laygen python

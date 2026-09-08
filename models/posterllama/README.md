@@ -173,10 +173,7 @@ backbone weights and should be run with an explicitly selected GPU.
 
 #### Testing Data
 
-Unit tests use synthetic prompts and representative generated HTML/SVG snippets.
-Gated prompt/parser parity imports the original source templates and
-`html_to_ui.get_bbox()` from a local source checkout. Generated text, tensors,
-images, checkpoints, and large references are not committed.
+Unit tests use synthetic prompts and representative generated HTML/SVG snippets. Prompt/parser parity requires the original source templates and `html_to_ui.get_bbox()` from a local source checkout. Generated text, tensors, images, checkpoints, and large references are not committed.
 
 #### Factors
 
@@ -193,9 +190,9 @@ box values, schema output fields, and local `save_pretrained` to
 
 | Check | Cases | Match criterion | Result |
 | --- | ---: | --- | --- |
-| Prompt construction | 5 condition aliases | Byte-exact against original source templates | passed in gated prompt/parser parity |
-| HTML/SVG parser | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in gated prompt/parser parity and unit tests |
-| Original GPU generation | 0 committed cases | Gated original `generate.py` run with fixed local assets | blocked until local 7B assets and GPU window are available |
+| Prompt construction | 5 condition aliases | Byte-exact against original source templates | passed in prompt/parser parity |
+| HTML/SVG parser | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in prompt/parser parity and unit tests |
+| Original GPU generation | 0 committed cases | Original `generate.py` run with fixed local assets | blocked until local 7B assets and GPU window are available |
 
 ## Reproducibility
 

@@ -26,9 +26,9 @@ uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity a
 
 ## Run A Converted Checkpoint
 
-Most weight-backed packages use locally converted checkpoint directories until planned Hub repos are published. Each model package has a `REPRODUCING.md` file with the download, reference generation, parity, conversion, and smoke-test commands that create the local path.
+Most weight-backed packages use locally converted checkpoint directories until planned Hub repos are published. Each model package has a `REPRODUCING.md` file with the download, reference generation, agreement-check, conversion, and smoke-test commands that create the local path.
 
-For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for vendor reference generation, parity tests, and smoke tests.
+For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for original-implementation reference generation, agreement checks, and smoke tests.
 
 ```bash
 uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
@@ -69,7 +69,7 @@ Text
 
 ## GPU Selection
 
-Vendor parity and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
+Agreement checks against the original implementation (the repository's `vendor_parity` test suite) and heavyweight conversion commands that need CUDA use a placeholder GPU selector. Replace `<gpu-index>` with one visible CUDA device on your machine, such as `0` on a single-GPU host.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm pytest models/layout-dm/tests/vendor_parity

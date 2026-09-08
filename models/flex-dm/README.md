@@ -79,7 +79,7 @@ The package is not intended for production publishing workflows, legal document 
 
 ## Bias, Risks, and Limitations
 
-The released checkpoints reflect the visual and structural distributions of their training datasets. Crello image/text fields depend on vendor preprocessing artifacts, and RICO label ordering must remain compatible with the released vocabulary.
+The released checkpoints reflect the visual and structural distributions of their training datasets. Crello image/text fields depend on original-implementation preprocessing artifacts, and RICO label ordering must remain compatible with the released vocabulary.
 
 ### Recommendations
 
@@ -106,7 +106,7 @@ uv run --package flex-dm --extra data python models/flex-dm/scripts/download_ori
 uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
 ```
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full reference-generation and parity workflow.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full original-implementation reference-generation and agreement-check workflow.
 
 ```python
 from flex_dm import FlexDmPipeline
@@ -126,7 +126,7 @@ current public path does not consume random numbers.
 
 ### Training Data
 
-The original checkpoints were trained on vendor-preprocessed Crello and RICO data. Crello uses [cyberagent/crello](https://huggingface.co/datasets/cyberagent/crello) as the ordinary dataset reference, while RICO uses [creative-graphic-design/Rico](https://huggingface.co/datasets/creative-graphic-design/Rico) with the semantic-annotation config after vocabulary compatibility is verified.
+The original checkpoints were trained on data preprocessed by the original implementation for Crello and RICO. Crello uses [cyberagent/crello](https://huggingface.co/datasets/cyberagent/crello) as the ordinary dataset reference, while RICO uses [creative-graphic-design/Rico](https://huggingface.co/datasets/creative-graphic-design/Rico) with the semantic-annotation config after vocabulary compatibility is verified.
 
 ### Training Procedure
 
@@ -136,36 +136,14 @@ Training follows the original TensorFlow implementation with `latent_dim=256`, `
 
 ### Parity Results
 
-| checkpoint | dataset | vendor reference cases | exact state tensors | forward/layer probe | result |
+| checkpoint | dataset | original-implementation reference cases | exact state tensors | forward/layer probe | result |
 | --- | --- | ---: | ---: | --- | --- |
 | `ours-exp-ft` | Crello | 10 | 98 / 98 tensors, 2,812,257 params | 10 forward cases / 25 forward steps; max logit abs diff within `atol=1.1e-5`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
 | `ours-exp-ft` | RICO | 6 | 88 / 88 tensors, 2,296,679 params | 6 forward cases / 15 forward steps; max logit abs diff within `atol=5.5e-6`, `rtol=0` | reference generated with TF32 disabled; state mapping exact |
 
-Vendor parity tests load the saved TF32-disabled reference inputs from
-`forward_cases/*.npz`, load the converted checkpoints with `from_pretrained`,
-and execute every saved vendor forward step inside pytest. This covers
-Crello's 10 task/iteration cases and RICO's 6 cases, including the four
-forward steps used by `num_iter=4`. Layer probes also use one vendor test batch
-after `preprocess_for_test` for every supported task (`elem`, `pos`, `attr`,
-plus Crello `img` and `txt`). The first divergent block-0 operation in the
-default vendor GPU path was the
-attention score matmul `tf.matmul(q, k^T)`: TensorFlow 2.15 on A100 used TF32
-there, while the public PyTorch model used fp32. Direct q/k isolation showed
-the TF32 score differed from NumPy/PyTorch fp32 by `7.92e-3`, and PyTorch CUDA
-TF32 matched the TensorFlow score. Final parity instead disables TensorFlow
-TF32 during vendor reference and probe generation with
-`NVIDIA_TF32_OVERRIDE=0` plus `--disable-tf32`, so the public PyTorch model
-keeps its ordinary fp32 attention path. GELU was not involved because the
-vendor MLP uses ReLU; Keras LayerNormalization epsilon is `1e-3` and is
-matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask remains
-`-1e9` before softmax.
+Agreement-check tests load the saved TF32-disabled reference inputs from `forward_cases/*.npz`, load the converted checkpoints with `from_pretrained`, and execute every saved original-implementation forward step inside pytest. This covers Crello's 10 task/iteration cases and RICO's 6 cases, including the four forward steps used by `num_iter=4`. Layer probes also use one original-implementation test batch after `preprocess_for_test` for every supported task (`elem`, `pos`, `attr`, plus Crello `img` and `txt`). The first divergent block-0 operation in the default original-implementation GPU path was the attention score matmul `tf.matmul(q, k^T)`: TensorFlow 2.15 on A100 used TF32 there, while the public PyTorch model used fp32. Direct q/k isolation showed the TF32 score differed from NumPy/PyTorch fp32 by `7.92e-3`, and PyTorch CUDA TF32 matched the TensorFlow score. Final agreement checks instead disable TensorFlow TF32 during original-implementation reference and probe generation with `NVIDIA_TF32_OVERRIDE=0` plus `--disable-tf32`, so the public PyTorch model keeps its ordinary fp32 attention path. GELU was not involved because the original-implementation MLP uses ReLU; Keras LayerNormalization epsilon is `1e-3` and is matched by `FlexDmConfig.layer_norm_epsilon`; the additive mask remains `-1e9` before softmax.
 
-With TF32 disabled in the vendor run, all probe metadata records
-`tf32_enabled=false`. The remaining first measurable difference is the fp32
-attention-score reduction order at block 0, with max score diff up to
-`7.63e-6`; block-0 attention output stays below `5.59e-8`. Across the
-pytest-executed forward cases, Crello max logit diff is `1.00e-5` and RICO max
-logit diff is `5.25e-6`.
+With TF32 disabled in the original-implementation run, all probe metadata records `tf32_enabled=false`. The remaining first measurable difference is the fp32 attention-score reduction order at block 0, with max score diff up to `7.63e-6`; block-0 attention output stays below `5.59e-8`. Across the pytest-executed forward cases, Crello max logit diff is `1.00e-5` and RICO max logit diff is `5.25e-6`.
 
 ## Reproducibility
 

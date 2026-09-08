@@ -71,7 +71,7 @@ Layout-Corrector refines candidate layouts by running a training-free correction
 
 ### Direct Use
 
-Use this package for research inference, conversion checks, and vendor-parity validation of generated layouts.
+Use this package for research inference, conversion checks, and agreement checks against the original implementation for generated layouts.
 
 The primary use case is to combine a LayoutDM generator with a matching Layout-Corrector confidence model:
 
@@ -166,7 +166,7 @@ The converted behavior follows the upstream checkpoints, prompt fixtures, and da
 
 ### Recommendations
 
-Re-run the vendor parity suite before publishing converted checkpoints or comparing new results against the original implementation.
+Re-run the agreement-check suite against the original implementation before publishing converted checkpoints or comparing new results.
 
 ## How to Get Started with the Model
 
@@ -210,7 +210,7 @@ print(out.id2label[int(out.labels[out.mask][0])])
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
 | Crello | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | canonical source until an org mirror exists |
 
-The converted checkpoints follow the original Layout-Corrector release and use the original starter-kit preprocessing for exact parity fixtures. For Crello, [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) is the canonical Hugging Face dataset source for processor/data-path documentation; starter-kit processed splits remain the parity baseline because they are the author-released preprocessing artifact.
+The converted checkpoints follow the original Layout-Corrector release and use the authors' released preprocessing package for exact agreement fixtures. For Crello, [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) is the canonical Hugging Face dataset source for processor/data-path documentation; the authors' processed splits remain the agreement baseline because they are the released preprocessing artifact.
 
 ### Training Procedure
 
@@ -218,7 +218,7 @@ This package ports released behavior and does not retrain the method in this rep
 
 #### Preprocessing
 
-Inputs and outputs are normalized to the public layout schema at package boundaries. Vendor-specific boxes, tokens, prompts, or analog bits stay inside package adapters and parity fixtures.
+Inputs and outputs are normalized to the public layout schema at package boundaries. Boxes, tokens, prompts, or analog bits that follow the original implementation stay inside package adapters and fixtures used for agreement checks.
 
 #### Training Hyperparameters
 
@@ -234,33 +234,33 @@ Training-time and carbon measurements are unknown.
 
 #### Testing Data
 
-Vendor parity uses local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
+Agreement checks use local-only generated fixtures and converted checkpoint directories. Large generated tensors, images, weights, and downloaded artifacts are not committed.
 
 #### Factors
 
-Parity is disaggregated by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
+Agreement results are reported separately by dataset, checkpoint, condition mode, seed, or prompt fixture where the package has recorded evidence.
 
 #### Metrics
 
-Metrics are exact tensor equality, exact token or byte equality, or explicitly stated numeric tolerance against the vendor path.
+Metrics are exact tensor equality, exact token or byte equality, or an explicitly stated numeric tolerance against the original implementation.
 
 ### Parity Results
 
 | Dataset | Seed | Compared path | Cases | Assertion |
 | --- | ---: | --- | ---: | --- |
-| RICO25 | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 0 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 1 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 2 | vendor corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25 | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
 
 
 ## Environmental Impact
@@ -275,11 +275,11 @@ Layout-Corrector combines a base LayoutDM denoising pipeline with a confidence m
 
 ### Compute Infrastructure
 
-Vendor parity commands are intended for one explicitly selected GPU when the upstream path requires CUDA.
+Agreement-check commands are intended for one explicitly selected GPU when the original implementation requires CUDA.
 
 #### Hardware
 
-CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight vendor parity where the original implementation requires it.
+CPU is sufficient for import and most smoke tests. CUDA is required for heavyweight agreement checks when the original implementation requires it.
 
 #### Software
 

@@ -20,13 +20,13 @@ uv sync --package layoutdiffusion --extra training --extra vendor
 
 The training datamodule supports two data sources:
 
-- `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the injected vendor corpus-order `id2label`.
+- `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the `id2label` mapping injected for the original-implementation corpus order.
 - `processed`: preprocessed LayoutDiffusion token streams under `.cache/layoutdiffusion/original-data`. Use this source with `vocab_file` for S4/S5 so package-local training and the original-code training path consume the same `ltrb_lex` stream and vocabulary order. The S5 configs set `preconsume_train_batches: 1` so the package train stream starts after the same initial train-batch read performed before the original training loop begins.
 
 | Dataset   | Source                              | Config / stream                                                                           |
 | --------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; vendor stream `RICO_ltrb_lex` |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default; vendor stream `PublayNet_ltrb_lex`                                               |
+| RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; original-implementation stream `RICO_ltrb_lex` |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default; original-implementation stream `PublayNet_ltrb_lex`                                               |
 
 The `smoke.yaml` config uses a synthetic local dataset and does not download RICO25 or PubLayNet.
 
@@ -58,10 +58,7 @@ when running GPU training in that environment.
 
 ## Seed Policy
 
-S0-S4 parity uses fixed deterministic seeds inside the vendor-parity fixtures.
-S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds
-`102`, `103`, and `104` on both original and package systems. Unconditional sample
-export uses sampling seed `101` for every reported S5 run.
+S0-S4 parity uses fixed deterministic seeds inside fixtures for agreement checks with the original implementation (`models/layoutdiffusion/tests/vendor_parity`). S5 is reported at `training-seed n=3` for RICO25 and PubLayNet with training seeds `102`, `103`, and `104` on both original and package systems. Unconditional sample export uses sampling seed `101` for every reported S5 run.
 
 ## Stage Evidence
 
@@ -89,7 +86,7 @@ Evaluation protocol: unconditional generation with the original evaluation stack
 
 Interpretation: structural quality metrics (mIoU, Overlap) are equivalent on both datasets. FID is slightly higher for the package on both datasets (RICO25 +0.27, PubLayNet +0.49) with per-seed spreads far smaller than the gap, indicating a small systematic trained-weight endpoint residual rather than seed noise; the staged S0-S3 lockstep evidence (loss/gradient/parameter/EMA agreement) and the aligned one-step probe rule out training-dynamics divergence as the cause. PubLayNet package Alignment is higher in absolute terms but both values are in the strong range for the method.
 
-The original GPU training path uses effective uniform timestep sampling. In the vendor `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid as reproduction evidence.
+The original GPU training path uses effective uniform timestep sampling. In the original `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid reproduction evidence.
 
 Until S5 is confirmed for a claimed dataset, PRs should remain draft and trained checkpoints should not be published as reproduced. The upstream LayoutDiffusion checkout does not provide a LayoutDiffusion-specific top-level license, so trained checkpoints must not claim an OSS license until upstream confirms the license status.
 
@@ -108,17 +105,17 @@ Evidence locations (local, not committed): training runs under `.cache/layoutdif
 
 Do not launch S5 until all of these checks pass in the same worktree and with the same processed stream mirror that the S5 configs will use:
 
-1. Regular training config tests confirm `auxiliary_loss_weight: 0.001`, `preconsume_train_batches: 1`, and matching model/data `vocab_file` paths for every processed S5 config. This is satisfied by the current staged redo; the CPU suite includes these config guards.
-2. S3 repeated short-step parity passes against the generated original-code fixture, comparing loss trajectory, learning-rate cadence, gradients, updated parameters, and EMA within the documented test tolerances. This is satisfied by the current staged redo: S0 has 12 passing tests, S1 has 4 passing tests, and S3 has 2 passing repeated-step tests using the real vendor `TrainLoop` fixture.
-3. S4 processed-stream order parity passes, confirming the package first trained batch after `preconsume_train_batches: 1` equals the original first trained batch after the pre-loop `next(data)` read. This is satisfied by the current staged redo: S4 has 2 passing processed-stream tests, and released inference parity has 8 passing tests.
-4. A corrected one-step processed-stream package/original train-metric probe is rerun for RICO25 and PubLayNet, and the package/original `train_loss`, KL component, auxiliary component, and total loss are compared before any full S5 launch. This is satisfied by `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
+1. Regular training config tests confirm `auxiliary_loss_weight: 0.001`, `preconsume_train_batches: 1`, and matching model/data `vocab_file` paths for every processed S5 config. The current CPU suite passes these config guards.
+2. S3 repeated short-step agreement checks pass against the generated original-code fixture, comparing loss trajectory, learning-rate cadence, gradients, updated parameters, and EMA within the documented test tolerances. The LayoutDiffusion training-parity suite records 12 passing S0 tests, 4 passing S1 tests, and 2 passing S3 repeated-step tests using the original `TrainLoop` fixture.
+3. S4 processed-stream order agreement checks pass, confirming the package first trained batch after `preconsume_train_batches: 1` equals the original first trained batch after the pre-loop `next(data)` read. The LayoutDiffusion training-parity suite records 2 passing S4 processed-stream tests, and the released-checkpoint inference-agreement suite records 8 passing tests.
+4. A one-step processed-stream package/original train-metric probe compares the package/original `train_loss`, KL component, auxiliary component, and total loss for RICO25 and PubLayNet before any full S5 launch. The evidence is recorded in `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
 
-   | Dataset   | Package total | Vendor total | Total ratio | Package KL  | Vendor KL | KL ratio | Package aux | Vendor aux | Aux ratio |
+   | Dataset   | Package total | Original-implementation total | Total ratio | Package KL  | Original-implementation KL | KL ratio | Package aux | Original-implementation aux | Aux ratio |
    | --------- | ------------- | ------------ | ----------- | ----------- | --------- | -------- | ----------- | ---------- | --------- |
    | RICO25    | 87104.96875   | 87100.0      | 1.000057    | 86919.15625 | 86900.0   | 1.000220 | 185.81418   | 186.0      | 0.999001  |
    | PubLayNet | 84603.28125   | 84600.0      | 1.000039    | 84425.15625 | 84400.0   | 1.000298 | 178.12349   | 178.0      | 1.000694  |
 
-Passing this gate authorizes full S5 launch only after the coordinator reviews the recorded probe numbers and gives a separate launch order.
+Passing this gate authorizes full S5 launch only after the recorded probe numbers have been reviewed and a separate launch order has been given.
 
 ## Training Commands
 
@@ -237,7 +234,7 @@ torch.save(
 PY
 ```
 
-Run staged vendor parity checks after local assets are available.
+Run staged agreement checks against the original implementation after local assets are available.
 
 ```bash
 git submodule update --init vendor/ms-layout-generation
@@ -262,9 +259,9 @@ TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
   --trainer.enable_progress_bar=false
 ```
 
-Original-implementation training per dataset and seed uses the vendor README command shape (`improved-diffusion/scripts/train.py`, `--seed <seed>`, `--lr_anneal_steps 175000/400000`) against the same processed streams; run it from the patched vendor copy used by the parity tooling.
+Original-implementation training per dataset and seed uses the original-implementation README command shape (`improved-diffusion/scripts/train.py`, `--seed <seed>`, `--lr_anneal_steps 175000/400000`) against the same processed streams; run it from the patched original-implementation copy used by the parity tooling.
 
-Export unconditional samples from a package checkpoint (EMA weights) in the vendor JSON format. The `--config` JSON must embed the vendor corpus-order vocab used in training (see `.cache/layoutdiffusion/s5/eval/configs/` generation in the evaluation driver); PubLayNet sample paths must contain lowercase `pub` for the vendor evaluator's dataset branch:
+Export unconditional samples from a package checkpoint (EMA weights) in the original-implementation JSON format. The `--config` JSON must embed the original-implementation corpus-order vocabulary used in training (see `.cache/layoutdiffusion/s5/eval/configs/` generation in the evaluation driver); PubLayNet sample paths must contain lowercase `pub` for the original evaluator's dataset branch:
 
 ```bash
 TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
@@ -276,9 +273,9 @@ TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
   --weights ema --num-samples <3728|10998> --batch-size 64 --seed 101
 ```
 
-Original-side sampling uses the patched vendor `text_sample.py` with `--model_path <run>/ema_0.9999_<steps>.pt --top_p -1.0 --constrained ungen` and the same sample counts.
+Original-side sampling uses the patched original-implementation `text_sample.py` with `--model_path <run>/ema_0.9999_<steps>.pt --top_p -1.0 --constrained ungen` and the same sample counts.
 
-Score any samples JSON with the original evaluation stack (run from the vendor LayoutDiffusion root; `seaborn` is required at runtime by `eval_src`):
+Score any samples JSON with the original evaluation stack (run from the original-implementation LayoutDiffusion root; `seaborn` is required at runtime by `eval_src`):
 
 ```bash
 cd vendor/ms-layout-generation/LayoutDiffusion

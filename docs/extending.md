@@ -15,7 +15,7 @@ This repository wraps research systems in public `transformers`-, `diffusers`-, 
 
 ## Anti-Pattern
 
-Do not vendor a full framework or repository source tree and edit files in place.
+Do not copy a full framework or repository source tree and edit files in place.
 
 ```text
 my-project/
@@ -75,7 +75,7 @@ Internal copies are allowed only after an upstream extension point is not suffic
 3. Record the upstream package name, version, commit, file path, license, and local diff summary next to the copied module.
 4. Add a test that fails if the copied module drifts from the documented upstream baseline without an explicit provenance update.
 
-For model ports in this repository, `vendor/` remains pinned and read-only. Vendor code is used to regenerate parity fixtures and compare behavior; production wrappers should import released dependencies and local package code instead of mutating vendor sources.
+For model ports in this repository, `vendor/` remains pinned and read-only. Original-implementation code is used to regenerate agreement fixtures and compare behavior; production wrappers should import released dependencies and local package code instead of mutating those sources.
 
 ## Repository Practice
 
