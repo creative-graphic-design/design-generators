@@ -18,6 +18,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
   uv run --group docs python scripts/gen_ref_pages.py
   uv run --group docs zensical build --strict -f mkdocs.generated.yml
   ```
+- The API reference is generated from workspace members under `lib/*` and `models/*`, using Python packages found below each member's `src/` directory.
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
 - Every `docs/*.md` page needs YAML frontmatter with `icon: lucide/...` and non-empty `tags`.
