@@ -4,12 +4,18 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL = ROOT / ".agents" / "skills" / "parallel-plan-discussion" / "SKILL.md"
+SKILL = (
+    ROOT
+    / ".agents"
+    / "skills"
+    / "design-generators-parallel-plan-discussion"
+    / "SKILL.md"
+)
 TEMPLATE = (
     ROOT
     / ".agents"
     / "skills"
-    / "parallel-plan-discussion"
+    / "design-generators-parallel-plan-discussion"
     / "references"
     / "task-message-template.md"
 )
