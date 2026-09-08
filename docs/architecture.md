@@ -20,6 +20,8 @@ The workspace contains shared libraries under `lib/*` and model packages under `
 lib/
   laygen/
   posgen/
+  traingen/
+  traingen-parity/
 models/
   <model-package>/
 ```
@@ -39,8 +41,6 @@ The `lib/` and `models/` directories are separate ownership boundaries: shared l
 
 Use `laygen.common` for helpers that are reusable across layout-generation packages, and use `posgen.common` for helpers that are reusable across poster or content-aware packages.
 
-The accepted package names are plain `laygen` and `posgen`; do not introduce the old `layout_generation_common` or `layout-generation-common` names.
-
 ## Ownership boundaries
 
 | Concern | Shared owner | Model-package responsibility |
@@ -53,18 +53,21 @@ Move a helper into a shared package when at least two packages need the same beh
 
 ## Dependency direction
 
-Layout model packages may import `laygen`, and poster or content-aware model packages may import `posgen` and, through `posgen`, `laygen`.
+All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
 
+The Transformers-side shared layout output in `laygen.modeling_outputs` is based on `transformers.utils.ModelOutput`, not `diffusers.utils.BaseOutput`. The Diffusers-side output in `laygen.pipelines.pipeline_output` may use the Diffusers base type behind the optional `diffusion` extra. The `laygen` core dependencies must not gain a hard `diffusers` dependency.
+
 ```text
-layout model packages -> laygen
-poster or content-aware model packages -> posgen -> laygen
+model packages -> laygen
+poster or content-aware model packages -> posgen
+posgen -> laygen (optional; currently unused)
 laygen -> no posgen or model imports
 posgen -> no model imports
 ```
 
-`posgen` may exist as a workspace member before it becomes a root project dependency; add it to root dependencies when its first consumer requires it.
+`posgen` is a root workspace dependency because current poster/content-aware consumers use it alongside `laygen`.
 
 ## Working with the architecture
 
@@ -72,4 +75,4 @@ Import shared helpers from their public namespace, such as `from laygen.common.b
 
 Keep model-specific code in the model package even when it resembles a shared helper, and add a shared helper only when its behavior and ownership are clear to its consumers.
 
-This page defines package placement, namespace ownership, and dependency direction; the current public output fields and pipeline contracts remain documented in [Conventions](conventions.md), and API details remain in the generated reference.
+This page defines package placement, namespace ownership, dependency direction, and output dependency boundaries; the current public output fields and pipeline contracts remain documented in [Conventions](conventions/), and API details remain in the generated reference.

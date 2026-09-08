@@ -72,7 +72,7 @@ These conventions apply when adding or maintaining workspace packages.
 
 ### Workspace Packages
 
-Workspace members live under `lib/*` and `models/*`. Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
+Shared Transformers-style layout outputs use `laygen.modeling_outputs`, Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline`, Diffusers pipeline outputs use `laygen.pipelines.pipeline_output`, utility functions use `laygen.common`, neural-network modules live under `laygen.nn`, and scheduler adapters live under `laygen.schedulers`. Poster and content-aware helpers use `posgen.common` when shared code is needed.
 
 Run member-specific commands with the package selected:
 
