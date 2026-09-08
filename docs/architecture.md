@@ -67,7 +67,7 @@ laygen -> no posgen or model imports
 posgen -> no model imports
 ```
 
-`posgen` is a root workspace dependency because current poster/content-aware consumers use it alongside `laygen`.
+`posgen` is a root project dependency and a workspace member because current poster/content-aware consumers use it alongside `laygen`.
 
 ## Working with the architecture
 

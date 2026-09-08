@@ -70,15 +70,16 @@ anchor_point
 - Keep generic position content containers, label normalization, schema tests, and lightweight summaries here.
 - Use `posgen` for poster/content-aware placement concerns.
 - Keep saliency, retrieval, ranking, and dataset-specific placement logic in model packages until there is proven reuse.
-- Do not add `posgen` to the root project dependencies until the first real consumer needs it.
+- `posgen` is a root project dependency with eight declaring consumers.
 
 ## Dependency Direction
 
 `posgen` may depend on [`laygen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/laygen) when poster/content-aware placement packages need shared layout primitives. `laygen` must not depend on `posgen`.
 
 ```text
-model package -> posgen -> laygen
 model package -> laygen
+poster or content-aware model package -> posgen
+posgen -> laygen (optional; currently unused)
 ```
 
 ## Growth Rule
