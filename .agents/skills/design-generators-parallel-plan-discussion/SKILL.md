@@ -1,5 +1,5 @@
 ---
-name: parallel-plan-discussion
+name: design-generators-parallel-plan-discussion
 description: Orchestrate a two-round council of Herdr-managed agents that investigate distinct targets, debate shared interface decisions directly, and have one chair consolidate the result into a unified specification. Use when several plans must agree on a shared design.
 ---
 
