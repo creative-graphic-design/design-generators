@@ -60,7 +60,7 @@ Every model README must include a `### Parity Results` section under `## Evaluat
 The `Reproducibility` section must open with one sentence that states how to reproduce the original-implementation agreement checks. The remaining commands must be copy-pasteable and ordered: download vendor assets, generate vendor references with `CUDA_VISIBLE_DEVICES`, run `pytest -m vendor_parity`, convert checkpoints, and run `from_pretrained` smoke tests.
 
 - Hub model cards are generated through `laygen.common.model_card` using the official Hugging Face model-card template.
-- Do not push model weights or Hub repos from ordinary implementation PRs unless the coordinator, the person responsible for the model issue, explicitly asks for publish.
+- Do not push model weights or Hub repos from ordinary implementation PRs unless the coordinator (the maintainer who owns the model issue, distinct from whoever produced the evidence) explicitly asks for publish.
 
 ## Machine-checked companions
 

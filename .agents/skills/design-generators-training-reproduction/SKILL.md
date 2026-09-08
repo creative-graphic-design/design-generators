@@ -1,6 +1,6 @@
 ---
 name: design-generators-training-reproduction
-description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages S0-S5 defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks S5 claims or S5-scale GPU runs when evidence for stages S0-S4 is missing, even if the user only asks for training, models that train their own weights (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
+description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages S0-S5 defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks S5 claims or S5-scale GPU runs when evidence for stages S0-S4 is missing, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
 ---
 
 # Training Reproduction

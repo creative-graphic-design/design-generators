@@ -1,6 +1,6 @@
 ---
 name: design-generators-model-conversion
-description: Use when implementing one design-generators model issue, converting an original layout/poster generation implementation into a Transformers or Diffusers-style workspace member with agreement checks against that implementation, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
+description: Use when implementing one design-generators model issue, converting an original (vendor) layout/poster generation implementation into a Transformers or Diffusers-style workspace member with agreement checks against that implementation, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
 ---
 
 # Model Conversion
@@ -16,9 +16,9 @@ Use this skill when a model issue is ready for implementation. It assumes the re
    - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
    - [issue #64](https://github.com/creative-graphic-design/design-generators/issues/64) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
-   - every comment that amends or reviews the target issue's plan
+   - every comment that amends the target issue's plan, plus every review comment on the target issue
 3. When an amendment conflicts with the original plan, follow the amendment.
-4. For plans that add public methods or override `from_pretrained`, `save_pretrained`, `generate`, or other entry points on Hugging Face base classes, require an explicit justification line before applying the `plan-agreed` status label. The coordinator, the person responsible for the model issue, must check that line before applying `plan-agreed`, so non-idiomatic APIs are caught while the plan is still cheap to change.
+4. For plans that add public methods or override `from_pretrained`, `save_pretrained`, `generate`, or other entry points on Hugging Face base classes, require an explicit justification line before applying the `plan-agreed` status label. The coordinator (the maintainer who owns the model issue, distinct from whoever produced the evidence) must check that line before applying `plan-agreed`, so non-idiomatic APIs are caught while the plan is still cheap to change.
 5. Add the `in-progress` status label to the target model issue.
 6. Confirm the model slug, Python package name, Hub repo ids, datasets, license status, and whether the implementation belongs in Transformers, Diffusers, a recipe, training code, or Pydantic AI.
 7. If the work reveals stale, incorrect, or missing guidance, do not silently work around it; make the small in-scope fix or propose a focused `meta` follow-up.
@@ -27,7 +27,7 @@ Use this skill when a model issue is ready for implementation. It assumes the re
 
 Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-References to the original implementation are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
 
 ## Repository Implementation Contract
 
