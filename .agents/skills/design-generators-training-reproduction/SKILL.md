@@ -1,6 +1,6 @@
 ---
 name: design-generators-training-reproduction
-description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the S0-S5 order from docs/training-reproduction.md, requires evidence comments per stage, and blocks S5 claims or S5-scale GPU runs when S0-S4 evidence is missing, even if the user only asks for training, train-ourselves work, TRAINING.md updates, or reproduction evidence.
+description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages S0-S5 defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks S5 claims or S5-scale GPU runs when evidence for stages S0-S4 is missing, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
 ---
 
 # Training Reproduction
@@ -15,7 +15,7 @@ Work in stage order: S0, S1, S2, S3, S4, then S5. Do not skip ahead because S5 i
 
 Use this order for every training-first package:
 
-1. Build or update the vendor reference adapter.
+1. Build or update the reference adapter for the original implementation, called the vendor reference adapter here.
 2. Produce S0 static config/topology evidence.
 3. Produce S1 fixed-batch pre-optimizer trace evidence.
 4. Produce S2 one-step optimizer evidence.
@@ -28,7 +28,7 @@ Use this order for every training-first package:
 
 ## S5 Gate
 
-Do not launch S5-scale GPU jobs, mark an issue as parity-verified, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
+Do not launch S5-scale GPU jobs, mark an issue with the `parity-verified` status label, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
 
 The durable package document must include a machine-readable `Stage Evidence` table in `models/<package>/TRAINING.md`:
 
