@@ -59,12 +59,11 @@ All model packages may import `laygen` directly. Poster or content-aware model p
 
 The Transformers-side shared layout output in `laygen.modeling_outputs` is based on `transformers.utils.ModelOutput`, not `diffusers.utils.BaseOutput`. The Diffusers-side output in `laygen.pipelines.pipeline_output` may use the Diffusers base type behind the optional `diffusion` extra. The `laygen` core dependencies must not gain a hard `diffusers` dependency.
 
-```text
-model packages -> laygen
-poster or content-aware model packages -> posgen
-posgen -> laygen (optional; currently unused)
-laygen -> no posgen or model imports
-posgen -> no model imports
+```mermaid
+graph LR
+    model_package["model package"] --> laygen["laygen"]
+    poster_model["poster or content-aware model package"] --> posgen["posgen"]
+    posgen -. "optional; currently unused" .-> laygen
 ```
 
 `posgen` is a root project dependency and a workspace member because current poster/content-aware consumers use it alongside `laygen`.

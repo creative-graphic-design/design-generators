@@ -76,10 +76,11 @@ anchor_point
 
 `posgen` may depend on [`laygen`](https://github.com/creative-graphic-design/design-generators/tree/main/lib/laygen) when poster/content-aware placement packages need shared layout primitives. `laygen` must not depend on `posgen`.
 
-```text
-model package -> laygen
-poster or content-aware model package -> posgen
-posgen -> laygen (optional; currently unused)
+```mermaid
+graph LR
+    model_package["model package"] --> laygen["laygen"]
+    poster_model["poster or content-aware model package"] --> posgen["posgen"]
+    posgen -. "optional; currently unused" .-> laygen
 ```
 
 ## Growth Rule
