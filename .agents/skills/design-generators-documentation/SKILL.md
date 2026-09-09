@@ -63,7 +63,7 @@ The `Reproducibility` section must open with one sentence that states how to rep
 
 ## Machine-checked companions
 
-- The docs site uses `scripts/gen_api_pages.py`, `scripts/publish_doc_guides.py`, and strict Zensical in `.github/workflows/ci.yml`.
+- The docs site uses hand-written `docs/api/<group>/<pkg>.md` stubs with `::: <pkg>` and `show_submodules: true`, explicit navigation in `mkdocs.yml`, and strict Zensical in `.github/workflows/ci.yml`.
 - Model README structure, install commands, parity sections, tagged fences, first external links, and reproducibility commands are checked by `scripts/check_model_readmes.py` and `tests/test_readme_contracts.py`.
 - Changed external URLs are checked by `scripts/check_changed_urls.py` in `.github/workflows/ci.yml`, and full Markdown links are checked by `.github/workflows/link-check.yml`.
 - Reader-facing internal references are checked by `scripts/check_reader_facing_references.py`.

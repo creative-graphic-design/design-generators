@@ -18,7 +18,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 ## Models
 
-Framework, task, and dataset details are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
+Framework, task, and dataset details are maintained in each package README and linked from the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
 
 | Model | Venue | Ckpt | Train |
 | --- | --- | --- | --- |
@@ -106,7 +106,7 @@ Extend by installing pinned released packages and subclassing; never copy framew
 
 ## Documentation
 
-See the [design-generators documentation](https://creative-graphic-design.github.io/design-generators/) for guides and the generated API reference for workspace libraries and model packages.
+See the [design-generators documentation](https://creative-graphic-design.github.io/design-generators/) for guides and the API reference for workspace libraries and model packages.
 
 ## License
 
