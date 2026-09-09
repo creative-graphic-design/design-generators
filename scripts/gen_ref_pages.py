@@ -1141,25 +1141,6 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
     write_text_file(Path("models.md"), "\n".join(lines))
 
 
-def _split_top_level_nav_entries(nav_lines: list[str]) -> list[list[str]]:
-    """Split a MkDocs nav block into top-level entries."""
-    entries: list[list[str]] = []
-    current: list[str] = []
-    for line in nav_lines:
-        if line.startswith("  - "):
-            if current:
-                entries.append(current)
-            current = [line]
-            continue
-
-        if current:
-            current.append(line)
-
-    if current:
-        entries.append(current)
-    return entries
-
-
 def _render_generated_api_nav(packages: list[ApiPackage]) -> list[str]:
     """Render the generator-owned API reference nav tree."""
     lines = [
@@ -1208,18 +1189,26 @@ def _render_generated_api_nav(packages: list[ApiPackage]) -> list[str]:
 
 def render_generated_nav(
     packages: list[ApiPackage],
-    handwritten_entries: list[list[str]],
+    source_nav_lines: list[str],
 ) -> list[str]:
-    """Render MkDocs nav from source entries plus the generated API tree."""
+    """Render source navigation while replacing only the API Reference entry."""
     lines = ["nav:"]
     api_entry_rendered = False
-    for entry in handwritten_entries:
-        if entry[0].startswith("  - API Reference:"):
+    line_index = 0
+    while line_index < len(source_nav_lines):
+        line = source_nav_lines[line_index]
+        if line.startswith("  - API Reference:"):
             lines.extend(_render_generated_api_nav(packages))
             api_entry_rendered = True
+            line_index += 1
+            while line_index < len(source_nav_lines) and not source_nav_lines[
+                line_index
+            ].startswith("  - "):
+                line_index += 1
             continue
 
-        lines.extend(entry)
+        lines.append(line)
+        line_index += 1
 
     if not api_entry_rendered:
         lines.extend(_render_generated_api_nav(packages))
@@ -1236,10 +1225,9 @@ def write_generated_mkdocs_config(packages: list[ApiPackage]) -> None:
         if line and not line.startswith((" ", "-")):
             break
         nav_end += 1
-    handwritten_entries = _split_top_level_nav_entries(source[nav_start + 1 : nav_end])
     generated = [
         *source[:nav_start],
-        *render_generated_nav(packages, handwritten_entries),
+        *render_generated_nav(packages, source[nav_start + 1 : nav_end]),
         *source[nav_end:],
     ]
     write_generated_file(GENERATED_MKDOCS_CONFIG, "\n".join(generated) + "\n")

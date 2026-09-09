@@ -111,6 +111,37 @@ def _patch_docs_generator_root(
     )
 
 
+def _non_generated_file_snapshot(root: Path) -> dict[Path, bytes]:
+    """Snapshot files the API generator is not allowed to create or modify."""
+    generated_api_dir = root / "docs" / "api"
+    generated_config = root / "mkdocs.generated.yml"
+    snapshot: dict[Path, bytes] = {}
+    for path in root.rglob("*"):
+        if not path.is_file() or ".git" in path.parts:
+            continue
+        if path == generated_config or generated_api_dir in path.parents:
+            continue
+        snapshot[path.relative_to(root)] = path.read_bytes()
+    return snapshot
+
+
+def _nav_entries(nav_lines: list[str]) -> list[list[str]]:
+    """Return top-level nav entries, retaining their nested lines."""
+    entries: list[list[str]] = []
+    current: list[str] = []
+    for line in nav_lines:
+        if line.startswith("  - "):
+            if current:
+                entries.append(current)
+            current = [line]
+            continue
+        if current:
+            current.append(line)
+    if current:
+        entries.append(current)
+    return entries
+
+
 def _write_minimal_fake_model(
     tmp_path: Path,
     *,
@@ -462,18 +493,11 @@ def test_model_conversion_modules_are_documented(tmp_path: Path) -> None:
 
 def test_gen_ref_pages_preserves_handwritten_files() -> None:
     gen_ref_pages = _load_gen_ref_pages()
-    paths = [
-        REPO_ROOT / "docs" / "index.md",
-        REPO_ROOT / "docs" / "models.md",
-        REPO_ROOT / "mkdocs.yml",
-    ]
-    snapshots = {path: path.read_bytes() for path in paths}
+    snapshots = _non_generated_file_snapshot(REPO_ROOT)
 
     gen_ref_pages.main()
 
-    for path, snapshot in snapshots.items():
-        assert path.is_file()
-        assert path.read_bytes() == snapshot
+    assert _non_generated_file_snapshot(REPO_ROOT) == snapshots
 
 
 def test_generated_nav_preserves_handwritten_mkdocs_entries() -> None:
@@ -486,18 +510,34 @@ def test_generated_nav_preserves_handwritten_mkdocs_entries() -> None:
         if line and not line.startswith((" ", "-")):
             break
         nav_end += 1
-    source_entries = [
-        line for line in source[nav_start + 1 : nav_end] if line.startswith("  - ")
-    ]
+    source_entries = _nav_entries(source[nav_start + 1 : nav_end])
     handwritten_entries = [
-        line for line in source_entries if not line.startswith("  - API Reference:")
+        entry
+        for entry in source_entries
+        if not entry[0].startswith("  - API Reference:")
     ]
 
     gen_ref_pages.main()
 
-    generated = (REPO_ROOT / "mkdocs.generated.yml").read_text(encoding="utf-8")
-    for entry in handwritten_entries:
-        assert entry in generated
+    generated = (
+        (REPO_ROOT / "mkdocs.generated.yml").read_text(encoding="utf-8").splitlines()
+    )
+    generated_nav_start = generated.index("nav:")
+    generated_nav_end = generated_nav_start + 1
+    while generated_nav_end < len(generated):
+        line = generated[generated_nav_end]
+        if line and not line.startswith((" ", "-")):
+            break
+        generated_nav_end += 1
+    generated_entries = _nav_entries(
+        generated[generated_nav_start + 1 : generated_nav_end]
+    )
+    generated_handwritten_entries = [
+        entry
+        for entry in generated_entries
+        if not entry[0].startswith("  - API Reference:")
+    ]
+    assert generated_handwritten_entries == handwritten_entries
 
 
 def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
