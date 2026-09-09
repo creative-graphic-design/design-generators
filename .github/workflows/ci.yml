@@ -104,8 +104,6 @@ jobs:
             docs_content:
               - 'docs/**'
               - 'mkdocs.yml'
-              - 'scripts/gen_api_pages.py'
-              - 'scripts/publish_doc_guides.py'
               - 'lib/**'
               - 'models/**'
               - 'README.md'
@@ -375,10 +373,7 @@ jobs:
         run: uv sync --all-packages --group docs
 
       - name: Build documentation
-        run: |
-          uv run --group docs python scripts/gen_api_pages.py
-          uv run --group docs python scripts/publish_doc_guides.py
-          uv run --group docs zensical build --strict -f mkdocs.yml
+        run: uv run --group docs zensical build --strict -f mkdocs.yml
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

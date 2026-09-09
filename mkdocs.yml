@@ -48,13 +48,46 @@ nav:
   - Getting Started: getting-started.md
   - Models:
       - Overview: models.md
-      - Guides: models/
-  - Libraries: libraries/
   - Conventions: conventions.md
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
   - Extending: extending.md
-  - API Reference: api/
+  - API Reference:
+      - Overview: api/index.md
+      - Libraries:
+          - laygen: api/libraries/laygen.md
+          - posgen: api/libraries/posgen.md
+          - traingen: api/libraries/traingen.md
+          - traingen-parity: api/libraries/traingen-parity.md
+      - Models:
+          - basnet: api/models/basnet.md
+          - cgb-dm: api/models/cgb-dm.md
+          - coarse-to-fine: api/models/coarse-to-fine.md
+          - dlt: api/models/dlt.md
+          - ds-gan: api/models/ds-gan.md
+          - flex-dm: api/models/flex-dm.md
+          - housegan: api/models/housegan.md
+          - lace: api/models/lace.md
+          - layousyn: api/models/layousyn.md
+          - layout-action: api/models/layout-action.md
+          - layout-corrector: api/models/layout-corrector.md
+          - layout-detr: api/models/layout-detr.md
+          - layout-dm: api/models/layout-dm.md
+          - layout-fid: api/models/layout-fid.md
+          - layout-flow: api/models/layout-flow.md
+          - layout-gpt: api/models/layout-gpt.md
+          - layoutdiffusion: api/models/layoutdiffusion.md
+          - layoutformerpp: api/models/layoutformerpp.md
+          - layoutganpp: api/models/layoutganpp.md
+          - layoutprompter: api/models/layoutprompter.md
+          - layoutvae: api/models/layoutvae.md
+          - ltnet: api/models/ltnet.md
+          - parse-then-place: api/models/parse-then-place.md
+          - posterllama: api/models/posterllama.md
+          - posterllava: api/models/posterllava.md
+          - postero: api/models/postero.md
+          - ralf: api/models/ralf.md
+          - smarttext: api/models/smarttext.md
 
 markdown_extensions:
   - admonition
@@ -70,8 +103,6 @@ markdown_extensions:
 plugins:
   - search
   - tags
-  - literate-nav
-  - section-index
   - mkdocstrings:
       handlers:
         python:

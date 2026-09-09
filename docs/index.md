@@ -11,6 +11,6 @@ design-generators ports layout, poster, and graphic-design research implementati
 
 Start with [Getting Started](getting-started/) for installation and first inference, read [Conventions](conventions/) for shared interfaces, and browse [Models](models/) for the supported packages.
 
-The [API Reference](api/) documents public modules discovered from the workspace source trees; the generator writes only those API stubs and their local navigation file.
+The [API Reference](api/) contains one hand-written `mkdocstrings` stub per workspace package and renders its public package tree.
 
 See [Training Reproduction](training-reproduction/) for package-local training evidence and [Architecture](architecture/) for the repository structure.

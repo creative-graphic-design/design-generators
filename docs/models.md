@@ -7,35 +7,35 @@ tags:
 
 # Models
 
-Each package guide starts with its model card and links to the reproduction and training instructions that apply to that package.
+Each package keeps its README, reproduction instructions, and training instructions beside its source under `models/`; these links open the files on GitHub.
 
-| Model | Package guide | Reproduction | Training | API reference |
+| Model | README | REPRODUCING | TRAINING | API reference |
 | --- | --- | --- | --- | --- |
-| BASNet | [Guide](models/basnet/) | [REPRODUCING](models/basnet/reproducing/) | N/A | [API](api/models/basnet/) |
-| CGB-DM | [Guide](models/cgb-dm/) | [REPRODUCING](models/cgb-dm/reproducing/) | [TRAINING](models/cgb-dm/training/) | [API](api/models/cgb-dm/) |
-| Coarse-to-Fine | [Guide](models/coarse-to-fine/) | [REPRODUCING](models/coarse-to-fine/reproducing/) | N/A | [API](api/models/coarse-to-fine/) |
-| DLT | [Guide](models/dlt/) | [REPRODUCING](models/dlt/reproducing/) | [TRAINING](models/dlt/training/) | [API](api/models/dlt/) |
-| DS-GAN | [Guide](models/ds-gan/) | [REPRODUCING](models/ds-gan/reproducing/) | N/A | [API](api/models/ds-gan/) |
-| Flex-DM | [Guide](models/flex-dm/) | [REPRODUCING](models/flex-dm/reproducing/) | N/A | [API](api/models/flex-dm/) |
-| House-GAN | [Guide](models/housegan/) | [REPRODUCING](models/housegan/reproducing/) | N/A | [API](api/models/housegan/) |
-| LACE | [Guide](models/lace/) | [REPRODUCING](models/lace/reproducing/) | N/A | [API](api/models/lace/) |
-| LT-Net | [Guide](models/ltnet/) | [REPRODUCING](models/ltnet/reproducing/) | N/A | [API](api/models/ltnet/) |
-| LayouSyn | [Guide](models/layousyn/) | [REPRODUCING](models/layousyn/reproducing/) | N/A | [API](api/models/layousyn/) |
-| Layout FID | [Guide](models/layout-fid/) | [REPRODUCING](models/layout-fid/reproducing/) | N/A | [API](api/models/layout-fid/) |
-| Layout-Corrector | [Guide](models/layout-corrector/) | [REPRODUCING](models/layout-corrector/reproducing/) | N/A | [API](api/models/layout-corrector/) |
-| LayoutAction | [Guide](models/layout-action/) | [REPRODUCING](models/layout-action/reproducing/) | N/A | [API](api/models/layout-action/) |
-| LayoutDETR | [Guide](models/layout-detr/) | [REPRODUCING](models/layout-detr/reproducing/) | N/A | [API](api/models/layout-detr/) |
-| LayoutDM | [Guide](models/layout-dm/) | [REPRODUCING](models/layout-dm/reproducing/) | [TRAINING](models/layout-dm/training/) | [API](api/models/layout-dm/) |
-| LayoutDiffusion | [Guide](models/layoutdiffusion/) | [REPRODUCING](models/layoutdiffusion/reproducing/) | [TRAINING](models/layoutdiffusion/training/) | [API](api/models/layoutdiffusion/) |
-| LayoutFlow | [Guide](models/layout-flow/) | [REPRODUCING](models/layout-flow/reproducing/) | [TRAINING](models/layout-flow/training/) | [API](api/models/layout-flow/) |
-| LayoutFormer++ | [Guide](models/layoutformerpp/) | [REPRODUCING](models/layoutformerpp/reproducing/) | N/A | [API](api/models/layoutformerpp/) |
-| LayoutGAN++ | [Guide](models/layoutganpp/) | [REPRODUCING](models/layoutganpp/reproducing/) | N/A | [API](api/models/layoutganpp/) |
-| LayoutGPT | [Guide](models/layout-gpt/) | [REPRODUCING](models/layout-gpt/reproducing/) | N/A | [API](api/models/layout-gpt/) |
-| LayoutPrompter | [Guide](models/layoutprompter/) | [REPRODUCING](models/layoutprompter/reproducing/) | N/A | [API](api/models/layoutprompter/) |
-| LayoutVAE | [Guide](models/layoutvae/) | [REPRODUCING](models/layoutvae/reproducing/) | N/A | [API](api/models/layoutvae/) |
-| Parse-Then-Place | [Guide](models/parse-then-place/) | [REPRODUCING](models/parse-then-place/reproducing/) | N/A | [API](api/models/parse-then-place/) |
-| PosterLLaVA | [Guide](models/posterllava/) | [REPRODUCING](models/posterllava/reproducing/) | N/A | [API](api/models/posterllava/) |
-| PosterLlama | [Guide](models/posterllama/) | [REPRODUCING](models/posterllama/reproducing/) | N/A | [API](api/models/posterllama/) |
-| PosterO | [Guide](models/postero/) | [REPRODUCING](models/postero/reproducing/) | N/A | [API](api/models/postero/) |
-| RALF | [Guide](models/ralf/) | [REPRODUCING](models/ralf/reproducing/) | N/A | [API](api/models/ralf/) |
-| SmartText | [Guide](models/smarttext/) | [REPRODUCING](models/smarttext/reproducing/) | N/A | [API](api/models/smarttext/) |
+| BASNet | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/basnet/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/basnet/REPRODUCING.md) | N/A | [API](api/models/basnet/) |
+| CGB-DM | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md) | [TRAINING](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md) | [API](api/models/cgb-dm/) |
+| Coarse-to-Fine | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md) | N/A | [API](api/models/coarse-to-fine/) |
+| DLT | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/REPRODUCING.md) | [TRAINING](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md) | [API](api/models/dlt/) |
+| DS-GAN | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md) | N/A | [API](api/models/ds-gan/) |
+| Flex-DM | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) | N/A | [API](api/models/flex-dm/) |
+| House-GAN | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md) | N/A | [API](api/models/housegan/) |
+| LACE | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md) | N/A | [API](api/models/lace/) |
+| LT-Net | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) | N/A | [API](api/models/ltnet/) |
+| LayouSyn | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md) | N/A | [API](api/models/layousyn/) |
+| Layout FID | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/REPRODUCING.md) | N/A | [API](api/models/layout-fid/) |
+| Layout-Corrector | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md) | N/A | [API](api/models/layout-corrector/) |
+| LayoutAction | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/REPRODUCING.md) | N/A | [API](api/models/layout-action/) |
+| LayoutDETR | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/REPRODUCING.md) | N/A | [API](api/models/layout-detr/) |
+| LayoutDM | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) | [TRAINING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) | [API](api/models/layout-dm/) |
+| LayoutDiffusion | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) | [TRAINING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/TRAINING.md) | [API](api/models/layoutdiffusion/) |
+| LayoutFlow | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md) | [TRAINING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) | [API](api/models/layout-flow/) |
+| LayoutFormer++ | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) | N/A | [API](api/models/layoutformerpp/) |
+| LayoutGAN++ | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) | N/A | [API](api/models/layoutganpp/) |
+| LayoutGPT | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) | N/A | [API](api/models/layout-gpt/) |
+| LayoutPrompter | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) | N/A | [API](api/models/layoutprompter/) |
+| LayoutVAE | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutvae/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutvae/REPRODUCING.md) | N/A | [API](api/models/layoutvae/) |
+| Parse-Then-Place | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) | N/A | [API](api/models/parse-then-place/) |
+| PosterLLaVA | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) | N/A | [API](api/models/posterllava/) |
+| PosterLlama | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/REPRODUCING.md) | N/A | [API](api/models/posterllama/) |
+| PosterO | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/postero/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/postero/REPRODUCING.md) | N/A | [API](api/models/postero/) |
+| RALF | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md) | N/A | [API](api/models/ralf/) |
+| SmartText | [README](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/README.md) | [REPRODUCING](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md) | N/A | [API](api/models/smarttext/) |

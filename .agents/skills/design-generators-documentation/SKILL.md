@@ -13,13 +13,11 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 
 ## Repository documentation rules
 
-- The docs site uses `zensical`, `mkdocstrings[python]`, and generated API pages; build it with:
+- The docs site uses `zensical` and `mkdocstrings[python]`; build it with:
   ```bash
-  uv run --group docs python scripts/gen_api_pages.py
-  uv run --group docs python scripts/publish_doc_guides.py
   uv run --group docs zensical build --strict -f mkdocs.yml
   ```
-- The API reference is generated from workspace members under `lib/*` and `models/*`, using Python packages found below each member's `src/` directory.
+- The API reference has one committed stub under `docs/api/` for each workspace member under `lib/*` and `models/*`; each stub uses `::: <import-name>` with `show_submodules: true`.
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
 - Every `docs/*.md` page needs YAML frontmatter with `icon: lucide/...` and non-empty `tags`.

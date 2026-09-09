@@ -1466,31 +1466,6 @@ def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
         )
 
 
-def _assert_generated_docs_targets_match_members() -> None:
-    import importlib.util
-
-    script_path = REPO_ROOT / "scripts" / "gen_api_pages.py"
-    spec = importlib.util.spec_from_file_location("gen_api_pages", script_path)
-    if spec is None or spec.loader is None:
-        raise AssertionError(f"cannot load {script_path}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    docs_model_slugs = {
-        project
-        for _, group, project, _ in module.discover_modules(REPO_ROOT)
-        if group == "models"
-    }
-    member_slugs = _model_member_slugs()
-    missing = sorted(member_slugs - docs_model_slugs)
-    extra = sorted(docs_model_slugs - member_slugs)
-    if missing or extra:
-        raise AssertionError(
-            f"generated docs model targets mismatch: missing={missing}, extra={extra}"
-        )
-
-
 def _assert_linked_first_reference_policy(path: Path) -> None:
     text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     spans = _markdown_link_spans(text)
@@ -1566,7 +1541,6 @@ def check() -> None:
     _assert_root_model_badge_count(REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS))
     _assert_root_models_table_matches_members(root_slugs)
     _assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
-    _assert_generated_docs_targets_match_members()
 
     for path in MODEL_READMES:
         text = path.read_text(encoding="utf-8")
