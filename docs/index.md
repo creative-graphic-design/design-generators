@@ -13,7 +13,7 @@ design-generators ports layout, poster, and graphic-design generation research r
 
 - ⚡ **Run in minutes**: converted weights load with [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model); no original-repository setup required.
 - 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
-- ✅ **Reference-verified**: our ports are numerically checked against the [original implementations](https://github.com/creative-graphic-design/design-generators/tree/main/vendor/) through [agreement checks](training-reproduction/) with [copy-pasteable reproduction commands per package](#models).
+- ✅ **Reference-verified**: our ports are numerically checked against the [original implementations](https://github.com/creative-graphic-design/design-generators/tree/main/vendor/) through [agreement checks](#reproducibility) with [copy-pasteable reproduction commands per package](#models).
 
 ## Models
 
