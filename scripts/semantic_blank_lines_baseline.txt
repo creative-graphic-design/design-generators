@@ -238,6 +238,6 @@ scripts/check_semantic_blank_lines.py	block-end	15
 scripts/check_src_vendor_language.py	block-end	4
 scripts/check_training_doc_template.py	block-end	18
 scripts/check_training_stage_evidence.py	block-end	29
-scripts/gen_ref_pages.py	block-end	64
+scripts/gen_ref_pages.py	block-end	63
 scripts/verify_badge_rendering.py	block-end	11
 scripts/verify_evaluate_layout_metrics.py	block-end	11
