@@ -46,7 +46,7 @@ extra:
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
-  - Models: index.md#models
+  - Models: models.md
   - Conventions: conventions.md
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
