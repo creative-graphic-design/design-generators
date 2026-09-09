@@ -7,7 +7,7 @@ tags:
 
 # Models
 
-The [home page's model catalog](../#models) compares task families, venues, checkpoints, training status, papers, and API pages; this page lists where each package keeps its README, reproduction instructions, and training instructions on GitHub.
+The [home page's model catalog](index.md#models) compares task families, venues, checkpoints, training status, papers, and API pages; this page lists where each package keeps its README, reproduction instructions, and training instructions on GitHub.
 
 | Model | README | REPRODUCING | TRAINING |
 | --- | --- | --- | --- |
