@@ -1,6 +1,6 @@
 ---
 name: design-generators-model-conversion
-description: Use when implementing one design-generators model issue, converting an original (vendor) layout/poster generation implementation into a Transformers or Diffusers-style workspace member with agreement checks against that implementation, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
+description: Use when implementing one design-generators model issue, converting an original (vendor) layout/poster generation implementation into a Transformers or Diffusers-style package managed by the repository's uv workspace, with agreement checks against that implementation, public interface and layout output schema contracts, README/model-card documentation, and PR checklist reporting.
 ---
 
 # Model Conversion
@@ -14,7 +14,7 @@ Use this skill when a model issue is ready for implementation. It assumes the re
    - `AGENTS.md`
    - [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60)
    - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
-   - [issue #64](https://github.com/creative-graphic-design/design-generators/issues/64) for `lib/laygen`, `lib/posgen`, and import direction
+   - [docs/architecture.md](../../../docs/architecture.md) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
    - every comment that amends the target issue's plan, plus every review comment on the target issue
 3. When an amendment conflicts with the original plan, follow the amendment.
@@ -43,7 +43,7 @@ References phrased in vendor terms are limited to conversion-responsibility modu
 
 ## Package Shape
 
-Create one uv workspace member under `models/<slug>/`:
+Create one package under `models/<slug>/` and manage it in the repository's uv workspace:
 
 ```text
 models/<slug>/
@@ -144,7 +144,7 @@ Keep dataset loading behind processors so sources can change without touching mo
 
 Use builders, streaming, synthetic rows, or tiny local fixtures in ordinary tests. Do not write tests that download PubLayNet, poster datasets, vendor weights, or large cache bundles.
 
-When a required dataset is absent from the org, use the original vendor distribution or the approved external source named in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2), and leave a TODO that points to the missing import.
+When a required dataset is absent from the org, use the original vendor data source or the approved external source named in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2), and leave a TODO that points to the missing import.
 
 ## Vendor Parity
 

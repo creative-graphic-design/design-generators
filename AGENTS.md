@@ -11,7 +11,7 @@
 
 - Umbrella policy, target table, execution order, interface decisions, data policy, and status tracking live in [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2).
 - The living implementation checklist is [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60). Check it before starting a model package and quote verification results in the PR body.
-- Shared library structure is [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed.
+- Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
 ## Workspace
