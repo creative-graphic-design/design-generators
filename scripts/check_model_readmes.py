@@ -1469,8 +1469,8 @@ def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
 def _assert_generated_docs_targets_match_members() -> None:
     import importlib.util
 
-    script_path = REPO_ROOT / "scripts" / "gen_ref_pages.py"
-    spec = importlib.util.spec_from_file_location("gen_ref_pages", script_path)
+    script_path = REPO_ROOT / "scripts" / "gen_api_pages.py"
+    spec = importlib.util.spec_from_file_location("gen_api_pages", script_path)
     if spec is None or spec.loader is None:
         raise AssertionError(f"cannot load {script_path}")
 
@@ -1478,9 +1478,9 @@ def _assert_generated_docs_targets_match_members() -> None:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     docs_model_slugs = {
-        package.member_dir.name
-        for package in module.discover_api_packages()
-        if package.group == "Models"
+        project
+        for _, group, project, _ in module.discover_modules(REPO_ROOT)
+        if group == "models"
     }
     member_slugs = _model_member_slugs()
     missing = sorted(member_slugs - docs_model_slugs)

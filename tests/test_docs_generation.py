@@ -1,4 +1,4 @@
-"""Documentation generation tests."""
+"""Tests for the small API-page generator and docs-page frontmatter."""
 
 from __future__ import annotations
 
@@ -8,675 +8,196 @@ import re
 import sys
 from types import ModuleType
 
-import pytest
-from pytest import MonkeyPatch
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-GEN_REF_PAGES = REPO_ROOT / "scripts/gen_ref_pages.py"
+GEN_API_PAGES = REPO_ROOT / "scripts/gen_api_pages.py"
+PUBLISH_DOC_GUIDES = REPO_ROOT / "scripts/publish_doc_guides.py"
 FRONTMATTER_RE = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.S)
 
 
-def _docs_markdown_pages(root: Path = REPO_ROOT) -> list[Path]:
-    return [
-        path
-        for path in sorted((root / "docs").rglob("*.md"))
-        if "stylesheets" not in path.relative_to(root / "docs").parts
-    ]
-
-
-def _assert_docs_page_frontmatter(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    match = FRONTMATTER_RE.match(text)
-    assert match is not None, f"{path}: missing YAML frontmatter"
-    frontmatter = match.group("body")
-    assert re.search(r"(?m)^icon:\s+lucide/", frontmatter), (
-        f"{path}: frontmatter must include a lucide icon"
-    )
-    assert re.search(r"(?m)^tags:\n(?:  - .+\n?)+", frontmatter), (
-        f"{path}: frontmatter must include non-empty tags"
-    )
-
-
-def _load_gen_ref_pages() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("gen_ref_pages", GEN_REF_PAGES)
-    assert spec is not None
-    assert spec.loader is not None
+def _load_generator() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("gen_api_pages", GEN_API_PAGES)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
 
-def _write_shared_enum_sources(root: Path) -> None:
-    """Write the minimal shared enum sources needed by docs generation tests."""
-    laygen_common = root / "lib" / "laygen" / "src" / "laygen" / "common"
-    posgen_common = root / "lib" / "posgen" / "src" / "posgen" / "common"
-    laygen_common.mkdir(parents=True)
-    posgen_common.mkdir(parents=True)
-    (laygen_common / "conditions.py").write_text(
-        "\n".join(
-            [
-                "from enum import StrEnum, auto",
-                "",
-                "class ConditionType(StrEnum):",
-                "    unconditional = auto()",
-                "    label = auto()",
-                "    label_size = auto()",
-                "    content_image = auto()",
-                "",
-            ]
-        ),
-        encoding="utf-8",
+def _load_guide_publisher() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "publish_doc_guides", PUBLISH_DOC_GUIDES
     )
-    (laygen_common / "labels.py").write_text(
-        "\n".join(
-            [
-                "from enum import StrEnum, auto",
-                "",
-                "class DatasetName(StrEnum):",
-                "    rico25 = auto()",
-                "    publaynet = auto()",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (posgen_common / "labels.py").write_text(
-        "\n".join(
-            [
-                "from enum import StrEnum",
-                "",
-                "class DatasetName(StrEnum):",
-                "    crello = 'crello'",
-                "",
-            ]
-        ),
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _assert_frontmatter(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    match = FRONTMATTER_RE.match(text)
+    assert match is not None, f"{path}: missing YAML frontmatter"
+    body = match.group("body")
+    assert re.search(r"(?m)^icon:\s+lucide/", body), path
+    assert re.search(r"(?m)^tags:\n(?:  - .+\n?)+", body), path
+
+
+def _write_workspace(root: Path) -> None:
+    (root / "pyproject.toml").write_text(
+        '[tool.uv.workspace]\nmembers = ["lib/*", "models/*"]\n',
         encoding="utf-8",
     )
 
 
-def _patch_docs_generator_root(
-    gen_ref_pages: ModuleType,
+def _write_member(root: Path, parent: str, directory: str, project: str) -> Path:
+    member = root / parent / directory
+    package = member / "src" / directory.replace("-", "_")
+    package.mkdir(parents=True)
+    (member / "pyproject.toml").write_text(
+        f"[project]\nname = '{project}'\n", encoding="utf-8"
+    )
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    return package
+
+
+def test_module_discovery_uses_workspace_members_and_excludes_private_files(
     tmp_path: Path,
-    monkeypatch: MonkeyPatch,
 ) -> None:
-    """Point the docs generator module at a temporary repository root."""
-    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
-    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
-    monkeypatch.setattr(
-        gen_ref_pages,
-        "GENERATED_MKDOCS_CONFIG",
-        tmp_path / "mkdocs.generated.yml",
-    )
+    generator = _load_generator()
+    _write_workspace(tmp_path)
+    package = _write_member(tmp_path, "models", "fake", "fake-project")
+    (package / "public.py").write_text("", encoding="utf-8")
+    (package / "_private.py").write_text("", encoding="utf-8")
+    (package / "testing.py").write_text("", encoding="utf-8")
+    (package / "vendor_parity.py").write_text("", encoding="utf-8")
+    (package / "vendor_state.py").write_text("", encoding="utf-8")
+    (package / "vendor_state_dict.py").write_text("", encoding="utf-8")
+    nested = package / "nested"
+    nested.mkdir()
+    (nested / "__init__.py").write_text("", encoding="utf-8")
+    (nested / "item.py").write_text("", encoding="utf-8")
+    (nested / "__main__.py").write_text("", encoding="utf-8")
 
+    pages = generator.discover_modules(tmp_path)
 
-def _write_minimal_fake_model(
-    tmp_path: Path,
-    *,
-    pyproject: str,
-    with_reproducing: bool = True,
-) -> None:
-    """Write a minimal fake model package fixture."""
-    member_dir = tmp_path / "models" / "fake"
-    package_dir = member_dir / "src" / "fake_pkg"
-    package_dir.mkdir(parents=True)
-    (member_dir / "pyproject.toml").write_text(pyproject, encoding="utf-8")
-    if with_reproducing:
-        (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
-    (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
-        encoding="utf-8",
-    )
-    (package_dir / "__init__.py").write_text("", encoding="utf-8")
-
-
-def test_shields_static_badge_messages_use_query_encoding() -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-
-    assert "message=label_size" in gen_ref_pages.render_model_overview_badge(
-        "label_size", axis="conditions"
-    )
-    assert "message=content_image" in gen_ref_pages.render_model_overview_badge(
-        "content_image", axis="conditions"
-    )
-    assert (
-        "message=content-agnostic-layout-generation"
-        in gen_ref_pages.render_model_overview_badge(
-            "content-agnostic-layout-generation", axis="task"
-        )
-    )
-    assert gen_ref_pages.render_model_overview_badge(
-        "transformers", axis="framework"
-    ) == (
-        "![framework: transformers]"
-        "(https://img.shields.io/static/v1?label=framework&message=transformers"
-        "&color=blue&style=flat-square&logo=huggingface&logoColor=white)"
-    )
-    assert gen_ref_pages.render_model_overview_badge("rico25", axis="datasets") == (
-        "![dataset: rico25]"
-        "(https://img.shields.io/static/v1?label=dataset&message=rico25"
-        "&color=orange&style=flat-square&logo=huggingface&logoColor=white)"
-    )
-
-
-def test_docs_markdown_pages_have_icon_and_tags_frontmatter() -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    gen_ref_pages.main()
-
-    for path in _docs_markdown_pages():
-        _assert_docs_page_frontmatter(path)
-
-
-def test_gen_ref_pages_writes_standalone_api_tree(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    member_dir = tmp_path / "models" / "fake"
-    package_dir = member_dir / "src" / "fake_pkg"
-    package_dir.mkdir(parents=True)
-    (member_dir / "pyproject.toml").write_text(
-        "\n".join(
-            [
-                "[project]",
-                "name = 'fake-project'",
-                "",
-                "[tool.design-generators]",
-                "framework = 'transformers'",
-                "task = ['content-agnostic-layout-generation', 'content-aware-layout-generation']",
-                "conditions = ['unconditional', 'label_size']",
-                "datasets = ['rico25', 'publaynet']",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (member_dir / "README.md").write_text(
-        "---\nmodel-index:\n  - name: FakeProject\n---\n\n# Model Card for FakeProject\n",
-        encoding="utf-8",
-    )
-    (member_dir / "REPRODUCING.md").write_text(
-        "# Reproducing Fake Project\n\nRun parity checks.\n",
-        encoding="utf-8",
-    )
-    (member_dir / "TRAINING.md").write_text(
-        "# Training Fake Project\n\nRun training.\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "mkdocs.yml").write_text(
-        "\n".join(
-            [
-                "site_name: fake",
-                "nav:",
-                "  - Overview: index.md",
-                "  - API Reference: api/",
-                "markdown_extensions:",
-                "  - toc",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (tmp_path / "README.md").write_text(
-        "\n".join(
-            [
-                "# Fake Repo",
-                "",
-                "[Model](models/fake/README.md)",
-                "[Guide](models/fake/REPRODUCING.md)",
-                "[Extending](docs/extending.md)",
-                "[License](LICENSE)",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (tmp_path / "LICENSE").write_text("Fake license.\n", encoding="utf-8")
-    (package_dir / "__init__.py").write_text(
-        "from .public import PublicThing\n",
-        encoding="utf-8",
-    )
-    (package_dir / "public.py").write_text(
-        "class PublicThing:\n    pass\n",
-        encoding="utf-8",
-    )
-
-    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
-
-    gen_ref_pages.main()
-
-    for path in _docs_markdown_pages(tmp_path):
-        _assert_docs_page_frontmatter(path)
-
-    assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
-        [
-            "---",
-            "icon: lucide/layout-template",
-            "tags:",
-            "  - Overview",
-            "  - Documentation",
-            "---",
-            "",
-            "# Fake Repo",
-            "",
-            "[Model](api/models/fake-project/)",
-            "[Guide](api/models/fake-project/reproducing/)",
-            "[Extending](extending/)",
-            "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
-            "",
-        ]
-    )
-    assert (tmp_path / "docs/api/index.md").is_file()
-    assert (tmp_path / "docs/models.md").is_file()
-    assert (tmp_path / "docs/api/models/index.md").is_file()
-    assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
-    assert "- [FakeProject](models/fake-project/)" in (
-        tmp_path / "docs/api/index.md"
-    ).read_text(encoding="utf-8")
-    assert "- [FakeProject](fake-project/)" in (
-        tmp_path / "docs/api/models/index.md"
-    ).read_text(encoding="utf-8")
-    package_index = (tmp_path / "docs/api/models/fake-project/index.md").read_text(
-        encoding="utf-8"
-    )
-    assert package_index.startswith(
-        "---\nicon: lucide/package\ntags:\n  - Models\n  - API Reference\n  - transformers\n  - content-agnostic-layout-generation\n  - content-aware-layout-generation\n"
-    )
-    assert (
-        "  - unconditional\n  - label_size\n  - rico25\n  - publaynet\n---\n"
-        in package_index
-    )
-    assert "model-index:" not in package_index
-    assert (
-        "**Reproducing parity:** [Open the model reproducing guide](reproducing/)."
-        in package_index
-    )
-    assert "**Training:** [Open the model training guide](training/)." in package_index
-    assert "## Reproducing Guide" not in package_index
-    assert (tmp_path / "docs/api/models/fake-project/reproducing.md").read_text(
-        encoding="utf-8"
-    ) == "\n".join(
-        [
-            "---",
-            "icon: lucide/refresh-cw",
-            "tags:",
-            "  - Reproducibility",
-            "  - Models",
-            "---",
-            "",
-            "# Reproducing Fake Project",
-            "",
-            "Run parity checks.",
-            "",
-        ]
-    )
-    assert (tmp_path / "docs/api/models/fake-project/training.md").read_text(
-        encoding="utf-8"
-    ) == "\n".join(
-        [
-            "---",
-            "icon: lucide/dumbbell",
-            "tags:",
-            "  - Training",
-            "  - Models",
-            "---",
-            "",
-            "# Training Fake Project",
-            "",
-            "Run training.",
-            "",
-        ]
-    )
-    assert (tmp_path / "docs/api/models/fake-project/package.md").read_text(
-        encoding="utf-8"
-    ) == "\n".join(
-        [
-            "---",
-            "icon: lucide/file-code",
-            "tags:",
-            "  - API Reference",
-            "  - Models",
-            "---",
-            "",
-            "# `fake_pkg`",
-            "",
-            "::: fake_pkg",
-            "",
-        ]
-    )
-    assert (tmp_path / "docs/api/models/fake-project/public.md").read_text(
-        encoding="utf-8"
-    ) == "\n".join(
-        [
-            "---",
-            "icon: lucide/file-code",
-            "tags:",
-            "  - API Reference",
-            "  - Models",
-            "---",
-            "",
-            "# `fake_pkg.public`",
-            "",
-            "::: fake_pkg.public",
-            "",
-        ]
-    )
-    assert not (tmp_path / "docs/api/SUMMARY.md").exists()
-    models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
-    assert "| Model | Venue | Runtime | Datasets | Ckpt | Train |" in models_overview
-    assert (
-        "Task colors: ![task: content-agnostic]"
-        "(https://img.shields.io/static/v1?label=%F0%9F%A7%A9&message=content-agnostic&color=2f80ed)"
-        in models_overview
-    )
-    assert (
-        "| [FakeProject](api/models/fake-project/) | "
-        "![venue: n/a](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=n%2Fa&color=lightgrey) | "
-        "![framework: transformers](https://img.shields.io/static/v1?label=.&message=transformers&color=yellow&logo=huggingface&logoColor=white) | "
-        "[![dataset: RICO25](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=RICO25&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/Rico) "
-        "[![dataset: PubLayNet](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=PubLayNet&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | "
-        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](api/models/fake-project/reproducing/) | "
-        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](api/models/fake-project/training/) |"
-    ) in models_overview
-    generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
-    assert "  - Models: models.md" in generated_config
-    assert (
-        "      - Models:\n          - Overview: api/models/index.md" in generated_config
-    )
-    assert "  - Getting Started: getting-started.md" in generated_config
-    assert "  - Models: models.md" in generated_config
-    assert "          - FakeProject:" in generated_config
-    assert (
-        "              - Overview: api/models/fake-project/index.md" in generated_config
-    )
-    assert (
-        "              - Reproducing: api/models/fake-project/reproducing.md"
-        in generated_config
-    )
-    assert (
-        "              - Training: api/models/fake-project/training.md"
-        in generated_config
-    )
-    assert "              - API Modules:" in generated_config
-    assert (
-        "                  - fake_pkg: api/models/fake-project/package.md"
-        in generated_config
-    )
-    assert (
-        "                  - fake_pkg.public: api/models/fake-project/public.md"
-        in generated_config
-    )
-
-
-def test_gen_ref_pages_requires_reproducing_for_model_packages(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    member_dir = tmp_path / "models" / "fake"
-    package_dir = member_dir / "src" / "fake_pkg"
-    package_dir.mkdir(parents=True)
-    (member_dir / "pyproject.toml").write_text(
-        "\n".join(
-            [
-                "[project]",
-                "name = 'fake-project'",
-                "",
-                "[tool.design-generators]",
-                "framework = 'transformers'",
-                "task = 'content-agnostic-layout-generation'",
-                "conditions = ['unconditional']",
-                "datasets = ['rico25']",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "README.md").write_text("# Fake Repo\n", encoding="utf-8")
-    (package_dir / "__init__.py").write_text("", encoding="utf-8")
-
-    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
-
-    with pytest.raises(
-        FileNotFoundError,
-        match=r"Model package models/fake must include REPRODUCING\.md",
-    ):
-        gen_ref_pages.main()
-
-
-def test_imported_public_modules_accepts_absolute_self_imports(tmp_path: Path) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    package = tmp_path / "layout_gpt"
-    package.mkdir()
-    init_file = package / "__init__.py"
-    init_file.write_text(
-        "\n".join(
-            [
-                "from layout_gpt.agent import LayoutGPTAgent",
-                "from layout_gpt.enums import ICLType",
-                "from .schema import LayoutGPTOutput",
-                "import layout_gpt.types",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    assert gen_ref_pages.imported_public_modules(init_file) == {
-        "agent",
-        "enums",
-        "schema",
-        "types",
+    assert [page[0] for page in pages] == [
+        "fake",
+        "fake.nested",
+        "fake.nested.item",
+        "fake.public",
+    ]
+    assert {page[3].as_posix() for page in pages} == {
+        "models/fake-project/index.md",
+        "models/fake-project/nested/index.md",
+        "models/fake-project/nested/item.md",
+        "models/fake-project/public.md",
     }
 
 
-def test_model_conversion_modules_are_documented(tmp_path: Path) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    package = tmp_path / "layout_dm"
-    package.mkdir()
-    conversion = package / "conversion.py"
-    conversion.write_text('"""Conversion helpers."""\n', encoding="utf-8")
+def test_summary_contains_section_index_pages(tmp_path: Path) -> None:
+    generator = _load_generator()
+    _write_workspace(tmp_path)
+    package = _write_member(tmp_path, "lib", "fake-lib", "fake-lib")
+    (package / "common").mkdir()
+    (package / "common" / "__init__.py").write_text("", encoding="utf-8")
+    (package / "common" / "bbox.py").write_text("", encoding="utf-8")
 
-    assert gen_ref_pages.should_document_source(
-        conversion,
-        package,
-        "Models",
-        imported_modules=set(),
+    generator.generate(tmp_path)
+    summary = (tmp_path / "docs/api/SUMMARY.md").read_text(encoding="utf-8")
+
+    assert "[fake-lib](libraries/fake-lib/index.md)" in summary
+    assert "[common](libraries/fake-lib/common/index.md)" in summary
+    assert "[bbox](libraries/fake-lib/common/bbox.md)" in summary
+
+
+def test_publishes_guides_and_rewrites_repository_links(tmp_path: Path) -> None:
+    generator = _load_generator()
+    publisher = _load_guide_publisher()
+    _write_workspace(tmp_path)
+    package = _write_member(tmp_path, "models", "fake", "fake")
+    (package / "training").mkdir()
+    (package / "training" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/training-reproduction.md").write_text(
+        "# Guide\n", encoding="utf-8"
     )
-
-
-def test_generated_overview_matches_readme_with_rewritten_links() -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    expected = gen_ref_pages.rewrite_repo_relative_links(
-        (REPO_ROOT / "README.md").read_text(encoding="utf-8").rstrip()
-    )
-
-    gen_ref_pages.main()
-
-    assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
-        f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
-    )
-
-
-def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-
-    assert (
-        gen_ref_pages.site_page_for_repo_link("docs/training-reproduction.md")
-        == "training-reproduction/"
-    )
-    assert (
-        gen_ref_pages.rewrite_repo_relative_links(
-            "[training](docs/training-reproduction.md)"
-        )
-        == "[training](training-reproduction/)"
-    )
-    assert (
-        gen_ref_pages.rewrite_repo_relative_links(
-            "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt)]"
-            "(models/posterllama/REPRODUCING.md)"
-        )
-        == "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&message=ckpt)]"
-        "(api/models/posterllama/reproducing/)"
-    )
-
-
-def test_generated_training_pages_rewrite_repo_relative_links() -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-
-    gen_ref_pages.main()
-
-    training_page = REPO_ROOT / "docs" / "api" / "models" / "layout-dm" / "training.md"
-    text = training_page.read_text(encoding="utf-8")
-    assert "[training reproduction protocol](training-reproduction/)" in text
-    assert "](docs/training-reproduction.md)" not in text
-
-
-def test_gen_ref_pages_rejects_unknown_model_metadata_values(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    member_dir = tmp_path / "models" / "fake"
-    package_dir = member_dir / "src" / "fake_pkg"
-    package_dir.mkdir(parents=True)
-    (member_dir / "pyproject.toml").write_text(
-        "\n".join(
-            [
-                "[project]",
-                "name = 'fake-project'",
-                "",
-                "[tool.design-generators]",
-                "framework = 'transformers'",
-                "task = 'content-agnostic-layout-generation'",
-                "conditions = ['gen_t']",
-                "datasets = ['rico25']",
-                "",
-            ]
-        ),
+    member = package.parents[1]
+    (member / "README.md").write_text(
+        "# Fake\n\n[Training](models/fake/TRAINING.md)\n"
+        "[Reproducing](models/fake/REPRODUCING.md#quick)\n"
+        "[Docs](docs/training-reproduction.md)\n",
         encoding="utf-8",
     )
-    (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
-    (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
-        encoding="utf-8",
+    (member / "REPRODUCING.md").write_text(
+        "[README](models/fake/README.md)\n", encoding="utf-8"
     )
-    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+    (member / "TRAINING.md").write_text("# Training\n", encoding="utf-8")
 
-    monkeypatch.setattr(gen_ref_pages, "ROOT", tmp_path)
-    monkeypatch.setattr(gen_ref_pages, "GENERATED_API_DIR", tmp_path / "docs" / "api")
-    monkeypatch.setattr(
-        gen_ref_pages,
-        "GENERATED_MKDOCS_CONFIG",
-        tmp_path / "mkdocs.generated.yml",
+    generator.generate(tmp_path)
+    publisher.publish(tmp_path)
+
+    readme = (tmp_path / "docs/models/fake/index.md").read_text(encoding="utf-8")
+    reproducing = (tmp_path / "docs/models/fake/reproducing.md").read_text(
+        encoding="utf-8"
     )
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"models/fake \[tool\.design-generators\] conditions: "
-            r"has unknown values: \['gen_t'\].*Required keys: framework, task, "
-            r"conditions, datasets.*Example: \[tool\.design-generators\]"
-        ),
-    ):
-        gen_ref_pages.main()
-
-
-def test_gen_ref_pages_requires_model_metadata_table(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    _write_minimal_fake_model(
-        tmp_path,
-        pyproject="[project]\nname = 'fake-project'\n",
-    )
-    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
-
-    with pytest.raises(
-        KeyError,
-        match=(
-            r"models/fake \[tool\.design-generators\] table: is required.*"
-            r"Required keys: framework, task, conditions, datasets.*"
-            r"Example: \[tool\.design-generators\]"
-        ),
-    ):
-        gen_ref_pages.main()
+    assert "](training/)" in readme
+    assert "](reproducing/#quick)" in readme
+    assert "](../../training-reproduction/)" in readme
+    assert "](./)" in reproducing
+    assert (tmp_path / "docs/models/fake/training.md").is_file()
+    assert (tmp_path / "docs/api/models/fake/training/index.md").is_file()
+    summary = (tmp_path / "docs/models/SUMMARY.md").read_text(encoding="utf-8")
+    assert "* [fake](fake/index.md)" in summary
+    assert "  * [Training](fake/training.md)" in summary
 
 
-def test_gen_ref_pages_requires_model_metadata_keys(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    _write_minimal_fake_model(
-        tmp_path,
-        pyproject="\n".join(
-            [
-                "[project]",
-                "name = 'fake-project'",
-                "",
-                "[tool.design-generators]",
-                "framework = 'transformers'",
-                "task = 'content-agnostic-layout-generation'",
-                "datasets = ['rico25']",
-                "",
-            ]
-        ),
-    )
-    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
+def test_generator_writes_only_to_generated_doc_roots(tmp_path: Path) -> None:
+    generator = _load_generator()
+    publisher = _load_guide_publisher()
+    _write_workspace(tmp_path)
+    package = _write_member(tmp_path, "models", "fake", "fake")
+    (package.parents[1] / "README.md").write_text("# Fake\n", encoding="utf-8")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/index.md").write_text("hand-written\n", encoding="utf-8")
+    (tmp_path / "mkdocs.yml").write_text("hand-written config\n", encoding="utf-8")
+    generated_roots = {Path("docs/api"), Path("docs/models"), Path("docs/libraries")}
+    before = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+        and not any(
+            root in path.relative_to(tmp_path).parents for root in generated_roots
+        )
+    }
 
-    with pytest.raises(
-        KeyError,
-        match=(
-            r"models/fake \[tool\.design-generators\] conditions: is required.*"
-            r"Required keys: framework, task, conditions, datasets.*"
-            r"Example: \[tool\.design-generators\]"
-        ),
-    ):
-        gen_ref_pages.main()
+    generator.generate(tmp_path)
+    publisher.publish(tmp_path)
+
+    after = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+        and not any(
+            root in path.relative_to(tmp_path).parents for root in generated_roots
+        )
+    }
+    assert after == before
+    assert (tmp_path / "docs/api/SUMMARY.md").is_file()
+    assert (tmp_path / "docs/models/SUMMARY.md").is_file()
 
 
-def test_gen_ref_pages_rejects_empty_model_metadata_values(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    gen_ref_pages = _load_gen_ref_pages()
-    _write_shared_enum_sources(tmp_path)
-    _write_minimal_fake_model(
-        tmp_path,
-        pyproject="\n".join(
-            [
-                "[project]",
-                "name = 'fake-project'",
-                "",
-                "[tool.design-generators]",
-                "framework = 'transformers'",
-                "task = 'content-agnostic-layout-generation'",
-                "conditions = []",
-                "datasets = ['rico25']",
-                "",
-            ]
-        ),
-    )
-    _patch_docs_generator_root(gen_ref_pages, tmp_path, monkeypatch)
+def test_docs_markdown_pages_have_icon_and_tags_frontmatter() -> None:
+    generator = _load_generator()
+    publisher = _load_guide_publisher()
+    generator.generate(REPO_ROOT)
+    publisher.publish(REPO_ROOT)
 
-    with pytest.raises(
-        ValueError,
-        match=(
-            r"models/fake \[tool\.design-generators\] conditions: "
-            r"must be a non-empty list of strings.*"
-            r"Required keys: framework, task, conditions, datasets.*"
-            r"Example: \[tool\.design-generators\]"
-        ),
-    ):
-        gen_ref_pages.main()
+    for path in sorted((REPO_ROOT / "docs").rglob("*.md")):
+        relative = path.relative_to(REPO_ROOT / "docs")
+        if {"stylesheets", "plans"} & set(
+            relative.parts
+        ) or relative.name == "SUMMARY.md":
+            continue
+        _assert_frontmatter(path)

@@ -15,8 +15,9 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 
 - The docs site uses `zensical`, `mkdocstrings[python]`, and generated API pages; build it with:
   ```bash
-  uv run --group docs python scripts/gen_ref_pages.py
-  uv run --group docs zensical build --strict -f mkdocs.generated.yml
+  uv run --group docs python scripts/gen_api_pages.py
+  uv run --group docs python scripts/publish_doc_guides.py
+  uv run --group docs zensical build --strict -f mkdocs.yml
   ```
 - The API reference is generated from workspace members under `lib/*` and `models/*`, using Python packages found below each member's `src/` directory.
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
@@ -64,7 +65,7 @@ The `Reproducibility` section must open with one sentence that states how to rep
 
 ## Machine-checked companions
 
-- The docs site uses `scripts/gen_ref_pages.py` and strict Zensical in `.github/workflows/ci.yml`.
+- The docs site uses `scripts/gen_api_pages.py`, `scripts/publish_doc_guides.py`, and strict Zensical in `.github/workflows/ci.yml`.
 - Model README structure, install commands, parity sections, tagged fences, first external links, and reproducibility commands are checked by `scripts/check_model_readmes.py` and `tests/test_readme_contracts.py`.
 - Changed external URLs are checked by `scripts/check_changed_urls.py` in `.github/workflows/ci.yml`, and full Markdown links are checked by `.github/workflows/link-check.yml`.
 - Reader-facing internal references are checked by `scripts/check_reader_facing_references.py`.

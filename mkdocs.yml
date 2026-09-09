@@ -46,7 +46,10 @@ extra:
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
-  - Models: models.md
+  - Models:
+      - Overview: models.md
+      - Guides: models/
+  - Libraries: libraries/
   - Conventions: conventions.md
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
@@ -67,6 +70,8 @@ markdown_extensions:
 plugins:
   - search
   - tags
+  - literate-nav
+  - section-index
   - mkdocstrings:
       handlers:
         python:
