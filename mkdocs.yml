@@ -49,6 +49,7 @@ nav:
   - Conventions: conventions.md
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
+  - Implementation Checklist: implementation-checklist.md
   - Extending: extending.md
   - API Reference:
       - Overview: api/index.md

@@ -5,7 +5,7 @@ description: Use when writing or reviewing design-generators documentation, mode
 
 # Design Generators Documentation
 
-Use this skill for repository documentation and model-card work. Read `AGENTS.md`, the [implementation checklist](../../docs/implementation-checklist.md), and the relevant model issue before editing. The intended reader is a first-time agent or contributor with no knowledge of this repository's history.
+Use this skill for repository documentation and model-card work. Read `AGENTS.md`, the [implementation checklist](../../../docs/implementation-checklist.md), and the relevant model issue before editing. The intended reader is a first-time agent or contributor with no knowledge of this repository's history.
 
 ## Reader-first contract
 

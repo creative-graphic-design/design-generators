@@ -100,3 +100,39 @@ def test_check_readme_links_accepts_current_first_party_readmes() -> None:
     check_readme_links = load_check_readme_links()
 
     assert check_readme_links.check_readme_links(REPO_ROOT) == 0
+
+
+def test_check_readme_links_accepts_existing_skill_relative_link(
+    tmp_path: Path,
+) -> None:
+    check_readme_links = load_check_readme_links()
+    skill = tmp_path / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "implementation-checklist.md").write_text(
+        "# Checklist\n",
+        encoding="utf-8",
+    )
+    skill.write_text(
+        "See [the checklist](../../../docs/implementation-checklist.md).\n",
+        encoding="utf-8",
+    )
+
+    assert check_readme_links.check_readme_links(tmp_path) == 0
+
+
+def test_check_readme_links_rejects_dead_skill_relative_link(tmp_path: Path) -> None:
+    check_readme_links = load_check_readme_links()
+    skill = tmp_path / ".agents" / "skills" / "example" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text(
+        "See [the missing page](../../../docs/missing.md).\n",
+        encoding="utf-8",
+    )
+
+    violations = check_readme_links.current_violations(tmp_path)
+
+    assert check_readme_links.check_readme_links(tmp_path) == 1
+    assert len(violations) == 1
+    assert violations[0].link == "../../../docs/missing.md"
+    assert "existing file" in violations[0].reason

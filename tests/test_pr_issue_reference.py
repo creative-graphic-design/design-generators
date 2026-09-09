@@ -172,6 +172,35 @@ def test_checklist_errors_accept_filled_template() -> None:
     )
 
 
+def test_checklist_errors_accept_deprecated_template_wording() -> None:
+    body = filled_body()
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[0],
+        "Confirmed the applicable issue #60 checklist items.",
+    )
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[1],
+        "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    )
+
+    assert (
+        check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS) == []
+    )
+
+
+def test_checklist_errors_reject_missing_current_and_deprecated_wording() -> None:
+    body = filled_body()
+    body = body.replace(REQUIRED_CHECKLIST_ITEMS[0], "A different checklist item.")
+    body = body.replace(
+        REQUIRED_CHECKLIST_ITEMS[1], "Another different checklist item."
+    )
+
+    errors = check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS)
+
+    assert REQUIRED_CHECKLIST_ITEMS[0] in errors[0]
+    assert REQUIRED_CHECKLIST_ITEMS[1] in errors[0]
+
+
 def test_completion_gate_allows_draft_incomplete() -> None:
     body = completion_body(
         draft=True,
