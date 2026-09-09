@@ -6,4 +6,4 @@ tags:
 
 # API Reference
 
-Each workspace package has one committed stub in this section. The `show_submodules` option lets `mkdocstrings` render that package's documented module tree without a page generator.
+Browse the API pages for shared libraries and model packages.
