@@ -15,7 +15,7 @@ This catalog groups each package by the task family it supports, links the origi
 
 | Model | Task family | Original paper | API reference |
 | --- | --- | --- | --- |
-| BASNet | Saliency detection | [Paper](https://arxiv.org/abs/1907.10719) | [API](api/models/basnet/) |
+| BASNet | Saliency detection | [Paper](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html) | [API](api/models/basnet/) |
 | CGB-DM | Poster layout generation | [Paper](https://arxiv.org/abs/2407.15233) | [API](api/models/cgb-dm/) |
 | Coarse-to-Fine | Layout generation | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/19994) | [API](api/models/coarse-to-fine/) |
 | DLT | Layout generation | [Paper](https://arxiv.org/abs/2303.03755) | [API](api/models/dlt/) |
@@ -27,7 +27,7 @@ This catalog groups each package by the task family it supports, links the origi
 | LayoutAction | Layout generation | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/26277) | [API](api/models/layout-action/) |
 | Layout-Corrector | Layout generation | [Paper](https://arxiv.org/abs/2409.16689) | [API](api/models/layout-corrector/) |
 | LayoutDETR | Content-image layout generation | [Paper](https://arxiv.org/abs/2212.09877) | [API](api/models/layout-detr/) |
-| LayoutDM | Layout generation | [Paper](https://arxiv.org/abs/2303.08137) | [API](api/models/layout-dm/) |
+| LayoutDM | Layout generation | [Paper](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html) | [API](api/models/layout-dm/) |
 | Layout FID | Layout evaluation | [Paper](https://arxiv.org/abs/2108.00871) | [API](api/models/layout-fid/) |
 | LayoutFlow | Layout generation | [Paper](https://arxiv.org/abs/2403.18187) | [API](api/models/layout-flow/) |
 | LayoutGPT | Prompt-based layout generation | [Paper](https://arxiv.org/abs/2305.15393) | [API](api/models/layout-gpt/) |
