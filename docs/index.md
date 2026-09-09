@@ -7,53 +7,114 @@ tags:
 
 # design-generators
 
-design-generators ports layout, poster, and graphic-design research implementations into installable packages with consistent Transformers-, Diffusers-, and Pydantic AI-style interfaces.
+design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
+
+## Highlights
+
+- ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no original-repository setup required.
+- 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
+- ✅ **Reference-verified**: our ports are numerically checked against the original implementations, with copy-pasteable reproduction commands per package.
 
 ## Models
 
-This catalog groups each package by the task family it supports, links the original research paper, and points to the package's generated API reference.
+Framework, task, and dataset details are maintained in each package README. The table links to those READMEs, the original papers, and the corresponding site API pages.
 
-| Model | Task family | Original paper | API reference |
-| --- | --- | --- | --- |
-| BASNet | Saliency detection | [Paper](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html) | [API](api/models/basnet/) |
-| CGB-DM | Poster layout generation | [Paper](https://arxiv.org/abs/2407.15233) | [API](api/models/cgb-dm/) |
-| Coarse-to-Fine | Layout generation | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/19994) | [API](api/models/coarse-to-fine/) |
-| DLT | Layout generation | [Paper](https://arxiv.org/abs/2303.03755) | [API](api/models/dlt/) |
-| DS-GAN | Poster layout generation | [Paper](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html) | [API](api/models/ds-gan/) |
-| Flex-DM | Layout generation | [Paper](https://arxiv.org/abs/2303.18248) | [API](api/models/flex-dm/) |
-| House-GAN | Floorplan generation | [Paper](https://arxiv.org/abs/2003.06988) | [API](api/models/housegan/) |
-| LACE | Layout generation | [Paper](https://openreview.net/forum?id=kJ0qp9Xdsh) | [API](api/models/lace/) |
-| LayouSyn | Layout generation | [Paper](https://arxiv.org/abs/2505.04718) | [API](api/models/layousyn/) |
-| LayoutAction | Layout generation | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/26277) | [API](api/models/layout-action/) |
-| Layout-Corrector | Layout generation | [Paper](https://arxiv.org/abs/2409.16689) | [API](api/models/layout-corrector/) |
-| LayoutDETR | Content-image layout generation | [Paper](https://arxiv.org/abs/2212.09877) | [API](api/models/layout-detr/) |
-| LayoutDM | Layout generation | [Paper](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html) | [API](api/models/layout-dm/) |
-| Layout FID | Layout evaluation | [Paper](https://arxiv.org/abs/2108.00871) | [API](api/models/layout-fid/) |
-| LayoutFlow | Layout generation | [Paper](https://arxiv.org/abs/2403.18187) | [API](api/models/layout-flow/) |
-| LayoutGPT | Prompt-based layout generation | [Paper](https://arxiv.org/abs/2305.15393) | [API](api/models/layout-gpt/) |
-| LayoutDiffusion | Layout generation | [Paper](https://arxiv.org/abs/2303.11589) | [API](api/models/layoutdiffusion/) |
-| LayoutFormer++ | Layout generation | [Paper](https://arxiv.org/abs/2208.08037) | [API](api/models/layoutformerpp/) |
-| LayoutGAN++ | Layout generation | [Paper](https://doi.org/10.1145/3474085.3475497) | [API](api/models/layoutganpp/) |
-| LayoutPrompter | Prompt-based layout generation | [Paper](https://arxiv.org/abs/2311.06495) | [API](api/models/layoutprompter/) |
-| LayoutVAE | Layout generation | [Paper](https://arxiv.org/abs/1907.10719) | [API](api/models/layoutvae/) |
-| LT-Net | Scene-graph-to-layout generation | [Paper](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html) | [API](api/models/ltnet/) |
-| Parse-Then-Place | Layout generation | [Paper](https://arxiv.org/abs/2308.12700) | [API](api/models/parse-then-place/) |
-| PosterLLaVA | Poster layout generation | [Paper](https://arxiv.org/abs/2406.02884) | [API](api/models/posterllava/) |
-| PosterLlama | Poster layout generation | [Paper](https://arxiv.org/abs/2404.00995) | [API](api/models/posterllama/) |
-| PosterO | Poster layout generation | [Paper](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html) | [API](api/models/postero/) |
-| RALF | Retrieval-augmented layout generation | [Paper](https://arxiv.org/abs/2311.13602) | [API](api/models/ralf/) |
-| SmartText | Text placement | [Paper](https://ieeexplore.ieee.org/document/9520053) | [API](api/models/smarttext/) |
+| Model | Task family | Venue | Ckpt | Train | Original paper | API reference |
+| --- | --- | --- | --- | --- | --- | --- |
+| [`BASNet`](https://github.com/creative-graphic-design/design-generators/blob/main/models/basnet/README.md) | Saliency detection | ![venue: CVPR 2019](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202019&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/basnet/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html) | [API](api/models/basnet/)
+| [`CGB-DM`](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/README.md) | Poster layout generation | ![venue: arXiv 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=arXiv%202024&color=b31b1b) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md) | [Paper](https://arxiv.org/abs/2407.15233) | [API](api/models/cgb-dm/)
+| [`Coarse-to-Fine`](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/README.md) | Layout generation | ![venue: AAAI 2022](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=AAAI%202022&color=2f5f8f) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/19994) | [API](api/models/coarse-to-fine/)
+| [`DLT`](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/README.md) | Layout generation | ![venue: ICCV 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202023&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/dlt/TRAINING.md) | [Paper](https://arxiv.org/abs/2303.03755) | [API](api/models/dlt/)
+| [`DS-GAN`](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/README.md) | Poster layout generation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/ds-gan/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html) | [API](api/models/ds-gan/)
+| [`Flex-DM`](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/README.md) | Layout generation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2303.18248) | [API](api/models/flex-dm/)
+| [`House-GAN`](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/README.md) | Floorplan generation | ![venue: ECCV 2020](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202020&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/housegan/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2003.06988) | [API](api/models/housegan/)
+| [`LACE`](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/README.md) | Layout generation | ![venue: ICLR 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICLR%202024&color=00a88f) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/lace/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://openreview.net/forum?id=kJ0qp9Xdsh) | [API](api/models/lace/)
+| [`LayouSyn`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/README.md) | Layout generation | ![venue: ICCV 2025](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202025&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layousyn/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2505.04718) | [API](api/models/layousyn/)
+| [`Layout-Corrector`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/README.md) | Layout generation | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2409.16689) | [API](api/models/layout-corrector/)
+| [`LayoutDETR`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/README.md) | Content-image layout generation | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-detr/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2212.09877) | [API](api/models/layout-detr/)
+| [`LayoutDM`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/README.md) | Layout generation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) | [Paper](https://openaccess.thecvf.com/content/CVPR2023/html/Inoue_LayoutDM_Discrete_Diffusion_Model_for_Controllable_Layout_Generation_CVPR_2023_paper.html) | [API](api/models/layout-dm/)
+| [`Layout FID`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/README.md) | Layout evaluation | ![venue: ACM MM 2021](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ACM%20MM%202021&color=0085ca) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-fid/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2108.00871) | [API](api/models/layout-fid/)
+| [`LayoutAction`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/README.md) | Layout generation | ![venue: AAAI 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=AAAI%202023&color=2f5f8f) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-action/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://ojs.aaai.org/index.php/AAAI/article/view/26277) | [API](api/models/layout-action/)
+| [`LayoutFlow`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/README.md) | Layout generation | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) | [Paper](https://arxiv.org/abs/2403.18187) | [API](api/models/layout-flow/)
+| [`LayoutGPT`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/README.md) | Prompt-based layout generation | ![venue: NeurIPS 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=NeurIPS%202023&color=4b2e83) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-gpt/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2305.15393) | [API](api/models/layout-gpt/)
+| [`LT-Net`](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/README.md) | Scene-graph-to-layout generation | ![venue: CVPR 2021](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202021&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/ltnet/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html) | [API](api/models/ltnet/)
+| [`LayoutDiffusion`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/README.md) | Layout generation | ![venue: ICCV 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202023&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutdiffusion/TRAINING.md) | [Paper](https://arxiv.org/abs/2303.11589) | [API](api/models/layoutdiffusion/)
+| [`LayoutFormer++`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/README.md) | Layout generation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2208.08037) | [API](api/models/layoutformerpp/)
+| [`LayoutGAN++`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/README.md) | Layout generation | ![venue: ACM MM 2021](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ACM%20MM%202021&color=0085ca) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutganpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://doi.org/10.1145/3474085.3475497) | [API](api/models/layoutganpp/)
+| [`LayoutVAE`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutvae/README.md) | Layout generation | ![venue: ICCV 2019](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202019&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutvae/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/1907.10719) | [API](api/models/layoutvae/)
+| [`LayoutPrompter`](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/README.md) | Prompt-based layout generation | ![venue: NeurIPS 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=NeurIPS%202023&color=4b2e83) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2311.06495) | [API](api/models/layoutprompter/)
+| [`Parse-Then-Place`](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/README.md) | Layout generation | ![venue: ICCV 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ICCV%202023&color=0066cc) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2308.12700) | [API](api/models/parse-then-place/)
+| [`PosterLlama`](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/README.md) | Poster layout generation | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllama/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2404.00995) | [API](api/models/posterllama/)
+| [`PosterLLaVA`](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/README.md) | Poster layout generation | ![venue: TMM 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=TMM%202024&color=purple) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/posterllava/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2406.02884) | [API](api/models/posterllava/)
+| [`PosterO`](https://github.com/creative-graphic-design/design-generators/blob/main/models/postero/README.md) | Poster layout generation | ![venue: CVPR 2025](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202025&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/postero/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html) | [API](api/models/postero/)
+| [`RALF`](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/README.md) | Retrieval-augmented layout generation | ![venue: CVPR 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202024&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://arxiv.org/abs/2311.13602) | [API](api/models/ralf/)
+| [`SmartText`](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/README.md) | Text placement | ![venue: TMM 2021](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=TMM%202021&color=00629b) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](https://github.com/creative-graphic-design/design-generators/blob/main/models/smarttext/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) | [Paper](https://ieeexplore.ieee.org/document/9520053) | [API](api/models/smarttext/)
 
-The [Models](models/) page links each package's README, reproduction guide, and training guide when available.
+## Libraries
+
+| Library | Description | API reference |
+| --- | --- | --- |
+| [![library: laygen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=laygen&color=2f80ed)](https://github.com/creative-graphic-design/design-generators/blob/main/lib/laygen/README.md) | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers. | [API](api/libraries/laygen/)
+| [![library: posgen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=posgen&color=00a88f)](https://github.com/creative-graphic-design/design-generators/blob/main/lib/posgen/README.md) | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. | [API](api/libraries/posgen/)
+| [![library: traingen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=traingen&color=27ae60)](https://github.com/creative-graphic-design/design-generators/blob/main/lib/traingen/README.md) | Training utilities for package-local PyTorch Lightning CLI integration in packages that train models locally. | [API](api/libraries/traingen/)
+| [![library: traingen-parity](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=traingen-parity&color=9b51e0)](https://github.com/creative-graphic-design/design-generators/blob/main/lib/traingen-parity/README.md) | Deterministic trace capture and comparison helpers for training-parity checks. | [API](api/libraries/traingen-parity/)
+
+## Quick Start
+
+Install the shared layout library directly from this repository:
+
+```bash
+pip install "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen"
+```
+
+Model packages depend on workspace libraries that are not published on PyPI, so install `laygen` together with the model package:
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
+```
+
+```python
+from layout_dm import LayoutDMPipeline
+
+print(LayoutDMPipeline.__name__)
+```
+
+For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`.
+
+```bash
+git clone https://github.com/creative-graphic-design/design-generators.git
+cd design-generators
+uv run --package layout-dm pytest models/layout-dm/tests -m "not vendor_parity and not integration"
+```
 
 ## Getting started
 
-[Getting Started](getting-started/) explains how to install a workspace package and run a first inference with a converted checkpoint.
+The [Getting Started](getting-started/) guide explains the complete installation and first-inference workflow.
 
 ## How the repository is organized
 
-[Architecture](architecture/) explains the boundary between shared libraries and model packages, while [Conventions](conventions/) defines the common public output schema and conditioning names.
+The [architecture guide](architecture/) explains the boundary between shared libraries and model packages, while [Conventions](conventions/) defines the common public output schema and conditioning names.
+
+## Policies
+
+### Reproducibility
+
+Every port is verified against the original implementation: agreement checks (the repository's `vendor_parity` tests) compare package outputs with references generated by running the original implementation in [`vendor/`](https://github.com/creative-graphic-design/design-generators/tree/main/vendor/). Each package's `REPRODUCING.md` shows how to reproduce the check, and its README reports the resulting comparison numbers.
+
+### Training
+
+For models we reproduce by training ourselves, each package provides [`PyTorch Lightning`](https://lightning.ai/docs/pytorch/stable/) modules, [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) configs, and package-specific training commands. Shared training helpers live in `lib/traingen`, parity helpers live in `lib/traingen-parity`, and runnable workflows are documented in each package's `TRAINING.md`; see the [training reproduction guide](training-reproduction/) for the repository protocol.
+
+### Extension
+
+Extend by installing pinned released packages and subclassing; never copy framework or repository source trees into your project and mutate them in place. This applies to human developers and AI coding agents alike; see [Extending](extending/).
 
 ## API reference
 
-The [API Reference](api/) documents the public package trees for the shared libraries and model packages.
+See the [design-generators documentation](https://creative-graphic-design.github.io/design-generators/) for guides and the [API reference](api/) for workspace libraries and model packages.
+
+## License
+
+Repository code is licensed under Apache-2.0; see [LICENSE](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE). Converted weights, datasets, and vendored upstream code carry their original licenses.
