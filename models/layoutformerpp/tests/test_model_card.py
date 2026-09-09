@@ -19,7 +19,7 @@ def test_layoutformerpp_model_card_sections() -> None:
 
     assert (
         layoutformerpp_hub_id(DatasetName.rico25, ConditionType.label)
-        == "creative-graphic-design/layoutformerpp-rico-label"
+        == "creative-graphic-design/layoutformerpp-rico25-label"
     )
     assert metadata["license"] == "mit"
     assert metadata["library_name"] == "transformers"
@@ -39,7 +39,7 @@ def test_layoutformerpp_model_card_sections() -> None:
     assert "## Citation" in text
     assert "Guo, Jiaqi and Sun, Shizhao" in text
     assert "Mijovic, Vuksan and Yang, Zijiang James" in text
-    assert "every public `rico` and `publaynet`" in text
+    assert "every public `rico25` and `publaynet`" in text
     assert "LayoutDM" not in text
     assert "CyberAgentAILab" not in text
     assert "2303.08137" not in text

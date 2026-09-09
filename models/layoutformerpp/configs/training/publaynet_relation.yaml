@@ -1,0 +1,22 @@
+seed_everything: false
+trainer:
+  accelerator: gpu
+  devices: 1
+  precision: 32-true
+  max_epochs: 200
+  check_val_every_n_epoch: 50
+  accumulate_grad_batches: 1
+  gradient_clip_val: null
+  num_sanity_val_steps: 0
+  use_distributed_sampler: false
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args: {monitor: val_loss, mode: min, save_top_k: 1, save_last: false}
+model:
+  class_path: layoutformerpp.training.lightning_module.LayoutFormerPPTrainingModule
+  init_args:
+    recipe_name: publaynet_relation
+    config: {dataset: publaynet, task: gen_r, vocab_size: 178, max_position_embeddings: 400}
+data:
+  class_path: layoutformerpp.training.lightning_module.LayoutFormerPPDataModule
+  init_args: {recipe_name: publaynet_relation}
