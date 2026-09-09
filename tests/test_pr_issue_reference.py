@@ -25,8 +25,8 @@ def load_check_pr_issue_reference() -> ModuleType:
 
 check_pr_issue_reference = load_check_pr_issue_reference()
 REQUIRED_CHECKLIST_ITEMS = [
-    "Confirmed the applicable issue #60 checklist items.",
-    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    "Confirmed the applicable implementation checklist items.",
+    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.",
     "Confirmed the implementation issue has a milestone and native Priority field set.",
     "Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.",
     "Read the model plan and amendment comments, if this is a model PR.",
@@ -76,7 +76,7 @@ def test_valid_issue_references_accepts_refs_and_closes() -> None:
 
 
 def test_valid_issue_references_ignores_standing_policy_issues() -> None:
-    body = "Full checklist: see issue #60.\n\nRefs #60 and Refs #2.\n"
+    body = "Full checklist: see docs/implementation-checklist.md.\n\nRefs #60 and Refs #2.\n"
 
     assert check_pr_issue_reference.valid_issue_references(body) == set()
 
@@ -149,7 +149,7 @@ def test_checklist_errors_require_template_item_text() -> None:
 
     errors = check_pr_issue_reference.checklist_errors(body, REQUIRED_CHECKLIST_ITEMS)
 
-    assert "Confirmed the applicable issue #60 checklist items." in errors[0]
+    assert "Confirmed the applicable implementation checklist items." in errors[0]
 
 
 def test_checklist_errors_reject_unchecked_template_items() -> None:
