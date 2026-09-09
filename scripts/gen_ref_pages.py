@@ -1197,13 +1197,20 @@ def render_generated_nav(
     line_index = 0
     while line_index < len(source_nav_lines):
         line = source_nav_lines[line_index]
+
         if line.startswith("  - API Reference:"):
             lines.extend(_render_generated_api_nav(packages))
             api_entry_rendered = True
             line_index += 1
-            while line_index < len(source_nav_lines) and not source_nav_lines[
-                line_index
-            ].startswith("  - "):
+            while line_index < len(source_nav_lines):
+                nested_line = source_nav_lines[line_index]
+
+                if not nested_line.startswith((" ", "\t")):
+                    break
+
+                if not nested_line.strip() or nested_line.lstrip().startswith("#"):
+                    break
+
                 line_index += 1
             continue
 
@@ -1211,7 +1218,8 @@ def render_generated_nav(
         line_index += 1
 
     if not api_entry_rendered:
-        lines.extend(_render_generated_api_nav(packages))
+        raise ValueError("mkdocs.yml nav must include an API Reference entry")
+
     return lines
 
 
@@ -1313,9 +1321,11 @@ def main() -> None:
     """Generate all API reference files."""
     clean_generated_api_dir()
     packages = discover_api_packages()
+    write_overview_page()
     write_api_index(packages)
     write_group_indexes(packages)
     write_package_indexes(packages)
+    write_models_overview(packages)
     write_reproducing_pages(packages)
     write_training_pages(packages)
     write_api_pages(packages)

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
 import sys
 from types import ModuleType
 
@@ -111,17 +113,23 @@ def _patch_docs_generator_root(
     )
 
 
-def _non_generated_file_snapshot(root: Path) -> dict[Path, bytes]:
-    """Snapshot files the API generator is not allowed to create or modify."""
-    generated_api_dir = root / "docs" / "api"
-    generated_config = root / "mkdocs.generated.yml"
-    snapshot: dict[Path, bytes] = {}
-    for path in root.rglob("*"):
-        if not path.is_file() or ".git" in path.parts:
+def _non_generated_file_snapshot(root: Path) -> dict[Path, str]:
+    """Hash tracked hand-written docs that the API generator must preserve."""
+    # Overview, model-index, and API pages are generator-owned outputs.
+    generated_paths = {Path("docs/index.md"), Path("docs/models.md")}
+    tracked_paths = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--", "docs", "mkdocs.yml"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    snapshot: dict[Path, str] = {}
+    for relative_name in tracked_paths:
+        relative = Path(relative_name)
+        if relative in generated_paths or relative.parts[:2] == ("docs", "api"):
             continue
-        if path == generated_config or generated_api_dir in path.parents:
-            continue
-        snapshot[path.relative_to(root)] = path.read_bytes()
+        path = root / relative
+        snapshot[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     return snapshot
 
 
@@ -156,7 +164,7 @@ def _write_minimal_fake_model(
     if with_reproducing:
         (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
     (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        "site_name: fake\nnav:\n  - Overview: index.md\n  - API Reference: api/\n",
         encoding="utf-8",
     )
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
@@ -285,7 +293,26 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     for path in _docs_markdown_pages(tmp_path):
         _assert_docs_page_frontmatter(path)
 
+    assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
+        [
+            "---",
+            "icon: lucide/layout-template",
+            "tags:",
+            "  - Overview",
+            "  - Documentation",
+            "---",
+            "",
+            "# Fake Repo",
+            "",
+            "[Model](api/models/fake-project/)",
+            "[Guide](api/models/fake-project/reproducing/)",
+            "[Extending](extending/)",
+            "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
+            "",
+        ]
+    )
     assert (tmp_path / "docs/api/index.md").is_file()
+    assert (tmp_path / "docs/models.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
     assert "- [FakeProject](models/fake-project/)" in (
@@ -380,6 +407,22 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         ]
     )
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
+    models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
+    assert "| Model | Venue | Runtime | Datasets | Ckpt | Train |" in models_overview
+    assert (
+        "Task colors: ![task: content-agnostic]"
+        "(https://img.shields.io/static/v1?label=%F0%9F%A7%A9&message=content-agnostic&color=2f80ed)"
+        in models_overview
+    )
+    assert (
+        "| [FakeProject](api/models/fake-project/) | "
+        "![venue: n/a](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=n%2Fa&color=lightgrey) | "
+        "![framework: transformers](https://img.shields.io/static/v1?label=.&message=transformers&color=yellow&logo=huggingface&logoColor=white) | "
+        "[![dataset: RICO25](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=RICO25&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/Rico) "
+        "[![dataset: PubLayNet](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=PubLayNet&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](api/models/fake-project/reproducing/) | "
+        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](api/models/fake-project/training/) |"
+    ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
     assert "  - Models: models.md" in generated_config
     assert (
@@ -436,7 +479,7 @@ def test_gen_ref_pages_requires_reproducing_for_model_packages(
         encoding="utf-8",
     )
     (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        "site_name: fake\nnav:\n  - Overview: index.md\n  - API Reference: api/\n",
         encoding="utf-8",
     )
     (tmp_path / "README.md").write_text("# Fake Repo\n", encoding="utf-8")
@@ -491,6 +534,19 @@ def test_model_conversion_modules_are_documented(tmp_path: Path) -> None:
     )
 
 
+def test_generated_overview_matches_readme_with_rewritten_links() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    expected = gen_ref_pages.rewrite_repo_relative_links(
+        (REPO_ROOT / "README.md").read_text(encoding="utf-8").rstrip()
+    )
+
+    gen_ref_pages.main()
+
+    assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
+        f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
+    )
+
+
 def test_gen_ref_pages_preserves_handwritten_files() -> None:
     gen_ref_pages = _load_gen_ref_pages()
     snapshots = _non_generated_file_snapshot(REPO_ROOT)
@@ -538,6 +594,33 @@ def test_generated_nav_preserves_handwritten_mkdocs_entries() -> None:
         if not entry[0].startswith("  - API Reference:")
     ]
     assert generated_handwritten_entries == handwritten_entries
+
+
+def test_render_generated_nav_requires_api_reference_entry() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+
+    with pytest.raises(ValueError, match="API Reference"):
+        gen_ref_pages.render_generated_nav([], ["  - Overview: index.md"])
+
+
+def test_render_generated_nav_preserves_nav_comments_and_blank_lines() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    source_nav_lines = [
+        "  - Overview: index.md",
+        "  - API Reference: api/",
+        "      - stale generated entry: api/stale.md",
+        "",
+        "# Keep this comment in the nav block.",
+        "  - Training Reproduction: training-reproduction.md",
+    ]
+
+    generated = gen_ref_pages.render_generated_nav([], source_nav_lines)
+
+    assert generated[-3:] == [
+        "",
+        "# Keep this comment in the nav block.",
+        "  - Training Reproduction: training-reproduction.md",
+    ]
 
 
 def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
@@ -601,7 +684,7 @@ def test_gen_ref_pages_rejects_unknown_model_metadata_values(
     )
     (member_dir / "REPRODUCING.md").write_text("# Reproducing\n", encoding="utf-8")
     (tmp_path / "mkdocs.yml").write_text(
-        "site_name: fake\nnav:\n  - Overview: index.md\n",
+        "site_name: fake\nnav:\n  - Overview: index.md\n  - API Reference: api/\n",
         encoding="utf-8",
     )
     (package_dir / "__init__.py").write_text("", encoding="utf-8")
