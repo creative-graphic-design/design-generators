@@ -78,10 +78,12 @@ anchor_point
 
 ```mermaid
 graph LR
-    model_package["model package"] --> laygen["laygen"]
-    poster_model["poster or content-aware model package"] --> posgen["posgen"]
-    posgen -. "optional; currently unused" .-> laygen
+    laygen["laygen"] --> model_packages["model packages"]
+    laygen -. "optional; currently unused" .-> posgen["posgen"]
+    posgen --> poster_models["poster or content-aware model packages"]
 ```
+
+The arrows point from a library to the packages that import it.
 
 ## Growth Rule
 
