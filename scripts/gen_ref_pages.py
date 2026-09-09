@@ -1141,15 +1141,28 @@ def write_models_overview(packages: list[ApiPackage]) -> None:
     write_text_file(Path("models.md"), "\n".join(lines))
 
 
-def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
-    """Render explicit MkDocs nav lines with model-level API entries."""
+def _split_top_level_nav_entries(nav_lines: list[str]) -> list[list[str]]:
+    """Split a MkDocs nav block into top-level entries."""
+    entries: list[list[str]] = []
+    current: list[str] = []
+    for line in nav_lines:
+        if line.startswith("  - "):
+            if current:
+                entries.append(current)
+            current = [line]
+            continue
+
+        if current:
+            current.append(line)
+
+    if current:
+        entries.append(current)
+    return entries
+
+
+def _render_generated_api_nav(packages: list[ApiPackage]) -> list[str]:
+    """Render the generator-owned API reference nav tree."""
     lines = [
-        "nav:",
-        "  - Overview: index.md",
-        "  - Getting Started: getting-started.md",
-        "  - Models: models.md",
-        "  - Conventions: conventions.md",
-        "  - Extending: extending.md",
         "  - API Reference:",
         "      - Overview: api/index.md",
     ]
@@ -1157,12 +1170,14 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
         group_packages = [package for package in packages if package.group == group]
         if not group_packages:
             continue
+
         lines.extend(
             [
                 f"      - {group}:",
                 f"          - Overview: api/{group.lower()}/index.md",
             ]
         )
+
         for package in group_packages:
             lines.extend(
                 [
@@ -1170,10 +1185,13 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
                     f"              - Overview: {package.index_path}",
                 ]
             )
+
             if package.reproducing_path is not None:
                 lines.append(f"              - Reproducing: {package.reproducing_path}")
+
             if package.training_path is not None:
                 lines.append(f"              - Training: {package.training_path}")
+
             if package.pages:
                 lines.extend(
                     [
@@ -1184,6 +1202,27 @@ def render_generated_nav(packages: list[ApiPackage]) -> list[str]:
                         ),
                     ]
                 )
+
+    return lines
+
+
+def render_generated_nav(
+    packages: list[ApiPackage],
+    handwritten_entries: list[list[str]],
+) -> list[str]:
+    """Render MkDocs nav from source entries plus the generated API tree."""
+    lines = ["nav:"]
+    api_entry_rendered = False
+    for entry in handwritten_entries:
+        if entry[0].startswith("  - API Reference:"):
+            lines.extend(_render_generated_api_nav(packages))
+            api_entry_rendered = True
+            continue
+
+        lines.extend(entry)
+
+    if not api_entry_rendered:
+        lines.extend(_render_generated_api_nav(packages))
     return lines
 
 
@@ -1197,9 +1236,10 @@ def write_generated_mkdocs_config(packages: list[ApiPackage]) -> None:
         if line and not line.startswith((" ", "-")):
             break
         nav_end += 1
+    handwritten_entries = _split_top_level_nav_entries(source[nav_start + 1 : nav_end])
     generated = [
         *source[:nav_start],
-        *render_generated_nav(packages),
+        *render_generated_nav(packages, handwritten_entries),
         *source[nav_end:],
     ]
     write_generated_file(GENERATED_MKDOCS_CONFIG, "\n".join(generated) + "\n")
@@ -1285,11 +1325,9 @@ def main() -> None:
     """Generate all API reference files."""
     clean_generated_api_dir()
     packages = discover_api_packages()
-    write_overview_page()
     write_api_index(packages)
     write_group_indexes(packages)
     write_package_indexes(packages)
-    write_models_overview(packages)
     write_reproducing_pages(packages)
     write_training_pages(packages)
     write_api_pages(packages)
