@@ -211,6 +211,10 @@ def test_gen_ref_pages_writes_standalone_api_tree(
                 "site_name: fake",
                 "nav:",
                 "  - Overview: index.md",
+                "  - Getting Started: getting-started.md",
+                "  - Models: models.md",
+                "  - Conventions: conventions.md",
+                "  - Architecture: architecture.md",
                 "  - API Reference: api/",
                 "markdown_extensions:",
                 "  - toc",
@@ -250,26 +254,7 @@ def test_gen_ref_pages_writes_standalone_api_tree(
     for path in _docs_markdown_pages(tmp_path):
         _assert_docs_page_frontmatter(path)
 
-    assert (tmp_path / "docs/index.md").read_text(encoding="utf-8") == "\n".join(
-        [
-            "---",
-            "icon: lucide/layout-template",
-            "tags:",
-            "  - Overview",
-            "  - Documentation",
-            "---",
-            "",
-            "# Fake Repo",
-            "",
-            "[Model](api/models/fake-project/)",
-            "[Guide](api/models/fake-project/reproducing/)",
-            "[Extending](extending/)",
-            "[License](https://github.com/creative-graphic-design/design-generators/blob/main/LICENSE)",
-            "",
-        ]
-    )
     assert (tmp_path / "docs/api/index.md").is_file()
-    assert (tmp_path / "docs/models.md").is_file()
     assert (tmp_path / "docs/api/models/index.md").is_file()
     assert (tmp_path / "docs/api/models/fake-project/index.md").is_file()
     assert "- [FakeProject](models/fake-project/)" in (
@@ -364,22 +349,6 @@ def test_gen_ref_pages_writes_standalone_api_tree(
         ]
     )
     assert not (tmp_path / "docs/api/SUMMARY.md").exists()
-    models_overview = (tmp_path / "docs/models.md").read_text(encoding="utf-8")
-    assert "| Model | Venue | Runtime | Datasets | Ckpt | Train |" in models_overview
-    assert (
-        "Task colors: ![task: content-agnostic]"
-        "(https://img.shields.io/static/v1?label=%F0%9F%A7%A9&message=content-agnostic&color=2f80ed)"
-        in models_overview
-    )
-    assert (
-        "| [FakeProject](api/models/fake-project/) | "
-        "![venue: n/a](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=n%2Fa&color=lightgrey) | "
-        "![framework: transformers](https://img.shields.io/static/v1?label=.&message=transformers&color=yellow&logo=huggingface&logoColor=white) | "
-        "[![dataset: RICO25](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=RICO25&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/Rico) "
-        "[![dataset: PubLayNet](https://img.shields.io/static/v1?label=%F0%9F%97%82%EF%B8%8F&message=PubLayNet&color=9b51e0)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | "
-        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](api/models/fake-project/reproducing/) | "
-        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](api/models/fake-project/training/) |"
-    ) in models_overview
     generated_config = (tmp_path / "mkdocs.generated.yml").read_text(encoding="utf-8")
     assert "  - Models: models.md" in generated_config
     assert (
@@ -491,17 +460,44 @@ def test_model_conversion_modules_are_documented(tmp_path: Path) -> None:
     )
 
 
-def test_generated_overview_matches_readme_with_rewritten_links() -> None:
+def test_gen_ref_pages_preserves_handwritten_files() -> None:
     gen_ref_pages = _load_gen_ref_pages()
-    expected = gen_ref_pages.rewrite_repo_relative_links(
-        (REPO_ROOT / "README.md").read_text(encoding="utf-8").rstrip()
-    )
+    paths = [
+        REPO_ROOT / "docs" / "index.md",
+        REPO_ROOT / "docs" / "models.md",
+        REPO_ROOT / "mkdocs.yml",
+    ]
+    snapshots = {path: path.read_bytes() for path in paths}
 
     gen_ref_pages.main()
 
-    assert (REPO_ROOT / "docs" / "index.md").read_text(encoding="utf-8") == (
-        f"{gen_ref_pages.OVERVIEW_FRONTMATTER}\n{expected}\n"
-    )
+    for path, snapshot in snapshots.items():
+        assert path.is_file()
+        assert path.read_bytes() == snapshot
+
+
+def test_generated_nav_preserves_handwritten_mkdocs_entries() -> None:
+    gen_ref_pages = _load_gen_ref_pages()
+    source = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8").splitlines()
+    nav_start = source.index("nav:")
+    nav_end = nav_start + 1
+    while nav_end < len(source):
+        line = source[nav_end]
+        if line and not line.startswith((" ", "-")):
+            break
+        nav_end += 1
+    source_entries = [
+        line for line in source[nav_start + 1 : nav_end] if line.startswith("  - ")
+    ]
+    handwritten_entries = [
+        line for line in source_entries if not line.startswith("  - API Reference:")
+    ]
+
+    gen_ref_pages.main()
+
+    generated = (REPO_ROOT / "mkdocs.generated.yml").read_text(encoding="utf-8")
+    for entry in handwritten_entries:
+        assert entry in generated
 
 
 def test_repo_root_relative_docs_links_are_rewritten_for_site() -> None:
