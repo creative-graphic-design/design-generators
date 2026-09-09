@@ -35,9 +35,9 @@ members = ["lib/*", "models/*"]
 
 The `lib/` and `models/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, while a model package owns its model-specific processing, inference, conversion, training, and configuration code.
 
-## Shared package namespaces
+## Shared package names and imports
 
-`laygen` is the shared layout-generation distribution and Python namespace, and `posgen` is the shared poster and content-aware distribution and Python namespace.
+`laygen` is the shared layout-generation library; its installable package name and its import name are both `laygen`. `posgen` is the shared poster and content-aware library; its installable package name and its import name are both `posgen`.
 
 Use `laygen.common` for helpers that are reusable across layout-generation packages, and use `posgen.common` for helpers that are reusable across poster or content-aware packages.
 
@@ -72,8 +72,8 @@ The arrows point from a library to the packages that import it.
 
 ## Working with the architecture
 
-Import shared helpers from their public namespace, such as `from laygen.common.bbox import normalize_boxes` or `from posgen.common import PositionContent`.
+Import shared helpers using their public module paths, such as `from laygen.common.bbox import normalize_boxes` or `from posgen.common import PositionContent`.
 
 Keep model-specific code in the model package even when it resembles a shared helper, and add a shared helper only when its behavior and ownership are clear to its consumers.
 
-This page defines package placement, namespace ownership, dependency direction, and output dependency boundaries; the current public output fields and pipeline contracts remain documented in [Conventions](conventions/), and API details remain in the generated reference.
+This page defines where packages live, which package owns each import name, dependency direction, and output dependency boundaries; the current public output fields and pipeline contracts remain documented in [Conventions](conventions/), and API details remain in the generated reference.
