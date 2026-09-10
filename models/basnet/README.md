@@ -28,7 +28,7 @@ model-index:
 
 # Model Card for BASNet
 
-[![arXiv](https://img.shields.io/static/v1?label=arXiv&message=1907.10719&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/1907.10719)
+[![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2019&color=blue&style=flat-square)](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html)
 ![venue](https://img.shields.io/static/v1?label=venue&message=CVPR+2019&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&style=flat-square&logo=apache&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
@@ -53,7 +53,7 @@ BASNet predicts foreground saliency maps from RGB images. The package exposes `B
 ### Model Sources
 
 - **Repository:** [BASNet repository](https://github.com/xuebinqin/BASNet)
-- **Paper:** [BASNet: Boundary-Aware Salient Object Detection](https://arxiv.org/abs/1907.10719)
+- **Paper:** [BASNet: Boundary-Aware Salient Object Detection](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html)
 
 ## Supported Checkpoints
 

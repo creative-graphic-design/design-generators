@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-import re
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 from types import ModuleType
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -17,36 +14,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECK_MODEL_READMES = REPO_ROOT / "scripts/check_model_readmes.py"
 CHECK_README_BADGES = REPO_ROOT / "scripts/check_readme_badges.py"
-DOCS_MODELS = REPO_ROOT / "docs" / "models.md"
-DOCS_MODEL_DATASET_LABELS = {
-    "Ad Banner": "ad_banner",
-    "CGL": "cgl",
-    "COCO": "coco",
-    "COCO grounded": "coco-grounded",
-    "Crello": "crello",
-    "GRIT": "grit",
-    "housegan-floorplan-vectorized": "housegan-floorplan-vectorized",
-    "Magazine": "magazine",
-    "NSR-1K": "nsr-1k",
-    "PKU-PosterLayout": "pku_posterlayout",
-    "PosterLayout": "posterlayout",
-    "PubLayNet": "publaynet",
-    "RICO13": "rico13",
-    "RICO25": "rico25",
-    "SmartText demo assets": "smarttext-demo",
-    "VG-MSDN": "vg-msdn",
-    "Web": "web",
-    "WebUI": "webui",
-}
-DOCS_MODEL_TASK_COLORS = {
-    frozenset({"content-agnostic-layout-generation"}): "2f80ed",
-    frozenset({"content-aware-layout-generation"}): "eb5757",
-    frozenset({"layout-evaluation"}): "6b7280",
-    frozenset({"saliency-detection"}): "009688",
-    frozenset(
-        {"content-agnostic-layout-generation", "content-aware-layout-generation"}
-    ): "9b51e0",
-}
 
 
 def _load_check_model_readmes() -> ModuleType:
@@ -390,77 +357,6 @@ def test_root_models_table_requires_training_link_when_file_exists(
     )
 
     assert check_model_readmes._root_model_slugs(readme) == {"layout-flow"}
-
-
-def _model_workspace_slugs() -> set[str]:
-    return {
-        path.parent.name for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
-    }
-
-
-def _docs_model_badge_rows() -> dict[str, dict[str, set[str]]]:
-    docs_rows: dict[str, dict[str, set[str]]] = {}
-    for line in DOCS_MODELS.read_text(encoding="utf-8").splitlines():
-        if not line.startswith("| ["):
-            continue
-        slug_match = re.search(r"api/models/([^/]+)/", line)
-        if slug_match is None:
-            continue
-        badges: dict[str, set[str]] = {
-            "framework": set(),
-            "dataset": set(),
-            "dataset_color": set(),
-        }
-        for match in re.finditer(
-            r"!\[(framework|dataset): ([^\]]+)\]"
-            r"\((https://img\.shields\.io/static/v1\?[^)]+)\)",
-            line,
-        ):
-            axis = match.group(1)
-            value = match.group(2)
-            query = parse_qs(urlparse(match.group(3)).query)
-            if axis == "framework":
-                badges["framework"].add(value)
-            else:
-                badges["dataset"].add(DOCS_MODEL_DATASET_LABELS[value])
-                badges["dataset_color"].add(query["color"][0])
-        docs_rows[slug_match.group(1)] = badges
-    return docs_rows
-
-
-def _metadata_values(pyproject: Path) -> dict[str, set[str]]:
-    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    metadata = data["tool"]["design-generators"]
-
-    def values(key: str) -> set[str]:
-        value = metadata[key]
-        if isinstance(value, str):
-            return {value}
-        return set(value)
-
-    tasks = values("task")
-    return {
-        "framework": values("framework"),
-        "dataset": values("datasets"),
-        "dataset_color": {DOCS_MODEL_TASK_COLORS[frozenset(tasks)]},
-    }
-
-
-def test_docs_models_metadata_badges_match_model_pyprojects() -> None:
-    docs_rows = _docs_model_badge_rows()
-
-    model_slugs = _model_workspace_slugs()
-    missing_docs_rows = sorted(model_slugs.difference(docs_rows))
-    extra_docs_rows = sorted(set(docs_rows).difference(model_slugs))
-    assert not missing_docs_rows, (
-        f"docs/models.md missing rows for model workspace members: {missing_docs_rows}"
-    )
-    assert not extra_docs_rows, (
-        f"docs/models.md has rows for non-workspace model packages: {extra_docs_rows}"
-    )
-
-    for pyproject in sorted((REPO_ROOT / "models").glob("*/pyproject.toml")):
-        assert docs_rows[pyproject.parent.name] == _metadata_values(pyproject)
 
 
 def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(

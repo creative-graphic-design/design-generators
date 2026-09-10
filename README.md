@@ -5,20 +5,20 @@
 [![docs](https://img.shields.io/github/deployments/creative-graphic-design/design-generators/github-pages?label=docs&logo=readthedocs&logoColor=white)](https://creative-graphic-design.github.io/design-generators/)
 ![license](https://img.shields.io/static/v1?label=license&message=Apache-2.0&color=green&logo=apache&logoColor=white)
 ![python](https://img.shields.io/static/v1?label=python&message=%3E%3D3.11&color=blue&logo=python&logoColor=white)
-![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&logo=uv&logoColor=white)
+[![uv](https://img.shields.io/static/v1?label=uv&message=workspace&color=informational&logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
 ![models](https://img.shields.io/static/v1?label=models&message=28&color=purple)
 
 design-generators ports layout, poster, and graphic-design generation research repositories into framework-specific packages for [`🤗transformers`](https://huggingface.co/docs/transformers/index), [`🧨diffusers`](https://huggingface.co/docs/diffusers/index), and [`🤖pydantic-ai`](https://ai.pydantic.dev/) that can load converted weights or prompt configuration and run inference through a consistent public schema.
 
 ## Highlights
 
-- ⚡ **Run in minutes**: converted weights load with `from_pretrained`; no original-repository setup required.
+- ⚡ **Run in minutes**: converted weights load with [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model); no original-repository setup required.
 - 📐 **One output schema**: generation models share a single interface with [`jaxtyping`-shaped](https://docs.kidger.site/jaxtyping/) tensor annotations.
-- ✅ **Reference-verified**: our ports are numerically checked against the original implementations, with copy-pasteable reproduction commands per package.
+- ✅ **Reference-verified**: our ports are numerically checked against the [original implementations](https://github.com/creative-graphic-design/design-generators/tree/main/vendor/) through [agreement checks](https://creative-graphic-design.github.io/design-generators/#reproducibility) with [copy-pasteable reproduction commands per package](https://creative-graphic-design.github.io/design-generators/#models).
 
 ## Models
 
-Framework, task, and dataset details are generated in the [Models documentation](https://creative-graphic-design.github.io/design-generators/models/).
+Framework, task, and dataset details are maintained in each package README and linked from the [Models documentation](https://creative-graphic-design.github.io/design-generators/#models).
 
 | Model | Venue | Ckpt | Train |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@ Framework, task, and dataset details are generated in the [Models documentation]
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | [![library: laygen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=laygen&color=2f80ed)](lib/laygen/README.md)                            | Layout-generation schemas, pipeline helpers, bbox utilities, schedulers, model-card helpers, and testing helpers.      |
 | [![library: posgen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=posgen&color=00a88f)](lib/posgen/README.md)                            | Poster-generation and content-aware placement contracts for shared dataset names, position content, and label helpers. |
-| [![library: traingen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=traingen&color=27ae60)](lib/traingen/README.md)                      | Training utilities for package-local PyTorch Lightning CLI integration in packages that train models locally.          |
+| [![library: traingen](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=traingen&color=27ae60)](lib/traingen/README.md)                      | Training utilities for package-local [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) CLI integration in packages that train models locally.          |
 | [![library: traingen-parity](https://img.shields.io/static/v1?label=%F0%9F%93%A6&message=traingen-parity&color=9b51e0)](lib/traingen-parity/README.md) | Deterministic trace capture and comparison helpers for training-parity checks.                                         |
 
 ## Quick Start
@@ -82,7 +82,7 @@ from layout_dm import LayoutDMPipeline
 print(LayoutDMPipeline.__name__)
 ```
 
-For development, clone the repository and run member commands from the repository root with [`uv run --package <member> ...`](https://docs.astral.sh/uv/concepts/projects/workspaces/); each package documents its reproduction workflow in `REPRODUCING.md`.
+For development, clone the repository and run member commands from the repository root with `uv run --package <member> ...`; each package documents its reproduction workflow in `REPRODUCING.md`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -98,7 +98,7 @@ Every port is verified against the original implementation: agreement checks (th
 
 ### Training
 
-For models we reproduce by training ourselves, each package provides [`PyTorch Lightning`](https://lightning.ai/docs/pytorch/stable/) modules, [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) configs, and package-specific training commands. Shared training helpers live in `lib/traingen`, parity helpers live in `lib/traingen-parity`, and runnable workflows are documented in each package's `TRAINING.md`.
+For models we reproduce by training ourselves, each package provides PyTorch Lightning modules, [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html) configs, and package-specific training commands. Shared training helpers live in `lib/traingen`, parity helpers live in `lib/traingen-parity`, and runnable workflows are documented in each package's `TRAINING.md`.
 
 ### Extension
 
@@ -106,7 +106,7 @@ Extend by installing pinned released packages and subclassing; never copy framew
 
 ## Documentation
 
-See the [design-generators documentation](https://creative-graphic-design.github.io/design-generators/) for guides and the generated API reference for workspace libraries and model packages.
+See the [design-generators documentation](https://creative-graphic-design.github.io/design-generators/) for guides and the API reference for workspace libraries and model packages.
 
 ## License
 
