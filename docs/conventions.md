@@ -66,6 +66,10 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.
 
+### Framework Selection
+
+Choose the framework that matches the model's computation: diffusion and flow-matching models use Diffusers, with the denoiser following `ModelMixin` and `ConfigMixin`, the noising process following `SchedulerMixin`, and generation using `DiffusionPipeline`; when no built-in scheduler expresses the required process, add a repository scheduler; autoregressive, sequence-to-sequence, and GAN models use a Transformers `PreTrainedModel`; LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion; and methods that call an external language model in context use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
+
 ## Contributor Conventions
 
 These conventions apply when adding or maintaining workspace packages.

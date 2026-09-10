@@ -82,3 +82,36 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
         matches = [parents for path, parents in nav_files if path == expected]
         assert len(matches) == 1, f"{slug}: missing or duplicate nav entry (nav)"
         assert matches[0][-2] == group.title(), f"{slug}: wrong API nav group (nav)"
+
+
+def test_data_source_registry_matches_package_metadata() -> None:
+    metadata_datasets: set[str] = set()
+    for pyproject in sorted((REPO_ROOT / "models").glob("*/pyproject.toml")):
+        metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        datasets = (
+            metadata.get("tool", {}).get("design-generators", {}).get("datasets", [])
+        )
+        assert isinstance(datasets, list), f"{pyproject}: datasets must be a list"
+        metadata_datasets.update(
+            dataset for dataset in datasets if isinstance(dataset, str)
+        )
+
+    text = (REPO_ROOT / "docs" / "data-sources.md").read_text(encoding="utf-8")
+    registry = re.search(r"(?ms)^## Dataset registry\s*\n(.*?)(?=^## |\Z)", text)
+    assert registry is not None, (
+        "docs/data-sources.md: missing Dataset registry section"
+    )
+    documented_datasets = {
+        fields[0].strip().strip("`")
+        for line in registry.group(1).splitlines()
+        if line.startswith("|")
+        and not line.startswith("| ---")
+        and not line.startswith("| Metadata key")
+        for fields in [line.strip("|").split("|")]
+    }
+    missing = sorted(metadata_datasets - documented_datasets)
+    extra = sorted(documented_datasets - metadata_datasets)
+    assert not missing and not extra, (
+        "docs/data-sources.md dataset registry differs from [tool.design-generators].datasets: "
+        f"missing={missing}; extra={extra}"
+    )

@@ -50,6 +50,8 @@ nav:
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
   - Implementation Checklist: implementation-checklist.md
+  - Roadmap: roadmap.md
+  - Data Sources: data-sources.md
   - Extending: extending.md
   - API Reference:
       - Overview: api/index.md

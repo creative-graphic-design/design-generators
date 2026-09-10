@@ -9,7 +9,7 @@
 
 ## Sources Of Truth
 
-- Umbrella policy, target table, execution order, interface decisions, data policy, and status tracking live in [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2).
+- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy remains in [docs/conventions.md](docs/conventions.md), shared-library structure remains in [docs/architecture.md](docs/architecture.md), and repository workflow remains here. Historical discussion remains preserved in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2).
 - The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 - Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
@@ -79,7 +79,8 @@
 - When creating any issue, set both the milestone and the native Priority issue field; do not leave either unset. Set the native Priority field through GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
-- Close a model issue only after every planned Hub repo for that issue has a passing `from_pretrained` smoke test.
+- Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair; treat publication to the `creative-graphic-design` Hugging Face organization as a separate approved step, and track publication separately from local serialization and parity verification.
+- Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified; Hub publishing is deferred and is not part of the per-issue close condition.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement
@@ -117,7 +118,7 @@
 
 ### PR And CI Gates
 
-- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding standing issue #2 and historical checklist issue #60.
+- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; `.github/workflows/ci.yml` resolves members with `uv sync --all-packages`.
