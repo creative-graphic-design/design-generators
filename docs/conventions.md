@@ -70,7 +70,7 @@ Datasets hosted by the `creative-graphic-design` Hugging Face organization are p
 
 - Diffusion and flow-matching models use Diffusers.
 - A Diffusers denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration).
-- A Diffusers noising process follows `SchedulerMixin`.
+- A Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview).
 - Diffusers generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline).
 - Add a repository scheduler when no built-in scheduler expresses the required process.
 - Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model).
