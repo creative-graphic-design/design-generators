@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
+# Keep the historical checklist issue excluded after its successor document lands.
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
 COMPLETION_GATE_EFFECTIVE_AT = datetime(2026, 7, 25, tzinfo=UTC)
 ISSUE_REF_RE = re.compile(
@@ -25,6 +26,17 @@ SECTION_HEADING_RE = re.compile(r"(?m)^##\s+")
 CHECKBOX_RE = re.compile(r"(?m)^- \[(?P<state>[ xX])\]\s+(?P<text>.+?)\s*$")
 PLACEHOLDER_RE = re.compile(r"<[^>]+>")
 NON_ACTIONABLE_RE = re.compile(r"(?im)^\s*(?:-|)\s*(?:N/A|TODO)\b")
+
+# Keep these deprecated checklist spellings accepted while already-open PRs are
+# updated opportunistically; remove them after the migration is complete.
+DEPRECATED_CHECKLIST_ALIASES = {
+    "Confirmed the applicable implementation checklist items.": (
+        "Confirmed the applicable issue #60 checklist items.",
+    ),
+    "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.": (
+        "Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.",
+    ),
+}
 
 
 class PullRequestMetadata(NamedTuple):
@@ -77,7 +89,7 @@ def issue_references(body: str) -> set[int]:
 def valid_issue_references(
     body: str, excluded_issues: set[int] | None = None
 ) -> set[int]:
-    """Return PR issue references that are not standing policy/checklist issues."""
+    """Return PR issue references that are not standing policy issues or the historical checklist issue."""
     excluded = DEFAULT_EXCLUDED_ISSUES if excluded_issues is None else excluded_issues
     return issue_references(body) - excluded
 
@@ -141,6 +153,15 @@ def required_checklist_items(template_path: Path) -> list[str]:
     return [match.group("text") for match in CHECKBOX_RE.finditer(section)]
 
 
+def _canonical_checklist_item(item: str) -> str:
+    """Map a current or temporarily accepted legacy item to its current text."""
+    for current, aliases in DEPRECATED_CHECKLIST_ALIASES.items():
+        if item == current or item in aliases:
+            return current
+
+    return item
+
+
 def checklist_errors(body: str, required_items: list[str]) -> list[str]:
     """Return checklist validation errors for a PR body."""
     section = checklist_section(body)
@@ -150,7 +171,7 @@ def checklist_errors(body: str, required_items: list[str]) -> list[str]:
     checked: set[str] = set()
     unchecked: set[str] = set()
     for match in CHECKBOX_RE.finditer(section):
-        item = match.group("text")
+        item = _canonical_checklist_item(match.group("text"))
         if match.group("state").lower() == "x":
             checked.add(item)
         else:
@@ -323,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     if not references:
         errors.append(
             "PR body must include `Closes #N` or `Refs #N` for the implementation "
-            "issue. Standing issues #2 and #60 do not satisfy this check."
+            "issue. Standing policy issue #2 and historical checklist issue #60 do not satisfy this check."
         )
 
     template_path = (

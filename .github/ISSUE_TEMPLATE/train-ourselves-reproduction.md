@@ -57,5 +57,5 @@ comment containing the vendor reference adapter plus S0-S2 evidence exists.
 
 ## Tracking
 
-- Refs #2, #60.
+- Refs https://github.com/creative-graphic-design/design-generators/issues/2; follow the implementation checklist at https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md.
 - Implementation PR stays draft until S5 is confirmed for every claimed dataset.

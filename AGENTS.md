@@ -10,7 +10,7 @@
 ## Sources Of Truth
 
 - Umbrella policy, target table, execution order, interface decisions, data policy, and status tracking live in [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2).
-- The living implementation checklist is [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60). Check it before starting a model package and quote verification results in the PR body.
+- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 - Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
@@ -68,7 +68,7 @@
 
 ### Pull Requests
 
-- Every implementation PR must reference its implementation issue in the PR summary with `Closes #N` or `Refs #N`. The standing checklist issue #60 does not count as the implementation issue.
+- Every implementation PR must reference its implementation issue in the PR summary with `Closes #N` or `Refs #N`. The implementation checklist document does not count as the implementation issue.
 - Every PR must carry the same lane/topic labels as its implementation issue, such as `ready-heavy`, `documentation`, or `meta`; status labels stay on issues only and must not be added to PRs.
 - PR bodies must be built by filling in `.github/PULL_REQUEST_TEMPLATE.md`; do not replace the template when creating PRs with `gh pr create --body`.
 - Complete draft PRs must be marked ready for review or carry a `## Draft Reason` section.
@@ -117,7 +117,7 @@
 
 ### PR And CI Gates
 
-- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding standing issues #2 and #60.
+- `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding standing issue #2 and historical checklist issue #60.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; `.github/workflows/ci.yml` resolves members with `uv sync --all-packages`.

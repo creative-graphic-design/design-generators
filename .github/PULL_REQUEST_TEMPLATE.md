@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed and why. Include `Closes #N` or `Refs #N` for the implementation issue. Issue #60 alone does not satisfy the PR metadata check. -->
+<!-- What changed and why. Include `Closes #N` or `Refs #N` for the implementation issue. The implementation checklist alone does not satisfy the PR metadata check. -->
 
 - TODO
 
@@ -22,10 +22,10 @@
 
 ## Checklist
 
-Full checklist: see [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) (source of truth).
+Full checklist: see [docs/implementation-checklist.md](https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md) (source of truth).
 
-- [ ] Confirmed the applicable issue #60 checklist items.
-- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; standing issues #2 and #60 alone do not satisfy this.
+- [ ] Confirmed the applicable implementation checklist items.
+- [ ] Referenced the implementation issue with `Closes #N` or `Refs #N` in the Summary; the standing umbrella issue and implementation checklist alone do not satisfy this.
 - [ ] Confirmed the implementation issue has a milestone and native Priority field set.
 - [ ] Applied the same lane/topic labels as the implementation issue to this PR; status labels such as `plan-agreed`, `in-progress`, and `parity-verified` stay on the issue.
 - [ ] Read the model plan and amendment comments, if this is a model PR.

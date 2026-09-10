@@ -5,16 +5,16 @@ description: Use when implementing one design-generators model issue, converting
 
 # Model Conversion
 
-Use this skill when a model issue is ready for implementation. It assumes the repository-level invariants in `AGENTS.md` and the live checklist in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60). Do not copy large checklist text here; read those sources at the start of each conversion.
+Use this skill when a model issue is ready for implementation. It assumes the repository-level invariants in `AGENTS.md` and the [implementation checklist](docs/implementation-checklist.md). Do not copy large checklist text here; read those sources at the start of each conversion.
 
 ## Before Editing
 
 1. Create or switch to a fresh worktree based on the current `origin/main`.
 2. Read, in this order:
    - `AGENTS.md`
-   - [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60)
+   - [implementation checklist](docs/implementation-checklist.md)
    - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
-   - [docs/architecture.md](../../../docs/architecture.md) for `lib/laygen`, `lib/posgen`, and import direction
+   - [docs/architecture.md](docs/architecture.md) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
    - every comment that amends the target issue's plan, plus every review comment on the target issue
 3. When an amendment conflicts with the original plan, follow the amendment.
@@ -138,9 +138,9 @@ Transformers and Diffusers base classes should keep their upstream contracts. Be
 - Use `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` for RICO25; the default config is metadata-only. RICO13 needs a vendor-derived mapping.
 - PubLayNet is `creative-graphic-design/PubLayNet`; avoid any test path that could download the full dataset.
 - Crello uses `cyberagent/crello` as the canonical source until an org mirror exists; `creative-graphic-design/Desigen` is not a Crello substitute.
-- Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60 (implementation checklist)](https://github.com/creative-graphic-design/design-generators/issues/60): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
+- Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and the [implementation checklist](docs/implementation-checklist.md): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
 
-Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
+Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and the [implementation checklist](docs/implementation-checklist.md).
 
 Use builders, streaming, synthetic rows, or tiny local fixtures in ordinary tests. Do not write tests that download PubLayNet, poster datasets, vendor weights, or large cache bundles.
 
@@ -190,7 +190,7 @@ For root-only documentation changes, the final pre-commit command is still requi
 Open the PR against `main`. In the PR description, include:
 
 - target issue and implemented scope
-- [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60) checklist verification, with deviations quoted explicitly
+- [implementation checklist](docs/implementation-checklist.md) verification, with deviations quoted explicitly
 - parity results and commands used
 - tests run locally
 - Hub publish status; normally "not pushed"
