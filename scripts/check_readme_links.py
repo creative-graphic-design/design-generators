@@ -84,7 +84,15 @@ def violation_for_link(
         if is_external_or_anchor(link):
             return None
 
-        resolved = (path.parent / target).resolve()
+        if target.startswith("../"):
+            return LinkViolation(
+                path,
+                line,
+                link,
+                "skill Markdown links must use repo-root-relative paths",
+            )
+
+        resolved = (root / target).resolve()
         try:
             resolved.relative_to(root.resolve())
         except ValueError:
