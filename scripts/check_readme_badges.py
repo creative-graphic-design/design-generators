@@ -117,6 +117,10 @@ DATASET_LINKS = {
 PAPER_LINKS = {
     (
         "paper",
+        "CVPR 2019",
+    ): "https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html",
+    (
+        "paper",
         "CVPR 2023",
     ): "https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html",
     (
