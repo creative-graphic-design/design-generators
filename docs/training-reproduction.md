@@ -20,14 +20,14 @@ The protocol has six ordered stages, S0 through S5. S0-S2 are exact or near-exac
 
 Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures; parity here means agreement with the original implementation.
 
-| Stage | Scope | Required evidence |
-| --- | --- | --- |
-| S0 | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree. |
-| S1 | Fixed-batch pre-optimizer trace | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation. |
-| S2 | One optimizer step | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate. |
-| S3 | N training batches | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
-| S4 | Deterministic loader stream | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls. |
-| S5 | Full-run statistical comparison | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded. |
+| Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                       |
+| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                     |
+| S1    | Fixed-batch pre-optimizer trace     | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation.                                                                                                                                                                      |
+| S2    | One optimizer step                  | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate.                                                                                                                                                                                                                 |
+| S3    | N training batches                  | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
+| S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                           |
+| S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                    |
 
 ## Stage Rules
 
@@ -64,11 +64,11 @@ Record per-step loss, gradient norm, maximum parameter difference, and sampler s
 
 Choose the adapter that matches the original implementation and state the mode in `TRAINING.md`. A vendor adapter is a test harness that exposes the original training step to the same comparison points as the package.
 
-| Mode | Use when | Adapter expectation |
-| --- | --- | --- |
-| Lightning | The original training loop is a Lightning module or trainer. | Compare package `LightningModule` traces against the original module/trainer state without replacing the package model. |
-| accelerate | The original loop uses Hugging Face Accelerate or distributed wrappers. | Build a single-process deterministic adapter that preserves the original prepare, backward, optimizer, and scheduler order. |
-| plain PyTorch | The original loop is hand-written PyTorch. | Wrap the original step in a local reference adapter that exposes the same S0-S2 trace points as the package training module. |
+| Mode          | Use when                                                                | Adapter expectation                                                                                                                                                                              |
+| ------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Lightning     | The original training loop is a Lightning module or trainer.            | Compare package [`LightningModule`](https://lightning.ai/docs/pytorch/stable/common/lightning_module.html) traces against the original module/trainer state without replacing the package model. |
+| accelerate    | The original loop uses Hugging Face Accelerate or distributed wrappers. | Build a single-process deterministic adapter that preserves the original prepare, backward, optimizer, and scheduler order.                                                                      |
+| plain PyTorch | The original loop is hand-written PyTorch.                              | Wrap the original step in a local reference adapter that exposes the same S0-S2 trace points as the package training module.                                                                     |
 
 Vendor adapters are test harnesses only. Production package code must remain package-local and must not import the original implementation outside explicitly requested vendor-parity tests and documentation.
 
@@ -96,7 +96,7 @@ Trace-surface checks and fixture-existence checks do not count as S0. If any top
 
 ### Scheduler Cadence Guard
 
-Step-level schedulers such as warmup plus cosine decay must be wired with their original update cadence. Injecting them through LightningCLI's top-level `lr_scheduler` field makes Lightning treat the scheduler as `interval="epoch"` unless the optimizer return value says otherwise. The run can then train for every step at the warmup-scale learning rate: loss may stay close to the original trace while generated quality collapses.
+Step-level schedulers such as warmup plus cosine decay must be wired with their original update cadence. Injecting them through [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html)'s top-level `lr_scheduler` field makes Lightning treat the scheduler as `interval="epoch"` unless the optimizer return value says otherwise. The run can then train for every step at the warmup-scale learning rate: loss may stay close to the original trace while generated quality collapses.
 
 For schedulers that step every optimizer update, return the scheduler from `configure_optimizers()` with `{"scheduler": scheduler, "interval": "step"}` or inject the scheduler through `model.init_args` and construct the Lightning optimizer configuration explicitly. S2/S3 evidence must confirm that `scheduler.last_epoch` follows `trainer.global_step` and that the first few hundred learning-rate values match the original implementation.
 
@@ -106,13 +106,13 @@ S5 must cover every dataset that the original implementation trains on for the c
 
 Use these status labels in `TRAINING.md`:
 
-| Status | Meaning |
-| --- | --- |
-| `PASS` | Full S5 evidence exists for this dataset and seed scope. |
-| `CHECK` | Evidence is partially aligned or mixed, and the remaining interpretation is explicit. |
-| `BLOCKED` | Required data, original code, assets, or compute are unavailable. |
-| `PENDING` | The dataset is planned but not yet run. |
-| `NOT CLAIMED` | The package does not claim trained-checkpoint support for this dataset. |
+| Status        | Meaning                                                                               |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `PASS`        | Full S5 evidence exists for this dataset and seed scope.                              |
+| `CHECK`       | Evidence is partially aligned or mixed, and the remaining interpretation is explicit. |
+| `BLOCKED`     | Required data, original code, assets, or compute are unavailable.                     |
+| `PENDING`     | The dataset is planned but not yet run.                                               |
+| `NOT CLAIMED` | The package does not claim trained-checkpoint support for this dataset.               |
 
 Partial dataset coverage must be stated in the conclusion and table. A README or model card must not imply general training reproduction if S5 exists for only a subset of the original training datasets.
 
@@ -182,14 +182,14 @@ Write `Reproduction Results` in this order:
 2. One merged table with dataset, system, status, seed scope, primary metrics, and loss evidence.
 3. A short interpretation paragraph for deviations, mixed metrics, or known caveats.
 4. Evidence locations for non-committed local artifacts, using repository-relative paths such as `.cache/<package>/...`.
-5. Copy-pasteable commands to regenerate the package run, original-code run, evaluation, conversion, and `from_pretrained` smoke test.
+5. Copy-pasteable commands to regenerate the package run, original-code run, evaluation, conversion, and [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) smoke test.
 
 Use this table shape unless a model requires extra metric columns:
 
-| Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
-| --- | --- | --- | --- | --- | --- | --- |
+| Dataset     | System   | Status | Seed scope          | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | ------ | ------------------- | ----------------------- | ---------------- | ---------------------- |
 | `<dataset>` | original | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 
 Commands must be executable from the repository root and must not depend on untracked helper scripts unless the helper creation command is also shown.
 

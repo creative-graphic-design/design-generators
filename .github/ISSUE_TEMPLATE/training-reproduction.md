@@ -1,6 +1,6 @@
 ---
-name: Train-ourselves reproduction
-about: Track package-local S0-S5 training reproduction work.
+name: Training reproduction
+about: Reproduce a model package's training and record each stage's result.
 title: "[<package>] Reproduce package-local training (S0-S5)"
 labels: train-ourselves
 assignees: ""
@@ -57,5 +57,5 @@ comment containing the vendor reference adapter plus S0-S2 evidence exists.
 
 ## Tracking
 
-- Refs https://github.com/creative-graphic-design/design-generators/issues/2; follow the implementation checklist at https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md.
+- Read the [project roadmap](https://github.com/creative-graphic-design/design-generators/blob/main/docs/roadmap.md) and [shared data sources](https://github.com/creative-graphic-design/design-generators/blob/main/docs/data-sources.md); follow the [implementation checklist](https://github.com/creative-graphic-design/design-generators/blob/main/docs/implementation-checklist.md).
 - Implementation PR stays draft until S5 is confirmed for every claimed dataset.

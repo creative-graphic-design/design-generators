@@ -30,6 +30,8 @@ Most weight-backed packages use locally converted checkpoint directories until p
 
 For LayoutDM, run the minimal download and conversion commands from the repository root. See the full LayoutDM [reproducibility guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for original-implementation reference generation, agreement checks, and smoke tests.
 
+Use [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) to load the converted directory. Prompt-only packages use [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) for reusable configuration and exemplars.
+
 ```bash
 uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original

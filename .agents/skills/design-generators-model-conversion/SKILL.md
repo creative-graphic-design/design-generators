@@ -13,7 +13,7 @@ Use this skill when a model issue is ready for implementation. It assumes the re
 2. Read, in this order:
    - `AGENTS.md`
    - [implementation checklist](docs/implementation-checklist.md)
-   - [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) body and the comments for unified interface v1/v2, decisions, data-source policy, status/tracking, model-card policy, and shared library naming
+   - [docs/roadmap.md](docs/roadmap.md), [docs/data-sources.md](docs/data-sources.md), [docs/conventions.md](docs/conventions.md), and [docs/architecture.md](docs/architecture.md) for target scope, data policy, interface decisions, model-card policy, and shared-library naming
    - [docs/architecture.md](docs/architecture.md) for `lib/laygen`, `lib/posgen`, and import direction
    - the target model issue plan comment
    - every comment that amends the target issue's plan, plus every review comment on the target issue
@@ -114,7 +114,7 @@ def __call__(
 
 Normalize vendor aliases to canonical `condition_type` names before dispatch. Unsupported conditions must raise explicit errors. `generator` wins over `seed`. Return normalized center `xywh` boxes and mask-based padding.
 
-For v2 models, add the relevant public inputs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) (`prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`) without replacing the v1 schema.
+For v2 models, add the relevant public inputs from [Conventions](docs/conventions.md) (`prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`) without replacing the v1 schema.
 
 Discrete-vocabulary layout tokenizers should subclass `transformers.PreTrainedTokenizer` unless the target issue documents a concrete conflict. Serialize special tokens and auxiliary artifacts such as cluster centers with tokenizer files.
 
@@ -134,17 +134,17 @@ Transformers and Diffusers base classes should keep their upstream contracts. Be
 
 ### Repository Data Contract
 
-- Prefer datasets hosted by the `creative-graphic-design` Hugging Face org. Check [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) before adding a new data source.
+- Prefer datasets hosted by the `creative-graphic-design` Hugging Face org. Check [shared data sources](docs/data-sources.md) before adding a new data source.
 - Use `creative-graphic-design/Rico` with `name="ui-screenshots-and-hierarchies-with-semantic-annotations"` for RICO25; the default config is metadata-only. RICO13 needs a vendor-derived mapping.
 - PubLayNet is `creative-graphic-design/PubLayNet`; avoid any test path that could download the full dataset.
 - Crello uses `cyberagent/crello` as the canonical source until an org mirror exists; `creative-graphic-design/Desigen` is not a Crello substitute.
-- Respect pinned dataset quirks from [issue #2 (umbrella plan)](https://github.com/creative-graphic-design/design-generators/issues/2) and the [implementation checklist](docs/implementation-checklist.md): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
+- Respect pinned dataset quirks from [shared data sources](docs/data-sources.md) and the [implementation checklist](docs/implementation-checklist.md): Magazine is polygon-based and train-only, PKU has an `INVALID` class and pixel `ltrb` boxes, and CGL-v2 needs `ralf-style` for validation/saliency use cases.
 
-Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and the [implementation checklist](docs/implementation-checklist.md).
+Keep dataset loading behind processors so sources can change without touching model code. Prefer `creative-graphic-design/*` datasets and use the pinned configs from [shared data sources](docs/data-sources.md) and the [implementation checklist](docs/implementation-checklist.md).
 
 Use builders, streaming, synthetic rows, or tiny local fixtures in ordinary tests. Do not write tests that download PubLayNet, poster datasets, vendor weights, or large cache bundles.
 
-When a required dataset is absent from the org, use the original vendor data source or the approved external source named in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2), and leave a TODO that points to the missing import.
+When a required dataset is absent from the org, use the original vendor data source or the approved external source named in [shared data sources](docs/data-sources.md), and leave a TODO that points to the missing import.
 
 ## Vendor Parity
 
