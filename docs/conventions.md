@@ -21,7 +21,7 @@ Layout generation APIs return the common schema fields `bbox`, `labels`, `mask`,
 
 Transformers-style APIs return `laygen.modeling_outputs.LayoutGenerationOutput`; Diffusers pipelines return `laygen.pipelines.pipeline_output.LayoutGenerationOutput`. Both output classes are explicit dataclasses with matching field names, order, and defaults.
 
-Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`. The shared base handles root `PretrainedConfig` loading, declared subfolder components, `save_pretrained`, `to(device, dtype)`, and generator-over-seed precedence; each model package implements its own `__call__` orchestration and returns the canonical Transformers-style layout output.
+Transformers-side layout pipelines inherit from `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`. The shared base handles root [`PretrainedConfig`](https://huggingface.co/docs/transformers/main_classes/configuration) loading, declared subfolder components, [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model), `to(device, dtype)`, and generator-over-seed precedence; each model package implements its own `__call__` orchestration and returns the canonical Transformers-style layout output.
 
 Public `bbox` values are normalized center `xywh` coordinates in `[0, 1]`, even when vendor code uses `ltwh`, `ltrb`, bins, analog bits, or text tokens internally. Public `mask=True` means a valid element, and padding is represented by `mask` rather than a reserved public label id.
 
@@ -66,6 +66,17 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.
 
+### Framework Selection
+
+- Diffusion and flow-matching models use Diffusers.
+- A Diffusers denoiser follows [`ModelMixin`](https://huggingface.co/docs/diffusers/api/models/overview) and [`ConfigMixin`](https://huggingface.co/docs/diffusers/api/configuration).
+- A Diffusers noising process follows [`SchedulerMixin`](https://huggingface.co/docs/diffusers/api/schedulers/overview).
+- Diffusers generation uses [`DiffusionPipeline`](https://huggingface.co/docs/diffusers/api/diffusion_pipeline).
+- Add a repository scheduler when no built-in scheduler expresses the required process.
+- Autoregressive, sequence-to-sequence, and GAN models use a Transformers [`PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model).
+- LLM fine-tuning models reuse existing Hugging Face model classes and prioritize usage recipes plus processors over conversion.
+- Methods that call an external language model in context use Pydantic AI agents with typed layout outputs and provider-independent model configuration.
+
 ## Contributor Conventions
 
 These conventions apply when adding or maintaining workspace packages.
@@ -92,6 +103,6 @@ Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags` so the do
 
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 
-Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running `from_pretrained` smoke tests.
+Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) smoke tests.
 
 Public API docstrings are the source for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections. Examples should be runnable doctest-style snippets when the API can run without heavyweight assets.

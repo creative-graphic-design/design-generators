@@ -28,6 +28,7 @@ theme:
     - content.code.copy
     - navigation.indexes
     - navigation.sections
+    - navigation.footer
     - navigation.top
     - search.suggest
 
@@ -50,6 +51,8 @@ nav:
   - Architecture: architecture.md
   - Training Reproduction: training-reproduction.md
   - Implementation Checklist: implementation-checklist.md
+  - Roadmap: roadmap.md
+  - Data Sources: data-sources.md
   - Extending: extending.md
   - API Reference:
       - Overview: api/index.md
@@ -99,6 +102,8 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - toc:
       permalink: true
 

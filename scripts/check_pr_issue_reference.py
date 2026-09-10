@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
 
-# Keep the historical checklist issue excluded after its successor document lands.
+# Keep the standing roadmap issue and historical checklist issue excluded from implementation references.
 DEFAULT_EXCLUDED_ISSUES = {2, 60}
 COMPLETION_GATE_EFFECTIVE_AT = datetime(2026, 7, 25, tzinfo=UTC)
 ISSUE_REF_RE = re.compile(
@@ -89,7 +89,7 @@ def issue_references(body: str) -> set[int]:
 def valid_issue_references(
     body: str, excluded_issues: set[int] | None = None
 ) -> set[int]:
-    """Return PR issue references that are not standing policy issues or the historical checklist issue."""
+    """Return PR issue references that are not standing canon issues or the historical checklist issue."""
     excluded = DEFAULT_EXCLUDED_ISSUES if excluded_issues is None else excluded_issues
     return issue_references(body) - excluded
 
@@ -344,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     if not references:
         errors.append(
             "PR body must include `Closes #N` or `Refs #N` for the implementation "
-            "issue. Standing policy issue #2 and historical checklist issue #60 do not satisfy this check."
+            "issue. The standing roadmap and data-source issue (https://github.com/creative-graphic-design/design-generators/issues/2) and historical checklist issue (https://github.com/creative-graphic-design/design-generators/issues/60) do not satisfy this check."
         )
 
     template_path = (
