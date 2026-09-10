@@ -89,6 +89,9 @@ nav:
 
 markdown_extensions:
   - admonition
+  - pymdownx.emoji:
+      emoji_generator: zensical.extensions.emoji.to_svg
+      emoji_index: zensical.extensions.emoji.twemoji
   - pymdownx.highlight
   - pymdownx.superfences:
       custom_fences:
