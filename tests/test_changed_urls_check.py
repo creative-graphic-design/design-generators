@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+import http.client
 import importlib.util
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 
 def load_check_changed_urls() -> ModuleType:
@@ -209,3 +213,53 @@ def test_check_changed_urls_treats_5xx_as_warning_success() -> None:
     )
 
     assert check_changed_urls.report_results(results) == 0
+
+
+def test_check_url_warns_after_remote_disconnect_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def fake_urlopen(request: object, timeout: float) -> object:
+        nonlocal attempts
+        attempts += 1
+        raise http.client.RemoteDisconnected(
+            "Remote end closed connection without response"
+        )
+
+    monkeypatch.setattr(check_changed_urls, "urlopen", fake_urlopen)
+
+    result = check_changed_urls.check_url(
+        f"{HTTPS}{TEMPORARY_HOST}/disconnect",
+        retries=2,
+    )
+
+    assert result.outcome == "warning"
+    assert result.error == "Remote end closed connection without response"
+    assert attempts == 3
+
+
+def test_check_url_retries_remote_disconnect_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def fake_urlopen(request: object, timeout: float) -> object:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise http.client.RemoteDisconnected(
+                "Remote end closed connection without response"
+            )
+        return nullcontext(SimpleNamespace(status=200))
+
+    monkeypatch.setattr(check_changed_urls, "urlopen", fake_urlopen)
+
+    result = check_changed_urls.check_url(
+        f"{HTTPS}{TEMPORARY_HOST}/eventual-success",
+        retries=2,
+    )
+
+    assert result.outcome == "ok"
+    assert result.status == 200
+    assert attempts == 2
