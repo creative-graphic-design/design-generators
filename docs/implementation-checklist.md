@@ -25,10 +25,10 @@ Use this checklist when implementing a model package. Complete each applicable i
 - [ ] Make `generator` take precedence over `seed`, and verify that generation is reproducible from the seed or generator.
 - [ ] Use canonical `condition_type` names (`unconditional`, `label`, `label_size`, `completion`, `refinement`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval`); normalize original-implementation aliases before dispatch and raise explicitly for unsupported conditions instead of falling back silently.
 - [ ] Expose the full agreed v1 (initial interface) pipeline `__call__` signature and the relevant v2 (later interface) additions even when the model rejects some inputs.
-- [ ] Make discrete-vocabulary layout tokenizers subclass `transformers.PreTrainedTokenizer`, use synthetic token strings and standard `pad_token` and `mask_token` values, expose `encode_layout()` and `decode_layout()` as the primary API, serialize auxiliary data such as cluster centers with tokenizer files, preserve float64 decode paths required for agreement checks, and use a custom class only when a documented conflict requires it.
-- [ ] Ensure every `transformers.PreTrainedModel` subclass implements `forward`; if its computation cannot be represented as one forward pass, compose the stages in the package pipeline instead of using `PreTrainedModel` for the composite.
+- [ ] Make discrete-vocabulary layout tokenizers subclass [`transformers.PreTrainedTokenizer`](https://huggingface.co/docs/transformers/main_classes/tokenizer), use synthetic token strings and standard `pad_token` and `mask_token` values, expose `encode_layout()` and `decode_layout()` as the primary API, serialize auxiliary data such as cluster centers with tokenizer files, preserve float64 decode paths required for agreement checks, and use a custom class only when a documented conflict requires it.
+- [ ] Ensure every [`transformers.PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model) subclass implements `forward`; if its computation cannot be represented as one forward pass, compose the stages in the package pipeline instead of using `PreTrainedModel` for the composite.
 - [ ] Expose only standard model entry points (`forward` and token-level `generate`) on model classes; put processor encoding, generation, decoding, layout-level orchestration, and the `LayoutGenerationOutput` result in the pipeline's `__call__`, and do not add `generate_layout`-style model methods. Vendor-specific constrained decoding that cannot be expressed as a stateless `LogitsProcessor` may remain as a model-side helper called by the pipeline, but it is not a public generation API.
-- [ ] Do not override `from_pretrained` or `save_pretrained` in a way that bypasses standard loading and serialization; document the reason in the pull request description if an override is unavoidable.
+- [ ] Do not override [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) or [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) in a way that bypasses standard loading and serialization; document the reason in the pull request description if an override is unavoidable.
 - [ ] Use upstream class suffixes only when the class satisfies the upstream contract; for example, `ForConditionalGeneration` requires seq2seq-style `forward` and `generate` methods.
 - [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator, meaning the maintainer who owns the model issue and is distinct from the evidence producer, check that justification.
 - [ ] Make Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`; the shared base owns config and subfolder loading, serialization, device and dtype handling, `generator`-over-`seed` behavior, and the canonical layout-output contract.
@@ -60,7 +60,7 @@ Use this checklist when implementing a model package. Complete each applicable i
 
 Models whose weights this repository trains itself are called train-ourselves models.
 
-- [ ] Use PyTorch Lightning through the `training` extra with LightningCLI, YAML configurations, and CLI overrides, and keep the `LightningModule`, `LightningDataModule`, and `configs/*.yaml` files in the model package.
+- [ ] Use PyTorch Lightning through the `training` extra with [`LightningCLI`](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli.html), YAML configurations, and CLI overrides, and keep the [`LightningModule`](https://lightning.ai/docs/pytorch/stable/common/lightning_module.html), [`LightningDataModule`](https://lightning.ai/docs/pytorch/stable/data/datamodule.html), and `configs/*.yaml` files in the model package.
 
 ## Hub and licensing
 
@@ -96,7 +96,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 - [ ] Annotate module constants with `Final[...]`, including tokens, thresholds, and paths.
 - [ ] Annotate every public signature and structured specification; use `NamedTuple` or `TypedDict` for structured tuples and dictionaries, and use `Literal` or enums for closed parameter sets.
 - [ ] Do not import private underscore-prefixed modules across modules; make a needed module public instead.
-- [ ] Use Hugging Face base classes where they exist, including `PreTrainedTokenizer` for tokenizers and `transformers.ProcessorMixin` for processors, rather than hand-written save and load logic.
+- [ ] Use Hugging Face base classes where they exist, including `PreTrainedTokenizer` for tokenizers and [`transformers.ProcessorMixin`](https://huggingface.co/docs/transformers/main_classes/processors) for processors, rather than hand-written save and load logic.
 - [ ] Do not use `*args` or `**kwargs` grab-bag signatures on public APIs; expose explicit keyword-only parameters and reject unsupported call shapes at the signature level.
 - [ ] Do not use `sys.path` hacks in tests or conftest files; workspace and package execution must resolve imports.
 - [ ] Accept `str` at public boundaries only when the boundary normalizes it immediately to a shared enum; use the enum type internally.

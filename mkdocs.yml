@@ -28,6 +28,7 @@ theme:
     - content.code.copy
     - navigation.indexes
     - navigation.sections
+    - navigation.footer
     - navigation.top
     - search.suggest
 
@@ -101,6 +102,8 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - toc:
       permalink: true
 

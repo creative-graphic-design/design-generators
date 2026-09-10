@@ -79,8 +79,11 @@
 - When creating any issue, set both the milestone and the native Priority issue field; do not leave either unset. Set the native Priority field through GraphQL `setIssueFieldValue` when the CLI surface is insufficient.
 - Add `in-progress` when work on a model issue begins.
 - Add `parity-verified` only after the coordinator independently reruns the parity suite and confirms the results.
-- Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair; treat publication to the `creative-graphic-design` Hugging Face organization as a separate approved step, and track publication separately from local serialization and parity verification.
-- Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified; Hub publishing is deferred and is not part of the per-issue close condition.
+- Serialize converted model artifacts with the standard `save_pretrained`/`from_pretrained` pair.
+- Treat publication to the `creative-graphic-design` Hugging Face organization as a separate approved step.
+- Track publication separately from local serialization and parity verification.
+- Close a model issue only after its implementation is merged to `main`, every planned checkpoint, dataset, or task repository has a passing local `save_pretrained` to `from_pretrained` smoke test, and vendor parity is independently verified.
+- Hub publishing is deferred and is not part of the per-issue close condition.
 - Milestones are execution phases: `v0.1` foundation and pilot wave, `v0.2` ready-light completion, `v0.3` ready-heavy, `v0.4` LLM recipes and Pydantic AI, and `v0.5` train-ourselves.
 
 ## Self-Improvement

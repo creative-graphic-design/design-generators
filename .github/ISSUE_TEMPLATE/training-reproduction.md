@@ -1,6 +1,6 @@
 ---
-name: Train-ourselves reproduction
-about: Track package-local S0-S5 training reproduction work.
+name: Training reproduction
+about: Reproduce a model package's training and record each stage's result.
 title: "[<package>] Reproduce package-local training (S0-S5)"
 labels: train-ourselves
 assignees: ""

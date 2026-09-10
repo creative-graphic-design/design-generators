@@ -86,15 +86,18 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
 
 def test_data_source_registry_matches_package_metadata() -> None:
     metadata_datasets: set[str] = set()
-    for pyproject in sorted((REPO_ROOT / "models").glob("*/pyproject.toml")):
-        metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        datasets = (
-            metadata.get("tool", {}).get("design-generators", {}).get("datasets", [])
-        )
-        assert isinstance(datasets, list), f"{pyproject}: datasets must be a list"
-        metadata_datasets.update(
-            dataset for dataset in datasets if isinstance(dataset, str)
-        )
+    for root_name in ("lib", "models"):
+        for pyproject in sorted((REPO_ROOT / root_name).glob("*/pyproject.toml")):
+            metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+            datasets = (
+                metadata.get("tool", {})
+                .get("design-generators", {})
+                .get("datasets", [])
+            )
+            assert isinstance(datasets, list), f"{pyproject}: datasets must be a list"
+            metadata_datasets.update(
+                dataset for dataset in datasets if isinstance(dataset, str)
+            )
 
     text = (REPO_ROOT / "docs" / "data-sources.md").read_text(encoding="utf-8")
     registry = re.search(r"(?ms)^## Dataset registry\s*\n(.*?)(?=^## |\Z)", text)
@@ -102,16 +105,78 @@ def test_data_source_registry_matches_package_metadata() -> None:
         "docs/data-sources.md: missing Dataset registry section"
     )
     documented_datasets = {
-        fields[0].strip().strip("`")
+        fields[0].strip().strip("`"): fields[2].strip()
         for line in registry.group(1).splitlines()
         if line.startswith("|")
         and not line.startswith("| ---")
         and not line.startswith("| Metadata key")
         for fields in [line.strip("|").split("|")]
     }
-    missing = sorted(metadata_datasets - documented_datasets)
-    extra = sorted(documented_datasets - metadata_datasets)
+    documented_dataset_keys = set(documented_datasets)
+    missing = sorted(metadata_datasets - documented_dataset_keys)
+    extra = sorted(documented_dataset_keys - metadata_datasets)
     assert not missing and not extra, (
         "docs/data-sources.md dataset registry differs from [tool.design-generators].datasets: "
         f"missing={missing}; extra={extra}"
     )
+    invalid_ids = sorted(
+        dataset
+        for dataset, dataset_id in documented_datasets.items()
+        if dataset_id != "unverified"
+        and not re.fullmatch(
+            r"\[[^]]+\]\(https://huggingface\.co/datasets/[^)]+\)", dataset_id
+        )
+    )
+    assert not invalid_ids, (
+        f"docs/data-sources.md has non-Hugging Face dataset IDs for: {invalid_ids}"
+    )
+
+
+def test_roadmap_links_implemented_packages_and_issue_targets() -> None:
+    text = (REPO_ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    rows = [
+        line
+        for line in text.splitlines()
+        if line.startswith("|")
+        and not line.startswith("| ---")
+        and not line.startswith("| Target")
+    ]
+    packages: set[str] = set()
+    for row in rows:
+        fields = [field.strip() for field in row.strip("|").split("|")]
+        package = fields[2]
+        issue = fields[4]
+        if package != "—":
+            match = re.fullmatch(
+                r"\[:octicons-package-16:models/([^]]+)\]\(api/models/([^`]+)\.md\)",
+                package,
+            )
+            assert match is not None, f"invalid roadmap package link: {package}"
+            directory, target = match.groups()
+            assert directory == target, f"package/link mismatch: {package}"
+            assert (REPO_ROOT / "docs/api/models" / f"{target}.md").is_file(), (
+                f"missing API target for {package}"
+            )
+            packages.add(directory)
+        if issue != "—":
+            match = re.fullmatch(
+                r"\[:octicons-issue-opened-16:issue #(\d+)\]\(https://github\.com/creative-graphic-design/design-generators/issues/(\d+)\)",
+                issue,
+            )
+            assert match is not None, f"invalid roadmap issue link: {issue}"
+            assert match.group(1) == match.group(2), (
+                f"issue text/link mismatch: {issue}"
+            )
+
+    model_directories = {
+        path.name for path in (REPO_ROOT / "models").iterdir() if path.is_dir()
+    }
+    assert packages == model_directories, (
+        "roadmap package registry differs from models/: "
+        f"missing={sorted(model_directories - packages)}; "
+        f"extra={sorted(packages - model_directories)}"
+    )
+
+    for page in (REPO_ROOT / "docs/roadmap.md", REPO_ROOT / "docs/data-sources.md"):
+        raw_urls = re.findall(r"(?<!\]\()https?://[^)\s|]+", page.read_text())
+        assert not raw_urls, f"{page}: raw URLs outside Markdown links: {raw_urls}"
