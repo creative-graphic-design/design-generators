@@ -31,11 +31,12 @@ class LinkViolation:
 
 
 def readme_paths(root: Path = ROOT) -> list[Path]:
-    """Return first-party README and TRAINING files checked by this script."""
+    """Return first-party README, TRAINING, and skill files checked by this script."""
     paths = [root / "README.md"]
     paths.extend(sorted((root / "lib").glob("*/README.md")))
     paths.extend(sorted((root / "models").glob("*/README.md")))
     paths.extend(sorted((root / "models").glob("*/TRAINING.md")))
+    paths.extend(sorted((root / ".agents" / "skills").rglob("SKILL.md")))
     return [path for path in paths if path.is_file()]
 
 
@@ -61,9 +62,57 @@ def is_supported_repo_root_link(link: str) -> bool:
     return False
 
 
-def violation_for_link(path: Path, line: int, link: str) -> LinkViolation | None:
+def _is_skill_path(path: Path, root: Path) -> bool:
+    """Return whether a path is a repository-local skill document."""
+    try:
+        path.relative_to(root / ".agents" / "skills")
+    except ValueError:
+        return False
+
+    return True
+
+
+def violation_for_link(
+    path: Path,
+    line: int,
+    link: str,
+    root: Path = ROOT,
+) -> LinkViolation | None:
     """Return a README link convention violation, if any."""
     target = strip_link_suffix(link).removeprefix("./")
+    if _is_skill_path(path, root):
+        if is_external_or_anchor(link):
+            return None
+
+        if target.startswith("../"):
+            return LinkViolation(
+                path,
+                line,
+                link,
+                "skill Markdown links must use repo-root-relative paths",
+            )
+
+        resolved = (root / target).resolve()
+        try:
+            resolved.relative_to(root.resolve())
+        except ValueError:
+            return LinkViolation(
+                path,
+                line,
+                link,
+                "skill-relative Markdown links must stay within the repository",
+            )
+
+        if not resolved.is_file():
+            return LinkViolation(
+                path,
+                line,
+                link,
+                "skill-relative Markdown links must resolve to an existing file",
+            )
+
+        return None
+
     if target.startswith("../"):
         return LinkViolation(
             path,
@@ -92,14 +141,14 @@ def violation_for_link(path: Path, line: int, link: str) -> LinkViolation | None
     return None
 
 
-def violations_for_readme(path: Path) -> list[LinkViolation]:
+def violations_for_readme(path: Path, root: Path = ROOT) -> list[LinkViolation]:
     """Return link convention violations for one README."""
     text = path.read_text(encoding="utf-8")
     violations: list[LinkViolation] = []
     for match in MARKDOWN_LINK_RE.finditer(text):
         link = match.group("link")
         line = text.count("\n", 0, match.start()) + 1
-        if violation := violation_for_link(path, line, link):
+        if violation := violation_for_link(path, line, link, root):
             violations.append(violation)
     return violations
 
@@ -108,7 +157,7 @@ def current_violations(root: Path = ROOT) -> list[LinkViolation]:
     """Return README link convention violations under the repository root."""
     violations: list[LinkViolation] = []
     for path in readme_paths(root):
-        violations.extend(violations_for_readme(path))
+        violations.extend(violations_for_readme(path, root))
     return violations
 
 
