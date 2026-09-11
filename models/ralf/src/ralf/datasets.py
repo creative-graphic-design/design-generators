@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Literal
-from typing import Protocol, cast
+from typing import Literal, Protocol, TypedDict, cast, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Int
@@ -33,9 +32,17 @@ RalfDatasetValue = (
     | _SizeLike
 )
 RalfSampleMapping = Mapping[str, object]
-RalfNormalizedSample = dict[str, object]
 
 
+class RalfNormalizedSample(TypedDict):
+    """Normalized layout tensors consumed by the RALF training loader."""
+
+    bbox: Float[torch.Tensor, "elements 4"]
+    labels: Int[torch.Tensor, "elements"]
+    mask: Bool[torch.Tensor, "elements"]
+
+
+@runtime_checkable
 class _IndexableDataset(Protocol):
     """Minimal protocol for an indexable dataset."""
 
@@ -240,10 +247,9 @@ def build_retrieved_batch(
                 max_seq_length, dtype=torch.bool
             )
             sample_labels = _remap_retrieval_labels(
-                cast(Int[torch.Tensor, "sample_elements"], sample["labels"]).long(),
-                normalized_dataset,
+                sample["labels"].long(), normalized_dataset
             )
-            sample_bbox = cast(Float[torch.Tensor, "sample_elements 4"], sample["bbox"])
+            sample_bbox = sample["bbox"]
             length = min(max_seq_length, sample_labels.numel())
             bbox[:length] = sample_bbox[:length]
             labels[:length] = sample_labels[:length]

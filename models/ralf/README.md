@@ -147,7 +147,7 @@ print(out.mask)
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+Converted checkpoints port the released weights unchanged. The package additionally carries a training path: the CGL unconditional recipe is retrained in this repository through `traingen fit` and reproduces the original implementation (three package/vendor seed pairs score inside each other's range on all fifteen original-evaluator metrics). Stage evidence and commands are in [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md). PKU and the other CGL conditions are not retrained.
 
 #### Preprocessing
 
@@ -155,7 +155,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream training for converted checkpoints; the CGL unconditional recipe is additionally rerun in this repository (30 epochs, Adam 1e-4, batch 32; see [models/ralf/TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/ralf/TRAINING.md)).
 
 #### Speeds, Sizes, Times
 
@@ -193,7 +193,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and parity costs depend on the selected checkpoint and local hardware.
+Checkpoint conversion performs no training. The CGL unconditional training reproduction ran six 30-epoch trainings (three seeds per system) on single V100 GPUs; conversion and parity costs otherwise depend on the selected checkpoint and local hardware.
 
 ## Technical Specifications
 

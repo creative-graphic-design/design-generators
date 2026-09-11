@@ -210,7 +210,7 @@ models/postero/src/postero/serialization.py	block-end	11
 models/ralf/src/ralf/configuration_ralf.py	block-end	2
 models/ralf/src/ralf/datasets.py	block-end	13
 models/ralf/src/ralf/image_processing_ralf.py	block-end	8
-models/ralf/src/ralf/modeling_ralf.py	block-end	51
+models/ralf/src/ralf/modeling_ralf.py	block-end	50
 models/ralf/src/ralf/pipeline_ralf.py	block-end	3
 models/ralf/src/ralf/processing_ralf.py	block-end	16
 models/ralf/src/ralf/retrieval.py	block-end	5
