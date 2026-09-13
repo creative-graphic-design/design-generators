@@ -1458,8 +1458,12 @@ class RalfS3TraceCallback(Callback):
         (vendor_loss / accumulation).backward()
         restore_rng_state(package_rng_after_backward)
         package_trace = ralf_module.latest_step_trace
-        package_loss = package_trace["train_loss"]
-        package_logits = package_trace["logits"]
+        package_loss = package_trace["train_loss"].detach().cpu()
+        package_logits = package_trace["logits"].detach().cpu()
+        vendor_loss = vendor_loss.detach().cpu()
+        vendor_logits = vendor_logits.detach().cpu()
+        package_trace.clear()
+        del vendor_output, vendor_losses
         self._observe_tensor(
             f"S3.epoch[{self.package_batch_epoch}].batch[{self.package_batch_index}].loss",
             package_loss,
