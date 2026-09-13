@@ -191,6 +191,33 @@ def test_label_condition_uses_full_sequence_before_decoder_shift() -> None:
     assert torch.equal(batch["labels"], expected["input_ids"][:, 1:])
 
 
+def test_label_size_condition_uses_full_sequence_before_decoder_shift() -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    sample = _sample()
+    encoded = encode_training_sample(
+        sample,
+        config=config,
+        retrieval_indexes=[0],
+        retrieval_samples=[sample],
+    )
+    batch = collate_training_batch([encoded])
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        condition_type="label_size",
+    )
+
+    expected = RalfLayoutTokenizer(config).encode_layout(
+        labels=batch["layout_labels"],
+        bbox=batch["layout_bbox"],
+        mask=batch["layout_mask"],
+    )
+    condition = module._condition_kwargs(batch)
+
+    assert torch.equal(condition["constraint_input_ids"], expected["input_ids"])
+    assert torch.equal(condition["constraint_mask"], expected["attention_mask"])
+
+
 def test_sorted_layout_handles_annotations_and_empty_layouts() -> None:
     config = _small_config(max_seq_length=2, top_k=1)
     annotated = {

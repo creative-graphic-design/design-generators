@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import gc
 import inspect
 import json
 import os
+import weakref
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 
 import run_training_stages as stages
 from ralf import RalfForConditionalLayoutGeneration
@@ -28,6 +31,7 @@ from run_training_stages import (
     _natural_run_envelope,
     _recipe_epochs,
     _s3_child_import_gate,
+    _source_gate_metadata,
     _s3_status,
     _s3_trace_status,
     _run_s3_fit,
@@ -40,6 +44,16 @@ from run_training_stages import (
 
 
 pytestmark = pytest.mark.vendor_parity
+
+
+def _cuda_runtime_usable() -> bool:
+    if not torch.cuda.is_available():
+        return False
+    try:
+        torch.empty(1, device="cuda")
+    except RuntimeError:
+        return False
+    return True
 
 
 @pytest.mark.skipif(
@@ -141,19 +155,21 @@ def test_label_condition_shuffle_order_matches_vendor_cpu_rng() -> None:
     assert torch.equal(package_sequence.cpu(), vendor_sequence)
 
 
-def test_condition_type_maps_canonical_label_to_vendor_task() -> None:
+def test_condition_type_maps_canonical_conditions_to_vendor_tasks() -> None:
     assert _condition_type("unconditional") == ("unconditional", "uncond")
     assert _condition_type("label") == ("label", "c")
+    assert _condition_type("label_size") == ("label_size", "cwh")
 
 
 def test_condition_type_rejects_unsupported_tasks() -> None:
     with pytest.raises(ValueError, match="unsupported RALF condition"):
-        _condition_type("label_size")
+        _condition_type("unsupported")
 
 
 def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "unconditional") == 30
     assert _recipe_epochs("cgl", "label") == 50
+    assert _recipe_epochs("cgl", "label_size") == 40
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
@@ -411,6 +427,17 @@ def test_s3_child_import_gate_resolves_spawned_paths() -> None:
     _s3_child_import_gate()
 
 
+def test_source_gate_reports_current_cwh_package() -> None:
+    metadata = _source_gate_metadata()
+    root = Path(cast(str, metadata["source_root"]))
+
+    assert root == stages.ROOT.resolve()
+    assert Path(cast(str, metadata["ralf_file"])).is_relative_to(root)
+    assert Path(cast(str, metadata["run_training_stages_file"])).is_relative_to(root)
+    assert metadata["source_commit"] == stages._git_head(root)
+    assert metadata["cwh_termination_fix"] is True
+
+
 def test_stage_evidence_records_runtime_allocator_environment() -> None:
     source = inspect.getsource(main)
 
@@ -423,6 +450,52 @@ def test_s3_trace_records_peak_cuda_memory() -> None:
 
     assert '"peak_memory_allocated_bytes"' in source
     assert "torch.cuda.max_memory_allocated()" in source
+
+
+def test_s3_validation_boundary_releases_cuda_cache() -> None:
+    source = inspect.getsource(RalfS3TraceCallback.on_validation_epoch_end)
+
+    assert "gc.collect()" in source
+    assert "torch.cuda.empty_cache()" in source
+
+
+@pytest.mark.skipif(not _cuda_runtime_usable(), reason="requires usable CUDA")
+def test_s3_validation_cleanup_keeps_live_cuda_bytes_flat_across_cycles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("RALF_S3_MEMORY_SAMPLES_PATH", raising=False)
+    callback = RalfS3TraceCallback(cache_dir=str(tmp_path), output_dir=str(tmp_path))
+    trainer = SimpleNamespace(current_epoch=0, callback_metrics={})
+    live_bytes: list[int] = []
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        for epoch in range(2):
+            trainer.current_epoch = epoch
+            cycle: list[object] = [torch.empty(8 << 20, device="cuda")]
+            cycle.append(cycle)
+            del cycle
+            callback.on_validation_epoch_end(
+                cast(Trainer, trainer), cast(LightningModule, None)
+            )
+            torch.cuda.synchronize()
+            live_bytes.append(int(torch.cuda.memory_allocated()))
+    finally:
+        if was_enabled:
+            gc.enable()
+        gc.collect()
+
+    assert live_bytes[1] - live_bytes[0] <= 1 << 20
+
+
+def test_s3_memory_samples_record_process_and_gpu_memory() -> None:
+    source = inspect.getsource(RalfS3TraceCallback) + inspect.getsource(_run_s3_fit)
+
+    assert "RALF_S3_MEMORY_SAMPLES_PATH" in source
+    assert "memory_allocated" in source
+    assert "memory_reserved" in source
+    assert "nvidia-smi" in source
+    assert '"60"' in source
 
 
 def test_s3_does_not_disable_deterministic_training() -> None:
@@ -521,6 +594,61 @@ def test_optimizer_state_copy_keeps_each_system_hyperparameters() -> None:
         vendor_optimizer.state[vendor.weight]["exp_avg"],
         package_optimizer.state[package.weight]["exp_avg"],
     )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_optimizer_state_sync_does_not_retain_gpu_copies() -> None:
+    torch.manual_seed(0)
+    package = torch.nn.Linear(4096, 4096, bias=False, device="cuda")
+    vendor = torch.nn.Linear(4096, 4096, bias=False, device="cuda")
+    vendor.load_state_dict(package.state_dict())
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    inputs = torch.ones(1, 4096, device="cuda")
+    copied_state_refs: list[weakref.ReferenceType[torch.Tensor]] = []
+    copied_state_devices: list[torch.device] = []
+    original_load_state_dict = vendor_optimizer.load_state_dict
+
+    def record_copied_state(state_dict: dict[str, object]) -> None:
+        states = cast(dict[object, dict[object, object]], state_dict["state"])
+        for state in states.values():
+            for key, value in state.items():
+                if key != "step" and isinstance(value, torch.Tensor):
+                    copied_state_refs.append(weakref.ref(value))
+                    copied_state_devices.append(value.device)
+                    original_load_state_dict(state_dict)
+                    return
+        raise AssertionError("the optimizer state did not contain a tensor leaf")
+
+    setattr(vendor_optimizer, "load_state_dict", record_copied_state)
+
+    def live_bytes() -> int:
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        return int(torch.cuda.memory_allocated())
+
+    live_after_load: list[int] = []
+    for _ in range(2):
+        package_optimizer.zero_grad(set_to_none=True)
+        vendor_optimizer.zero_grad(set_to_none=True)
+        package(inputs).sum().backward()
+        package_optimizer.step()
+        vendor(inputs).sum().backward()
+        vendor_optimizer.step()
+        _load_optimizer_state_without_hyperparameters(
+            vendor_optimizer, package_optimizer
+        )
+        live_after_load.append(live_bytes())
+
+    assert all(device.type == "cpu" for device in copied_state_devices)
+    assert all(reference() is None for reference in copied_state_refs)
+    for state in vendor_optimizer.state.values():
+        for key, value in state.items():
+            if key != "step" and isinstance(value, torch.Tensor):
+                assert value.device.type == "cuda"
+    assert live_after_load[1] - live_after_load[0] <= 1 << 20
 
 
 def test_synchronized_layer_enforces_independently_produced_learning_rates() -> None:
