@@ -48,6 +48,7 @@ def state_dict_sha256(
         digest.update(str(contiguous.dtype).encode("ascii"))
         digest.update(str(tuple(contiguous.shape)).encode("ascii"))
         digest.update(contiguous.view(torch.uint8).numpy().tobytes())
+
     return digest.hexdigest()
 
 

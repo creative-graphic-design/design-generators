@@ -8,7 +8,9 @@ import random
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import cast
+
+from typing_extensions import TypedDict
 
 import numpy as np
 import torch
@@ -39,6 +41,23 @@ from .scheduler import LayoutFormerPPWarmupLR
 
 class LayoutFormerPPTrainingConfig(TypedDict, total=False):
     """LightningCLI-safe constructor values for the runtime model config."""
+
+    dataset: str
+    task: str
+    vocab_size: int
+    max_position_embeddings: int
+    d_model: int
+    encoder_layers: int
+    decoder_layers: int
+    encoder_attention_heads: int
+    decoder_attention_heads: int
+    dim_feedforward: int
+    dropout: float
+    share_embedding: bool
+
+
+class _LayoutFormerPPConfigInput(TypedDict, total=False, closed=True):
+    """Closed view used only to type-check kwargs forwarded to the config."""
 
     dataset: str
     task: str
@@ -106,7 +125,9 @@ def _package_tokenizer(recipe: LayoutFormerPPTrainingRecipe) -> LayoutFormerPPTo
             for token in _TASK_PROMPTS[task].split():
                 if token not in prompt_tokens:
                     prompt_tokens.append(token)
+
         tokens.extend(prompt_tokens)
+
     return LayoutFormerPPTokenizer(tokens=tokens)
 
 
@@ -181,47 +202,61 @@ def _apply_ordering(
         labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
         if "completion_sort_by_pos" in recipe.serialization_flags:
             return labels, bboxes, gold_bboxes
+
         return _sort_by_label(labels, bboxes, gold_bboxes, recipe)
+
     if task is LayoutFormerPPTask.refinement:
         if sort_by_position:
             return _sort_by_position(labels, bboxes, gold_bboxes)
+
         if "refinement_shuffle_before_sort_by_label" in recipe.serialization_flags:
             labels, bboxes, gold_bboxes = _shuffle_elements(labels, bboxes, gold_bboxes)
         elif (
             "refinement_sort_by_pos_before_sort_by_label" in recipe.serialization_flags
         ):
             labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
+
         return _sort_by_label(labels, bboxes, gold_bboxes, recipe)
+
     if task is LayoutFormerPPTask.gen_r:
         if sort_by_position:
             return _sort_by_position(labels, bboxes, gold_bboxes)
+
         if "gen_r_shuffle_before_sort_by_label" in recipe.serialization_flags:
             labels, bboxes, gold_bboxes = _shuffle_elements(labels, bboxes, gold_bboxes)
         elif "gen_r_sort_by_pos_before_sort_by_label" in recipe.serialization_flags:
             labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
+
         return _sort_by_label(labels, bboxes, gold_bboxes, recipe)
+
     if task in (LayoutFormerPPTask.gen_t, LayoutFormerPPTask.gen_ts):
         if sort_by_position:
             return _sort_by_position(labels, bboxes, gold_bboxes)
+
         flag = f"{task}_shuffle_before_sort_by_label"
         position_flag = f"{task}_sort_by_pos_before_sort_by_label"
+
         if flag in recipe.serialization_flags:
             labels, bboxes, gold_bboxes = _shuffle_elements(labels, bboxes, gold_bboxes)
         elif position_flag in recipe.serialization_flags:
             labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
+
         return _sort_by_label(labels, bboxes, gold_bboxes, recipe)
+
     labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
     if (
         task is LayoutFormerPPTask.ugen
         and "ugen_sort_by_pos" in recipe.serialization_flags
     ):
         return labels, bboxes, gold_bboxes
+
     flag = f"{task}_shuffle_before_sort_by_label"
     position_flag = f"{task}_sort_by_pos_before_sort_by_label"
     if flag in recipe.serialization_flags:
         labels, bboxes, gold_bboxes = _shuffle_elements(labels, bboxes, gold_bboxes)
     elif position_flag in recipe.serialization_flags:
         labels, bboxes, gold_bboxes = _sort_by_position(labels, bboxes, gold_bboxes)
+
     return _sort_by_label(labels, bboxes, gold_bboxes, recipe)
 
 
@@ -233,8 +268,10 @@ def _relation_size(
     area_b = box_b[2] * box_b[3]
     if area_b <= 0.9 * area_a:
         return 0
+
     if area_b < 1.1 * area_a:
         return 1
+
     return 2
 
 
@@ -247,9 +284,12 @@ def _relation_location(
         center_y = box_b[1] + box_b[3] / 2
         if center_y <= 1 / 3:
             return 3
+
         if center_y < 2 / 3:
             return 4
+
         return 5
+
     left_a, top_a, right_a, bottom_a = (
         box_a[0],
         box_a[1],
@@ -264,12 +304,16 @@ def _relation_location(
     )
     if bottom_b <= top_a:
         return 3
+
     if bottom_a <= top_b:
         return 5
+
     if right_b <= left_a:
         return 6
+
     if right_a <= left_b:
         return 7
+
     return 4
 
 
@@ -288,6 +332,7 @@ def _relations(
         label_value = int(label)
         label_counts[label_value] = label_counts.get(label_value, 0) + 1
         label_indices.append(label_counts[label_value])
+
     pairs = [
         (relation, pair)
         for relation in range(2)
@@ -308,6 +353,7 @@ def _relations(
                     _relation_size(canvas_bboxes[first], canvas_bboxes[second]),
                 )
             )
+
         if (1, (first, second)) in sampled:
             relations.append(
                 (
@@ -320,6 +366,7 @@ def _relations(
                     ),
                 )
             )
+
     return relations
 
 
@@ -370,9 +417,11 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
             raise FileNotFoundError(
                 f"LayoutFormer++ processed split is missing: {path}"
             )
+
         values = torch.load(path, map_location="cpu", weights_only=False)
         if not isinstance(values, list) or not values:
             raise ValueError(f"LayoutFormer++ processed split is empty: {path}")
+
         self.data = cast(list[_LayoutFormerPPSample], values)
         self._relation_generator = random.Random(1024)
         self._partition_data: dict[int, int] = {}
@@ -383,10 +432,12 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
                 recipe.tasks, recipe.partition_buckets, strict=True
             ):
                 grouped.setdefault(bucket, []).append(task)
+
             bucket_map: dict[int, int] = {}
             for bucket, tasks in grouped.items():
                 bucket_map[bucket] = len(self._bucket_tasks)
                 self._bucket_tasks.append(tasks)
+
             bucket_sizes = [
                 math.ceil(len(self.data) * len(tasks) / len(recipe.tasks))
                 for tasks in self._bucket_tasks
@@ -398,6 +449,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
             for bucket_id, indices in enumerate(splits):
                 for index in indices.tolist():
                     self._partition_data[int(index)] = bucket_id
+
             for bucket, tasks in grouped.items():
                 if bucket < 0:
                     for positive, _ in grouped.items():
@@ -410,12 +462,14 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
     def _task_for_index(self, index: int) -> LayoutFormerPPTask:
         if self.train and self.recipe.partition_buckets:
             return random.choice(self._bucket_tasks[self._partition_data[index]])
+
         if self.train:
             probabilities = np.ones(len(self.recipe.tasks)) / len(self.recipe.tasks)
             selected = int(
                 np.random.choice(len(self.recipe.tasks), 1, p=probabilities)[0]
             )
             return self.recipe.tasks[selected]
+
         return self.recipe.eval_tasks[0]
 
     def __getitem__(self, index: int) -> _LayoutFormerPPSample:
@@ -427,8 +481,10 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
             bboxes_value, torch.Tensor
         ):
             raise TypeError("processed records must contain tensor labels and bboxes")
+
         if not isinstance(name_value, str):
             raise TypeError("processed records must contain a string name")
+
         task = self._task_for_index(index)
         labels = labels_value.long().clone()
         bboxes = bboxes_value.float().clone()
@@ -440,6 +496,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
             bboxes = bboxes * element_with_noise.unsqueeze(-1) + gold_bboxes * (
                 1 - element_with_noise.unsqueeze(-1)
             )
+
         if task is LayoutFormerPPTask.completion:
             input_labels, input_bboxes, gold_bboxes = _sort_by_position(
                 labels, bboxes, gold_bboxes
@@ -455,6 +512,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
                 task, labels, bboxes, gold_bboxes, self.recipe
             )
             input_labels, input_bboxes = labels, bboxes
+
         discrete_bboxes = _discretize_bboxes(bboxes, self.recipe)
         discrete_gold_bboxes = _discretize_bboxes(gold_bboxes, self.recipe)
         relations: list[tuple[int, int, int, int, int]] = []
@@ -463,6 +521,7 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
                 self.recipe.discrete_x_grid - 1
             )
             relations = _relations(labels, relation_bboxes, self._relation_generator)
+
         label_count = len(
             label_translation_for_dataset(self.recipe.dataset).sequence_id2label
         )
@@ -496,11 +555,14 @@ class _LayoutFormerPPDataset(Dataset[_LayoutFormerPPSample]):
                 add_unk_token="gen_r_add_unk_token" in self.recipe.serialization_flags,
                 compact="gen_r_compact" in self.recipe.serialization_flags,
             )
+
         if "add_task_prompt" in self.recipe.serialization_flags:
             input_text = f"{_TASK_PROMPTS[str(task)].lower()} {input_text}"
+
         input_text = input_text.lower()
         if "add_task_prompt" not in self.recipe.serialization_flags:
             input_text = input_text.strip()
+
         output_text = base.build_seq(labels.tolist(), discrete_gold_bboxes.tolist())
         return {
             "input_text": input_text,
@@ -518,6 +580,7 @@ def _seed_worker(worker_id: int) -> None:
     info = get_worker_info()
     if info is None:
         return
+
     seed = int(info.seed) % (2**32)
     random.seed(seed)
     np.random.seed(seed)
@@ -561,11 +624,13 @@ class LayoutFormerPPDataModule(LightningDataModule):
         root_value = self.data_root or os.environ.get("LAYOUTFORMERPP_DATA_ROOT")
         if not root_value:
             root_value = os.environ.get("LAYOUTFORMERPP_PARITY_DATA_ROOT")
+
         if not root_value:
             raise RuntimeError(
                 "LayoutFormer++ DataModule requires data_root or "
                 "LAYOUTFORMERPP_DATA_ROOT"
             )
+
         root = Path(root_value)
         self.train_dataset = _LayoutFormerPPDataset(
             self.recipe, root, "train", train=True
@@ -595,8 +660,10 @@ class LayoutFormerPPDataModule(LightningDataModule):
         """Return the shuffled, drop-last production training loader."""
         if self.train_dataset is None:
             self.setup("fit")
+
         if self.train_dataset is None:
             raise RuntimeError("train dataset was not initialized")
+
         return DataLoader(
             self.train_dataset,
             batch_size=self.recipe.batch_size,
@@ -613,8 +680,10 @@ class LayoutFormerPPDataModule(LightningDataModule):
         """Return the deterministic, drop-last production validation loader."""
         if self.val_dataset is None:
             self.setup("fit")
+
         if self.val_dataset is None:
             raise RuntimeError("validation dataset was not initialized")
+
         return DataLoader(
             self.val_dataset,
             batch_size=self.recipe.eval_batch_size,
@@ -641,7 +710,9 @@ class LayoutFormerPPTrainingModule(LightningModule):
         """Initialize one immutable recipe and its runtime model."""
         super().__init__()
         self.recipe: LayoutFormerPPTrainingRecipe = get_training_recipe(recipe_name)
-        runtime_config = LayoutFormerPPConfig(**config)
+        runtime_config = LayoutFormerPPConfig(
+            **cast(_LayoutFormerPPConfigInput, config)
+        )
         self._validate_config(runtime_config)
         self.layoutformerpp_config = runtime_config
         self.model = model or LayoutFormerPPForConditionalGeneration(runtime_config)
@@ -705,6 +776,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
             labels_value, torch.Tensor
         ):
             raise TypeError("pre_optimizer_trace requires tensor input_ids and labels")
+
         input_ids = input_ids_value.long()
         labels = labels_value.long()
         attention_mask_value = batch.get("attention_mask")
@@ -721,6 +793,7 @@ class LayoutFormerPPTrainingModule(LightningModule):
         task_ids_value = batch.get("task_ids")
         if task_ids_value is not None and not isinstance(task_ids_value, torch.Tensor):
             raise TypeError("task_ids must be a tensor or None")
+
         task_ids = task_ids_value.long() if task_ids_value is not None else None
         decoder_input_ids = self.model.prepare_decoder_input_ids_from_labels(labels)
         enc_hs, enc_padding_mask = self.model.encode(

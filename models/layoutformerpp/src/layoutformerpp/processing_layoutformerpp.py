@@ -103,6 +103,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
             RICO25_LABEL_TRANSLATION.public_id2label
         ):
             raise ValueError("RICO25 public id2label must match the canonical map")
+
         translation = build_label_translation(
             public_id2label,
             canonical_translation.sequence_id2label,
@@ -204,10 +205,12 @@ class LayoutFormerPPProcessor(ProcessorMixin):
         if isinstance(label, int):
             if label not in self.public_to_sequence:
                 raise ValueError(f"Unknown label: {label}")
+
             return self.public_to_sequence[label]
         normalized = normalize_label_name(label)
         if normalized.startswith("label_"):
             raise ValueError("Raw label_<id> tokens are internal-only")
+
         if normalized in self.public_label2id:
             return self.public_to_sequence[self.public_label2id[normalized]]
         raise ValueError(f"Unknown label: {label}")
@@ -423,6 +426,7 @@ class LayoutFormerPPProcessor(ProcessorMixin):
                     raise ValueError(
                         f"Unknown internal label id in generated sequence: {exc.args[0]}"
                     ) from exc
+
                 labels = torch.tensor(public_labels, dtype=torch.long)
                 boxes = torch.tensor(item.bbox, dtype=torch.long)
                 mask = torch.ones(len(labels), dtype=torch.bool)

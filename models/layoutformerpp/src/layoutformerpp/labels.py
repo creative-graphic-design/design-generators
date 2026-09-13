@@ -110,8 +110,10 @@ def build_label_translation(
     sequence = {int(key): str(value) for key, value in sequence_id2label.items()}
     if set(public) != set(range(len(public))):
         raise ValueError("public ids must be contiguous from zero")
+
     if set(sequence) != set(range(1, len(sequence) + 1)):
         raise ValueError("sequence ids must be contiguous from one")
+
     if len(public) != len(sequence):
         raise ValueError("public and sequence label maps must have equal size")
 
@@ -161,7 +163,9 @@ def _normalized_name_to_id(
         key = normalize_label_name(label)
         if key in normalized:
             raise ValueError(f"{map_name} label normalization collision: {label!r}")
+
         normalized[key] = label_id
+
     return normalized
 
 
@@ -184,8 +188,10 @@ def label_translation_for_dataset(dataset: DatasetName) -> LabelTranslation:
     """Return the canonical public-to-sequence label translation."""
     if dataset is DatasetName.rico25:
         return RICO25_LABEL_TRANSLATION
+
     if dataset is DatasetName.publaynet:
         return PUBLAYNET_LABEL_TRANSLATION
+
     raise ValueError(f"Unsupported LayoutFormer++ dataset: {dataset}")
 
 
@@ -203,6 +209,7 @@ def validate_label_translation_metadata(
         sha256 = metadata["sha256"]
     except KeyError as exc:
         raise ValueError("label translation metadata is incomplete") from exc
+
     public = {int(key): str(value) for key, value in public_raw.items()}
     sequence = {int(key): str(value) for key, value in sequence_raw.items()}
     rebuilt = build_label_translation(public, sequence)
@@ -217,6 +224,7 @@ def validate_label_translation_metadata(
     normalized["sha256"] = str(sha256)
     if normalized != expected.metadata() or rebuilt.sha256 != expected.sha256:
         raise ValueError("label translation metadata does not match the canonical map")
+
     return expected.metadata()
 
 

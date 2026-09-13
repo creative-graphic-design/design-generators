@@ -184,10 +184,10 @@ class LayoutFormerPPConfig(PretrainedConfig):
             != canonical_id2label
         ):
             raise ValueError("id2label does not match the canonical dataset map")
-        normalized_id2label: dict[int | str, str] = {
+
+        normalized_id2label: dict[int, str] = {
             key: value for key, value in canonical_id2label.items()
         }
-        id2label = normalized_id2label
         label2id = {value: key for key, value in canonical_id2label.items()}
         self.label_translation_metadata = (
             translation.metadata()
@@ -208,12 +208,6 @@ class LayoutFormerPPConfig(PretrainedConfig):
             decode_max_length = int(defaults.get("decode_max_length", 120))
         if eval_seed is None:
             eval_seed = int(defaults.get("eval_seed", 100))
-
-        normalized_id2label = (
-            {int(key): str(value) for key, value in id2label.items()}
-            if id2label is not None
-            else None
-        )
 
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings

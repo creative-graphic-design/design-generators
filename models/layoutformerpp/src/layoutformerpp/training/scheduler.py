@@ -25,6 +25,7 @@ class LayoutFormerPPWarmupLR(LRScheduler):
         """Capture optimizer state without changing its initial learning rate."""
         if warmup_num_steps <= 1:
             raise ValueError("warmup_num_steps must be greater than one")
+
         self.warmup_num_steps = warmup_num_steps
         self.warmup_min_lr = warmup_min_lr
         self.warmup_max_lr = warmup_max_lr
@@ -39,6 +40,7 @@ class LayoutFormerPPWarmupLR(LRScheduler):
     def _lr_at(self, index: int) -> float:
         if index >= self.warmup_num_steps:
             return self.warmup_max_lr
+
         ratio = math.log(index + 1) / math.log(self.warmup_num_steps)
         return self.warmup_min_lr + (self.warmup_max_lr - self.warmup_min_lr) * ratio
 
@@ -49,6 +51,7 @@ class LayoutFormerPPWarmupLR(LRScheduler):
             self.last_batch_iteration += 1
         else:
             self.last_batch_iteration = epoch
+
         self.last_epoch = self.last_batch_iteration
         lr = self._lr_at(self.last_batch_iteration)
         self._last_lr = [lr for _ in self.optimizer.param_groups]
