@@ -13,6 +13,7 @@ from typing import cast
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 
 import run_training_stages as stages
 from ralf import RalfForConditionalLayoutGeneration
@@ -30,6 +31,7 @@ from run_training_stages import (
     _natural_run_envelope,
     _recipe_epochs,
     _s3_child_import_gate,
+    _source_gate_metadata,
     _s3_status,
     _s3_trace_status,
     _run_s3_fit,
@@ -42,6 +44,16 @@ from run_training_stages import (
 
 
 pytestmark = pytest.mark.vendor_parity
+
+
+def _cuda_runtime_usable() -> bool:
+    if not torch.cuda.is_available():
+        return False
+    try:
+        torch.empty(1, device="cuda")
+    except RuntimeError:
+        return False
+    return True
 
 
 @pytest.mark.skipif(
@@ -415,6 +427,17 @@ def test_s3_child_import_gate_resolves_spawned_paths() -> None:
     _s3_child_import_gate()
 
 
+def test_source_gate_reports_current_cwh_package() -> None:
+    metadata = _source_gate_metadata()
+    root = Path(cast(str, metadata["source_root"]))
+
+    assert root == stages.ROOT.resolve()
+    assert Path(cast(str, metadata["ralf_file"])).is_relative_to(root)
+    assert Path(cast(str, metadata["run_training_stages_file"])).is_relative_to(root)
+    assert metadata["source_commit"] == stages._git_head(root)
+    assert metadata["cwh_termination_fix"] is True
+
+
 def test_stage_evidence_records_runtime_allocator_environment() -> None:
     source = inspect.getsource(main)
 
@@ -432,7 +455,37 @@ def test_s3_trace_records_peak_cuda_memory() -> None:
 def test_s3_validation_boundary_releases_cuda_cache() -> None:
     source = inspect.getsource(RalfS3TraceCallback.on_validation_epoch_end)
 
+    assert "gc.collect()" in source
     assert "torch.cuda.empty_cache()" in source
+
+
+@pytest.mark.skipif(not _cuda_runtime_usable(), reason="requires usable CUDA")
+def test_s3_validation_cleanup_keeps_live_cuda_bytes_flat_across_cycles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("RALF_S3_MEMORY_SAMPLES_PATH", raising=False)
+    callback = RalfS3TraceCallback(cache_dir=str(tmp_path), output_dir=str(tmp_path))
+    trainer = SimpleNamespace(current_epoch=0, callback_metrics={})
+    live_bytes: list[int] = []
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        for epoch in range(2):
+            trainer.current_epoch = epoch
+            cycle: list[object] = [torch.empty(8 << 20, device="cuda")]
+            cycle.append(cycle)
+            del cycle
+            callback.on_validation_epoch_end(
+                cast(Trainer, trainer), cast(LightningModule, None)
+            )
+            torch.cuda.synchronize()
+            live_bytes.append(int(torch.cuda.memory_allocated()))
+    finally:
+        if was_enabled:
+            gc.enable()
+        gc.collect()
+
+    assert live_bytes[1] - live_bytes[0] <= 1 << 20
 
 
 def test_s3_memory_samples_record_process_and_gpu_memory() -> None:

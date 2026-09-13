@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import csv
+import gc
 import hashlib
 import json
 import os
@@ -30,6 +31,7 @@ from torch.utils.data import DataLoader
 from traingen_parity.determinism import RNGState, capture_rng_state, restore_rng_state
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
+from ralf.modeling_ralf import RalfTaskPreprocessor
 from ralf.retrieval import RalfRetrievedBatch
 from ralf.training.datamodule import (
     RalfDataModule,
@@ -54,6 +56,78 @@ DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
 ConditionType = Literal["unconditional", "label", "label_size"]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
+
+
+def _git_head(root: Path) -> str:
+    """Return the source tree commit used by a child-process gate."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"source gate could not resolve git HEAD under {root}: "
+            f"{completed.stdout.strip()} {completed.stderr.strip()}"
+        )
+    return completed.stdout.strip()
+
+
+def _source_gate_metadata() -> dict[str, object]:
+    """Assert and report the package and harness source used by this process."""
+    source_root = Path(os.environ.get("RALF_SOURCE_ROOT", ROOT)).resolve()
+    module_root = ROOT.resolve()
+    ralf_file = Path(ralf.__file__).resolve()
+    run_training_stages_file = Path(__file__).resolve()
+    if module_root != source_root:
+        raise RuntimeError(
+            "source gate resolved run_training_stages from the wrong worktree: "
+            f"expected={source_root} actual={module_root}"
+        )
+    if not ralf_file.is_relative_to(source_root):
+        raise RuntimeError(
+            "source gate resolved ralf from outside the expected worktree: "
+            f"expected={source_root} actual={ralf_file}"
+        )
+    if not run_training_stages_file.is_relative_to(source_root):
+        raise RuntimeError(
+            "source gate resolved run_training_stages from outside the expected "
+            f"worktree: expected={source_root} actual={run_training_stages_file}"
+        )
+
+    source_commit = _git_head(source_root)
+    expected_commit = os.environ.get("RALF_EXPECTED_COMMIT", source_commit)
+    if source_commit != expected_commit:
+        raise RuntimeError(
+            "source gate resolved an unexpected source commit: "
+            f"expected={expected_commit} actual={source_commit}"
+        )
+
+    call_names = set(RalfTaskPreprocessor.__call__.__code__.co_varnames)
+    cwh_termination_fix = not hasattr(
+        RalfTaskPreprocessor, "_valid_element_counts"
+    ) and {"valid_counts", "element_tokens"}.issubset(call_names)
+    if not cwh_termination_fix:
+        raise RuntimeError(
+            "source gate resolved RalfTaskPreprocessor without the fixed cwh "
+            "termination implementation"
+        )
+    return {
+        "source_root": str(source_root),
+        "ralf_file": str(ralf_file),
+        "run_training_stages_file": str(run_training_stages_file),
+        "source_commit": source_commit,
+        "cwh_termination_fix": cwh_termination_fix,
+    }
+
+
+if os.environ.get("RALF_SOURCE_GATE_REQUIRED") == "1":
+    print(
+        "RALF_SOURCE_GATE " + json.dumps(_source_gate_metadata(), sort_keys=True),
+        flush=True,
+    )
 
 
 class _GradientCoverage(TypedDict):
@@ -1809,6 +1883,7 @@ class RalfS3TraceCallback(Callback):
                 "val_loss": "val_loss" in trainer.callback_metrics,
             }
         )
+        gc.collect()
         torch.cuda.empty_cache()
         self._record_memory_sample(
             epoch=trainer.current_epoch,
@@ -1988,11 +2063,20 @@ def _fresh_s3_run_root(base_root: Path) -> Path:
 
 def _s3_child_import_gate() -> None:
     """Resolve every class path passed to the spawned production trainer."""
+    package_root = ROOT / "models" / "ralf" / "src"
     callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
-        [str(callback_root), env.get("PYTHONPATH", "")]
+        [
+            str(package_root),
+            str(callback_root),
+            str(ROOT),
+            env.get("PYTHONPATH", ""),
+        ]
     ).rstrip(os.pathsep)
+    env["RALF_SOURCE_ROOT"] = str(ROOT)
+    env["RALF_EXPECTED_COMMIT"] = _git_head(ROOT)
+    env["RALF_SOURCE_GATE_REQUIRED"] = "1"
     paths = (
         "run_training_stages.RalfS3TraceCallback",
         "run_training_stages.RalfS3ModelCheckpoint",
@@ -2271,8 +2355,16 @@ def _run_s3_fit(
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "4"
     env["PYTHONPATH"] = os.pathsep.join(
-        [str(callback_root), env.get("PYTHONPATH", "")]
+        [
+            str(ROOT / "models" / "ralf" / "src"),
+            str(callback_root),
+            str(ROOT),
+            env.get("PYTHONPATH", ""),
+        ]
     ).rstrip(os.pathsep)
+    env["RALF_SOURCE_ROOT"] = str(ROOT)
+    env["RALF_EXPECTED_COMMIT"] = _git_head(ROOT)
+    env["RALF_SOURCE_GATE_REQUIRED"] = "1"
     env["RALF_RESNET_WEIGHTS_PATH"] = str(resnet_path)
     env["RALF_FIDNET_WEIGHTS_PATH"] = str(fidnet_path)
     env["RALF_DATA_ROOT"] = str(args.cache_dir / "dataset")
@@ -2306,6 +2398,14 @@ def _run_s3_fit(
             "S3 documented traingen fit failed with exit "
             f"{completed.returncode}; first failure output:\n{tail}"
         )
+    source_gate_lines = [
+        line.removeprefix("RALF_SOURCE_GATE ")
+        for line in completed.stdout.splitlines()
+        if line.startswith("RALF_SOURCE_GATE ")
+    ]
+    if not source_gate_lines:
+        raise RuntimeError("S3 child did not report the required source gate")
+    source_gate = cast(dict[str, object], json.loads(source_gate_lines[-1]))
     trace_path = trace_root / "s3-trace.json"
     if not trace_path.is_file():
         raise RuntimeError(f"S3 trace callback did not write {trace_path}")
@@ -2320,6 +2420,7 @@ def _run_s3_fit(
             "stdout_artifact": stdout_path.relative_to(ROOT).as_posix(),
             "checkpoint_root": checkpoint_root.relative_to(ROOT).as_posix(),
             "logger_root": logger_root.relative_to(ROOT).as_posix(),
+            "source_gate": source_gate,
             "seed_scope": {
                 "training_seed": args.seed,
                 "rng": "package batch-start RNG restored for independent vendor backward",
@@ -2874,6 +2975,7 @@ def main() -> int:
     args = _parse_args()
     if os.environ.get("PARITY_REQUIRE") != "1":
         raise RuntimeError("PARITY_REQUIRE=1 is required; refusing an all-skip result")
+    source_gate = _source_gate_metadata()
     device = _device()
     config, data, context = _load_context(args)
     if args.stage == "S0":
@@ -2906,6 +3008,7 @@ def main() -> int:
                 "cuda_runtime": torch.version.cuda,
                 "pytorch_cuda_alloc_conf": os.environ.get("PYTORCH_CUDA_ALLOC_CONF"),
             },
+            "source_gate": source_gate,
             "cache_dir": str(args.cache_dir),
             "ralf_file": str(Path(ralf.__file__).resolve()),
             "package_commit": subprocess.check_output(
