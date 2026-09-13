@@ -1680,6 +1680,7 @@ class RalfS3TraceCallback(Callback):
                 "val_loss": "val_loss" in trainer.callback_metrics,
             }
         )
+        torch.cuda.empty_cache()
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module

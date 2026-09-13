@@ -427,6 +427,12 @@ def test_s3_trace_records_peak_cuda_memory() -> None:
     assert "torch.cuda.max_memory_allocated()" in source
 
 
+def test_s3_validation_boundary_releases_cuda_cache() -> None:
+    source = inspect.getsource(RalfS3TraceCallback.on_validation_epoch_end)
+
+    assert "torch.cuda.empty_cache()" in source
+
+
 def test_s3_does_not_disable_deterministic_training() -> None:
     source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
 
