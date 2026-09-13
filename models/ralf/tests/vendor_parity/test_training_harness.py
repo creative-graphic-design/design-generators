@@ -433,6 +433,16 @@ def test_s3_validation_boundary_releases_cuda_cache() -> None:
     assert "torch.cuda.empty_cache()" in source
 
 
+def test_s3_memory_samples_record_process_and_gpu_memory() -> None:
+    source = inspect.getsource(RalfS3TraceCallback) + inspect.getsource(_run_s3_fit)
+
+    assert "RALF_S3_MEMORY_SAMPLES_PATH" in source
+    assert "memory_allocated" in source
+    assert "memory_reserved" in source
+    assert "nvidia-smi" in source
+    assert '"60"' in source
+
+
 def test_s3_does_not_disable_deterministic_training() -> None:
     source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
 import hashlib
 import json
 import os
@@ -1194,6 +1195,103 @@ class RalfS3TraceCallback(Callback):
         self.batch_start_storage_independence: _StorageIndependence | None = None
         self.state_sync_copy_integrity_records: list[dict[str, object]] = []
         self.first_divergence: dict[str, object] | None = None
+        memory_samples_path = os.environ.get("RALF_S3_MEMORY_SAMPLES_PATH")
+        self.memory_samples_path = (
+            None if memory_samples_path is None else Path(memory_samples_path)
+        )
+        self.memory_sample_interval_seconds = float(
+            os.environ.get("RALF_S3_MEMORY_SAMPLE_INTERVAL_SECONDS", "60")
+        )
+        self.memory_sample_started_at = time.monotonic()
+        self.memory_sample_last_at = 0.0
+        if self.memory_samples_path is not None:
+            self.memory_samples_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self.memory_samples_path.exists():
+                with self.memory_samples_path.open("w", newline="") as handle:
+                    csv.DictWriter(
+                        handle,
+                        fieldnames=[
+                            "utc_time",
+                            "elapsed_seconds",
+                            "event",
+                            "epoch",
+                            "batch_idx",
+                            "optimizer_step",
+                            "memory_allocated_bytes",
+                            "memory_reserved_bytes",
+                            "max_memory_allocated_bytes",
+                            "nvidia_smi_memory_used_mib",
+                        ],
+                    ).writeheader()
+
+    def _record_memory_sample(
+        self,
+        *,
+        epoch: int,
+        batch_idx: int,
+        optimizer_step: int,
+        event: str,
+        force: bool = False,
+    ) -> None:
+        if self.memory_samples_path is None:
+            return
+
+        now = time.monotonic()
+        if (
+            not force
+            and self.memory_sample_last_at != 0.0
+            and now - self.memory_sample_last_at < self.memory_sample_interval_seconds
+        ):
+            return
+
+        nvidia_smi_memory_used_mib = ""
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.used",
+                "--format=csv,noheader,nounits",
+                "-i",
+                "0",
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if completed.returncode == 0:
+            nvidia_smi_memory_used_mib = completed.stdout.strip()
+
+        with self.memory_samples_path.open("a", newline="") as handle:
+            csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "utc_time",
+                    "elapsed_seconds",
+                    "event",
+                    "epoch",
+                    "batch_idx",
+                    "optimizer_step",
+                    "memory_allocated_bytes",
+                    "memory_reserved_bytes",
+                    "max_memory_allocated_bytes",
+                    "nvidia_smi_memory_used_mib",
+                ],
+            ).writerow(
+                {
+                    "utc_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "elapsed_seconds": f"{now - self.memory_sample_started_at:.3f}",
+                    "event": event,
+                    "epoch": epoch,
+                    "batch_idx": batch_idx,
+                    "optimizer_step": optimizer_step,
+                    "memory_allocated_bytes": int(torch.cuda.memory_allocated()),
+                    "memory_reserved_bytes": int(torch.cuda.memory_reserved()),
+                    "max_memory_allocated_bytes": int(
+                        torch.cuda.max_memory_allocated()
+                    ),
+                    "nvidia_smi_memory_used_mib": nvidia_smi_memory_used_mib,
+                }
+            )
+        self.memory_sample_last_at = now
 
     def _remember_divergence(self, location: str, max_abs_diff: float | None) -> None:
         if self.first_divergence is None:
@@ -1655,6 +1753,13 @@ class RalfS3TraceCallback(Callback):
         )
         vendor_optimizer.zero_grad(set_to_none=True)
         self.optimizer_step_count = optimizer_step_index
+        self._record_memory_sample(
+            epoch=self.package_batch_epoch,
+            batch_idx=batch_idx,
+            optimizer_step=optimizer_step_index,
+            event="after_train_step",
+            force=optimizer_step_index == 1,
+        )
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module
@@ -1681,6 +1786,13 @@ class RalfS3TraceCallback(Callback):
             }
         )
         torch.cuda.empty_cache()
+        self._record_memory_sample(
+            epoch=trainer.current_epoch,
+            batch_idx=-1,
+            optimizer_step=self.optimizer_step_count,
+            event="after_validation",
+            force=True,
+        )
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module
@@ -2149,6 +2261,8 @@ def _run_s3_fit(
     env["RALF_S3_TRACE_DIR"] = str(trace_root)
     env["RALF_S3_CHECKPOINT_DIR"] = str(checkpoint_root)
     env["RALF_S3_LOGGER_DIR"] = str(logger_root)
+    env["RALF_S3_MEMORY_SAMPLES_PATH"] = str(run_root / "memory-samples.csv")
+    env["RALF_S3_MEMORY_SAMPLE_INTERVAL_SECONDS"] = "60"
     stdout_path = run_root / "traingen.stdout.log"
     started = time.monotonic()
     completed = subprocess.run(
