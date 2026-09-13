@@ -256,7 +256,7 @@ Verdict: Label-conditioned CGL training is reproduced within the vendor seed-to-
 
 The leading explanation is finite-seed trajectory variation acting on this rare event. A paired determinism-flag crossover would require 10 runs and about 240 GPU-hours, so it was judged not worth running because a `1e-4` validity shift would not change the verdict.
 
-Validity is that fraction; an invalid element fails the evaluator rule. Both systems were evaluated through the same vendor inference and evaluator: package Lightning checkpoints were converted to the vendor checkpoint format, then both systems used the same inference entrypoint and `eval.py` process.
+An invalid element fails the evaluator rule. Both systems were evaluated through the same vendor inference and evaluator: package Lightning checkpoints were converted to the vendor checkpoint format, then both systems used the same inference entrypoint and `eval.py` process.
 
 The objective, tokenizer and vocabulary, optimizer groups and schedule, quantization and decoding, and data stream were verified identical. Same-checkpoint logits had maximum absolute difference `0.0`. The only training-path difference found was determinism handling: the package enables deterministic algorithms in warn-only mode, while the vendor enables cuDNN benchmarking. This can change numerical trajectories, but no direction for validity was demonstrated.
 
