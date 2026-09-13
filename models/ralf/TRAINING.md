@@ -183,7 +183,6 @@ All five control trainings reached epoch 50/50 and all five original-protocol ev
 
 The control analysis was recomputed from the fifteen ledger-verified score files. Its machine-readable and Markdown artifacts are `.cache/ralf/training-reproduction/cgl/label/s5/control-vendor-seeds-6-10/control-analysis.json` and `.cache/ralf/training-reproduction/cgl/label/s5/control-vendor-seeds-6-10/control-analysis.md`; the Markdown artifact SHA-256 is `f39dbf5e6871a7ef76d833359520884fece21ecbaac2bf4b305d08c0dfe092a7`.
 
-
 ### Vendor A vs vendor B
 
 | Metric                          | Vendor seeds 1 / 2 / 3 / 4 / 5                                                | Vendor seeds 6 / 7 / 8 / 9 / 10                                               | Vendor A mean [min, max]                        | Vendor B mean [min, max]                       | Vendor A mean in Vendor B range | Vendor B mean in Vendor A range |      Welch p | Permutation failure probability |
