@@ -761,6 +761,20 @@ class RalfTaskPreprocessor:
         label = seq_vars["label"]
         return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
 
+    def _valid_element_counts(
+        self, inputs: RalfConditionalInputs
+    ) -> Int[torch.Tensor, "batch"]:
+        if inputs.seq is None:
+            raise ValueError(f"condition_type={self.task_name!r} requires labels")
+
+        seq_vars = self._parse_seq_into_vars(inputs.seq)
+        valid = (
+            self._valid_element_mask(seq_vars)
+            if inputs.element_mask is None
+            else inputs.element_mask[:, : seq_vars["label"].size(1)].bool()
+        )
+        return valid.sum(dim=1)
+
     def _label_sequence(
         self, inputs: RalfConditionalInputs
     ) -> Int[torch.Tensor, "batch tokens"]:
@@ -944,6 +958,22 @@ class RalfTaskPreprocessor:
             seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
         if self.task_name == "relation":
             seq = self._relation_sequence(inputs, seq)
+
+        if self.task_name == "cwh":
+            pad_id = self.name_to_id("pad")
+            eos_id = self.name_to_id("eos")
+            seq = seq.clone()
+            seq[:, -1] = pad_id
+            prefix_length = 1 if self.global_task_embedding else 3
+            valid_counts = self._valid_element_counts(inputs)
+            eos_positions = (
+                prefix_length
+                + valid_counts * len(self._VAR)
+                + torch.clamp(valid_counts - 1, min=0)
+            )
+            for batch_idx, eos_position in enumerate(eos_positions.tolist()):
+                seq[batch_idx, eos_position] = eos_id
+                seq[batch_idx, eos_position + 1 :] = pad_id
         return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
 
 

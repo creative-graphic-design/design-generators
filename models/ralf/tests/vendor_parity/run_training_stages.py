@@ -50,7 +50,7 @@ from training_reference import (
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
-ConditionType = Literal["unconditional", "label"]
+ConditionType = Literal["unconditional", "label", "label_size"]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
 
@@ -170,7 +170,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
-        "--condition", choices=("unconditional", "label"), default="unconditional"
+        "--condition",
+        choices=("unconditional", "label", "label_size"),
+        default="unconditional",
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -185,6 +187,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "unconditional", "uncond"
     if condition == "label":
         return "label", "c"
+    if condition == "label_size":
+        return "label_size", "cwh"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -296,13 +300,19 @@ def _recipe_epochs(
             f"vendor training recipe has no integer training.epochs: {experiment_path}"
         )
     epochs = int(training["epochs"])
+    condition_filename = "chw.sh" if vendor_task == "cwh" else f"{vendor_task}.sh"
     condition_path = (
-        ROOT / "vendor" / "ralf" / "configs" / f"ralf_{dataset}" / f"{vendor_task}.sh"
+        ROOT / "vendor" / "ralf" / "configs" / f"ralf_{dataset}" / condition_filename
     )
     if not condition_path.is_file():
         raise FileNotFoundError(f"vendor condition recipe is missing: {condition_path}")
     match = re.search(r"training\.epochs\s*=\s*(\d+)", condition_path.read_text())
-    return int(match.group(1)) if match else epochs
+    condition_epochs = int(match.group(1)) if match else epochs
+    if vendor_task == "cwh":
+        # The label-size campaign deliberately uses the accepted label recipe's
+        # 50-epoch command-line override, while retaining the vendor cwh task.
+        return 50
+    return condition_epochs
 
 
 def _build_vendor_scheduler(

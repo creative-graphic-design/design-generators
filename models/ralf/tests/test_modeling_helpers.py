@@ -101,6 +101,75 @@ def test_task_preprocessor_sequences_for_supported_tasks() -> None:
     assert partial(inputs)["seq"][0, 1].item() == partial.name_to_id("completion")
 
 
+def test_label_size_condition_uses_per_sample_eos_and_padding() -> None:
+    config = RalfConfig(max_seq_length=4, num_bin=8)
+    tokenizer = RalfLayoutTokenizer(config)
+    labels = torch.tensor([[0, 1, 2, 3], [4, 5, 6, 7], [1, 2, 3, 4]])
+    bbox = torch.tensor(
+        [
+            [
+                [0.1, 0.2, 0.3, 0.4],
+                [0.5, 0.6, 0.7, 0.8],
+                [0.2, 0.3, 0.4, 0.5],
+                [0.6, 0.7, 0.8, 0.9],
+            ],
+            [
+                [0.2, 0.3, 0.4, 0.5],
+                [0.6, 0.7, 0.8, 0.9],
+                [0.3, 0.4, 0.5, 0.6],
+                [0.7, 0.8, 0.9, 1.0],
+            ],
+            [
+                [0.3, 0.4, 0.5, 0.6],
+                [0.7, 0.8, 0.9, 1.0],
+                [0.4, 0.5, 0.6, 0.7],
+                [0.8, 0.9, 1.0, 1.0],
+            ],
+        ]
+    )
+    mask = torch.tensor(
+        [
+            [True, True, True, False],
+            [True, True, True, True],
+            [True, False, False, False],
+        ]
+    )
+    encoded = tokenizer.encode_layout(labels=labels, bbox=bbox, mask=mask)
+    inputs = RalfConditionalInputs(
+        image=torch.zeros(3, 4, 8, 8),
+        retrieved={},
+        seq=encoded["input_ids"],
+    )
+    preprocessor = RalfTaskPreprocessor(RalfTokenizerView(config), task="cwh")
+
+    actual = preprocessor(inputs)
+    expected = torch.full_like(actual["seq"], preprocessor.name_to_id("pad"))
+    expected[:, :3] = torch.tensor(
+        [
+            [
+                config.bos_token_id,
+                preprocessor.name_to_id("label_size"),
+                preprocessor.name_to_id("end_of_task"),
+            ]
+        ]
+    )
+    for batch_idx, element_count in enumerate((3, 4, 1)):
+        body: list[int] = []
+        for element_idx in range(element_count):
+            start = 1 + element_idx * len(config.var_order)
+            body.extend(
+                int(encoded["input_ids"][batch_idx, start + offset].item())
+                for offset in (0, 1, 2)
+            )
+            if element_idx < element_count - 1:
+                body.append(preprocessor.name_to_id("sep"))
+        expected[batch_idx, 3 : 3 + len(body)] = torch.tensor(body)
+        expected[batch_idx, 3 + len(body)] = config.eos_token_id
+
+    assert torch.equal(actual["seq"], expected)
+    assert torch.equal(actual["pad_mask"], expected == preprocessor.name_to_id("pad"))
+
+
 def test_relation_task_preprocessor_sequences_and_helpers() -> None:
     config = RalfConfig(max_seq_length=2, num_bin=8)
     tokenizer = RalfTokenizerView(config)

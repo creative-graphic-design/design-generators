@@ -141,19 +141,21 @@ def test_label_condition_shuffle_order_matches_vendor_cpu_rng() -> None:
     assert torch.equal(package_sequence.cpu(), vendor_sequence)
 
 
-def test_condition_type_maps_canonical_label_to_vendor_task() -> None:
+def test_condition_type_maps_canonical_conditions_to_vendor_tasks() -> None:
     assert _condition_type("unconditional") == ("unconditional", "uncond")
     assert _condition_type("label") == ("label", "c")
+    assert _condition_type("label_size") == ("label_size", "cwh")
 
 
 def test_condition_type_rejects_unsupported_tasks() -> None:
     with pytest.raises(ValueError, match="unsupported RALF condition"):
-        _condition_type("label_size")
+        _condition_type("unsupported")
 
 
 def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "unconditional") == 30
     assert _recipe_epochs("cgl", "label") == 50
+    assert _recipe_epochs("cgl", "label_size") == 50
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(

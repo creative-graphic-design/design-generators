@@ -98,7 +98,11 @@ def build_vendor_model(config: RalfConfig, *, cache_dir: Path) -> torch.nn.Modul
     from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
 
     features = _vendor_features(config)
-    vendor_task = {"unconditional": "uncond", "label": "c"}.get(str(config.task))
+    vendor_task = {
+        "unconditional": "uncond",
+        "label": "c",
+        "label_size": "cwh",
+    }.get(str(config.task))
     if vendor_task is None:
         raise ValueError(f"unsupported RALF vendor condition: {config.task}")
     tokenizer = LayoutSequenceTokenizer(

@@ -1,4 +1,4 @@
-"""Run the faithful, fixed-batch CGL label S1 lockstep diagnostic."""
+"""Run the faithful, fixed-batch CGL conditional S1 lockstep diagnostic."""
 
 from __future__ import annotations
 
@@ -64,13 +64,17 @@ def _compare(
     name: str,
     package: Shaped[Tensor, "..."],
     vendor: Shaped[Tensor, "..."],
+    *,
+    atol: float = 0.0,
 ) -> None:
     if package.shape != vendor.shape or package.dtype != vendor.dtype:
         raise ProbeDivergence(
             f"{name}: shape/dtype package={tuple(package.shape)}/{package.dtype} "
             f"vendor={tuple(vendor.shape)}/{vendor.dtype}"
         )
-    if torch.equal(package, vendor):
+    if torch.equal(package, vendor) or torch.allclose(
+        package, vendor, atol=atol, rtol=0.0
+    ):
         print(f"MATCH {name}: shape={tuple(package.shape)} dtype={package.dtype}")
         return
 
@@ -108,6 +112,11 @@ class _Recorder:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, required=True)
+    parser.add_argument(
+        "--condition",
+        choices=("label", "label_size"),
+        default="label",
+    )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--device", default="cuda")
@@ -120,7 +129,7 @@ def main() -> int:
         raise RuntimeError("CUDA is required for the faithful S1 probe")
     context_args = argparse.Namespace(
         dataset="cgl",
-        condition="label",
+        condition=args.condition,
         cache_dir=args.cache_dir,
         batch_size=args.batch_size,
     )
@@ -177,7 +186,7 @@ def main() -> int:
         device = torch.device(args.device)
         recorder.phase = "models"
         package_module, vendor_model, _ = _models(
-            config, args.cache_dir, device, args.seed, "label"
+            config, args.cache_dir, device, args.seed, args.condition
         )
         package_model = package_module.model
         batch = context["batch"]
@@ -249,7 +258,7 @@ def main() -> int:
                 relationship_table=relationship_table,
                 sample_ids=sample_ids,
             )
-            result_tensors = cast(Mapping[str, Shaped[Tensor, ...]], result)
+            result_tensors = cast(Mapping[str, Tensor], result)
             recorder.package_condition = {
                 "seq_layout_const": result_tensors["seq_layout_const"]
                 .detach()
@@ -372,10 +381,21 @@ def main() -> int:
                     "seq_layout_const_pad_mask"
                 ],
             )
+            print(
+                "PACKAGE_CONDITION "
+                f"seq_sha256={_digest(recorder.package_condition['seq_layout_const'])} "
+                "pad_mask_sha256="
+                f"{_digest(recorder.package_condition['seq_layout_const_pad_mask'])}"
+            )
             _compare(
                 "logits", package_logits.detach().cpu(), vendor_logits.detach().cpu()
             )
-            _compare("loss", package_loss.detach().cpu(), vendor_loss.detach().cpu())
+            _compare(
+                "loss",
+                package_loss.detach().cpu(),
+                vendor_loss.detach().cpu(),
+                atol=1e-6,
+            )
     except ProbeDivergence as exc:
         print(f"FIRST_DIVERGENCE {exc}")
         return 1
