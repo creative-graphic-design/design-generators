@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
 
+import run_training_stages as stages
+from ralf import RalfForConditionalLayoutGeneration
+from ralf.training.datamodule import RalfTrainingBatch
 from run_training_stages import (
     _assert_optimizer_state_storage_independent,
     _compare_learning_rates,
@@ -16,9 +22,11 @@ from run_training_stages import (
     _compare_scheduler_outputs,
     _compare_state_dicts,
     _build_vendor_scheduler,
+    _condition_type,
     _fresh_s3_run_root,
     _load_optimizer_state_without_hyperparameters,
     _natural_run_envelope,
+    _recipe_epochs,
     _s3_child_import_gate,
     _s3_status,
     _s3_trace_status,
@@ -32,6 +40,201 @@ from run_training_stages import (
 
 
 pytestmark = pytest.mark.vendor_parity
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="label RNG placement needs CUDA"
+)
+def test_label_condition_shuffle_order_matches_vendor_cpu_rng() -> None:
+    """Match vendor label-condition element order and its CPU RNG source."""
+    from training_reference import require_vendor
+
+    require_vendor(Path(os.environ.get("RALF_CACHE_DIR", ".cache/ralf/cache")))
+    from datasets import ClassLabel, Features, Sequence as DatasetSequence, Value
+    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    from image2layout.train.helpers.task import get_condition
+    from image2layout.train.models.layoutformerpp.task_preprocessor import (
+        LabelPreprocessor,
+    )
+    from ralf.modeling_ralf import (
+        RalfConditionalInputs,
+        RalfTaskPreprocessor,
+        RalfTokenizerView,
+    )
+    from ralf import RalfConfig, RalfLayoutTokenizer
+
+    labels = torch.tensor(
+        [
+            [0, 1, 2, 3, 4],
+            [4, 3, 2, 1, 0],
+            [1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ],
+        dtype=torch.long,
+    )
+    bbox = torch.full((4, 5, 4), 0.10, dtype=torch.float32)
+    bbox[1] = 0.20
+    mask = torch.tensor(
+        [
+            [True, True, True, True, True],
+            [True, True, True, True, True],
+            [True, False, False, False, False],
+            [False, False, False, False, False],
+        ]
+    )
+    raw = {
+        "id": ["0", "1", "2", "3"],
+        "image": torch.zeros(4, 3, 8, 8),
+        "saliency": torch.zeros(4, 1, 8, 8),
+        "label": labels,
+        "center_x": bbox[..., 0],
+        "center_y": bbox[..., 1],
+        "width": bbox[..., 2],
+        "height": bbox[..., 3],
+        "mask": mask,
+    }
+    features = Features(
+        {
+            "id": Value("string"),
+            "label": DatasetSequence(ClassLabel(names=[str(i) for i in range(5)])),
+        }
+    )
+    vendor_tokenizer = LayoutSequenceTokenizer(
+        label_feature=features["label"].feature,
+        max_seq_length=5,
+        num_bin=8,
+        var_order=["label", "width", "height", "center_x", "center_y"],
+        special_tokens=["pad", "bos", "eos"],
+    )
+    vendor_condition, _ = get_condition(raw, "c", vendor_tokenizer)
+    vendor_preprocessor = LabelPreprocessor(
+        tokenizer=vendor_tokenizer,
+        global_task_embedding=False,
+    )
+    torch.manual_seed(17)
+    vendor_sequence = vendor_preprocessor(vendor_condition)["seq"]
+
+    config = RalfConfig(
+        dataset_name="cgl",
+        id2label={i: str(i) for i in range(5)},
+        max_seq_length=5,
+        num_bin=8,
+    )
+    encoded = RalfLayoutTokenizer(config).encode_layout(
+        labels=labels,
+        bbox=bbox,
+        mask=mask,
+    )
+    package_condition = RalfConditionalInputs(
+        image=torch.zeros(4, 4, 8, 8, device="cuda"),
+        retrieved={},
+        seq=encoded["input_ids"].to("cuda"),
+    )
+    package_preprocessor = RalfTaskPreprocessor(
+        tokenizer=RalfTokenizerView(config),
+        task="c",
+        global_task_embedding=False,
+    )
+    torch.manual_seed(17)
+    package_sequence = package_preprocessor(package_condition)["seq"]
+
+    assert torch.equal(package_sequence.cpu(), vendor_sequence)
+
+
+def test_condition_type_maps_canonical_label_to_vendor_task() -> None:
+    assert _condition_type("unconditional") == ("unconditional", "uncond")
+    assert _condition_type("label") == ("label", "c")
+
+
+def test_condition_type_rejects_unsupported_tasks() -> None:
+    with pytest.raises(ValueError, match="unsupported RALF condition"):
+        _condition_type("label_size")
+
+
+def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
+    assert _recipe_epochs("cgl", "unconditional") == 30
+    assert _recipe_epochs("cgl", "label") == 50
+
+
+def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Build vendor and package conditions from the same reseeded CPU state."""
+
+    events: list[tuple[str, torch.Tensor, torch.Tensor]] = []
+
+    class StubModel:
+        def train(self) -> None:
+            return None
+
+        def __call__(self, **kwargs: object) -> SimpleNamespace:
+            condition = kwargs["constraint_input_ids"]
+            assert isinstance(condition, torch.Tensor)
+            return SimpleNamespace(loss=torch.tensor(1.0), logits=condition.float())
+
+    class StubModule:
+        condition_type = "label"
+
+        def __init__(self) -> None:
+            self.model = cast(RalfForConditionalLayoutGeneration, StubModel())
+
+        def _condition_kwargs(
+            self, batch: RalfTrainingBatch
+        ) -> dict[str, torch.Tensor]:
+            del batch
+            state = torch.get_rng_state().clone()
+            condition = torch.randperm(4)
+            events.append(("package", state, condition))
+            return {"constraint_input_ids": condition}
+
+    class StubVendor:
+        def train(self) -> None:
+            return None
+
+        def train_loss(
+            self, inputs: dict[str, object], targets: dict[str, object]
+        ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+            del targets
+            condition = inputs["seq"]
+            assert isinstance(condition, torch.Tensor)
+            return {"logits": condition.float()}, {"nll_loss": torch.tensor(1.0)}
+
+    def stub_vendor_preprocess(
+        model: torch.nn.Module, batch: object
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        del model, batch
+        state = torch.get_rng_state().clone()
+        condition = torch.randperm(4)
+        events.append(("vendor", state, condition))
+        return {"seq": condition}, {"seq": condition}
+
+    monkeypatch.setattr(stages, "vendor_preprocess", stub_vendor_preprocess)
+    monkeypatch.setattr(stages, "_move_batch", lambda batch, device: batch)
+    monkeypatch.setattr(stages, "_vendor_move", lambda values, device: values)
+    torch.manual_seed(999)
+    batch = {
+        "input_ids": torch.zeros(1, 1, dtype=torch.long),
+        "labels": torch.zeros(1, 1, dtype=torch.long),
+        "attention_mask": torch.ones(1, 1, dtype=torch.bool),
+        "pixel_values": torch.zeros(1, 1),
+        "saliency": torch.zeros(1, 1),
+        "retrieved": {},
+    }
+    typed_batch = cast(RalfTrainingBatch, batch)
+
+    package_loss, vendor_loss, package_logits, vendor_logits = stages._loss_pair(
+        StubModule(),
+        cast(torch.nn.Module, StubVendor()),
+        typed_batch,
+        torch.device("cpu"),
+        seed=17,
+    )
+
+    assert [event[0] for event in events] == ["package", "vendor"]
+    assert torch.equal(events[0][1], events[1][1])
+    assert torch.equal(events[0][2], events[1][2])
+    assert torch.equal(package_loss, vendor_loss)
+    assert torch.equal(package_logits, vendor_logits)
 
 
 def _linear_pair() -> tuple[torch.nn.Linear, torch.nn.Linear]:
@@ -178,6 +381,14 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
     assert "--trainer.limit_val_batches=" in source
     assert "train_limit" in source
     assert "validation_limit" in source
+
+
+def test_s3_uses_condition_recipe_and_training_worker_settings() -> None:
+    source = inspect.getsource(_run_s3_fit)
+
+    assert "_recipe_epochs(args.dataset, args.condition)" in source
+    assert "--data.init_args.num_workers=4" in source
+    assert 'env["OMP_NUM_THREADS"] = "4"' in source
 
 
 def test_s3_child_uses_repo_root_for_callback_imports() -> None:

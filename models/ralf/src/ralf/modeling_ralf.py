@@ -738,9 +738,19 @@ class RalfTaskPreprocessor:
         non_padding_counts = (label != self.name_to_id("pad")).sum(dim=1)
         shuffled = {key: value.clone() for key, value in seq_vars.items()}
         for batch_idx, count in enumerate(non_padding_counts.tolist()):
+            if self.task_name == "c":
+                # Label permutations use the CPU generator, including size 0/1.
+                indexes = torch.randperm(count)
+            else:
+                if count <= 1:
+                    continue
+
+                indexes = torch.randperm(count, device=label.device)
+
             if count <= 1:
                 continue
-            indexes = torch.randperm(count, device=label.device)
+
+            indexes = indexes.to(label.device)
             for key, value in seq_vars.items():
                 shuffled[key][batch_idx, :count] = value[batch_idx, indexes]
         return shuffled
@@ -750,6 +760,59 @@ class RalfTaskPreprocessor:
     ) -> Bool[torch.Tensor, "batch elements"]:
         label = seq_vars["label"]
         return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
+
+    def _label_sequence(
+        self, inputs: RalfConditionalInputs
+    ) -> Int[torch.Tensor, "batch tokens"]:
+        if inputs.seq is None:
+            raise ValueError(f"condition_type={self.task_name!r} requires labels")
+
+        seq_vars = self._parse_seq_into_vars(inputs.seq)
+        seq_vars = self._shuffle_seq_vars(seq_vars)
+        label = seq_vars["label"]
+        batch = label.size(0)
+        pad_id = self.name_to_id("pad")
+        eos_id = self.name_to_id("eos")
+        valid_counts = (label != pad_id).sum(dim=1)
+        max_valid = int(valid_counts.max().item()) if valid_counts.numel() else 0
+        if max_valid == 0:
+            body = self.get_token("pad", batch)
+            total_sequence_sizes = torch.full(
+                (batch,),
+                1 if self.global_task_embedding else 3,
+                dtype=torch.long,
+                device=label.device,
+            )
+        else:
+            separator = self.get_token("sep", batch).repeat(1, max_valid)
+            body = torch.stack([label[:, :max_valid], separator], dim=2).reshape(
+                batch, -1
+            )[:, :-1]
+            num_special_tokens = 2 if self.global_task_embedding else 4
+            total_sequence_sizes = (
+                num_special_tokens
+                + valid_counts
+                + torch.div(valid_counts - 1, 1, rounding_mode="floor")
+            )
+            valid_positions = torch.arange(body.size(1), device=label.device).unsqueeze(
+                0
+            ) < (total_sequence_sizes - 2).unsqueeze(-1)
+            body = torch.where(
+                valid_positions,
+                body,
+                self.get_token("pad", batch).repeat(1, body.size(1)),
+            )
+
+        bos = self.get_token("bos", batch)
+        eos = self.get_token("eos", batch)
+        if self.global_task_embedding:
+            seq = torch.cat([bos, body, eos], dim=-1)
+        else:
+            seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
+        seq = seq.clone()
+        seq[:, -1] = pad_id
+        seq.scatter_(1, total_sequence_sizes.unsqueeze(-1) - 1, eos_id)
+        return seq
 
     def _geo_sequence(
         self, inputs: RalfConditionalInputs
@@ -864,6 +927,10 @@ class RalfTaskPreprocessor:
     ) -> dict[str, Shaped[torch.Tensor, ...]]:
         batch = inputs.image.size(0)
         self.device = inputs.image.device
+        if self.task_name == "c":
+            seq = self._label_sequence(inputs)
+            return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
+
         bos = self.get_token("bos", batch)
         eos = self.get_token("eos", batch)
         body = (
@@ -1304,6 +1371,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         labels: Int[torch.Tensor, "batch tokens"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
         condition_type: RalfConfigTaskName | None = None,
+        constraint_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
         **kwargs: str | float | bool | None,
@@ -1319,14 +1388,21 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         if input_ids is None:
             raise ValueError("input_ids is required")
 
+        condition_input_ids = (
+            input_ids if constraint_input_ids is None else constraint_input_ids
+        )
+        condition_attention_mask = (
+            attention_mask if constraint_mask is None else constraint_mask
+        )
+
         encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,
             retrieved=retrieved,
             batch_size=input_ids.size(0),
             condition_type=condition_type,
-            constraint_input_ids=input_ids,
-            constraint_mask=attention_mask,
+            constraint_input_ids=condition_input_ids,
+            constraint_mask=condition_attention_mask,
             constraint_element_mask=constraint_element_mask,
             relationship_table=relationship_table,
             sample_ids=sample_ids,

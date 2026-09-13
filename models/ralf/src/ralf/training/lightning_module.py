@@ -14,6 +14,7 @@ from transformers.modeling_outputs import CausalLMOutput
 from ..configuration_ralf import RalfConfig
 from ..modeling_ralf import RalfForConditionalLayoutGeneration
 from ..retrieval import RalfRetrievedBatch
+from ..tokenization_ralf import RalfLayoutTokenizer
 from .datamodule import RalfTrainingBatch
 
 
@@ -59,11 +60,34 @@ class RalfTrainingModule(LightningModule):
     ) -> CausalLMOutput:
         """Run the package model on one training batch."""
         retrieved = cast(RalfRetrievedBatch | None, batch.pop("retrieved", None))
+        condition_kwargs = self._condition_kwargs(cast(RalfTrainingBatch, batch))
         return self.model(
             retrieved=retrieved,
             condition_type=self.condition_type,
+            **condition_kwargs,
             **batch,
         )
+
+    def _condition_kwargs(
+        self, batch: RalfTrainingBatch
+    ) -> dict[str, Shaped[torch.Tensor, ...]]:
+        """Build the full label condition before decoder shifting."""
+        if self.condition_type != "label":
+            return {}
+
+        encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
+            labels=batch["layout_labels"],
+            bbox=batch["layout_bbox"],
+            mask=batch["layout_mask"],
+        )
+        return {
+            "constraint_input_ids": cast(
+                Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
+            ),
+            "constraint_mask": cast(
+                Shaped[torch.Tensor, "batch tokens"], encoded["attention_mask"]
+            ),
+        }
 
     def training_step(
         self,
@@ -81,6 +105,7 @@ class RalfTrainingModule(LightningModule):
             saliency=model_batch["saliency"],
             retrieved=model_batch["retrieved"],
             condition_type=self.condition_type,
+            **self._condition_kwargs(model_batch),
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no training loss")
@@ -109,6 +134,7 @@ class RalfTrainingModule(LightningModule):
             saliency=model_batch["saliency"],
             retrieved=model_batch["retrieved"],
             condition_type=self.condition_type,
+            **self._condition_kwargs(model_batch),
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no validation loss")
