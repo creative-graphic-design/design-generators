@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import gc
 import inspect
 import json
 import os
+import weakref
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -539,6 +541,61 @@ def test_optimizer_state_copy_keeps_each_system_hyperparameters() -> None:
         vendor_optimizer.state[vendor.weight]["exp_avg"],
         package_optimizer.state[package.weight]["exp_avg"],
     )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_optimizer_state_sync_does_not_retain_gpu_copies() -> None:
+    torch.manual_seed(0)
+    package = torch.nn.Linear(4096, 4096, bias=False, device="cuda")
+    vendor = torch.nn.Linear(4096, 4096, bias=False, device="cuda")
+    vendor.load_state_dict(package.state_dict())
+    package_optimizer = torch.optim.AdamW(package.parameters(), lr=1e-4)
+    vendor_optimizer = torch.optim.AdamW(vendor.parameters(), lr=1e-4)
+    inputs = torch.ones(1, 4096, device="cuda")
+    copied_state_refs: list[weakref.ReferenceType[torch.Tensor]] = []
+    copied_state_devices: list[torch.device] = []
+    original_load_state_dict = vendor_optimizer.load_state_dict
+
+    def record_copied_state(state_dict: dict[str, object]) -> None:
+        states = cast(dict[object, dict[object, object]], state_dict["state"])
+        for state in states.values():
+            for key, value in state.items():
+                if key != "step" and isinstance(value, torch.Tensor):
+                    copied_state_refs.append(weakref.ref(value))
+                    copied_state_devices.append(value.device)
+                    original_load_state_dict(state_dict)
+                    return
+        raise AssertionError("the optimizer state did not contain a tensor leaf")
+
+    setattr(vendor_optimizer, "load_state_dict", record_copied_state)
+
+    def live_bytes() -> int:
+        gc.collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        return int(torch.cuda.memory_allocated())
+
+    live_after_load: list[int] = []
+    for _ in range(2):
+        package_optimizer.zero_grad(set_to_none=True)
+        vendor_optimizer.zero_grad(set_to_none=True)
+        package(inputs).sum().backward()
+        package_optimizer.step()
+        vendor(inputs).sum().backward()
+        vendor_optimizer.step()
+        _load_optimizer_state_without_hyperparameters(
+            vendor_optimizer, package_optimizer
+        )
+        live_after_load.append(live_bytes())
+
+    assert all(device.type == "cpu" for device in copied_state_devices)
+    assert all(reference() is None for reference in copied_state_refs)
+    for state in vendor_optimizer.state.values():
+        for key, value in state.items():
+            if key != "step" and isinstance(value, torch.Tensor):
+                assert value.device.type == "cuda"
+    assert live_after_load[1] - live_after_load[0] <= 1 << 20
 
 
 def test_synchronized_layer_enforces_independently_produced_learning_rates() -> None:

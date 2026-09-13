@@ -810,11 +810,35 @@ def _load_optimizer_state_without_hyperparameters(
         {key: value for key, value in group.items() if key != "params"}
         for group in target.param_groups
     ]
-    target.load_state_dict(copy.deepcopy(source.state_dict()))
+    copied_state = copy.deepcopy(source.state_dict())
+    try:
+        _move_optimizer_state_tensors_to_cpu(copied_state)
+        target.load_state_dict(copied_state)
+    finally:
+        del copied_state
+
     for group, hyperparameters in zip(
         target.param_groups, own_hyperparameters, strict=True
     ):
         group.update(hyperparameters)
+
+
+def _move_optimizer_state_tensors_to_cpu(value: object) -> object:
+    """Move copied optimizer-state tensor leaves to CPU before loading."""
+    if isinstance(value, Tensor):
+        return value.detach().cpu()
+    if isinstance(value, dict):
+        mapping = cast(dict[object, object], value)
+        for key, nested in mapping.items():
+            mapping[key] = _move_optimizer_state_tensors_to_cpu(nested)
+        return mapping
+    if isinstance(value, list):
+        sequence = cast(list[object], value)
+        sequence[:] = [_move_optimizer_state_tensors_to_cpu(item) for item in sequence]
+        return sequence
+    if isinstance(value, tuple):
+        return tuple(_move_optimizer_state_tensors_to_cpu(item) for item in value)
+    return value
 
 
 def _state_sync_copy_integrity_record(
