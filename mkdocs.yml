@@ -47,13 +47,14 @@ extra:
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
-  - Conventions: conventions.md
-  - Architecture: architecture.md
-  - Training Reproduction: training-reproduction.md
-  - Implementation Checklist: implementation-checklist.md
   - Roadmap: roadmap.md
   - Data Sources: data-sources.md
-  - Extending: extending.md
+  - Development:
+      - Architecture: architecture.md
+      - Conventions: conventions.md
+      - Implementation Checklist: implementation-checklist.md
+      - Training Reproduction: training-reproduction.md
+      - Extending: extending.md
   - API Reference:
       - Overview: api/index.md
       - Libraries:
