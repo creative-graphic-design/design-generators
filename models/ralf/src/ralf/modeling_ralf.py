@@ -761,20 +761,6 @@ class RalfTaskPreprocessor:
         label = seq_vars["label"]
         return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
 
-    def _valid_element_counts(
-        self, inputs: RalfConditionalInputs
-    ) -> Int[torch.Tensor, "batch"]:
-        if inputs.seq is None:
-            raise ValueError(f"condition_type={self.task_name!r} requires labels")
-
-        seq_vars = self._parse_seq_into_vars(inputs.seq)
-        valid = (
-            self._valid_element_mask(seq_vars)
-            if inputs.element_mask is None
-            else inputs.element_mask[:, : seq_vars["label"].size(1)].bool()
-        )
-        return valid.sum(dim=1)
-
     def _label_sequence(
         self, inputs: RalfConditionalInputs
     ) -> Int[torch.Tensor, "batch tokens"]:
@@ -830,7 +816,7 @@ class RalfTaskPreprocessor:
 
     def _geo_sequence(
         self, inputs: RalfConditionalInputs
-    ) -> Int[torch.Tensor, "batch tokens"]:
+    ) -> tuple[Int[torch.Tensor, "batch tokens"], Int[torch.Tensor, "batch"]]:
         if inputs.seq is None:
             raise ValueError(f"condition_type={self.task_name!r} requires labels")
 
@@ -854,8 +840,9 @@ class RalfTaskPreprocessor:
             if valid.size(1) > 0:
                 valid[:, 0] = True
         max_valid = int(valid.sum(dim=1).max().item()) if valid.numel() else 0
+        valid_counts = valid.sum(dim=1)
         if max_valid == 0:
-            return self.get_token("pad", inputs.image.size(0))
+            return self.get_token("pad", inputs.image.size(0)), valid_counts
         pieces: list[Int[torch.Tensor, "batch token_piece"]] = []
         sep = self.get_token("sep", inputs.image.size(0))
         for element_idx in range(max_valid):
@@ -869,7 +856,7 @@ class RalfTaskPreprocessor:
                 pieces.append(values)
             if element_idx != max_valid - 1:
                 pieces.append(sep)
-        return torch.cat(pieces, dim=1)
+        return torch.cat(pieces, dim=1), valid_counts
 
     def _relation_ids(
         self,
@@ -947,8 +934,8 @@ class RalfTaskPreprocessor:
 
         bos = self.get_token("bos", batch)
         eos = self.get_token("eos", batch)
-        body = (
-            torch.empty(batch, 0, dtype=torch.long, device=self.device)
+        body, valid_counts = (
+            (torch.empty(batch, 0, dtype=torch.long, device=self.device), None)
             if self.task_name == "uncond"
             else self._geo_sequence(inputs)
         )
@@ -959,17 +946,17 @@ class RalfTaskPreprocessor:
         if self.task_name == "relation":
             seq = self._relation_sequence(inputs, seq)
 
-        if self.task_name == "cwh":
+        if valid_counts is not None and self.task_name != "relation":
             pad_id = self.name_to_id("pad")
             eos_id = self.name_to_id("eos")
             seq = seq.clone()
             seq[:, -1] = pad_id
             prefix_length = 1 if self.global_task_embedding else 3
-            valid_counts = self._valid_element_counts(inputs)
+            element_tokens = valid_counts * len(self._VAR)
             eos_positions = (
                 prefix_length
-                + valid_counts * len(self._VAR)
-                + torch.clamp(valid_counts - 1, min=0)
+                + element_tokens
+                + torch.div(element_tokens - 1, len(self._VAR), rounding_mode="floor")
             )
             for batch_idx, eos_position in enumerate(eos_positions.tolist()):
                 seq[batch_idx, eos_position] = eos_id

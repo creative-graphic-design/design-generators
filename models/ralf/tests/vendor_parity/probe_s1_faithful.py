@@ -390,11 +390,18 @@ def main() -> int:
             _compare(
                 "logits", package_logits.detach().cpu(), vendor_logits.detach().cpu()
             )
+            loss_atol = 1e-6 if args.condition == "label_size" else 0.0
+            print(
+                "LOSS_COMPARISON "
+                f"condition={args.condition} atol={loss_atol} "
+                "reason=label_size uses the vendor cwh per-row EOS/padding path; "
+                "label remains bit-exact"
+            )
             _compare(
                 "loss",
                 package_loss.detach().cpu(),
                 vendor_loss.detach().cpu(),
-                atol=1e-6,
+                atol=loss_atol,
             )
     except ProbeDivergence as exc:
         print(f"FIRST_DIVERGENCE {exc}")

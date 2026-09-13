@@ -308,10 +308,6 @@ def _recipe_epochs(
         raise FileNotFoundError(f"vendor condition recipe is missing: {condition_path}")
     match = re.search(r"training\.epochs\s*=\s*(\d+)", condition_path.read_text())
     condition_epochs = int(match.group(1)) if match else epochs
-    if vendor_task == "cwh":
-        # The label-size campaign deliberately uses the accepted label recipe's
-        # 50-epoch command-line override, while retaining the vendor cwh task.
-        return 50
     return condition_epochs
 
 

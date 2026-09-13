@@ -155,7 +155,7 @@ def test_condition_type_rejects_unsupported_tasks() -> None:
 def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "unconditional") == 30
     assert _recipe_epochs("cgl", "label") == 50
-    assert _recipe_epochs("cgl", "label_size") == 50
+    assert _recipe_epochs("cgl", "label_size") == 40
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
