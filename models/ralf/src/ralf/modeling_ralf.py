@@ -295,13 +295,24 @@ class ResnetBackbone(nn.Module):
     """RALF ResNet50 FPN feature extractor without external loads."""
 
     def __init__(
-        self, backbone: str = "resnet50", d_model: int = 256, head: str = "transformer"
+        self,
+        backbone: str = "resnet50",
+        d_model: int = 256,
+        head: str = "transformer",
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
         if backbone != "resnet50":
             raise ValueError("RALF converted checkpoints use resnet50")
 
         resnet = timm.create_model("resnet50", pretrained=False)
+        if weights_path is not None:
+            weights = torch.load(weights_path, map_location="cpu", weights_only=True)
+            if not isinstance(weights, Mapping):
+                raise TypeError(f"ResNet weights at {weights_path} are not a mapping")
+
+            resnet.load_state_dict(cast(Mapping[str, Tensor], weights), strict=True)
+
         return_nodes = {"layer4": "layer4", "layer3": "layer3"}
         self.body = create_feature_extractor(resnet, return_nodes=return_nodes)
         params = {
@@ -347,9 +358,15 @@ class ResnetFeatureExtractor(nn.Module):
         backbone: str = "resnet50",
         d_model: int = 256,
         head: str = "transformer",
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
-        self.extractor = ResnetBackbone(backbone=backbone, d_model=d_model, head=head)
+        self.extractor = ResnetBackbone(
+            backbone=backbone,
+            d_model=d_model,
+            head=head,
+            weights_path=weights_path,
+        )
 
     def forward(
         self, img: Float[torch.Tensor, "batch channels height width"]
@@ -400,6 +417,7 @@ class FIDNetFeatureExtractor(nn.Module):
         nhead: int = 4,
         num_layers: int = 4,
         max_bbox: int = 10,
+        weights_path: str | None = None,
     ) -> None:
         super().__init__()
         _ = max_bbox
@@ -413,6 +431,19 @@ class FIDNetFeatureExtractor(nn.Module):
             num_layers=num_layers,
         )
         self.dec_fc_in = nn.Linear(d_model * 2, d_model)
+        if weights_path is not None:
+            payload = torch.load(weights_path, map_location="cpu", weights_only=True)
+            if not isinstance(payload, Mapping) or "state_dict" not in payload:
+                raise TypeError(
+                    f"FIDNet weights at {weights_path} are not a checkpoint mapping"
+                )
+
+            state_dict = cast(Mapping[str, Tensor], payload["state_dict"])
+            target_keys = set(self.state_dict())
+            filtered = {
+                key: value for key, value in state_dict.items() if key in target_keys
+            }
+            self.load_state_dict(filtered, strict=True)
 
     def extract_features(
         self, inputs: Mapping[str, Shaped[torch.Tensor, ...]]
@@ -707,9 +738,19 @@ class RalfTaskPreprocessor:
         non_padding_counts = (label != self.name_to_id("pad")).sum(dim=1)
         shuffled = {key: value.clone() for key, value in seq_vars.items()}
         for batch_idx, count in enumerate(non_padding_counts.tolist()):
+            if self.task_name == "c":
+                # Label permutations use the CPU generator, including size 0/1.
+                indexes = torch.randperm(count)
+            else:
+                if count <= 1:
+                    continue
+
+                indexes = torch.randperm(count, device=label.device)
+
             if count <= 1:
                 continue
-            indexes = torch.randperm(count, device=label.device)
+
+            indexes = indexes.to(label.device)
             for key, value in seq_vars.items():
                 shuffled[key][batch_idx, :count] = value[batch_idx, indexes]
         return shuffled
@@ -719,6 +760,59 @@ class RalfTaskPreprocessor:
     ) -> Bool[torch.Tensor, "batch elements"]:
         label = seq_vars["label"]
         return (label != self.name_to_id("pad")) & (label != self.name_to_id("eos"))
+
+    def _label_sequence(
+        self, inputs: RalfConditionalInputs
+    ) -> Int[torch.Tensor, "batch tokens"]:
+        if inputs.seq is None:
+            raise ValueError(f"condition_type={self.task_name!r} requires labels")
+
+        seq_vars = self._parse_seq_into_vars(inputs.seq)
+        seq_vars = self._shuffle_seq_vars(seq_vars)
+        label = seq_vars["label"]
+        batch = label.size(0)
+        pad_id = self.name_to_id("pad")
+        eos_id = self.name_to_id("eos")
+        valid_counts = (label != pad_id).sum(dim=1)
+        max_valid = int(valid_counts.max().item()) if valid_counts.numel() else 0
+        if max_valid == 0:
+            body = self.get_token("pad", batch)
+            total_sequence_sizes = torch.full(
+                (batch,),
+                1 if self.global_task_embedding else 3,
+                dtype=torch.long,
+                device=label.device,
+            )
+        else:
+            separator = self.get_token("sep", batch).repeat(1, max_valid)
+            body = torch.stack([label[:, :max_valid], separator], dim=2).reshape(
+                batch, -1
+            )[:, :-1]
+            num_special_tokens = 2 if self.global_task_embedding else 4
+            total_sequence_sizes = (
+                num_special_tokens
+                + valid_counts
+                + torch.div(valid_counts - 1, 1, rounding_mode="floor")
+            )
+            valid_positions = torch.arange(body.size(1), device=label.device).unsqueeze(
+                0
+            ) < (total_sequence_sizes - 2).unsqueeze(-1)
+            body = torch.where(
+                valid_positions,
+                body,
+                self.get_token("pad", batch).repeat(1, body.size(1)),
+            )
+
+        bos = self.get_token("bos", batch)
+        eos = self.get_token("eos", batch)
+        if self.global_task_embedding:
+            seq = torch.cat([bos, body, eos], dim=-1)
+        else:
+            seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
+        seq = seq.clone()
+        seq[:, -1] = pad_id
+        seq.scatter_(1, total_sequence_sizes.unsqueeze(-1) - 1, eos_id)
+        return seq
 
     def _geo_sequence(
         self, inputs: RalfConditionalInputs
@@ -833,6 +927,10 @@ class RalfTaskPreprocessor:
     ) -> dict[str, Shaped[torch.Tensor, ...]]:
         batch = inputs.image.size(0)
         self.device = inputs.image.device
+        if self.task_name == "c":
+            seq = self._label_sequence(inputs)
+            return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
+
         bos = self.get_token("bos", batch)
         eos = self.get_token("eos", batch)
         body = (
@@ -1009,7 +1107,10 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.dropout = config.dropout
 
         self.encoder = ResnetFeatureExtractor(
-            backbone="resnet50", d_model=config.d_model, head="transformer"
+            backbone="resnet50",
+            d_model=config.d_model,
+            head="transformer",
+            weights_path=config.resnet_weights_path,
         )
         self.pos_emb_2d = PositionEmbeddingSine(config.d_model, normalize=True)
         self.dim_feedforward = 4 * config.d_model
@@ -1041,6 +1142,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             nhead=4,
             num_layers=4,
             max_bbox=config.max_seq_length,
+            weights_path=config.fidnet_weights_path,
         )
         self.layout_encoer.enc_transformer.token.requires_grad = False
         for parameter in self.layout_encoer.parameters():
@@ -1068,6 +1170,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
             d_label=self.preprocessor.N_total,
             dim_feedforward=self.dim_feedforward,
         )
+        self.user_const_encoder.init_weight()
         self.use_flag_embedding = config.use_flag_embedding
         if self.use_flag_embedding:
             self.task_emb = nn.Embedding(2, 1)
@@ -1077,6 +1180,11 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.attn = Attention(
             config.d_model, config.d_model, heads=8, dim_head=64, dropout=0.0
         )
+        self.decoder.init_weight()
+        for parameter in self.transformer_encoder.parameters():
+            if parameter.dim() > 1:
+                nn.init.xavier_uniform_(parameter)
+
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
     @staticmethod
@@ -1263,6 +1371,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         labels: Int[torch.Tensor, "batch tokens"] | None = None,
         retrieved: RalfRetrievedBatch | None = None,
         condition_type: RalfConfigTaskName | None = None,
+        constraint_input_ids: Int[torch.Tensor, "batch tokens"] | None = None,
+        constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
         **kwargs: str | float | bool | None,
@@ -1278,14 +1388,21 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         if input_ids is None:
             raise ValueError("input_ids is required")
 
+        condition_input_ids = (
+            input_ids if constraint_input_ids is None else constraint_input_ids
+        )
+        condition_attention_mask = (
+            attention_mask if constraint_mask is None else constraint_mask
+        )
+
         encoder_inputs = self._prepare_conditional_inputs(
             pixel_values=pixel_values,
             saliency=saliency,
             retrieved=retrieved,
             batch_size=input_ids.size(0),
             condition_type=condition_type,
-            constraint_input_ids=input_ids,
-            constraint_mask=attention_mask,
+            constraint_input_ids=condition_input_ids,
+            constraint_mask=condition_attention_mask,
             constraint_element_mask=constraint_element_mask,
             relationship_table=relationship_table,
             sample_ids=sample_ids,
@@ -1302,12 +1419,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         loss = None
         if labels is not None:
             targets = labels.clone()
-            targets[targets == self.config.pad_token_id] = -100
-            loss = F.cross_entropy(
-                logits.reshape(-1, logits.size(-1)),
-                targets.reshape(-1),
-                ignore_index=-100,
-            )
+            loss = self.loss_fn_ce(logits.transpose(1, 2), targets)
+
         if return_dict is False:
             return (logits,) if loss is None else (loss, logits)
         return CausalLMOutput(loss=cast(torch.FloatTensor | None, loss), logits=logits)
