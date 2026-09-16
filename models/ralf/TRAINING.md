@@ -10,7 +10,7 @@ tags:
 
 This document claims end-to-end package training reproduction for CGL unconditional conditioning. The claim is supported by the staged validation ladder defined in [Validation Stages](#validation-stages), three package/original-code seed pairs trained for 30 epochs, and the original evaluator's test protocol. Each package mean fell inside the corresponding original-code three-seed range for all 15 metrics. An independent rerun of the full vendor-parity test suite recorded 28 passed tests, 0 failed tests, and 0 skipped tests. The scheduler milestone is epoch 21, derived as `0.7 × 30` epochs.
 
-The CGL label-conditioned path has completed the same staged validation ladder, the mandatory 300-step real-scale lockstep probe, five matched package/vendor training pairs, and ten evaluations under the original evaluation protocol. Label-conditioned CGL training is reproduced within the vendor seed-to-seed variation; the ledger-backed comparison, validity observation, and cause investigation are recorded in [CGL label S5 comparison](#cgl-label-s5-comparison) and [Validity investigation](#validity-investigation). PKU and the other CGL conditioning modes are not claimed because this document contains no corresponding staged and full-run evidence.
+The CGL label-conditioned and label-size-conditioned paths have completed their staged validation ladders and full-run evaluations; their evidence is recorded in [CGL label S5 comparison](#cgl-label-s5-comparison) and [CGL label-size S5 comparison](#cgl-label-size-s5-comparison). The remaining CGL conditioning modes (completion, refinement, and relation) and PKU are not claimed because this document contains no corresponding staged and full-run evidence.
 
 Run commands from the repository root. Generated data, logs, checkpoints, and downloaded assets remain under `.cache/ralf/` or the authoritative cache selected below and are not committed.
 
@@ -134,7 +134,9 @@ The label-size S0-S4 ladder used seed `1`, batch size `32`, the 40-epoch recipe,
 
 ### CGL label-size S5 comparison
 
-The label-size comparison uses five package and five vendor training seeds (1-5) with the 40-epoch `cwh` recipe, batch size 32, learning rate `1e-4`, gradient clipping `0.1`, AdamW weight decay `1e-4`, and scheduler milestone 28; each final checkpoint follows the original evaluation path with `cond_type=cwh`, test split `test`, `top_k=5`, temperature `1.0`, inference seeds `0/1/2`, and all 15 metrics from `average.test`, and the table reports sample standard deviations. The range test is inclusive in both directions, Welch p is the two-sided unequal-variance test, and permutation p is the two-sided exact fraction of all `C(10,5)=252` relabelings whose absolute package-vendor mean difference is at least the observed difference.
+The question for this experiment is whether package label-size training reproduces the vendor's label-size training. The design used five matched training seeds per system, the vendor's 40-epoch category, width, height conditioning (`cwh`) recipe, in which the layout is generated given each element's category and size, the vendor's own inference path, and the vendor's own evaluator. The result is that no metric separates the systems under the prespecified checks: 12/15 metrics pass the both-direction range test, 0/15 have Welch p<0.05, 0/15 have exact permutation p<0.05, and the largest standardized difference is 1.37 on `overlap-LayoutGAN++`. The maintainer assigns the reproduction verdict.
+
+The package and vendor runs used training seeds 1-5, batch size 32, learning rate `1e-4`, gradient clipping `0.1`, AdamW weight decay `1e-4`, and scheduler milestone 28. Each final checkpoint used `cond_type=cwh`, test split `test`, `top_k=5`, temperature `1.0`, inference seeds `0/1/2`, and all 15 metrics from `average.test`; the table reports sample standard deviations. The S0-S5 evidence follows the [S0-S5 validation stages](#validation-stages). The both-direction range test means that the package mean lies within the vendor minimum-to-maximum range and the vendor mean lies within the package minimum-to-maximum range; Welch p is the two-sided unequal-variance test, and permutation p is the two-sided exact fraction of all `C(10,5)=252` relabelings whose absolute package-vendor mean difference is at least the observed difference.
 
 | Metric | Package mean ± SD | Vendor mean ± SD | Range test | Welch p | Permutation p |
 | --- | --: | --: | --- | --: | --: |
@@ -154,13 +156,50 @@ The label-size comparison uses five package and five vendor training seeds (1-5)
 | `utilization` | 0.19810659754401538 ± 0.00022443706360495308 | 0.19818878889402808 ± 0.00020552329430230948 | pass | 0.5627533113373645 | 0.5714285714285714 |
 | `validity` | 0.9986815169494466 ± 0.0 | 0.9986815169494466 ± 0.0 | pass | `null` (zero variance) | 1.0 |
 
-Both-direction range agreement passes for 12/15 metrics.
+Both-direction range agreement passes for 12/15 metrics; the three failures are `overlap-LayoutGAN++` (both the package mean is outside the vendor range and the vendor mean is outside the package range), `overlay` (the package mean is outside the vendor range, while the vendor mean is inside the package range), and `test_recall_layout` (the package mean is outside the vendor range, while the vendor mean is inside the package range).
 
 Welch p<0.05 occurs for 0/15 metrics, and exact permutation p<0.05 occurs for 0/15 metrics.
 
 The largest absolute standardized mean difference is 1.37 for `overlap-LayoutGAN++`, using the mean difference divided by the root-mean-square of the two sample standard deviations.
 
-Stage evidence: S3 required two harness-only memory fixes: retained optimizer-state copies were released, and cyclic autograd temporaries from the reference step were reclaimed late by Python's garbage collector; neither fix is in the model or recipe. The evaluation working-directory fix runs inference and `eval.py` from a dedicated evaluator work directory with the expected cache link, resolving the vendor relative cache lookup; this fix is also harness-only.
+The per-seed metric values are:
+
+| Metric | Package seeds 1 / 2 / 3 / 4 / 5 | Vendor seeds 1 / 2 / 3 / 4 / 5 |
+| --- | --- | --- |
+| `R_{shm} (vgg distance)` | 14.476167040143716 / 14.475559851202476 / 14.483785899019395 / 14.457664344756454 / 14.485809430034772 | 14.446727211576269 / 14.521038911984283 / 14.452394401035376 / 14.426187456494953 / 14.507497464102348 |
+| `alignment-LayoutGAN++` | 0.0024497584340931215 / 0.0024422707346783714 / 0.002378901137163472 / 0.0025020299923311103 / 0.0024292064777835572 | 0.0024505301923363663 / 0.002349130278595776 / 0.002396022990532752 / 0.002342105699029193 / 0.00239778738559449 |
+| `occlusion` | 0.1291678606941957 / 0.12977024220427916 / 0.12800628014525015 / 0.1282441296514183 / 0.1290226506040976 | 0.12778754706857398 / 0.1297384823927826 / 0.12815140331800198 / 0.1280849445683067 / 0.1296171078932448 |
+| `overlap-LayoutGAN++` | 0.39095283738792563 / 0.3928751128339829 / 0.3929230958954766 / 0.39175888431668743 / 0.39104318967192814 | 0.391904913703161 / 0.38998440979050875 / 0.39092628880281916 / 0.3905602928136229 / 0.39034597007655253 |
+| `overlay` | 0.0049279541742600465 / 0.005472087849078722 / 0.0059811875035329955 / 0.005107188220516209 / 0.005040606486178872 | 0.005175216832396457 / 0.005065535229488227 / 0.005056491220625534 / 0.00498498938498075 / 0.005134008900990747 |
+| `test_coverage_layout` | 0.9962790181050761 / 0.9953348883705432 / 0.9951682772409197 / 0.9969454626235699 / 0.9940019993335555 | 0.9966122403643229 / 0.9945573697656337 / 0.995390425413751 / 0.9962790181050761 / 0.9958902588026214 |
+| `test_density_layout` | 1.0985449294679552 / 1.100588692658003 / 1.1029545706986559 / 1.0989781184049763 / 1.1044873930911918 | 1.0926802177052093 / 1.1031433966455626 / 1.098600466511163 / 1.0960124402976785 / 1.103443296678885 |
+| `test_fid_layout` | 0.23899458717081265 / 0.2316561372496532 / 0.26430301939268475 / 0.21107991299828655 / 0.2419416955748943 | 0.20853938755190407 / 0.2232309935420176 / 0.23117233338780352 / 0.2189081779417279 / 0.2384719926272775 |
+| `test_precision_layout` | 0.9890036654448519 / 0.9906697767410865 / 0.9876707764078642 / 0.9886704431856049 / 0.9885593690991893 | 0.9866711096301234 / 0.9898367210929692 / 0.9893924247473066 / 0.9888925913584362 / 0.9882816838831502 |
+| `test_recall_layout` | 0.9891702765744753 / 0.9858935910252139 / 0.9848939242474731 / 0.9878373875374876 / 0.985560368765967 | 0.9893368877040988 / 0.9867266466733312 / 0.9881150727535267 / 0.9869487948461625 / 0.9884482950127736 |
+| `underlay_effectiveness_loose` | 0.9854701205706761 / 0.986449765697479 / 0.9819624155918442 / 0.9857092674565967 / 0.9834408679775176 | 0.9851182025129216 / 0.9840411665358241 / 0.9870647803834046 / 0.9848867059100413 / 0.9854351302843316 |
+| `underlay_effectiveness_strict` | 0.961620569229126 / 0.9608423908551534 / 0.9569845795631409 / 0.9637072086334229 / 0.9583846728006998 | 0.9603741566340128 / 0.9586164553960165 / 0.9646172920862833 / 0.9615880052248637 / 0.9603357513745626 |
+| `unreadability` | 0.018523642504820314 / 0.018649308104857255 / 0.01855536017336086 / 0.018555635966328796 / 0.018685960009857488 | 0.018503236151727335 / 0.018690335094059513 / 0.01849636082142604 / 0.018593422366851797 / 0.01857677827495229 |
+| `utilization` | 0.1981528330761396 / 0.197746942171826 / 0.19832504982769109 / 0.1982483348427718 / 0.1980598278016484 | 0.1984477455364425 / 0.19802348197124006 / 0.1982520366833437 / 0.19828102358869884 / 0.19793965669041527 |
+| `validity` | 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 | 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 / 0.9986815169494466 |
+
+The ten score artifacts and their SHA-256 values are:
+
+| System and training seed | Score artifact | SHA-256 | Record status |
+| --- | --- | --- | --- |
+| Package seed 1 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-1/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `b75bad809edfaa63df2c9bb8b3c9197635c931c5d9a6744add45216ac035468b` | Recorded; SHA-256 verified. |
+| Package seed 2 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-2/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `06e67b4212281bf7bd5a5a75dd275d72e172e763101f4e096fdc10210a342320` | Recorded; SHA-256 verified. |
+| Package seed 3 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-3/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `b78e4f960af207dc9d8cd1bc928d68ef5a59d6d189239119aaaf6ce7d7b0f7c7` | Recorded; SHA-256 verified. |
+| Package seed 4 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-4/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `880fd9e05542bede08a2f1feddb1106284990421cd4ead7af672f7efe715a41c` | Recorded; SHA-256 verified. |
+| Package seed 5 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-5/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `a3827cb43de76bb1656c10981a653c4fb3ed9ced4b594f82b44ea44e24bb85a3` | Recorded; SHA-256 verified. |
+| Vendor seed 1 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-1/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `2d09ab4231e24137291def09c658248262f84eb32df7ce9f114d66be82d6e215` | Recorded; SHA-256 verified. |
+| Vendor seed 2 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-2/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `71082b769c55600f402ffa953dd45d687e168286aef3fbd155d89187c65cf514` | Recorded; SHA-256 verified. |
+| Vendor seed 3 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-3/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `4ba35f8b9791903adecbb9a808f15fdb443e315cc12ffd419ff9c2d140a4c83a` | Recorded; SHA-256 verified. |
+| Vendor seed 4 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-4/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `ecf13d8ada0e333b611452a43b624733245fa6a543d41aff399547f394d7bc65` | Recorded; SHA-256 verified. |
+| Vendor seed 5 | `.cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-5/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `8b18ca59b61ad67dec556b7b2578fae2852a2b2cdb0181b177ab69cd17770b7c` | Recorded; SHA-256 verified. |
+
+The machine-readable comparison is `.cache/ralf/training-reproduction/cgl/label_size/s5/comparison/comparison.json`; its SHA-256 is `ec68fa449546fe8b6050819c31de1520876208c08e7cb2f6be22efe5b0462142`.
+
+Stage evidence: S3 required two harness-only memory fixes: after loading, the harness now drops the retained optimizer-state copy, and at each validation boundary it runs Python's garbage collector before releasing the CUDA cache so cyclic autograd temporaries from the reference step are reclaimed; neither fix changes the model or recipe. The evaluator now runs from a working directory whose cache link resolves to the vendor's precomputed weights; this is also an evaluation-harness fix.
 
 Verdict: [VERDICT PENDING MAINTAINER]
 
@@ -326,13 +365,13 @@ The 300-step real-scale synchronized lockstep probe ran on one V100 at the recip
 
 ## Reproduction Results
 
-This matrix accounts for each checkpoint condition separately, so an unrun condition cannot be mistaken for the unconditional staged evidence above. Each row identifies the dataset, system, status, seed scope, metrics, loss evidence, and retained artifact location; only the first CGL row has staged records.
+This matrix accounts for each checkpoint condition separately, so an unrun condition cannot be mistaken for the unconditional staged evidence above. Each row identifies the dataset, system, status, seed scope, metrics, loss evidence, and retained artifact location. The CGL unconditional, label, and label-size rows have staged records; label and label-size also have full-run evidence, while the remaining CGL modes and every PKU row do not.
 
 | Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
 | --- | --- | --- | --- | --- | --- | --- |
 | CGL unconditional | package/vendor staged path | `s5-practical-reproduction` | `training-seed n=3` | Layout FID package 2.20/2.22/1.96 vs vendor 2.24/2.26/2.02; validity 0.999 both; overlap means equal at 0.4017; all fifteen evaluator metrics summarized below | Final validation cross-entropy package 2.420/2.447/2.418 vs vendor 2.440/2.436/2.414 from run logs | `.cache/ralf/training-reproduction/cgl/s5/` plus operator-root score files hashed below |
 | CGL label | package/vendor staged path | `s5-practical-reproduction` | `training-seed n=5` | CGL label S0-S4 and 300-step lockstep passed; label-conditioned CGL training is reproduced within vendor seed-to-seed variation, with the validity observation documented below | Package final validation losses `2.303/2.357/2.319/2.297/2.351`; vendor final validation losses `2.3233/2.3271/2.3442/2.3373/2.3590` | `.cache/ralf/training-reproduction/cgl/label/s5/` |
-| CGL label-size | package/vendor staged path | `not-yet-run (maintainer verdict pending; see [CGL label-size S5 comparison](#cgl-label-size-s5-comparison))` | `training-seed n=5` | CGL label-size S0-S4 evidence and ten S5 evaluations recorded; the full-run statistical comparison is summarized below | S3 harness memory fixes and the evaluation working-directory fix are documented below; no fix changes the model or recipe | `.cache/ralf/training-reproduction/cgl/label_size/` |
+| CGL label-size | package/vendor staged path | `s5-practical-reproduction` | `training-seed n=5` | CGL label-size S0-S4 evidence and ten S5 evaluations recorded; the full-run statistical comparison is summarized below | S3 harness memory fixes and the evaluation working-directory fix are documented below; no fix changes the model or recipe | `.cache/ralf/training-reproduction/cgl/label_size/` |
 | CGL completion | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
 | CGL refinement | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
 | CGL relation | package/vendor staged path | `not-yet-run (S5 pending; tracked in the [RALF training reproduction issue #44](https://github.com/creative-graphic-design/design-generators/issues/44))` | `training-seed n=1` | CGL staged evidence is unconditional only | Not run for this checkpoint | `.cache/ralf/training-reproduction/cgl/` |
