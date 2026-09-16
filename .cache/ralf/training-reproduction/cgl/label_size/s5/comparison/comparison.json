@@ -1,0 +1,488 @@
+{
+  "artifacts": {
+    "package": {
+      "1": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-1/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "b75bad809edfaa63df2c9bb8b3c9197635c931c5d9a6744add45216ac035468b"
+      },
+      "2": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-2/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "06e67b4212281bf7bd5a5a75dd275d72e172e763101f4e096fdc10210a342320"
+      },
+      "3": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-3/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "b78e4f960af207dc9d8cd1bc928d68ef5a59d6d189239119aaaf6ce7d7b0f7c7"
+      },
+      "4": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-4/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "880fd9e05542bede08a2f1feddb1106284990421cd4ead7af672f7efe715a41c"
+      },
+      "5": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/package-seed-5/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "a3827cb43de76bb1656c10981a653c4fb3ed9ced4b594f82b44ea44e24bb85a3"
+      }
+    },
+    "vendor": {
+      "1": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-1/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "2d09ab4231e24137291def09c658248262f84eb32df7ce9f114d66be82d6e215"
+      },
+      "2": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-2/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "71082b769c55600f402ffa953dd45d687e168286aef3fbd155d89187c65cf514"
+      },
+      "3": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-3/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "4ba35f8b9791903adecbb9a808f15fdb443e315cc12ffd419ff9c2d140a4c83a"
+      },
+      "4": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-4/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "ecf13d8ada0e333b611452a43b624733245fa6a543d41aff399547f394d7bc65"
+      },
+      "5": {
+        "path": ".cache/ralf/training-reproduction/cgl/label_size/s5/evals/vendor-seed-5/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml",
+        "sha256": "8b18ca59b61ad67dec556b7b2578fae2852a2b2cdb0181b177ab69cd17770b7c"
+      }
+    }
+  },
+  "comparisons": {
+    "R_{shm} (vgg distance)": {
+      "mean_difference": 0.005028223992715297,
+      "package_mean": 14.47579731303136,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.011102450379249392,
+      "package_values": [
+        14.476167040143716,
+        14.475559851202476,
+        14.483785899019395,
+        14.457664344756454,
+        14.485809430034772
+      ],
+      "permutation_p": 0.8095238095238095,
+      "permutation_total": 252,
+      "standardized_difference": 0.1667728044603947,
+      "vendor_mean": 14.470769089038646,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0411679232692155,
+      "vendor_values": [
+        14.446727211576269,
+        14.521038911984283,
+        14.452394401035376,
+        14.426187456494953,
+        14.507497464102348
+      ],
+      "welch_p": 0.8034687395838606
+    },
+    "alignment-LayoutGAN++": {
+      "mean_difference": 5.331804599221146e-05,
+      "package_mean": 0.0024404333552099267,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 4.414956228149606e-05,
+      "package_values": [
+        0.0024497584340931215,
+        0.0024422707346783714,
+        0.002378901137163472,
+        0.0025020299923311103,
+        0.0024292064777835572
+      ],
+      "permutation_p": 0.10317460317460317,
+      "permutation_total": 252,
+      "standardized_difference": 1.2120809653468538,
+      "vendor_mean": 0.0023871153092177152,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 4.382754545439011e-05,
+      "vendor_values": [
+        0.0024505301923363663,
+        0.002349130278595776,
+        0.002396022990532752,
+        0.002342105699029193,
+        0.00239778738559449
+      ],
+      "welch_p": 0.0916150815924124
+    },
+    "occlusion": {
+      "mean_difference": 0.00016633561166615185,
+      "package_mean": 0.12884223265984818,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.0007169954290772816,
+      "package_values": [
+        0.1291678606941957,
+        0.12977024220427916,
+        0.12800628014525015,
+        0.1282441296514183,
+        0.1290226506040976
+      ],
+      "permutation_p": 0.7857142857142857,
+      "permutation_total": 252,
+      "standardized_difference": 0.20088645223714277,
+      "vendor_mean": 0.12867589704818203,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0009258036592823367,
+      "vendor_values": [
+        0.12778754706857398,
+        0.1297384823927826,
+        0.12815140331800198,
+        0.1280849445683067,
+        0.1296171078932448
+      ],
+      "welch_p": 0.7593954554215063
+    },
+    "overlap-LayoutGAN++": {
+      "mean_difference": 0.0011662489838673018,
+      "package_mean": 0.39191062402120014,
+      "package_mean_in_vendor_range": false,
+      "package_sd": 0.0009550079174129694,
+      "package_values": [
+        0.39095283738792563,
+        0.3928751128339829,
+        0.3929230958954766,
+        0.39175888431668743,
+        0.39104318967192814
+      ],
+      "permutation_p": 0.07142857142857142,
+      "permutation_total": 252,
+      "standardized_difference": 1.3698951073028858,
+      "vendor_mean": 0.39074437503733284,
+      "vendor_mean_in_package_range": false,
+      "vendor_sd": 0.0007331614022840333,
+      "vendor_values": [
+        0.391904913703161,
+        0.38998440979050875,
+        0.39092628880281916,
+        0.3905602928136229,
+        0.39034597007655253
+      ],
+      "welch_p": 0.0644472334832674
+    },
+    "overlay": {
+      "mean_difference": 0.0002225565330170251,
+      "package_mean": 0.005305804846713369,
+      "package_mean_in_vendor_range": false,
+      "package_sd": 0.00042905175541941583,
+      "package_values": [
+        0.0049279541742600465,
+        0.005472087849078722,
+        0.0059811875035329955,
+        0.005107188220516209,
+        0.005040606486178872
+      ],
+      "permutation_p": 0.38095238095238093,
+      "permutation_total": 252,
+      "standardized_difference": 0.7229916234789813,
+      "vendor_mean": 0.0050832483136963435,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 7.368744484046415e-05,
+      "vendor_values": [
+        0.005175216832396457,
+        0.005065535229488227,
+        0.005056491220625534,
+        0.00498498938498075,
+        0.005134008900990747
+      ],
+      "welch_p": 0.3134425621973626
+    },
+    "test_coverage_layout": {
+      "mean_difference": -0.00019993335554802094,
+      "package_mean": 0.9955459291347329,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.0011254989796562749,
+      "package_values": [
+        0.9962790181050761,
+        0.9953348883705432,
+        0.9951682772409197,
+        0.9969454626235699,
+        0.9940019993335555
+      ],
+      "permutation_p": 0.7619047619047619,
+      "permutation_total": 252,
+      "standardized_difference": 0.20430156738197022,
+      "vendor_mean": 0.995745862490281,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0008053828743439806,
+      "vendor_values": [
+        0.9966122403643229,
+        0.9945573697656337,
+        0.995390425413751,
+        0.9962790181050761,
+        0.9958902588026214
+      ],
+      "welch_p": 0.7557965868874279
+    },
+    "test_density_layout": {
+      "mean_difference": 0.0023347772964568136,
+      "package_mean": 1.1011107408641565,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.0025595648909901053,
+      "package_values": [
+        1.0985449294679552,
+        1.100588692658003,
+        1.1029545706986559,
+        1.0989781184049763,
+        1.1044873930911918
+      ],
+      "permutation_p": 0.36507936507936506,
+      "permutation_total": 252,
+      "standardized_difference": 0.6243023064942333,
+      "vendor_mean": 1.0987759635676997,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.004628294711911934,
+      "vendor_values": [
+        1.0926802177052093,
+        1.1031433966455626,
+        1.098600466511163,
+        1.0960124402976785,
+        1.103443296678885
+      ],
+      "welch_p": 0.36032006225044494
+    },
+    "test_fid_layout": {
+      "mean_difference": 0.013530493467120208,
+      "package_mean": 0.2375950704772663,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.01918652415108446,
+      "package_values": [
+        0.23899458717081265,
+        0.2316561372496532,
+        0.26430301939268475,
+        0.21107991299828655,
+        0.2419416955748943
+      ],
+      "permutation_p": 0.20634920634920634,
+      "permutation_total": 252,
+      "standardized_difference": 0.855979081955165,
+      "vendor_mean": 0.2240645770101461,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.01147179852893959,
+      "vendor_values": [
+        0.20853938755190407,
+        0.2232309935420176,
+        0.23117233338780352,
+        0.2189081779417279,
+        0.2384719926272775
+      ],
+      "welch_p": 0.22085667463890407
+    },
+    "test_precision_layout": {
+      "mean_difference": 0.00029990003332225346,
+      "package_mean": 0.9889148061757194,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.001097893039489218,
+      "package_values": [
+        0.9890036654448519,
+        0.9906697767410865,
+        0.9876707764078642,
+        0.9886704431856049,
+        0.9885593690991893
+      ],
+      "permutation_p": 0.7063492063492064,
+      "permutation_total": 252,
+      "standardized_difference": 0.2570991365173552,
+      "vendor_mean": 0.9886149061423971,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0012312451003774162,
+      "vendor_values": [
+        0.9866711096301234,
+        0.9898367210929692,
+        0.9893924247473066,
+        0.9888925913584362,
+        0.9882816838831502
+      ],
+      "welch_p": 0.6951616849476058
+    },
+    "test_recall_layout": {
+      "mean_difference": -0.0012440297678552037,
+      "package_mean": 0.9866711096301234,
+      "package_mean_in_vendor_range": false,
+      "package_sd": 0.0017750146411748496,
+      "package_values": [
+        0.9891702765744753,
+        0.9858935910252139,
+        0.9848939242474731,
+        0.9878373875374876,
+        0.985560368765967
+      ],
+      "permutation_p": 0.20634920634920634,
+      "permutation_total": 252,
+      "standardized_difference": 0.8460966749685324,
+      "vendor_mean": 0.9879151393979786,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0010830435415494922,
+      "vendor_values": [
+        0.9893368877040988,
+        0.9867266466733312,
+        0.9881150727535267,
+        0.9869487948461625,
+        0.9884482950127736
+      ],
+      "welch_p": 0.22511581977861364
+    },
+    "underlay_effectiveness_loose": {
+      "mean_difference": -0.0007027096664820043,
+      "package_mean": 0.9846064874588227,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.0018513134090038027,
+      "package_values": [
+        0.9854701205706761,
+        0.986449765697479,
+        0.9819624155918442,
+        0.9857092674565967,
+        0.9834408679775176
+      ],
+      "permutation_p": 0.49206349206349204,
+      "permutation_total": 252,
+      "standardized_difference": 0.46048077677288196,
+      "vendor_mean": 0.9853091971253047,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0011091450628136828,
+      "vendor_values": [
+        0.9851182025129216,
+        0.9840411665358241,
+        0.9870647803834046,
+        0.9848867059100413,
+        0.9854351302843316
+      ],
+      "welch_p": 0.49178536284238067
+    },
+    "underlay_effectiveness_strict": {
+      "mean_difference": -0.0007984479268390299,
+      "package_mean": 0.9603078842163086,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.002660232214935751,
+      "package_values": [
+        0.961620569229126,
+        0.9608423908551534,
+        0.9569845795631409,
+        0.9637072086334229,
+        0.9583846728006998
+      ],
+      "permutation_p": 0.626984126984127,
+      "permutation_total": 252,
+      "standardized_difference": 0.32530303125351345,
+      "vendor_mean": 0.9611063321431477,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0022298100027215067,
+      "vendor_values": [
+        0.9603741566340128,
+        0.9586164553960165,
+        0.9646172920862833,
+        0.9615880052248637,
+        0.9603357513745626
+      ],
+      "welch_p": 0.6213254420955404
+    },
+    "unreadability": {
+      "mean_difference": 2.195481004155231e-05,
+      "package_mean": 0.018593981351844945,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 6.969691626483471e-05,
+      "package_values": [
+        0.018523642504820314,
+        0.018649308104857255,
+        0.01855536017336086,
+        0.018555635966328796,
+        0.018685960009857488
+      ],
+      "permutation_p": 0.6666666666666666,
+      "permutation_total": 252,
+      "standardized_difference": 0.29481719009777896,
+      "vendor_mean": 0.018572026541803392,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 7.8953614295672e-05,
+      "vendor_values": [
+        0.018503236151727335,
+        0.018690335094059513,
+        0.01849636082142604,
+        0.018593422366851797,
+        0.01857677827495229
+      ],
+      "welch_p": 0.6537264117117899
+    },
+    "utilization": {
+      "mean_difference": -8.219135001269473e-05,
+      "package_mean": 0.19810659754401538,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.00022443706360495308,
+      "package_values": [
+        0.1981528330761396,
+        0.197746942171826,
+        0.19832504982769109,
+        0.1982483348427718,
+        0.1980598278016484
+      ],
+      "permutation_p": 0.5714285714285714,
+      "permutation_total": 252,
+      "standardized_difference": 0.38195122054673886,
+      "vendor_mean": 0.19818878889402808,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.00020552329430230948,
+      "vendor_values": [
+        0.1984477455364425,
+        0.19802348197124006,
+        0.1982520366833437,
+        0.19828102358869884,
+        0.19793965669041527
+      ],
+      "welch_p": 0.5627533113373645
+    },
+    "validity": {
+      "mean_difference": 0.0,
+      "package_mean": 0.9986815169494466,
+      "package_mean_in_vendor_range": true,
+      "package_sd": 0.0,
+      "package_values": [
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466
+      ],
+      "permutation_p": 1.0,
+      "permutation_total": 252,
+      "standardized_difference": 0.0,
+      "vendor_mean": 0.9986815169494466,
+      "vendor_mean_in_package_range": true,
+      "vendor_sd": 0.0,
+      "vendor_values": [
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466,
+        0.9986815169494466
+      ],
+      "welch_p": null
+    }
+  },
+  "method": {
+    "package_n": 5,
+    "permutation_test": "two-sided absolute package-vendor mean difference over every C(10,5) relabeling",
+    "range_test": "inclusive package and vendor mean membership in the other group's min-max range",
+    "vendor_n": 5,
+    "welch_test": "two-sided scipy.stats.ttest_ind with equal_var=False"
+  },
+  "metric_order": [
+    "R_{shm} (vgg distance)",
+    "alignment-LayoutGAN++",
+    "occlusion",
+    "overlap-LayoutGAN++",
+    "overlay",
+    "test_coverage_layout",
+    "test_density_layout",
+    "test_fid_layout",
+    "test_precision_layout",
+    "test_recall_layout",
+    "underlay_effectiveness_loose",
+    "underlay_effectiveness_strict",
+    "unreadability",
+    "utilization",
+    "validity"
+  ],
+  "summary": {
+    "both_direction_range_pass": 12,
+    "largest_standardized_difference": {
+      "metric": "overlap-LayoutGAN++",
+      "value": 1.3698951073028858
+    },
+    "permutation_p_below_0_05": 0,
+    "welch_p_below_0_05": 0
+  }
+}
