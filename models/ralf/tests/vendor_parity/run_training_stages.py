@@ -1009,13 +1009,18 @@ def _effective_config_digest(config: RalfConfig, cache_dir: Path) -> str:
 
 def _relevant_source_files() -> list[Path]:
     roots = (
-        ROOT / "models/ralf/pyproject.toml",
-        ROOT / "models/ralf/configs/training",
-        ROOT / "models/ralf/src/ralf",
-        ROOT / "models/ralf/tests/test_training.py",
-        ROOT / "models/ralf/tests/vendor_parity/run_training_stages.py",
-        ROOT / "models/ralf/tests/vendor_parity/test_training_harness.py",
-        ROOT / "models/ralf/tests/vendor_parity/training_reference.py",
+        ROOT / "models" / "ralf" / "pyproject.toml",
+        ROOT / "models" / "ralf" / "configs" / "training",
+        ROOT / "models" / "ralf" / "src" / "ralf",
+        ROOT / "models" / "ralf" / "tests" / "test_training.py",
+        ROOT / "models" / "ralf" / "tests" / "vendor_parity" / "run_training_stages.py",
+        ROOT
+        / "models"
+        / "ralf"
+        / "tests"
+        / "vendor_parity"
+        / "test_training_harness.py",
+        ROOT / "models" / "ralf" / "tests" / "vendor_parity" / "training_reference.py",
     )
     files: list[Path] = []
     for root in roots:
