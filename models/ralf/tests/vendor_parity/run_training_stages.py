@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
+import gc
 import hashlib
 import json
 import os
@@ -29,6 +31,7 @@ from torch.utils.data import DataLoader
 from traingen_parity.determinism import RNGState, capture_rng_state, restore_rng_state
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
+from ralf.modeling_ralf import RalfTaskPreprocessor
 from ralf.retrieval import RalfRetrievedBatch
 from ralf.training.datamodule import (
     RalfDataModule,
@@ -50,9 +53,81 @@ from training_reference import (
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
-ConditionType = Literal["unconditional", "label"]
+ConditionType = Literal["unconditional", "label", "label_size"]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
+
+
+def _git_head(root: Path) -> str:
+    """Return the source tree commit used by a child-process gate."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"source gate could not resolve git HEAD under {root}: "
+            f"{completed.stdout.strip()} {completed.stderr.strip()}"
+        )
+    return completed.stdout.strip()
+
+
+def _source_gate_metadata() -> dict[str, object]:
+    """Assert and report the package and harness source used by this process."""
+    source_root = Path(os.environ.get("RALF_SOURCE_ROOT", ROOT)).resolve()
+    module_root = ROOT.resolve()
+    ralf_file = Path(ralf.__file__).resolve()
+    run_training_stages_file = Path(__file__).resolve()
+    if module_root != source_root:
+        raise RuntimeError(
+            "source gate resolved run_training_stages from the wrong worktree: "
+            f"expected={source_root} actual={module_root}"
+        )
+    if not ralf_file.is_relative_to(source_root):
+        raise RuntimeError(
+            "source gate resolved ralf from outside the expected worktree: "
+            f"expected={source_root} actual={ralf_file}"
+        )
+    if not run_training_stages_file.is_relative_to(source_root):
+        raise RuntimeError(
+            "source gate resolved run_training_stages from outside the expected "
+            f"worktree: expected={source_root} actual={run_training_stages_file}"
+        )
+
+    source_commit = _git_head(source_root)
+    expected_commit = os.environ.get("RALF_EXPECTED_COMMIT", source_commit)
+    if source_commit != expected_commit:
+        raise RuntimeError(
+            "source gate resolved an unexpected source commit: "
+            f"expected={expected_commit} actual={source_commit}"
+        )
+
+    call_names = set(RalfTaskPreprocessor.__call__.__code__.co_varnames)
+    cwh_termination_fix = not hasattr(
+        RalfTaskPreprocessor, "_valid_element_counts"
+    ) and {"valid_counts", "element_tokens"}.issubset(call_names)
+    if not cwh_termination_fix:
+        raise RuntimeError(
+            "source gate resolved RalfTaskPreprocessor without the fixed cwh "
+            "termination implementation"
+        )
+    return {
+        "source_root": str(source_root),
+        "ralf_file": str(ralf_file),
+        "run_training_stages_file": str(run_training_stages_file),
+        "source_commit": source_commit,
+        "cwh_termination_fix": cwh_termination_fix,
+    }
+
+
+if os.environ.get("RALF_SOURCE_GATE_REQUIRED") == "1":
+    print(
+        "RALF_SOURCE_GATE " + json.dumps(_source_gate_metadata(), sort_keys=True),
+        flush=True,
+    )
 
 
 class _GradientCoverage(TypedDict):
@@ -170,7 +245,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
-        "--condition", choices=("unconditional", "label"), default="unconditional"
+        "--condition",
+        choices=("unconditional", "label", "label_size"),
+        default="unconditional",
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -185,6 +262,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "unconditional", "uncond"
     if condition == "label":
         return "label", "c"
+    if condition == "label_size":
+        return "label_size", "cwh"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -296,13 +375,15 @@ def _recipe_epochs(
             f"vendor training recipe has no integer training.epochs: {experiment_path}"
         )
     epochs = int(training["epochs"])
+    condition_filename = "chw.sh" if vendor_task == "cwh" else f"{vendor_task}.sh"
     condition_path = (
-        ROOT / "vendor" / "ralf" / "configs" / f"ralf_{dataset}" / f"{vendor_task}.sh"
+        ROOT / "vendor" / "ralf" / "configs" / f"ralf_{dataset}" / condition_filename
     )
     if not condition_path.is_file():
         raise FileNotFoundError(f"vendor condition recipe is missing: {condition_path}")
     match = re.search(r"training\.epochs\s*=\s*(\d+)", condition_path.read_text())
-    return int(match.group(1)) if match else epochs
+    condition_epochs = int(match.group(1)) if match else epochs
+    return condition_epochs
 
 
 def _build_vendor_scheduler(
@@ -803,11 +884,35 @@ def _load_optimizer_state_without_hyperparameters(
         {key: value for key, value in group.items() if key != "params"}
         for group in target.param_groups
     ]
-    target.load_state_dict(copy.deepcopy(source.state_dict()))
+    copied_state = copy.deepcopy(source.state_dict())
+    try:
+        _move_optimizer_state_tensors_to_cpu(copied_state)
+        target.load_state_dict(copied_state)
+    finally:
+        del copied_state
+
     for group, hyperparameters in zip(
         target.param_groups, own_hyperparameters, strict=True
     ):
         group.update(hyperparameters)
+
+
+def _move_optimizer_state_tensors_to_cpu(value: object) -> object:
+    """Move copied optimizer-state tensor leaves to CPU before loading."""
+    if isinstance(value, Tensor):
+        return value.detach().cpu()
+    if isinstance(value, dict):
+        mapping = cast(dict[object, object], value)
+        for key, nested in mapping.items():
+            mapping[key] = _move_optimizer_state_tensors_to_cpu(nested)
+        return mapping
+    if isinstance(value, list):
+        sequence = cast(list[object], value)
+        sequence[:] = [_move_optimizer_state_tensors_to_cpu(item) for item in sequence]
+        return sequence
+    if isinstance(value, tuple):
+        return tuple(_move_optimizer_state_tensors_to_cpu(item) for item in value)
+    return value
 
 
 def _state_sync_copy_integrity_record(
@@ -1188,6 +1293,103 @@ class RalfS3TraceCallback(Callback):
         self.batch_start_storage_independence: _StorageIndependence | None = None
         self.state_sync_copy_integrity_records: list[dict[str, object]] = []
         self.first_divergence: dict[str, object] | None = None
+        memory_samples_path = os.environ.get("RALF_S3_MEMORY_SAMPLES_PATH")
+        self.memory_samples_path = (
+            None if memory_samples_path is None else Path(memory_samples_path)
+        )
+        self.memory_sample_interval_seconds = float(
+            os.environ.get("RALF_S3_MEMORY_SAMPLE_INTERVAL_SECONDS", "60")
+        )
+        self.memory_sample_started_at = time.monotonic()
+        self.memory_sample_last_at = 0.0
+        if self.memory_samples_path is not None:
+            self.memory_samples_path.parent.mkdir(parents=True, exist_ok=True)
+            if not self.memory_samples_path.exists():
+                with self.memory_samples_path.open("w", newline="") as handle:
+                    csv.DictWriter(
+                        handle,
+                        fieldnames=[
+                            "utc_time",
+                            "elapsed_seconds",
+                            "event",
+                            "epoch",
+                            "batch_idx",
+                            "optimizer_step",
+                            "memory_allocated_bytes",
+                            "memory_reserved_bytes",
+                            "max_memory_allocated_bytes",
+                            "nvidia_smi_memory_used_mib",
+                        ],
+                    ).writeheader()
+
+    def _record_memory_sample(
+        self,
+        *,
+        epoch: int,
+        batch_idx: int,
+        optimizer_step: int,
+        event: str,
+        force: bool = False,
+    ) -> None:
+        if self.memory_samples_path is None:
+            return
+
+        now = time.monotonic()
+        if (
+            not force
+            and self.memory_sample_last_at != 0.0
+            and now - self.memory_sample_last_at < self.memory_sample_interval_seconds
+        ):
+            return
+
+        nvidia_smi_memory_used_mib = ""
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.used",
+                "--format=csv,noheader,nounits",
+                "-i",
+                "0",
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if completed.returncode == 0:
+            nvidia_smi_memory_used_mib = completed.stdout.strip()
+
+        with self.memory_samples_path.open("a", newline="") as handle:
+            csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "utc_time",
+                    "elapsed_seconds",
+                    "event",
+                    "epoch",
+                    "batch_idx",
+                    "optimizer_step",
+                    "memory_allocated_bytes",
+                    "memory_reserved_bytes",
+                    "max_memory_allocated_bytes",
+                    "nvidia_smi_memory_used_mib",
+                ],
+            ).writerow(
+                {
+                    "utc_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "elapsed_seconds": f"{now - self.memory_sample_started_at:.3f}",
+                    "event": event,
+                    "epoch": epoch,
+                    "batch_idx": batch_idx,
+                    "optimizer_step": optimizer_step,
+                    "memory_allocated_bytes": int(torch.cuda.memory_allocated()),
+                    "memory_reserved_bytes": int(torch.cuda.memory_reserved()),
+                    "max_memory_allocated_bytes": int(
+                        torch.cuda.max_memory_allocated()
+                    ),
+                    "nvidia_smi_memory_used_mib": nvidia_smi_memory_used_mib,
+                }
+            )
+        self.memory_sample_last_at = now
 
     def _remember_divergence(self, location: str, max_abs_diff: float | None) -> None:
         if self.first_divergence is None:
@@ -1452,8 +1654,12 @@ class RalfS3TraceCallback(Callback):
         (vendor_loss / accumulation).backward()
         restore_rng_state(package_rng_after_backward)
         package_trace = ralf_module.latest_step_trace
-        package_loss = package_trace["train_loss"]
-        package_logits = package_trace["logits"]
+        package_loss = package_trace["train_loss"].detach().cpu()
+        package_logits = package_trace["logits"].detach().cpu()
+        vendor_loss = vendor_loss.detach().cpu()
+        vendor_logits = vendor_logits.detach().cpu()
+        package_trace.clear()
+        del vendor_output, vendor_losses
         self._observe_tensor(
             f"S3.epoch[{self.package_batch_epoch}].batch[{self.package_batch_index}].loss",
             package_loss,
@@ -1645,6 +1851,13 @@ class RalfS3TraceCallback(Callback):
         )
         vendor_optimizer.zero_grad(set_to_none=True)
         self.optimizer_step_count = optimizer_step_index
+        self._record_memory_sample(
+            epoch=self.package_batch_epoch,
+            batch_idx=batch_idx,
+            optimizer_step=optimizer_step_index,
+            event="after_train_step",
+            force=optimizer_step_index == 1,
+        )
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         del pl_module
@@ -1669,6 +1882,15 @@ class RalfS3TraceCallback(Callback):
                 "epoch": trainer.current_epoch,
                 "val_loss": "val_loss" in trainer.callback_metrics,
             }
+        )
+        gc.collect()
+        torch.cuda.empty_cache()
+        self._record_memory_sample(
+            epoch=trainer.current_epoch,
+            batch_idx=-1,
+            optimizer_step=self.optimizer_step_count,
+            event="after_validation",
+            force=True,
         )
 
     def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
@@ -1841,11 +2063,20 @@ def _fresh_s3_run_root(base_root: Path) -> Path:
 
 def _s3_child_import_gate() -> None:
     """Resolve every class path passed to the spawned production trainer."""
+    package_root = ROOT / "models" / "ralf" / "src"
     callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(
-        [str(callback_root), env.get("PYTHONPATH", "")]
+        [
+            str(package_root),
+            str(callback_root),
+            str(ROOT),
+            env.get("PYTHONPATH", ""),
+        ]
     ).rstrip(os.pathsep)
+    env["RALF_SOURCE_ROOT"] = str(ROOT)
+    env["RALF_EXPECTED_COMMIT"] = _git_head(ROOT)
+    env["RALF_SOURCE_GATE_REQUIRED"] = "1"
     paths = (
         "run_training_stages.RalfS3TraceCallback",
         "run_training_stages.RalfS3ModelCheckpoint",
@@ -2124,8 +2355,16 @@ def _run_s3_fit(
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "4"
     env["PYTHONPATH"] = os.pathsep.join(
-        [str(callback_root), env.get("PYTHONPATH", "")]
+        [
+            str(ROOT / "models" / "ralf" / "src"),
+            str(callback_root),
+            str(ROOT),
+            env.get("PYTHONPATH", ""),
+        ]
     ).rstrip(os.pathsep)
+    env["RALF_SOURCE_ROOT"] = str(ROOT)
+    env["RALF_EXPECTED_COMMIT"] = _git_head(ROOT)
+    env["RALF_SOURCE_GATE_REQUIRED"] = "1"
     env["RALF_RESNET_WEIGHTS_PATH"] = str(resnet_path)
     env["RALF_FIDNET_WEIGHTS_PATH"] = str(fidnet_path)
     env["RALF_DATA_ROOT"] = str(args.cache_dir / "dataset")
@@ -2138,6 +2377,8 @@ def _run_s3_fit(
     env["RALF_S3_TRACE_DIR"] = str(trace_root)
     env["RALF_S3_CHECKPOINT_DIR"] = str(checkpoint_root)
     env["RALF_S3_LOGGER_DIR"] = str(logger_root)
+    env["RALF_S3_MEMORY_SAMPLES_PATH"] = str(run_root / "memory-samples.csv")
+    env["RALF_S3_MEMORY_SAMPLE_INTERVAL_SECONDS"] = "60"
     stdout_path = run_root / "traingen.stdout.log"
     started = time.monotonic()
     completed = subprocess.run(
@@ -2157,6 +2398,14 @@ def _run_s3_fit(
             "S3 documented traingen fit failed with exit "
             f"{completed.returncode}; first failure output:\n{tail}"
         )
+    source_gate_lines = [
+        line.removeprefix("RALF_SOURCE_GATE ")
+        for line in completed.stdout.splitlines()
+        if line.startswith("RALF_SOURCE_GATE ")
+    ]
+    if not source_gate_lines:
+        raise RuntimeError("S3 child did not report the required source gate")
+    source_gate = cast(dict[str, object], json.loads(source_gate_lines[-1]))
     trace_path = trace_root / "s3-trace.json"
     if not trace_path.is_file():
         raise RuntimeError(f"S3 trace callback did not write {trace_path}")
@@ -2171,6 +2420,7 @@ def _run_s3_fit(
             "stdout_artifact": stdout_path.relative_to(ROOT).as_posix(),
             "checkpoint_root": checkpoint_root.relative_to(ROOT).as_posix(),
             "logger_root": logger_root.relative_to(ROOT).as_posix(),
+            "source_gate": source_gate,
             "seed_scope": {
                 "training_seed": args.seed,
                 "rng": "package batch-start RNG restored for independent vendor backward",
@@ -2725,6 +2975,7 @@ def main() -> int:
     args = _parse_args()
     if os.environ.get("PARITY_REQUIRE") != "1":
         raise RuntimeError("PARITY_REQUIRE=1 is required; refusing an all-skip result")
+    source_gate = _source_gate_metadata()
     device = _device()
     config, data, context = _load_context(args)
     if args.stage == "S0":
@@ -2757,6 +3008,7 @@ def main() -> int:
                 "cuda_runtime": torch.version.cuda,
                 "pytorch_cuda_alloc_conf": os.environ.get("PYTORCH_CUDA_ALLOC_CONF"),
             },
+            "source_gate": source_gate,
             "cache_dir": str(args.cache_dir),
             "ralf_file": str(Path(ralf.__file__).resolve()),
             "package_commit": subprocess.check_output(

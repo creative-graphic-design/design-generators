@@ -816,7 +816,7 @@ class RalfTaskPreprocessor:
 
     def _geo_sequence(
         self, inputs: RalfConditionalInputs
-    ) -> Int[torch.Tensor, "batch tokens"]:
+    ) -> tuple[Int[torch.Tensor, "batch tokens"], Int[torch.Tensor, "batch"]]:
         if inputs.seq is None:
             raise ValueError(f"condition_type={self.task_name!r} requires labels")
 
@@ -840,8 +840,9 @@ class RalfTaskPreprocessor:
             if valid.size(1) > 0:
                 valid[:, 0] = True
         max_valid = int(valid.sum(dim=1).max().item()) if valid.numel() else 0
+        valid_counts = valid.sum(dim=1)
         if max_valid == 0:
-            return self.get_token("pad", inputs.image.size(0))
+            return self.get_token("pad", inputs.image.size(0)), valid_counts
         pieces: list[Int[torch.Tensor, "batch token_piece"]] = []
         sep = self.get_token("sep", inputs.image.size(0))
         for element_idx in range(max_valid):
@@ -855,7 +856,7 @@ class RalfTaskPreprocessor:
                 pieces.append(values)
             if element_idx != max_valid - 1:
                 pieces.append(sep)
-        return torch.cat(pieces, dim=1)
+        return torch.cat(pieces, dim=1), valid_counts
 
     def _relation_ids(
         self,
@@ -933,8 +934,8 @@ class RalfTaskPreprocessor:
 
         bos = self.get_token("bos", batch)
         eos = self.get_token("eos", batch)
-        body = (
-            torch.empty(batch, 0, dtype=torch.long, device=self.device)
+        body, valid_counts = (
+            (torch.empty(batch, 0, dtype=torch.long, device=self.device), None)
             if self.task_name == "uncond"
             else self._geo_sequence(inputs)
         )
@@ -944,6 +945,22 @@ class RalfTaskPreprocessor:
             seq = torch.cat([bos, self.create_task_token(batch), body, eos], dim=-1)
         if self.task_name == "relation":
             seq = self._relation_sequence(inputs, seq)
+
+        if valid_counts is not None and self.task_name != "relation":
+            pad_id = self.name_to_id("pad")
+            eos_id = self.name_to_id("eos")
+            seq = seq.clone()
+            seq[:, -1] = pad_id
+            prefix_length = 1 if self.global_task_embedding else 3
+            element_tokens = valid_counts * len(self._VAR)
+            eos_positions = (
+                prefix_length
+                + element_tokens
+                + torch.div(element_tokens - 1, len(self._VAR), rounding_mode="floor")
+            )
+            for batch_idx, eos_position in enumerate(eos_positions.tolist()):
+                seq[batch_idx, eos_position] = eos_id
+                seq[batch_idx, eos_position + 1 :] = pad_id
         return {"seq": seq.long(), "pad_mask": self.create_pad_mask(seq)}
 
 

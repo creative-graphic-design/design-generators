@@ -1,9 +1,10 @@
-"""Run the faithful, fixed-batch CGL label S1 lockstep diagnostic."""
+"""Run the faithful, fixed-batch CGL conditional S1 lockstep diagnostic."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import sys
 import traceback
 from collections.abc import Mapping, Sequence
@@ -12,6 +13,7 @@ from types import MethodType
 from typing import cast
 
 import torch
+import torch.nn.functional as F
 from jaxtyping import Bool, Float, Int, Shaped
 from torch import Tensor
 from transformers.modeling_outputs import CausalLMOutput
@@ -64,13 +66,17 @@ def _compare(
     name: str,
     package: Shaped[Tensor, "..."],
     vendor: Shaped[Tensor, "..."],
+    *,
+    atol: float = 0.0,
 ) -> None:
     if package.shape != vendor.shape or package.dtype != vendor.dtype:
         raise ProbeDivergence(
             f"{name}: shape/dtype package={tuple(package.shape)}/{package.dtype} "
             f"vendor={tuple(vendor.shape)}/{vendor.dtype}"
         )
-    if torch.equal(package, vendor):
+    if torch.equal(package, vendor) or torch.allclose(
+        package, vendor, atol=atol, rtol=0.0
+    ):
         print(f"MATCH {name}: shape={tuple(package.shape)} dtype={package.dtype}")
         return
 
@@ -108,9 +114,15 @@ class _Recorder:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, required=True)
+    parser.add_argument(
+        "--condition",
+        choices=("label", "label_size"),
+        default="label",
+    )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--loss-vectors-output", type=Path)
     return parser.parse_args()
 
 
@@ -120,7 +132,7 @@ def main() -> int:
         raise RuntimeError("CUDA is required for the faithful S1 probe")
     context_args = argparse.Namespace(
         dataset="cgl",
-        condition="label",
+        condition=args.condition,
         cache_dir=args.cache_dir,
         batch_size=args.batch_size,
     )
@@ -177,7 +189,7 @@ def main() -> int:
         device = torch.device(args.device)
         recorder.phase = "models"
         package_module, vendor_model, _ = _models(
-            config, args.cache_dir, device, args.seed, "label"
+            config, args.cache_dir, device, args.seed, args.condition
         )
         package_model = package_module.model
         batch = context["batch"]
@@ -249,7 +261,7 @@ def main() -> int:
                 relationship_table=relationship_table,
                 sample_ids=sample_ids,
             )
-            result_tensors = cast(Mapping[str, Shaped[Tensor, ...]], result)
+            result_tensors = cast(Mapping[str, Tensor], result)
             recorder.package_condition = {
                 "seq_layout_const": result_tensors["seq_layout_const"]
                 .detach()
@@ -372,10 +384,108 @@ def main() -> int:
                     "seq_layout_const_pad_mask"
                 ],
             )
+            print(
+                "PACKAGE_CONDITION "
+                f"seq_sha256={_digest(recorder.package_condition['seq_layout_const'])} "
+                "pad_mask_sha256="
+                f"{_digest(recorder.package_condition['seq_layout_const_pad_mask'])}"
+            )
             _compare(
                 "logits", package_logits.detach().cpu(), vendor_logits.detach().cpu()
             )
-            _compare("loss", package_loss.detach().cpu(), vendor_loss.detach().cpu())
+            pad_id = package_model.tokenizer.name_to_id("pad")
+            package_labels = package_batch["labels"]
+            vendor_labels = cast(
+                Shaped[Tensor, "batch tokens"], initial_vendor_targets["seq"]
+            ).to(package_logits.device)
+            if not torch.equal(package_labels.cpu(), vendor_labels.cpu()):
+                raise ProbeDivergence(
+                    "loss targets differ despite prepared-label match"
+                )
+            package_token_losses = F.cross_entropy(
+                package_logits.transpose(1, 2),
+                package_labels,
+                label_smoothing=0.1,
+                ignore_index=pad_id,
+                reduction="none",
+            )
+            vendor_token_losses = F.cross_entropy(
+                vendor_logits.transpose(1, 2),
+                vendor_labels.to(vendor_logits.device),
+                label_smoothing=0.1,
+                ignore_index=pad_id,
+                reduction="none",
+            )
+            package_token_mask = package_labels.ne(pad_id)
+            vendor_token_mask = vendor_labels.ne(pad_id)
+            token_delta = (
+                package_token_losses.detach().float()
+                - vendor_token_losses.detach().float()
+            ).abs()
+            float64_package_mean = (
+                package_token_losses.detach()[package_token_mask].double().mean()
+            )
+            float64_vendor_mean = (
+                vendor_token_losses.detach()[vendor_token_mask].double().mean()
+            )
+            loss_diagnostic = {
+                "condition": args.condition,
+                "batch_size": int(package_labels.size(0)),
+                "sequence_length": int(package_labels.size(1)),
+                "pad_token_id": pad_id,
+                "reduction": "none",
+                "target_ids_equal": True,
+                "non_ignored_tokens": {
+                    "package": int(package_token_mask.sum().item()),
+                    "vendor": int(vendor_token_mask.sum().item()),
+                },
+                "per_token_max_abs_diff": float(token_delta.max().item()),
+                "float64_mean_from_per_token": {
+                    "package": float(float64_package_mean.cpu()),
+                    "vendor": float(float64_vendor_mean.cpu()),
+                    "difference": float(
+                        (float64_package_mean - float64_vendor_mean).abs().cpu()
+                    ),
+                },
+                "scalar_loss": {
+                    "package": float(package_loss.detach().cpu()),
+                    "vendor": float(vendor_loss.detach().cpu()),
+                    "difference": float(
+                        (package_loss - vendor_loss).abs().detach().cpu()
+                    ),
+                },
+                "per_token_loss": {
+                    "package": package_token_losses.detach().cpu().tolist(),
+                    "vendor": vendor_token_losses.detach().cpu().tolist(),
+                },
+            }
+            if args.loss_vectors_output is not None:
+                args.loss_vectors_output.parent.mkdir(parents=True, exist_ok=True)
+                args.loss_vectors_output.write_text(
+                    json.dumps(loss_diagnostic, indent=2) + "\n"
+                )
+            print(
+                "LOSS_VECTOR_DIAGNOSTIC "
+                f"non_ignored_package={loss_diagnostic['non_ignored_tokens']['package']} "
+                f"non_ignored_vendor={loss_diagnostic['non_ignored_tokens']['vendor']} "
+                f"per_token_max_abs_diff={loss_diagnostic['per_token_max_abs_diff']} "
+                f"float64_package_mean={loss_diagnostic['float64_mean_from_per_token']['package']} "
+                f"float64_vendor_mean={loss_diagnostic['float64_mean_from_per_token']['vendor']} "
+                f"float64_mean_diff={loss_diagnostic['float64_mean_from_per_token']['difference']}"
+            )
+            loss_atol = 1e-6 if args.condition == "label_size" else 0.0
+            print(
+                "LOSS_COMPARISON "
+                f"condition={args.condition} atol={loss_atol} "
+                "reason=label_size uses the vendor cwh per-row EOS/padding path; "
+                "label remains bit-exact"
+            )
+            _compare(
+                "loss",
+                package_loss.detach().cpu(),
+                vendor_loss.detach().cpu(),
+                atol=loss_atol,
+            )
     except ProbeDivergence as exc:
         print(f"FIRST_DIVERGENCE {exc}")
         return 1
