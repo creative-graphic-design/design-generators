@@ -71,8 +71,8 @@ class RalfTrainingModule(LightningModule):
     def _condition_kwargs(
         self, batch: RalfTrainingBatch
     ) -> dict[str, Shaped[torch.Tensor, ...]]:
-        """Build the full label condition before decoder shifting."""
-        if self.condition_type not in {"label", "label_size"}:
+        """Build the full layout condition before decoder shifting."""
+        if self.condition_type not in {"label", "label_size", "completion"}:
             return {}
 
         encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
