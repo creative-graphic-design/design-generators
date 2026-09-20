@@ -9,6 +9,7 @@ from jaxtyping import Float, Shaped
 from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch import nn
+from transformers import BatchEncoding
 from transformers.modeling_outputs import CausalLMOutput
 
 from ..configuration_ralf import RalfConfig
@@ -72,14 +73,17 @@ class RalfTrainingModule(LightningModule):
         self, batch: RalfTrainingBatch
     ) -> dict[str, Shaped[torch.Tensor, ...]]:
         """Build the full layout condition before decoder shifting."""
-        if self.condition_type not in {"label", "label_size", "completion"}:
+        if self.condition_type == "refinement":
+            encoded = self._prepare_refinement_layout(batch)
+        elif self.condition_type in {"label", "label_size", "completion"}:
+            encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
+                labels=batch["layout_labels"],
+                bbox=batch["layout_bbox"],
+                mask=batch["layout_mask"],
+            )
+        else:
             return {}
 
-        encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
-            labels=batch["layout_labels"],
-            bbox=batch["layout_bbox"],
-            mask=batch["layout_mask"],
-        )
         return {
             "constraint_input_ids": cast(
                 Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
@@ -88,6 +92,31 @@ class RalfTrainingModule(LightningModule):
                 Shaped[torch.Tensor, "batch tokens"], encoded["attention_mask"]
             ),
         }
+
+    def _prepare_refinement_layout(self, batch: RalfTrainingBatch) -> BatchEncoding:
+        """Prepare the perturbed layout used for refinement training."""
+        bbox = batch["layout_bbox"].clone()
+        for bbox_index in range(bbox.size(-1)):
+            component = bbox[..., bbox_index]
+            noise = torch.normal(
+                0.0,
+                0.01,
+                size=component.shape,
+                dtype=component.dtype,
+            ).to(component.device)
+            perturbed = (component + noise).clamp(0.0, 1.0)
+            perturbed[~batch["layout_mask"]] = 0.0
+            bbox[..., bbox_index] = perturbed
+
+        encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
+            labels=batch["layout_labels"],
+            bbox=bbox,
+            mask=batch["layout_mask"],
+        )
+        batch["input_ids"] = encoded["input_ids"][:, :-1]
+        batch["labels"] = encoded["input_ids"][:, 1:]
+        batch["attention_mask"] = encoded["attention_mask"][:, :-1]
+        return encoded
 
     def training_step(
         self,
