@@ -9,7 +9,6 @@ from jaxtyping import Float, Shaped
 from lightning.pytorch import LightningModule
 from lightning.pytorch.utilities.types import OptimizerLRScheduler
 from torch import nn
-from transformers import BatchEncoding
 from transformers.modeling_outputs import CausalLMOutput
 
 from ..configuration_ralf import RalfConfig
@@ -61,12 +60,21 @@ class RalfTrainingModule(LightningModule):
     ) -> CausalLMOutput:
         """Run the package model on one training batch."""
         retrieved = cast(RalfRetrievedBatch | None, batch.pop("retrieved", None))
-        condition_kwargs = self._condition_kwargs(cast(RalfTrainingBatch, batch))
+        model_batch = cast(RalfTrainingBatch, batch)
+        if self.condition_type == "refinement":
+            model_batch, condition_kwargs = self._prepare_refinement_layout(model_batch)
+        else:
+            condition_kwargs = self._condition_kwargs(model_batch)
+
         return self.model(
+            input_ids=model_batch["input_ids"],
+            labels=model_batch["labels"],
+            attention_mask=model_batch["attention_mask"],
+            pixel_values=model_batch["pixel_values"],
+            saliency=model_batch["saliency"],
             retrieved=retrieved,
             condition_type=self.condition_type,
             **condition_kwargs,
-            **batch,
         )
 
     def _condition_kwargs(
@@ -74,7 +82,8 @@ class RalfTrainingModule(LightningModule):
     ) -> dict[str, Shaped[torch.Tensor, ...]]:
         """Build the full layout condition before decoder shifting."""
         if self.condition_type == "refinement":
-            encoded = self._prepare_refinement_layout(batch)
+            _, condition_kwargs = self._prepare_refinement_layout(batch)
+            return condition_kwargs
         elif self.condition_type in {"label", "label_size", "completion"}:
             encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
                 labels=batch["layout_labels"],
@@ -93,7 +102,9 @@ class RalfTrainingModule(LightningModule):
             ),
         }
 
-    def _prepare_refinement_layout(self, batch: RalfTrainingBatch) -> BatchEncoding:
+    def _prepare_refinement_layout(
+        self, batch: RalfTrainingBatch
+    ) -> tuple[RalfTrainingBatch, dict[str, Shaped[torch.Tensor, "..."]]]:
         """Prepare the perturbed layout used for refinement training."""
         bbox = batch["layout_bbox"].clone()
         for bbox_index in range(bbox.size(-1)):
@@ -113,10 +124,18 @@ class RalfTrainingModule(LightningModule):
             bbox=bbox,
             mask=batch["layout_mask"],
         )
-        batch["input_ids"] = encoded["input_ids"][:, :-1]
-        batch["labels"] = encoded["input_ids"][:, 1:]
-        batch["attention_mask"] = encoded["attention_mask"][:, :-1]
-        return encoded
+        prepared_batch = cast(RalfTrainingBatch, dict(batch))
+        prepared_batch["input_ids"] = encoded["input_ids"][:, :-1]
+        prepared_batch["labels"] = encoded["input_ids"][:, 1:]
+        prepared_batch["attention_mask"] = encoded["attention_mask"][:, :-1]
+        return prepared_batch, {
+            "constraint_input_ids": cast(
+                Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
+            ),
+            "constraint_mask": cast(
+                Shaped[torch.Tensor, "batch tokens"], encoded["attention_mask"]
+            ),
+        }
 
     def training_step(
         self,
@@ -126,6 +145,11 @@ class RalfTrainingModule(LightningModule):
         """Run one teacher-forced package training step."""
         del batch_idx
         model_batch = self._model_batch(batch)
+        if self.condition_type == "refinement":
+            model_batch, condition_kwargs = self._prepare_refinement_layout(model_batch)
+        else:
+            condition_kwargs = self._condition_kwargs(model_batch)
+
         output = self.model(
             input_ids=model_batch["input_ids"],
             labels=model_batch["labels"],
@@ -134,7 +158,7 @@ class RalfTrainingModule(LightningModule):
             saliency=model_batch["saliency"],
             retrieved=model_batch["retrieved"],
             condition_type=self.condition_type,
-            **self._condition_kwargs(model_batch),
+            **condition_kwargs,
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no training loss")
@@ -155,6 +179,11 @@ class RalfTrainingModule(LightningModule):
         """Evaluate one validation batch with the same teacher forcing."""
         del batch_idx
         model_batch = self._model_batch(batch)
+        if self.condition_type == "refinement":
+            model_batch, condition_kwargs = self._prepare_refinement_layout(model_batch)
+        else:
+            condition_kwargs = self._condition_kwargs(model_batch)
+
         output = self.model(
             input_ids=model_batch["input_ids"],
             labels=model_batch["labels"],
@@ -163,7 +192,7 @@ class RalfTrainingModule(LightningModule):
             saliency=model_batch["saliency"],
             retrieved=model_batch["retrieved"],
             condition_type=self.condition_type,
-            **self._condition_kwargs(model_batch),
+            **condition_kwargs,
         )
         if output.loss is None:
             raise RuntimeError("RALF package model returned no validation loss")

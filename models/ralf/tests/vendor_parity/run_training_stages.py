@@ -17,6 +17,7 @@ import time
 from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
+from types import MethodType
 from typing import Literal, Protocol, TypedDict, cast
 
 import torch
@@ -229,6 +230,10 @@ class _LossPairPackageModule(Protocol):
     def _condition_kwargs(
         self, batch: RalfTrainingBatch
     ) -> dict[str, Shaped[Tensor, "..."]]: ...
+
+    def _prepare_refinement_layout(
+        self, batch: RalfTrainingBatch
+    ) -> tuple[RalfTrainingBatch, dict[str, Shaped[Tensor, "..."]]]: ...
 
 
 class _NaturalEnvelope(TypedDict):
@@ -551,7 +556,12 @@ def _loss_pair(
     vendor_model.train()
 
     reseed(seed)
-    condition_kwargs = package_module._condition_kwargs(package_batch)
+    if package_module.condition_type == "refinement":
+        package_batch, condition_kwargs = package_module._prepare_refinement_layout(
+            package_batch
+        )
+    else:
+        condition_kwargs = package_module._condition_kwargs(package_batch)
     package_output = package_model(
         input_ids=package_batch["input_ids"],
         labels=package_batch["labels"],
@@ -1285,6 +1295,7 @@ class RalfS3TraceCallback(Callback):
         self.package_scheduler: torch.optim.lr_scheduler.MultiStepLR | None = None
         self.current_batch: RalfTrainingBatch | None = None
         self.current_rng: RNGState | None = None
+        self.condition_seed: int | None = None
         self.raw_results: list[_GradientComparison] = []
         self.clipped_result: _GradientComparison | None = None
         self.raw_norms: list[dict[str, float]] = []
@@ -1435,6 +1446,27 @@ class RalfS3TraceCallback(Callback):
         if os.environ.get("PARITY_REQUIRE") != "1":
             raise RuntimeError("PARITY_REQUIRE=1 is required for S3")
         ralf_module = cast(RalfTrainingModule, pl_module)
+        if ralf_module.condition_type == "refinement":
+            callback = self
+            original_prepare_refinement_layout = ralf_module._prepare_refinement_layout
+
+            def prepare_refinement_layout(
+                module: RalfTrainingModule, batch: RalfTrainingBatch
+            ) -> object:
+                del module
+                if callback.condition_seed is None:
+                    raise RuntimeError(
+                        "S3 refinement condition seed was not initialized"
+                    )
+                reseed(callback.condition_seed)
+                callback.current_rng = capture_rng_state()
+                return original_prepare_refinement_layout(batch)
+
+            setattr(
+                ralf_module,
+                "_prepare_refinement_layout",
+                MethodType(prepare_refinement_layout, ralf_module),
+            )
         if not torch.are_deterministic_algorithms_enabled():
             raise RuntimeError(
                 "first divergence at S3.deterministic_algorithms; "
@@ -1634,6 +1666,7 @@ class RalfS3TraceCallback(Callback):
             }
         )
         self.current_batch = cast(RalfTrainingBatch, _copy_batch_to_cpu(batch))
+        self.condition_seed = self.seed + self.microbatch_count
         self.current_rng = capture_rng_state()
         self.package_batch_epoch = trainer.current_epoch
         self.package_batch_index = batch_idx
@@ -2193,7 +2226,7 @@ def _s1(
     if args.condition == "refinement":
         package_batch = _move_batch(batch, device)
         reseed(args.seed)
-        package_module._condition_kwargs(package_batch)
+        package_batch, _ = package_module._prepare_refinement_layout(package_batch)
         reseed(args.seed)
         vendor_batch = vendor_raw_batch(batch)
         vendor_training_model = cast(VendorTrainingModel, vendor_model)

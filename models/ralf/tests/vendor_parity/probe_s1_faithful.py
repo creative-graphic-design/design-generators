@@ -359,7 +359,9 @@ def main() -> int:
             package_batch = _move_batch(batch, device)
             if args.condition == "refinement":
                 stages.reseed(args.seed)
-                package_module._condition_kwargs(package_batch)
+                package_batch, _ = package_module._prepare_refinement_layout(
+                    package_batch
+                )
             _compare(
                 "s1_prepared_input_ids",
                 package_batch["input_ids"].cpu(),

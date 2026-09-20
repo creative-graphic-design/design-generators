@@ -287,6 +287,11 @@ def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
             events.append(("package", state, condition))
             return {"constraint_input_ids": condition}
 
+        def _prepare_refinement_layout(
+            self, batch: RalfTrainingBatch
+        ) -> tuple[RalfTrainingBatch, dict[str, torch.Tensor]]:
+            return batch, self._condition_kwargs(batch)
+
     class StubVendor:
         def train(self) -> None:
             return None
@@ -469,6 +474,7 @@ def test_natural_run_envelope_rejects_optimizer_entry_count_mismatch() -> None:
 
 def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> None:
     source = inspect.getsource(_s3) + inspect.getsource(_run_s3_fit)
+    callback_source = inspect.getsource(RalfS3TraceCallback)
 
     assert "traingen fit" in source
     assert "RalfTrainingModule" in source
@@ -481,6 +487,8 @@ def test_s3_uses_production_trainer_and_has_no_manual_scheduler_sentinel() -> No
     assert "--trainer.limit_val_batches=" in source
     assert "train_limit" in source
     assert "validation_limit" in source
+    assert "condition_seed" in callback_source
+    assert "reseed(callback.condition_seed)" in callback_source
 
 
 def test_s3_uses_condition_recipe_and_training_worker_settings() -> None:
