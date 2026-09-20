@@ -478,12 +478,12 @@ def main() -> int:
                 f"float64_vendor_mean={loss_diagnostic['float64_mean_from_per_token']['vendor']} "
                 f"float64_mean_diff={loss_diagnostic['float64_mean_from_per_token']['difference']}"
             )
-            loss_atol = 1e-6 if args.condition == "label_size" else 0.0
+            loss_atol = 1e-6 if args.condition in {"label_size", "refinement"} else 0.0
             print(
                 "LOSS_COMPARISON "
                 f"condition={args.condition} atol={loss_atol} "
                 "reason=label_size uses the vendor cwh per-row EOS/padding path; "
-                "label remains bit-exact"
+                "refinement has float32 scalar-reduction order; label remains bit-exact"
             )
             _compare(
                 "loss",
