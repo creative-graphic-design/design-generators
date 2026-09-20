@@ -48,12 +48,15 @@ from training_reference import (
     reseed,
     state_sha256,
     VendorTrainingModel,
+    vendor_raw_batch,
     vendor_preprocess,
 )
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
-ConditionType = Literal["unconditional", "label", "label_size", "completion"]
+ConditionType = Literal[
+    "unconditional", "label", "label_size", "completion", "refinement"
+]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
 
@@ -246,7 +249,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
         "--condition",
-        choices=("unconditional", "label", "label_size", "completion"),
+        choices=(
+            "unconditional",
+            "label",
+            "label_size",
+            "completion",
+            "refinement",
+        ),
         default="unconditional",
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
@@ -266,6 +275,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "label_size", "cwh"
     if condition == "completion":
         return "completion", "partial"
+    if condition == "refinement":
+        return "refinement", "refinement"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -2178,19 +2189,54 @@ def _s1(
         config, args.cache_dir, device, args.seed, args.condition
     )
     batch = context["batch"]
-    vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
-    package_ids = batch["input_ids"]
-    package_labels = batch["labels"]
+    refinement_evidence: dict[str, object] | None = None
+    if args.condition == "refinement":
+        package_batch = _move_batch(batch, device)
+        reseed(args.seed)
+        package_module._condition_kwargs(package_batch)
+        reseed(args.seed)
+        vendor_batch = vendor_raw_batch(batch)
+        vendor_training_model = cast(VendorTrainingModel, vendor_model)
+        vendor_inputs, vendor_targets = vendor_training_model.preprocess(vendor_batch)
+        package_ids = package_batch["input_ids"].cpu()
+        package_labels = package_batch["labels"].cpu()
+        refinement_evidence = {
+            "clean_layout": {
+                "label": batch["layout_labels"].tolist(),
+                "center_x": batch["layout_bbox"][..., 0].tolist(),
+                "center_y": batch["layout_bbox"][..., 1].tolist(),
+                "width": batch["layout_bbox"][..., 2].tolist(),
+                "height": batch["layout_bbox"][..., 3].tolist(),
+                "mask": batch["layout_mask"].tolist(),
+            },
+            "noisy_layout": {
+                key: cast(torch.Tensor, vendor_batch[key]).tolist()
+                for key in ("label", "center_x", "center_y", "width", "height", "mask")
+            },
+            "vendor_input_token_ids": cast(Tensor, vendor_inputs["seq"]).tolist(),
+            "vendor_target_token_ids": cast(Tensor, vendor_targets["seq"]).tolist(),
+            "target_is_shifted_noisy_sequence": True,
+            "rng_policy": {
+                "construction": "same CPU torch.normal stream, four geometry calls in GEO_KEYS order",
+                "harness_seed": args.seed,
+                "package_reseeded_immediately_before_condition": True,
+                "vendor_reseeded_immediately_before_condition": True,
+            },
+        }
+    else:
+        vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
+        package_ids = batch["input_ids"]
+        package_labels = batch["labels"]
     vendor_ids = cast(Tensor, vendor_inputs["seq"])
     vendor_labels = cast(Tensor, vendor_targets["seq"])
-    input_diff = _assert_close("prepared.input_ids", package_ids, vendor_ids)
-    label_diff = _assert_close("prepared.labels", package_labels, vendor_labels)
+    input_diff = _assert_close("prepared.input_ids", package_ids, vendor_ids.cpu())
+    label_diff = _assert_close("prepared.labels", package_labels, vendor_labels.cpu())
     package_loss, vendor_loss, package_logits, vendor_logits = _loss_pair(
         package_module, vendor_model, batch, device, args.seed
     )
     loss_diff = _assert_close("train_loss", package_loss, vendor_loss)
     logit_diff = _assert_close("logits", package_logits, vendor_logits)
-    return {
+    result: dict[str, object] = {
         "status": "PASS",
         "batch_size": package_ids.size(0),
         "input_shape": list(package_ids.shape),
@@ -2202,6 +2248,9 @@ def _s1(
         },
         "seed": args.seed,
     }
+    if refinement_evidence is not None:
+        result["real_batch_refinement_evidence"] = refinement_evidence
+    return result
 
 
 def _s2(

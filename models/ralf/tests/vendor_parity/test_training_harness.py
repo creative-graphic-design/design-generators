@@ -160,6 +160,7 @@ def test_condition_type_maps_canonical_conditions_to_vendor_tasks() -> None:
     assert _condition_type("label") == ("label", "c")
     assert _condition_type("label_size") == ("label_size", "cwh")
     assert _condition_type("completion") == ("completion", "partial")
+    assert _condition_type("refinement") == ("refinement", "refinement")
 
 
 def test_completion_condition_matches_vendor_partial_preprocessor() -> None:
@@ -252,6 +253,7 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "label") == 50
     assert _recipe_epochs("cgl", "label_size") == 40
     assert _recipe_epochs("cgl", "completion") == 50
+    assert _recipe_epochs("cgl", "refinement") == 35
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(

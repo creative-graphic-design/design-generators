@@ -116,7 +116,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument(
         "--condition",
-        choices=("label", "label_size", "completion"),
+        choices=("label", "label_size", "completion", "refinement"),
         default="label",
     )
     parser.add_argument("--batch-size", type=int, default=32)
@@ -351,10 +351,15 @@ def main() -> int:
             ),
         ):
             recorder.phase = "s1_initial_vendor_preprocess"
+            if args.condition == "refinement":
+                stages.reseed(args.seed)
             initial_vendor_inputs, initial_vendor_targets = vendor_preprocess(
                 vendor_model, batch
             )
             package_batch = _move_batch(batch, device)
+            if args.condition == "refinement":
+                stages.reseed(args.seed)
+                package_module._condition_kwargs(package_batch)
             _compare(
                 "s1_prepared_input_ids",
                 package_batch["input_ids"].cpu(),
