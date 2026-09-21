@@ -12,6 +12,34 @@ This document claims end-to-end package training reproduction for CGL unconditio
 
 The CGL label-conditioned and label-size-conditioned paths have completed their staged validation ladders and full-run evaluations; their evidence is recorded in [CGL label S5 comparison](#cgl-label-s5-comparison) and [CGL label-size S5 comparison](#cgl-label-size-s5-comparison). The CGL completion path, completion (vendor task `partial`), in which the layout is generated given its first element, also has staged validation and a five-seed full-run comparison recorded in [CGL completion S5 comparison](#cgl-completion-s5-comparison). It is reproduced within the vendor's seed-to-seed variation. The remaining CGL conditioning modes (refinement and relation) and PKU are not claimed because this document contains no corresponding staged and full-run evidence.
 
+## CGL refinement reproduction (draft S5 section)
+
+This section records the accepted refinement S0-S4 evidence and the live five-package/five-vendor S5 campaign. It is not an end-to-end statistical claim until all ten vendor-protocol evaluations and the comparison are complete.
+
+### Observed vendor behavior
+
+At pinned vendor revision `c51db6032acbd0bd0ce72433becce08317e7874d`, refinement training uses the perturbed noisy layout as both condition and target. In `vendor/ralf/image2layout/train/helpers/task.py:get_condition` (the path is present in the vendor's first commit `aae91db5f07976c9a8275dcef2dde41ba9ec1206`), the refinement branch draws CPU `torch.normal` noise for each `GEO_KEYS` tensor, clamps it to `[0, 1]`, zeros padded elements, tokenizes `new_batch`, and assigns each noisy geometry tensor back into `batch`. `vendor/ralf/image2layout/train/models/autoreg.py:BaseAuxilaryTaskAutoreg.preprocess` receives that returned batch, passes it to the base autoregressive preprocessor, and constructs the shifted target from `data["seq"]`; `RefinementPreprocessor.__call__` in `vendor/ralf/image2layout/train/models/layoutformerpp/task_preprocessor.py` consumes the same refinement condition for `seq_layout_const`. On a real batch, `.cache/ralf/training-reproduction/cgl/refinement/s1/final-002/s1.json` (SHA-256 `6576b3269f1d0b992db916a5739d383e9bcb54edaa9467f8da3ccad4e2358f29`) records the clean layout, noisy layout, vendor target token IDs, and `target_is_shifted_noisy_sequence: true`. The package replicates this observed vendor behavior for reproduction; it does not correct the task to noisy-to-clean. The package's deterministic S5 outputs are copies of the quantized noisy condition: package-seed-1 and package-seed-2 have identical layout metrics to the printed precision in their retained score files. The authors' published checkpoint behaves differently; its single-run scores are shown below as reference only and are excluded from the package/vendor statistical test. Evaluation is unaffected by this training-target choice: `vendor/ralf/scripts/run_job/eval_inference.sh:27-36` passes `cond_type=refinement test_split=test`, adds `sampling=deterministic` at lines 29-30, then runs inference and `eval.py` on the generated pickle files.
+
+| Metric | Package S5 comparison | Vendor S5 comparison | Authors' published checkpoint (reference only; single run; `training_logs/ralf_refinement_cgl`; 35 epochs) |
+| --- | --- | --- | ---: |
+| `R_{shm} (vgg distance)` | pending | pending | 14.391940770037477 |
+| `alignment-LayoutGAN++` | pending | pending | 0.0020370791141214968 |
+| `occlusion` | pending | pending | 0.12594507048016046 |
+| `overlap-LayoutGAN++` | pending | pending | 0.3756476810414286 |
+| `overlay` | pending | pending | 0.0022548521331115256 |
+| `test_coverage_layout` | pending | pending | 0.9976119071420637 |
+| `test_density_layout` | pending | pending | 1.1468177274241917 |
+| `test_fid_layout` | pending | pending | 0.14299196227947655 |
+| `test_precision_layout` | pending | pending | 0.9995001666111296 |
+| `test_recall_layout` | pending | pending | 0.9985560368765967 |
+| `underlay_effectiveness_loose` | pending | pending | 0.9939644758196602 |
+| `underlay_effectiveness_strict` | pending | pending | 0.9831844487668991 |
+| `unreadability` | pending | pending | 0.017626337510070766 |
+| `utilization` | pending | pending | 0.19818892186037781 |
+| `validity` | pending | pending | 0.9987393451534182 |
+
+The reference row is recomputed from `$RALF_CACHE_DIR/training_logs/ralf_refinement_cgl/generated_samples_refinement_name_deterministic_refine_mode_uniform_refine_offset_ratio_0.1_refine_lambda_3.0_final_dynamictopk_16/scores_all.yaml` (SHA-256 `8a743855010819f2206e7c62861111a1b5e9adafb72df1b2d5b06a44b408365f`). The corresponding package-seed-1 and package-seed-2 deterministic score files are retained under `.cache/ralf/training-reproduction/cgl/refinement/s5/evals/`; they are diagnostic S5 records until the five-seed comparison is complete.
+
 Run commands from the repository root. Generated data, logs, checkpoints, and downloaded assets remain under `.cache/ralf/` or the authoritative cache selected below and are not committed.
 
 ## Install
