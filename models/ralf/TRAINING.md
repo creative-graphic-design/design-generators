@@ -199,9 +199,9 @@ The ten score artifacts and their SHA-256 values are:
 
 The machine-readable comparison is `.cache/ralf/training-reproduction/cgl/label_size/s5/comparison/comparison.json`; its SHA-256 is `ec68fa449546fe8b6050819c31de1520876208c08e7cb2f6be22efe5b0462142`.
 
-The published authors' reference is `.cache`-external `$RALF_CACHE_DIR/training_logs/ralf_cwh_cgl/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, SHA-256 `a7de58c43a3579dadcb1e1e932f0a221238338c4806ddc90a1d726248deeb8e`. The following values were recomputed from that file's `average.test` mapping and are reference only, meaning they are excluded from the package/vendor statistical test.
+The authors' published reference is stored in the read-only RALF cache at `$RALF_CACHE_DIR/training_logs/ralf_cwh_cgl/generated_samples_cwh_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, outside the repository `.cache/` tree. Its SHA-256 is `a7de58c43a3579dadcb1e1e932f0a221238338c4806ddcd90a1d726248deeb8e`. The following values were recomputed from that file's `average.test` mapping and are reference only, meaning they are excluded from the package/vendor statistical test.
 
-The authors' `config.yaml` records 40 training epochs, and the repository recipe followed 40 epochs as well.
+The authors' `config.yaml` records 40 training epochs, and the repository recipe followed 40 epochs from `vendor/ralf/configs/ralf_cgl/chw.sh`.
 
 | Metric | Published checkpoint reference (40 epochs; reference only) |
 | --- | ---: |
@@ -262,7 +262,11 @@ The ten score artifacts and their ledger-recorded SHA-256 values are:
 | Vendor seed 4 | `.cache/ralf/training-reproduction/cgl/label/s5/evals/n5-seed45/vendor-seed-4/generated_samples_c_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `59febcfbab5e0cf4ece1c18bfa8fce7c6fa6c8467fb6991fe4393ed5842411ca` | Native evaluator record; evaluator exit verified. |
 | Vendor seed 5 | `.cache/ralf/training-reproduction/cgl/label/s5/evals/n5-seed45/vendor-seed-5/generated_samples_c_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml` | `76e25edb89f4f1798db9551adb22ca7008d1b0b6dc03a7e22a25a495ceb2a969` | Native evaluator record; evaluator exit verified. |
 
-The published authors' reference is `.cache`-external `$RALF_CACHE_DIR/training_logs/ralf_c_cgl/generated_samples_c_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, SHA-256 `099d97872351b5014a8fdd2392fa83c72cfda104c1881fb25d6fbcd67235dd01`. The following values were recomputed from that file's `average.test` mapping and are reference only.
+The n=3 comparison is retained as an interim finding because the maintainer directed the campaign to add seeds 4 and 5 before assigning a final verdict. At n=3, package means were inside vendor ranges for 11 of 15 metrics in both directions; FID, overlay, unreadability, and validity failed at least one direction. The n=5 table above is the primary result.
+
+The evaluation campaign recorded two cgroup-v1 OOM kills when five RALF evaluator jobs loaded retrieval caches concurrently; the recorded cgroup peak was 482.611 GiB, and each retrieval-cache load used about 100 GiB. The campaign then capped concurrency at three RALF evaluator jobs and required `/dev/shm` free space of at least 100 GiB plus host `MemAvailable` of at least 80 GiB before each launch. Vendor seed 2 completed inference before its wrapper failed while reading an in-place launcher edit, so the evaluator ran once on the preserved nine-file generated-samples manifest (`1279e2246567ab4209f1b131ab2b28dac94a1099ecaf0cfbf015888874818f04`) and did not repeat inference. Package seed 1, package seed 2, and vendor seed 1 received post-hoc result-record repairs from their completed `scores_all.yaml` files; no inference was restarted for bookkeeping.
+
+The authors' published reference is stored in the read-only RALF cache at `$RALF_CACHE_DIR/training_logs/ralf_c_cgl/generated_samples_c_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, outside the repository `.cache/` tree. Its SHA-256 is `099d97872351b5014a8fdd2392fa83c72cfda104c1881fb25d6fbcd67235dd01`. The following values were recomputed from that file's `average.test` mapping and are reference only, meaning they are excluded from the package/vendor statistical test.
 
 The authors' `config.yaml` records 70 training epochs, whereas the repository recipe followed 50 epochs from the base experiment config in `vendor/ralf/image2layout/train/config/experiment/ralf.yaml`; `vendor/ralf/configs/ralf_cgl/c.sh` has no epoch override.
 
@@ -283,10 +287,6 @@ The authors' `config.yaml` records 70 training epochs, whereas the repository re
 | `unreadability` | 0.018042412360283352 |
 | `utilization` | 0.19758482094489724 |
 | `validity` | 0.9986815169494466 |
-
-The n=3 comparison is retained as an interim finding because the maintainer directed the campaign to add seeds 4 and 5 before assigning a final verdict. At n=3, package means were inside vendor ranges for 11 of 15 metrics in both directions; FID, overlay, unreadability, and validity failed at least one direction. The n=5 table above is the primary result.
-
-The evaluation campaign recorded two cgroup-v1 OOM kills when five RALF evaluator jobs loaded retrieval caches concurrently; the recorded cgroup peak was 482.611 GiB, and each retrieval-cache load used about 100 GiB. The campaign then capped concurrency at three RALF evaluator jobs and required `/dev/shm` free space of at least 100 GiB plus host `MemAvailable` of at least 80 GiB before each launch. Vendor seed 2 completed inference before its wrapper failed while reading an in-place launcher edit, so the evaluator ran once on the preserved nine-file generated-samples manifest (`1279e2246567ab4209f1b131ab2b28dac94a1099ecaf0cfbf015888874818f04`) and did not repeat inference. Package seed 1, package seed 2, and vendor seed 1 received post-hoc result-record repairs from their completed `scores_all.yaml` files; no inference was restarted for bookkeeping.
 
 ### Control experiment: original vs original
 
@@ -450,27 +450,28 @@ Each system trained seeds 1-3 to 30 epochs, and every resulting checkpoint was e
 
 Every package mean falls inside the vendor three-seed range, which is the basis for the CGL unconditional end-to-end reproduction claim above. An independent rerun of the full vendor-parity test suite (`PARITY_REQUIRE=1 ... pytest models/ralf/tests/vendor_parity -m vendor_parity` with regenerated golden references and all twelve converted checkpoints) reported 28 passed, 0 failed, and 0 skipped. The per-seed score files (one YAML per run under each run root's `scores/` directory) have these SHA-256 values: package seeds 1-3 `ee58b8ac4d25437e111173c31ebce39c18c288d565c8b0222d357248e95ce985`, `2972dc798be946a8f0d073e8d18391121268d8e40e544ec50d98bd7e9d481577`, `6a26d8a0a86ec4d335ed06f0d863548b9bc7996d2c157ea653fc6fd428d0ab35`; vendor seeds 1-3 `c7e30d6171127a7d1d87c6b9b958d253bdabb5a8dbeadde646f0f649422539c6`, `1f90ceba3cdac32a8250432e1a3d2fbf50eabb690bffadb5ca39bba4abb22c8e`, `6113cedcc75854041ea693632c75f71dba0d42264eb9e46fa023cf10aef0ccc7`.
 
-The published authors' reference is `.cache`-external `$RALF_CACHE_DIR/training_logs/ralf_uncond_cgl/generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, SHA-256 `295f4a66eaf2920dad4f5745bdd82492dc93908cccbaa4f7704c1d87db152742`. The following values were recomputed from that file's `average.test` mapping and are reference only.
+The authors' published reference is stored in the read-only RALF cache at `$RALF_CACHE_DIR/training_logs/ralf_uncond_cgl/generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, outside the repository `.cache/` tree. Its SHA-256 is `295f4a66eaf2920dad4f5745bdd82492dc93908cccbaa4f7704c1d87db152742`. The following values were recomputed from that file's `average.test` mapping and are reference only, meaning they are excluded from the package/vendor statistical test.
 
-The authors' `config.yaml` records 70 training epochs, whereas the repository recipe followed 30 epochs from `vendor/ralf/configs/ralf_cgl/uncond.sh`. The cache also contains the output directory `generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_debug_final_dynamictopk_16`; the reference score file above is in `generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16`.
+The authors' `config.yaml` records 70 training epochs, whereas the repository recipe followed 30 epochs from `vendor/ralf/configs/ralf_cgl/uncond.sh`.
+The cache also holds a `_debug_` variant of this directory; the values above come from the non-debug one.
 
 | Metric | Published checkpoint reference (70 epochs; reference only) |
 | --- | ---: |
-| `R_{shm} (vgg distance)` | 14.25879576492744 |
-| `alignment-LayoutGAN++` | 0.0023525180335081854 |
-| `occlusion` | 0.12461890789067336 |
-| `overlap-LayoutGAN++` | 0.38535294240597606 |
-| `overlay` | 0.004181536728625161 |
-| `test_coverage_layout` | 0.9611240697545261 |
-| `test_density_layout` | 1.087881817172054 |
-| `test_fid_layout` | 1.320631473911135 |
-| `test_precision_layout` | 0.962401421748306 |
-| `test_recall_layout` | 0.926746640008886 |
-| `underlay_effectiveness_loose` | 0.9912027392826243 |
-| `underlay_effectiveness_strict` | 0.9756369382098486 |
-| `unreadability` | 0.017964394385125374 |
-| `utilization` | 0.1969273479430954 |
-| `validity` | 0.9987338915105238 |
+| Layout FID | 1.320631473911135 |
+| Validity | 0.9987338915105238 |
+| Alignment (LayoutGAN++) | 0.0023525180335081854 |
+| Overlap (LayoutGAN++) | 0.38535294240597606 |
+| Underlay (strict) | 0.9756369382098486 |
+| Underlay (loose) | 0.9912027392826243 |
+| Utilization | 0.1969273479430954 |
+| Occlusion | 0.12461890789067336 |
+| Unreadability | 0.017964394385125374 |
+| Precision (layout) | 0.962401421748306 |
+| Recall (layout) | 0.926746640008886 |
+| Density (layout) | 1.087881817172054 |
+| Coverage (layout) | 0.9611240697545261 |
+| R_shm (VGG distance) | 14.25879576492744 |
+| Overlay | 0.004181536728625161 |
 
 S4 run-010 compared the actual package `RalfDataModule.train_dataloader()` and `val_dataloader()` with the vendor `DataLoader` and `collate_fn`. Train and validation split membership matched exactly (48,544 and 6,002 ids, respectively), with zero overlap. The package and vendor canonical stream digest was the same: `664a421335f288c1a3beafc92f53d5d88ba685e5d393aea8fcc6eb484cdf3876`. The loader digests were package `2ef173685465a5810cfcaed76f2788cba85c2f48c85b5a83229cf004be1b4f3e` and vendor `5970e735922f26706018496a90f4bf9cda40c6dea1dbde0f4e980b4446f92ab7`.
 
