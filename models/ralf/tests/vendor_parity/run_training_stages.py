@@ -2246,9 +2246,11 @@ def _s1(
                 key: cast(torch.Tensor, vendor_batch[key]).tolist()
                 for key in ("label", "center_x", "center_y", "width", "height", "mask")
             },
+            "clean_input_token_ids": batch["input_ids"].tolist(),
+            "clean_target_token_ids": batch["labels"].tolist(),
             "vendor_input_token_ids": cast(Tensor, vendor_inputs["seq"]).tolist(),
             "vendor_target_token_ids": cast(Tensor, vendor_targets["seq"]).tolist(),
-            "target_is_shifted_noisy_sequence": True,
+            "target_is_shifted_clean_sequence": True,
             "rng_policy": {
                 "construction": "same CPU torch.normal stream, four geometry calls in GEO_KEYS order",
                 "harness_seed": args.seed,
