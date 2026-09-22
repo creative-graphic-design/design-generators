@@ -125,9 +125,6 @@ class RalfTrainingModule(LightningModule):
             mask=batch["layout_mask"],
         )
         prepared_batch = cast(RalfTrainingBatch, dict(batch))
-        prepared_batch["input_ids"] = encoded["input_ids"][:, :-1]
-        prepared_batch["labels"] = encoded["input_ids"][:, 1:]
-        prepared_batch["attention_mask"] = encoded["attention_mask"][:, :-1]
         return prepared_batch, {
             "constraint_input_ids": cast(
                 Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
