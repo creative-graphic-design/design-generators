@@ -159,6 +159,87 @@ def test_condition_type_maps_canonical_conditions_to_vendor_tasks() -> None:
     assert _condition_type("unconditional") == ("unconditional", "uncond")
     assert _condition_type("label") == ("label", "c")
     assert _condition_type("label_size") == ("label_size", "cwh")
+    assert _condition_type("completion") == ("completion", "partial")
+
+
+def test_completion_condition_matches_vendor_partial_preprocessor() -> None:
+    from training_reference import require_vendor
+
+    require_vendor(Path(os.environ["RALF_CACHE_DIR"]))
+    from datasets import ClassLabel, Features, Sequence as DatasetSequence, Value
+    from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
+    from image2layout.train.helpers.task import get_condition
+    from image2layout.train.models.layoutformerpp.task_preprocessor import (
+        PartialPreprocessor,
+    )
+    from ralf import RalfConfig, RalfLayoutTokenizer
+    from ralf.modeling_ralf import (
+        RalfConditionalInputs,
+        RalfTaskPreprocessor,
+        RalfTokenizerView,
+    )
+
+    labels = torch.tensor([[0, 1, 2, 3], [3, 2, 1, 0]])
+    bbox = torch.full((2, 4, 4), 0.25)
+    mask = torch.tensor(
+        [[True, True, False, False], [True, False, False, False]],
+        dtype=torch.bool,
+    )
+    raw = {
+        "id": ["0", "1"],
+        "image": torch.zeros(2, 3, 8, 8),
+        "saliency": torch.zeros(2, 1, 8, 8),
+        "label": labels,
+        "center_x": bbox[..., 0],
+        "center_y": bbox[..., 1],
+        "width": bbox[..., 2],
+        "height": bbox[..., 3],
+        "mask": mask,
+    }
+    features = Features(
+        {
+            "id": Value("string"),
+            "label": DatasetSequence(ClassLabel(names=[str(i) for i in range(4)])),
+        }
+    )
+    vendor_tokenizer = LayoutSequenceTokenizer(
+        label_feature=features["label"].feature,
+        max_seq_length=4,
+        num_bin=8,
+        var_order=["label", "width", "height", "center_x", "center_y"],
+        special_tokens=["pad", "bos", "eos"],
+    )
+    vendor_condition, _ = get_condition(raw, "partial", vendor_tokenizer)
+    vendor_sequence = PartialPreprocessor(
+        tokenizer=vendor_tokenizer,
+        global_task_embedding=False,
+    )(vendor_condition)
+
+    config = RalfConfig(
+        dataset_name="cgl",
+        id2label={i: str(i) for i in range(4)},
+        max_seq_length=4,
+        num_bin=8,
+    )
+    encoded = RalfLayoutTokenizer(config).encode_layout(
+        labels=labels,
+        bbox=bbox,
+        mask=mask,
+    )
+    package_condition = RalfConditionalInputs(
+        image=torch.zeros(2, 4, 8, 8),
+        retrieved={},
+        seq=encoded["input_ids"],
+        mask=vendor_condition.mask,
+    )
+    package_sequence = RalfTaskPreprocessor(
+        tokenizer=RalfTokenizerView(config),
+        task="partial",
+        global_task_embedding=False,
+    )(package_condition)
+
+    assert torch.equal(package_sequence["seq"], vendor_sequence["seq"])
+    assert torch.equal(package_sequence["pad_mask"], vendor_sequence["pad_mask"])
 
 
 def test_condition_type_rejects_unsupported_tasks() -> None:
@@ -170,6 +251,7 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "unconditional") == 30
     assert _recipe_epochs("cgl", "label") == 50
     assert _recipe_epochs("cgl", "label_size") == 40
+    assert _recipe_epochs("cgl", "completion") == 50
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(

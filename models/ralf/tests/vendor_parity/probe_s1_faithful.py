@@ -116,7 +116,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, required=True)
     parser.add_argument(
         "--condition",
-        choices=("label", "label_size"),
+        choices=("label", "label_size", "completion"),
         default="label",
     )
     parser.add_argument("--batch-size", type=int, default=32)
