@@ -102,6 +102,7 @@ def build_vendor_model(config: RalfConfig, *, cache_dir: Path) -> torch.nn.Modul
         "unconditional": "uncond",
         "label": "c",
         "label_size": "cwh",
+        "completion": "partial",
     }.get(str(config.task))
     if vendor_task is None:
         raise ValueError(f"unsupported RALF vendor condition: {config.task}")

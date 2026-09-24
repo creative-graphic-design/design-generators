@@ -53,7 +53,7 @@ from training_reference import (
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
-ConditionType = Literal["unconditional", "label", "label_size"]
+ConditionType = Literal["unconditional", "label", "label_size", "completion"]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
 
@@ -246,7 +246,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
         "--condition",
-        choices=("unconditional", "label", "label_size"),
+        choices=("unconditional", "label", "label_size", "completion"),
         default="unconditional",
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
@@ -264,6 +264,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "label", "c"
     if condition == "label_size":
         return "label_size", "cwh"
+    if condition == "completion":
+        return "completion", "partial"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -2523,7 +2525,15 @@ def _s3(
         )
     _s3_child_import_gate()
 
-    run_base = ROOT / ".cache" / "ralf" / "training-reproduction" / args.dataset / "s3"
+    run_base = (
+        ROOT
+        / ".cache"
+        / "ralf"
+        / "training-reproduction"
+        / args.dataset
+        / args.condition
+        / "s3"
+    )
     train_batch_count = (
         len(data.train_dataset) + args.batch_size - 1
     ) // args.batch_size
