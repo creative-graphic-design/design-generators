@@ -452,8 +452,7 @@ Every package mean falls inside the vendor three-seed range, which is the basis 
 
 The authors' published reference is stored in the read-only RALF cache at `$RALF_CACHE_DIR/training_logs/ralf_uncond_cgl/generated_samples_uncond_name_top_k_temperature_1.0_top_k_5_final_dynamictopk_16/scores_all.yaml`, outside the repository `.cache/` tree. Its SHA-256 is `295f4a66eaf2920dad4f5745bdd82492dc93908cccbaa4f7704c1d87db152742`. The following values were recomputed from that file's `average.test` mapping and are reference only, meaning they are excluded from the package/vendor statistical test.
 
-The authors' `config.yaml` records 70 training epochs, whereas the repository recipe followed 30 epochs from `vendor/ralf/configs/ralf_cgl/uncond.sh`.
-The cache also holds a `_debug_` variant of this directory; the values above come from the non-debug one.
+The authors' `config.yaml` records 70 training epochs, whereas the repository recipe followed 30 epochs from `vendor/ralf/configs/ralf_cgl/uncond.sh`. The cache also holds a `_debug_` variant of this directory; the values above come from the non-debug one.
 
 | Metric | Published checkpoint reference (70 epochs; reference only) |
 | --- | ---: |
