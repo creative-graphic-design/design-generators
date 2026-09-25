@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import pickle
 from collections.abc import Mapping, Sequence
-from typing import Protocol, cast
+from enum import IntEnum
+from types import SimpleNamespace
+from typing import ClassVar, Protocol, cast
 
 import torch
 from jaxtyping import Float, Shaped
@@ -16,6 +19,9 @@ from transformers.modeling_outputs import CausalLMOutput
 from ..configuration_ralf import RalfConfig
 from ..modeling_ralf import (
     RalfForConditionalLayoutGeneration,
+    RalfRelationElement,
+    RalfRelationLocation,
+    RalfRelationSize,
     RalfRelationshipTable,
     _consume_relation_graph_rng,
 )
@@ -29,6 +35,55 @@ class _GradientTraceHook(Protocol):
 
     def on_package_gradients_clipped(self, pl_module: "RalfTrainingModule") -> None:
         """Observe package gradients after Lightning applies clipping."""
+
+
+class _RelationTableUnpickler(pickle.Unpickler):
+    """Load only the three enum globals used by serialized relation tables."""
+
+    _allowed_globals: ClassVar[dict[tuple[str, str], type[IntEnum]]] = {
+        (
+            "image2layout.train.helpers.relationships",
+            "RelElement",
+        ): RalfRelationElement,
+        (
+            "image2layout.train.helpers.relationships",
+            "RelLoc",
+        ): RalfRelationLocation,
+        (
+            "image2layout.train.helpers.relationships",
+            "RelSize",
+        ): RalfRelationSize,
+    }
+
+    def find_class(self, module: str, name: str) -> type[IntEnum]:
+        try:
+            return self._allowed_globals[(module, name)]
+        except KeyError as exc:
+            raise pickle.UnpicklingError(
+                f"unsupported global in relation table: {module}.{name}"
+            ) from exc
+
+
+_RELATION_TABLE_PICKLE_MODULE = SimpleNamespace(
+    __name__="ralf_relation_table_pickle",
+    Unpickler=_RelationTableUnpickler,
+    load=pickle.load,
+)
+
+
+def _load_relationship_table(
+    path: str | os.PathLike[str],
+) -> RalfRelationshipTable:
+    """Load a relation table without importing its original enum classes."""
+    payload = torch.load(
+        path,
+        map_location="cpu",
+        pickle_module=_RELATION_TABLE_PICKLE_MODULE,
+    )
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"relationship table at {path} is not a mapping")
+
+    return cast(RalfRelationshipTable, payload)
 
 
 class RalfTrainingModule(LightningModule):
@@ -63,13 +118,7 @@ class RalfTrainingModule(LightningModule):
                 raise ValueError("relation training requires a relationship table path")
 
             else:
-                payload = torch.load(table_path, map_location="cpu", weights_only=False)
-                if not isinstance(payload, Mapping):
-                    raise TypeError(
-                        f"relationship table at {table_path} is not a mapping"
-                    )
-
-                relationship_table = cast(RalfRelationshipTable, payload)
+                relationship_table = _load_relationship_table(table_path)
 
         self.relationship_table = relationship_table
         self.model = model or RalfForConditionalLayoutGeneration(

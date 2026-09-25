@@ -8,6 +8,7 @@ import math
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import IntEnum
 from itertools import combinations
 from typing import Final, Literal, Protocol, cast, runtime_checkable
 
@@ -71,6 +72,42 @@ class RalfRelationNamedItem(Protocol):
     """Relation enum-like item with a name field."""
 
     name: str
+
+
+class RalfRelationSize(IntEnum):
+    """Serialized size relations from pinned RALF ``image2layout/train/helpers/relationships.py`` at ``c51db6032acbd0bd0ce72433becce08317e7874d``."""
+
+    UNKNOWN = 0
+    SMALLER = 1
+    EQUAL = 2
+    LARGER = 3
+
+
+class RalfRelationLocation(IntEnum):
+    """Serialized location relations from pinned RALF ``image2layout/train/helpers/relationships.py`` at ``c51db6032acbd0bd0ce72433becce08317e7874d``."""
+
+    UNKNOWN = 4
+    LEFT = 5
+    TOP = 6
+    RIGHT = 7
+    BOTTOM = 8
+    CENTER = 9
+
+
+class RalfRelationElement(IntEnum):
+    """Serialized element relations from pinned RALF ``image2layout/train/helpers/relationships.py`` at ``c51db6032acbd0bd0ce72433becce08317e7874d``."""
+
+    A = 10
+    B = 11
+    C = 12
+    D = 13
+    E = 14
+    F = 15
+    G = 16
+    H = 17
+    I = 18  # noqa: E741
+    J = 19
+    K = 20
 
 
 RalfRelationItem = RalfRelationNamedItem | str | int
