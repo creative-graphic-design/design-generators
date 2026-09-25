@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Protocol, cast
+import os
+import pickle
+from collections.abc import Mapping, Sequence
+from enum import IntEnum
+from types import SimpleNamespace
+from typing import ClassVar, Protocol, cast
 
 import torch
 from jaxtyping import Float, Shaped
@@ -12,7 +17,14 @@ from torch import nn
 from transformers.modeling_outputs import CausalLMOutput
 
 from ..configuration_ralf import RalfConfig
-from ..modeling_ralf import RalfForConditionalLayoutGeneration
+from ..modeling_ralf import (
+    RalfForConditionalLayoutGeneration,
+    RalfRelationElement,
+    RalfRelationLocation,
+    RalfRelationSize,
+    RalfRelationshipTable,
+    _consume_relation_graph_rng,
+)
 from ..retrieval import RalfRetrievedBatch
 from ..tokenization_ralf import RalfLayoutTokenizer
 from .datamodule import RalfTrainingBatch
@@ -23,6 +35,55 @@ class _GradientTraceHook(Protocol):
 
     def on_package_gradients_clipped(self, pl_module: "RalfTrainingModule") -> None:
         """Observe package gradients after Lightning applies clipping."""
+
+
+class _RelationTableUnpickler(pickle.Unpickler):
+    """Load only the three enum globals used by serialized relation tables."""
+
+    _allowed_globals: ClassVar[dict[tuple[str, str], type[IntEnum]]] = {
+        (
+            "image2layout.train.helpers.relationships",
+            "RelElement",
+        ): RalfRelationElement,
+        (
+            "image2layout.train.helpers.relationships",
+            "RelLoc",
+        ): RalfRelationLocation,
+        (
+            "image2layout.train.helpers.relationships",
+            "RelSize",
+        ): RalfRelationSize,
+    }
+
+    def find_class(self, module: str, name: str) -> type[IntEnum]:
+        try:
+            return self._allowed_globals[(module, name)]
+        except KeyError as exc:
+            raise pickle.UnpicklingError(
+                f"unsupported global in relation table: {module}.{name}"
+            ) from exc
+
+
+_RELATION_TABLE_PICKLE_MODULE = SimpleNamespace(
+    __name__="ralf_relation_table_pickle",
+    Unpickler=_RelationTableUnpickler,
+    load=pickle.load,
+)
+
+
+def _load_relationship_table(
+    path: str | os.PathLike[str],
+) -> RalfRelationshipTable:
+    """Load a relation table without importing its original enum classes."""
+    payload = torch.load(
+        path,
+        map_location="cpu",
+        pickle_module=_RELATION_TABLE_PICKLE_MODULE,
+    )
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"relationship table at {path} is not a mapping")
+
+    return cast(RalfRelationshipTable, payload)
 
 
 class RalfTrainingModule(LightningModule):
@@ -40,11 +101,36 @@ class RalfTrainingModule(LightningModule):
         scheduler: str = "multi_step",
         scheduler_milestones: tuple[float, ...] = (0.7,),
         condition_type: str = "unconditional",
+        relationship_table_path: str | None = None,
     ) -> None:
         """Initialize the package-local Lightning training module."""
         super().__init__()
         self.ralf_config = config
-        self.model = model or RalfForConditionalLayoutGeneration(config)
+        relationship_table = None
+        if condition_type == "relation":
+            table_path = relationship_table_path or os.environ.get(
+                "RALF_RELATIONSHIP_TABLE_PATH"
+            )
+            existing_table = None if model is None else model.relationship_table
+            if table_path is None and existing_table is not None:
+                relationship_table = existing_table
+            elif table_path is None:
+                raise ValueError("relation training requires a relationship table path")
+
+            else:
+                relationship_table = _load_relationship_table(table_path)
+
+        self.relationship_table = relationship_table
+        self.model = model or RalfForConditionalLayoutGeneration(
+            config, relationship_table=relationship_table
+        )
+        if (
+            model is not None
+            and relationship_table is not None
+            and model.relationship_table is not relationship_table
+        ):
+            self.model.configure_relationship_table(relationship_table)
+
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.clip_max_norm = clip_max_norm
@@ -56,7 +142,8 @@ class RalfTrainingModule(LightningModule):
         self._gradient_trace_hook: _GradientTraceHook | None = None
 
     def forward(
-        self, **batch: Shaped[torch.Tensor, ...] | RalfRetrievedBatch
+        self,
+        **batch: Shaped[torch.Tensor, ...] | RalfRetrievedBatch | Sequence[str | int],
     ) -> CausalLMOutput:
         """Run the package model on one training batch."""
         retrieved = cast(RalfRetrievedBatch | None, batch.pop("retrieved", None))
@@ -84,16 +171,21 @@ class RalfTrainingModule(LightningModule):
         if self.condition_type == "refinement":
             _, condition_kwargs = self._prepare_refinement_layout(batch)
             return condition_kwargs
-        elif self.condition_type in {"label", "label_size", "completion"}:
+        elif self.condition_type in {"label", "label_size", "completion", "relation"}:
             encoded = RalfLayoutTokenizer(self.ralf_config).encode_layout(
                 labels=batch["layout_labels"],
                 bbox=batch["layout_bbox"],
                 mask=batch["layout_mask"],
             )
+            if self.condition_type == "relation":
+                if self.relationship_table is None:
+                    raise RuntimeError("relation training has no relationship table")
+
+                _consume_relation_graph_rng(batch["layout_mask"])
         else:
             return {}
 
-        return {
+        condition_kwargs: dict[str, Shaped[torch.Tensor, ...]] = {
             "constraint_input_ids": cast(
                 Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
             ),
@@ -101,6 +193,12 @@ class RalfTrainingModule(LightningModule):
                 Shaped[torch.Tensor, "batch tokens"], encoded["attention_mask"]
             ),
         }
+        if self.condition_type == "relation":
+            condition_kwargs["sample_ids"] = cast(
+                Shaped[torch.Tensor, "batch"], batch.get("sample_ids", [])
+            )
+
+        return condition_kwargs
 
     def _prepare_refinement_layout(
         self, batch: RalfTrainingBatch
@@ -329,5 +427,6 @@ class RalfTrainingModule(LightningModule):
             "layout_labels": batch["layout_labels"].long(),
             "layout_bbox": batch["layout_bbox"].float(),
             "layout_mask": batch["layout_mask"].bool(),
+            "sample_ids": batch.get("sample_ids", []),
             "retrieved": batch_retrieved,
         }

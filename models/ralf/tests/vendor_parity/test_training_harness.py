@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+from jaxtyping import Shaped
 import pytest
 import torch
 from lightning.pytorch import LightningModule, Trainer
@@ -63,7 +64,13 @@ def test_label_condition_shuffle_order_matches_vendor_cpu_rng() -> None:
     """Match vendor label-condition element order and its CPU RNG source."""
     from training_reference import require_vendor
 
-    require_vendor(Path(os.environ.get("RALF_CACHE_DIR", ".cache/ralf/cache")))
+    cache_dir = Path(
+        os.environ.get(
+            "RALF_CACHE_DIR",
+            str(Path(__file__).parents[4] / ".cache" / "ralf" / "cache"),
+        )
+    )
+    require_vendor(cache_dir)
     from datasets import ClassLabel, Features, Sequence as DatasetSequence, Value
     from image2layout.train.helpers.layout_tokenizer import LayoutSequenceTokenizer
     from image2layout.train.helpers.task import get_condition
@@ -161,6 +168,7 @@ def test_condition_type_maps_canonical_conditions_to_vendor_tasks() -> None:
     assert _condition_type("label_size") == ("label_size", "cwh")
     assert _condition_type("completion") == ("completion", "partial")
     assert _condition_type("refinement") == ("refinement", "refinement")
+    assert _condition_type("relation") == ("relation", "relation")
 
 
 def test_completion_condition_matches_vendor_partial_preprocessor() -> None:
@@ -254,6 +262,7 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "label_size") == 40
     assert _recipe_epochs("cgl", "completion") == 50
     assert _recipe_epochs("cgl", "refinement") == 35
+    assert _recipe_epochs("cgl", "relation") == 50
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
@@ -280,7 +289,7 @@ def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
 
         def _condition_kwargs(
             self, batch: RalfTrainingBatch
-        ) -> dict[str, torch.Tensor]:
+        ) -> dict[str, Shaped[torch.Tensor, "..."]]:
             del batch
             state = torch.get_rng_state().clone()
             condition = torch.randperm(4)
