@@ -59,7 +59,11 @@ def require_vendor(cache_dir: Path) -> None:
     """Configure and validate the independent reference dependencies."""
     if os.environ.get("PARITY_REQUIRE") != "1":
         raise RuntimeError("PARITY_REQUIRE=1 is required for training parity")
-    vendor_root = Path(__file__).parents[4] / "vendor" / "ralf"
+    vendor_root = (
+        Path(os.environ["RALF_VENDOR_ROOT"])
+        if os.environ.get("RALF_VENDOR_ROOT")
+        else Path(__file__).parents[4] / "vendor" / "ralf"
+    )
     if not vendor_root.exists():
         raise FileNotFoundError(
             f"pinned RALF vendor checkout is missing: {vendor_root}"
@@ -103,6 +107,7 @@ def build_vendor_model(config: RalfConfig, *, cache_dir: Path) -> torch.nn.Modul
         "label": "c",
         "label_size": "cwh",
         "completion": "partial",
+        "refinement": "refinement",
     }.get(str(config.task))
     if vendor_task is None:
         raise ValueError(f"unsupported RALF vendor condition: {config.task}")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+from types import MethodType, SimpleNamespace
 from typing import TypedDict, cast
 
 import pytest
@@ -243,6 +244,97 @@ def test_completion_condition_uses_full_sequence_before_decoder_shift() -> None:
 
     assert torch.equal(condition["constraint_input_ids"], expected["input_ids"])
     assert torch.equal(condition["constraint_mask"], expected["attention_mask"])
+
+
+def test_refinement_condition_uses_cpu_noise_and_clean_teacher_forcing() -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    sample = _sample()
+    encoded = encode_training_sample(
+        sample,
+        config=config,
+        retrieval_indexes=[0],
+        retrieval_samples=[sample],
+    )
+    batch = collate_training_batch([encoded])
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        condition_type="refinement",
+    )
+
+    expected_bbox = batch["layout_bbox"].clone()
+    torch.manual_seed(17)
+    for bbox_index in range(expected_bbox.size(-1)):
+        noise = torch.normal(
+            0.0,
+            0.01,
+            size=expected_bbox[..., bbox_index].shape,
+            dtype=expected_bbox.dtype,
+        )
+        perturbed = (expected_bbox[..., bbox_index] + noise).clamp(0.0, 1.0)
+        perturbed[~batch["layout_mask"]] = 0.0
+        expected_bbox[..., bbox_index] = perturbed
+    expected = RalfLayoutTokenizer(config).encode_layout(
+        labels=batch["layout_labels"],
+        bbox=expected_bbox,
+        mask=batch["layout_mask"],
+    )
+    clean_input_ids = batch["input_ids"].clone()
+    clean_labels = batch["labels"].clone()
+    clean_attention_mask = batch["attention_mask"].clone()
+
+    torch.manual_seed(17)
+    prepared_batch, condition = module._prepare_refinement_layout(batch)
+
+    assert torch.equal(condition["constraint_input_ids"], expected["input_ids"])
+    assert torch.equal(condition["constraint_mask"], expected["attention_mask"])
+    assert torch.equal(prepared_batch["input_ids"], clean_input_ids)
+    assert torch.equal(prepared_batch["labels"], clean_labels)
+    assert torch.equal(prepared_batch["attention_mask"], clean_attention_mask)
+    assert torch.equal(batch["input_ids"], clean_input_ids)
+    assert torch.equal(batch["labels"], clean_labels)
+    assert torch.equal(batch["attention_mask"], clean_attention_mask)
+
+
+def test_refinement_training_step_passes_clean_teacher_forcing_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    encoded = encode_training_sample(
+        _sample(),
+        config=config,
+        retrieval_indexes=[0],
+        retrieval_samples=[_sample()],
+    )
+    batch = collate_training_batch([encoded])
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        condition_type="refinement",
+    )
+    torch.manual_seed(17)
+    clean_input_ids = batch["input_ids"].clone()
+    clean_labels = batch["labels"].clone()
+
+    captured: dict[str, torch.Tensor] = {}
+
+    def spy_forward(model: torch.nn.Module, **kwargs: object) -> SimpleNamespace:
+        del model
+        captured["input_ids"] = cast(torch.Tensor, kwargs["input_ids"])
+        captured["labels"] = cast(torch.Tensor, kwargs["labels"])
+        return SimpleNamespace(
+            loss=torch.ones(()),
+            logits=torch.zeros_like(captured["input_ids"], dtype=torch.float32),
+        )
+
+    monkeypatch.setattr(module.model, "forward", MethodType(spy_forward, module.model))
+    torch.manual_seed(17)
+    module.training_step(batch, 0)
+
+    assert torch.equal(captured["input_ids"], clean_input_ids)
+    assert torch.equal(captured["labels"], clean_labels)
+    assert torch.equal(batch["input_ids"], clean_input_ids)
+    assert torch.equal(batch["labels"], clean_labels)
 
 
 def test_sorted_layout_handles_annotations_and_empty_layouts() -> None:

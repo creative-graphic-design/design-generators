@@ -17,6 +17,7 @@ import time
 from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
 from pathlib import Path
+from types import MethodType
 from typing import Literal, Protocol, TypedDict, cast
 
 import torch
@@ -48,12 +49,15 @@ from training_reference import (
     reseed,
     state_sha256,
     VendorTrainingModel,
+    vendor_raw_batch,
     vendor_preprocess,
 )
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
-ConditionType = Literal["unconditional", "label", "label_size", "completion"]
+ConditionType = Literal[
+    "unconditional", "label", "label_size", "completion", "refinement"
+]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
 
@@ -227,6 +231,10 @@ class _LossPairPackageModule(Protocol):
         self, batch: RalfTrainingBatch
     ) -> dict[str, Shaped[Tensor, "..."]]: ...
 
+    def _prepare_refinement_layout(
+        self, batch: RalfTrainingBatch
+    ) -> tuple[RalfTrainingBatch, dict[str, Shaped[Tensor, "..."]]]: ...
+
 
 class _NaturalEnvelope(TypedDict):
     """Run-to-run natural-trajectory envelope."""
@@ -246,7 +254,13 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", choices=("cgl", "pku"), default="cgl")
     parser.add_argument(
         "--condition",
-        choices=("unconditional", "label", "label_size", "completion"),
+        choices=(
+            "unconditional",
+            "label",
+            "label_size",
+            "completion",
+            "refinement",
+        ),
         default="unconditional",
     )
     parser.add_argument("--cache-dir", type=Path, required=True)
@@ -266,6 +280,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "label_size", "cwh"
     if condition == "completion":
         return "completion", "partial"
+    if condition == "refinement":
+        return "refinement", "refinement"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -540,7 +556,12 @@ def _loss_pair(
     vendor_model.train()
 
     reseed(seed)
-    condition_kwargs = package_module._condition_kwargs(package_batch)
+    if package_module.condition_type == "refinement":
+        package_batch, condition_kwargs = package_module._prepare_refinement_layout(
+            package_batch
+        )
+    else:
+        condition_kwargs = package_module._condition_kwargs(package_batch)
     package_output = package_model(
         input_ids=package_batch["input_ids"],
         labels=package_batch["labels"],
@@ -1274,6 +1295,7 @@ class RalfS3TraceCallback(Callback):
         self.package_scheduler: torch.optim.lr_scheduler.MultiStepLR | None = None
         self.current_batch: RalfTrainingBatch | None = None
         self.current_rng: RNGState | None = None
+        self.condition_seed: int | None = None
         self.raw_results: list[_GradientComparison] = []
         self.clipped_result: _GradientComparison | None = None
         self.raw_norms: list[dict[str, float]] = []
@@ -1424,6 +1446,27 @@ class RalfS3TraceCallback(Callback):
         if os.environ.get("PARITY_REQUIRE") != "1":
             raise RuntimeError("PARITY_REQUIRE=1 is required for S3")
         ralf_module = cast(RalfTrainingModule, pl_module)
+        if ralf_module.condition_type == "refinement":
+            callback = self
+            original_prepare_refinement_layout = ralf_module._prepare_refinement_layout
+
+            def prepare_refinement_layout(
+                module: RalfTrainingModule, batch: RalfTrainingBatch
+            ) -> object:
+                del module
+                if callback.condition_seed is None:
+                    raise RuntimeError(
+                        "S3 refinement condition seed was not initialized"
+                    )
+                reseed(callback.condition_seed)
+                callback.current_rng = capture_rng_state()
+                return original_prepare_refinement_layout(batch)
+
+            setattr(
+                ralf_module,
+                "_prepare_refinement_layout",
+                MethodType(prepare_refinement_layout, ralf_module),
+            )
         if not torch.are_deterministic_algorithms_enabled():
             raise RuntimeError(
                 "first divergence at S3.deterministic_algorithms; "
@@ -1623,6 +1666,7 @@ class RalfS3TraceCallback(Callback):
             }
         )
         self.current_batch = cast(RalfTrainingBatch, _copy_batch_to_cpu(batch))
+        self.condition_seed = self.seed + self.microbatch_count
         self.current_rng = capture_rng_state()
         self.package_batch_epoch = trainer.current_epoch
         self.package_batch_index = batch_idx
@@ -2178,19 +2222,56 @@ def _s1(
         config, args.cache_dir, device, args.seed, args.condition
     )
     batch = context["batch"]
-    vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
-    package_ids = batch["input_ids"]
-    package_labels = batch["labels"]
+    refinement_evidence: dict[str, object] | None = None
+    if args.condition == "refinement":
+        package_batch = _move_batch(batch, device)
+        reseed(args.seed)
+        package_batch, _ = package_module._prepare_refinement_layout(package_batch)
+        reseed(args.seed)
+        vendor_batch = vendor_raw_batch(batch)
+        vendor_training_model = cast(VendorTrainingModel, vendor_model)
+        vendor_inputs, vendor_targets = vendor_training_model.preprocess(vendor_batch)
+        package_ids = package_batch["input_ids"].cpu()
+        package_labels = package_batch["labels"].cpu()
+        refinement_evidence = {
+            "clean_layout": {
+                "label": batch["layout_labels"].tolist(),
+                "center_x": batch["layout_bbox"][..., 0].tolist(),
+                "center_y": batch["layout_bbox"][..., 1].tolist(),
+                "width": batch["layout_bbox"][..., 2].tolist(),
+                "height": batch["layout_bbox"][..., 3].tolist(),
+                "mask": batch["layout_mask"].tolist(),
+            },
+            "noisy_layout": {
+                key: cast(torch.Tensor, vendor_batch[key]).tolist()
+                for key in ("label", "center_x", "center_y", "width", "height", "mask")
+            },
+            "clean_input_token_ids": batch["input_ids"].tolist(),
+            "clean_target_token_ids": batch["labels"].tolist(),
+            "vendor_input_token_ids": cast(Tensor, vendor_inputs["seq"]).tolist(),
+            "vendor_target_token_ids": cast(Tensor, vendor_targets["seq"]).tolist(),
+            "target_is_shifted_clean_sequence": True,
+            "rng_policy": {
+                "construction": "same CPU torch.normal stream, four geometry calls in GEO_KEYS order",
+                "harness_seed": args.seed,
+                "package_reseeded_immediately_before_condition": True,
+                "vendor_reseeded_immediately_before_condition": True,
+            },
+        }
+    else:
+        vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
+        package_ids = batch["input_ids"]
+        package_labels = batch["labels"]
     vendor_ids = cast(Tensor, vendor_inputs["seq"])
     vendor_labels = cast(Tensor, vendor_targets["seq"])
-    input_diff = _assert_close("prepared.input_ids", package_ids, vendor_ids)
-    label_diff = _assert_close("prepared.labels", package_labels, vendor_labels)
+    input_diff = _assert_close("prepared.input_ids", package_ids, vendor_ids.cpu())
+    label_diff = _assert_close("prepared.labels", package_labels, vendor_labels.cpu())
     package_loss, vendor_loss, package_logits, vendor_logits = _loss_pair(
         package_module, vendor_model, batch, device, args.seed
     )
     loss_diff = _assert_close("train_loss", package_loss, vendor_loss)
     logit_diff = _assert_close("logits", package_logits, vendor_logits)
-    return {
+    result: dict[str, object] = {
         "status": "PASS",
         "batch_size": package_ids.size(0),
         "input_shape": list(package_ids.shape),
@@ -2202,6 +2283,9 @@ def _s1(
         },
         "seed": args.seed,
     }
+    if refinement_evidence is not None:
+        result["real_batch_refinement_evidence"] = refinement_evidence
+    return result
 
 
 def _s2(
