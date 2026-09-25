@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType
@@ -15,6 +16,7 @@ def load_audit_architecture() -> ModuleType:
     assert spec is not None
     assert isinstance(spec.loader, SourceFileLoader)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
