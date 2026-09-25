@@ -134,6 +134,8 @@ def _reference_key_to_package_key(key: str) -> str:
         return key
     if key.startswith("head.head_series."):
         return key.replace("head.head_series.", "head.blocks.", 1)
+    if key.startswith("head.time_mlp."):
+        return key
     fpn_rules = (
         ("backbone.fpn_lateral2.", "backbone.body.fpn.inner_blocks.0.0."),
         ("backbone.fpn_lateral3.", "backbone.body.fpn.inner_blocks.1.0."),
