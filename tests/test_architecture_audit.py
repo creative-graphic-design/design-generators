@@ -49,13 +49,14 @@ def test_normalize_requirement_name_handles_extras_and_versions() -> None:
         audit_architecture.normalize_requirement_name("  @invalid")
 
 
-def test_build_report_discovers_members_edges_metadata_and_hotspots(
+def test_build_report_discovers_root_members_edges_metadata_and_hotspots(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "pyproject.toml").write_text(
         """
 [project]
 name = "root"
+dependencies = ["Example_Model"]
 
 [tool.uv.workspace]
 members = ["lib/*", "models/*"]
@@ -116,11 +117,14 @@ task = "layout-generation"
     report = audit_architecture.build_report(tmp_path, hotspot_limit=2)
 
     assert [member.name for member in report.members] == [
+        "root",
         "shared",
         "trainer",
         "example-model",
     ]
-    example = report.members[2]
+    assert report.members[0].kind == "root"
+    assert report.members[0].path == "."
+    example = report.members[3]
     assert example.kind == "model"
     assert example.framework == "diffusers"
     assert example.task == "layout-generation"
@@ -139,6 +143,7 @@ task = "layout-generation"
         audit_architecture.DependencyEdge(
             "example-model", "trainer", "extra:training"
         ),
+        audit_architecture.DependencyEdge("root", "example-model", "core"),
         audit_architecture.DependencyEdge("trainer", "shared", "core"),
     )
     assert report.hotspots == (
@@ -149,7 +154,9 @@ task = "layout-generation"
     )
 
 
-def test_report_payload_and_text_are_stable(tmp_path: Path) -> None:
+def test_report_payload_and_text_are_stable_for_non_project_root(
+    tmp_path: Path,
+) -> None:
     (tmp_path / "pyproject.toml").write_text(
         """
 [tool.uv.workspace]
@@ -173,6 +180,7 @@ dependencies = []
 
     assert payload["summary"] == {
         "workspace_members": 1,
+        "roots": 0,
         "libraries": 1,
         "models": 0,
         "dependency_edges": 0,
@@ -180,7 +188,7 @@ dependencies = []
     encoded = json.dumps(payload, sort_keys=True)
     assert '"name": "shared"' in encoded
     assert audit_architecture.render_text(report).startswith(
-        "Workspace: 1 members (1 libraries, 0 models)\n"
+        "Workspace: 1 members (0 root, 1 libraries, 0 models)\n"
     )
 
 
