@@ -23,8 +23,8 @@ The training datamodule supports two data sources:
 - `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the `id2label` mapping injected for the original-implementation corpus order.
 - `processed`: preprocessed LayoutDiffusion token streams under `.cache/layoutdiffusion/original-data`. Use this source with `vocab_file` for S4/S5 so package-local training and the original-code training path consume the same `ltrb_lex` stream and vocabulary order. The S5 configs set `preconsume_train_batches: 1` so the package train stream starts after the same initial train-batch read performed before the original training loop begins.
 
-| Dataset   | Source                              | Config / stream                                                                           |
-| --------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| Dataset   | Source                              | Config / stream                                                                                            |
+| --------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; original-implementation stream `RICO_ltrb_lex` |
 | PubLayNet | `creative-graphic-design/PubLayNet` | default; original-implementation stream `PublayNet_ltrb_lex`                                               |
 
@@ -84,7 +84,20 @@ Overall S5 verdict: RICO25 package-local training is statistically equivalent to
 
 Evaluation protocol: unconditional generation with the original evaluation stack (`json2metrics.py`, layout-feature FID) over the original test-set sample counts (RICO25 3728, PubLayNet 10998 per seed), EMA weights on both systems (original `ema_0.9999_*` checkpoints, package `layoutdiffusion_ema_state_dict` from `last.ckpt`), training seeds 102/103/104 per system per dataset, sampling seed 101.
 
-Interpretation: structural quality metrics (mIoU, Overlap) are equivalent on both datasets. FID is slightly higher for the package on both datasets (RICO25 +0.27, PubLayNet +0.49) with per-seed spreads far smaller than the gap, indicating a small systematic trained-weight endpoint residual rather than seed noise; the staged S0-S3 lockstep evidence (loss/gradient/parameter/EMA agreement) and the aligned one-step probe rule out training-dynamics divergence as the cause. PubLayNet package Alignment is higher in absolute terms but both values are in the strong range for the method.
+### Authors' Released-Checkpoint Reference
+
+The authors' released-checkpoint reference uses the [Junyi42/layoutdiffusion Hugging Face release](https://huggingface.co/Junyi42/layoutdiffusion) or its [Google Drive mirror](https://drive.google.com/drive/folders/1J3JBky7A0IVtgXiO2H3EhGLjeWiHNVUs?usp=sharing): RICO25 `ema_0.9999_175000.pt` (SHA-256 `c7dfe36ca6d6f796004b22c3fbcf6f6e6339ae515509e21af5fb467f3dcc7ec5`) with adjacent `training_args.json` (SHA-256 `270e190b917d48276af373888eeaba876a4f59a8f8c8e91cc162e92a1f80e8f1`) and PubLayNet `ema_0.9999_400000.pt` (SHA-256 `2bdf8ebecb84b4690a967d086fe6c6642f13b3321afc0ef54fbb044564a74da9`) with adjacent `training_args.json` (SHA-256 `73cf5a10462fcb5c77803d0d1fc818476c576ebe55c8cd3f6c70f0dede5cd59b`), under the pinned [Microsoft LayoutGeneration vendor commit](https://github.com/microsoft/LayoutGeneration/tree/1498ff300710b4fc204aece537582d37ca447fc7). Evaluation protocol for this reference: sample each released EMA checkpoint once with the original `text_sample.py` and `json2metrics.py` stack, using the release `training_args.json`, `--multistep False`, the original test-set sample count (RICO25 3728, PubLayNet 10998), and sampling seed 101; the S5 package/original comparison separately aggregates training seeds 102/103/104. Model-specific caveat: the release run names carry `fine` (RICO25) and `refine` (PubLayNet); the adjacent release configurations set `diffusion_steps=200` and `noise_schedule=gaussian_refine_pow2.5`, but use release LR-anneal steps `300000`/`500000` versus the S5 original-side `175000`/`400000`; sampling follows those release configurations with `--multistep False`, using EMA checkpoints and sampling seed 101.
+
+These values are reference only and are excluded from the package/original statistical test.
+
+| Metric    | RICO25 authors' released-checkpoint reference (reference only) | PubLayNet authors' released-checkpoint reference (reference only) |
+| --------- | -------------------------------------------------------------: | ----------------------------------------------------------------: |
+| FID       |                                                         1.8380 |                                                            7.4570 |
+| mIoU      |                                                         0.6258 |                                                            0.4106 |
+| Alignment |                                                         0.1033 |                                                            0.0334 |
+| Overlap   |                                                         0.4987 |                                                            0.0050 |
+
+Interpretation: the released-checkpoint reference is a single authors' checkpoint per dataset and is not part of the package/original training-seed statistical test. The corrected run uses the release `training_args.json` and the README protocol's `--multistep False`; the first pass is excluded because the sampler defaulted to `multistep=True`, producing intermediate outputs rather than the requested full sample set.
 
 The original GPU training path uses effective uniform timestep sampling. In the original `discrete_diffusion.py` loss update around lines 800-803, `self.Lt_history.to(model.device).scatter_(...)` and `self.Lt_count.to(model.device).scatter_add_(...)` write to temporary CUDA copies when the diffusion module stays on CPU while the model is on CUDA, so `Lt_history` and `Lt_count` never update and importance sampling never activates. The package S5 configs therefore set `time_sampler: uniform` for faithful reproduction. Earlier package PubLayNet S5 attempts that used package-side importance sampling degenerated after the package buffers crossed the activation threshold; those runs are invalid reproduction evidence.
 
@@ -111,9 +124,9 @@ Do not launch S5 until all of these checks pass in the same worktree and with th
 4. A one-step processed-stream package/original train-metric probe compares the package/original `train_loss`, KL component, auxiliary component, and total loss for RICO25 and PubLayNet before any full S5 launch. The evidence is recorded in `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
 
    | Dataset   | Package total | Original-implementation total | Total ratio | Package KL  | Original-implementation KL | KL ratio | Package aux | Original-implementation aux | Aux ratio |
-   | --------- | ------------- | ------------ | ----------- | ----------- | --------- | -------- | ----------- | ---------- | --------- |
-   | RICO25    | 87104.96875   | 87100.0      | 1.000057    | 86919.15625 | 86900.0   | 1.000220 | 185.81418   | 186.0      | 0.999001  |
-   | PubLayNet | 84603.28125   | 84600.0      | 1.000039    | 84425.15625 | 84400.0   | 1.000298 | 178.12349   | 178.0      | 1.000694  |
+   | --------- | ------------- | ----------------------------- | ----------- | ----------- | -------------------------- | -------- | ----------- | --------------------------- | --------- |
+   | RICO25    | 87104.96875   | 87100.0                       | 1.000057    | 86919.15625 | 86900.0                    | 1.000220 | 185.81418   | 186.0                       | 0.999001  |
+   | PubLayNet | 84603.28125   | 84600.0                       | 1.000039    | 84425.15625 | 84400.0                    | 1.000298 | 178.12349   | 178.0                       | 1.000694  |
 
 Passing this gate authorizes full S5 launch only after the recorded probe numbers have been reviewed and a separate launch order has been given.
 
