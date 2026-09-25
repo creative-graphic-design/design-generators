@@ -2575,6 +2575,7 @@ def _run_s3_fit(
     train_index_path = _retrieval_path(args.cache_dir, args.dataset, "train")
     validation_index_path = _retrieval_path(args.cache_dir, args.dataset, "val")
     callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
+    vendor_root = ROOT / "vendor" / "ralf"
     config_path = (
         ROOT / "models" / "ralf" / "configs" / "training" / f"{args.dataset}.yaml"
     )
@@ -2639,6 +2640,7 @@ def _run_s3_fit(
         [
             str(ROOT / "models" / "ralf" / "src"),
             str(callback_root),
+            str(vendor_root),
             str(ROOT),
             env.get("PYTHONPATH", ""),
         ]
