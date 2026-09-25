@@ -160,6 +160,44 @@ def test_encode_training_sample_matches_teacher_forcing_contract() -> None:
     indexes = encoded["retrieved"].indexes
     assert indexes is not None
     assert indexes.tolist() == [[0]]
+    assert encoded["sample_id"] == "sample-0"
+
+
+def test_relation_training_preserves_ids_and_loads_relationship_table(
+    tmp_path: Path,
+) -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    table = {
+        "sample-0": [["logo", "left", "larger", "text", "A"]],
+    }
+    table_path = tmp_path / "relationships.pt"
+    torch.save(table, table_path)
+    encoded = encode_training_sample(
+        _sample(),
+        config=config,
+        retrieval_indexes=[0],
+        retrieval_samples=[_sample()],
+    )
+    batch = collate_training_batch([encoded])
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        condition_type="relation",
+        relationship_table_path=str(table_path),
+    )
+
+    condition = module._condition_kwargs(batch)
+
+    assert batch["sample_ids"] == ["sample-0"]
+    assert condition["sample_ids"] == ["sample-0"]
+    assert module.model.preprocessor.relationship_table == table
+
+
+def test_relation_training_requires_relationship_table() -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+
+    with pytest.raises(ValueError, match="relationship table"):
+        RalfTrainingModule(config=config, condition_type="relation")
 
 
 def test_label_condition_uses_full_sequence_before_decoder_shift() -> None:
