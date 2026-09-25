@@ -28,11 +28,12 @@ from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch import Tensor
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from traingen_parity.determinism import RNGState, capture_rng_state, restore_rng_state
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
-from ralf.modeling_ralf import RalfTaskPreprocessor
+from ralf.modeling_ralf import RalfRelationshipTable, RalfTaskPreprocessor
 from ralf.retrieval import RalfRetrievedBatch
 from ralf.training.datamodule import (
     RalfDataModule,
@@ -51,12 +52,13 @@ from training_reference import (
     VendorTrainingModel,
     vendor_raw_batch,
     vendor_preprocess,
+    require_vendor,
 )
 
 ROOT = Path(__file__).parents[4]
 DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
 ConditionType = Literal[
-    "unconditional", "label", "label_size", "completion", "refinement"
+    "unconditional", "label", "label_size", "completion", "refinement", "relation"
 ]
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
@@ -219,6 +221,7 @@ class _TrainingContext(TypedDict):
     batch: RalfTrainingBatch
     samples: Sequence[RalfRawSample]
     table: Mapping[str | int, Sequence[int]]
+    relationship_table: RalfRelationshipTable | None
 
 
 class _LossPairPackageModule(Protocol):
@@ -260,6 +263,7 @@ def _parse_args() -> argparse.Namespace:
             "label_size",
             "completion",
             "refinement",
+            "relation",
         ),
         default="unconditional",
     )
@@ -282,6 +286,8 @@ def _condition_type(condition: str) -> tuple[ConditionType, str]:
         return "completion", "partial"
     if condition == "refinement":
         return "refinement", "refinement"
+    if condition == "relation":
+        return "relation", "relation"
     raise ValueError(f"unsupported RALF condition: {condition}")
 
 
@@ -328,6 +334,44 @@ def _retrieval_path(cache_dir: Path, dataset: str, split: str) -> Path:
     )
 
 
+def _relationship_table_path(cache_dir: Path) -> Path:
+    return cache_dir / "pku_cgl_relationships_dic_using_canvas_sort_label_lexico.pt"
+
+
+def _training_workdir(args: argparse.Namespace) -> Path:
+    workdir = (
+        ROOT
+        / ".cache"
+        / "ralf"
+        / "training-reproduction"
+        / "cgl"
+        / args.condition
+        / "workdir"
+    )
+    cache_link = workdir / "cache"
+    if not workdir.is_dir() or not cache_link.is_symlink():
+        raise RuntimeError(f"vendor workdir cache link is required: {cache_link}")
+
+    if cache_link.resolve() != args.cache_dir.resolve():
+        raise RuntimeError(
+            f"vendor workdir cache link points to {cache_link.resolve()}, "
+            f"expected {args.cache_dir.resolve()}"
+        )
+
+    return workdir
+
+
+def _load_relationship_table(cache_dir: Path) -> RalfRelationshipTable:
+    path = _relationship_table_path(cache_dir)
+    if not path.is_file():
+        raise FileNotFoundError(f"RALF relationship table is required: {path}")
+    require_vendor(cache_dir)
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    if not isinstance(payload, Mapping):
+        raise TypeError(f"RALF relationship table at {path} is not a mapping")
+    return cast(RalfRelationshipTable, payload)
+
+
 def _load_context(
     args: argparse.Namespace,
 ) -> tuple[RalfConfig, RalfDataModule, _TrainingContext]:
@@ -356,13 +400,27 @@ def _load_context(
     samples = data.train_dataset.samples
     table_payload = torch.load(train_index, map_location="cpu", weights_only=False)
     table = cast(dict[str | int, Sequence[int]], dict(table_payload))
+    relationship_table = (
+        _load_relationship_table(args.cache_dir)
+        if args.condition == "relation"
+        else None
+    )
     batch = collate_training_batch(
         [
             data.train_dataset[index]
             for index in range(min(args.batch_size, len(data.train_dataset)))
         ]
     )
-    return config, data, {"batch": batch, "samples": samples, "table": table}
+    return (
+        config,
+        data,
+        {
+            "batch": batch,
+            "samples": samples,
+            "table": table,
+            "relationship_table": relationship_table,
+        },
+    )
 
 
 def _recipe_epochs(
@@ -463,6 +521,7 @@ def _move_batch(batch: RalfTrainingBatch, device: torch.device) -> RalfTrainingB
         "layout_labels": batch["layout_labels"].to(device),
         "layout_bbox": batch["layout_bbox"].to(device),
         "layout_mask": batch["layout_mask"].to(device),
+        "sample_ids": batch["sample_ids"],
         "retrieved": move_retrieved(batch["retrieved"], device),
     }
 
@@ -518,9 +577,13 @@ def _models(
     device: torch.device,
     seed: int,
     condition_type: ConditionType,
+    relationship_table: RalfRelationshipTable | None = None,
 ) -> tuple[RalfTrainingModule, torch.nn.Module, dict[str, object]]:
     reseed(seed)
-    package_model = RalfForConditionalLayoutGeneration(config)
+    package_model = RalfForConditionalLayoutGeneration(
+        config,
+        relationship_table=relationship_table,
+    )
     reseed(seed)
     vendor_model = build_vendor_model(config, cache_dir=cache_dir)
     independent_initialization = _independent_initialization_record(
@@ -2164,7 +2227,12 @@ def _s0(
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model, independent_initialization = _models(
-        config, args.cache_dir, device, args.seed, args.condition
+        config,
+        args.cache_dir,
+        device,
+        args.seed,
+        args.condition,
+        context["relationship_table"],
     )
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     package_groups = _group_names(package_optimizer, package_module.model)
@@ -2219,10 +2287,16 @@ def _s1(
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model, _ = _models(
-        config, args.cache_dir, device, args.seed, args.condition
+        config,
+        args.cache_dir,
+        device,
+        args.seed,
+        args.condition,
+        context["relationship_table"],
     )
     batch = context["batch"]
     refinement_evidence: dict[str, object] | None = None
+    relation_evidence: dict[str, object] | None = None
     if args.condition == "refinement":
         package_batch = _move_batch(batch, device)
         reseed(args.seed)
@@ -2258,6 +2332,71 @@ def _s1(
                 "vendor_reseeded_immediately_before_condition": True,
             },
         }
+    elif args.condition == "relation":
+        package_batch = _move_batch(batch, device)
+        reseed(args.seed)
+        package_condition_kwargs = package_module._condition_kwargs(package_batch)
+        package_condition = package_module.model._prepare_conditional_inputs(
+            pixel_values=package_batch["pixel_values"],
+            saliency=package_batch["saliency"],
+            retrieved=package_batch["retrieved"],
+            batch_size=package_batch["input_ids"].size(0),
+            condition_type="relation",
+            constraint_input_ids=package_condition_kwargs["constraint_input_ids"],
+            constraint_mask=package_condition_kwargs["constraint_mask"],
+            sample_ids=cast(
+                Sequence[str | int], package_condition_kwargs["sample_ids"]
+            ),
+        )
+        package_condition_ids = (
+            cast(Tensor, package_condition["seq_layout_const"]).detach().cpu()
+        )
+        package_condition_mask = (
+            cast(Tensor, package_condition["seq_layout_const_pad_mask"]).detach().cpu()
+        )
+
+        reseed(args.seed)
+        vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
+        vendor_condition_ids = (
+            cast(Tensor, vendor_inputs["seq_layout_const"]).detach().cpu()
+        )
+        vendor_condition_mask = (
+            cast(Tensor, vendor_inputs["seq_layout_const_pad_mask"]).detach().cpu()
+        )
+        condition_ids_diff = _assert_close(
+            "relation.condition_sequence", package_condition_ids, vendor_condition_ids
+        )
+        condition_mask_diff = _assert_close(
+            "relation.condition_pad_mask",
+            package_condition_mask,
+            vendor_condition_mask,
+        )
+        relation_evidence = {
+            "condition_sequence_shape": list(package_condition_ids.shape),
+            "condition_sequence_sha256": {
+                "package": _serialized_sha256(package_condition_ids),
+                "vendor": _serialized_sha256(vendor_condition_ids),
+            },
+            "condition_pad_mask_sha256": {
+                "package": _serialized_sha256(package_condition_mask),
+                "vendor": _serialized_sha256(vendor_condition_mask),
+            },
+            "condition_sequence_max_abs_diff": condition_ids_diff,
+            "condition_pad_mask_max_abs_diff": condition_mask_diff,
+            "condition_sequence": package_condition_ids.tolist(),
+            "condition_pad_mask": package_condition_mask.tolist(),
+            "rng_policy": {
+                "construction": "stdlib random.sample table-list shuffle during preprocessor construction",
+                "condition": "stdlib random.random relation graph draws, two CPU torch.randperm calls per batch, then stdlib random.sample relation subset",
+                "harness_seed": args.seed,
+                "package_reseeded_immediately_before_condition": True,
+                "vendor_reseeded_immediately_before_condition": True,
+            },
+        }
+        package_ids = batch["input_ids"]
+        package_labels = batch["labels"]
+        vendor_ids = cast(Tensor, vendor_inputs["seq"])
+        vendor_labels = cast(Tensor, vendor_targets["seq"])
     else:
         vendor_inputs, vendor_targets = vendor_preprocess(vendor_model, batch)
         package_ids = batch["input_ids"]
@@ -2285,6 +2424,43 @@ def _s1(
     }
     if refinement_evidence is not None:
         result["real_batch_refinement_evidence"] = refinement_evidence
+    if relation_evidence is not None:
+        pad_id = package_module.model.tokenizer.name_to_id("pad")
+        package_token_losses = (
+            F.cross_entropy(
+                package_logits.transpose(1, 2),
+                package_labels.to(device),
+                reduction="none",
+                label_smoothing=0.1,
+                ignore_index=pad_id,
+            )
+            .detach()
+            .cpu()
+        )
+        vendor_token_losses = (
+            F.cross_entropy(
+                vendor_logits.transpose(1, 2),
+                vendor_labels.to(device),
+                reduction="none",
+                label_smoothing=0.1,
+                ignore_index=pad_id,
+            )
+            .detach()
+            .cpu()
+        )
+        token_loss_diff = _assert_close(
+            "relation.per_token_loss", package_token_losses, vendor_token_losses
+        )
+        non_ignored = package_labels.cpu() != pad_id
+        relation_evidence["per_token_loss"] = {
+            "non_ignored_tokens": int(non_ignored.sum().item()),
+            "max_abs_diff": token_loss_diff,
+            "package_sha256": _serialized_sha256(package_token_losses),
+            "vendor_sha256": _serialized_sha256(vendor_token_losses),
+            "package": package_token_losses.tolist(),
+            "vendor": vendor_token_losses.tolist(),
+        }
+        result["real_batch_relation_evidence"] = relation_evidence
     return result
 
 
@@ -2295,7 +2471,12 @@ def _s2(
     device: torch.device,
 ) -> dict[str, object]:
     package_module, vendor_model, _ = _models(
-        config, args.cache_dir, device, args.seed, args.condition
+        config,
+        args.cache_dir,
+        device,
+        args.seed,
+        args.condition,
+        context["relationship_table"],
     )
     package_optimizer, vendor_optimizer = _optimizer_for(package_module, vendor_model)
     learning_rates = _compare_learning_rates(package_optimizer, vendor_optimizer)
@@ -2376,6 +2557,7 @@ def _run_s3_fit(
     train_limit: float,
     validation_limit: float,
 ) -> dict[str, object]:
+    workdir = _training_workdir(args)
     run_root = _fresh_s3_run_root(run_base)
     trace_root = run_root / "trace"
     checkpoint_root = run_root / "checkpoints"
@@ -2393,6 +2575,9 @@ def _run_s3_fit(
     train_index_path = _retrieval_path(args.cache_dir, args.dataset, "train")
     validation_index_path = _retrieval_path(args.cache_dir, args.dataset, "val")
     callback_root = ROOT / "models" / "ralf" / "tests" / "vendor_parity"
+    config_path = (
+        ROOT / "models" / "ralf" / "configs" / "training" / f"{args.dataset}.yaml"
+    )
     for path in (trace_root, checkpoint_root, logger_root):
         path.mkdir(parents=True, exist_ok=True)
     command = [
@@ -2409,7 +2594,7 @@ def _run_s3_fit(
         "traingen",
         "fit",
         "--config",
-        f"models/ralf/configs/training/{args.dataset}.yaml",
+        str(config_path),
         f"--seed_everything={args.seed}",
         "--trainer.accelerator=gpu",
         "--trainer.devices=1",
@@ -2443,6 +2628,11 @@ def _run_s3_fit(
                 f"--model.init_args.epochs={_recipe_epochs(args.dataset, args.condition)}",
             ]
         )
+    if args.condition == "relation":
+        command.append(
+            "--model.init_args.relationship_table_path="
+            f"{_relationship_table_path(args.cache_dir)}"
+        )
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "4"
     env["PYTHONPATH"] = os.pathsep.join(
@@ -2474,7 +2664,7 @@ def _run_s3_fit(
     started = time.monotonic()
     completed = subprocess.run(
         command,
-        cwd=ROOT,
+        cwd=workdir,
         env=env,
         text=True,
         stdout=subprocess.PIPE,

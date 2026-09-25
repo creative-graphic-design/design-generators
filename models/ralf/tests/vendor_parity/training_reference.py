@@ -108,6 +108,7 @@ def build_vendor_model(config: RalfConfig, *, cache_dir: Path) -> torch.nn.Modul
         "label_size": "cwh",
         "completion": "partial",
         "refinement": "refinement",
+        "relation": "relation",
     }.get(str(config.task))
     if vendor_task is None:
         raise ValueError(f"unsupported RALF vendor condition: {config.task}")
@@ -175,7 +176,7 @@ def vendor_raw_batch(batch: RalfTrainingBatch) -> dict[str, object]:
     }
     layout_bbox = batch["layout_bbox"]
     return {
-        "id": list(range(batch["layout_labels"].size(0))),
+        "id": batch["sample_ids"],
         "image": batch["pixel_values"],
         "saliency": batch["saliency"],
         "label": batch["layout_labels"],
