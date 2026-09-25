@@ -103,6 +103,19 @@ The RICO25 and PubLayNet numbers use training seeds `42975`, `42976`, and `42977
 | PubLayNet | original implementation | `s5-practical-reproduction` | training-seed n=3 | 13.9420 +/- 2.4765 | 0.1219 +/- 0.0098 | 0.0390 +/- 0.0147 | 0.4229 +/- 0.0092 | - |
 | PubLayNet | ours | `s5-practical-reproduction` | training-seed n=3 | 13.6507 +/- 1.1766 | 0.1160 +/- 0.0008 | 0.0363 +/- 0.0069 | 0.4151 +/- 0.0014 | - |
 
+### Authors' Released-Checkpoint Reference
+
+The authors' released-checkpoint reference uses the [JulianGuerreiro/LayoutFlow Hugging Face release](https://huggingface.co/JulianGuerreiro/LayoutFlow): `checkpoints/checkpoint_RICO_LayoutFlow.ckpt` (SHA-256 `c684dbc71ed20a0fd6b49a7ba794055bcfcd494b81856015189d31152d86bc7c`) and `checkpoints/checkpoint_PubLayNet_LayoutFlow.ckpt` (SHA-256 `af5d5ca96009e2f373c3659760e0297678f9cb994a08239cb316ad6b3386e4ee`), under the pinned [JulianGuerreiro/LayoutFlow vendor commit](https://github.com/JulianGuerreiro/LayoutFlow/tree/8e0b8b697540c32bcfc10f21125c1dd3ce8df287). Evaluation protocol: vendor `src/test.py` with `task=uncond`, `cond_mask=uncond`, `ode_solver=euler`, `model.inference_steps=100`, `calc_miou=True`, `multirun=False`, fixed evaluation seed `42975`, and 2000 generated samples compared with the full test sets (3729 RICO25 and 10998 PubLayNet layouts). Model-specific caveat: “The provided weights are also not the original weights we used in the paper, as we re-trained the model after refactoring.”
+
+These values are reference only and are excluded from the package/original statistical test.
+
+| Dataset   |    FID | Alignment | Overlap |   mIoU |
+| --------- | -----: | --------: | ------: | -----: |
+| RICO25    | 2.2276 |    0.1400 |  0.4992 | 0.5872 |
+| PubLayNet | 8.6823 |    0.0707 |  0.0117 | 0.4195 |
+
+Reference interpretation: the RICO25 reference FID is 2.2276 versus 6.3907 for this section's original-implementation result. The released weights are post-refactor retrained weights; this is a single released checkpoint with fixed evaluation seed 42975, and this comparison makes no claim about the cause of the difference.
+
 ## Regeneration Metadata
 
 Evidence is recorded in the [RICO25 issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5060415006), the [PubLayNet issue #149 comment](https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-5077346498), `.cache/layout-flow/full-run/eval-rico25-n3/vendor-protocol/summary_mean_std.csv`, and `.cache/layout-flow/full-run/eval-publaynet/training-seed-n3-vendor-protocol/summary_mean_std.csv`.
