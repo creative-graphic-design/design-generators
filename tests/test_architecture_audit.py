@@ -11,7 +11,9 @@ import pytest
 
 
 def load_audit_architecture() -> ModuleType:
-    module_path = Path(__file__).resolve().parents[1] / "scripts" / "audit_architecture.py"
+    module_path = (
+        Path(__file__).resolve().parents[1] / "scripts" / "audit_architecture.py"
+    )
     spec = importlib.util.spec_from_file_location("audit_architecture", module_path)
     assert spec is not None
     assert isinstance(spec.loader, SourceFileLoader)
@@ -30,9 +32,18 @@ def write_project(path: Path, content: str) -> None:
 
 
 def test_normalize_requirement_name_handles_extras_and_versions() -> None:
-    assert audit_architecture.normalize_requirement_name("laygen[agents]>=0.1") == "laygen"
-    assert audit_architecture.normalize_requirement_name("traingen-parity") == "traingen-parity"
-    assert audit_architecture.normalize_requirement_name("My_Package~=1.2") == "my-package"
+    assert (
+        audit_architecture.normalize_requirement_name("laygen[agents]>=0.1")
+        == "laygen"
+    )
+    assert (
+        audit_architecture.normalize_requirement_name("traingen-parity")
+        == "traingen-parity"
+    )
+    assert (
+        audit_architecture.normalize_requirement_name("My_Package~=1.2")
+        == "my-package"
+    )
 
     with pytest.raises(ValueError, match="cannot parse requirement name"):
         audit_architecture.normalize_requirement_name("  @invalid")
