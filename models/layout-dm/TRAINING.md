@@ -108,6 +108,25 @@ Overall S5 verdict: matching the original `normal_(0, 0.02)` denoiser initializa
 
 RICO25 conditional metrics use `num_timesteps=100`, `sampling=random`, and the original FIDNetV3 evaluation path. For `cond=c`, FID is `t=2.3580`, `p=0.0346`, with overlapping per-seed ranges; `maximum_iou` is borderline lower for ours (`p=0.0550`) and `DocSim` is not significantly different (`p=0.1760`). Same-method c-FID spread from the existing eight seeds is of comparable scale: exact 4-vs-4 within-method splits have mean absolute gaps of `0.0652` for ours and `0.0519` for the original implementation, with p90 `0.1376` and `0.1018`; same-method bootstrap absolute-gap p95 is `0.1062` for ours and `0.0812` for the original implementation, and ours p97.5 is `0.1210`. For `cond=partial`, FID is `p=0.9477`, `maximum_iou` is `p=0.1282`, and `DocSim` is `p=0.7897`. For `cond=refinement`, FID is `p=0.4392`, `maximum_iou` is `p=0.5377`, and `DocSim` is `p=0.1189`.
 
+### Authors' Released-Checkpoint Reference
+
+The authors' released-checkpoint reference uses the [LayoutDM v1.0.0 release archive](https://github.com/CyberAgentAILab/layout-dm/releases/download/v1.0.0/layoutdm_starter.zip): `pretrained_weights/layoutdm_rico/{0,1,2}/best_model.pt` (seed 0/1/2 SHA-256 `7759bdf9e05cccef7a6a7e4260adc50f8c1ef6e6faa10351b79fb63f6b51c853`, `072437756fb4ea687cbfee42ddc07357649b1ab053b2b280470150f74f62c911`, `fe48ff6091915bf1d871422dc8483a469598ef085ec3edacd75d270cb1b36b68`) and `pretrained_weights/layoutdm_publaynet/{0,1,2}/best_model.pt` (seed 0/1/2 SHA-256 `9f7aee8ca600cc7cc96182affc85f96ebafc2b41a9ae72b05dfacfd64e89791d`, `f1ec096c6d9d7df803b08c5db5db8a7563ac48c32c17d021afcfe645b9dada0e`, `732100c2b1700720db20c1f063103f1c6af8a44d8bdda28daea8405e01ad756b`) extracted from `layoutdm_starter.zip` (SHA-256 `357a0b8cd305793164ae4e9da1033ac1b687bfd46a53716673b32c83280c443b`), under the pinned [CyberAgentAILab/layout-dm vendor commit](https://github.com/CyberAgentAILab/layout-dm/tree/873b5eebe4c61862e5c08a10859accf65a168dfd). Evaluation protocol: RICO25 and PubLayNet metrics use the original implementation's `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3; Alignment and Overlap are the original implementation's `LayoutGAN++` variants; mIoU is reported from the original implementation's `average_iou-VTN` output. RICO25 conditional reference uses `cond=c`, `cond=partial`, and `cond=refinement` with `num_timesteps=100`, `sampling=random`, `temperature=1.0`, and original-implementation mask construction. Model-specific caveat: mean ± population SD over the released seeds 0/1/2 (n=3).
+
+These values are reference only and are excluded from the package/original statistical test.
+
+| Dataset   |              FID |       Alignment |         Overlap |            mIoU |
+| --------- | ---------------: | --------------: | --------------: | --------------: |
+| RICO25    |  6.7755 ± 0.1298 | 0.0024 ± 0.0011 | 0.8372 ± 0.0161 | 0.1896 ± 0.0011 |
+| PubLayNet | 13.3220 ± 0.3105 | 0.0022 ± 0.0000 | 0.1386 ± 0.0026 | 0.0768 ± 0.0016 |
+
+Reference interpretation: PubLayNet's released-checkpoint FID is 13.3220 versus 12.0617 for the section's original-implementation S5 result, so the released reference is higher; the released seeds 0/1/2 (n=3) are compared with our S5 seeds (n=3).
+
+| RICO25 mode  |             FID |     maximum_iou |          DocSim |
+| ------------ | --------------: | --------------: | --------------: |
+| `c`          | 3.4540 ± 0.0931 | 0.2752 ± 0.0006 | 0.1674 ± 0.0005 |
+| `partial`    | 8.9231 ± 0.2557 | 0.5872 ± 0.0165 | 0.0868 ± 0.0028 |
+| `refinement` | 4.8509 ± 0.1255 | 0.3414 ± 0.0007 | 0.1971 ± 0.0000 |
+
 ## Regeneration Metadata
 
 Evidence locations:
