@@ -8,6 +8,7 @@ import math
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Final, Literal, Protocol, cast, runtime_checkable
 
 import timm
@@ -75,6 +76,19 @@ class RalfRelationNamedItem(Protocol):
 RalfRelationItem = RalfRelationNamedItem | str | int
 RalfRelation = Sequence[RalfRelationItem]
 RalfRelationshipTable = Mapping[str, Sequence[RalfRelation]]
+
+
+def _consume_relation_graph_rng(
+    mask: Bool[torch.Tensor, "batch elements"], *, edge_ratio: float = 0.1
+) -> None:
+    """Consume the relation-graph draws used before relation token sampling."""
+    for valid_count in (mask.sum(dim=1) + 1).tolist():
+        for first, second in combinations(range(mask.size(1) + 1), 2):
+            if valid_count <= first or valid_count <= second:
+                continue
+
+            if random.random() > edge_ratio:
+                continue
 
 
 TASK_BY_CONDITION: Final[dict[RalfConfigTaskName, RalfTaskName]] = {
@@ -745,7 +759,7 @@ class RalfTaskPreprocessor:
                 if count <= 1:
                     continue
 
-                indexes = torch.randperm(count, device=label.device)
+                indexes = torch.randperm(count)
 
             if count <= 1:
                 continue
@@ -826,7 +840,7 @@ class RalfTaskPreprocessor:
             seq[~inputs.mask.bool()] = self.name_to_id("pad")
         seq_vars = self._parse_seq_into_vars(seq)
         if self.task_name == "relation":
-            _ = self._shuffle_seq_vars(seq_vars)
+            self._shuffle_seq_vars(seq_vars)
             seq_vars = self._shuffle_seq_vars(seq_vars)
         elif self.task_name == "c":
             seq_vars = self._shuffle_seq_vars(seq_vars)
@@ -879,24 +893,35 @@ class RalfTaskPreprocessor:
         if self.relationship_table is None:
             return label_sequence
         batch = label_sequence.size(0)
-        label_mask = self.create_pad_mask(label_sequence)
         label_sequence = label_sequence.clone()
         if not self.global_task_embedding:
             label_sequence[:, 1] = self.get_token(self.TASK, batch)[:, 0]
         label_sequence[label_sequence == self.name_to_id("eos")] = self.name_to_id(
             "relation_sep"
         )
+        seq_vars = self._parse_seq_into_vars(
+            cast(Int[torch.Tensor, "batch tokens"], inputs.seq)
+        )
+        valid_counts = (seq_vars["label"] != self.name_to_id("pad")).sum(dim=1)
+        prefix_length = 1 if self.global_task_embedding else 3
 
         outputs = []
         max_length = 0
         for batch_idx, item_id in enumerate(self._relation_ids(inputs.id, batch)):
-            seq = label_sequence[batch_idx][~label_mask[batch_idx]]
+            valid_count = int(valid_counts[batch_idx].item())
+            body_length = valid_count * len(self._VAR) + max(valid_count - 1, 0)
+            seq = label_sequence[batch_idx, : prefix_length + body_length]
+            seq = torch.cat(
+                [seq, self.get_token("relation_sep", 1)[0]],
+                dim=0,
+            )
             relations = self.relationship_table.get(item_id, [])
             if not relations:
                 seq = torch.cat([seq, self.get_token("eos", 1)[0]], dim=0)
                 outputs.append(seq)
                 max_length = max(max_length, seq.size(0))
                 continue
+
             sample_size = max(len(relations) * self.relation_size // 100, 1)
             sampled = random.sample(relations, sample_size)
             relation_tokenized = torch.tensor(
@@ -1102,7 +1127,11 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
     flag_img: Int[torch.Tensor, "1"]
     flag_user_const: Int[torch.Tensor, "1"]
 
-    def __init__(self, config: RalfConfig) -> None:
+    def __init__(
+        self,
+        config: RalfConfig,
+        relationship_table: RalfRelationshipTable | None = None,
+    ) -> None:
         """Initialize a local module tree matching original RALF checkpoint keys."""
         super().__init__(config)
         self.tokenizer = RalfTokenizerView(config)
@@ -1175,10 +1204,14 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         self.auxilary_task = self._canonical_to_task_name(config.task)
         self.use_multitask = config.use_multitask
         self.global_task_embedding = config.global_task_embedding
+        self.relationship_table = relationship_table
         self.preprocessor = RalfTaskPreprocessor(
             tokenizer=self.tokenizer,
             task=self.auxilary_task,
             global_task_embedding=config.global_task_embedding,
+            relationship_table=(
+                relationship_table if self.auxilary_task == "relation" else None
+            ),
         )
         self.user_const_encoder = UserConstraintTransformerEncoder(
             d_model=config.d_model,
@@ -1203,6 +1236,18 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 nn.init.xavier_uniform_(parameter)
 
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
+
+    def configure_relationship_table(self, table: RalfRelationshipTable) -> None:
+        """Install the relation table once for a training module."""
+        self.auxilary_task = "relation"
+        self.relationship_table = table
+        self.preprocessor = RalfTaskPreprocessor(
+            tokenizer=self.tokenizer,
+            task="relation",
+            global_task_embedding=self.global_task_embedding,
+            relationship_table=table,
+            relation_size=self.config.relation_size,
+        )
 
     @staticmethod
     def _canonical_to_task_name(task: RalfConfigTaskName | str) -> RalfTaskName:
@@ -1335,17 +1380,22 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                 [retrieved_dict["image"], retrieved_dict["saliency"]], dim=2
             )
         task = self._canonical_to_task_name(condition_type or self.auxilary_task)
-        preprocessor = (
-            self.preprocessor
-            if task == self.auxilary_task and relationship_table is None
-            else RalfTaskPreprocessor(
+        if relationship_table is None and task == self.auxilary_task:
+            preprocessor = self.preprocessor
+        elif (
+            relationship_table is None
+            and task == "relation"
+            and self.relationship_table is not None
+        ):
+            preprocessor = self.preprocessor
+        else:
+            preprocessor = RalfTaskPreprocessor(
                 tokenizer=self.tokenizer,
                 task=task,
                 global_task_embedding=self.global_task_embedding,
                 relationship_table=relationship_table if task == "relation" else None,
                 relation_size=self.config.relation_size,
             )
-        )
         cond = RalfConditionalInputs(
             image=image,
             retrieved=retrieved_dict,
@@ -1392,7 +1442,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         constraint_mask: Bool[torch.Tensor, "batch tokens"] | None = None,
         constraint_element_mask: Bool[torch.Tensor, "batch elements"] | None = None,
         return_dict: bool | None = None,
-        **kwargs: str | float | bool | None,
+        **kwargs: str | float | bool | Sequence[str | int] | None,
     ) -> CausalLMOutput | tuple[Float[torch.Tensor, ...], ...]:
         """Run teacher-forced token prediction using the local RALF port."""
         relationship_table = cast(
