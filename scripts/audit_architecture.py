@@ -172,7 +172,10 @@ def _member_stats(root: Path, member_path: Path) -> MemberStats:
 
 def _dependency_specs(config: dict[str, object]) -> tuple[tuple[str, str], ...]:
     project = _project_table(config)
-    specs = [("core", requirement) for requirement in _string_list(project.get("dependencies"))]
+    specs = [
+        ("core", requirement)
+        for requirement in _string_list(project.get("dependencies"))
+    ]
     optional = _dict_value(project.get("optional-dependencies"))
     for extra_name in sorted(optional):
         specs.extend(
@@ -209,7 +212,10 @@ def _hotspots(root: Path, *, limit: int) -> tuple[SourceHotspot, ...]:
     )
     ranked = sorted(
         (
-            SourceHotspot(path=path.relative_to(root).as_posix(), lines=_line_count(path))
+            SourceHotspot(
+                path=path.relative_to(root).as_posix(),
+                lines=_line_count(path),
+            )
             for path in files
         ),
         key=lambda item: (-item.lines, item.path),
