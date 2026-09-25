@@ -35,10 +35,10 @@ The training datamodule supports two data sources:
 - `hf`: approved Hugging Face datasets for development and smoke checks.
 - `processed`: preprocessed LayoutDM `.pt` splits under `<data-dir>/<dataset>-max<S>/processed/{train,val,test}.pt`. Use this source for S5 so package-local training and original-code training consume the same sample stream.
 
-| Dataset   | Source                              | Config                                                     |
-| --------- | ----------------------------------- | ---------------------------------------------------------- |
-| RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations` |
-| PubLayNet | `creative-graphic-design/PubLayNet` | default                                                    |
+| Dataset | Source | Config |
+| --- | --- | --- |
+| RICO25 | `creative-graphic-design/Rico` | `ui-screenshots-and-hierarchies-with-semantic-annotations` |
+| PubLayNet | `creative-graphic-design/PubLayNet` | default |
 
 The `smoke.yaml` config uses a synthetic local dataset and does not download RICO25 or PubLayNet.
 
@@ -46,13 +46,13 @@ The `smoke.yaml` config uses a synthetic local dataset and does not download RIC
 
 Training configs live under `models/layout-dm/configs/training`.
 
-| Config                                  | Dataset             | Seed mode       | Purpose                                          |
-| --------------------------------------- | ------------------- | --------------- | ------------------------------------------------ |
-| `layoutdm_rico25.yaml`                  | RICO25              | `default`       | Regular LightningCLI training.                   |
-| `layoutdm_publaynet.yaml`               | PubLayNet           | `default`       | Regular LightningCLI training.                   |
-| `layoutdm_rico25_deterministic.yaml`    | RICO25              | `deterministic` | Deterministic short run for parity/debug checks. |
-| `layoutdm_publaynet_deterministic.yaml` | PubLayNet           | `deterministic` | Deterministic short run for parity/debug checks. |
-| `smoke.yaml`                            | PubLayNet synthetic | `deterministic` | CPU smoke config for CLI wiring.                 |
+| Config | Dataset | Seed mode | Purpose |
+| --- | --- | --- | --- |
+| `layoutdm_rico25.yaml` | RICO25 | `default` | Regular LightningCLI training. |
+| `layoutdm_publaynet.yaml` | PubLayNet | `default` | Regular LightningCLI training. |
+| `layoutdm_rico25_deterministic.yaml` | RICO25 | `deterministic` | Deterministic short run for parity/debug checks. |
+| `layoutdm_publaynet_deterministic.yaml` | PubLayNet | `deterministic` | Deterministic short run for parity/debug checks. |
+| `smoke.yaml` | PubLayNet synthetic | `deterministic` | CPU smoke config for CLI wiring. |
 
 ## Scheduler and Recipe Notes
 
@@ -64,24 +64,24 @@ RICO25 S5 evidence is reported at `training-seed n=8`. PubLayNet S5 evidence is 
 
 ## Validation Stages
 
-| Stage | Scope                                      | Purpose                                                                                                                            |
-| ----- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | Static config and initialized state parity | Confirms package-local topology, parameter state, optimizer groups, scheduler defaults, and dataset encoding.                      |
-| S1    | Fixed-batch pre-optimizer trace parity     | Confirms timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss before optimizer mutation.   |
-| S2    | One optimizer-step parity                  | Confirms gradients, clipped gradients, optimizer state, post-step params, and learning rate.                                       |
-| S3    | Short deterministic multi-batch run        | Confirms loader, scheduler, clipping, and checkpoint wiring.                                                                       |
-| S4    | Deterministic loader stream                | Confirms sample order, transforms, masks, padding, dataset-local class ids, and validation stream.                                 |
-| S5    | Full-run statistical comparison            | Compares full RICO25 and PubLayNet learning behavior against the original-code checkpoints under the original evaluation protocol. |
+| Stage | Scope | Purpose |
+| --- | --- | --- |
+| S0 | Static config and initialized state parity | Confirms package-local topology, parameter state, optimizer groups, scheduler defaults, and dataset encoding. |
+| S1 | Fixed-batch pre-optimizer trace parity | Confirms timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss before optimizer mutation. |
+| S2 | One optimizer-step parity | Confirms gradients, clipped gradients, optimizer state, post-step params, and learning rate. |
+| S3 | Short deterministic multi-batch run | Confirms loader, scheduler, clipping, and checkpoint wiring. |
+| S4 | Deterministic loader stream | Confirms sample order, transforms, masks, padding, dataset-local class ids, and validation stream. |
+| S5 | Full-run statistical comparison | Compares full RICO25 and PubLayNet learning behavior against the original-code checkpoints under the original evaluation protocol. |
 
 ## Stage Evidence
 
-| Stage | Command                                                                                                                                                                                                                                                                                                                             | Artifact                                                                 | Result                                                                                                                                                                     |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs`                                                                                               | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Static config, topology, parameter state, optimizer groups, scheduler defaults, and dataset encoding have exact numeric parity on a fixed PubLayNet-style synthetic batch. |
-| S1    | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs`                                                                                               | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Fixed-batch pre-optimizer trace parity covers timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss.                                |
-| S2    | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs`                                                                                               | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | One optimizer-step parity covers gradients, clipped gradients, optimizer state, post-step params, and learning rate.                                                       |
-| S4    | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs`                                                                                               | `.cache/layout-dm/original-data`                                         | Tokenizer/loader row encoding parity and preprocessed stream reader parity are recorded for local fixtures.                                                                |
-| S5    | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training traingen fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/`                                             | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression.                                           |
+| Stage | Command | Artifact | Result |
+| --- | --- | --- | --- |
+| S0 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Static config, topology, parameter state, optimizer groups, scheduler defaults, and dataset encoding have exact numeric parity on a fixed PubLayNet-style synthetic batch. |
+| S1 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | Fixed-batch pre-optimizer trace parity covers timestep sampling, `q_sample`, denoiser output, posterior KL, auxiliary loss, and total loss. |
+| S2 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py` | One optimizer-step parity covers gradients, clipped gradients, optimizer state, post-step params, and learning rate. |
+| S4 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package layout-dm --extra training --extra vendor --with pytest pytest models/layout-dm/tests/vendor_parity/test_layout_dm_training_parity.py -m "vendor_parity and training" -rs` | `.cache/layout-dm/original-data` | Tokenizer/loader row encoding parity and preprocessed stream reader parity are recorded for local fixtures. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra training traingen fit --config models/layout-dm/configs/training/layoutdm_<rico25\|publaynet>.yaml --data.init_args.dataset_source=processed --data.init_args.processed_data_dir=.cache/layout-dm/original-data --trainer.accelerator=gpu --trainer.devices=1` | `.cache/layout-dm/full-run/` | RICO25 is statistically reproduced at training-seed n=8; PubLayNet is accepted at training-seed n=3 with no over-FID regression. |
 
 ## Reproduction Results
 
@@ -91,18 +91,18 @@ PubLayNet's reported evidence is limited to training-seed n=3; an n=8 expansion 
 
 RICO25 conditional generation was evaluated without retraining on the same n=8 seed set using the original `trainer.test` and `eval.py` paths. The conditional names used by the original implementation are `cond=c` for category-conditioned generation, `cond=partial` for completion, and `cond=refinement` for noisy-layout refinement. Completion and refinement reproduce statistically on FID and task metrics. Category-conditioned generation has a small but Welch-significant FID gap against ours-initfix (`delta=+0.1217`, `p=0.0346`, bootstrap 95% CI `[+0.0304, +0.2190]`) even though the FID ranges overlap; therefore the category-conditioned result is close but not strict FID equality. A same-weight route-identity check reloaded the original implementation's seed-42975 checkpoint through the package denoiser, re-exported it to the original implementation checkpoint format, and then ran the same original-implementation `trainer.test cond=c` settings (`temperature=1.0`, `num_timesteps=100`, `sampling=random`, and original-implementation mask construction). The direct and re-export paths produced identical 4,218-layout outputs by SHA256, so the residual is not a conditioning-route, setting, or export bug. The best supported interpretation is that `cond=c` is sensitive to small trained-weight endpoint differences: the +0.1217 FID gap is near the same-method run-to-run floor estimated from the existing c-mode seeds, while completion, refinement, and unconditional generation remain equivalent.
 
-| Dataset   | Status                      | Scope       | Original-implementation FID |         Ours FID |   Δ FID | Welch p | Alignment original implementation → ours | Overlap original implementation → ours | mIoU original implementation → ours | Verdict                                     |
-| --------- | --------------------------- | ----------- | --------------------------: | ---------------: | ------: | ------: | ---------------------------------------: | -------------------------------------: | ----------------------------------- | ------------------------------------------- |
-| RICO25    | `s5-practical-reproduction` | n=8 initfix |             7.1055 ± 0.3673 |  7.2307 ± 0.2632 | +0.1252 |  0.4768 |                          0.0019 → 0.0022 |                        0.8438 → 0.8379 | 0.1941 → 0.1931                     | statistically equivalent                    |
-| PubLayNet | `s5-practical-reproduction` | n=3 initfix |            12.0617 ± 0.1665 | 11.5308 ± 0.1915 | -0.5308 |  0.0426 |                          0.0020 → 0.0021 |                        0.1295 → 0.1240 | 0.0759 → 0.0727                     | ours lower-FID side; no over-FID regression |
+| Dataset | Status | Scope | Original-implementation FID | Ours FID | Δ FID | Welch p | Alignment original implementation → ours | Overlap original implementation → ours | mIoU original implementation → ours | Verdict |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| RICO25 | `s5-practical-reproduction` | n=8 initfix | 7.1055 ± 0.3673 | 7.2307 ± 0.2632 | +0.1252 | 0.4768 | 0.0019 → 0.0022 | 0.8438 → 0.8379 | 0.1941 → 0.1931 | statistically equivalent |
+| PubLayNet | `s5-practical-reproduction` | n=3 initfix | 12.0617 ± 0.1665 | 11.5308 ± 0.1915 | -0.5308 | 0.0426 | 0.0020 → 0.0021 | 0.1295 → 0.1240 | 0.0759 → 0.0727 | ours lower-FID side; no over-FID regression |
 
 RICO25 and PubLayNet metrics use the original implementation's `cond=unconditional`, `num_uncond_samples=1000`, `num_timesteps=100` evaluation path with FIDNetV3. Alignment and Overlap are the original implementation's `LayoutGAN++` variants; mIoU is reported from the original implementation's `average_iou-VTN` output. Standard deviations use population standard deviation over the reported training seeds.
 
-| Mode         | Original-implementation FID |        Ours FID |   Δ FID | Welch p | maximum_iou original implementation → ours | DocSim original implementation → ours | Verdict                                                |
-| ------------ | --------------------------: | --------------: | ------: | ------: | -----------------------------------------: | ------------------------------------: | ------------------------------------------------------ |
-| `c`          |             3.3863 ± 0.0825 | 3.5080 ± 0.1088 | +0.1217 |  0.0346 |                            0.2763 → 0.2739 |                       0.1673 → 0.1670 | close, but not strict FID equality; route is identical |
-| `partial`    |             8.1341 ± 0.6067 | 8.1523 ± 0.3817 | +0.0182 |  0.9477 |                            0.5945 → 0.6029 |                       0.0918 → 0.0921 | equivalent                                             |
-| `refinement` |             4.6356 ± 0.1029 | 4.7018 ± 0.1922 | +0.0662 |  0.4392 |                            0.3404 → 0.3409 |                       0.1971 → 0.1973 | equivalent                                             |
+| Mode | Original-implementation FID | Ours FID | Δ FID | Welch p | maximum_iou original implementation → ours | DocSim original implementation → ours | Verdict |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `c` | 3.3863 ± 0.0825 | 3.5080 ± 0.1088 | +0.1217 | 0.0346 | 0.2763 → 0.2739 | 0.1673 → 0.1670 | close, but not strict FID equality; route is identical |
+| `partial` | 8.1341 ± 0.6067 | 8.1523 ± 0.3817 | +0.0182 | 0.9477 | 0.5945 → 0.6029 | 0.0918 → 0.0921 | equivalent |
+| `refinement` | 4.6356 ± 0.1029 | 4.7018 ± 0.1922 | +0.0662 | 0.4392 | 0.3404 → 0.3409 | 0.1971 → 0.1973 | equivalent |
 
 Overall S5 verdict: matching the original `normal_(0, 0.02)` denoiser initialization resolves the RICO25 high-FID failure. RICO25 unconditional generation is statistically equivalent at n=8. PubLayNet is accepted at n=3 because the FID difference is in the lower-FID direction for ours, with no over-FID regression. Conditional RICO25 completion and refinement are equivalent; category-conditioned `cond=c` remains close but not strictly FID-equal, and route identity shows this is a trained-weight endpoint residual rather than a conditioning-path or export bug.
 
@@ -114,14 +114,14 @@ The authors' released-checkpoint reference uses the [LayoutDM v1.0.0 release arc
 
 These values are reference only and are excluded from the package/original statistical test.
 
-Reference interpretation: PubLayNet's released-checkpoint FID is 13.3220 versus 12.0617 for the section's original-implementation S5 result, so the released reference is higher; the released seeds 0/1/2 (n=3) are compared with our S5 seeds (n=3).
-
 | Dataset   |              FID |       Alignment |         Overlap |            mIoU |
 | --------- | ---------------: | --------------: | --------------: | --------------: |
 | RICO25    |  6.7755 ± 0.1298 | 0.0024 ± 0.0011 | 0.8372 ± 0.0161 | 0.1896 ± 0.0011 |
 | PubLayNet | 13.3220 ± 0.3105 | 0.0022 ± 0.0000 | 0.1386 ± 0.0026 | 0.0768 ± 0.0016 |
 
-| Mode         |             FID |     maximum_iou |          DocSim |
+Reference interpretation: PubLayNet's released-checkpoint FID is 13.3220 versus 12.0617 for the section's original-implementation S5 result, so the released reference is higher; the released seeds 0/1/2 (n=3) are compared with our S5 seeds (n=3).
+
+| RICO25 mode  |             FID |     maximum_iou |          DocSim |
 | ------------ | --------------: | --------------: | --------------: |
 | `c`          | 3.4540 ± 0.0931 | 0.2752 ± 0.0006 | 0.1674 ± 0.0005 |
 | `partial`    | 8.9231 ± 0.2557 | 0.5872 ± 0.0165 | 0.0868 ± 0.0028 |

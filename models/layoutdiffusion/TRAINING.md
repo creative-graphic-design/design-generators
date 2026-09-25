@@ -23,8 +23,8 @@ The training datamodule supports two data sources:
 - `hf`: approved Hugging Face datasets for development and smoke checks. Do not combine this source with `vocab_file`; Hugging Face numeric labels would be interpreted under the `id2label` mapping injected for the original-implementation corpus order.
 - `processed`: preprocessed LayoutDiffusion token streams under `.cache/layoutdiffusion/original-data`. Use this source with `vocab_file` for S4/S5 so package-local training and the original-code training path consume the same `ltrb_lex` stream and vocabulary order. The S5 configs set `preconsume_train_batches: 1` so the package train stream starts after the same initial train-batch read performed before the original training loop begins.
 
-| Dataset   | Source                              | Config / stream                                                                                            |
-| --------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Dataset   | Source                              | Config / stream                                                                           |
+| --------- | ----------------------------------- | ----------------------------------------------------------------------------------------- |
 | RICO25    | `creative-graphic-design/Rico`      | `ui-screenshots-and-hierarchies-with-semantic-annotations`; original-implementation stream `RICO_ltrb_lex` |
 | PubLayNet | `creative-graphic-design/PubLayNet` | default; original-implementation stream `PublayNet_ltrb_lex`                                               |
 
@@ -124,9 +124,9 @@ Do not launch S5 until all of these checks pass in the same worktree and with th
 4. A one-step processed-stream package/original train-metric probe compares the package/original `train_loss`, KL component, auxiliary component, and total loss for RICO25 and PubLayNet before any full S5 launch. The evidence is recorded in `.cache/layoutdiffusion/s5/gate-probe-20260801-133008`:
 
    | Dataset   | Package total | Original-implementation total | Total ratio | Package KL  | Original-implementation KL | KL ratio | Package aux | Original-implementation aux | Aux ratio |
-   | --------- | ------------- | ----------------------------- | ----------- | ----------- | -------------------------- | -------- | ----------- | --------------------------- | --------- |
-   | RICO25    | 87104.96875   | 87100.0                       | 1.000057    | 86919.15625 | 86900.0                    | 1.000220 | 185.81418   | 186.0                       | 0.999001  |
-   | PubLayNet | 84603.28125   | 84600.0                       | 1.000039    | 84425.15625 | 84400.0                    | 1.000298 | 178.12349   | 178.0                       | 1.000694  |
+   | --------- | ------------- | ------------ | ----------- | ----------- | --------- | -------- | ----------- | ---------- | --------- |
+   | RICO25    | 87104.96875   | 87100.0      | 1.000057    | 86919.15625 | 86900.0   | 1.000220 | 185.81418   | 186.0      | 0.999001  |
+   | PubLayNet | 84603.28125   | 84600.0      | 1.000039    | 84425.15625 | 84400.0   | 1.000298 | 178.12349   | 178.0      | 1.000694  |
 
 Passing this gate authorizes full S5 launch only after the recorded probe numbers have been reviewed and a separate launch order has been given.
 
