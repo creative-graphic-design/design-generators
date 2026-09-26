@@ -55,11 +55,11 @@ Use `laygen.common` for helpers that are reusable across layout-generation packa
 
 ## Ownership boundaries
 
-| Concern                                                                                                             | Shared owner            | Model-package responsibility                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common`         | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior.                                     |
-| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers       | `posgen.common`         | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
-| Public output types and pipeline contracts                                                                          | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields.                          |
+| Concern | Shared owner | Model-package responsibility |
+| --- | --- | --- |
+| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common` | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior. |
+| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers | `posgen.common` | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
+| Public output types and pipeline contracts | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields. |
 
 Move a helper into a shared package when at least two packages need the same behavior or when a shared public contract must exist before a second consumer lands. Do not create a speculative abstraction without concrete shared behavior.
 
