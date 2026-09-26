@@ -28,6 +28,7 @@ from run_training_stages import (
     _condition_type,
     _fresh_s3_run_root,
     _load_optimizer_state_without_hyperparameters,
+    _loss_vector_diagnostic,
     _natural_run_envelope,
     _recipe_epochs,
     _s3_child_import_gate,
@@ -254,6 +255,39 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "label_size") == 40
     assert _recipe_epochs("cgl", "completion") == 50
     assert _recipe_epochs("cgl", "refinement") == 35
+    assert _recipe_epochs("pku", "unconditional") == 50
+
+
+def test_loss_vector_diagnostic_requires_exact_nonignored_vectors() -> None:
+    logits = torch.tensor([[[2.0, 0.0], [0.0, 2.0], [1.0, 1.0]]], dtype=torch.float32)
+    labels = torch.tensor([[0, 1, 9]], dtype=torch.long)
+    result = _loss_vector_diagnostic(
+        logits,
+        logits.clone(),
+        labels,
+        labels.clone(),
+        torch.tensor(1.0),
+        torch.tensor(1.0),
+        9,
+    )
+
+    assert result["per_token_max_abs_diff"] == 0.0
+    assert result["non_ignored_tokens"] == 2
+    assert cast(dict[str, float], result["float64_mean"])["difference"] == 0.0
+    assert len(cast(str, result["vector_payload_sha256"])) == 64
+
+    changed = logits.clone()
+    changed[0, 0, 0] += 1e-3
+    with pytest.raises(RuntimeError, match="per-token loss vectors differ"):
+        _loss_vector_diagnostic(
+            logits,
+            changed,
+            labels,
+            labels.clone(),
+            torch.tensor(1.0),
+            torch.tensor(1.0),
+            9,
+        )
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
@@ -971,6 +1005,16 @@ def test_s4_records_authoritative_train_validation_stream_evidence() -> None:
         '"vendor_stream_sha256"',
     ):
         assert required_surface in source
+
+
+def test_s4_uses_the_selected_dataset_for_vendor_loader() -> None:
+    source = inspect.getsource(_s4)
+
+    assert "dataset_name = str(config.dataset_name)" in source
+    assert 'dataset_dir = "cgl" if dataset_name.startswith("cgl") else "pku"' in source
+    assert 'str(args.cache_dir / "dataset" / dataset_dir)' in source
+    assert "dataset_name=dataset_dir" in source
+    assert 'if config.dataset_name != "cgl"' not in source
 
 
 def test_s4_points_vendor_retrieval_cache_at_authoritative_cache() -> None:

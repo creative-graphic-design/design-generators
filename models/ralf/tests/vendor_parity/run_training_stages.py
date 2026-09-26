@@ -21,6 +21,7 @@ from types import MethodType
 from typing import Literal, Protocol, TypedDict, cast
 
 import torch
+import torch.nn.functional as F
 import torch.version
 import ralf
 from jaxtyping import Shaped
@@ -586,6 +587,73 @@ def _loss_pair(
     if package_output.loss is None:
         raise RuntimeError("package model returned no loss")
     return package_output.loss, vendor_loss, package_output.logits, vendor_logits
+
+
+def _loss_vector_diagnostic(
+    package_logits: Tensor,
+    vendor_logits: Tensor,
+    package_labels: Tensor,
+    vendor_labels: Tensor,
+    package_loss: Tensor,
+    vendor_loss: Tensor,
+    pad_token_id: int,
+) -> dict[str, object]:
+    """Compare unreduced cross-entropy vectors and their stable means."""
+    if not torch.equal(package_labels, vendor_labels):
+        raise RuntimeError("S1 loss targets differ between package and vendor")
+
+    package_token_losses = F.cross_entropy(
+        package_logits.transpose(1, 2),
+        package_labels,
+        label_smoothing=0.1,
+        ignore_index=pad_token_id,
+        reduction="none",
+    )
+    vendor_token_losses = F.cross_entropy(
+        vendor_logits.transpose(1, 2),
+        vendor_labels,
+        label_smoothing=0.1,
+        ignore_index=pad_token_id,
+        reduction="none",
+    )
+    token_mask = package_labels.ne(pad_token_id)
+    token_delta = (
+        package_token_losses[token_mask].detach().float()
+        - vendor_token_losses[token_mask].detach().float()
+    ).abs()
+    max_abs_diff = float(token_delta.max().item())
+    if max_abs_diff != 0.0:
+        raise RuntimeError(f"S1 per-token loss vectors differ: {max_abs_diff:.8g}")
+
+    package_mean = package_token_losses[token_mask].detach().double().mean()
+    vendor_mean = vendor_token_losses[token_mask].detach().double().mean()
+    diagnostic: dict[str, object] = {
+        "batch_size": int(package_labels.size(0)),
+        "sequence_length": int(package_labels.size(1)),
+        "pad_token_id": pad_token_id,
+        "reduction": "none",
+        "non_ignored_tokens": int(token_mask.sum().item()),
+        "per_token_max_abs_diff": max_abs_diff,
+        "float64_mean": {
+            "package": float(package_mean.cpu()),
+            "vendor": float(vendor_mean.cpu()),
+            "difference": float((package_mean - vendor_mean).abs().cpu()),
+        },
+        "scalar_loss": {
+            "package": float(package_loss.detach().cpu()),
+            "vendor": float(vendor_loss.detach().cpu()),
+            "difference": float((package_loss - vendor_loss).abs().detach().cpu()),
+        },
+        "per_token_loss": {
+            "package": package_token_losses.detach().cpu().tolist(),
+            "vendor": vendor_token_losses.detach().cpu().tolist(),
+        },
+    }
+    payload = json.dumps(diagnostic, sort_keys=True, separators=(",", ":"))
+    diagnostic["vector_payload_sha256"] = hashlib.sha256(
+        payload.encode("utf-8")
+    ).hexdigest()
+    return diagnostic
 
 
 def _max_abs(actual: Tensor, expected: Tensor) -> float:
@@ -2271,6 +2339,24 @@ def _s1(
     )
     loss_diff = _assert_close("train_loss", package_loss, vendor_loss)
     logit_diff = _assert_close("logits", package_logits, vendor_logits)
+    loss_vectors = _loss_vector_diagnostic(
+        package_logits,
+        vendor_logits,
+        package_labels.to(package_logits.device),
+        vendor_labels.to(vendor_logits.device),
+        package_loss,
+        vendor_loss,
+        package_module.model.tokenizer.name_to_id("pad"),
+    )
+    loss_vectors_path = args.output.with_name(f"{args.output.stem}.loss-vectors.json")
+    loss_vectors_path.parent.mkdir(parents=True, exist_ok=True)
+    loss_vectors_path.write_text(
+        json.dumps(loss_vectors, indent=2, sort_keys=True) + "\n"
+    )
+    loss_vectors["artifact"] = str(loss_vectors_path)
+    loss_vectors["artifact_sha256"] = hashlib.sha256(
+        loss_vectors_path.read_bytes()
+    ).hexdigest()
     result: dict[str, object] = {
         "status": "PASS",
         "batch_size": package_ids.size(0),
@@ -2281,6 +2367,7 @@ def _s1(
             "loss": loss_diff,
             "logits": logit_diff,
         },
+        "loss_vectors": loss_vectors,
         "seed": args.seed,
     }
     if refinement_evidence is not None:
@@ -2689,8 +2776,8 @@ def _s4(
     context: _TrainingContext,
     steps: int,
 ) -> dict[str, object]:
-    if config.dataset_name != "cgl":
-        raise RuntimeError("S4 is scoped to CGL; PKU stream evidence is not claimed")
+    dataset_name = str(config.dataset_name)
+    dataset_dir = "cgl" if dataset_name.startswith("cgl") else "pku"
     if data.train_dataset is None or data.validation_dataset is None:
         raise RuntimeError("S4 package train and validation datasets are unavailable")
     if steps < 1:
@@ -2716,7 +2803,7 @@ def _s4(
     )
 
     data_cfg = get_mock_train_cfg(
-        config.max_seq_length, str(args.cache_dir / "dataset" / "cgl")
+        config.max_seq_length, str(args.cache_dir / "dataset" / dataset_dir)
     )
     vendor_dataset, vendor_features = vendor_get_dataset(
         dataset_cfg=data_cfg.dataset,
@@ -2738,7 +2825,7 @@ def _s4(
     }
     vendor_wrappers = {
         split: RetrievalDatasetWrapper(
-            dataset_name="cgl",
+            dataset_name=dataset_dir,
             dataset=vendor_dataset[split],
             db_dataset=vendor_dataset["train"],
             split=split,
