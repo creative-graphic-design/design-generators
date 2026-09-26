@@ -291,6 +291,10 @@ name = "shared-lib"
         + "\n",
         encoding="utf-8",
     )
+    (tests / "test_fixture.py").write_text(
+        'SOURCE = """\nimport torch\n"""\n',
+        encoding="utf-8",
+    )
 
     report = audit_architecture.build_report(tmp_path, hotspot_limit=0)
     records = {
@@ -336,6 +340,9 @@ name = "shared-lib"
         ),
         ("tests/test_tool.py", "torch"): ("third-party-distribution", "torch", ()),
     }
+    assert not any(
+        record.path == "tests/test_fixture.py" for record in report.import_audit.records
+    )
     assert report.import_audit.undeclared_distributions == (
         "jaxtyping",
         "numpy",
