@@ -1,4 +1,9 @@
-"""Report repository architecture facts without enforcing policy."""
+"""Report repository architecture facts without enforcing policy.
+
+Member stats cover only ``src/`` and ``tests/``, while hotspots scan Python
+files under ``lib/``, ``models/``, and ``scripts/`` except paths containing
+``tests`` or ``vendor``.
+"""
 
 from __future__ import annotations
 
@@ -77,6 +82,7 @@ class ArchitectureReport:
     members: tuple[MemberStats, ...]
     dependency_edges: tuple[DependencyEdge, ...]
     hotspots: tuple[SourceHotspot, ...]
+    warnings: tuple[str, ...]
 
     @property
     def library_count(self) -> int:
@@ -231,15 +237,22 @@ def _dependency_specs(config: TomlTable) -> tuple[tuple[str, str], ...]:
             for requirement in _string_list(optional[extra_name])
         )
 
+    groups = _dict_value(config.get("dependency-groups"))
+    for group_name in sorted(groups):
+        specs.extend(
+            (f"group:{group_name}", requirement)
+            for requirement in _string_list(groups[group_name])
+        )
+
     return tuple(specs)
 
 
 def _dependency_edges(
-    root: Path,
     member_paths: tuple[Path, ...],
     member_names: dict[str, str],
-) -> tuple[DependencyEdge, ...]:
+) -> tuple[tuple[DependencyEdge, ...], tuple[str, ...]]:
     edges: set[DependencyEdge] = set()
+    warnings: list[str] = []
     for member_path in member_paths:
         config = _load_toml(member_path / "pyproject.toml")
         source = _string_value(_project_table(config).get("name"))
@@ -247,12 +260,20 @@ def _dependency_edges(
             continue
 
         for scope, requirement in _dependency_specs(config):
-            normalized_target = normalize_requirement_name(requirement)
+            try:
+                normalized_target = normalize_requirement_name(requirement)
+            except ValueError:
+                warnings.append(f"{source} ({scope}): {requirement}")
+                continue
+
             target = member_names.get(normalized_target)
             if target is not None:
                 edges.add(DependencyEdge(source=source, target=target, scope=scope))
 
-    return tuple(sorted(edges, key=lambda edge: (edge.source, edge.target, edge.scope)))
+    return (
+        tuple(sorted(edges, key=lambda edge: (edge.source, edge.target, edge.scope))),
+        tuple(warnings),
+    )
 
 
 def _hotspots(root: Path, *, limit: int) -> tuple[SourceHotspot, ...]:
@@ -260,7 +281,7 @@ def _hotspots(root: Path, *, limit: int) -> tuple[SourceHotspot, ...]:
         path
         for target in PYTHON_TARGET_DIRS
         for path in _python_files(root / target)
-        if "/tests/" not in f"/{path.relative_to(root).as_posix()}"
+        if not {"tests", "vendor"}.intersection(path.relative_to(root).parts)
     )
     ranked = sorted(
         (
@@ -282,10 +303,12 @@ def build_report(root: Path, *, hotspot_limit: int = 20) -> ArchitectureReport:
     member_names = {
         normalize_requirement_name(member.name): member.name for member in members
     }
+    dependency_edges, warnings = _dependency_edges(member_paths, member_names)
     return ArchitectureReport(
         members=members,
-        dependency_edges=_dependency_edges(root, member_paths, member_names),
+        dependency_edges=dependency_edges,
         hotspots=_hotspots(root, limit=hotspot_limit),
+        warnings=warnings,
     )
 
 
@@ -299,6 +322,7 @@ def report_payload(report: ArchitectureReport) -> JsonObject:
             "models": report.model_count,
             "dependency_edges": len(report.dependency_edges),
         },
+        "warnings": list(report.warnings),
         "members": [cast(JsonObject, asdict(member)) for member in report.members],
         "dependency_edges": [
             cast(JsonObject, asdict(edge)) for edge in report.dependency_edges
@@ -315,7 +339,10 @@ def render_text(report: ArchitectureReport) -> str:
             f"({report.root_count} root, {report.library_count} libraries, "
             f"{report.model_count} models)"
         ),
+        "Member stats cover only src/ and tests/; hotspots scan Python files under "
+        "lib/, models/, and scripts/ except paths containing tests or vendor.",
         f"Workspace dependency edges: {len(report.dependency_edges)}",
+        f"Warnings: {len(report.warnings)}",
         "",
         "Members:",
     ]
@@ -340,6 +367,8 @@ def render_text(report: ArchitectureReport) -> str:
         f"- {edge.source} -> {edge.target} ({edge.scope})"
         for edge in report.dependency_edges
     )
+    lines.extend(("", "Warnings:"))
+    lines.extend(f"- {warning}" for warning in report.warnings)
     lines.extend(("", "Python hotspots:"))
     lines.extend(f"- {item.lines:>5} {item.path}" for item in report.hotspots)
     return "\n".join(lines) + "\n"
