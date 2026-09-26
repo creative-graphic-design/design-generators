@@ -259,9 +259,10 @@ jobs:
           # This creates the design-generators environment with its dev group,
           # without selecting every workspace member through --all-packages.
           # The root project currently declares every member in
-          # project.dependencies, so base member distributions can still be
-          # present; this wave proves root tests do not rely on workspace-wide
-          # member selection or unrelated member extras/transitive dependencies.
+          # project.dependencies, so their base distributions and transitive
+          # dependencies can still be present; this wave proves root tests do
+          # not require --all-packages selection or member optional extras, but
+          # it cannot prove unrelated member transitive dependencies are absent.
           uv sync --package design-generators --group dev
 
       - name: Run root tests

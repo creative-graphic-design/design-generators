@@ -41,7 +41,7 @@ A member-scoped environment installs one selected workspace package with `uv syn
 
 A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier.
 
-The root project currently lists every workspace member in `[project].dependencies`, so the root-tooling environment can still contain member base distributions; this wave proves root checks run without `uv sync --all-packages` and without unrelated member extras, but it does not yet prove that every member transitive dependency is absent.
+The root project currently lists every workspace member in `[project].dependencies`, so the root-tooling environment can still contain their base distributions and transitive dependencies; this wave proves root checks run without `uv sync --all-packages` and without member optional extras, but it does not prove isolation from unrelated member transitive dependencies.
 
 A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI.
 
