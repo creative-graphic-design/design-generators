@@ -223,3 +223,154 @@ def test_hotspots_ignore_tests_and_vendor_components(tmp_path: Path) -> None:
 def test_main_rejects_negative_hotspot_limit() -> None:
     with pytest.raises(SystemExit):
         audit_architecture.main(["--top", "-1"])
+
+
+def test_import_audit_classifies_direct_imports_and_checks_root_declarations(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[project]
+name = "root"
+dependencies = ["requests"]
+
+[project.optional-dependencies]
+evaluation = ["evaluate", "pytorch-fid"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv.workspace]
+members = ["lib/*"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    write_project(
+        tmp_path / "lib" / "shared",
+        """
+[project]
+name = "shared-lib"
+""".strip()
+        + "\n",
+    )
+    package = tmp_path / "lib" / "shared" / "src" / "shared_lib"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "local_helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (scripts / "tool.py").write_text(
+        "\n".join(
+            (
+                "import argparse",
+                "from local_helper import VALUE",
+                "from shared_lib import VALUE as SHARED_VALUE",
+                "import yaml",
+                "from PIL import Image",
+                "import evaluate",
+                "from pytorch_fid import fid_score",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_tool.py").write_text(
+        "\n".join(
+            (
+                "import numpy",
+                "import pytest",
+                "import torch",
+                "from jaxtyping import Float",
+                "from pathlib import Path",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = audit_architecture.build_report(tmp_path, hotspot_limit=0)
+    records = {
+        (record.path, record.module): (
+            record.category,
+            record.distribution,
+            record.declared_scopes,
+        )
+        for record in report.import_audit.records
+    }
+
+    assert records == {
+        ("scripts/tool.py", "PIL"): ("third-party-distribution", "Pillow", ()),
+        ("scripts/tool.py", "argparse"): ("stdlib", None, ()),
+        ("scripts/tool.py", "evaluate"): (
+            "third-party-distribution",
+            "evaluate",
+            ("extra:evaluation",),
+        ),
+        ("scripts/tool.py", "local_helper"): ("local-root-script", None, ()),
+        ("scripts/tool.py", "pytorch_fid"): (
+            "third-party-distribution",
+            "pytorch-fid",
+            ("extra:evaluation",),
+        ),
+        ("scripts/tool.py", "shared_lib"): ("workspace-package", None, ()),
+        ("scripts/tool.py", "yaml"): ("third-party-distribution", "PyYAML", ()),
+        ("tests/test_tool.py", "pathlib"): ("stdlib", None, ()),
+        ("tests/test_tool.py", "jaxtyping"): (
+            "third-party-distribution",
+            "jaxtyping",
+            (),
+        ),
+        ("tests/test_tool.py", "numpy"): (
+            "third-party-distribution",
+            "numpy",
+            (),
+        ),
+        ("tests/test_tool.py", "pytest"): (
+            "third-party-distribution",
+            "pytest",
+            ("group:dev",),
+        ),
+        ("tests/test_tool.py", "torch"): ("third-party-distribution", "torch", ()),
+    }
+    assert report.import_audit.undeclared_distributions == (
+        "jaxtyping",
+        "numpy",
+        "Pillow",
+        "PyYAML",
+        "torch",
+    )
+
+    payload = audit_architecture.report_payload(report)
+    assert payload["import_audit"] == {
+        "records": [
+            {
+                "category": category,
+                "declared_scopes": list(scopes),
+                "distribution": distribution,
+                "module": module,
+                "path": path,
+            }
+            for (path, module), (category, distribution, scopes) in sorted(
+                records.items()
+            )
+        ],
+        "undeclared_distributions": [
+            "jaxtyping",
+            "numpy",
+            "Pillow",
+            "PyYAML",
+            "torch",
+        ],
+    }
+    assert audit_architecture.render_text(report).endswith(
+        "Undeclared root-tooling distributions:\n"
+        "- jaxtyping\n"
+        "- numpy\n"
+        "- Pillow\n"
+        "- PyYAML\n"
+        "- torch\n"
+    )
