@@ -35,6 +35,18 @@ members = ["lib/*", "models/*"]
 
 The `lib/` and `models/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, while a model package owns its model-specific processing, inference, conversion, training, and configuration code.
 
+## Dependency environments
+
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification.
+
+A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier.
+
+The root project currently lists every workspace member in `[project].dependencies`, so the root-tooling environment can still contain member base distributions; this wave proves root checks run without `uv sync --all-packages` and without unrelated member extras, but it does not yet prove that every member transitive dependency is absent.
+
+A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI.
+
+These contracts are the Wave 1A scope described in [Issue #341](https://github.com/creative-graphic-design/design-generators/issues/341); future waves can separate member aggregation dependencies from root-tooling dependencies after the root dependency list is reduced.
+
 ## Shared package names and imports
 
 `laygen` is the shared layout-generation library; its installable package name and its import name are both `laygen`. `posgen` is the shared poster and content-aware library; its installable package name and its import name are both `posgen`.
@@ -43,11 +55,11 @@ Use `laygen.common` for helpers that are reusable across layout-generation packa
 
 ## Ownership boundaries
 
-| Concern | Shared owner | Model-package responsibility |
-| --- | --- | --- |
-| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common` | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior. |
-| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers | `posgen.common` | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
-| Public output types and pipeline contracts | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields. |
+| Concern                                                                                                             | Shared owner            | Model-package responsibility                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common`         | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior.                                     |
+| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers       | `posgen.common`         | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
+| Public output types and pipeline contracts                                                                          | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields.                          |
 
 Move a helper into a shared package when at least two packages need the same behavior or when a shared public contract must exist before a second consumer lands. Do not create a speculative abstraction without concrete shared behavior.
 
