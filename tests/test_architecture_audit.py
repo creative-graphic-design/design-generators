@@ -33,16 +33,14 @@ def write_project(path: Path, content: str) -> None:
 
 def test_normalize_requirement_name_handles_extras_and_versions() -> None:
     assert (
-        audit_architecture.normalize_requirement_name("laygen[agents]>=0.1")
-        == "laygen"
+        audit_architecture.normalize_requirement_name("laygen[agents]>=0.1") == "laygen"
     )
     assert (
         audit_architecture.normalize_requirement_name("traingen-parity")
         == "traingen-parity"
     )
     assert (
-        audit_architecture.normalize_requirement_name("My_Package~=1.2")
-        == "my-package"
+        audit_architecture.normalize_requirement_name("My_Package~=1.2") == "my-package"
     )
 
     with pytest.raises(ValueError, match="cannot parse requirement name"):
@@ -137,20 +135,14 @@ task = "layout-generation"
 
     assert report.dependency_edges == (
         audit_architecture.DependencyEdge("example-model", "shared", "core"),
-        audit_architecture.DependencyEdge(
-            "example-model", "shared", "extra:training"
-        ),
-        audit_architecture.DependencyEdge(
-            "example-model", "trainer", "extra:training"
-        ),
+        audit_architecture.DependencyEdge("example-model", "shared", "extra:training"),
+        audit_architecture.DependencyEdge("example-model", "trainer", "extra:training"),
         audit_architecture.DependencyEdge("root", "example-model", "core"),
         audit_architecture.DependencyEdge("trainer", "shared", "core"),
     )
     assert report.hotspots == (
         audit_architecture.SourceHotspot("scripts/large_script.py", 4),
-        audit_architecture.SourceHotspot(
-            "models/example/src/example/large.py", 3
-        ),
+        audit_architecture.SourceHotspot("models/example/src/example/large.py", 3),
     )
 
 
