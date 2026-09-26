@@ -225,6 +225,14 @@ def test_main_rejects_negative_hotspot_limit() -> None:
         audit_architecture.main(["--top", "-1"])
 
 
+def test_real_repository_root_imports_are_declared() -> None:
+    root = Path(__file__).resolve().parents[1]
+
+    audit = audit_architecture.audit_imports(root)
+
+    assert list(audit.undeclared_distributions) == []
+
+
 def test_import_audit_classifies_direct_imports_and_checks_root_declarations(
     tmp_path: Path,
 ) -> None:

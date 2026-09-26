@@ -75,12 +75,12 @@ training = [
 [dependency-groups]
 dev = [
     "beartype>=0.22.9,<0.23",
-    "PyYAML",
     "pre-commit>=4.6.0",
     "pylint>=4.0.0",
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0,<4",
+    "PyYAML>=6.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
