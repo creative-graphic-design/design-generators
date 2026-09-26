@@ -56,9 +56,13 @@ download = [
 ]
 evaluation = [
     "evaluate",
+    "jaxtyping",
+    "numpy",
     "opencv-python",
+    "Pillow",
     "prdc",
     "pytorch-fid",
+    "torch",
 ]
 llm-agent = [
     "pydantic-ai>=2.7.0",
@@ -71,6 +75,7 @@ training = [
 [dependency-groups]
 dev = [
     "beartype>=0.22.9,<0.23",
+    "PyYAML",
     "pre-commit>=4.6.0",
     "pylint>=4.0.0",
     "pytest>=6.0.0",
