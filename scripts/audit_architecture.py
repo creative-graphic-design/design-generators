@@ -3,15 +3,21 @@
 Member stats cover only ``src/`` and ``tests/``, while hotspots scan Python
 files under ``lib/``, ``models/``, and ``scripts/`` except paths containing
 ``tests`` or ``vendor``.
+
+The original report payload keys remain stable. The ``import_audit`` payload
+key is an additive schema entry for direct imports in ``scripts/*.py`` and
+``tests/*.py``.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
+import sys
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Final, TypeAlias, cast
@@ -22,6 +28,12 @@ WORKSPACE_KINDS: Final[dict[str, str]] = {
 }
 PYTHON_TARGET_DIRS: Final[tuple[str, ...]] = ("lib", "models", "scripts")
 _REQUIREMENT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*")
+IMPORT_DISTRIBUTION_OVERRIDES: Final[dict[str, str]] = {
+    "PIL": "Pillow",
+    "cv2": "opencv-python",
+    "pytorch_fid": "pytorch-fid",
+    "yaml": "PyYAML",
+}
 
 TomlValue: TypeAlias = (
     str
@@ -76,6 +88,25 @@ class SourceHotspot:
 
 
 @dataclass(frozen=True)
+class ImportRecord:
+    """One direct import found in a root tooling file."""
+
+    path: str
+    module: str
+    category: str
+    distribution: str | None
+    declared_scopes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ImportAudit:
+    """Direct-import classifications and root dependency ownership results."""
+
+    records: tuple[ImportRecord, ...] = ()
+    undeclared_distributions: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ArchitectureReport:
     """Deterministic architecture report for the repository."""
 
@@ -83,6 +114,7 @@ class ArchitectureReport:
     dependency_edges: tuple[DependencyEdge, ...]
     hotspots: tuple[SourceHotspot, ...]
     warnings: tuple[str, ...]
+    import_audit: ImportAudit = field(default_factory=ImportAudit)
 
     @property
     def library_count(self) -> int:
@@ -247,6 +279,134 @@ def _dependency_specs(config: TomlTable) -> tuple[tuple[str, str], ...]:
     return tuple(specs)
 
 
+def _root_dependency_scopes(root: Path) -> dict[str, tuple[str, ...]]:
+    """Return root dependency declarations keyed by normalized distribution."""
+    scopes: dict[str, set[str]] = {}
+    for scope, requirement in _dependency_specs(_load_toml(root / "pyproject.toml")):
+        try:
+            distribution = normalize_requirement_name(requirement)
+        except ValueError:
+            continue
+
+        scopes.setdefault(distribution, set()).add(scope)
+
+    return {
+        distribution: tuple(sorted(declared_scopes))
+        for distribution, declared_scopes in sorted(scopes.items())
+    }
+
+
+def _workspace_import_names(member_paths: tuple[Path, ...]) -> set[str]:
+    names: set[str] = set()
+    for member_path in member_paths:
+        config = _load_toml(member_path / "pyproject.toml")
+        project_name = _string_value(_project_table(config).get("name"))
+        if project_name is not None:
+            names.add(project_name.replace("-", "_").lower())
+
+        source = member_path / "src"
+        if not source.is_dir():
+            continue
+
+        for candidate in source.iterdir():
+            if candidate.name.startswith("."):
+                continue
+
+            if candidate.is_dir() and (candidate / "__init__.py").is_file():
+                names.add(candidate.name.lower())
+            elif candidate.suffix == ".py":
+                names.add(candidate.stem.lower())
+
+    return names
+
+
+def _import_modules(path: Path) -> tuple[str, ...]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            modules.add(node.module.split(".", 1)[0])
+
+    return tuple(sorted(modules))
+
+
+def _import_audit_files(root: Path) -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            path
+            for directory in (root / "scripts", root / "tests")
+            for path in directory.glob("*.py")
+            if path.is_file()
+        )
+    )
+
+
+def audit_imports(
+    root: Path, *, member_paths: tuple[Path, ...] | None = None
+) -> ImportAudit:
+    """Classify root tooling imports and find undeclared distributions."""
+    members = discover_member_paths(root) if member_paths is None else member_paths
+    script_modules = {
+        path.stem.lower() for path in (root / "scripts").glob("*.py") if path.is_file()
+    }
+    workspace_modules = _workspace_import_names(members)
+    dependency_scopes = _root_dependency_scopes(root)
+    records: list[ImportRecord] = []
+
+    for path in _import_audit_files(root):
+        relative_path = path.relative_to(root).as_posix()
+        for module in _import_modules(path):
+            normalized_module = module.lower().replace("-", "_")
+            if module in sys.stdlib_module_names:
+                category = "stdlib"
+                distribution = None
+            elif normalized_module in script_modules or normalized_module == "scripts":
+                category = "local-root-script"
+                distribution = None
+            elif normalized_module in workspace_modules:
+                category = "workspace-package"
+                distribution = None
+            else:
+                category = "third-party-distribution"
+                distribution = IMPORT_DISTRIBUTION_OVERRIDES.get(
+                    module, module.replace("_", "-")
+                )
+
+            declared_scopes = (
+                dependency_scopes.get(normalize_requirement_name(distribution), ())
+                if distribution is not None
+                else ()
+            )
+            records.append(
+                ImportRecord(
+                    path=relative_path,
+                    module=module,
+                    category=category,
+                    distribution=distribution,
+                    declared_scopes=declared_scopes,
+                )
+            )
+
+    sorted_records = tuple(
+        sorted(records, key=lambda record: (record.path, record.module))
+    )
+    undeclared = tuple(
+        sorted(
+            {
+                record.distribution
+                for record in sorted_records
+                if record.category == "third-party-distribution"
+                and not record.declared_scopes
+                and record.distribution is not None
+            },
+            key=lambda distribution: (distribution.lower(), distribution),
+        )
+    )
+    return ImportAudit(records=sorted_records, undeclared_distributions=undeclared)
+
+
 def _dependency_edges(
     member_paths: tuple[Path, ...],
     member_names: dict[str, str],
@@ -309,6 +469,7 @@ def build_report(root: Path, *, hotspot_limit: int = 20) -> ArchitectureReport:
         dependency_edges=dependency_edges,
         hotspots=_hotspots(root, limit=hotspot_limit),
         warnings=warnings,
+        import_audit=audit_imports(root, member_paths=member_paths),
     )
 
 
@@ -328,6 +489,21 @@ def report_payload(report: ArchitectureReport) -> JsonObject:
             cast(JsonObject, asdict(edge)) for edge in report.dependency_edges
         ],
         "hotspots": [cast(JsonObject, asdict(hotspot)) for hotspot in report.hotspots],
+        "import_audit": {
+            "records": [
+                {
+                    "category": record.category,
+                    "declared_scopes": list(record.declared_scopes),
+                    "distribution": record.distribution,
+                    "module": record.module,
+                    "path": record.path,
+                }
+                for record in report.import_audit.records
+            ],
+            "undeclared_distributions": list(
+                report.import_audit.undeclared_distributions
+            ),
+        },
     }
 
 
@@ -371,13 +547,33 @@ def render_text(report: ArchitectureReport) -> str:
     lines.extend(f"- {warning}" for warning in report.warnings)
     lines.extend(("", "Python hotspots:"))
     lines.extend(f"- {item.lines:>5} {item.path}" for item in report.hotspots)
+    lines.extend(("", "Direct imports (scripts/*.py and tests/*.py):"))
+    for record in report.import_audit.records:
+        details = record.category
+        if record.distribution is not None:
+            details += f", {record.distribution}"
+            if record.declared_scopes:
+                details += f", declared in {', '.join(record.declared_scopes)}"
+            else:
+                details += ", undeclared"
+
+        lines.append(f"- {record.path}: {record.module} ({details})")
+
+    lines.extend(("", "Undeclared root-tooling distributions:"))
+    lines.extend(
+        f"- {distribution}"
+        for distribution in report.import_audit.undeclared_distributions
+    )
     return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
     """Run the architecture audit."""
     parser = argparse.ArgumentParser(
-        description="Report uv workspace dependencies and Python source hotspots."
+        description=(
+            "Report uv workspace dependencies, root-tooling imports, and Python "
+            "source hotspots."
+        )
     )
     parser.add_argument(
         "--root",

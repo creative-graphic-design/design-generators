@@ -35,6 +35,18 @@ members = ["lib/*", "models/*"]
 
 The `lib/` and `models/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, while a model package owns its model-specific processing, inference, conversion, training, and configuration code.
 
+## Dependency environments
+
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification.
+
+A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier.
+
+The root project currently lists every workspace member in `[project].dependencies`, so the root-tooling environment can still contain their base distributions and transitive dependencies; this wave proves root checks run without `uv sync --all-packages` and without member optional extras, but it does not prove isolation from unrelated member transitive dependencies.
+
+A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI.
+
+These contracts are the Wave 1A scope described in [Issue #341](https://github.com/creative-graphic-design/design-generators/issues/341); future waves can separate member aggregation dependencies from root-tooling dependencies after the root dependency list is reduced.
+
 ## Shared package names and imports
 
 `laygen` is the shared layout-generation library; its installable package name and its import name are both `laygen`. `posgen` is the shared poster and content-aware library; its installable package name and its import name are both `posgen`.

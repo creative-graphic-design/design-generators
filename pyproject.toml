@@ -56,9 +56,13 @@ download = [
 ]
 evaluation = [
     "evaluate",
+    "jaxtyping",
+    "numpy",
     "opencv-python",
+    "Pillow",
     "prdc",
     "pytorch-fid",
+    "torch",
 ]
 llm-agent = [
     "pydantic-ai>=2.7.0",
@@ -76,6 +80,7 @@ dev = [
     "pytest>=6.0.0",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0,<4",
+    "PyYAML>=6.0",
     "ruff>=0.1.5",
     "ty>=0.0.10",
     "vulture>=2.16",
