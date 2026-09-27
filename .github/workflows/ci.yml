@@ -232,8 +232,8 @@ jobs:
         id: members
         run: echo "members=$(scripts/list_test_members.sh)" >> "${GITHUB_OUTPUT}"
 
-  test-root:
-    name: Test (root)
+  test-root-tooling:
+    name: Test (root tooling)
     needs: changes
     if: needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
@@ -254,11 +254,16 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Install workspace dependencies
+      - name: Install root-tooling dependencies
         run: |
-          # Install every uv workspace member for CI checks. Member extras are
-          # intentionally omitted; test suites are expected to run without them.
-          uv sync --all-packages
+          # This creates the design-generators environment with its dev group,
+          # without selecting every workspace member through --all-packages.
+          # The root project currently declares every member in
+          # project.dependencies, so their base distributions and transitive
+          # dependencies can still be present; this wave proves root tests do
+          # not require --all-packages selection or member optional extras, but
+          # it cannot prove unrelated member transitive dependencies are absent.
+          uv sync --package design-generators --group dev
 
       - name: Run root tests
         run: |
@@ -269,6 +274,12 @@ jobs:
           COVERAGE_FILE=coverage-root/.coverage uv run coverage report --rcfile=/dev/null
           COVERAGE_FILE=coverage-root/.coverage \
             uv run coverage xml --rcfile=/dev/null -o coverage-root/root.xml
+
+      - name: Check full-workspace compatibility
+        run: |
+          # Keep an explicit compatibility check for the all-packages
+          # environment after the root-tooling test has run in isolation.
+          uv sync --all-packages
 
       - name: Upload root coverage to Codecov
         if: github.event_name != 'merge_group'
@@ -329,7 +340,7 @@ jobs:
     name: Test
     needs:
       - changes
-      - test-root
+      - test-root-tooling
       - test-member
     if: always() && needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
@@ -338,8 +349,8 @@ jobs:
     steps:
       - name: Check test results
         run: |
-          if [ "${{ needs.test-root.result }}" != "success" ]; then
-            echo "Test (root) result: ${{ needs.test-root.result }}" >&2
+          if [ "${{ needs.test-root-tooling.result }}" != "success" ]; then
+            echo "Test (root tooling) result: ${{ needs.test-root-tooling.result }}" >&2
             exit 1
           fi
 
