@@ -125,9 +125,9 @@
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
 - `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; root-tooling checks use `uv sync --package design-generators --group dev` in an environment that excludes workspace-member distributions, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
-- The root project no longer aggregates workspace members through base dependencies. Root tooling intentionally retains `transformers[torch,vision]>=5.0.0` until Wave 1C decides the root runtime, optional-extra, and conflict contracts; member environments remain package-scoped.
+- Root base dependencies contain only `transformers[torch,vision]>=5.0.0`; workspace members install through `uv run --package <name>` or `uv sync --all-packages`.
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
-- CI runs root pytest in the root environment, and each workspace member is measured separately without combined coverage.
+- CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
 - Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
 
 ## CI Policy

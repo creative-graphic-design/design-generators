@@ -37,13 +37,13 @@ The `lib/` and `models/` directories are separate ownership boundaries: shared l
 
 ## Dependency environments
 
-A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings without depending on the root project's base dependencies.
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings.
 
-A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier. The root project no longer lists workspace members in its base dependencies, so this environment does not select member distributions through root dependency aggregation. The root intentionally retains `transformers[torch,vision]>=5.0.0` until Wave 1C decides the root project's long-term third-party runtime and optional-extra contract.
+A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier. Root base dependencies contain only `transformers[torch,vision]>=5.0.0`; workspace members install through `uv run --package <name>` or `uv sync --all-packages`.
 
 A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
 
-These contracts are implemented in [Issue #343](https://github.com/creative-graphic-design/design-generators/issues/343). The root remains a package with an intentional Transformers dependency while Wave 1C evaluates that dependency, the optional extras, and the conflict table together.
+These contracts are implemented in [Issue #343](https://github.com/creative-graphic-design/design-generators/issues/343). The root remains a package with an intentional Transformers dependency and explicit workspace-member environments.
 
 ## Shared package names and imports
 
