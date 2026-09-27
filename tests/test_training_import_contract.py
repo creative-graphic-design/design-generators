@@ -171,8 +171,11 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
             [
                 "uv",
                 "run",
+                "--frozen",
                 "--package",
                 contract.package_name.replace("_", "-"),
+                "--extra",
+                "training",
                 "python",
                 "-c",
                 script,
