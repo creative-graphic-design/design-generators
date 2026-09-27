@@ -37,15 +37,13 @@ The `lib/` and `models/` directories are separate ownership boundaries: shared l
 
 ## Dependency environments
 
-A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification.
+A member-scoped environment installs one selected workspace package with `uv sync --package <name>` and is the environment used by the member test matrix for package-local development and verification. Member environments resolve package dependencies through the workspace source mappings without depending on the root project's base dependencies.
 
-A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier.
+A root-tooling environment installs the root package and its tooling group with `uv sync --package design-generators --group dev`, and evaluation-only commands add the `evaluation` extra when they run the evaluation verifier. The root project no longer lists workspace members in its base dependencies, so this environment does not select member distributions through root dependency aggregation. The root intentionally retains `transformers[torch,vision]>=5.0.0` until Wave 1C decides the root project's long-term third-party runtime and optional-extra contract.
 
-The root project currently lists every workspace member in `[project].dependencies`, so the root-tooling environment can still contain their base distributions and transitive dependencies; this wave proves root checks run without `uv sync --all-packages` and without member optional extras, but it does not prove isolation from unrelated member transitive dependencies.
+A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
 
-A full-workspace environment installs all workspace members with `uv sync --all-packages` and is retained as an explicit compatibility check for cross-member development and CI.
-
-These contracts are the Wave 1A scope described in [Issue #341](https://github.com/creative-graphic-design/design-generators/issues/341); future waves can separate member aggregation dependencies from root-tooling dependencies after the root dependency list is reduced.
+These contracts are implemented in [Issue #343](https://github.com/creative-graphic-design/design-generators/issues/343). The root remains a package with an intentional Transformers dependency while Wave 1C evaluates that dependency, the optional extras, and the conflict table together.
 
 ## Shared package names and imports
 
@@ -55,11 +53,11 @@ Use `laygen.common` for helpers that are reusable across layout-generation packa
 
 ## Ownership boundaries
 
-| Concern | Shared owner | Model-package responsibility |
-| --- | --- | --- |
-| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common` | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior. |
-| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers | `posgen.common` | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
-| Public output types and pipeline contracts | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields. |
+| Concern                                                                                                             | Shared owner            | Model-package responsibility                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Layout boxes, labels, discrete helpers, visualization, serialization, testing, and other proven layout-wide helpers | `laygen.common`         | Apply model-specific coordinate conventions, token order, checkpoint details, and parity behavior.                                     |
+| Poster content, poster labels, poster testing, and poster visualization that are shared by concrete consumers       | `posgen.common`         | Keep model-specific image processing, saliency behavior, retrieval, prompt parsing, tokenization, scheduling, and configuration local. |
+| Public output types and pipeline contracts                                                                          | `laygen` public modules | Return the repository's common schema while preserving model-specific optional data in the documented fields.                          |
 
 Move a helper into a shared package when at least two packages need the same behavior or when a shared public contract must exist before a second consumer lands. Do not create a speculative abstraction without concrete shared behavior.
 
@@ -80,7 +78,7 @@ graph LR
 
 The arrows point from a library to the packages that import it.
 
-`posgen` is a root project dependency and a workspace member because current poster/content-aware consumers use it alongside `laygen`.
+`posgen` is a workspace member, and current poster/content-aware consumers use it alongside `laygen`.
 
 ## Working with the architecture
 
