@@ -254,13 +254,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Remove any existing virtual environment
-        run: rm -rf .venv
-
       - name: Install root-tooling dependencies
         run: |
-          # This creates the root-tooling environment from a clean .venv without
-          # selecting workspace members through --all-packages.
           uv sync --package design-generators --group dev
 
       - name: Assert root environment excludes workspace members
@@ -274,8 +269,11 @@ jobs:
 
           config = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
           member_names = {
-              name.lower().replace("_", "-")
-              for name in config["tool"]["uv"]["sources"]
+              tomllib.loads(
+                  (member / "pyproject.toml").read_text(encoding="utf-8")
+              )["project"]["name"].lower().replace("_", "-")
+              for pattern in config["tool"]["uv"]["workspace"]["members"]
+              for member in Path(".").glob(pattern)
           }
           installed_names = {
               item["name"].lower().replace("_", "-")
@@ -295,7 +293,6 @@ jobs:
 
       - name: Run root tests
         run: |
-          uv run --no-sync --package design-generators pytest tests -m "not integration"
           mkdir -p coverage-root
           COVERAGE_FILE=coverage-root/.coverage \
             uv run --no-sync --package design-generators coverage run \
