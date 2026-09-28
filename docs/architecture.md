@@ -48,6 +48,8 @@ A root-tooling environment installs the root package and its tooling group with 
 | `dev` group              | Root tooling                             | Root checks, tests, and pre-commit commands                                                               | Repository-wide development tooling is coordinated at the root.                                                         |
 | `docs` group             | Root tooling                             | `make setup` (`uv sync --all-packages --group docs`)                                                      | Documentation generation is a repository-wide root workflow.                                                            |
 
+A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
+
 ## Training ownership
 
 Training infrastructure follows the current package boundaries below. Model packages retain dataset, numerical, scheduling, configuration, and model-specific parity behavior.
@@ -68,15 +70,13 @@ Training infrastructure follows the current package boundaries below. Model pack
 
 The generic helpers currently owned by `laygen.common.training` have these dispositions:
 
-| Helper                 | Current consumers                                          | Disposition                                                                   |
-| ---------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `ScalarLogger`         | `layout-dm`, `layoutdiffusion`, and shared helper tests    | Candidate for migration into `traingen` once an import-migration plan exists. |
-| `sum_loss_values`      | `layout-dm`, `layoutdiffusion`, and `finish_training_step` | Candidate for migration into `traingen` once an import-migration plan exists. |
-| `log_training_losses`  | `finish_training_step` and shared helper tests             | Candidate for migration into `traingen` once an import-migration plan exists. |
-| `finish_training_step` | `layout-dm`, `layoutdiffusion`, and shared helper tests    | Candidate for migration into `traingen` once an import-migration plan exists. |
-| `log_validation_loss`  | `layout-dm`, `layoutdiffusion`, and shared helper tests    | Candidate for migration into `traingen` once an import-migration plan exists. |
-
-A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
+| Helper                 | Current consumers                                                                                     | Disposition                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `ScalarLogger`         | Structural protocol in helper signatures; satisfied by LayoutDM and LayoutDiffusion Lightning modules | Candidate for migration into `traingen` once an import-migration plan exists. |
+| `sum_loss_values`      | `layout-dm`, `layoutdiffusion`, and `finish_training_step`                                            | Candidate for migration into `traingen` once an import-migration plan exists. |
+| `log_training_losses`  | `finish_training_step` and shared helper tests                                                        | Candidate for migration into `traingen` once an import-migration plan exists. |
+| `finish_training_step` | `layout-dm`, `layoutdiffusion`, and shared helper tests                                               | Candidate for migration into `traingen` once an import-migration plan exists. |
+| `log_validation_loss`  | `layout-dm`, `layoutdiffusion`, and shared helper tests                                               | Candidate for migration into `traingen` once an import-migration plan exists. |
 
 ## Shared package names and imports
 

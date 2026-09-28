@@ -13,6 +13,7 @@ from layoutdiffusion import LayoutDiffusionConfig
 from layoutdiffusion.training.datamodule import LayoutDiffusionDataModule
 from layoutdiffusion.training.lightning_module import LayoutDiffusionTrainingModule
 from layoutdiffusion.training.parity import (
+    TRACE_POINTS,
     compare_layoutdiffusion_optimizer_step,
     compare_layoutdiffusion_step,
     trace_layoutdiffusion_step,
@@ -171,6 +172,7 @@ def test_optimizer_scheduler_ema_and_parity_helpers() -> None:
     assert module.ema_state_dict()
     torch.manual_seed(3)
     trace = trace_layoutdiffusion_step(module, tiny_batch())
+    assert set(TRACE_POINTS) <= trace.tensors.keys()
     assert compare_layoutdiffusion_step(trace, trace).passed
     assert compare_layoutdiffusion_optimizer_step(
         {"x": torch.ones(1)}, {"x": torch.ones(1)}

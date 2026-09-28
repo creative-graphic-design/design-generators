@@ -64,6 +64,7 @@ Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. I
 - Train-ourselves models use PyTorch Lightning through each model package's `training` extra and LightningCLI with YAML configs plus CLI overrides.
 - Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package.
 - Launch training through the `traingen` console script with the model member and training extra selected: `uv run --package <model> --extra training traingen fit --config models/<model>/configs/training/<config>.yaml`.
+- A root-level `traingen` launch is not the supported model-training workflow; select the member environment above.
 - Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for S0-S5 evidence, topology guards, dataset coverage, seed policy, and evidence recording.
 - Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
 - Do not run or claim S5 full-run training reproduction before S0-S4 stage evidence exists; S5-only results are rejected by `scripts/check_training_stage_evidence.py`.
