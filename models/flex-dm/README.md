@@ -102,8 +102,8 @@ The Hub repos are not published yet. Until then, create a local converted checkp
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package flex-dm
-uv run --package flex-dm --extra data python models/flex-dm/scripts/download_original_assets.py --output-dir .cache/flex-dm/original --dataset all --assets weights
-uv run --package flex-dm --extra convert python models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
+uv run --package flex-dm --extra data models/flex-dm/scripts/download_original_assets.py --output-dir .cache/flex-dm/original --dataset all --assets weights
+uv run --package flex-dm --extra convert models/flex-dm/scripts/convert_original_checkpoint.py --dataset crello --variant ours-exp-ft --asset-dir .cache/flex-dm/original --output-dir .cache/flex-dm/converted/flex-dm-crello
 ```
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/flex-dm/REPRODUCING.md) for the full original-implementation reference-generation and agreement-check workflow.

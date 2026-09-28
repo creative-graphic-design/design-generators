@@ -48,7 +48,7 @@ above preserve those per-dataset and per-condition recipes.
 1. Download the public LayoutFormer++ checkpoints and vocabulary files into `.cache/layoutformerpp/original`.
 
 ```bash
-uv run --package layoutformerpp python models/layoutformerpp/scripts/download_original.py \
+uv run --package layoutformerpp models/layoutformerpp/scripts/download_original.py \
   --output-dir .cache/layoutformerpp/original \
   --allow-pattern "ckpts/**/final_checkpoint.pth.tar" \
   --allow-pattern "ckpts/**/vocab.json"
@@ -59,7 +59,7 @@ uv run --package layoutformerpp python models/layoutformerpp/scripts/download_or
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    uv run --package layoutformerpp python models/layoutformerpp/scripts/export_reference.py \
+    uv run --package layoutformerpp models/layoutformerpp/scripts/export_reference.py \
       --dataset "$dataset" \
       --task "$task" \
       --seed 500 \
@@ -83,7 +83,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutformerpp pytest \
 ```bash
 for dataset in rico publaynet; do
   for task in gen_t gen_ts gen_r refinement completion ugen; do
-    uv run --package layoutformerpp python models/layoutformerpp/scripts/convert_checkpoint.py \
+    uv run --package layoutformerpp models/layoutformerpp/scripts/convert_checkpoint.py \
       --checkpoint ".cache/layoutformerpp/original/ckpts/${dataset}_${task}/final_checkpoint.pth.tar" \
       --dataset "$dataset" \
       --task "$task" \
@@ -95,7 +95,7 @@ done
 5. Smoke-test `from_pretrained` from every converted artifact.
 
 ```bash
-uv run --package layoutformerpp python models/layoutformerpp/scripts/smoke_from_pretrained.py \
+uv run --package layoutformerpp models/layoutformerpp/scripts/smoke_from_pretrained.py \
   --path .cache/layoutformerpp/converted/rico_gen_t \
   --path .cache/layoutformerpp/converted/rico_gen_ts \
   --path .cache/layoutformerpp/converted/rico_gen_r \

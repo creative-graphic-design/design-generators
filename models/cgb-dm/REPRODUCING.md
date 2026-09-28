@@ -7,13 +7,13 @@ Workflow order: download assets, generate references, run parity checks, convert
 ### 1. Download Original Assets
 
 ```bash
-uv run --package cgb-dm python models/cgb-dm/scripts/download_original_assets.py
+uv run --package cgb-dm models/cgb-dm/scripts/download_original_assets.py
 ```
 
 ### 2. Generate Golden Reference Metadata
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm python models/cgb-dm/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=0 uv run --package cgb-dm models/cgb-dm/scripts/generate_reference_outputs.py \
   --dataset pku_posterlayout \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
@@ -33,8 +33,8 @@ uv run --package cgb-dm --extra vendor --with pytz \
 ### 4. Convert Checkpoints And Smoke Test from_pretrained
 
 ```bash
-uv run --package cgb-dm python models/cgb-dm/scripts/convert_training_checkpoint.py --checkpoint .cache/cgb-dm/checkpoints/example.ckpt --output-dir .cache/cgb-dm/converted/pku
-uv run --package cgb-dm python models/cgb-dm/scripts/smoke_from_pretrained.py --path .cache/cgb-dm/converted/pku
+uv run --package cgb-dm models/cgb-dm/scripts/convert_training_checkpoint.py --checkpoint .cache/cgb-dm/checkpoints/example.ckpt --output-dir .cache/cgb-dm/converted/pku
+uv run --package cgb-dm models/cgb-dm/scripts/smoke_from_pretrained.py --path .cache/cgb-dm/converted/pku
 ```
 
 Full PKU and CGL S5 generated-metric results are recorded in

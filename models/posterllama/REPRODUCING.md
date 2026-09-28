@@ -12,14 +12,14 @@ artifacts are written under `.cache/posterllama`.
 ## Metadata Inspection
 
 ```bash
-uv run --package posterllama python models/posterllama/scripts/download_original_assets.py
+uv run --package posterllama models/posterllama/scripts/download_original_assets.py
 ```
 
 Add `--download` only when the raw checkpoint may be fetched into the local
 cache:
 
 ```bash
-uv run --package posterllama python models/posterllama/scripts/download_original_assets.py \
+uv run --package posterllama models/posterllama/scripts/download_original_assets.py \
   --download \
   --cache-dir ./.cache/posterllama/original
 ```
@@ -55,7 +55,7 @@ path, image root, JSONL input, fixed seed, and one selected GPU.
 ## Conversion And Smoke
 
 ```bash
-uv run --package posterllama python models/posterllama/scripts/convert_original_checkpoint.py \
+uv run --package posterllama models/posterllama/scripts/convert_original_checkpoint.py \
   --checkpoint-path ./.cache/posterllama/original/pytorch_model.bin \
   --base-llm-path ./models/codeLlama-7b-hf \
   --output-dir ./.cache/posterllama/converted \
@@ -63,6 +63,6 @@ uv run --package posterllama python models/posterllama/scripts/convert_original_
 ```
 
 ```bash
-uv run --package posterllama python models/posterllama/scripts/smoke_from_pretrained.py \
+uv run --package posterllama models/posterllama/scripts/smoke_from_pretrained.py \
   ./.cache/posterllama/converted
 ```

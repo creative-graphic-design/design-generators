@@ -197,7 +197,7 @@ LayoutPrompter serializes few-shot exemplars, calls a configured `pydantic-ai` m
 The reference implementation is Microsoft LayoutGeneration, under `vendor/ms-layout-generation/LayoutPrompter` when the original source is available in this repository. The demo script uses a tiny synthetic WebUI-style example:
 
 ```bash
-uv run --package layoutprompter python models/layoutprompter/scripts/demo.py
+uv run --package layoutprompter models/layoutprompter/scripts/demo.py
 ```
 
 Without `OPENAI_API_KEY`, the demo exits with a skip message.

@@ -201,6 +201,6 @@ uv run --package layout-dm --extra convert \
 Smoke-test local loading.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/smoke_from_pretrained.py \
+uv run --package layout-dm models/layout-dm/scripts/smoke_from_pretrained.py \
   --model-dir .cache/layout-dm/converted/layoutdm-rico25
 ```

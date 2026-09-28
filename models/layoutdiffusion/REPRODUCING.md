@@ -66,7 +66,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutdiffusion pytest \
 ### 5. Smoke-Test Local Loading
 
 ```bash
-uv run --package layoutdiffusion python models/layoutdiffusion/scripts/smoke_from_pretrained.py \
+uv run --package layoutdiffusion models/layoutdiffusion/scripts/smoke_from_pretrained.py \
   --path .cache/layoutdiffusion/converted/layoutdiffusion-rico25 \
   --path .cache/layoutdiffusion/converted/layoutdiffusion-publaynet
 ```

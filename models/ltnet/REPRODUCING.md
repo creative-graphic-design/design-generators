@@ -17,7 +17,7 @@ git submodule update --init vendor/layout-transformer
 This downloads the original Google Drive folder. The repo-local cache location used by later steps is `.cache/ltnet/vendor`.
 
 ```bash
-uv run --package ltnet python models/ltnet/scripts/download_weights.py \
+uv run --package ltnet models/ltnet/scripts/download_weights.py \
   --output-dir .cache/ltnet/vendor
 ```
 
@@ -103,7 +103,7 @@ CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package ltnet --extra vendor \
 The conversion step writes [`🤗transformers`](https://huggingface.co/docs/transformers/index) checkpoint directories under `.cache/ltnet/converted/`.
 
 ```bash
-uv run --package ltnet python models/ltnet/scripts/convert_original_checkpoint.py \
+uv run --package ltnet models/ltnet/scripts/convert_original_checkpoint.py \
   --checkpoint-path .cache/ltnet/vendor/coco_F_seq2seq_v9_ablation_4/checkpoint_50_0.44139538748348955.pth \
   --cfg-path vendor/layout-transformer/configs/coco/coco_seq2seq_v9_ablation_4.yaml \
   --vocab-path .cache/ltnet/data/coco/object_pred_id2name.json \
@@ -112,7 +112,7 @@ uv run --package ltnet python models/ltnet/scripts/convert_original_checkpoint.p
 ```
 
 ```bash
-uv run --package ltnet python models/ltnet/scripts/convert_original_checkpoint.py \
+uv run --package ltnet models/ltnet/scripts/convert_original_checkpoint.py \
   --checkpoint-path .cache/ltnet/vendor/vg_msdn_F_seq2seq_v24/checkpoint_50_0.16316922369277578.pth \
   --cfg-path vendor/layout-transformer/configs/vg_msdn/vg_msdn_seq2seq_v24.yaml \
   --vocab-path .cache/ltnet/data/vg_msdn/visual_genome/object_pred_id2name.json \
@@ -145,7 +145,7 @@ Expected result with the fixtures above:
 Smoke test both converted checkpoints:
 
 ```bash
-uv run --package ltnet python models/ltnet/scripts/smoke_from_pretrained.py \
+uv run --package ltnet models/ltnet/scripts/smoke_from_pretrained.py \
   --path .cache/ltnet/converted/coco \
   --path .cache/ltnet/converted/vg_msdn
 ```
