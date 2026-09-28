@@ -54,7 +54,7 @@ repos:
 
       - id: uv-run-python-script-form
         name: uv run Python scripts directly
-        entry: 'uv run(?:[^\n`]|\\\n|"\s*\n\s*")*? python (?:"\s*\n\s*"|\\\n[ \t]*)?[^\s-]\S*\x2epy(?!\w)'
+        entry: 'uv run(?:[^\n`]|\\\n|"\s*\n\s*[frb]?")*?(?: |"\s*\n\s*[frb]?")python (?:"\s*\n\s*[frb]?"|\\\n[ \t]*)?[^\s-](?:[^\s"\n]|"\s*\n\s*[frb]?")*?\x2epy(?!\w)'
         args: [--multiline]
         language: pygrep
         types: [text]
