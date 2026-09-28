@@ -256,7 +256,10 @@ jobs:
 
       - name: Install root-tooling dependencies
         run: |
-          uv sync --package design-generators --group dev
+          uv sync --package design-generators --group dev --extra evaluation
+
+      - name: Smoke test evaluation extra
+        run: uv run --no-sync --package design-generators python -c "import evaluate, prdc, pytorch_fid"
 
       - name: Assert root environment excludes workspace members
         run: uv pip list --editable --format json | jq -e 'map(.name) == []'

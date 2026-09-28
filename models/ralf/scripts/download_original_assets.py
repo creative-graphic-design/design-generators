@@ -58,7 +58,7 @@ def main() -> None:
             import gdown
         except ImportError as exc:
             raise ImportError(
-                "Install the root download extra or gdown to use --download"
+                "Install the RALF package's download extra or gdown to use --download"
             ) from exc
         gdown.download(id=GOOGLE_DRIVE_ID, output=str(args.zip_path), quiet=False)
     if args.unzip:
