@@ -259,37 +259,7 @@ jobs:
           uv sync --package design-generators --group dev
 
       - name: Assert root environment excludes workspace members
-        run: |
-          uv pip list --format json |
-            uv run --no-sync --package design-generators python -c '
-          import json
-          import sys
-          import tomllib
-          from pathlib import Path
-
-          config = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
-          member_names = {
-              tomllib.loads(
-                  (member / "pyproject.toml").read_text(encoding="utf-8")
-              )["project"]["name"].lower().replace("_", "-")
-              for pattern in config["tool"]["uv"]["workspace"]["members"]
-              for member in Path(".").glob(pattern)
-          }
-          installed_names = {
-              item["name"].lower().replace("_", "-")
-              for item in json.load(sys.stdin)
-          }
-          installed_members = sorted(member_names & installed_names)
-          if installed_members:
-              print(
-                  "Workspace-member distributions installed: "
-                  + ", ".join(installed_members),
-                  file=sys.stderr,
-              )
-              raise SystemExit(1)
-          print("Workspace-member distributions installed: none")
-          print("transformers, torch, and torchvision remain allowed root dependencies.")
-          '
+        run: uv pip list --editable --format json | jq -e 'map(.name) == []'
 
       - name: Run root tests
         run: |
