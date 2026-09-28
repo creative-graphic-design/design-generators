@@ -99,7 +99,7 @@ conflicts = [
         { package = "housegan", extra = "vendor" },
         { package = "smarttext", extra = "vendor" },
     ],
-    # housegan[vendor] pins networkx==2.4; flex-dm[vendor-tf] -> torch>=2.9 -> networkx>=2.5.1.
+    # housegan[vendor] pins networkx==2.4; flex-dm[vendor-tf] -> tensorflow[and-cuda]==2.15.1 pins nvidia-cublas-cu12==12.2.5.6 and nvidia-cusparse-cu12==12.1.2.141, conflicting with torch<=2.10 and forcing torch>=2.9 -> networkx>=2.5.1.
     [
         { package = "housegan", extra = "vendor" },
         { package = "flex-dm", extra = "vendor-tf" },

@@ -58,7 +58,9 @@ def main() -> None:
             import gdown
         except ImportError as exc:
             raise ImportError(
-                "Install the RALF package's download extra or gdown to use --download"
+                "Run uv run --package ralf --extra download python "
+                "models/ralf/scripts/download_original_assets.py --download "
+                "to use gdown"
             ) from exc
         gdown.download(id=GOOGLE_DRIVE_ID, output=str(args.zip_path), quiet=False)
     if args.unzip:

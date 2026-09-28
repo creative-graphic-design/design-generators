@@ -7,7 +7,7 @@ tags:
 
 # Getting Started
 
-Install workspace members from the repository root with `uv`. The root project coordinates repository tooling and applies workspace-wide tier-1 version constraints; it installs no runtime dependencies by default. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so runtime dependencies, extras, and dependency source mappings resolve correctly.
+Install workspace members from the repository root with `uv`. The root project coordinates repository tooling and applies workspace-wide `transformers` and `diffusers` version floors; it installs no runtime dependencies by default. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so runtime dependencies, extras, and dependency source mappings resolve correctly.
 
 ## Install
 
