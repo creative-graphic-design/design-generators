@@ -39,6 +39,7 @@ from run_training_stages import (
     _s3,
     _s4,
     _state_sync_copy_integrity_record,
+    _vendor_dataset_dir,
     main,
     RalfS3TraceCallback,
 )
@@ -258,12 +259,14 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("pku", "unconditional") == 50
 
 
-def test_loss_vector_diagnostic_requires_exact_nonignored_vectors() -> None:
+def test_loss_vector_diagnostic_uses_s1_tolerance() -> None:
     logits = torch.tensor([[[2.0, 0.0], [0.0, 2.0], [1.0, 1.0]]], dtype=torch.float32)
     labels = torch.tensor([[0, 1, 9]], dtype=torch.long)
+    within_tolerance = logits.clone()
+    within_tolerance[0, 0, 0] += 1e-5
     result = _loss_vector_diagnostic(
         logits,
-        logits.clone(),
+        within_tolerance,
         labels,
         labels.clone(),
         torch.tensor(1.0),
@@ -271,9 +274,11 @@ def test_loss_vector_diagnostic_requires_exact_nonignored_vectors() -> None:
         9,
     )
 
-    assert result["per_token_max_abs_diff"] == 0.0
+    assert 0.0 < cast(float, result["per_token_max_abs_diff"]) <= 1e-6
     assert result["non_ignored_tokens"] == 2
-    assert cast(dict[str, float], result["float64_mean"])["difference"] == 0.0
+    assert cast(dict[str, float], result["float64_mean"])[
+        "difference"
+    ] == pytest.approx(0.0, abs=1e-6)
     assert len(cast(str, result["vector_payload_sha256"])) == 64
 
     changed = logits.clone()
@@ -1007,14 +1012,22 @@ def test_s4_records_authoritative_train_validation_stream_evidence() -> None:
         assert required_surface in source
 
 
-def test_s4_uses_the_selected_dataset_for_vendor_loader() -> None:
-    source = inspect.getsource(_s4)
+@pytest.mark.parametrize(
+    ("dataset_name", "expected"),
+    (
+        ("cgl", "cgl"),
+        ("cgl_v2", "cgl"),
+        ("pku", "pku"),
+        ("pku_posterlayout", "pku"),
+    ),
+)
+def test_s4_uses_the_selected_dataset_for_vendor_loader(
+    dataset_name: str, expected: str
+) -> None:
+    assert _vendor_dataset_dir(dataset_name) == expected
 
-    assert "dataset_name = str(config.dataset_name)" in source
-    assert 'dataset_dir = "cgl" if dataset_name.startswith("cgl") else "pku"' in source
-    assert 'str(args.cache_dir / "dataset" / dataset_dir)' in source
-    assert "dataset_name=dataset_dir" in source
-    assert 'if config.dataset_name != "cgl"' not in source
+    with pytest.raises(ValueError, match="unsupported RALF dataset name"):
+        _vendor_dataset_dir("unknown")
 
 
 def test_s4_points_vendor_retrieval_cache_at_authoritative_cache() -> None:

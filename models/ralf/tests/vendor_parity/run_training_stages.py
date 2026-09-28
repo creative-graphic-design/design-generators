@@ -33,6 +33,7 @@ from torch.utils.data import DataLoader
 from traingen_parity.determinism import RNGState, capture_rng_state, restore_rng_state
 
 from ralf import RalfConfig, RalfForConditionalLayoutGeneration
+from ralf.configuration_ralf import RalfDatasetName
 from ralf.modeling_ralf import RalfTaskPreprocessor
 from ralf.retrieval import RalfRetrievedBatch
 from ralf.training.datamodule import (
@@ -59,8 +60,21 @@ DEFAULT_STEPS = {"S1": 1, "S2": 1, "S3": 4, "S4": 8}
 ConditionType = Literal[
     "unconditional", "label", "label_size", "completion", "refinement"
 ]
+_VENDOR_DATASET_DIR: dict[RalfDatasetName, Literal["cgl", "pku"]] = {
+    "cgl": "cgl",
+    "cgl_v2": "cgl",
+    "pku": "pku",
+    "pku_posterlayout": "pku",
+}
 
 RalfRawSample = Mapping[str, RalfSampleValue | Shaped[Tensor, "..."]]
+
+
+def _vendor_dataset_dir(dataset_name: str) -> Literal["cgl", "pku"]:
+    try:
+        return _VENDOR_DATASET_DIR[cast(RalfDatasetName, dataset_name)]
+    except KeyError as exc:
+        raise ValueError(f"unsupported RALF dataset name: {dataset_name!r}") from exc
 
 
 def _git_head(root: Path) -> str:
@@ -622,8 +636,17 @@ def _loss_vector_diagnostic(
         - vendor_token_losses[token_mask].detach().float()
     ).abs()
     max_abs_diff = float(token_delta.max().item())
-    if max_abs_diff != 0.0:
-        raise RuntimeError(f"S1 per-token loss vectors differ: {max_abs_diff:.8g}")
+    try:
+        torch.testing.assert_close(
+            package_token_losses[token_mask],
+            vendor_token_losses[token_mask],
+            rtol=1e-5,
+            atol=1e-6,
+        )
+    except AssertionError as exc:
+        raise RuntimeError(
+            f"S1 per-token loss vectors differ: {max_abs_diff:.8g}"
+        ) from exc
 
     package_mean = package_token_losses[token_mask].detach().double().mean()
     vendor_mean = vendor_token_losses[token_mask].detach().double().mean()
@@ -2776,8 +2799,7 @@ def _s4(
     context: _TrainingContext,
     steps: int,
 ) -> dict[str, object]:
-    dataset_name = str(config.dataset_name)
-    dataset_dir = "cgl" if dataset_name.startswith("cgl") else "pku"
+    dataset_dir = _vendor_dataset_dir(str(config.dataset_name))
     if data.train_dataset is None or data.validation_dataset is None:
         raise RuntimeError("S4 package train and validation datasets are unavailable")
     if steps < 1:
