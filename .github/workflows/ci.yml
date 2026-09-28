@@ -314,7 +314,7 @@ jobs:
         run: uv sync --package design-generators --extra evaluation
 
       - name: Run evaluation verifier help
-        run: uv run --no-sync --package design-generators python scripts/verify_evaluate_layout_metrics.py --help
+        run: uv run --no-sync --package design-generators scripts/verify_evaluate_layout_metrics.py --help
 
       - name: Smoke test evaluation imports
         run: uv run --no-sync --package design-generators python -c "import cv2, prdc, pytorch_fid.fid_score"
