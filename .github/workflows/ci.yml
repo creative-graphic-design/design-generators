@@ -255,11 +255,7 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Install root-tooling dependencies
-        run: |
-          uv sync --package design-generators --group dev --extra evaluation
-
-      - name: Smoke test evaluation extra
-        run: uv run --no-sync --package design-generators python -c "import evaluate, prdc, pytorch_fid"
+        run: uv sync --package design-generators --group dev
 
       - name: Assert root environment excludes workspace members
         run: uv pip list --editable --format json | jq -e 'map(.name) == []'
@@ -291,6 +287,37 @@ jobs:
           files: coverage-root/root.xml
           flags: root
           fail_ci_if_error: false
+
+  evaluation-extra-smoke:
+    name: Evaluation extra smoke
+    needs: changes
+    if: needs.changes.outputs.non_markdown == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install evaluation extra
+        run: uv sync --package design-generators --extra evaluation
+
+      - name: Run evaluation verifier help
+        run: uv run --no-sync --package design-generators python scripts/verify_evaluate_layout_metrics.py --help
+
+      - name: Smoke test evaluation imports
+        run: uv run --no-sync --package design-generators python -c "import cv2, prdc, pytorch_fid.fid_score"
 
   test-member:
     name: Test (member)
@@ -343,6 +370,7 @@ jobs:
     needs:
       - changes
       - test-root-tooling
+      - evaluation-extra-smoke
       - test-member
     if: always() && needs.changes.outputs.non_markdown == 'true'
     runs-on: ubuntu-latest
@@ -353,6 +381,11 @@ jobs:
         run: |
           if [ "${{ needs.test-root-tooling.result }}" != "success" ]; then
             echo "Test (root tooling) result: ${{ needs.test-root-tooling.result }}" >&2
+            exit 1
+          fi
+
+          if [ "${{ needs.evaluation-extra-smoke.result }}" != "success" ]; then
+            echo "Evaluation extra smoke result: ${{ needs.evaluation-extra-smoke.result }}" >&2
             exit 1
           fi
 
