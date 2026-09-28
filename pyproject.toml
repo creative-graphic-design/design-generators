@@ -11,17 +11,9 @@ requires-python = ">=3.11"
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
-dependencies = [
-    "transformers[torch,vision]>=5.0.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
-diffusion = [
-    "diffusers[torch]>=0.36.0",
-]
-download = [
-    "gdown>=6.1.0",
-]
 evaluation = [
     "evaluate",
     "jaxtyping",
@@ -31,13 +23,6 @@ evaluation = [
     "prdc",
     "pytorch-fid",
     "torch",
-]
-llm-agent = [
-    "pydantic-ai>=2.7.0",
-]
-training = [
-    "traingen",
-    "traingen-parity",
 ]
 
 [dependency-groups]
@@ -59,119 +44,65 @@ docs = [
 ]
 
 [tool.uv]
-# NOTE: flex-dm[vendor-tf] and flex-dm[convert] pin TensorFlow 2.15.1, which
-# requires protobuf<5, while the pydantic-ai/logfire stacks below currently
-# require protobuf>=5.
-# These conflicts can be removed once the TF/vendor runtime supports protobuf>=5
-# or the pydantic-ai/logfire stacks no longer require protobuf>=5.
+constraint-dependencies = [
+    "transformers>=5.0.0",
+    "diffusers>=0.36.0",
+]
 conflicts = [
+    # basnet[vendor] -> scikit-image>=0.21 -> networkx>=2.8; housegan[vendor] pins networkx==2.4.
     [
         { package = "basnet", extra = "vendor" },
         { package = "housegan", extra = "vendor" },
     ],
-    [
-        { package = "design-generators", extra = "llm-agent" },
-        { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "design-generators", extra = "llm-agent" },
-        { package = "flex-dm", extra = "convert" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "flex-dm", extra = "convert" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "housegan", extra = "vendor" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "layoutprompter", extra = "vendor" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "ralf", extra = "vendor" },
-    ],
-    [
-        { package = "design-generators", extra = "evaluation" },
-        { package = "smarttext", extra = "vendor" },
-    ],
-    [
-        { package = "design-generators" },
-        { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "design-generators" },
-        { package = "flex-dm", extra = "convert" },
-    ],
+    # laygen[agents] -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[vendor-tf] -> TensorFlow 2.15.1 -> protobuf<5.
     [
         { package = "laygen", extra = "agents" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # laygen[agents] -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5.
     [
         { package = "laygen", extra = "agents" },
         { package = "flex-dm", extra = "convert" },
     ],
+    # layout-gpt -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[vendor-tf] -> TensorFlow 2.15.1 -> protobuf<5.
     [
         { package = "layout-gpt" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # layout-gpt -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5.
     [
         { package = "layout-gpt" },
         { package = "flex-dm", extra = "convert" },
     ],
+    # layoutprompter -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[vendor-tf] -> TensorFlow 2.15.1 -> protobuf<5.
     [
         { package = "layoutprompter" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # layoutprompter -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5.
     [
         { package = "layoutprompter" },
         { package = "flex-dm", extra = "convert" },
     ],
+    # postero -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[vendor-tf] -> TensorFlow 2.15.1 -> protobuf<5.
     [
         { package = "postero" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # postero -> pydantic-ai>=2.7.0 -> protobuf>=5; flex-dm[convert] -> tensorflow-cpu 2.15.1 -> protobuf<5.
     [
         { package = "postero" },
         { package = "flex-dm", extra = "convert" },
     ],
-    [
-        { package = "posterllava" },
-        { package = "posterllava", extra = "vendor" },
-    ],
-    [
-        { package = "posterllava", extra = "vendor" },
-        { package = "ds-gan" },
-    ],
-    [
-        { package = "posterllava", extra = "vendor" },
-        { package = "ralf" },
-    ],
-    [
-        { package = "ds-gan" },
-        { package = "layout-detr", extra = "vendor" },
-    ],
-    [
-        { package = "ds-gan", extra = "download" },
-        { package = "layout-detr", extra = "vendor" },
-    ],
+    # housegan[vendor] pins networkx==2.4; smarttext[vendor] -> scikit-image>=0.21 -> networkx>=2.8.
     [
         { package = "housegan", extra = "vendor" },
         { package = "smarttext", extra = "vendor" },
     ],
+    # housegan[vendor] pins networkx==2.4; flex-dm[vendor-tf] -> tensorflow[and-cuda]==2.15.1 pins nvidia-cublas-cu12==12.2.5.6 and nvidia-cusparse-cu12==12.1.2.141, conflicting with torch<=2.10 and forcing torch>=2.9 -> networkx>=2.5.1.
     [
         { package = "housegan", extra = "vendor" },
         { package = "flex-dm", extra = "vendor-tf" },
-    ],
-    [
-        { package = "housegan", extra = "vendor" },
-        { package = "flex-dm", extra = "convert" },
     ],
 ]
 
