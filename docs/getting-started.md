@@ -7,7 +7,7 @@ tags:
 
 # Getting Started
 
-Install workspace members from the repository root with `uv`. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so extras and dependency source mappings resolve correctly.
+Install workspace members from the repository root with `uv`. The root workspace contains shared libraries under `lib/*` and model packages under `models/*`; member-specific commands should select the package so extras and dependency source mappings resolve correctly. Root base dependencies contain only `transformers[torch,vision]>=5.0.0`; workspace members install through `uv run --package <name>` or `uv sync --all-packages`.
 
 ## Install
 
@@ -16,6 +16,8 @@ git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --all-packages
 ```
+
+This full-checkout command installs every workspace member explicitly. `make setup` additionally installs the docs group and pre-commit hooks.
 
 For a narrower environment, install only the package you want to run.
 

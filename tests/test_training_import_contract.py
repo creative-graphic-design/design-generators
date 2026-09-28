@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
-import sys
+import tempfile
 import textwrap
 from dataclasses import dataclass
 
@@ -163,7 +164,25 @@ def _assert_training_import_contract(contract: TrainingImportContract) -> None:
         )
         """
     )
-    subprocess.run([sys.executable, "-c", script], check=True)
+    environment = os.environ.copy()
+    with tempfile.TemporaryDirectory() as member_environment:
+        environment["UV_PROJECT_ENVIRONMENT"] = member_environment
+        subprocess.run(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "--package",
+                contract.package_name.replace("_", "-"),
+                "--extra",
+                "training",
+                "python",
+                "-c",
+                script,
+            ],
+            check=True,
+            env=environment,
+        )
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=lambda value: value.package_name)
