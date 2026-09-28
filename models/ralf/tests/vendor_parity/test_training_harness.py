@@ -28,6 +28,7 @@ from run_training_stages import (
     _condition_type,
     _fresh_s3_run_root,
     _load_optimizer_state_without_hyperparameters,
+    _loss_vector_diagnostic,
     _natural_run_envelope,
     _recipe_epochs,
     _s3_child_import_gate,
@@ -38,6 +39,7 @@ from run_training_stages import (
     _s3,
     _s4,
     _state_sync_copy_integrity_record,
+    _vendor_dataset_dir,
     main,
     RalfS3TraceCallback,
 )
@@ -254,6 +256,43 @@ def test_recipe_epochs_follow_pinned_vendor_overrides() -> None:
     assert _recipe_epochs("cgl", "label_size") == 40
     assert _recipe_epochs("cgl", "completion") == 50
     assert _recipe_epochs("cgl", "refinement") == 35
+    assert _recipe_epochs("pku", "unconditional") == 50
+
+
+def test_loss_vector_diagnostic_uses_s1_tolerance() -> None:
+    logits = torch.tensor([[[2.0, 0.0], [0.0, 2.0], [1.0, 1.0]]], dtype=torch.float32)
+    labels = torch.tensor([[0, 1, 9]], dtype=torch.long)
+    within_tolerance = logits.clone()
+    within_tolerance[0, 0, 0] += 1e-5
+    result = _loss_vector_diagnostic(
+        logits,
+        within_tolerance,
+        labels,
+        labels.clone(),
+        torch.tensor(1.0),
+        torch.tensor(1.0),
+        9,
+    )
+
+    assert 0.0 < cast(float, result["per_token_max_abs_diff"]) <= 1e-6
+    assert result["non_ignored_tokens"] == 2
+    assert cast(dict[str, float], result["float64_mean"])[
+        "difference"
+    ] == pytest.approx(0.0, abs=1e-6)
+    assert len(cast(str, result["vector_payload_sha256"])) == 64
+
+    changed = logits.clone()
+    changed[0, 0, 0] += 1e-3
+    with pytest.raises(RuntimeError, match="per-token loss vectors differ"):
+        _loss_vector_diagnostic(
+            logits,
+            changed,
+            labels,
+            labels.clone(),
+            torch.tensor(1.0),
+            torch.tensor(1.0),
+            9,
+        )
 
 
 def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
@@ -971,6 +1010,24 @@ def test_s4_records_authoritative_train_validation_stream_evidence() -> None:
         '"vendor_stream_sha256"',
     ):
         assert required_surface in source
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "expected"),
+    (
+        ("cgl", "cgl"),
+        ("cgl_v2", "cgl"),
+        ("pku", "pku"),
+        ("pku_posterlayout", "pku"),
+    ),
+)
+def test_s4_uses_the_selected_dataset_for_vendor_loader(
+    dataset_name: str, expected: str
+) -> None:
+    assert _vendor_dataset_dir(dataset_name) == expected
+
+    with pytest.raises(ValueError, match="unsupported RALF dataset name"):
+        _vendor_dataset_dir("unknown")
 
 
 def test_s4_points_vendor_retrieval_cache_at_authoritative_cache() -> None:
