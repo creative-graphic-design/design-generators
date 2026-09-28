@@ -192,7 +192,7 @@ Convert a trained package checkpoint to a local Diffusers pipeline directory.
 
 ```bash
 uv run --package layout-dm --extra convert \
-  python models/layout-dm/scripts/convert_original_checkpoint.py \
+  models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/starter/layoutdm_starter \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25

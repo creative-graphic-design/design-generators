@@ -54,11 +54,10 @@ repos:
 
       - id: uv-run-python-script-form
         name: uv run Python scripts directly
-        entry: 'uv run(?: --[^\s]+(?: [^\s-][^\s]*)?)* python (?:(?:[^\s-][^\s]*\.py)|(?:\\[ \t]*\r?\n[ \t]*[^\s-][^\s]*\.py)|(?:"[ \t]*\r?\n[ \t]*"[^\s-][^\s]*\.py))(?=$|[\s`",;)\]])'
+        entry: 'uv run(?:[^\n`]|\\\n|"\s*\n\s*")*? python (?:"\s*\n\s*"|\\\n[ \t]*)?[^\s-]\S*\x2epy(?!\w)'
         args: [--multiline]
         language: pygrep
         types: [text]
-        exclude: '(^|/)vendor(/|$)'
 
       - id: duplicate-code
         name: duplicate code

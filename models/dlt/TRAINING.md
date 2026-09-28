@@ -240,7 +240,7 @@ Regenerate the PubLayNet original-implementation reference metadata.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
-  python models/dlt/scripts/generate_vendor_reference.py \
+  models/dlt/scripts/generate_vendor_reference.py \
   --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
   --workdir dlt-publaynet \
   --epoch 799 \
@@ -252,7 +252,7 @@ Re-run the accepted PubLayNet S5 evaluation.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
+  .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
   --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt \
   --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv \
   --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json \
@@ -264,7 +264,7 @@ Re-run the RICO13 S5 evaluation.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
+  .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
   --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt \
   --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json \
   --seeds 42 43 44 \
@@ -275,11 +275,11 @@ Convert and smoke-test a local checkpoint directory.
 
 ```bash
 uv run --package dlt \
-  python models/dlt/scripts/convert_original_checkpoint.py \
+  models/dlt/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
   --checkpoint-dir .cache/dlt/original/checkpoint-799 \
   --output-dir .cache/dlt/converted/publaynet
 uv run --package dlt \
-  python models/dlt/scripts/smoke_from_pretrained.py \
+  models/dlt/scripts/smoke_from_pretrained.py \
   --path .cache/dlt/converted/publaynet
 ```

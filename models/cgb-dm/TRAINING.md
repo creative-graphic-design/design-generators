@@ -190,7 +190,7 @@ Generate the PKU source-order manifest before starting a full training run.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm \
-  python models/cgb-dm/scripts/generate_reference_outputs.py \
+  models/cgb-dm/scripts/generate_reference_outputs.py \
   --dataset pku_posterlayout \
   --data-root .cache/cgb-dm/datasets/pku/split \
   --manifest-output .cache/cgb-dm/reference/pku_posterlayout_train_manifest.json
@@ -220,7 +220,7 @@ Re-run the package PKU checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --backend ours \
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
@@ -234,7 +234,7 @@ Re-run the reference PKU checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --backend reference \
   --repo-root "$PWD" \
   --data-root .cache/cgb-dm/datasets/pku/split \
@@ -248,7 +248,7 @@ Re-run the package CGL checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --dataset cgl \
   --backend ours \
   --repo-root "$PWD" \
@@ -263,7 +263,7 @@ Re-run the reference CGL checkpoint comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package cgb-dm --extra vendor --with pytz \
-  python models/cgb-dm/scripts/evaluate_full_run.py \
+  models/cgb-dm/scripts/evaluate_full_run.py \
   --dataset cgl \
   --backend reference \
   --repo-root "$PWD" \

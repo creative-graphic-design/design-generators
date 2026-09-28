@@ -34,7 +34,7 @@ uv run --package posterllama pytest models/posterllama/tests -m "not vendor_pari
 
 ```bash
 uv run --package posterllama \
-  python models/posterllama/scripts/generate_prompt_parser_references.py \
+  models/posterllama/scripts/generate_prompt_parser_references.py \
     --source-root ./vendor/posterllama \
     --output-json ./.cache/posterllama/reference/prompt_parser.json
 ```

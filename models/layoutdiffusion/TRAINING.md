@@ -153,10 +153,10 @@ Generate lightweight package S3/S4 evidence artifacts for a synthetic smoke stre
 
 ```bash
 TRANSFORMERS_NO_TORCHVISION=1 uv run --package layoutdiffusion --extra training \
-  python models/layoutdiffusion/scripts/generate_training_gate_evidence.py \
+  models/layoutdiffusion/scripts/generate_training_gate_evidence.py \
   --dataset publaynet --steps 3
 TRANSFORMERS_NO_TORCHVISION=1 uv run --package layoutdiffusion --extra training \
-  python models/layoutdiffusion/scripts/generate_training_gate_evidence.py \
+  models/layoutdiffusion/scripts/generate_training_gate_evidence.py \
   --dataset publaynet \
   --processed-data-dir .cache/layoutdiffusion/original-data \
   --steps 3
@@ -279,7 +279,7 @@ Export unconditional samples from a package checkpoint (EMA weights) in the orig
 ```bash
 TRANSFORMERS_NO_TORCHVISION=1 CUDA_VISIBLE_DEVICES=<gpu-index> \
   uv run --package layoutdiffusion --extra training \
-  python models/layoutdiffusion/scripts/export_training_checkpoint_samples.py \
+  models/layoutdiffusion/scripts/export_training_checkpoint_samples.py \
   --checkpoint <run-root>/runs/package-<dataset>-seed<seed>/lightning_logs/version_0/checkpoints/last.ckpt \
   --dataset <dataset> --config <vendor-vocab-config.json> \
   --output .cache/layoutdiffusion/s5/eval/package-<dataset-dir>-seed<seed>/samples.json \

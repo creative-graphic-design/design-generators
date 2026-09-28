@@ -155,7 +155,7 @@ cd vendor/layout-flow
 CUDA_VISIBLE_DEVICES=<gpu-index> LAYOUTFLOW_EVAL_SEED=<42975|42976|42977> \
 TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 \
 uv run --project ../.. --package layout-flow --extra vendor --with rootutils \
-  python src/test.py \
+  src/test.py \
   checkpoint=../../.cache/layout-flow/full-run/<vendor-dataset>/checkpoints/last.ckpt \
   model=LayoutFlow dataset=<RICO|PubLayNet> task=uncond cond_mask=uncond \
   ode_solver=euler model.inference_steps=100 calc_miou=True multirun=False \

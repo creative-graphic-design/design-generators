@@ -17,7 +17,7 @@ device visible on your machine.
 git submodule update --init vendor/ms-layout-generation
 
 uv run --package layoutdiffusion --extra download \
-  python models/layoutdiffusion/scripts/download_original.py \
+  models/layoutdiffusion/scripts/download_original.py \
   --output-dir .cache/layoutdiffusion/original
 ```
 
@@ -28,7 +28,7 @@ This writes checkpoints under `.cache/layoutdiffusion/original/results/checkpoin
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layoutdiffusion --extra vendor \
   --with spacy --with pyyaml --with sacremoses \
-  python models/layoutdiffusion/scripts/generate_reference_outputs.py \
+  models/layoutdiffusion/scripts/generate_reference_outputs.py \
   --dataset all \
   --seed 101
 ```
@@ -40,7 +40,7 @@ spaCy tokenization and YAML config loading.
 
 ```bash
 uv run --package layoutdiffusion \
-  python models/layoutdiffusion/scripts/convert_original_checkpoint.py \
+  models/layoutdiffusion/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --checkpoint-dir .cache/layoutdiffusion/original/results/checkpoint/discrete_gaussian_pow2.5_aux_lex_ltrb_200_fine_4e5 \
   --checkpoint-name ema_0.9999_175000.pt \
@@ -49,7 +49,7 @@ uv run --package layoutdiffusion \
 
 ```bash
 uv run --package layoutdiffusion \
-  python models/layoutdiffusion/scripts/convert_original_checkpoint.py \
+  models/layoutdiffusion/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
   --checkpoint-dir .cache/layoutdiffusion/original/results/checkpoint/gaussian_refine_pow2.5_aux_lex_ltrb_200_5e5_pub \
   --checkpoint-name ema_0.9999_400000.pt \
