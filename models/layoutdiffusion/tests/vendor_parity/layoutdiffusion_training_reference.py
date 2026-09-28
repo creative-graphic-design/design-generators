@@ -14,8 +14,8 @@ from typing import Protocol, cast
 import torch
 from layoutdiffusion import LayoutDiffusionConfig
 from layoutdiffusion.training.dataset import LayoutDiffusionSyntheticDataset
+from layoutdiffusion.training.parity import TRACE_POINTS
 from layoutdiffusion.training.vocab import build_training_tokenizer
-from laygen.common.training import LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 from torch.utils.data import DataLoader
 from traingen_parity.trace import StepTrace, build_step_trace
 from transformers import BertConfig
@@ -36,9 +36,6 @@ class _TraceableOriginalDiffusion(Protocol):
         [torch.Tensor, torch.nn.Module, torch.Tensor, torch.Tensor], torch.Tensor
     ]
     q_posterior: Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]
-
-
-TRACE_POINTS: tuple[str, ...] = LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 
 
 def tiny_training_config(dataset_name: str) -> LayoutDiffusionConfig:
@@ -242,6 +239,7 @@ def generate_reference_fixture(
         .cpu(),
         "train_loss": train_loss.detach().cpu(),
     }
+    assert tuple(trace_tensors) == TRACE_POINTS
     trace = build_step_trace(
         "layoutdiffusion_original_train_loop_step",
         trace_tensors,
