@@ -1,4 +1,4 @@
-"""DLT trace-point names for shared S0-S2 parity helpers."""
+"""Trace-point names DLT records in a training step for package-versus-reference parity checks."""
 
 from __future__ import annotations
 
