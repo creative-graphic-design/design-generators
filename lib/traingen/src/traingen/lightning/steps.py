@@ -1,14 +1,13 @@
-"""Shared training-step helpers for layout generator Lightning modules."""
+"""Generic Lightning training-step logging and reduction helpers."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
-from jaxtyping import Float, Shaped
+import torch
 
-if TYPE_CHECKING:
-    import torch
+tensor_type = torch.Tensor
 
 
 class ScalarLogger(Protocol):
@@ -17,7 +16,7 @@ class ScalarLogger(Protocol):
     def log(
         self,
         name: str,
-        value: Float[torch.Tensor, ""],
+        value: tensor_type,
         *,
         prog_bar: bool = False,
         on_step: bool | None = None,
@@ -37,9 +36,7 @@ class ScalarLogger(Protocol):
         _ = (name, value, prog_bar, on_step, on_epoch, batch_size)
 
 
-def sum_loss_values(
-    losses: Mapping[str, Float[torch.Tensor, ""]],
-) -> Float[torch.Tensor, ""]:
+def sum_loss_values(losses: Mapping[str, tensor_type]) -> tensor_type:
     """Sum scalar loss values with the canonical training reduction.
 
     Args:
@@ -53,15 +50,13 @@ def sum_loss_values(
         >>> sum_loss_values({"a": torch.tensor(1.0), "b": torch.tensor(2.0)})
         tensor(3.)
     """
-    import torch
-
     return torch.stack(tuple(losses.values())).sum()
 
 
 def log_training_losses(
     logger: ScalarLogger,
-    losses: Mapping[str, Float[torch.Tensor, ""]],
-    total: Float[torch.Tensor, ""],
+    losses: Mapping[str, tensor_type],
+    total: tensor_type,
     *,
     batch_size: int = 1,
 ) -> None:
@@ -78,6 +73,7 @@ def log_training_losses(
     """
     for key, value in losses.items():
         logger.log(key, value, on_step=True, on_epoch=True, batch_size=batch_size)
+
     logger.log(
         "train_loss",
         total,
@@ -90,11 +86,11 @@ def log_training_losses(
 
 def finish_training_step(
     logger: ScalarLogger,
-    losses: Mapping[str, Float[torch.Tensor, ""]],
-    trace: Mapping[str, Shaped[torch.Tensor, "..."]],
+    losses: Mapping[str, tensor_type],
+    trace: Mapping[str, tensor_type],
     *,
     batch_size: int = 1,
-) -> tuple[Float[torch.Tensor, ""], dict[str, Shaped[torch.Tensor, "..."]]]:
+) -> tuple[tensor_type, dict[str, tensor_type]]:
     """Reduce losses, log training metrics, and append ``train_loss`` to a trace.
 
     Args:
@@ -113,7 +109,7 @@ def finish_training_step(
 
 def log_validation_loss(
     logger: ScalarLogger,
-    total: Float[torch.Tensor, ""],
+    total: tensor_type,
     *,
     batch_size: int = 1,
 ) -> None:
