@@ -91,7 +91,7 @@ def main() -> None:
         )
         generate_command = (
             "uv run --package layoutdiffusion --extra vendor --with spacy --with pyyaml "
-            "--with sacremoses python "
+            "--with sacremoses "
             "models/layoutdiffusion/scripts/generate_reference_outputs.py"
         )
         cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")

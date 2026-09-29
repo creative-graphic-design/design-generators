@@ -9,14 +9,14 @@ Prerequisites: run from the repository root and use an environment with CUDA whe
 1. Download the original starter kit. This creates `.cache/layout-corrector/original/layout_corrector_starter.zip` and extracts `.cache/layout-corrector/original/layout_corrector_starter_kit/download`.
 
 ```bash
-uv run --package layout-corrector --extra download python models/layout-corrector/scripts/download_original.py \
+uv run --package layout-corrector --extra download models/layout-corrector/scripts/download_original.py \
   --output-dir .cache/layout-corrector/original
 ```
 
 2. Download the LayoutDM starter kit used by the nested LayoutDM parity fixtures. This creates `.cache/layout-dm/original/download`.
 
 ```bash
-uv run --package layout-dm --extra download python models/layout-dm/scripts/download_original.py \
+uv run --package layout-dm --extra download models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original
 ```
 
@@ -24,7 +24,7 @@ uv run --package layout-dm --extra download python models/layout-dm/scripts/down
 
 ```bash
 for dataset in rico25 publaynet; do
-  CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor python models/layout-dm/scripts/generate_reference_outputs.py \
+  CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-dm --extra vendor models/layout-dm/scripts/generate_reference_outputs.py \
     --dataset "${dataset}" \
     --starter-dir .cache/layout-dm/original/download \
     --output-dir "models/layout-dm/tests/vendor_parity/fixtures/${dataset}" \
@@ -38,7 +38,7 @@ done
 
 ```bash
 for dataset in rico25 publaynet; do
-  uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+  uv run --package layout-dm --extra convert models/layout-dm/scripts/convert_original_checkpoint.py \
     --dataset "${dataset}" \
     --starter-dir .cache/layout-dm/original/download \
     --output-dir ".cache/layout-corrector/converted/layoutdm/${dataset}/base"
@@ -73,13 +73,13 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layout-corrector --extra vendo
 6. Convert a Layout-Corrector checkpoint and run a `from_pretrained` smoke test.
 
 ```bash
-uv run --package layout-corrector --extra convert python models/layout-corrector/scripts/convert_original_checkpoint.py \
+uv run --package layout-corrector --extra convert models/layout-corrector/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download \
   --corrector-job-dir .cache/layout-corrector/original/layout_corrector_starter_kit/download/pretrained_weights/rico25/layout_corrector/0 \
   --layout-dm-dir .cache/layout-corrector/converted/layoutdm/rico25/0 \
   --output-dir .cache/layout-corrector/converted/layout-corrector-rico25-smoke
 
-uv run --package layout-corrector python models/layout-corrector/scripts/smoke_from_pretrained.py \
+uv run --package layout-corrector models/layout-corrector/scripts/smoke_from_pretrained.py \
   --path .cache/layout-corrector/converted/layout-corrector-rico25-smoke
 ```

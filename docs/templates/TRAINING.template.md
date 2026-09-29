@@ -132,7 +132,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> \
 Convert a trained checkpoint.
 
 ```bash
-uv run --package <package> python models/<package>/scripts/convert_original_checkpoint.py \
+uv run --package <package> models/<package>/scripts/convert_original_checkpoint.py \
   --checkpoint .cache/<package>/training-runs/<dataset>/checkpoints/<checkpoint>.ckpt \
   --output-dir .cache/<package>/converted-trained/<dataset>
 ```

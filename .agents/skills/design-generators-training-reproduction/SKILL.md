@@ -45,7 +45,7 @@ The durable package document must include a machine-readable `Stage Evidence` ta
 | S5 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 ```
 
-Run `uv run --package design-generators python scripts/check_training_stage_evidence.py` before opening or updating a PR that touches training reproduction docs.
+Run `uv run --package design-generators scripts/check_training_stage_evidence.py` before opening or updating a PR that touches training reproduction docs.
 
 ## Evidence Rules
 

@@ -35,10 +35,10 @@ For LayoutDM, run the minimal download and conversion commands from the reposito
 Use [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) to load the converted directory. Prompt-only packages use [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) for reusable configuration and exemplars.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/download_original.py \
+uv run --package layout-dm models/layout-dm/scripts/download_original.py \
   --output-dir .cache/layout-dm/original
 
-uv run --package layout-dm --extra convert python models/layout-dm/scripts/convert_original_checkpoint.py \
+uv run --package layout-dm --extra convert models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/original/download \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25

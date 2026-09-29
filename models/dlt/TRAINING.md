@@ -76,7 +76,7 @@ Magazine has no S5 run yet.
 | S2 | `CUDA_VISIBLE_DEVICES="" PARITY_REQUIRE=1 uv run --package dlt --extra training --extra vendor pytest models/dlt/tests/vendor_parity/test_dlt_training_parity.py -m "vendor_parity and training" -rs` | `models/dlt/tests/vendor_parity/test_dlt_training_parity.py` | One training-step loss definition is bit-identical; the S5 matched-batch diagnostic later confirmed `max_abs_ours_loss_def_delta=0.0`, `max_abs_l2_def_delta=0.0`, and `max_abs_ce_def_delta=0.0` on real PubLayNet batches. |
 | S3 | `CUDA_VISIBLE_DEVICES="" uv run --package dlt --extra training python -m traingen.lightning.cli fit --config models/dlt/configs/training/smoke.yaml` | `models/dlt/configs/training/smoke.yaml` | Deterministic CPU short run exercises LightningCLI class-path wiring, AdamW, per-step warmup-cosine scheduling, gradient clipping, synthetic data loading, and one train batch without checkpoint artifacts. |
 | S4 | `uv run --package dlt --extra training pytest models/dlt/tests/test_dlt_training.py -m training -q` | `models/dlt/tests/test_dlt_training.py` | HDF5 data loading, padding/filtering, per-access element shuffling, reference epoch-sampling RNG consumption, scheduler stepping, and trace adapter coverage are verified on local fixtures; the full PubLayNet data audit is recorded in `.cache/dlt/full-run/dlt_training_repro_primary_diagnosis.json`. |
-| S5 | `CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor python .cache/dlt/full-run/scripts/evaluate_s5_rico13.py --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json --seeds 42 43 44 --device cuda` | `.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json` | PubLayNet and RICO13 practical reproduction are accepted. PubLayNet cross residuals fall inside within-implementation seed variation, and RICO13 residuals are small, sign-reversing across seeds, and inside the PubLayNet seed-variance reference ranges. |
+| S5 | `CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor .cache/dlt/full-run/scripts/evaluate_s5_rico13.py --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json --seeds 42 43 44 --device cuda` | `.cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json` | PubLayNet and RICO13 practical reproduction are accepted. PubLayNet cross residuals fall inside within-implementation seed variation, and RICO13 residuals are small, sign-reversing across seeds, and inside the PubLayNet seed-variance reference ranges. |
 
 ## Reproduction Results
 
@@ -240,7 +240,7 @@ Regenerate the PubLayNet original-implementation reference metadata.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra vendor \
-  python models/dlt/scripts/generate_vendor_reference.py \
+  models/dlt/scripts/generate_vendor_reference.py \
   --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
   --workdir dlt-publaynet \
   --epoch 799 \
@@ -252,7 +252,7 @@ Re-run the accepted PubLayNet S5 evaluation.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
+  .cache/dlt/full-run/scripts/run_s5_publaynet_lr_step.py \
   --ours-checkpoint .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/checkpoints/final-epoch799.ckpt \
   --ours-curve .cache/dlt/full-run/ours-publaynet-reference-callback-seed42/csv/csv/version_0/metrics.csv \
   --output .cache/dlt/full-run/s5-evaluation-reference-callback-seed42/results.json \
@@ -264,7 +264,7 @@ Re-run the RICO13 S5 evaluation.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-id> uv run --package dlt --extra training --extra vendor \
-  python .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
+  .cache/dlt/full-run/scripts/evaluate_s5_rico13.py \
   --ours-checkpoint .cache/dlt/full-run/ours-rico13/checkpoints/final-epoch799.ckpt \
   --output .cache/dlt/full-run/s5-evaluation-rico13/vendor-vs-package.json \
   --seeds 42 43 44 \
@@ -275,11 +275,11 @@ Convert and smoke-test a local checkpoint directory.
 
 ```bash
 uv run --package dlt \
-  python models/dlt/scripts/convert_original_checkpoint.py \
+  models/dlt/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
   --checkpoint-dir .cache/dlt/original/checkpoint-799 \
   --output-dir .cache/dlt/converted/publaynet
 uv run --package dlt \
-  python models/dlt/scripts/smoke_from_pretrained.py \
+  models/dlt/scripts/smoke_from_pretrained.py \
   --path .cache/dlt/converted/publaynet
 ```

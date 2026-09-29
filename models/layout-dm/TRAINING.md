@@ -192,7 +192,7 @@ Convert a trained package checkpoint to a local Diffusers pipeline directory.
 
 ```bash
 uv run --package layout-dm --extra convert \
-  python models/layout-dm/scripts/convert_original_checkpoint.py \
+  models/layout-dm/scripts/convert_original_checkpoint.py \
   --dataset rico25 \
   --starter-dir .cache/layout-dm/starter/layoutdm_starter \
   --output-dir .cache/layout-dm/converted/layoutdm-rico25
@@ -201,6 +201,6 @@ uv run --package layout-dm --extra convert \
 Smoke-test local loading.
 
 ```bash
-uv run --package layout-dm python models/layout-dm/scripts/smoke_from_pretrained.py \
+uv run --package layout-dm models/layout-dm/scripts/smoke_from_pretrained.py \
   --model-dir .cache/layout-dm/converted/layoutdm-rico25
 ```

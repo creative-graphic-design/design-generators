@@ -15,7 +15,7 @@ Regenerate references with:
 ```bash
 CUDA_VISIBLE_DEVICES=2 uv run --package layoutdiffusion --extra vendor \
   --with spacy --with pyyaml --with sacremoses \
-  python models/layoutdiffusion/scripts/generate_reference_outputs.py \
+  models/layoutdiffusion/scripts/generate_reference_outputs.py \
   --dataset all \
   --seed 101
 ```

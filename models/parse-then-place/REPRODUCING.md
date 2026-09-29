@@ -9,14 +9,14 @@ Run commands from the repository root. Set `CUDA_VISIBLE_DEVICES=<gpu-index>` to
 1. Download the original assets. This writes `.cache/parse-then-place/assets`, including the expected `ckpt/rico/stage1/pytorch_model.bin` parser state and stage-2 placement checkpoints.
 
 ```bash
-uv run --package parse-then-place python models/parse-then-place/scripts/download_original_assets.py \
+uv run --package parse-then-place models/parse-then-place/scripts/download_original_assets.py \
   --output-dir .cache/parse-then-place/assets
 ```
 
 2. Generate fixed-seed vendor reference outputs for the RICO finetune placement model.
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package parse-then-place python models/parse-then-place/scripts/generate_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package parse-then-place models/parse-then-place/scripts/generate_reference_outputs.py \
   --original-root .cache/parse-then-place/assets \
   --dataset-name rico \
   --stage2-mode finetune \
@@ -36,7 +36,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> PARSE_THEN_PLACE_ORIGINAL_ROOT=.cache/parse-the
 4. Convert the RICO finetune checkpoint into local [`🤗transformers`](https://huggingface.co/docs/transformers/index) pipeline format.
 
 ```bash
-uv run --package parse-then-place python models/parse-then-place/scripts/convert_original_checkpoint.py \
+uv run --package parse-then-place models/parse-then-place/scripts/convert_original_checkpoint.py \
   --original-root .cache/parse-then-place/assets \
   --dataset-name rico \
   --stage2-mode finetune \
@@ -47,6 +47,6 @@ uv run --package parse-then-place python models/parse-then-place/scripts/convert
 5. Smoke-test local `from_pretrained` loading.
 
 ```bash
-uv run --package parse-then-place python models/parse-then-place/scripts/smoke_from_pretrained.py \
+uv run --package parse-then-place models/parse-then-place/scripts/smoke_from_pretrained.py \
   --path .cache/parse-then-place/converted/rico-finetune
 ```
