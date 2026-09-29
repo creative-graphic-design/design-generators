@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Protocol, TypeAlias
+from typing import Protocol, TypeAlias, TypeVar
 
 import torch
 from jaxtyping import Float, Shaped
@@ -12,13 +12,14 @@ from jaxtyping import Float, Shaped
 from .determinism import RNGState, restore_rng_state
 
 TraceMetadata: TypeAlias = dict[str, object]
+BatchT = TypeVar("BatchT", contravariant=True)
 
 
-class TrainingStepModule(Protocol):
+class TrainingStepModule(Protocol[BatchT]):
     """Protocol for objects that expose a Lightning-like training step."""
 
     def training_step(
-        self, batch: dict[str, Shaped[torch.Tensor, "..."]], batch_idx: int
+        self, batch: BatchT, batch_idx: int
     ) -> Shaped[torch.Tensor, "..."]:
         """Run one training step."""
 
@@ -134,8 +135,8 @@ def build_step_trace(
 
 
 def trace_training_step(
-    module: TrainingStepModule,
-    batch: dict[str, Shaped[torch.Tensor, "..."]],
+    module: TrainingStepModule[BatchT],
+    batch: BatchT,
     rng_state: RNGState | None,
     trace_points: tuple[str, ...],
 ) -> StepTrace:

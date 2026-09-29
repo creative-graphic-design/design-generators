@@ -13,7 +13,8 @@ pytest.importorskip("lightning")
 
 from dlt.training.datamodule import DLTDataModule
 from dlt.training.lightning_module import DLTTrainingModule
-from dlt.training.parity import DLTSyntheticStepTraceAdapter
+from dlt.training.parity import TRACE_POINTS
+from traingen_parity import trace_training_step
 
 
 def _parameter_count(model: torch.nn.Module) -> int:
@@ -118,12 +119,10 @@ def test_dlt_package_model_topology_matches_vendor() -> None:
 
 @pytest.mark.vendor_parity
 @pytest.mark.training
-def test_dlt_synthetic_training_trace_adapter() -> None:
+def test_dlt_synthetic_training_trace() -> None:
     data = DLTDataModule(batch_size=2, length=2, max_num_comp=4, categories_num=7)
     batch = next(iter(data.train_dataloader()))
-    trace = DLTSyntheticStepTraceAdapter().trace_training_step(
-        tiny_training_module(), batch
-    )
+    trace = trace_training_step(tiny_training_module(), batch, None, TRACE_POINTS)
     assert "loss" in trace.tensors
     assert "pred_box" in trace.tensors
 

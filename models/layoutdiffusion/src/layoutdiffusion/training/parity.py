@@ -33,7 +33,7 @@ TRACE_POINTS: tuple[str, ...] = (
 
 
 def trace_layoutdiffusion_step(
-    module: TrainingStepModule,
+    module: TrainingStepModule[dict[str, Shaped[torch.Tensor, ...]]],
     batch: dict[str, Shaped[torch.Tensor, ...]],
     rng_state: RNGState | None = None,
 ) -> StepTrace:
