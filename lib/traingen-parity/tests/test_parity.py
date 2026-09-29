@@ -1,4 +1,7 @@
+from typing import TypedDict
+
 import torch
+from jaxtyping import Shaped
 
 from traingen_parity.compare import (
     compare_batch_stream,
@@ -17,6 +20,10 @@ from traingen_parity.trace import (
     scalar_trace_value,
     trace_training_step,
 )
+
+
+class _StructuredBatch(TypedDict):
+    values: Shaped[torch.Tensor, "items"]
 
 
 def test_rng_capture_restore_replays_torch_random_values() -> None:
@@ -71,3 +78,18 @@ def test_trace_training_step_reads_latest_step_trace() -> None:
     assert trace.tensors["x"].item() == 1.0
     assert trace.tensors["train_loss"].item() == 2.0
     assert scalar_trace_value(trace.tensors["train_loss"]) == 2.0
+
+
+def test_trace_training_step_accepts_structured_batch() -> None:
+    class Module:
+        def training_step(
+            self, batch: _StructuredBatch, batch_idx: int
+        ) -> Shaped[torch.Tensor, ""]:
+            del batch_idx
+            assert batch["values"].shape == (2,)
+            self.latest_step_trace = {"loss": torch.tensor(1.0)}
+            return torch.tensor(1.0)
+
+    batch: _StructuredBatch = {"values": torch.ones(2)}
+    trace = trace_training_step(Module(), batch, None, ("loss",))
+    assert tuple(trace.tensors) == ("loss",)

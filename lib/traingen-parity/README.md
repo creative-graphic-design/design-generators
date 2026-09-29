@@ -8,7 +8,7 @@
 
 `traingen-parity` contains deterministic training-parity primitives for comparing two training implementations in [design-generators](https://github.com/creative-graphic-design/design-generators). It records named tensors from one training step, captures and restores RNG state, applies deterministic runtime settings, and reports tensor differences for step traces, optimizer states, and dataloader streams.
 
-Keep package-specific trace-point selection in the model package. Use this library for shared comparison mechanics and reproducibility controls.
+Keep package-specific trace-point selection in the model package. The shared `trace_training_step()` primitive accepts model-owned structured batch types while this library remains agnostic to their schemas.
 
 The repository-wide methodology for S0-S5 training reproduction, topology guards, dataset coverage, seed policy, and evidence recording is defined in the [training reproduction protocol](docs/training-reproduction.md).
 
