@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import torch
 from jaxtyping import Shaped
-from laygen.common.training import LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 from traingen_parity.compare import (
     OptimizerStepReport,
     StepReport,
@@ -15,7 +14,22 @@ from traingen_parity.compare import (
 from traingen_parity.determinism import RNGState
 from traingen_parity.trace import StepTrace, TrainingStepModule, trace_training_step
 
-TRACE_POINTS: tuple[str, ...] = LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
+TRACE_POINTS: tuple[str, ...] = (
+    "t",
+    "pt",
+    "xt",
+    "log_x_t",
+    "log_x0_recon",
+    "log_model_prob",
+    "log_true_prob",
+    "kl",
+    "decoder_nll",
+    "kl_loss",
+    "lt_history",
+    "lt_count",
+    "aux_loss",
+    "train_loss",
+)
 
 
 def trace_layoutdiffusion_step(

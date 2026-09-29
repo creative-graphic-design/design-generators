@@ -3,29 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from jaxtyping import Float, Shaped
 
 if TYPE_CHECKING:
     import torch
-
-LAYOUTDIFFUSION_TRAINING_TRACE_POINTS: Final[tuple[str, ...]] = (
-    "t",
-    "pt",
-    "xt",
-    "log_x_t",
-    "log_x0_recon",
-    "log_model_prob",
-    "log_true_prob",
-    "kl",
-    "decoder_nll",
-    "kl_loss",
-    "lt_history",
-    "lt_count",
-    "aux_loss",
-    "train_loss",
-)
 
 
 class ScalarLogger(Protocol):

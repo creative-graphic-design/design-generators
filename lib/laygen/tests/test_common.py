@@ -776,15 +776,11 @@ def test_vendor_parity_missing_assets_fail_when_required(monkeypatch):
 
 def test_training_step_helpers_log_and_trace():
     from laygen.common.training import (
-        LAYOUTDIFFUSION_TRAINING_TRACE_POINTS,
         finish_training_step,
         log_training_losses,
         log_validation_loss,
         sum_loss_values,
     )
-
-    assert "train_loss" in LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
-    assert "kl_loss" in LAYOUTDIFFUSION_TRAINING_TRACE_POINTS
 
     losses = {"kl_loss": torch.tensor(2.0), "aux_loss": torch.tensor(0.5)}
     assert sum_loss_values(losses).item() == pytest.approx(2.5)
