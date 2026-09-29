@@ -2,6 +2,8 @@ from collections.abc import Callable
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 def load_checker() -> Callable[[Path], int]:
     script = (
@@ -38,6 +40,18 @@ def test_check_stage_codes_in_prose_rejects_comment(tmp_path: Path) -> None:
     assert check_stage_codes_in_prose(tmp_path) == 1
 
 
+def test_check_stage_codes_in_prose_handles_form_feed_in_comment(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        'x = 1 # a\x0cb\ndef example():\n    """S3 doc"""\n',
+    )
+
+    assert check_stage_codes_in_prose(tmp_path) == 1
+
+
 def test_check_stage_codes_in_prose_ignores_ordinary_string_literals(
     tmp_path: Path,
 ) -> None:
@@ -47,9 +61,25 @@ def test_check_stage_codes_in_prose_ignores_ordinary_string_literals(
 
 
 def test_check_stage_codes_in_prose_ignores_identifiers(tmp_path: Path) -> None:
-    write_source(tmp_path, "models/example/src/example.py", "s3_s4_reference = 1\n")
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        "# see test_S0_config and S1E\n",
+    )
 
     assert check_stage_codes_in_prose(tmp_path) == 0
+
+
+def test_check_stage_codes_in_prose_reports_syntax_errors(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    write_source(tmp_path, "models/example/src/example.py", "def broken(:\n")
+
+    assert check_stage_codes_in_prose(tmp_path) == 1
+    assert capsys.readouterr().err == (
+        "models/example/src/example.py:1: syntax error: invalid syntax\n"
+    )
 
 
 def test_check_stage_codes_in_prose_ignores_vendor_paths(tmp_path: Path) -> None:

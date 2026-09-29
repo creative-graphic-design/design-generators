@@ -14,6 +14,7 @@ import re
 import sys
 import tokenize
 from pathlib import Path
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIRS = ("lib", "models")
@@ -47,17 +48,16 @@ def _docstring_spans(
     tree: ast.AST, source: str
 ) -> list[tuple[tuple[int, int], tuple[int, int]]]:
     """Return source spans for the first string statement of each docstring owner."""
-    source_lines = source.splitlines(keepends=True)
+    source_lines = io.StringIO(source).readlines()
     spans: list[tuple[tuple[int, int], tuple[int, int]]] = []
     for node in ast.walk(tree):
         if not isinstance(node, DOCSTRING_OWNERS):
             continue
 
-        body = getattr(node, "body", ())
-        if not body:
+        if not node.body:
             continue
 
-        first = body[0]
+        first = node.body[0]
         if not isinstance(first, ast.Expr):
             continue
 
@@ -66,16 +66,15 @@ def _docstring_spans(
         ):
             continue
 
-        if first.end_lineno is None or first.end_col_offset is None:
-            continue
-
+        end_line = cast(int, first.end_lineno)
+        end_column = cast(int, first.end_col_offset)
         start = (
             first.lineno,
             _character_column(source_lines, first.lineno, first.col_offset),
         )
         end = (
-            first.end_lineno,
-            _character_column(source_lines, first.end_lineno, first.end_col_offset),
+            end_line,
+            _character_column(source_lines, end_line, end_column),
         )
         spans.append((start, end))
 
@@ -93,7 +92,9 @@ def _in_span(
 
 def check_file(root: Path, path: Path) -> list[tuple[Path, int, str]]:
     """Return stage-code matches in comments and docstrings for one file."""
-    source = path.read_text(encoding="utf-8")
+    with tokenize.open(path) as source_file:
+        source = source_file.read()
+
     try:
         tree = ast.parse(source, filename=str(path))
     except SyntaxError as exc:
@@ -123,9 +124,22 @@ def check_stage_codes_in_prose(root: Path) -> int:
     if not reports:
         return 0
 
-    print("Training-reproduction stage codes in source-code prose:", file=sys.stderr)
-    for path, line, match in reports:
+    stage_code_reports = [
+        report for report in reports if not report[2].startswith("syntax error:")
+    ]
+    syntax_error_reports = [
+        report for report in reports if report[2].startswith("syntax error:")
+    ]
+    if stage_code_reports:
+        print(
+            "Training-reproduction stage codes in source-code prose:", file=sys.stderr
+        )
+
+    for path, line, match in stage_code_reports:
         print(f"{path}:{line}: {match}", file=sys.stderr)
+
+    for path, line, detail in syntax_error_reports:
+        print(f"{path}:{line}: {detail}", file=sys.stderr)
 
     return 1
 
