@@ -48,6 +48,24 @@ class MyLightningCLI(lightning_cli_class()):
     pass
 ```
 
+Use `traingen.lightning.steps` for generic Lightning loss reduction and logging in model training steps.
+
+```python
+from traingen.lightning.steps import finish_training_step, log_validation_loss
+
+
+def training_step(self, batch, batch_idx):
+    losses = self.compute_losses(batch)
+    total, self.latest_step_trace = finish_training_step(self, losses, {})
+    return total
+
+
+def validation_step(self, batch, batch_idx):
+    total = self.compute_validation_loss(batch)
+    log_validation_loss(self, total)
+    return total
+```
+
 ## Scope
 
 - Keep reusable training utilities here only when more than one package that trains models locally can use them.
