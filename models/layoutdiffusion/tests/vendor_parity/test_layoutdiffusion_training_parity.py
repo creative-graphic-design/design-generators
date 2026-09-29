@@ -233,8 +233,8 @@ def test_s0_training_static_tokenizer_matches_vendor_vocab(dataset_name: str) ->
     tokenizer = build_training_tokenizer(config, vocab_file=str(vendor_vocab_path))
     _require_paths(
         [vendor_vocab_path],
-        "LayoutDiffusion vendor S5 vocab artifact is missing.",
-        "Run the vendor S5 prelaunch or full-run command to write vocab.json.",
+        "LayoutDiffusion vocabulary artifact from the vendor full training run is missing.",
+        "Run the vendor full-training or prelaunch command to write vocab.json.",
     )
     vendor_vocab = {
         str(key): int(value)
@@ -338,7 +338,10 @@ def test_package_training_trace_matches_original_fixture(dataset_name: str) -> N
     trace_device = str(metadata.get("trace_device", "cpu"))
     if trace_device.startswith("cuda"):
         if not torch.cuda.is_available():
-            pytest.skip("CUDA is required for CUDA-generated S1 reference fixtures")
+            pytest.skip(
+                "CUDA is required for CUDA-generated single-step pre-optimizer "
+                "trace comparison reference fixtures"
+            )
         device = torch.device("cuda")
         module.to(device)
         batch = {
@@ -418,7 +421,9 @@ def test_s3_repeated_training_matches_original_fixture(dataset_name: str) -> Non
     trace_device = str(metadata.get("trace_device", "cpu"))
     if trace_device.startswith("cuda"):
         if not torch.cuda.is_available():
-            pytest.skip("CUDA is required for CUDA-generated S3 reference fixtures")
+            pytest.skip(
+                "CUDA is required for CUDA-generated repeated-step reference fixtures"
+            )
         device = torch.device("cuda")
         module.to(device)
         batches = [
@@ -587,7 +592,8 @@ def _load_required_reference(dataset_name: str) -> ReferenceFixture:
     missing = [path for path in (VENDOR_ROOT, fixture) if not path.exists()]
     if missing:
         skip_or_fail_vendor_parity(
-            "LayoutDiffusion training S0-S2 reference fixture is missing; build the "
+            "LayoutDiffusion training single-step package-versus-vendor parity reference "
+            "fixture is missing; build the "
             "plain-PyTorch TrainLoop adapter fixture before requiring parity.",
             missing_paths=missing,
             regeneration_hint=(
@@ -606,7 +612,7 @@ def _load_or_generate_s3_s4_reference(dataset_name: str) -> ReferenceS3S4Fixture
     if not fixture.exists():
         _require_paths(
             [VENDOR_ROOT],
-            "LayoutDiffusion training S3/S4 reference source is missing.",
+            "LayoutDiffusion training repeated-step reference source is missing.",
             (
                 "git submodule update --init vendor/ms-layout-generation && "
                 "CUDA_VISIBLE_DEVICES= uv run --package layoutdiffusion --extra training "
