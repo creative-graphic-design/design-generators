@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-import torch
+from jaxtyping import Float, Shaped
 
-tensor_type = torch.Tensor
+if TYPE_CHECKING:
+    import torch
 
 
 class ScalarLogger(Protocol):
@@ -16,7 +17,7 @@ class ScalarLogger(Protocol):
     def log(
         self,
         name: str,
-        value: tensor_type,
+        value: Float[torch.Tensor, ""],
         *,
         prog_bar: bool = False,
         on_step: bool | None = None,
@@ -36,7 +37,9 @@ class ScalarLogger(Protocol):
         _ = (name, value, prog_bar, on_step, on_epoch, batch_size)
 
 
-def sum_loss_values(losses: Mapping[str, tensor_type]) -> tensor_type:
+def sum_loss_values(
+    losses: Mapping[str, Float[torch.Tensor, ""]],
+) -> Float[torch.Tensor, ""]:
     """Sum scalar loss values with the canonical training reduction.
 
     Args:
@@ -50,13 +53,15 @@ def sum_loss_values(losses: Mapping[str, tensor_type]) -> tensor_type:
         >>> sum_loss_values({"a": torch.tensor(1.0), "b": torch.tensor(2.0)})
         tensor(3.)
     """
+    import torch
+
     return torch.stack(tuple(losses.values())).sum()
 
 
 def log_training_losses(
     logger: ScalarLogger,
-    losses: Mapping[str, tensor_type],
-    total: tensor_type,
+    losses: Mapping[str, Float[torch.Tensor, ""]],
+    total: Float[torch.Tensor, ""],
     *,
     batch_size: int = 1,
 ) -> None:
@@ -86,11 +91,11 @@ def log_training_losses(
 
 def finish_training_step(
     logger: ScalarLogger,
-    losses: Mapping[str, tensor_type],
-    trace: Mapping[str, tensor_type],
+    losses: Mapping[str, Float[torch.Tensor, ""]],
+    trace: Mapping[str, Shaped[torch.Tensor, "..."]],
     *,
     batch_size: int = 1,
-) -> tuple[tensor_type, dict[str, tensor_type]]:
+) -> tuple[Float[torch.Tensor, ""], dict[str, Shaped[torch.Tensor, "..."]]]:
     """Reduce losses, log training metrics, and append ``train_loss`` to a trace.
 
     Args:
@@ -109,7 +114,7 @@ def finish_training_step(
 
 def log_validation_loss(
     logger: ScalarLogger,
-    total: tensor_type,
+    total: Float[torch.Tensor, ""],
     *,
     batch_size: int = 1,
 ) -> None:

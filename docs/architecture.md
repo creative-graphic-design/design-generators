@@ -68,7 +68,7 @@ Training infrastructure follows the current package boundaries below. Model pack
 | Model-specific callbacks                               | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                            |
 | Checkpoint conversion                                  | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                            |
 
-The generated API exposes these helpers under `traingen.lightning.steps`; `laygen` has no training-runtime helper module.
+The generated API exposes these helpers under `traingen.lightning.steps`.
 
 ## Shared package names and imports
 

@@ -131,8 +131,10 @@ def test_validation_step_preserves_metric_flags(
     monkeypatch.setattr(module, "log", record_log)
     module.validation_step(tiny_batch(), 0)
 
-    assert records[0][0] == "val_loss"
-    assert records[0][2:] == (True, False, True)
+    assert [
+        (name, prog_bar, on_step, on_epoch)
+        for name, _, prog_bar, on_step, on_epoch in records
+    ] == [("val_loss", True, False, True)]
 
 
 def test_optimizer_scheduler_and_parity_helpers() -> None:
