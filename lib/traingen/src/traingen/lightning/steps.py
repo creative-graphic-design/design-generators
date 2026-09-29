@@ -1,4 +1,4 @@
-"""Shared training-step helpers for layout generator Lightning modules."""
+"""Generic Lightning training-step logging and reduction helpers."""
 
 from __future__ import annotations
 
@@ -78,6 +78,7 @@ def log_training_losses(
     """
     for key, value in losses.items():
         logger.log(key, value, on_step=True, on_epoch=True, batch_size=batch_size)
+
     logger.log(
         "train_loss",
         total,
