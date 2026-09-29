@@ -1,4 +1,4 @@
-"""Generate LayoutFlow repeated-step reference-fixture evidence."""
+"""Generate LayoutFlow repeated-step and loader-stream (data-order) evidence."""
 
 import argparse
 import functools
