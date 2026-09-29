@@ -11,7 +11,7 @@ from laygen.common.discrete import (
     log_sample_categorical,
     update_loss_history,
 )
-from laygen.common.training import (
+from traingen.lightning.steps import (
     finish_training_step,
     log_validation_loss,
     sum_loss_values,

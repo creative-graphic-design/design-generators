@@ -161,6 +161,67 @@ def test_training_step_records_required_trace_points() -> None:
     assert lt_count.sum() == 2
 
 
+def test_training_step_preserves_loss_reduction_trace_and_metric_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = LayoutDiffusionTrainingModule(config=tiny_config(), scheduler=None)
+    records: list[tuple[str, float, bool, bool | None, bool | None]] = []
+
+    def record_log(
+        name: str,
+        value: torch.Tensor,
+        *,
+        prog_bar: bool = False,
+        on_step: bool | None = None,
+        on_epoch: bool | None = None,
+        batch_size: int | None = None,
+    ) -> None:
+        del batch_size
+        records.append((name, float(value.detach()), prog_bar, on_step, on_epoch))
+
+    monkeypatch.setattr(module, "log", record_log)
+    total = module.training_step(tiny_batch(), 0)
+
+    component_total = sum(record[1] for record in records if record[0] != "train_loss")
+    assert total.detach().item() == pytest.approx(component_total)
+    assert module.latest_step_trace["train_loss"].requires_grad is False
+    assert [
+        (name, prog_bar, on_step, on_epoch)
+        for name, _, prog_bar, on_step, on_epoch in records
+    ] == [
+        ("kl_loss", False, True, True),
+        ("aux_loss", False, True, True),
+        ("train_loss", True, True, True),
+    ]
+
+
+def test_validation_step_preserves_metric_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = LayoutDiffusionTrainingModule(config=tiny_config(), scheduler=None)
+    records: list[tuple[str, float, bool, bool | None, bool | None]] = []
+
+    def record_log(
+        name: str,
+        value: torch.Tensor,
+        *,
+        prog_bar: bool = False,
+        on_step: bool | None = None,
+        on_epoch: bool | None = None,
+        batch_size: int | None = None,
+    ) -> None:
+        del batch_size
+        records.append((name, float(value.detach()), prog_bar, on_step, on_epoch))
+
+    monkeypatch.setattr(module, "log", record_log)
+    module.validation_step(tiny_batch(), 0)
+
+    assert [
+        (name, prog_bar, on_step, on_epoch)
+        for name, _, prog_bar, on_step, on_epoch in records
+    ] == [("val_loss", True, False, True)]
+
+
 def test_optimizer_scheduler_ema_and_parity_helpers() -> None:
     module = LayoutDiffusionTrainingModule(config=tiny_config())
     assert module.auxiliary_loss_weight == pytest.approx(1e-3)
