@@ -233,8 +233,8 @@ def test_s0_training_static_tokenizer_matches_vendor_vocab(dataset_name: str) ->
     tokenizer = build_training_tokenizer(config, vocab_file=str(vendor_vocab_path))
     _require_paths(
         [vendor_vocab_path],
-        "LayoutDiffusion vendor full training run vocabulary artifact is missing.",
-        "Run the vendor full training run or prelaunch command to write vocab.json.",
+        "LayoutDiffusion vocabulary artifact from the vendor full training run is missing.",
+        "Run the vendor full-training or prelaunch command to write vocab.json.",
     )
     vendor_vocab = {
         str(key): int(value)

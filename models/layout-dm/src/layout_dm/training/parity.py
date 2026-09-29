@@ -1,4 +1,4 @@
-"""LayoutDM-specific single-step package-versus-original-implementation parity helpers."""
+"""LayoutDM-specific initial-state and single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 

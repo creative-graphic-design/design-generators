@@ -1,4 +1,4 @@
-"""Generate lightweight LayoutDiffusion S3/S4 prelaunch gate evidence."""
+"""Generate lightweight LayoutDiffusion repeated-step prelaunch gate evidence."""
 
 from __future__ import annotations
 

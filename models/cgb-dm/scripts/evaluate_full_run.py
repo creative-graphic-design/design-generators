@@ -22,7 +22,7 @@ from transformers import set_seed
 
 @dataclass(frozen=True)
 class DatasetEvalSpec:
-    """Dataset-specific settings for the original S5 evaluation protocol."""
+    """Dataset-specific settings for the original full training run evaluation protocol."""
 
     config_name: str
     package_dataset_name: str

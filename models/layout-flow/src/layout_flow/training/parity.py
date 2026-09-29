@@ -1,4 +1,4 @@
-"""LayoutFlow-specific single-step package-versus-original-implementation parity helpers."""
+"""LayoutFlow-specific initial-state and single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 
