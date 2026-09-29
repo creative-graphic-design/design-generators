@@ -112,7 +112,7 @@ pip install \
 Install the workspace member and load a converted checkpoint directory.
 
 ```bash
-uv run --package layout-action python models/layout-action/scripts/smoke_from_pretrained.py \
+uv run --package layout-action models/layout-action/scripts/smoke_from_pretrained.py \
   .cache/layout-action/converted/layout-action-publaynet
 ```
 

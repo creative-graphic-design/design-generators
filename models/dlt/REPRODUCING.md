@@ -12,7 +12,7 @@ mkdir -p .cache/dlt/reference .cache/dlt/converted
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor \
-  python models/dlt/scripts/generate_vendor_reference.py \
+  models/dlt/scripts/generate_vendor_reference.py \
   --config vendor/dlt/dlt/configs/remote/dlt_publaynet_config.py \
   --workdir dlt-publaynet \
   --epoch 799 \
@@ -33,7 +33,7 @@ recomputes the final checkpoints on the same batches, noise, and timesteps.
 
 ```bash
 uv run --package dlt \
-  python models/dlt/scripts/convert_original_checkpoint.py \
+  models/dlt/scripts/convert_original_checkpoint.py \
   --dataset publaynet \
   --checkpoint-dir .cache/dlt/original/checkpoint-799 \
   --output-dir .cache/dlt/converted/publaynet
@@ -41,6 +41,6 @@ uv run --package dlt \
 
 ```bash
 uv run --package dlt \
-  python models/dlt/scripts/smoke_from_pretrained.py \
+  models/dlt/scripts/smoke_from_pretrained.py \
   --path .cache/dlt/converted/publaynet
 ```

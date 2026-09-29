@@ -86,7 +86,7 @@ LACE runs unconditional, label-conditioned, label-size-conditioned, completion, 
 Local original checkpoints can be converted with:
 
 ```bash
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
+uv run --package lace models/lace/scripts/convert_checkpoint.py \
   --dataset publaynet \
   --checkpoint .cache/lace/original/model/publaynet_best.pt \
   --output .cache/lace/converted/lace-publaynet

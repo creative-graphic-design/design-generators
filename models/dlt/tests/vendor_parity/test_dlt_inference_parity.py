@@ -14,7 +14,7 @@ def test_dlt_inference_reference_assets_present() -> None:
             missing_paths=[reference],
             regeneration_hint=(
                 "CUDA_VISIBLE_DEVICES=0 uv run --package dlt --extra vendor "
-                "python models/dlt/scripts/generate_vendor_reference.py ..."
+                "models/dlt/scripts/generate_vendor_reference.py ..."
             ),
         )
     assert reference.exists()

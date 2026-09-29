@@ -141,7 +141,7 @@ Clone this repository and run the local smoke script after conversion:
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package posterllama
-uv run --package posterllama python models/posterllama/scripts/smoke_from_pretrained.py \
+uv run --package posterllama models/posterllama/scripts/smoke_from_pretrained.py \
   .cache/posterllama/converted
 ```
 

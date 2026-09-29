@@ -52,68 +52,75 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: uv-run-python-script-form
+        name: uv run Python scripts directly
+        entry: 'uv run(?:[^\n`]|\\\n|"\s*\n\s*[frb]?")*?(?: |"\s*\n\s*[frb]?")python (?:"\s*\n\s*[frb]?"|\\\n[ \t]*)?[^\s-](?:[^\s"\n]|"\s*\n\s*[frb]?")*?\x2epy(?!\w)'
+        args: [--multiline]
+        language: pygrep
+        types: [text]
+
       - id: duplicate-code
         name: duplicate code
-        entry: uv run --package design-generators python scripts/check_duplicate_code.py
+        entry: uv run --package design-generators scripts/check_duplicate_code.py
         language: system
         pass_filenames: false
 
       - id: src-vendor-language
         name: source vendor language
-        entry: uv run --package design-generators python scripts/check_src_vendor_language.py
+        entry: uv run --package design-generators scripts/check_src_vendor_language.py
         language: system
         pass_filenames: false
 
       - id: committed-paths
         name: committed paths
-        entry: uv run --package design-generators python scripts/check_committed_paths.py
+        entry: uv run --package design-generators scripts/check_committed_paths.py
         language: system
         pass_filenames: false
 
       - id: jaxtyping-annotations
         name: jaxtyping annotations
-        entry: uv run --package design-generators python scripts/check_jaxtyping_annotations.py
+        entry: uv run --package design-generators scripts/check_jaxtyping_annotations.py
         language: system
         pass_filenames: false
 
       - id: config-defaults
         name: config defaults
-        entry: uv run --package design-generators python scripts/check_config_defaults.py
+        entry: uv run --package design-generators scripts/check_config_defaults.py
         language: system
         pass_filenames: false
 
       - id: semantic-blank-lines
         name: semantic blank lines
-        entry: uv run --package design-generators python scripts/check_semantic_blank_lines.py
+        entry: uv run --package design-generators scripts/check_semantic_blank_lines.py
         language: system
         pass_filenames: false
 
       - id: module-naming
         name: model module naming
-        entry: uv run --package design-generators python scripts/check_module_naming.py
+        entry: uv run --package design-generators scripts/check_module_naming.py
         language: system
         pass_filenames: false
 
       - id: training-stage-evidence
         name: training stage evidence
-        entry: uv run --package design-generators python scripts/check_training_stage_evidence.py
+        entry: uv run --package design-generators scripts/check_training_stage_evidence.py
         language: system
         pass_filenames: false
 
       - id: training-doc-template
         name: training doc template
-        entry: uv run --package design-generators python scripts/check_training_doc_template.py
+        entry: uv run --package design-generators scripts/check_training_doc_template.py
         language: system
         pass_filenames: false
 
       - id: reader-facing-references
         name: reader-facing references
-        entry: uv run --package design-generators python scripts/check_reader_facing_references.py
+        entry: uv run --package design-generators scripts/check_reader_facing_references.py
         language: system
         pass_filenames: false
 
       - id: readme-links
         name: README repository links
-        entry: uv run --package design-generators python scripts/check_readme_links.py
+        entry: uv run --package design-generators scripts/check_readme_links.py
         language: system
         pass_filenames: false

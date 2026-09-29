@@ -19,7 +19,7 @@ git submodule update --init vendor/lace
 1. Download and extract the original checkpoint archive:
 
 ```bash
-uv run --package lace python models/lace/scripts/download_vendor_assets.py \
+uv run --package lace models/lace/scripts/download_vendor_assets.py \
   --output-dir .cache/lace/original \
   --filename model.tar.gz \
   --extract
@@ -35,13 +35,13 @@ Expected files after extraction:
 2. Record local reference metadata for the available vendor checkpoints:
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace models/lace/scripts/generate_reference.py \
   --dataset publaynet \
   --checkpoint .cache/lace/original/model/publaynet_best.pt \
   --output-dir .cache/lace/reference/publaynet \
   --seed 123
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/generate_reference.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace models/lace/scripts/generate_reference.py \
   --dataset rico25 \
   --checkpoint .cache/lace/original/model/rico25_best.pt \
   --output-dir .cache/lace/reference/rico25 \
@@ -72,12 +72,12 @@ public archive does not contain `.cache/lace/original/model/rico13_best.pt`.
 ```bash
 rm -rf .cache/lace/converted/lace-publaynet .cache/lace/converted/lace-rico25
 
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
+uv run --package lace models/lace/scripts/convert_checkpoint.py \
   --dataset publaynet \
   --checkpoint .cache/lace/original/model/publaynet_best.pt \
   --output .cache/lace/converted/lace-publaynet
 
-uv run --package lace python models/lace/scripts/convert_checkpoint.py \
+uv run --package lace models/lace/scripts/convert_checkpoint.py \
   --dataset rico25 \
   --checkpoint .cache/lace/original/model/rico25_best.pt \
   --output .cache/lace/converted/lace-rico25
@@ -93,7 +93,7 @@ Each output directory contains [`🧨diffusers`](https://huggingface.co/docs/dif
 5. Load the converted checkpoints with `from_pretrained` and run a short smoke:
 
 ```bash
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace python models/lace/scripts/smoke_from_pretrained.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package lace models/lace/scripts/smoke_from_pretrained.py \
   --path .cache/lace/converted/lace-publaynet \
   --path .cache/lace/converted/lace-rico25 \
   --device cuda

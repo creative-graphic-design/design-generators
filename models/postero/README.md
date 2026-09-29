@@ -86,7 +86,7 @@ PosterO has no learned checkpoints in this package; the local command below load
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package postero
-uv run --package postero python models/postero/scripts/smoke_from_pretrained.py
+uv run --package postero models/postero/scripts/smoke_from_pretrained.py
 ```
 
 ```python

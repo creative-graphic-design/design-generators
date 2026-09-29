@@ -16,11 +16,11 @@ visible on your machine.
 ```bash
 git submodule update --init vendor/lay-your-scene
 
-SNAPSHOT="$(uv run --package layousyn python models/layousyn/scripts/download_original.py)"
+SNAPSHOT="$(uv run --package layousyn models/layousyn/scripts/download_original.py)"
 CKPT="${SNAPSHOT}/grit/model.pt"
 CONFIG="${SNAPSHOT}/grit/config.json"
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn --extra vendor python models/layousyn/scripts/save_reference_outputs.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn --extra vendor models/layousyn/scripts/save_reference_outputs.py \
   --vendor-root vendor/lay-your-scene \
   --ckpt "${CKPT}" \
   --ckpt-config "${CONFIG}" \
@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn --extra vendor python
   --aspect-ratio 1.0 \
   --num-sampling-steps 40
 
-uv run --package layousyn python models/layousyn/scripts/convert_checkpoint.py \
+uv run --package layousyn models/layousyn/scripts/convert_checkpoint.py \
   --checkpoint-path "${CKPT}" \
   --config-path "${CONFIG}" \
   --output-dir .cache/layousyn/converted \
@@ -44,7 +44,7 @@ LAYOUSYN_REFERENCE_DIR=.cache/layousyn/reference \
 LAYOUSYN_CONVERTED_DIR=.cache/layousyn/converted \
 uv run --package layousyn pytest models/layousyn/tests -m vendor_parity -q
 
-CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn python models/layousyn/scripts/smoke_from_pretrained.py \
+CUDA_VISIBLE_DEVICES=<gpu-index> uv run --package layousyn models/layousyn/scripts/smoke_from_pretrained.py \
   --path .cache/layousyn/converted \
   --inputs .cache/layousyn/reference/inputs.pt \
   --device cuda

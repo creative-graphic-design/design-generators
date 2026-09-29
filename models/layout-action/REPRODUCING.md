@@ -8,7 +8,7 @@ Workflow order: download assets, generate references, run parity checks, convert
 
 ```bash
 uv run --package layout-action --extra download \
-  python models/layout-action/scripts/download_original_assets.py \
+  models/layout-action/scripts/download_original_assets.py \
     --output-dir .cache/layout-action/original \
     --download
 ```
@@ -17,7 +17,7 @@ For pre-downloaded assets:
 
 ```bash
 uv run --package layout-action --extra download \
-  python models/layout-action/scripts/download_original_assets.py \
+  models/layout-action/scripts/download_original_assets.py \
     --source-dir /path/to/LayoutActionResources \
     --output-dir .cache/layout-action/original
 ```
@@ -26,7 +26,7 @@ uv run --package layout-action --extra download \
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 uv run --package layout-action --extra vendor \
-  python models/layout-action/scripts/generate_reference_outputs.py \
+  models/layout-action/scripts/generate_reference_outputs.py \
     --dataset rico \
     --asset-dir .cache/layout-action/original \
     --output-dir .cache/layout-action/references \
@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES=0 uv run --package layout-action pytest \
 
 ```bash
 uv run --package layout-action --extra convert \
-  python models/layout-action/scripts/convert_original_checkpoint.py \
+  models/layout-action/scripts/convert_original_checkpoint.py \
     --dataset rico \
     --checkpoint .cache/layout-action/original/pretrained_model_resources/Ours/rico.pth \
     --output-dir .cache/layout-action/converted/layout-action-rico13
@@ -61,7 +61,7 @@ For PubLayNet:
 
 ```bash
 uv run --package layout-action --extra convert \
-  python models/layout-action/scripts/convert_original_checkpoint.py \
+  models/layout-action/scripts/convert_original_checkpoint.py \
     --dataset publaynet \
     --checkpoint .cache/layout-action/original/pretrained_model_resources/Ours/publaynet.pth \
     --output-dir .cache/layout-action/converted/layout-action-publaynet
@@ -71,6 +71,6 @@ uv run --package layout-action --extra convert \
 
 ```bash
 uv run --package layout-action \
-  python models/layout-action/scripts/smoke_from_pretrained.py \
+  models/layout-action/scripts/smoke_from_pretrained.py \
     .cache/layout-action/converted/layout-action-rico13
 ```

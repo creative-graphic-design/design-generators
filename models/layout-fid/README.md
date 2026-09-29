@@ -135,7 +135,7 @@ Clone this repository, install the workspace member, and run the conversion step
 git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package layout-fid
-uv run --package layout-fid python models/layout-fid/scripts/smoke_from_pretrained.py \
+uv run --package layout-fid models/layout-fid/scripts/smoke_from_pretrained.py \
   --model-id .cache/layout-fid/converted/layout-fid-rico25-layoutflow
 ```
 

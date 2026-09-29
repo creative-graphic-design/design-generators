@@ -592,7 +592,7 @@ def _load_required_reference(dataset_name: str) -> ReferenceFixture:
             missing_paths=missing,
             regeneration_hint=(
                 "CUDA_VISIBLE_DEVICES= uv run --package layoutdiffusion --extra "
-                "training python models/layoutdiffusion/tests/vendor_parity/"
+                "training models/layoutdiffusion/tests/vendor_parity/"
                 f"layoutdiffusion_training_reference.py --dataset {dataset_name}"
             ),
         )
@@ -610,7 +610,7 @@ def _load_or_generate_s3_s4_reference(dataset_name: str) -> ReferenceS3S4Fixture
             (
                 "git submodule update --init vendor/ms-layout-generation && "
                 "CUDA_VISIBLE_DEVICES= uv run --package layoutdiffusion --extra training "
-                "--extra vendor python models/layoutdiffusion/tests/vendor_parity/"
+                "--extra vendor models/layoutdiffusion/tests/vendor_parity/"
                 f"layoutdiffusion_training_reference.py --dataset {dataset_name}"
             ),
         )

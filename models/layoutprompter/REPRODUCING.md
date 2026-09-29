@@ -17,7 +17,7 @@ git submodule update --init vendor/ms-layout-generation
 ### 2. Generate Reference Golden
 
 ```bash
-uv run --package layoutprompter python models/layoutprompter/scripts/generate_vendor_golden.py \
+uv run --package layoutprompter models/layoutprompter/scripts/generate_vendor_golden.py \
   --output .cache/layoutprompter/vendor-golden.json
 ```
 
@@ -46,7 +46,7 @@ There is no learned-weight conversion step for LayoutPrompter. The smoke command
 `save_pretrained` stores prompt configuration, not weights.
 
 ```bash
-uv run --package layoutprompter python models/layoutprompter/scripts/smoke_from_pretrained.py \
+uv run --package layoutprompter models/layoutprompter/scripts/smoke_from_pretrained.py \
   --path .cache/layoutprompter/prompt-config
 ```
 

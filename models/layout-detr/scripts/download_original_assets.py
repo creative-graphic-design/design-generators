@@ -39,7 +39,7 @@ def main() -> None:
         import gdown
     except ModuleNotFoundError as exc:
         raise SystemExit(
-            "Run uv run --package layout-detr --extra download python "
+            "Run uv run --package layout-detr --extra download "
             "models/layout-detr/scripts/download_original_assets.py "
             "--output-dir .cache/layout-detr/original to use gdown"
         ) from exc

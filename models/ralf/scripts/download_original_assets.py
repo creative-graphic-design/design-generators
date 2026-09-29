@@ -58,7 +58,7 @@ def main() -> None:
             import gdown
         except ImportError as exc:
             raise ImportError(
-                "Run uv run --package ralf --extra download python "
+                "Run uv run --package ralf --extra download "
                 "models/ralf/scripts/download_original_assets.py --download "
                 "to use gdown"
             ) from exc

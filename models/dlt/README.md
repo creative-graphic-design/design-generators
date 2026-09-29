@@ -105,7 +105,7 @@ git clone https://github.com/creative-graphic-design/design-generators.git
 cd design-generators
 uv sync --package dlt
 uv run --package dlt \
-  python models/dlt/scripts/smoke_from_pretrained.py \
+  models/dlt/scripts/smoke_from_pretrained.py \
   --path .cache/dlt/converted/publaynet
 ```
 

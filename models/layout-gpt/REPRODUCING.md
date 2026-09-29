@@ -19,7 +19,7 @@ git submodule update --init vendor/layout-gpt
 This writes an inspectable reference artifact.
 
 ```bash
-uv run --package layout-gpt python models/layout-gpt/scripts/generate_vendor_golden.py \
+uv run --package layout-gpt models/layout-gpt/scripts/generate_vendor_golden.py \
   --output .cache/layout-gpt/vendor-golden.json
 ```
 
@@ -35,7 +35,7 @@ There is no learned-weight conversion step for LayoutGPT. `save_pretrained`
 stores the prompt and parser configuration that the agent reloads at runtime.
 
 ```bash
-uv run --package layout-gpt python models/layout-gpt/scripts/save_prompt_config.py \
+uv run --package layout-gpt models/layout-gpt/scripts/save_prompt_config.py \
   --path .cache/layout-gpt/prompt-config
 ```
 
@@ -44,6 +44,6 @@ uv run --package layout-gpt python models/layout-gpt/scripts/save_prompt_config.
 This smoke verifies `save_pretrained` to `from_pretrained` reload and output conversion.
 
 ```bash
-uv run --package layout-gpt python models/layout-gpt/scripts/smoke_from_pretrained.py \
+uv run --package layout-gpt models/layout-gpt/scripts/smoke_from_pretrained.py \
   --path .cache/layout-gpt/prompt-config
 ```

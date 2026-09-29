@@ -42,7 +42,7 @@ def test_readme_includes_reproducible_vendor_parity_commands():
         in reproducing
     )
     assert (
-        "uv run --package layout-corrector python "
+        "uv run --package layout-corrector "
         "models/layout-corrector/scripts/smoke_from_pretrained.py" in reproducing
     )
 
