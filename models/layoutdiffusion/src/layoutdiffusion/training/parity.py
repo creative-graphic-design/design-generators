@@ -1,4 +1,4 @@
-"""LayoutDiffusion-specific S0-S2 training-parity helpers."""
+"""LayoutDiffusion-specific single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def compare_layoutdiffusion_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> StepReport:
-    """Compare S1 LayoutDiffusion pre-optimizer traces."""
+    """Perform a single-step pre-optimizer trace comparison for LayoutDiffusion."""
     tolerances = {name: tolerance or TensorTolerance() for name in TRACE_POINTS}
     return compare_step_trace(reference, target, tolerances)
 
@@ -58,6 +58,6 @@ def compare_layoutdiffusion_optimizer_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:
-    """Compare S2 LayoutDiffusion post-optimizer parameters."""
+    """Perform a post-optimizer parameter comparison for LayoutDiffusion."""
     tolerances = {name: tolerance or TensorTolerance() for name in reference_state}
     return compare_optimizer_step(reference_state, target_state, tolerances)
