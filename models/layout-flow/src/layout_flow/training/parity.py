@@ -1,4 +1,4 @@
-"""LayoutFlow-specific S0-S2 parity helpers."""
+"""LayoutFlow-specific initial-state and single-step package-versus-original-implementation parity helpers."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def compare_layout_flow_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> StepReport:
-    """Compare S1 LayoutFlow pre-optimizer traces."""
+    """Perform a single-step pre-optimizer trace comparison for LayoutFlow."""
     tolerances = {name: tolerance or TensorTolerance() for name in TRACE_POINTS}
     return compare_step_trace(reference, target, tolerances)
 
@@ -59,6 +59,6 @@ def compare_layout_flow_optimizer_step(
     *,
     tolerance: TensorTolerance | None = None,
 ) -> OptimizerStepReport:
-    """Compare S2 LayoutFlow post-optimizer parameters."""
+    """Perform a post-optimizer parameter comparison for LayoutFlow."""
     tolerances = {name: tolerance or TensorTolerance() for name in reference_state}
     return compare_optimizer_step(reference_state, target_state, tolerances)

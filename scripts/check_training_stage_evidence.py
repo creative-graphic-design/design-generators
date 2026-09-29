@@ -1,7 +1,7 @@
-"""Gate S5 training claims on machine-readable S0-S4 evidence.
+"""Validate training claims against recorded stage-evidence rows.
 
 The checker validates claim/document shape only. It does not inspect artifact
-contents and it does not scan README or model-card S5 claims.
+contents and it does not scan README or model-card full training run claims.
 """
 
 from __future__ import annotations
@@ -264,7 +264,7 @@ def clause_around_match(text: str, start: int, end: int) -> str:
 
 
 def has_s5_claim(text: str) -> bool:
-    """Return whether the document claims S5/full-run training results."""
+    """Return whether the document claims full training run results."""
     normalized = claim_text(text)
     for pattern in CLAIM_PATTERNS:
         for match in pattern.finditer(normalized):

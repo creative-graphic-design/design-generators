@@ -59,6 +59,7 @@
 - Prefer guard clauses: return or raise early for simple or invalid cases so the main path reads at minimal nesting; do not build tail-return pyramids.
 - Do not weaken annotations to satisfy checkers. Replacing precise annotations with `object`, bare containers, or similarly less informative types is prohibited; annotations must move toward more precise types.
 - Within function bodies, separate semantic units (configuration branches, submodule construction, transformations, and return preparation) with single blank lines; always leave a blank line after a raise block when ordinary code follows; leave one blank line after an if, for, while, try, or with suite when ordinary code follows at the enclosing indentation.
+- Source-code prose (docstrings, comments, and user-visible messages) does not use the training-reproduction stage codes S0-S5; state what the stage checks in plain words. The codes belong to `TRAINING.md` and the scripts that check it.
 
 ## Tracking
 
