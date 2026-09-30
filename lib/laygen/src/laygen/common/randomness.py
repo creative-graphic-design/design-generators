@@ -24,12 +24,12 @@ def resolve_torch_generator(
     Returns:
         The explicit generator, a new locally seeded generator, or ``None``.
     """
-    import torch
-
     if generator is not None:
         return generator
 
     if seed is None:
         return None
+
+    import torch
 
     return torch.Generator(device=device).manual_seed(seed)

@@ -4,10 +4,11 @@ import sys
 import textwrap
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pytest
 import torch
 import yaml
@@ -76,6 +77,8 @@ from laygen.common.visualization import render_layout
 from laygen.modeling_outputs import LayoutGenerationOutput
 from transformers.utils import ModelOutput
 
+NumpyRandomState: TypeAlias = tuple[str, npt.NDArray[np.uint32], int, int, float]
+
 
 def test_resolve_torch_generator_preserves_explicit_generator() -> None:
     generator = torch.Generator().manual_seed(7)
@@ -109,7 +112,7 @@ def test_resolve_torch_generator_both_absent_returns_none() -> None:
 
 def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
     python_state = random.getstate()
-    numpy_state = cast(tuple[str, np.ndarray, int, int, float], np.random.get_state())
+    numpy_state = cast(NumpyRandomState, np.random.get_state())
     torch_state = torch.random.get_rng_state()
     cuda_states = (
         [state.clone() for state in torch.cuda.get_rng_state_all()]
@@ -118,11 +121,11 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
     )
 
     resolve_torch_generator(seed=123, device=torch.device("cpu"))
+    if cuda_states is not None:
+        resolve_torch_generator(seed=123, device="cuda")
 
     assert random.getstate() == python_state
-    after_numpy_state = cast(
-        tuple[str, np.ndarray, int, int, float], np.random.get_state()
-    )
+    after_numpy_state = cast(NumpyRandomState, np.random.get_state())
     assert after_numpy_state[0] == numpy_state[0]
     assert np.array_equal(after_numpy_state[1], numpy_state[1])
     assert after_numpy_state[2:] == numpy_state[2:]
