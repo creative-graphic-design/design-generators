@@ -11,6 +11,7 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
+from laygen.common import randn
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -182,7 +183,6 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         torch_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=self.device or next(self.model.parameters()).device,
         )
         for graph_index, graph_item in enumerate(graph_batch):
             condition = self.processor(
@@ -202,7 +202,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
             room_count = node_features.shape[0]
             graph_latents = latents
             if graph_latents is None:
-                graph_latents = torch.randn(
+                graph_latents = randn(
                     room_count,
                     self.model.config.latent_dim,
                     generator=torch_generator,

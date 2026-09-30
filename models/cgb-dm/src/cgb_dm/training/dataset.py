@@ -7,6 +7,7 @@ from jaxtyping import Float
 from torch.utils.data import Dataset
 
 from cgb_dm.data import CGBDMOriginalDataset
+from laygen.common import rand
 
 
 class CGBDMSyntheticDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
@@ -35,10 +36,9 @@ class CGBDMSyntheticDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):
         generator = torch.Generator().manual_seed(index)
         labels = torch.zeros(self.max_seq_length, self.seq_dim - 4)
         labels[:, 0] = 1
-        bbox = torch.rand(self.max_seq_length, 4, generator=generator) * 2 - 1
+        bbox = rand(self.max_seq_length, 4, generator=generator) * 2 - 1
         return {
-            "pixel_values": torch.rand(4, *self.image_size, generator=generator) * 2
-            - 1,
+            "pixel_values": rand(4, *self.image_size, generator=generator) * 2 - 1,
             "layout": torch.cat((labels, bbox), dim=-1),
             "saliency_box": torch.zeros(1, 4),
         }

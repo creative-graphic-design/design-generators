@@ -10,6 +10,7 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
+from laygen.common import multinomial, randint
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
@@ -326,8 +327,12 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                 self.config.element_count_prior, dtype=torch.float32, device=device
             )
             counts = (
-                torch.multinomial(
-                    prior, batch_size, replacement=True, generator=generator
+                multinomial(
+                    prior,
+                    batch_size,
+                    replacement=True,
+                    generator=generator,
+                    device=device,
                 )
                 + 1
             )
@@ -364,7 +369,8 @@ class LayoutDiffusionTokenizer(PreTrainedTokenizer):
                     input_ids[batch_idx, pos] = self._token_to_id[label]
 
                 coord_noise = (
-                    torch.randint(
+                    randint(
+                        0,
                         self.config.num_coordinate_bins,
                         input_ids.shape,
                         generator=generator,

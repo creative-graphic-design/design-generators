@@ -182,9 +182,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
         """
         _ = model_kwargs
         model_device = next(self.model.parameters()).device
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=model_device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             condition_type=condition_type,
             labels=labels,

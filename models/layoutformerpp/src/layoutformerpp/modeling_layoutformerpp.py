@@ -13,6 +13,8 @@ from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
+from laygen.common import multinomial
+
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 
 
@@ -263,10 +265,11 @@ class LayoutFormerPPForConditionalGeneration(PreTrainedModel):
                     logits[batch_idx].masked_fill_(mask, -math.inf)
             if do_sample:
                 probs = F.softmax(top_k_logits(logits / temperature, top_k), dim=-1)
-                curr = torch.multinomial(
+                curr = multinomial(
                     probs,
                     num_samples=1,
                     generator=generator,
+                    device=probs.device,
                 ).squeeze(-1)
             else:
                 curr = torch.argmax(logits, dim=-1)

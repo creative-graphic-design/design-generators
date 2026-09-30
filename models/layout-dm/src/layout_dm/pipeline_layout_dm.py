@@ -147,9 +147,7 @@ class LayoutDMPipeline(DiffusionPipeline):
                 or if ``output_type`` is unsupported.
         """
         _ = (num_elements, model_kwargs)
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical is not ConditionType.unconditional:

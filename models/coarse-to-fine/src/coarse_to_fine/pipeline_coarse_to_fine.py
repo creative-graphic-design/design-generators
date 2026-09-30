@@ -124,9 +124,7 @@ class CoarseToFinePipeline(Pipeline):
                 "Coarse-to-Fine released checkpoints support only unconditional generation"
             )
 
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.model.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         if latent_z is None:
             sampled_z = self.model._sample_latent(
                 batch_size=batch_size,

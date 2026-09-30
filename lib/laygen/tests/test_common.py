@@ -12,7 +12,17 @@ import numpy.typing as npt
 import pytest
 import torch
 import yaml
-from laygen.common import resolve_torch_generator
+from laygen.common import (
+    bernoulli,
+    multinomial,
+    normal,
+    poisson,
+    rand,
+    randint,
+    randn,
+    randperm,
+    resolve_torch_generator,
+)
 from laygen.common.bbox import (
     BoxFormat,
     denormalize_boxes,
@@ -84,30 +94,27 @@ def test_resolve_torch_generator_preserves_explicit_generator() -> None:
     generator = torch.Generator().manual_seed(7)
     state = generator.get_state()
 
-    resolved = resolve_torch_generator(
-        generator=generator, seed=123, device=torch.device("cpu")
-    )
+    resolved = resolve_torch_generator(generator=generator, seed=123)
 
     assert resolved is generator
     assert torch.equal(generator.get_state(), state)
 
 
 def test_resolve_torch_generator_builds_identical_local_streams() -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    first = resolve_torch_generator(seed=123, device=device)
-    second = resolve_torch_generator(seed=123, device=device)
+    first = resolve_torch_generator(seed=123)
+    second = resolve_torch_generator(seed=123)
 
     assert first is not None
     assert second is not None
-    assert first.device == device
+    assert first.device == torch.device("cpu")
     assert torch.equal(
-        torch.rand(8, device=device, generator=first),
-        torch.rand(8, device=device, generator=second),
+        torch.rand(8, generator=first),
+        torch.rand(8, generator=second),
     )
 
 
 def test_resolve_torch_generator_both_absent_returns_none() -> None:
-    assert resolve_torch_generator(device=torch.device("cpu")) is None
+    assert resolve_torch_generator() is None
 
 
 def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
@@ -120,9 +127,7 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
         else None
     )
 
-    resolve_torch_generator(seed=123, device=torch.device("cpu"))
-    if cuda_states is not None:
-        resolve_torch_generator(seed=123, device="cuda")
+    resolve_torch_generator(seed=123)
 
     assert random.getstate() == python_state
     after_numpy_state = cast(NumpyRandomState, np.random.get_state())
@@ -135,6 +140,53 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
             torch.equal(before, after)
             for before, after in zip(cuda_states, torch.cuda.get_rng_state_all())
         )
+
+
+def test_random_wrappers_cover_generator_draws_without_global_rng_mutation() -> None:
+    def draw_all() -> tuple[torch.Tensor, ...]:
+        generator = torch.Generator().manual_seed(123)
+        return (
+            randn((2, 3), generator=generator, dtype=torch.float64),
+            rand((2, 3), generator=generator, dtype=torch.float32),
+            randint(1, 7, (2, 3), generator=generator),
+            randperm(6, generator=generator),
+            multinomial(
+                torch.tensor([[0.2, 0.8], [0.7, 0.3]]),
+                1,
+                replacement=True,
+                generator=generator,
+            ),
+            bernoulli(torch.full((2, 3), 0.5), generator=generator),
+            normal(0.5, 0.15, size=(2, 3), generator=generator),
+            poisson(torch.full((2, 3), 2.0), generator=generator),
+        )
+
+    torch.manual_seed(321)
+    expected_global = torch.rand(8)
+    torch.manual_seed(321)
+    first = draw_all()
+    actual_global = torch.rand(8)
+    second = draw_all()
+
+    assert torch.equal(actual_global, expected_global)
+    assert all(
+        torch.equal(first_value, second_value)
+        for first_value, second_value in zip(first, second)
+    )
+    assert first[0].dtype is torch.float64
+    assert first[0].shape == (2, 3)
+    assert first[3].shape == (6,)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+def test_random_wrapper_cpu_stream_matches_gpu_target() -> None:
+    cpu_generator = torch.Generator().manual_seed(456)
+    gpu_generator = torch.Generator().manual_seed(456)
+
+    cpu = randn((2, 3), generator=cpu_generator, device="cpu")
+    gpu = randn((2, 3), generator=gpu_generator, device="cuda")
+
+    assert torch.equal(cpu, gpu.cpu())
 
 
 def test_bbox_conversions_roundtrip():

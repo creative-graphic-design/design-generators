@@ -249,9 +249,7 @@ class CGBDMPipeline(DiffusionPipeline):
         del num_elements
         canonical = normalize_condition_type(condition_type)
         out_type = normalize_output_type(output_type)
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         if pixel_values is None:
             if content is not None:
                 image = content.get("image", image)

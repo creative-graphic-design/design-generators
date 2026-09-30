@@ -10,7 +10,7 @@ import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
-from laygen.common import ConditionType, resolve_torch_generator
+from laygen.common import ConditionType, rand, randn, resolve_torch_generator
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
@@ -216,9 +216,7 @@ class LacePipeline(DiffusionPipeline):
             ValueError: If a condition/output mode is unsupported or required
                 conditioning tensors are missing.
         """
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         encoded = None
         if canonical is not ConditionType.unconditional:
@@ -246,7 +244,7 @@ class LacePipeline(DiffusionPipeline):
         )
         if canonical is ConditionType.refinement:
             assert encoded is not None
-            noise = torch.randn(
+            noise = randn(
                 encoded[LACE_BBOX_KEY].shape,
                 dtype=encoded[LACE_BBOX_KEY].dtype,
                 device=encoded[LACE_BBOX_KEY].device,
@@ -384,11 +382,9 @@ class LacePipeline(DiffusionPipeline):
         if condition_type is ConditionType.completion:
             labels = real_layout[:, :, :num_class].argmax(dim=2)
             real_mask = labels != (num_class - 1)
-            cutoff = torch.rand(
-                (), device=real_layout.device, generator=generator
-            ).item()
+            cutoff = rand((), device=real_layout.device, generator=generator).item()
             element_mask = (
-                torch.rand(
+                rand(
                     batch_size,
                     seq_len,
                     device=real_layout.device,

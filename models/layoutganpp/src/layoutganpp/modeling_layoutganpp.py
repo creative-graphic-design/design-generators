@@ -12,7 +12,7 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import resolve_torch_generator
+from laygen.common import randn, resolve_torch_generator
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.enums import normalize_enum_value
@@ -341,7 +341,5 @@ class LayoutGANPPModel(PreTrainedModel):
         device: torch.device,
         dtype: torch.dtype,
     ) -> Float[torch.Tensor, "batch elements latent"]:
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=device
-        )
-        return torch.randn(shape, generator=generator, device=device, dtype=dtype)
+        generator = resolve_torch_generator(generator=generator, seed=seed)
+        return randn(shape, generator=generator, device=device, dtype=dtype)

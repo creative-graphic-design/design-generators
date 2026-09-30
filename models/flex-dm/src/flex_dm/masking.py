@@ -8,6 +8,7 @@ from typing import Final, Literal, Protocol
 import torch
 from jaxtyping import Bool, Int, Shaped
 
+from laygen.common import randint, randn
 from laygen.common.conditions import ConditionType
 
 from .configuration_flex_dm import FlexDmColumnSpec
@@ -83,7 +84,8 @@ def apply_token(
         elif token_type == "unused":
             token = torch.full_like(input_, input_dim + 1)
         else:
-            token = torch.randint(
+            token = randint(
+                0,
                 input_dim,
                 input_.shape,
                 device=input_.device,
@@ -97,7 +99,7 @@ def apply_token(
         token_f = torch.full_like(input_, NULL_VALUE)
     else:
         token_f = (
-            torch.randn(
+            randn(
                 input_.shape,
                 device=input_.device,
                 dtype=input_.dtype,

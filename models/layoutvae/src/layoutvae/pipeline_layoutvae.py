@@ -440,7 +440,6 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         prepared_generator = self.prepare_generator(
             generator=options.generator,
             seed=options.seed,
-            device=device,
         )
         out = self.model(
             label_set.to(device=device),

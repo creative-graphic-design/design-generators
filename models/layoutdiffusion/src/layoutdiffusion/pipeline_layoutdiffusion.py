@@ -157,9 +157,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
             ValueError: If ``output_type`` is unsupported.
         """
         _ = model_kwargs
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         processed = self.processor(
             bbox=bbox,

@@ -9,6 +9,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int
+from laygen.common import randn
 from laygen.schedulers.continuous import (
     BetaSchedule,
     DDIMDiscretization,
@@ -154,9 +155,7 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         """
         if not stochastic:
             return torch.zeros(batch_size, seq_len, seq_dim, device=device)
-        return torch.randn(
-            batch_size, seq_len, seq_dim, device=device, generator=generator
-        )
+        return randn(batch_size, seq_len, seq_dim, device=device, generator=generator)
 
     def step(
         self,
@@ -185,7 +184,7 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         sqrt_one_minus = self.sqrt_one_minus_alphas[index].to(sample.device)
         pred_original = (sample - sqrt_one_minus * model_output) / alpha_t.sqrt()
         direction = (1.0 - alpha_prev - sigma_t**2).sqrt() * model_output
-        noise = sigma_t * torch.randn(
+        noise = sigma_t * randn(
             sample.shape,
             dtype=sample.dtype,
             device=sample.device,

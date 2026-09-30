@@ -10,6 +10,7 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
+from laygen.common import rand
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
@@ -274,7 +275,7 @@ class LayoutFlowProcessor(ProcessorMixin):
             if length <= 1:
                 continue
             keep = max(1, int(length * 0.2))
-            scores = torch.rand(length, device=mask.device, generator=generator)
+            scores = rand(length, device=mask.device, generator=generator)
             idx = scores.topk(keep).indices
             cond_mask[i, idx] = 0
         return cond_mask

@@ -268,6 +268,7 @@ def test_pipeline_base_device_dtype_and_generator_seed_precedence() -> None:
     mocked_seed.assert_called_once_with(123)
     assert seeded is not None
     assert seeded.initial_seed() == 123
+    assert seeded.device == torch.device("cpu")
 
 
 def test_model_processor_component_specs_builds_standard_rules() -> None:

@@ -128,9 +128,7 @@ class LayoutFlowPipeline(DiffusionPipeline):
             >>> out.bbox.shape[-1]
             4
         """
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         output_kind = OutputType(output_type)
         processed = self.processor(

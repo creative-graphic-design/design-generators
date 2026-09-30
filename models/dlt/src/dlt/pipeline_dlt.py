@@ -7,7 +7,7 @@ from typing import Self, assert_never, cast
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
-from laygen.common import ConditionType, resolve_torch_generator
+from laygen.common import ConditionType, randn, resolve_torch_generator
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -209,9 +209,7 @@ class DLTPipeline(DiffusionPipeline):
         """
         canonical = normalize_condition_type(condition_type)
         output_kind = OutputType(output_type)
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         if canonical is ConditionType.unconditional:
             processed = self.processor.empty_condition(
                 batch_size=batch_size, device=self.device
@@ -253,7 +251,7 @@ class DLTPipeline(DiffusionPipeline):
             "mask_cat": mask_cat,
         }
         noisy_batch = {
-            "box": torch.randn(
+            "box": randn(
                 processed["box"].shape,
                 dtype=processed["box"].dtype,
                 device=self.device,

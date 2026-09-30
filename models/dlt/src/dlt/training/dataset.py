@@ -10,6 +10,8 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch.utils.data import Dataset
 
+from laygen.common import rand, randint
+
 
 class DLTExample(TypedDict):
     """One DLT training example with conditioning masks."""
@@ -66,8 +68,8 @@ class SyntheticDLTDataset(Dataset[DLTExample]):
     def __getitem__(self, index: int) -> DLTExample:
         """Return one deterministic synthetic DLT sample."""
         generator = torch.Generator().manual_seed(self.seed + index)
-        box = torch.rand(self.max_num_comp, 4, generator=generator) * 4.0 - 2.0
-        cat = torch.randint(
+        box = rand(self.max_num_comp, 4, generator=generator) * 4.0 - 2.0
+        cat = randint(
             1, self.categories_num - 1, (self.max_num_comp,), generator=generator
         )
         mask = torch.ones(self.max_num_comp, dtype=torch.bool)

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Final, assert_never
 
 from jaxtyping import Bool, Float, Int
 
+from .randomness import multinomial, rand, randint
+
 if TYPE_CHECKING:
     import torch
 else:
@@ -182,8 +184,12 @@ def sample_time_importance(
     lt_sqrt = torch.sqrt(lt_history + 1e-10) + 0.0001
     lt_sqrt[0] = lt_sqrt[1]
     pt_all = lt_sqrt / lt_sqrt.sum()
-    t = torch.multinomial(
-        pt_all, num_samples=batch_size, replacement=True, generator=generator
+    t = multinomial(
+        pt_all,
+        num_samples=batch_size,
+        replacement=True,
+        generator=generator,
+        device=device,
     )
     pt = pt_all.gather(dim=0, index=t)
     return t, pt
@@ -218,8 +224,12 @@ def sample_time_uniform(
     """
     import torch
 
-    t = torch.randint(
-        0, num_timesteps, (batch_size,), device=device, generator=generator
+    t = randint(
+        0,
+        num_timesteps,
+        (batch_size,),
+        device=device,
+        generator=generator,
     ).long()
     pt = torch.ones_like(t).float() / num_timesteps
     return t, pt
@@ -292,7 +302,7 @@ def gumbel_noise_like(
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
     import torch
 
-    uniform = torch.rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
+    uniform = rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
     return -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
 
 
@@ -367,8 +377,6 @@ def sample_categorical(
         ... )
         tensor([[1]])
     """
-    import torch
-
     mode = normalize_sampling_mode(sampling)
     match mode:
         case SamplingMode.deterministic:
@@ -397,7 +405,7 @@ def sample_categorical(
         case _:
             assert_never(mode)
     probs = scaled.softmax(dim=-1).reshape(-1, scaled.size(-1))
-    sampled = torch.multinomial(probs, 1, generator=generator).reshape(
+    sampled = multinomial(probs, 1, generator=generator, device=probs.device).reshape(
         scaled.shape[:-1]
     )
     return sampled

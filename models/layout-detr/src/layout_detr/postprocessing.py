@@ -7,6 +7,7 @@ from enum import StrEnum, auto
 import torch
 from jaxtyping import Bool, Float
 
+from laygen.common import rand
 from laygen.common.bbox import clamp_boxes, xywh_to_ltrb
 
 
@@ -44,7 +45,7 @@ def jitter_boxes(
 
     low = torch.log(bbox.new_tensor(1.0 - strength))
     high = torch.log(bbox.new_tensor(1.0 + strength))
-    noise = torch.rand(
+    noise = rand(
         bbox.shape,
         generator=generator,
         device=bbox.device,

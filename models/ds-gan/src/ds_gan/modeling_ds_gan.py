@@ -13,7 +13,7 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import resolve_torch_generator
+from laygen.common import multinomial, normal, resolve_torch_generator
 
 from .configuration_ds_gan import DSGANConfig
 
@@ -247,9 +247,7 @@ def random_initial_layout(
     resolved_device = (
         torch.device(device) if device is not None else torch.device("cpu")
     )
-    generator = resolve_torch_generator(
-        generator=generator, seed=seed, device=resolved_device
-    )
+    generator = resolve_torch_generator(generator=generator, seed=seed)
     if weighted_classes:
         probs = torch.tensor((0.1, 0.8, 1.0, 1.0), device=resolved_device)
         probs = probs / probs.sum()
@@ -264,11 +262,12 @@ def random_initial_layout(
             device=resolved_device,
         )
     else:
-        class_ids = torch.multinomial(
+        class_ids = multinomial(
             probs,
             num_samples=batch_size * max_elem,
             replacement=True,
             generator=generator,
+            device=resolved_device,
         ).reshape(batch_size, max_elem, 1)
     class_one_hot = torch.zeros(
         batch_size,
@@ -278,9 +277,9 @@ def random_initial_layout(
         device=resolved_device,
     )
     class_one_hot.scatter_(-1, class_ids, 1)
-    box_xyxy = torch.normal(
-        mean=0.5,
-        std=0.15,
+    box_xyxy = normal(
+        0.5,
+        0.15,
         size=(batch_size, max_elem, 1, 4),
         generator=generator,
         device=resolved_device,

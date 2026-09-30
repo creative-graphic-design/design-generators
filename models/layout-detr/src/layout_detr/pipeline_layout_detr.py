@@ -11,6 +11,7 @@ from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
+from laygen.common import randn
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import (
     ConditionType,
@@ -208,10 +209,9 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
         runtime_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=device,
         )
         if latents is None:
-            latents = torch.randn(
+            latents = randn(
                 (batch, elements, self.config.z_dim),
                 generator=runtime_generator,
                 device=device,

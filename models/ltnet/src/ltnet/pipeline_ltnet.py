@@ -199,9 +199,7 @@ class LTNetPipeline(LayoutGenerationPipeline):
         """
         _ = (labels, bbox, mask, num_elements, num_inference_steps)
         model_device = next(self.model.parameters()).device
-        prepared_generator = self.prepare_generator(
-            generator=generator, seed=seed, device=model_device
-        )
+        prepared_generator = self.prepare_generator(generator=generator, seed=seed)
         encoded = self.processor(
             scene_graph=scene_graph,
             objects=objects,

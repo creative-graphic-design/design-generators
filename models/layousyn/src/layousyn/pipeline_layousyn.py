@@ -186,9 +186,7 @@ class LayouSynPipeline(DiffusionPipeline):
                 f"LayouSyn public pipeline supports condition_type='text', got {condition_type}"
             )
 
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             prompt=prompt,
             labels=labels,

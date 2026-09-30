@@ -19,7 +19,7 @@ from layout_dm.conditioning import (
 from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
-from laygen.common import resolve_torch_generator
+from laygen.common import multinomial, resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
@@ -192,9 +192,7 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             <function...
         """
         _ = num_elements
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical != "unconditional":
@@ -378,12 +376,13 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
                 model_log_prob = torch.where(
                     strong_mask, strong_log_prob, model_log_prob
                 )
-            x0_recon_ids = torch.multinomial(
+            x0_recon_ids = multinomial(
                 (model_log_prob.permute(0, 2, 1) / sampling.temperature)
                 .softmax(dim=-1)
                 .reshape(-1, model_log_prob.size(1)),
                 1,
                 generator=generator,
+                device=model_log_prob.device,
             ).reshape(model_log_prob.shape[0], model_log_prob.shape[-1])
             confidence = self.corrector.calc_confidence_score(
                 x0_recon_ids,

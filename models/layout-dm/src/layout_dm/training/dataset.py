@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Final, Protocol, TypeAlias, cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
+from laygen.common import rand
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import label2id_for_dataset
 from laygen.common.layout_keys import (
@@ -239,7 +240,7 @@ class LayoutDMSyntheticDataset(
     def __getitem__(self, index: int) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
         """Return one deterministic synthetic tokenized layout."""
         generator = torch.Generator().manual_seed(index)
-        bbox = torch.rand(self.elements, 4, generator=generator)
+        bbox = rand(self.elements, 4, generator=generator)
         bbox[:, 2:] = bbox[:, 2:].mul(0.35).add(0.05)
         labels = (
             torch.arange(self.elements, dtype=torch.long) % self.config.num_categories
