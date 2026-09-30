@@ -65,7 +65,6 @@ def index_to_log_onehot(
         >>> index_to_log_onehot(torch.tensor([[0, 1]]), 3).shape
         torch.Size([1, 3, 2])
     """
-    import torch
     import torch.nn.functional as F
 
     if input_ids.numel() and input_ids.max().item() >= vocab_size:
@@ -165,8 +164,6 @@ def sample_time_importance(
         >>> t.shape, pt.shape
         (torch.Size([2]), torch.Size([2]))
     """
-    import torch
-
     device = lt_history.device
     if not bool((lt_count > 10).all()):
         return sample_time_uniform(
@@ -216,8 +213,6 @@ def sample_time_uniform(
         >>> t.shape, pt.tolist()
         (torch.Size([2]), [0.25, 0.25])
     """
-    import torch
-
     t = randint(
         0,
         num_timesteps,
@@ -258,8 +253,6 @@ def update_loss_history(
         >>> history.tolist(), count.tolist()
         ([0.0, 0.4000000059604645, 0.0], [0.0, 1.0, 0.0])
     """
-    import torch
-
     lt2 = kl_loss.pow(2)
     lt2_prev = lt_history.gather(dim=0, index=t)
     new_history = (0.1 * lt2 + 0.9 * lt2_prev).detach()
@@ -271,8 +264,6 @@ def log_add_exp(
     a: Float[torch.Tensor, "..."], b: Float[torch.Tensor, "..."]
 ) -> Float[torch.Tensor, "..."]:
     """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
-    import torch
-
     maximum = torch.maximum(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
@@ -294,8 +285,6 @@ def gumbel_noise_like(
     generator: torch.Generator | None = None,
 ) -> Float[torch.Tensor, "..."]:
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
-    import torch
-
     uniform = rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
     return -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
 
@@ -313,8 +302,6 @@ def top_k_logits(
     logits: Float[torch.Tensor, "... vocab"], k: int, dim: int = -1
 ) -> Float[torch.Tensor, "... vocab"]:
     """Mask logits outside the top-k entries along ``dim``."""
-    import torch
-
     if k <= 0 or k >= logits.size(dim):
         return logits
     values = torch.topk(logits, k, dim=dim).values
@@ -325,8 +312,6 @@ def top_k_logits(
 def _top_p_logits(
     logits: Float[torch.Tensor, "... vocab"], top_p: float
 ) -> Float[torch.Tensor, "... vocab"]:
-    import torch
-
     if top_p >= 1.0:
         return logits
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
@@ -409,8 +394,6 @@ def batch_topk_mask(
     scores: Float[torch.Tensor, "batch candidates"], k: Int[torch.Tensor, "batch"]
 ) -> Bool[torch.Tensor, "batch candidates"]:
     """Return a per-row boolean mask for the top ``k`` scores."""
-    import torch
-
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
 
