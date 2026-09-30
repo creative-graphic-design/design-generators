@@ -293,6 +293,7 @@ def normal(
             size=size,
             generator=draw_generator,
             device=draw_device,
+            dtype=dtype,
         )
 
     return _draw(draw, generator=generator, device=device, dtype=dtype)
