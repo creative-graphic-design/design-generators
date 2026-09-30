@@ -21,6 +21,7 @@ from typing import ClassVar, Protocol, Self, cast, runtime_checkable
 import torch
 from transformers import PretrainedConfig, set_seed
 
+from laygen.common.randomness import resolve_torch_generator
 from laygen.modeling_outputs import LayoutGenerationOutput
 
 
@@ -481,7 +482,7 @@ class LayoutGenerationPipeline(ABC):
         generator_device = torch.device(device) if device is not None else self.device
         if generator_device is None:
             return None
-        return torch.Generator(device=generator_device).manual_seed(seed)
+        return resolve_torch_generator(seed=seed, device=generator_device)
 
     def _pipeline_component_values(self) -> tuple[PipelineComponent, ...]:
         values: list[PipelineComponent] = []
