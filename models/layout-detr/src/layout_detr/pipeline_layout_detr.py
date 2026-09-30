@@ -202,7 +202,7 @@ class LayoutDetrPipeline(LayoutGenerationPipeline):
             batch_size=batch_size,
             canvas_size=canvas_size,
         )
-        device = self.device or self.model.device
+        device = self.device
         encoded = encoded.to(device)
         batch, elements = encoded["bbox_labels"].shape
         runtime_generator = self.prepare_generator(

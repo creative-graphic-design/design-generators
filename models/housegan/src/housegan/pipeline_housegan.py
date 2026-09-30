@@ -182,7 +182,7 @@ class HouseGanPipeline(LayoutGenerationPipeline):
         torch_generator = self.prepare_generator(
             generator=generator,
             seed=seed,
-            device=self.device or self.model.device,
+            device=self.device,
         )
         for graph_index, graph_item in enumerate(graph_batch):
             condition = self.processor(
