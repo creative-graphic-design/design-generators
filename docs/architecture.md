@@ -109,7 +109,7 @@ The provider-backed agents are LayoutGPT, LayoutPrompter, and PosterO. A package
 | Repair/retry framework             | `laygen.agents.BaseLayoutAgent` repair/retry hooks and loop; no agent calls `run_with_repair_policy`, and PosterO runs its own parser-retry loop.                                                                         |
 | Generic model-card rendering       | `laygen.common.model_card.build_layout_model_card`; model packages keep model facts, metadata values, wording, parity rows, citations, and upstream references.                                                           |
 
-Config persistence and loading, exemplars, parsers, response schemas, Hub dataset and model identity, model-card facts and checkpoint README writing, and package READMEs remain package-owned with no shared owner.
+Config persistence and loading, exemplars, parsers, Hub dataset and model identity, checkpoint README writing, and package READMEs remain package-owned with no shared owner.
 
 ## Shared package names and imports
 
