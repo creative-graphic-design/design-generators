@@ -13,7 +13,7 @@ from jaxtyping import Bool, Float, Int
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
-from laygen.common import multinomial
+from laygen.common.randomness import multinomial
 
 from .configuration_layoutformerpp import LayoutFormerPPConfig
 

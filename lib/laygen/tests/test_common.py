@@ -12,7 +12,7 @@ import numpy.typing as npt
 import pytest
 import torch
 import yaml
-from laygen.common import (
+from laygen.common.randomness import (
     bernoulli,
     multinomial,
     normal,
@@ -720,7 +720,7 @@ def test_output_schema():
     assert_layout_output_schema(numpy_output, batch_size=1)
 
 
-def test_modeling_output_import_and_numpy_values_do_not_require_torch():
+def test_common_import_and_modeling_outputs_do_not_require_torch():
     code = textwrap.dedent(
         """
         import builtins
@@ -747,7 +747,7 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         importlib.util.find_spec = find_spec_without_torch
         builtins.__import__ = import_without_torch
 
-        from laygen.common import resolve_torch_generator
+        import laygen.common
         from laygen.modeling_outputs import LayoutGenerationOutput
 
         output = LayoutGenerationOutput(
@@ -758,7 +758,8 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         )
         assert output["bbox"].shape == (1, 1, 4)
         assert output.to_tuple()[0].shape == (1, 1, 4)
-        assert callable(resolve_torch_generator)
+        assert "laygen.common" in sys.modules
+        assert "laygen.common.randomness" not in sys.modules
         assert "torch" not in sys.modules
         """
     )

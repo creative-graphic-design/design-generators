@@ -12,9 +12,10 @@ from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
 from PIL import Image
 
-from laygen.common import ConditionType, resolve_torch_generator
+from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
+from laygen.common.randomness import resolve_torch_generator
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .modeling_cgb_dm import CGBDMTransformerModel

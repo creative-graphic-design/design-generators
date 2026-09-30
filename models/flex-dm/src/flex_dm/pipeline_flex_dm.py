@@ -11,11 +11,11 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
-from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, model_processor_component_specs
+from laygen.common.randomness import resolve_torch_generator
 
 from .configuration_flex_dm import FlexDmConfig
 from .masking import apply_token, iterative_decode

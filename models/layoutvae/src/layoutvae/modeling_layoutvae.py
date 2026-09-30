@@ -12,9 +12,9 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import poisson, rand, randn
 from laygen.common.bbox import clamp_boxes, ltwh_to_xywh
 from laygen.common.enums import normalize_enum_value
+from laygen.common.randomness import poisson, rand, randn
 
 from .configuration_layoutvae import LayoutVAEConfig
 

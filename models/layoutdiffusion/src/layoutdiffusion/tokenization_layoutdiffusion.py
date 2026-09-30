@@ -10,7 +10,6 @@ from typing import Literal, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
-from laygen.common import multinomial, randint
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
@@ -21,6 +20,7 @@ from laygen.common.bbox import (
     normalize_boxes,
     xywh_to_ltrb,
 )
+from laygen.common.randomness import multinomial, randint
 from transformers import PreTrainedTokenizer
 
 from .configuration_layoutdiffusion import LayoutDiffusionConfig

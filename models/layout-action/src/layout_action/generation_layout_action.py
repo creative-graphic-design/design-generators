@@ -9,7 +9,7 @@ import torch
 from jaxtyping import Float, Int
 from torch.nn import functional as F
 
-from laygen.common import multinomial
+from laygen.common.randomness import multinomial
 
 from .configuration_layout_action import (
     LayoutActionSamplingMode,

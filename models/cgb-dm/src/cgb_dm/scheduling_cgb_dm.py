@@ -13,10 +13,11 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from jaxtyping import Bool, Float, Int
 
-from laygen.common import ConditionType, rand, randint, randn
+from laygen.common import ConditionType
 from laygen.schedulers.continuous import (
     make_beta_schedule as make_continuous_beta_schedule,
 )
+from laygen.common.randomness import rand, randint, randn
 
 
 class CGBDMBetaSchedule(StrEnum):

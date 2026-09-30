@@ -8,8 +8,8 @@ from typing import Final, Literal, Protocol
 import torch
 from jaxtyping import Bool, Int, Shaped
 
-from laygen.common import randint, randn
 from laygen.common.conditions import ConditionType
+from laygen.common.randomness import randint, randn
 
 from .configuration_flex_dm import FlexDmColumnSpec
 

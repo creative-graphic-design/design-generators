@@ -7,9 +7,10 @@ from typing import Self, assert_never, cast
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
-from laygen.common import ConditionType, randn, resolve_torch_generator
+from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
+from laygen.common.randomness import randn, resolve_torch_generator
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_dlt import DLTConfig

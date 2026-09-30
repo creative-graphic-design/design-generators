@@ -11,7 +11,6 @@ from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 from transformers.image_utils import ImageInput
 
-from laygen.common import randn
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import (
     ConditionType,
@@ -23,6 +22,7 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.common.randomness import randn
 
 from .configuration_layout_detr import BackgroundPreprocessing, LayoutDetrConfig
 from .modeling_layout_detr import LayoutDetrForConditionalGeneration

@@ -12,8 +12,8 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int, Shaped
 
-from laygen.common import randn
 from laygen.schedulers.continuous import get_layousyn_beta_schedule
+from laygen.common.randomness import randn
 
 
 @dataclass

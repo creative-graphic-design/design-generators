@@ -10,11 +10,12 @@ import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
-from laygen.common import ConditionType, rand, randn, resolve_torch_generator
+from laygen.common import ConditionType
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.randomness import rand, randn, resolve_torch_generator
 
 from .configuration_lace import normalize_dataset
 from .constraints import beautify_layout

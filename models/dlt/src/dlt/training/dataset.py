@@ -10,7 +10,7 @@ import torch
 from jaxtyping import Bool, Float, Int
 from torch.utils.data import Dataset
 
-from laygen.common import rand, randint
+from laygen.common.randomness import rand, randint
 
 
 class DLTExample(TypedDict):

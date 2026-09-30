@@ -8,7 +8,7 @@ from typing import assert_never
 import torch
 from jaxtyping import Float, Int
 
-from laygen.common import rand, randn
+from laygen.common.randomness import rand, randn
 
 
 class InitialDistribution(StrEnum):

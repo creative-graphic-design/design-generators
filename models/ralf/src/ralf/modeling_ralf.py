@@ -20,7 +20,7 @@ from torchvision.models.feature_extraction import create_feature_extractor
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput
 
-from laygen.common import multinomial
+from laygen.common.randomness import multinomial
 
 from .configuration_ralf import (
     RalfConfig,

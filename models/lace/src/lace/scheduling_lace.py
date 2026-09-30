@@ -9,7 +9,6 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int
-from laygen.common import randn
 from laygen.schedulers.continuous import (
     BetaSchedule,
     DDIMDiscretization,
@@ -18,6 +17,7 @@ from laygen.schedulers.continuous import (
     normalize_beta_schedule,
     normalize_ddim_discretization,
 )
+from laygen.common.randomness import randn
 
 
 @dataclass

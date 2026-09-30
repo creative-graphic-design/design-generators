@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Final, Protocol, TypeAlias, cast
 
 import torch
 from jaxtyping import Float, Int, Shaped
-from laygen.common import rand
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import label2id_for_dataset
 from laygen.common.layout_keys import (
@@ -17,6 +16,7 @@ from laygen.common.layout_keys import (
     LAYOUT_LABEL_KEYS,
 )
 from torch.utils.data import Dataset as TorchDataset
+from laygen.common.randomness import rand
 
 from ..configuration_layout_dm import LayoutDMConfig
 from ..processing_layout_dm import LayoutDMProcessor

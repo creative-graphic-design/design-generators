@@ -12,11 +12,11 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import randn, resolve_torch_generator
 from laygen.common.bbox import BoxFormat, normalize_box_format
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.enums import normalize_enum_value
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.randomness import randn, resolve_torch_generator
 
 from .configuration_layoutganpp import LayoutGANPPConfig
 

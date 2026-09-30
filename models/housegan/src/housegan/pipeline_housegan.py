@@ -11,7 +11,6 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PretrainedConfig
 
-from laygen.common import randn
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -20,6 +19,7 @@ from laygen.pipelines import (
     PipelineComponentSpec,
     model_processor_component_specs,
 )
+from laygen.common.randomness import randn
 
 from .configuration_housegan import HouseGanConfig
 from .graph_schema import (

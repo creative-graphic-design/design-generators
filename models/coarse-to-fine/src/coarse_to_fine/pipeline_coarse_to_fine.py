@@ -11,10 +11,10 @@ from transformers import Pipeline
 from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
 
-from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.randomness import resolve_torch_generator
 
 from .hierarchy import decode_hierarchy_from_logits
 from .modeling_coarse_to_fine import CoarseToFineForLayoutGeneration

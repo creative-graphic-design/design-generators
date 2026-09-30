@@ -7,7 +7,7 @@ from jaxtyping import Float
 from torch.utils.data import Dataset
 
 from cgb_dm.data import CGBDMOriginalDataset
-from laygen.common import rand
+from laygen.common.randomness import rand
 
 
 class CGBDMSyntheticDataset(Dataset[dict[str, Float[torch.Tensor, "..."]]]):

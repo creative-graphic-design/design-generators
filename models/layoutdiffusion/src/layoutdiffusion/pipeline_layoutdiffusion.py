@@ -14,11 +14,11 @@ from jaxtyping import Bool, Float, Int
 from laygen.common import (
     ConditionType,
     normalize_condition_type,
-    resolve_torch_generator,
 )
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.randomness import resolve_torch_generator
 
 from .conditioning import build_condition
 from .modeling_layoutdiffusion import LayoutDiffusionTransformer

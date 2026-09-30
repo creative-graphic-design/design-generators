@@ -13,7 +13,7 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from einops import rearrange
 from jaxtyping import Float, Int
-from laygen.common import multinomial
+from laygen.common.randomness import multinomial
 
 
 @dataclass

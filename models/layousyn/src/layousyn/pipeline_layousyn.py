@@ -14,9 +14,9 @@ from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common import (
     ConditionType,
     normalize_condition_type,
-    resolve_torch_generator,
 )
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
+from laygen.common.randomness import resolve_torch_generator
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .modeling_layousyn import LayouSynDiTModel

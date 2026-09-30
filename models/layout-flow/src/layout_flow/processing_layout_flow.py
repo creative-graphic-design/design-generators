@@ -10,7 +10,6 @@ import torch
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import ProcessorMixin
 
-from laygen.common import rand
 from laygen.common.bbox import (
     ArrayLikeInput,
     BoxFormat,
@@ -21,6 +20,7 @@ from laygen.common.bbox import (
     normalize_boxes,
 )
 from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.randomness import rand
 
 from .configuration_layout_flow import LayoutFlowConfig
 

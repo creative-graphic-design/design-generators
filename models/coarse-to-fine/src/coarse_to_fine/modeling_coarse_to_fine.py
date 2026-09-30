@@ -9,7 +9,7 @@ import torch.nn as nn
 from jaxtyping import Bool, Float, Int, Shaped
 from transformers import PreTrainedModel
 
-from laygen.common import randn
+from laygen.common.randomness import randn
 
 from .configuration_coarse_to_fine import CoarseToFineConfig
 

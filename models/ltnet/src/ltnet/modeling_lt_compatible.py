@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from jaxtyping import Bool, Float, Int
 
-from laygen.common import multinomial, randn
+from laygen.common.randomness import multinomial, randn
 
 from .configuration_ltnet import LTNetConfig
 

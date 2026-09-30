@@ -13,7 +13,7 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
-from laygen.common import multinomial, normal, resolve_torch_generator
+from laygen.common.randomness import multinomial, normal, resolve_torch_generator
 
 from .configuration_ds_gan import DSGANConfig
 

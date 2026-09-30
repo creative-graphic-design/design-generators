@@ -19,12 +19,12 @@ from layout_dm.conditioning import (
 from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
-from laygen.common import multinomial, resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.randomness import multinomial, resolve_torch_generator
 
 from .configuration_layout_corrector import CorrectorReconType
 from .modeling_layout_corrector import LayoutCorrectorModel

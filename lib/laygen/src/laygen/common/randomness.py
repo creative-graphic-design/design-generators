@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from jaxtyping import Shaped
 
-if TYPE_CHECKING:
-    import torch
+import torch
 
 
 def _draw(
@@ -19,8 +18,6 @@ def _draw(
     dtype: torch.dtype | None = None,
 ) -> Shaped[torch.Tensor, "..."]:
     """Draw on the generator device and move the result to the target device."""
-    import torch
-
     draw_device = generator.device if generator is not None else torch.device(device)
     result = draw(draw_device, generator)
     if dtype is None:
@@ -46,8 +43,6 @@ def randn(
     Returns:
         A tensor sampled with the requested shape, device, and dtype.
     """
-    import torch
-
     if len(size) == 1 and isinstance(size[0], tuple):
         shape = size[0]
     elif all(isinstance(dimension, int) for dimension in size):
@@ -85,8 +80,6 @@ def rand(
     Returns:
         A tensor sampled with the requested shape, device, and dtype.
     """
-    import torch
-
     if len(size) == 1 and isinstance(size[0], tuple):
         shape = size[0]
     elif all(isinstance(dimension, int) for dimension in size):
@@ -129,8 +122,6 @@ def randint(
     Returns:
         A tensor sampled with the requested shape, device, and dtype.
     """
-    import torch
-
     return _draw(
         lambda draw_device, draw_generator: torch.randint(
             low,
@@ -164,8 +155,6 @@ def randperm(
     Returns:
         A permutation tensor on the requested device.
     """
-    import torch
-
     return _draw(
         lambda draw_device, draw_generator: torch.randperm(
             n,
@@ -201,8 +190,6 @@ def multinomial(
     Returns:
         Sampled indices on the requested device.
     """
-    import torch
-
     return _draw(
         lambda draw_device, draw_generator: torch.multinomial(
             probs.to(draw_device),
@@ -234,8 +221,6 @@ def bernoulli(
     Returns:
         Sampled binary values on the requested device.
     """
-    import torch
-
     return _draw(
         lambda draw_device, draw_generator: torch.bernoulli(
             probs.to(draw_device), generator=draw_generator
@@ -268,7 +253,6 @@ def normal(
     Returns:
         Normally distributed values on the requested device.
     """
-    import torch
 
     def draw(
         draw_device: torch.device, draw_generator: torch.Generator | None
@@ -317,8 +301,6 @@ def poisson(
     Returns:
         Sampled values on the requested device.
     """
-    import torch
-
     return _draw(
         lambda draw_device, draw_generator: torch.poisson(
             rates.to(draw_device), generator=draw_generator
@@ -353,6 +335,4 @@ def resolve_torch_generator(
 
 
 def _seeded_generator(*, seed: int) -> torch.Generator:
-    import torch
-
     return torch.Generator().manual_seed(seed)
