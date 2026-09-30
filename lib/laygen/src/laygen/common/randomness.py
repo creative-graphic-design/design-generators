@@ -348,10 +348,10 @@ def resolve_torch_generator(
     if seed is None:
         return None
 
-    return _seeded_generator(seed=seed, device=device)
+    return _seeded_generator(seed=seed)
 
 
-def _seeded_generator(*, seed: int, device: str | torch.device) -> torch.Generator:
+def _seeded_generator(*, seed: int) -> torch.Generator:
     import torch
 
     return torch.Generator().manual_seed(seed)
