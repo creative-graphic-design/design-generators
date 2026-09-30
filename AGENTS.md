@@ -100,6 +100,8 @@
 
 ## Machine-Checked Conventions
 
+Each `scripts/check_*.py` owns one repository policy together with its CLI, diagnostics, baseline shape, and git or network access. Mechanics that two or more checkers need with identical semantics belong in private `scripts/_repo_checks/` modules, which are repository tooling rather than a workspace library; a mechanic with one consumer stays in its checker.
+
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
