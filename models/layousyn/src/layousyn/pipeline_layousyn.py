@@ -11,7 +11,11 @@ import numpy as np
 import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
-from laygen.common import ConditionType, normalize_condition_type
+from laygen.common import (
+    ConditionType,
+    normalize_condition_type,
+    resolve_torch_generator,
+)
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -182,8 +186,9 @@ class LayouSynPipeline(DiffusionPipeline):
                 f"LayouSyn public pipeline supports condition_type='text', got {condition_type}"
             )
 
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         encoded = self.processor(
             prompt=prompt,
             labels=labels,

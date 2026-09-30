@@ -51,6 +51,32 @@ def test_pipeline_content_image_seed_reproducible():
     assert torch.allclose(first.bbox, second.bbox)
 
 
+def test_pipeline_explicit_generator_wins_over_seed():
+    pipe = tiny_pipe()
+    pixel_values = torch.zeros(1, 4, 32, 32)
+
+    first = cast(
+        LayoutGenerationOutput,
+        pipe(
+            pixel_values=pixel_values,
+            seed=1,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=1,
+        ),
+    )
+    second = cast(
+        LayoutGenerationOutput,
+        pipe(
+            pixel_values=pixel_values,
+            seed=999,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=1,
+        ),
+    )
+
+    assert torch.allclose(first.bbox, second.bbox)
+
+
 def test_pipeline_conditioning_dict_output_and_save_pretrained(tmp_path):
     pipe = tiny_pipe()
     output = pipe(
