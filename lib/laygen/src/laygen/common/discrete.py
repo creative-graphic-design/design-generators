@@ -3,19 +3,13 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, Final, assert_never
+from typing import Final, assert_never
 
 from jaxtyping import Bool, Float, Int
 
-from .randomness import multinomial, rand, randint
+import torch
 
-if TYPE_CHECKING:
-    import torch
-else:
-    try:
-        import torch
-    except ImportError:
-        pass
+from .randomness import multinomial, rand, randint
 
 LOG_EPS: Final[float] = -70.0
 
