@@ -98,6 +98,35 @@ def test_checker_rejects_each_chained_or_tensor_method_draw(
     assert check_generator_sampling(tmp_path) == 1
 
 
+@pytest.mark.parametrize(
+    ("imports", "expression"),
+    [
+        (
+            "from laygen.common import randomness",
+            "randomness.multinomial(p, 1, generator=g)",
+        ),
+        (
+            "from laygen.common import randomness",
+            "randomness.bernoulli(p, generator=g)",
+        ),
+        (
+            "import laygen.common as lc",
+            "lc.multinomial(p, 1, generator=g)",
+        ),
+    ],
+)
+def test_checker_allows_imported_randomness_module_draws(
+    tmp_path: Path, imports: str, expression: str
+) -> None:
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        f"{imports}\n{expression}\n",
+    )
+
+    assert check_generator_sampling(tmp_path) == 0
+
+
 def test_checker_rejects_like_draws_and_init_initializers(tmp_path: Path) -> None:
     write_source(
         tmp_path,

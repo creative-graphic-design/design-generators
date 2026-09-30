@@ -80,14 +80,16 @@ def dotted_name(node: ast.AST) -> str | None:
     return ".".join(reversed(parts))
 
 
-def import_aliases(tree: ast.Module) -> dict[str, str]:
-    """Return local import names and their fully qualified source names."""
+def import_aliases(tree: ast.Module) -> tuple[dict[str, str], set[str]]:
+    """Return import aliases and fully qualified imported module names."""
     aliases: dict[str, str] = {}
+    module_names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for imported in node.names:
                 local = imported.asname or imported.name.split(".", 1)[0]
                 aliases[local] = imported.name
+                module_names.add(imported.name)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             for imported in node.names:
                 if imported.name == "*":
@@ -95,8 +97,10 @@ def import_aliases(tree: ast.Module) -> dict[str, str]:
 
                 local = imported.asname or imported.name
                 aliases[local] = f"{node.module}.{imported.name}"
+                if node.module == "laygen.common" and imported.name == "randomness":
+                    module_names.add(f"{node.module}.{imported.name}")
 
-    return aliases
+    return aliases, module_names
 
 
 def resolve_name(name: str | None, aliases: dict[str, str]) -> str | None:
@@ -121,7 +125,7 @@ def is_cpu_literal(node: ast.AST) -> bool:
 
 def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolation]:
     """Return forbidden sampling operations in one parsed source tree."""
-    aliases = import_aliases(tree)
+    aliases, module_names = import_aliases(tree)
     violations: list[SamplingViolation] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -179,7 +183,11 @@ def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolati
             and draw_name in METHOD_DRAW_NAMES
             and (
                 receiver_name is None
-                or (receiver_name != "torch" and not receiver_name.startswith("torch."))
+                or (
+                    receiver_name not in module_names
+                    and receiver_name != "torch"
+                    and not receiver_name.startswith("torch.")
+                )
             )
         )
         if not (
