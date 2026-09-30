@@ -96,9 +96,10 @@ def import_aliases(tree: ast.Module) -> tuple[dict[str, str], set[str]]:
                     continue
 
                 local = imported.asname or imported.name
-                aliases[local] = f"{node.module}.{imported.name}"
-                if node.module == "laygen.common" and imported.name == "randomness":
-                    module_names.add(f"{node.module}.{imported.name}")
+                resolved = f"{node.module}.{imported.name}"
+                aliases[local] = resolved
+                if resolved in {"laygen.common", "laygen.common.randomness"}:
+                    module_names.add(resolved)
 
     return aliases, module_names
 

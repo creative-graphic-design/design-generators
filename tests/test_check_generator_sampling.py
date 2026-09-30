@@ -113,9 +113,13 @@ def test_checker_rejects_each_chained_or_tensor_method_draw(
             "import laygen.common as lc",
             "lc.multinomial(p, 1, generator=g)",
         ),
+        (
+            "from laygen import common",
+            "common.multinomial(p, 1, generator=g)",
+        ),
     ],
 )
-def test_checker_allows_imported_randomness_module_draws(
+def test_checker_allows_imported_helper_module_draws(
     tmp_path: Path, imports: str, expression: str
 ) -> None:
     write_source(
