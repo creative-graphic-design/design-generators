@@ -62,6 +62,10 @@ Canonical `condition_type` names are:
 
 Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 
+### Seeded Sampling
+
+Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. The shared `laygen.common.randomness` wrappers (`randn`, `rand`, `randint`, `randperm`, `multinomial`, `bernoulli`, `normal`, and `poisson`) draw on an explicit generator's device, or on the requested output device when no generator is supplied, and then move the result to the requested device and dtype. Explicit generators keep their identity and device, so a CUDA generator remains a CUDA-local stream while a CPU generator gives the same stream for CPU and GPU targets. When a CPU generator samples GPU-resident tensor arguments, `multinomial`, `normal`, and `poisson` copy those arguments to CPU for the draw and copy the result back to the requested device; this adds one host-to-device copy per draw and is part of the reproducibility contract.
+
 ### Dataset References
 
 Datasets hosted by the `creative-graphic-design` Hugging Face organization are preferred when they exist. Model processors own dataset-specific loading and normalization details so data sources can be changed without changing model code.

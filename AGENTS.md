@@ -108,6 +108,7 @@ Each `scripts/check_*.py` owns one repository policy area together with its CLI,
 - `scripts/check_src_vendor_language.py` enforces source-language boundaries and the documented `laygen.common.vendor` exception.
 - `scripts/check_stage_codes_in_prose.py` rejects training-reproduction stage codes in comments and docstrings under `lib/` and `models/` outside `vendor/` directories.
 - `scripts/check_jaxtyping_annotations.py` enforces shaped-annotation and baseline rules.
+- `scripts/check_generator_sampling.py` rejects direct generator-consuming Torch draws and non-CPU or dynamic generator construction outside the shared randomness helper.
 - `scripts/check_config_defaults.py` enforces explicit-config construction.
 - `scripts/check_semantic_blank_lines.py` checks raise-block and compound-suite blank lines.
 - `scripts/check_module_naming.py` enforces core module-name prefixes, suffixes, and allowlists.
