@@ -1167,7 +1167,7 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
         | str
         | None = None,
     ) -> dict[str, Shaped[torch.Tensor, ...] | Mapping[str, Shaped[torch.Tensor, ...]]]:
-        device = next(self.parameters()).device
+        device = self.device
         dtype = next(self.parameters()).dtype
         if pixel_values is None:
             pixel_values = torch.zeros(

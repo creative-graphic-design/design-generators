@@ -361,5 +361,5 @@ class FlexDmForMaskedDocumentModeling(FlexDmPreTrainedModel):
             else:
                 losses.append(F.mse_loss(pred, target.float()))
         if not losses:
-            return torch.tensor(0.0, device=next(self.parameters()).device)
+            return torch.tensor(0.0, device=self.device)
         return torch.stack(losses).sum()

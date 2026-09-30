@@ -181,7 +181,7 @@ class FlexDmPipeline(LayoutGenerationPipeline):
                 supported by released Flex-DM MFP checkpoints.
         """
         _ = model_kwargs
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         generator = resolve_torch_generator(
             generator=generator, seed=seed, device=model_device
         )

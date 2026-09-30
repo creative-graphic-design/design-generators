@@ -436,7 +436,7 @@ class LayoutVAEPipeline(LayoutGenerationPipeline):
         if canonical is not ConditionType.label:
             raise ValueError(f"Unsupported condition_type for layoutvae: {canonical}")
 
-        device = next(self.model.parameters()).device
+        device = self.model.device
         prepared_generator = self.prepare_generator(
             generator=options.generator,
             seed=options.seed,

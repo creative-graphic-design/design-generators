@@ -198,7 +198,7 @@ class LTNetPipeline(LayoutGenerationPipeline):
             ValueError: If the condition or graph payload is unsupported.
         """
         _ = (labels, bbox, mask, num_elements, num_inference_steps)
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         prepared_generator = self.prepare_generator(
             generator=generator, seed=seed, device=model_device
         )

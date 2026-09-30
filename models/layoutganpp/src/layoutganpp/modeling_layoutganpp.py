@@ -278,7 +278,7 @@ class LayoutGANPPModel(PreTrainedModel):
         if labels is None:
             raise ValueError("labels are required for layoutganpp generation")
 
-        device = next(self.parameters()).device
+        device = self.device
         labels = torch.as_tensor(labels, dtype=torch.long, device=device)
         if labels.ndim == 1:
             labels = labels.unsqueeze(0)
