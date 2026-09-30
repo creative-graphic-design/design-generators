@@ -244,7 +244,6 @@ class LayoutGenerationPipeline(ABC):
     component_specs: ClassVar[Mapping[str, PipelineComponentSpec]] = {}
 
     config: PretrainedConfig
-    device: torch.device | None
     dtype: torch.dtype | None
 
     def __init__(self, config: PretrainedConfig) -> None:
@@ -254,8 +253,21 @@ class LayoutGenerationPipeline(ABC):
             config: Root pipeline config.
         """
         self.config = config
-        self.device = None
         self.dtype = None
+
+    @property
+    def device(self) -> torch.device:
+        """Return an accelerator device, then a component device or CPU."""
+        devices = [
+            cast(torch.device, getattr(component, "device"))
+            for component in self._pipeline_component_values()
+            if hasattr(component, "device")
+        ]
+        for device in devices:
+            if device.type not in ("cpu", "meta"):
+                return device
+
+        return devices[0] if devices else torch.device("cpu")
 
     @classmethod
     def from_pretrained(
@@ -443,15 +455,14 @@ class LayoutGenerationPipeline(ABC):
         Returns:
             This pipeline instance.
         """
-        if device is not None:
-            self.device = torch.device(device)
         if dtype is not None:
             self.dtype = dtype
-        if self.device is None and self.dtype is None:
+        if device is None and self.dtype is None:
             return self
+        target_device = torch.device(device) if device is not None else None
         for component in self._pipeline_component_values():
             if isinstance(component, TorchMovable):
-                component.to(device=self.device, dtype=self.dtype)
+                component.to(device=target_device, dtype=self.dtype)
         return self
 
     def prepare_generator(
@@ -471,8 +482,8 @@ class LayoutGenerationPipeline(ABC):
                 the pipeline's current device is used.
 
         Returns:
-            The explicit generator, a seeded generator when a device is known,
-            or `None` after setting global Transformers/PyTorch seed state.
+            The explicit generator, a locally seeded generator, or `None` when
+            neither is supplied.
         """
         if generator is not None:
             return generator
@@ -480,8 +491,6 @@ class LayoutGenerationPipeline(ABC):
             return None
         set_seed(seed)
         generator_device = torch.device(device) if device is not None else self.device
-        if generator_device is None:
-            return None
         return resolve_torch_generator(seed=seed, device=generator_device)
 
     def _pipeline_component_values(self) -> tuple[PipelineComponent, ...]:

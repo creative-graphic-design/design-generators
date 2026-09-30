@@ -57,6 +57,16 @@ class ToyModel:
         self.moved_dtype = dtype
 
 
+class DeviceToyModel(ToyModel):
+    def __init__(self, name: str, device: torch.device) -> None:
+        super().__init__(name)
+        self._device = device
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
+
+
 class ToyProcessor:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -257,6 +267,7 @@ def test_pipeline_base_device_dtype_and_generator_seed_precedence() -> None:
         )
 
     assert moved is pipeline
+    assert pipeline.device == torch.device("cpu")
     assert pipeline.model.moved_device == torch.device("cpu")
     assert pipeline.model.moved_dtype is torch.float32
     assert resolved is explicit_generator
@@ -268,6 +279,17 @@ def test_pipeline_base_device_dtype_and_generator_seed_precedence() -> None:
     mocked_seed.assert_called_once_with(123)
     assert seeded is not None
     assert seeded.initial_seed() == 123
+
+
+def test_pipeline_base_prefers_accelerator_component_device() -> None:
+    pipeline = ToyPipeline(
+        config=ToyConfig(),
+        model=DeviceToyModel("cpu", torch.device("cpu")),
+        processor=ToyProcessor("processor"),
+        optional=DeviceToyModel("cuda", torch.device("cuda")),
+    )
+
+    assert pipeline.device == torch.device("cuda")
 
 
 def test_model_processor_component_specs_builds_standard_rules() -> None:

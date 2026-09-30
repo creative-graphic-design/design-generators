@@ -501,11 +501,6 @@ class CoarseToFineForLayoutGeneration(PreTrainedModel):
         self.ele_decoder = ElementDecoder(config, self.layout_embd)
         self.all_tied_weights_keys = dict(self._tied_weights_keys)
 
-    @property
-    def device(self) -> torch.device:
-        """Return the current parameter device."""
-        return next(self.parameters()).device
-
     def _sample_latent(
         self,
         *,

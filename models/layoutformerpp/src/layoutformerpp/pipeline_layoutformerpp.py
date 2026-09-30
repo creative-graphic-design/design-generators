@@ -196,7 +196,7 @@ class LayoutFormerPPPipeline(LayoutGenerationPipeline):
             normalized=normalized,
             canvas_size=canvas_size,
         )
-        model_device = next(self.model.parameters()).device
+        model_device = self.model.device
         input_ids = encoded["input_ids"].to(model_device)
         attention_mask = encoded["attention_mask"].to(model_device)
         condition = self.processor.normalize_condition_type(condition_type)

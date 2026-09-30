@@ -285,7 +285,7 @@ class DSGANPipeline(LayoutGenerationPipeline):
         del num_elements, num_inference_steps
         canonical = normalize_condition_type(condition_type)
         resolved_output_type = normalize_output_type(output_type)
-        device = self.device or next(self.model.parameters()).device
+        device = self.device
         if pixel_values is None:
             if images is None:
                 raise ValueError("images or pixel_values are required for DS-GAN")
