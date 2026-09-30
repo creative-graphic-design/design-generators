@@ -13,6 +13,8 @@ from torch import nn
 from transformers import PreTrainedModel
 from transformers.utils import ModelOutput
 
+from laygen.common import resolve_torch_generator
+
 from .configuration_ds_gan import DSGANConfig
 
 if TYPE_CHECKING:
@@ -245,8 +247,9 @@ def random_initial_layout(
     resolved_device = (
         torch.device(device) if device is not None else torch.device("cpu")
     )
-    if generator is None and seed is not None:
-        generator = torch.Generator(device=resolved_device).manual_seed(seed)
+    generator = resolve_torch_generator(
+        generator=generator, seed=seed, device=resolved_device
+    )
     if weighted_classes:
         probs = torch.tensor((0.1, 0.8, 1.0, 1.0), device=resolved_device)
         probs = probs / probs.sum()

@@ -53,7 +53,7 @@ models/dlt/src/dlt/training/dataset.py	block-end	8
 models/dlt/src/dlt/training/lightning_module.py	block-end	5
 models/dlt/src/dlt/training/seed.py	block-end	1
 models/ds-gan/src/ds_gan/conversion.py	block-end	4
-models/ds-gan/src/ds_gan/modeling_ds_gan.py	block-end	4
+models/ds-gan/src/ds_gan/modeling_ds_gan.py	block-end	3
 models/ds-gan/src/ds_gan/pipeline_ds_gan.py	block-end	8
 models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	32
 models/flex-dm/src/flex_dm/configuration_flex_dm.py	block-end	5
@@ -164,7 +164,7 @@ models/layoutganpp/src/layoutganpp/configuration_layoutganpp.py	block-end	1
 models/layoutganpp/src/layoutganpp/conversion.py	block-end	3
 models/layoutganpp/src/layoutganpp/datasets.py	block-end	1
 models/layoutganpp/src/layoutganpp/model_card.py	block-end	2
-models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	block-end	9
+models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py	block-end	8
 models/layoutganpp/src/layoutganpp/pipeline_layoutganpp.py	block-end	3
 models/layoutganpp/src/layoutganpp/processing_layoutganpp.py	block-end	11
 models/layoutprompter/src/layoutprompter/agent.py	block-end	4
