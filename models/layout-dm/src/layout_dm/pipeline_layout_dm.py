@@ -13,6 +13,7 @@ from jaxtyping import Bool, Float, Int, Shaped
 
 from laygen.common import ConditionType, normalize_condition_type
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
+from laygen.common import resolve_torch_generator
 from laygen.common.discrete import log_onehot_to_index
 from laygen.common.discrete import SamplingMode
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -146,8 +147,9 @@ class LayoutDMPipeline(DiffusionPipeline):
                 or if ``output_type`` is unsupported.
         """
         _ = (num_elements, model_kwargs)
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical is not ConditionType.unconditional:

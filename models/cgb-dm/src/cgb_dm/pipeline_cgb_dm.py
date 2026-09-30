@@ -12,7 +12,7 @@ from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int
 from PIL import Image
 
-from laygen.common import ConditionType
+from laygen.common import ConditionType, resolve_torch_generator
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
@@ -249,8 +249,9 @@ class CGBDMPipeline(DiffusionPipeline):
         del num_elements
         canonical = normalize_condition_type(condition_type)
         out_type = normalize_output_type(output_type)
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         if pixel_values is None:
             if content is not None:
                 image = content.get("image", image)

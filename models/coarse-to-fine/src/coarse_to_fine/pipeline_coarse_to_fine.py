@@ -11,6 +11,7 @@ from transformers import Pipeline
 from transformers.pipelines.base import GenericTensor
 from transformers.utils import ModelOutput
 
+from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.modeling_outputs import LayoutGenerationOutput
@@ -123,8 +124,9 @@ class CoarseToFinePipeline(Pipeline):
                 "Coarse-to-Fine released checkpoints support only unconditional generation"
             )
 
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.model.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.model.device
+        )
         if latent_z is None:
             sampled_z = self.model._sample_latent(
                 batch_size=batch_size,

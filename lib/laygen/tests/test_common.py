@@ -1,13 +1,18 @@
+import random
 import subprocess
 import sys
 import textwrap
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
+from typing import TypeAlias, cast
 
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
 import pytest
 import torch
 import yaml
+from laygen.common import resolve_torch_generator
 from laygen.common.bbox import (
     BoxFormat,
     denormalize_boxes,
@@ -71,6 +76,65 @@ from laygen.common.vendor import vendor_root
 from laygen.common.visualization import render_layout
 from laygen.modeling_outputs import LayoutGenerationOutput
 from transformers.utils import ModelOutput
+
+NumpyRandomState: TypeAlias = tuple[str, npt.NDArray[np.uint32], int, int, float]
+
+
+def test_resolve_torch_generator_preserves_explicit_generator() -> None:
+    generator = torch.Generator().manual_seed(7)
+    state = generator.get_state()
+
+    resolved = resolve_torch_generator(
+        generator=generator, seed=123, device=torch.device("cpu")
+    )
+
+    assert resolved is generator
+    assert torch.equal(generator.get_state(), state)
+
+
+def test_resolve_torch_generator_builds_identical_local_streams() -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    first = resolve_torch_generator(seed=123, device=device)
+    second = resolve_torch_generator(seed=123, device=device)
+
+    assert first is not None
+    assert second is not None
+    assert first.device == device
+    assert torch.equal(
+        torch.rand(8, device=device, generator=first),
+        torch.rand(8, device=device, generator=second),
+    )
+
+
+def test_resolve_torch_generator_both_absent_returns_none() -> None:
+    assert resolve_torch_generator(device=torch.device("cpu")) is None
+
+
+def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
+    python_state = random.getstate()
+    numpy_state = cast(NumpyRandomState, np.random.get_state())
+    torch_state = torch.random.get_rng_state()
+    cuda_states = (
+        [state.clone() for state in torch.cuda.get_rng_state_all()]
+        if torch.cuda.is_available()
+        else None
+    )
+
+    resolve_torch_generator(seed=123, device=torch.device("cpu"))
+    if cuda_states is not None:
+        resolve_torch_generator(seed=123, device="cuda")
+
+    assert random.getstate() == python_state
+    after_numpy_state = cast(NumpyRandomState, np.random.get_state())
+    assert after_numpy_state[0] == numpy_state[0]
+    assert np.array_equal(after_numpy_state[1], numpy_state[1])
+    assert after_numpy_state[2:] == numpy_state[2:]
+    assert torch.equal(torch.random.get_rng_state(), torch_state)
+    if cuda_states is not None:
+        assert all(
+            torch.equal(before, after)
+            for before, after in zip(cuda_states, torch.cuda.get_rng_state_all())
+        )
 
 
 def test_bbox_conversions_roundtrip():
@@ -519,6 +583,7 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         importlib.util.find_spec = find_spec_without_torch
         builtins.__import__ = import_without_torch
 
+        from laygen.common import resolve_torch_generator
         from laygen.modeling_outputs import LayoutGenerationOutput
 
         output = LayoutGenerationOutput(
@@ -529,6 +594,7 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         )
         assert output["bbox"].shape == (1, 1, 4)
         assert output.to_tuple()[0].shape == (1, 1, 4)
+        assert callable(resolve_torch_generator)
         assert "torch" not in sys.modules
         """
     )

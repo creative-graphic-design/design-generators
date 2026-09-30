@@ -19,6 +19,7 @@ from layout_dm.conditioning import (
 from layout_dm.pipeline_layout_dm import LayoutDMPipeline
 from layout_dm.processing_layout_dm import LayoutDMProcessor
 from layout_dm.sampling import LayoutDMSamplingConfig
+from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.conditions import ConditionType
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
@@ -191,8 +192,9 @@ class LayoutCorrectorPipeline(DiffusionPipeline):
             <function...
         """
         _ = num_elements
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         canonical = normalize_condition_type(condition_type)
         condition = None
         if canonical != "unconditional":

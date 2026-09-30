@@ -12,6 +12,7 @@ import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
+from laygen.common import resolve_torch_generator
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
@@ -127,8 +128,9 @@ class LayoutFlowPipeline(DiffusionPipeline):
             >>> out.bbox.shape[-1]
             4
         """
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         canonical = normalize_condition_type(condition_type)
         output_kind = OutputType(output_type)
         processed = self.processor(
