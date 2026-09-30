@@ -63,6 +63,58 @@ noise.normal_(generator=generator)
     assert check_generator_sampling(tmp_path) == 1
 
 
+def test_checker_rejects_generator_positional_and_keyword_expansions(
+    tmp_path: Path,
+) -> None:
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        """
+import torch
+
+torch.Generator("cuda")
+torch.Generator(**generator_kwargs)
+""",
+    )
+
+    assert check_generator_sampling(tmp_path) == 1
+
+
+def test_checker_rejects_chained_and_tensor_method_draws(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        """
+import torch
+
+torch.empty(3).normal_(generator=g)
+probs.multinomial(1, generator=g)
+probs.bernoulli(generator=g)
+x.cauchy_(generator=g)
+""",
+    )
+
+    assert check_generator_sampling(tmp_path) == 1
+
+
+def test_checker_rejects_like_draws_and_init_initializers(tmp_path: Path) -> None:
+    write_source(
+        tmp_path,
+        "models/example/src/example.py",
+        """
+import torch
+
+torch.randn_like(values, generator=g)
+torch.rand_like(values, generator=g)
+torch.randint_like(values, 0, 2, generator=g)
+torch.nn.init.trunc_normal_(values, generator=g)
+torch.nn.init.kaiming_uniform_(values, generator=g)
+""",
+    )
+
+    assert check_generator_sampling(tmp_path) == 1
+
+
 @pytest.mark.parametrize(
     "expression", ['"cuda"', "target_device", 'torch.device("cpu")']
 )

@@ -19,20 +19,31 @@ TORCH_DRAW_NAMES = frozenset(
         "poisson",
         "rand",
         "randint",
+        "randint_like",
+        "rand_like",
         "randn",
+        "randn_like",
         "randperm",
     }
 )
 IN_PLACE_DRAW_NAMES = frozenset(
     {
         "bernoulli_",
+        "cauchy_",
         "exponential_",
         "geometric_",
+        "kaiming_normal_",
+        "kaiming_uniform_",
         "log_normal_",
         "normal_",
+        "orthogonal_",
         "poisson_",
         "random_",
+        "sparse_",
+        "trunc_normal_",
         "uniform_",
+        "xavier_normal_",
+        "xavier_uniform_",
     }
 )
 
@@ -117,6 +128,26 @@ def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolati
 
         name = resolve_name(dotted_name(node.func), aliases)
         if name == "torch.Generator":
+            if node.args or any(keyword.arg is None for keyword in node.keywords):
+                violations.append(
+                    SamplingViolation(
+                        path.relative_to(root),
+                        node.lineno,
+                        "torch.Generator construction must use an implicit or literal CPU device",
+                    )
+                )
+                continue
+
+            if any(keyword.arg != "device" for keyword in node.keywords):
+                violations.append(
+                    SamplingViolation(
+                        path.relative_to(root),
+                        node.lineno,
+                        "torch.Generator construction must use an implicit or literal CPU device",
+                    )
+                )
+                continue
+
             for keyword in node.keywords:
                 if keyword.arg != "device":
                     continue
@@ -134,7 +165,13 @@ def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolati
 
             continue
 
-        draw_name = name.rsplit(".", 1)[-1] if name is not None else None
+        draw_name = (
+            node.func.attr
+            if isinstance(node.func, ast.Attribute)
+            else name.rsplit(".", 1)[-1]
+            if name is not None
+            else None
+        )
         is_torch_draw = name in {f"torch.{draw_name}" for draw_name in TORCH_DRAW_NAMES}
         is_in_place_draw = draw_name in IN_PLACE_DRAW_NAMES
         if not (is_torch_draw or is_in_place_draw) or not has_generator_keyword(node):
