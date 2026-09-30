@@ -30,6 +30,10 @@ def resolve_torch_generator(
     if seed is None:
         return None
 
+    return _seeded_generator(seed=seed, device=device)
+
+
+def _seeded_generator(*, seed: int, device: str | torch.device) -> torch.Generator:
     import torch
 
     return torch.Generator(device=device).manual_seed(seed)
