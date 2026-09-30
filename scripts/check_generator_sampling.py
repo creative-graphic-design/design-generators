@@ -46,6 +46,7 @@ IN_PLACE_DRAW_NAMES = frozenset(
         "xavier_uniform_",
     }
 )
+METHOD_DRAW_NAMES = frozenset({"bernoulli", "multinomial"})
 
 
 @dataclass(frozen=True)
@@ -128,17 +129,11 @@ def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolati
 
         name = resolve_name(dotted_name(node.func), aliases)
         if name == "torch.Generator":
-            if node.args or any(keyword.arg is None for keyword in node.keywords):
-                violations.append(
-                    SamplingViolation(
-                        path.relative_to(root),
-                        node.lineno,
-                        "torch.Generator construction must use an implicit or literal CPU device",
-                    )
-                )
-                continue
-
-            if any(keyword.arg != "device" for keyword in node.keywords):
+            if (
+                node.args
+                or any(keyword.arg is None for keyword in node.keywords)
+                or any(keyword.arg != "device" for keyword in node.keywords)
+            ):
                 violations.append(
                     SamplingViolation(
                         path.relative_to(root),
@@ -172,9 +167,24 @@ def check_tree(path: Path, root: Path, tree: ast.Module) -> list[SamplingViolati
             if name is not None
             else None
         )
+        receiver_name = (
+            resolve_name(dotted_name(node.func.value), aliases)
+            if isinstance(node.func, ast.Attribute)
+            else None
+        )
         is_torch_draw = name in {f"torch.{draw_name}" for draw_name in TORCH_DRAW_NAMES}
         is_in_place_draw = draw_name in IN_PLACE_DRAW_NAMES
-        if not (is_torch_draw or is_in_place_draw) or not has_generator_keyword(node):
+        is_tensor_method_draw = (
+            isinstance(node.func, ast.Attribute)
+            and draw_name in METHOD_DRAW_NAMES
+            and (
+                receiver_name is None
+                or (receiver_name != "torch" and not receiver_name.startswith("torch."))
+            )
+        )
+        if not (
+            is_torch_draw or is_in_place_draw or is_tensor_method_draw
+        ) or not has_generator_keyword(node):
             continue
 
         operation = name or draw_name or "sampling"

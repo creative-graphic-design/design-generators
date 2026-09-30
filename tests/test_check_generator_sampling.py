@@ -80,19 +80,20 @@ torch.Generator(**generator_kwargs)
     assert check_generator_sampling(tmp_path) == 1
 
 
-def test_checker_rejects_chained_and_tensor_method_draws(tmp_path: Path) -> None:
-    write_source(
-        tmp_path,
-        "models/example/src/example.py",
-        """
-import torch
-
-torch.empty(3).normal_(generator=g)
-probs.multinomial(1, generator=g)
-probs.bernoulli(generator=g)
-x.cauchy_(generator=g)
-""",
-    )
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "torch.empty(3).normal_(generator=g)",
+        "probs.multinomial(1, generator=g)",
+        "probs.bernoulli(generator=g)",
+        "torch.ones(3).multinomial(1, generator=g)",
+        "x.cauchy_(generator=g)",
+    ],
+)
+def test_checker_rejects_each_chained_or_tensor_method_draw(
+    tmp_path: Path, expression: str
+) -> None:
+    write_source(tmp_path, "models/example/src/example.py", expression)
 
     assert check_generator_sampling(tmp_path) == 1
 
