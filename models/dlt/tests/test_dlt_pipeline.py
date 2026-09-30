@@ -41,6 +41,33 @@ def test_pipeline_unconditional_seed_reproducible() -> None:
     assert torch.allclose(out1.bbox, out2.bbox)
 
 
+def test_pipeline_explicit_generator_wins_over_seed() -> None:
+    pipe = tiny_pipeline()
+    out1 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            num_elements=2,
+            seed=1,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=2,
+        ),
+    )
+    out2 = cast(
+        LayoutGenerationOutput,
+        pipe(
+            batch_size=1,
+            num_elements=2,
+            seed=999,
+            generator=torch.Generator().manual_seed(7),
+            num_inference_steps=2,
+        ),
+    )
+
+    assert torch.equal(out1.labels, out2.labels)
+    assert torch.allclose(out1.bbox, out2.bbox)
+
+
 def test_pipeline_public_condition_modes() -> None:
     pipe = tiny_pipeline()
     bbox = torch.tensor([[[0.5, 0.5, 0.2, 0.2], [0.2, 0.2, 0.1, 0.1]]])

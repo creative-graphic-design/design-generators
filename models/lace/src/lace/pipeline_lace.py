@@ -10,7 +10,7 @@ import torch
 from diffusers import DiffusionPipeline
 from jaxtyping import Bool, Float, Int, Shaped
 
-from laygen.common import ConditionType
+from laygen.common import ConditionType, resolve_torch_generator
 from laygen.common import normalize_condition_type as normalize_shared_condition_type
 from laygen.common.bbox import BoxFormat
 from laygen.common.labels import DatasetName
@@ -216,8 +216,9 @@ class LacePipeline(DiffusionPipeline):
             ValueError: If a condition/output mode is unsupported or required
                 conditioning tensors are missing.
         """
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         canonical = normalize_condition_type(condition_type)
         encoded = None
         if canonical is not ConditionType.unconditional:
