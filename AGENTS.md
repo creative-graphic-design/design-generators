@@ -134,7 +134,3 @@ Each `scripts/check_*.py` owns one repository policy area together with its CLI,
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
 - Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
-
-## CI Policy
-
-- Keep `uv-lock` local because this environment bakes global uv options into `uv.lock`; do not add `uv lock --check` or uv-lock to CI.
