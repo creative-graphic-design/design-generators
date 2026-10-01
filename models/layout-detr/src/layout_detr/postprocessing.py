@@ -8,6 +8,7 @@ import torch
 from jaxtyping import Bool, Float
 
 from laygen.common.bbox import clamp_boxes, xywh_to_ltrb
+from laygen.common.randomness import rand
 
 
 class PostprocessingMode(StrEnum):
@@ -44,7 +45,7 @@ def jitter_boxes(
 
     low = torch.log(bbox.new_tensor(1.0 - strength))
     high = torch.log(bbox.new_tensor(1.0 + strength))
-    noise = torch.rand(
+    noise = rand(
         bbox.shape,
         generator=generator,
         device=bbox.device,

@@ -12,7 +12,17 @@ import numpy.typing as npt
 import pytest
 import torch
 import yaml
-from laygen.common import resolve_torch_generator
+from laygen.common.randomness import (
+    bernoulli,
+    multinomial,
+    normal,
+    poisson,
+    rand,
+    randint,
+    randn,
+    randperm,
+    resolve_torch_generator,
+)
 from laygen.common.bbox import (
     BoxFormat,
     denormalize_boxes,
@@ -84,30 +94,27 @@ def test_resolve_torch_generator_preserves_explicit_generator() -> None:
     generator = torch.Generator().manual_seed(7)
     state = generator.get_state()
 
-    resolved = resolve_torch_generator(
-        generator=generator, seed=123, device=torch.device("cpu")
-    )
+    resolved = resolve_torch_generator(generator=generator, seed=123)
 
     assert resolved is generator
     assert torch.equal(generator.get_state(), state)
 
 
 def test_resolve_torch_generator_builds_identical_local_streams() -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    first = resolve_torch_generator(seed=123, device=device)
-    second = resolve_torch_generator(seed=123, device=device)
+    first = resolve_torch_generator(seed=123)
+    second = resolve_torch_generator(seed=123)
 
     assert first is not None
     assert second is not None
-    assert first.device == device
+    assert first.device == torch.device("cpu")
     assert torch.equal(
-        torch.rand(8, device=device, generator=first),
-        torch.rand(8, device=device, generator=second),
+        torch.rand(8, generator=first),
+        torch.rand(8, generator=second),
     )
 
 
 def test_resolve_torch_generator_both_absent_returns_none() -> None:
-    assert resolve_torch_generator(device=torch.device("cpu")) is None
+    assert resolve_torch_generator() is None
 
 
 def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
@@ -120,9 +127,7 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
         else None
     )
 
-    resolve_torch_generator(seed=123, device=torch.device("cpu"))
-    if cuda_states is not None:
-        resolve_torch_generator(seed=123, device="cuda")
+    resolve_torch_generator(seed=123)
 
     assert random.getstate() == python_state
     after_numpy_state = cast(NumpyRandomState, np.random.get_state())
@@ -135,6 +140,165 @@ def test_resolve_torch_generator_does_not_mutate_global_rng_state() -> None:
             torch.equal(before, after)
             for before, after in zip(cuda_states, torch.cuda.get_rng_state_all())
         )
+
+
+def test_random_wrappers_cover_generator_draws_without_global_rng_mutation() -> None:
+    python_state = random.getstate()
+    numpy_state = cast(NumpyRandomState, np.random.get_state())
+
+    def draw_all() -> tuple[torch.Tensor, ...]:
+        generator = torch.Generator().manual_seed(123)
+        return (
+            randn((2, 3), generator=generator, dtype=torch.float64),
+            rand((2, 3), generator=generator, dtype=torch.float32),
+            randint(1, 7, (2, 3), generator=generator),
+            randperm(6, generator=generator),
+            multinomial(
+                torch.tensor([[0.2, 0.8], [0.7, 0.3]]),
+                1,
+                replacement=True,
+                generator=generator,
+            ),
+            bernoulli(torch.full((2, 3), 0.5), generator=generator),
+            normal(0.5, 0.15, size=(2, 3), generator=generator),
+            poisson(torch.full((2, 3), 2.0), generator=generator),
+        )
+
+    torch.manual_seed(321)
+    expected_global = torch.rand(8)
+    torch.manual_seed(321)
+    first = draw_all()
+    actual_global = torch.rand(8)
+    second = draw_all()
+
+    assert torch.equal(actual_global, expected_global)
+    assert random.getstate() == python_state
+    after_numpy_state = cast(NumpyRandomState, np.random.get_state())
+    assert after_numpy_state[0] == numpy_state[0]
+    assert np.array_equal(after_numpy_state[1], numpy_state[1])
+    assert after_numpy_state[2:] == numpy_state[2:]
+    assert all(
+        torch.equal(first_value, second_value)
+        for first_value, second_value in zip(first, second)
+    )
+    assert first[0].dtype is torch.float64
+    assert first[0].shape == (2, 3)
+    assert first[3].shape == (6,)
+
+
+def test_random_wrappers_match_direct_torch_draws_and_dtypes() -> None:
+    wrapper_generator = torch.Generator().manual_seed(321)
+    torch_generator = torch.Generator().manual_seed(321)
+    assert torch.equal(
+        randn((2, 3), generator=wrapper_generator, dtype=torch.float64),
+        torch.randn((2, 3), generator=torch_generator, dtype=torch.float64),
+    )
+
+    wrapper_generator = torch.Generator().manual_seed(322)
+    torch_generator = torch.Generator().manual_seed(322)
+    assert torch.equal(
+        rand((2, 3), generator=wrapper_generator, dtype=torch.float64),
+        torch.rand((2, 3), generator=torch_generator, dtype=torch.float64),
+    )
+
+    wrapper_generator = torch.Generator().manual_seed(323)
+    torch_generator = torch.Generator().manual_seed(323)
+    assert torch.equal(
+        randint(1, 7, (2, 3), generator=wrapper_generator, dtype=torch.int32),
+        torch.randint(1, 7, (2, 3), generator=torch_generator, dtype=torch.int32),
+    )
+
+    wrapper_generator = torch.Generator().manual_seed(324)
+    torch_generator = torch.Generator().manual_seed(324)
+    assert torch.equal(
+        randperm(6, generator=wrapper_generator, dtype=torch.int64),
+        torch.randperm(6, generator=torch_generator, dtype=torch.int64),
+    )
+
+    probs = torch.tensor([[0.2, 0.8], [0.7, 0.3]], dtype=torch.float64)
+    wrapper_generator = torch.Generator().manual_seed(325)
+    torch_generator = torch.Generator().manual_seed(325)
+    assert torch.equal(
+        multinomial(
+            probs,
+            1,
+            replacement=True,
+            generator=wrapper_generator,
+            dtype=torch.int64,
+        ),
+        torch.multinomial(
+            probs,
+            1,
+            replacement=True,
+            generator=torch_generator,
+        ),
+    )
+
+    probs = torch.full((2, 3), 0.5, dtype=torch.float64)
+    wrapper_generator = torch.Generator().manual_seed(326)
+    torch_generator = torch.Generator().manual_seed(326)
+    assert torch.equal(
+        bernoulli(probs, generator=wrapper_generator),
+        torch.bernoulli(probs, generator=torch_generator),
+    )
+
+    wrapper_generator = torch.Generator().manual_seed(327)
+    torch_generator = torch.Generator().manual_seed(327)
+    assert torch.equal(
+        normal(
+            0.5, 0.15, size=(2, 3), generator=wrapper_generator, dtype=torch.float64
+        ),
+        torch.normal(
+            0.5,
+            0.15,
+            size=(2, 3),
+            generator=torch_generator,
+            dtype=torch.float64,
+        ),
+    )
+
+    mean = torch.full((2, 3), 0.5, dtype=torch.float64)
+    std = torch.full((2, 3), 0.15, dtype=torch.float64)
+    wrapper_generator = torch.Generator().manual_seed(328)
+    torch_generator = torch.Generator().manual_seed(328)
+    assert torch.equal(
+        normal(mean, std, generator=wrapper_generator),
+        torch.normal(mean, std, generator=torch_generator),
+    )
+
+    rates = torch.full((2, 3), 2.0, dtype=torch.float64)
+    wrapper_generator = torch.Generator().manual_seed(329)
+    torch_generator = torch.Generator().manual_seed(329)
+    assert torch.equal(
+        poisson(rates, generator=wrapper_generator),
+        torch.poisson(rates, generator=torch_generator),
+    )
+
+
+def test_random_wrappers_support_global_rng_and_explicit_generator_streams() -> None:
+    torch.manual_seed(654)
+    expected = torch.randn((2, 3), dtype=torch.float64)
+    torch.manual_seed(654)
+    actual = randn((2, 3), dtype=torch.float64)
+    assert torch.equal(actual, expected)
+
+    generator = torch.Generator().manual_seed(655)
+    expected_generator = torch.Generator().manual_seed(655)
+    actual = randn((2, 3), generator=generator)
+    expected = torch.randn((2, 3), generator=expected_generator)
+    assert torch.equal(actual, expected)
+    assert generator.device == torch.device("cpu")
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+def test_random_wrapper_cpu_stream_matches_gpu_target() -> None:
+    cpu_generator = torch.Generator().manual_seed(456)
+    gpu_generator = torch.Generator().manual_seed(456)
+
+    cpu = randn((2, 3), generator=cpu_generator, device="cpu")
+    gpu = randn((2, 3), generator=gpu_generator, device="cuda")
+
+    assert torch.equal(cpu, gpu.cpu())
 
 
 def test_bbox_conversions_roundtrip():
@@ -556,7 +720,7 @@ def test_output_schema():
     assert_layout_output_schema(numpy_output, batch_size=1)
 
 
-def test_modeling_output_import_and_numpy_values_do_not_require_torch():
+def test_common_import_and_modeling_outputs_do_not_require_torch():
     code = textwrap.dedent(
         """
         import builtins
@@ -583,7 +747,7 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         importlib.util.find_spec = find_spec_without_torch
         builtins.__import__ = import_without_torch
 
-        from laygen.common import resolve_torch_generator
+        import laygen.common
         from laygen.modeling_outputs import LayoutGenerationOutput
 
         output = LayoutGenerationOutput(
@@ -594,7 +758,8 @@ def test_modeling_output_import_and_numpy_values_do_not_require_torch():
         )
         assert output["bbox"].shape == (1, 1, 4)
         assert output.to_tuple()[0].shape == (1, 1, 4)
-        assert callable(resolve_torch_generator)
+        assert "laygen.common" in sys.modules
+        assert "laygen.common.randomness" not in sys.modules
         assert "torch" not in sys.modules
         """
     )

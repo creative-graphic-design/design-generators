@@ -19,7 +19,7 @@ lib/laygen/src/laygen/nn/activations.py	block-end	5
 lib/laygen/src/laygen/nn/blocks.py	block-end	2
 lib/laygen/src/laygen/nn/embeddings.py	block-end	1
 lib/laygen/src/laygen/nn/norms.py	block-end	1
-lib/laygen/src/laygen/pipelines/base.py	block-end	20
+lib/laygen/src/laygen/pipelines/base.py	block-end	18
 lib/laygen/src/laygen/schedulers/continuous.py	block-end	26
 lib/posgen/src/posgen/common/labels.py	block-end	1
 lib/traingen-parity/src/traingen_parity/compare.py	block-end	4
@@ -180,7 +180,7 @@ models/layoutvae/src/layoutvae/pipeline_layoutvae.py	block-end	7
 models/layoutvae/src/layoutvae/processing_layoutvae.py	block-end	10
 models/ltnet/src/ltnet/configuration_ltnet.py	block-end	4
 models/ltnet/src/ltnet/conversion.py	block-end	3
-models/ltnet/src/ltnet/modeling_lt_compatible.py	block-end	23
+models/ltnet/src/ltnet/modeling_lt_compatible.py	block-end	22
 models/ltnet/src/ltnet/modeling_ltnet.py	block-end	4
 models/ltnet/src/ltnet/pipeline_ltnet.py	block-end	3
 models/ltnet/src/ltnet/processing_ltnet.py	block-end	19

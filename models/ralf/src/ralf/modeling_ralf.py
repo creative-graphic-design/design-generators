@@ -20,6 +20,8 @@ from torchvision.models.feature_extraction import create_feature_extractor
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutput
 
+from laygen.common.randomness import multinomial
+
 from .configuration_ralf import (
     RalfConfig,
     RalfConfigTaskName,
@@ -1394,8 +1396,8 @@ class RalfForConditionalLayoutGeneration(PreTrainedModel):
                         next_logits < values[:, [-1]], -math.inf
                     )
                 probs = F.softmax(next_logits, dim=-1)
-                next_token = torch.multinomial(
-                    probs, num_samples=1, generator=generator
+                next_token = multinomial(
+                    probs, num_samples=1, generator=generator, device=probs.device
                 )
                 generated = torch.cat([generated, next_token], dim=1)
         finally:

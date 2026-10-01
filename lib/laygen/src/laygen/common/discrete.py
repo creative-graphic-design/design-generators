@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, Final, assert_never
+from typing import Final, assert_never
 
 from jaxtyping import Bool, Float, Int
 
-if TYPE_CHECKING:
-    import torch
-else:
-    try:
-        import torch
-    except ImportError:
-        pass
+import torch
+
+from .randomness import multinomial, rand, randint
 
 LOG_EPS: Final[float] = -70.0
 
@@ -69,7 +65,6 @@ def index_to_log_onehot(
         >>> index_to_log_onehot(torch.tensor([[0, 1]]), 3).shape
         torch.Size([1, 3, 2])
     """
-    import torch
     import torch.nn.functional as F
 
     if input_ids.numel() and input_ids.max().item() >= vocab_size:
@@ -169,8 +164,6 @@ def sample_time_importance(
         >>> t.shape, pt.shape
         (torch.Size([2]), torch.Size([2]))
     """
-    import torch
-
     device = lt_history.device
     if not bool((lt_count > 10).all()):
         return sample_time_uniform(
@@ -182,8 +175,12 @@ def sample_time_importance(
     lt_sqrt = torch.sqrt(lt_history + 1e-10) + 0.0001
     lt_sqrt[0] = lt_sqrt[1]
     pt_all = lt_sqrt / lt_sqrt.sum()
-    t = torch.multinomial(
-        pt_all, num_samples=batch_size, replacement=True, generator=generator
+    t = multinomial(
+        pt_all,
+        num_samples=batch_size,
+        replacement=True,
+        generator=generator,
+        device=device,
     )
     pt = pt_all.gather(dim=0, index=t)
     return t, pt
@@ -216,10 +213,12 @@ def sample_time_uniform(
         >>> t.shape, pt.tolist()
         (torch.Size([2]), [0.25, 0.25])
     """
-    import torch
-
-    t = torch.randint(
-        0, num_timesteps, (batch_size,), device=device, generator=generator
+    t = randint(
+        0,
+        num_timesteps,
+        (batch_size,),
+        device=device,
+        generator=generator,
     ).long()
     pt = torch.ones_like(t).float() / num_timesteps
     return t, pt
@@ -254,8 +253,6 @@ def update_loss_history(
         >>> history.tolist(), count.tolist()
         ([0.0, 0.4000000059604645, 0.0], [0.0, 1.0, 0.0])
     """
-    import torch
-
     lt2 = kl_loss.pow(2)
     lt2_prev = lt_history.gather(dim=0, index=t)
     new_history = (0.1 * lt2 + 0.9 * lt2_prev).detach()
@@ -267,8 +264,6 @@ def log_add_exp(
     a: Float[torch.Tensor, "..."], b: Float[torch.Tensor, "..."]
 ) -> Float[torch.Tensor, "..."]:
     """Compute a numerically stable elementwise ``log(exp(a) + exp(b))``."""
-    import torch
-
     maximum = torch.maximum(a, b)
     return maximum + torch.log(torch.exp(a - maximum) + torch.exp(b - maximum))
 
@@ -290,9 +285,7 @@ def gumbel_noise_like(
     generator: torch.Generator | None = None,
 ) -> Float[torch.Tensor, "..."]:
     """Sample Gumbel noise with the same shape, dtype, and device as ``x``."""
-    import torch
-
-    uniform = torch.rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
+    uniform = rand(x.shape, device=x.device, dtype=x.dtype, generator=generator)
     return -torch.log(-torch.log(uniform + 1e-30) + 1e-30)
 
 
@@ -309,8 +302,6 @@ def top_k_logits(
     logits: Float[torch.Tensor, "... vocab"], k: int, dim: int = -1
 ) -> Float[torch.Tensor, "... vocab"]:
     """Mask logits outside the top-k entries along ``dim``."""
-    import torch
-
     if k <= 0 or k >= logits.size(dim):
         return logits
     values = torch.topk(logits, k, dim=dim).values
@@ -321,8 +312,6 @@ def top_k_logits(
 def _top_p_logits(
     logits: Float[torch.Tensor, "... vocab"], top_p: float
 ) -> Float[torch.Tensor, "... vocab"]:
-    import torch
-
     if top_p >= 1.0:
         return logits
     sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
@@ -367,8 +356,6 @@ def sample_categorical(
         ... )
         tensor([[1]])
     """
-    import torch
-
     mode = normalize_sampling_mode(sampling)
     match mode:
         case SamplingMode.deterministic:
@@ -397,7 +384,7 @@ def sample_categorical(
         case _:
             assert_never(mode)
     probs = scaled.softmax(dim=-1).reshape(-1, scaled.size(-1))
-    sampled = torch.multinomial(probs, 1, generator=generator).reshape(
+    sampled = multinomial(probs, 1, generator=generator, device=probs.device).reshape(
         scaled.shape[:-1]
     )
     return sampled
@@ -407,8 +394,6 @@ def batch_topk_mask(
     scores: Float[torch.Tensor, "batch candidates"], k: Int[torch.Tensor, "batch"]
 ) -> Bool[torch.Tensor, "batch candidates"]:
     """Return a per-row boolean mask for the top ``k`` scores."""
-    import torch
-
     if scores.ndim != 2:
         raise ValueError("scores must be rank-2")
 

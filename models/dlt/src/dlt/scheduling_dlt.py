@@ -13,6 +13,7 @@ from diffusers.schedulers.scheduling_utils import SchedulerMixin
 from diffusers.utils import BaseOutput
 from einops import rearrange
 from jaxtyping import Float, Int
+from laygen.common.randomness import multinomial
 
 
 @dataclass
@@ -153,8 +154,12 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
                 for i, u in enumerate(t_to_discrete_stage)
             ]
             probs = torch.cat(prob_mat)
-            cat_noise = torch.multinomial(
-                probs, 1, replacement=True, generator=generator
+            cat_noise = multinomial(
+                probs,
+                1,
+                replacement=True,
+                generator=generator,
+                device=probs.device,
             )
             cat_res[f_name] = rearrange(
                 cat_noise, "(d b) 1 -> d b", d=noised_cont.shape[0]
@@ -241,7 +246,9 @@ class DLTJointDiffusionScheduler(SchedulerMixin, ConfigMixin):
             scores[:, :, 0] = 0
             logits = scores / self.temperature
             flat = logits.reshape(-1, cat_num)
-            res = torch.multinomial(flat, 1, generator=generator).reshape(cls.shape)
+            res = multinomial(flat, 1, generator=generator, device=flat.device).reshape(
+                cls.shape
+            )
         else:
             res = (cat_num - 1) * torch.ones_like(cls, dtype=torch.long)
             top = torch.topk(prob, prob.shape[1], dim=1)
