@@ -276,7 +276,7 @@ def test_citation_contract_accepts_arxiv_bibtex_without_body_id() -> None:
   eprint = {2406.02884},
   archivePrefix = {arXiv},
   primaryClass = {cs.CV},
-  url = {https://arxiv.org/abs/2406.02884}
+  url = "https://arxiv.org/abs/2406.02884"
 }
 ```
 """
