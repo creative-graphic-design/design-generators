@@ -85,7 +85,9 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
         snippet = (
             f'--8<-- "{readme}:card"' if group == "models" else f'--8<-- "{readme}"'
         )
-        assert snippet in text, f"{slug}: missing README include (readme)"
+        assert text.count(snippet) == 1, (
+            f"{slug}: README must be included once (readme)"
+        )
         expected = f"api/{group}/{slug}.md"
         matches = [parents for path, parents in nav_files if path == expected]
         assert len(matches) == 1, f"{slug}: missing or duplicate nav entry (nav)"
