@@ -20,6 +20,8 @@ The protocol has six ordered stages, S0 through S5. S0-S2 are exact or near-exac
 
 Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures; parity here means agreement with the original implementation.
 
+Follow the stages in order. Record S0-S2 evidence in the model issue, then record S3-S4 evidence before launching any S5-scale training or evaluation or making an S5 claim. Keep all six stages in the package's `TRAINING.md`. Missing evidence stops the claim at the current stage; S5 cannot substitute for an earlier stage.
+
 | Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                       |
 | ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                     |
@@ -39,7 +41,7 @@ Only an amendment comment on the model's issue can authorize a package-specific 
 
 ### Step Parity and Full-Run Parity
 
-S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
+S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. For each dataset covered by the claim, run S5 full-run parity and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
 
 When S5 diverges, diagnose the gap in this order before claiming a bug:
 
@@ -155,7 +157,9 @@ Each training-first package should include `models/<package>/TRAINING.md`. Its `
 
 When auditing a pickle or Torch artifact on CPU, set `CUDA_VISIBLE_DEVICES=""` and pass `map_location="cpu"` to loaders that support it. CUDA-tagged tensors retain their device tags in serialized artifacts, so a CPU audit that does not hide CUDA can initialize an unintended GPU or fail before the artifact is inspected.
 
-Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, `Reproduction Results` status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`.
+Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`; it does not validate every metadata field.
+
+Reviewers check that each evidence command produces the cited artifact and supports that stage's claim. A checker baseline records an existing gap; a passing check with that baseline does not establish missing stage evidence. Document an unavailable artifact or untracked helper as a replay limitation until its source or generation command is available. Keep historical measurements separate from evidence that authorizes a new run or a broader reproduction claim.
 
 ### S3 Evidence Recording
 

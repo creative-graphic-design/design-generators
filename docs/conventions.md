@@ -84,6 +84,30 @@ The `conditioning:` value of the model card's `Model type:` line may use these c
 
 The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
 
+### Pipeline arguments
+
+Layout pipelines expose the following keyword-only arguments. The initial layout interface is called v1; v2 adds the multimodal inputs below. Use precise shaped annotations and explicit model-specific keywords in implementations, rather than a catch-all `**kwargs` signature.
+
+| Arguments                                                  | Contract                                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `batch_size=1`, `num_elements=None`                        | Requested batch size and optional scalar or per-example element count.                      |
+| `seed=None`, `generator=None`                              | An explicit generator takes precedence over a seed.                                         |
+| `condition_type="unconditional"`                           | Normalize to the canonical condition enum and reject unsupported modes.                     |
+| `labels=None`, `bbox=None`, `mask=None`                    | Optional condition inputs using dataset labels and valid-element masks.                     |
+| `box_format="xywh"`, `normalized=True`, `canvas_size=None` | Describe input boxes; return normalized center `xywh` regardless of input representation.   |
+| `num_inference_steps=None`                                 | Optional generation-step override where supported.                                          |
+| `output_type="dataclass"`, `return_intermediates=False`    | Return the canonical output or its dictionary form; keep auxiliary data in `intermediates`. |
+
+Expose the agreed v1 arguments even when some combinations are unsupported; reject those combinations explicitly. For v2, add only the relevant inputs: `prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`. The model issue defines their meaning for that package. Open-vocabulary labels use request-local ids; batched outputs use one batch-local union with per-example maps in `intermediates["id2label_per_example"]`.
+
+### Model and serialization contracts
+
+Every `PreTrainedModel` implements `forward`. Keep multi-model or decoded-text orchestration in the pipeline, and expose only standard model `forward` and token-level `generate` entrypoints. Layout-level methods such as `generate_layout` belong on the pipeline's `__call__`. Stateful constrained decoding may remain an internal model helper called by the pipeline.
+
+Keep standard `save_pretrained` and `from_pretrained` machinery; justify any unavoidable override in the model plan and PR. Require an explicit config or derive it from a loaded artifact such as `model.config`, rather than synthesizing a fallback config. Use framework suffixes such as `ForConditionalGeneration` only when the class satisfies the corresponding forward/generate contract.
+
+Discrete layout tokenizers inherit `transformers.PreTrainedTokenizer` unless the model plan documents a concrete conflict. Use synthetic token strings, standard padding/mask tokens, and `encode_layout()`/`decode_layout()` for layout conversion. Serialize auxiliary data such as cluster centers with tokenizer files, and preserve float64 decode paths where numerical agreement requires them. Processors use `transformers.ProcessorMixin` where its contract applies.
+
 ### Seeded Sampling
 
 Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. The shared `laygen.common.randomness` wrappers (`randn`, `rand`, `randint`, `randperm`, `multinomial`, `bernoulli`, `normal`, and `poisson`) draw on an explicit generator's device, or on the requested output device when no generator is supplied, and then move the result to the requested device and dtype. Explicit generators keep their identity and device, so a CUDA generator remains a CUDA-local stream while a CPU generator gives the same stream for CPU and GPU targets. When a CPU generator samples GPU-resident tensor arguments, `multinomial`, `bernoulli`, `normal`, and `poisson` copy those arguments device-to-host for the CPU draw, synchronizing the stream, and copy the result host-to-device on every draw; this cost is paid on every step of discrete-diffusion and autoregressive decode loops.
@@ -119,6 +143,20 @@ uv run --package <name> pytest
 
 Original implementations stay under `vendor/` and are treated as read-only references. Here, vendor means the upstream research repository used to verify conversion behavior. Dependencies needed only for vendor parity belong behind a model package's `vendor` optional extra.
 
+### Code style
+
+- Keep `__init__` bodies to variable initialization. Data holders use dataclasses, with unavoidable initialization logic in `__post_init__` or a classmethod factory. Framework-bound classes such as `PretrainedConfig`, `PreTrainedModel`, and `LightningModule` follow framework constructor contracts.
+- Use Pydantic at serialization boundaries when runtime validation is useful; do not duplicate LightningCLI/jsonargparse validation.
+- Prefer early returns and raises. Separate semantic units with one blank line, including after a raise block or a compound suite when ordinary code follows at the enclosing indentation.
+- Preserve precise annotations. Use inline jaxtyping shaped types such as `Float[torch.Tensor, "batch elements 4"]`; do not introduce raw tensor/array annotations or shaped-type aliases outside the documented checker baselines.
+- Use shared dataset/condition enums and normalize public strings at the boundary. Use `StrEnum` with `auto()` for reusable closed vocabularies, typed alias maps, and `typing.assert_never` for exhaustive dispatch. `Literal` is appropriate for a small fixed parameter set. Package-specific aliases and capability validation retain the owners listed in [Architecture](architecture.md#runtime-ownership).
+- Use `Final` for module constants and `NamedTuple` or `TypedDict` for structured tuples/dictionaries. Do not weaken annotations to `object` or bare containers to satisfy a checker.
+- Keep public arguments explicit and keyword-only. Use public imports rather than importing private underscore-prefixed modules across modules; tests must resolve imports through the workspace rather than `sys.path` edits.
+- Core model filenames use the package suffix: `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`, `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`, `image_processing_<pkg>.py`, or `generation_<pkg>.py`. Conversion and domain helper names follow `scripts/check_module_naming.py`.
+- Runtime source and configs describe this package's behavior. Keep original-implementation references in conversion/reference tooling, parity tests, and reproduction docs. `laygen.common.vendor` is the narrow shared resolver exception recorded in `scripts/check_src_vendor_language.py`.
+- Comments, docstrings, and runtime messages describe training checks in plain words; stage codes belong in training evidence documents and their checkers.
+- Keep Ruff docstring rules enabled for `src/`. Package scripts need a module docstring and CLI help describing every argument and default; defaults resolve from the repository rather than a developer's machine.
+
 ### Data And Parity
 
 Vendor parity fixtures are reference outputs regenerated from the original implementation with fixed seeds. Large tensors, images, model weights, and downloaded datasets are not committed; only metadata needed to regenerate them is committed.
@@ -129,6 +167,6 @@ Every `docs/*.md` page carries YAML frontmatter with `icon` and `tags` so the do
 
 Each model package README follows a model-card style: overview, install and usage snippet, supported checkpoints and Hub ids, datasets, reproducibility summary with vendor-parity numbers, license, citation, and original implementation link.
 
-Each model README includes a `Reproducibility` section that opens with one sentence stating how to reproduce the original-implementation agreement checks, followed by copy-pasteable commands for downloading assets, generating vendor references, running parity tests, converting checkpoints, and running [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) smoke tests.
+Each model README includes a `Reproducibility` section that states how to rerun agreement checks and links to its package `REPRODUCING.md`. That file owns the copy-pasteable download, reference-generation, comparison, conversion or prompt-serialization, and local-loading commands. Package `TRAINING.md` files follow the separate [training reproduction protocol](training-reproduction.md).
 
 Public API docstrings are the source for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections. Examples should be runnable doctest-style snippets when the API can run without heavyweight assets.
