@@ -136,6 +136,8 @@ A seed-paired claim requires evidence from the real training entrypoints showing
 
 Use `scripts/pick_free_gpus.sh <N> [exclude_csv]` before launching S5-style multi-job verification runs. The helper sorts GPUs by used memory and prints indices for the least-loaded devices, so launchers can fill idle GPUs with one job per GPU instead of hard-coding a few indices. Pass currently reserved devices, such as long-running dataset jobs, through `exclude_csv`.
 
+Before launching the full-run seed set, run one seed briefly and confirm that the step loop is GPU-bound, with sustained GPU utilization and board power near the device limit and per-process CPU well below one saturated core. If the loop is CPU-bound, tune DataLoader workers and logging frequency within the vendor recipe first because a faster GPU shortens only the GPU fraction. The worker count changes the realized sequence of any randomness inside the dataset's `__getitem__` (PyTorch seeds each worker from the base seed plus its index), so keep the vendor's worker count for stages that compare a single seed bitwise and record any change made for full-run stages. Batch size and precision changes alter parity and require explicit approval.
+
 ```bash
 mapfile -t gpus < <(scripts/pick_free_gpus.sh 6 "3,7")
 CUDA_VISIBLE_DEVICES="${gpus[0]}" setsid ./train-one-seed.sh &
