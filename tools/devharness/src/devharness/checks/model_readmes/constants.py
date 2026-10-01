@@ -1,14 +1,43 @@
-"""Constants and repository paths for the model README checker."""
+"""Repository paths and policy data for model README contracts."""
 
 from __future__ import annotations
 
-from typing import TypeAlias
 from pathlib import Path
+import tomllib
+from typing import TypeAlias
 
 
-# The legacy script resolved its root from the script location. The CLI is
-# intentionally run from the checkout, so the equivalent package root is cwd.
-REPO_ROOT = Path.cwd()
+def find_repo_root(start: Path | None = None) -> Path:
+    """Find the nearest directory containing the workspace declaration."""
+    current = (start or Path.cwd()).resolve()
+    for candidate in (current, *current.parents):
+        pyproject = candidate / "pyproject.toml"
+        if not pyproject.is_file():
+            continue
+
+        try:
+            document = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError:
+            continue
+
+        tool = document.get("tool")
+        if not isinstance(tool, dict):
+            continue
+
+        uv = tool.get("uv")
+        if not isinstance(uv, dict):
+            continue
+
+        workspace = uv.get("workspace")
+        if isinstance(workspace, dict):
+            return candidate
+
+    raise ValueError(
+        "Unable to find repository root with [tool.uv.workspace] in pyproject.toml"
+    )
+
+
+REPO_ROOT = find_repo_root()
 GIT_REPO_URL = "https://github.com/creative-graphic-design/design-generators.git"
 ROOT_REPO_BLOB_URL = (
     "https://github.com/creative-graphic-design/design-generators/blob/main/"

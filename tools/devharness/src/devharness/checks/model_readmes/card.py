@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
+    BANNED_PATTERNS,
     EXPECTED_FRONTMATTER,
     EXPECTED_MODEL_NAMES,
     EXPECTED_REPOSITORY_LINKS,
@@ -16,7 +17,18 @@ from .constants import (
     REQUIRED_HEADINGS,
     REPO_ROOT,
 )
-from .repository import _project_metadata, _section
+from .install import project_metadata
+
+
+def section(text: str, heading: str) -> str:
+    """Return the body of one level-two Markdown section."""
+    match = re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE)
+    if match is None:
+        return ""
+
+    rest = text[match.end() :]
+    next_heading = re.search(r"\n## ", rest)
+    return rest[: next_heading.start()] if next_heading else rest
 
 
 def _frontmatter(text: str) -> str:
@@ -30,7 +42,8 @@ def _frontmatter(text: str) -> str:
     return text[:end]
 
 
-def _without_frontmatter_and_code(text: str) -> str:
+def without_frontmatter_and_code(text: str) -> str:
+    """Remove frontmatter and fenced code from reader-facing Markdown text."""
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
@@ -49,7 +62,8 @@ def _without_frontmatter_and_code(text: str) -> str:
     return "\n".join(lines)
 
 
-def _without_badges(text: str) -> str:
+def without_badges(text: str) -> str:
+    """Remove Markdown image badges from reader-facing Markdown text."""
     return re.sub(
         r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|!\[[^\]]*\]\([^)]*\)",
         " ",
@@ -57,7 +71,8 @@ def _without_badges(text: str) -> str:
     )
 
 
-def _markdown_link_spans(text: str) -> list[range]:
+def markdown_link_spans(text: str) -> list[range]:
+    """Return spans occupied by Markdown links and badges."""
     return [
         range(match.start(), match.end())
         for match in re.finditer(
@@ -66,11 +81,13 @@ def _markdown_link_spans(text: str) -> list[range]:
     ]
 
 
-def _in_any_span(position: int, spans: list[range]) -> bool:
+def in_any_span(position: int, spans: list[range]) -> bool:
+    """Return whether a character position belongs to one of the spans."""
     return any(position in span for span in spans)
 
 
-def _inline_code_span_at(text: str, position: int) -> str | None:
+def inline_code_span_at(text: str, position: int) -> str | None:
+    """Return the inline-code span containing a character position, if any."""
     for match in re.finditer(r"`[^`\n]+`", text):
         if position in range(match.start(), match.end()):
             return match.group(0)
@@ -111,7 +128,8 @@ def _dataset_display_name(value: str) -> str:
     }.get(normalized, normalized)
 
 
-def _semantic_badge_label(alt: str, query_label: str) -> str:
+def semantic_badge_label(alt: str, query_label: str) -> str:
+    """Resolve a badge's policy label from its alt text and URL query."""
     alt_prefix, separator, _ = alt.partition(":")
     semantic_alt_prefixes = {
         "checkpoint",
@@ -128,7 +146,8 @@ def _semantic_badge_label(alt: str, query_label: str) -> str:
     return query_label
 
 
-def _badge_messages(text: str, label: str) -> list[str]:
+def badge_messages(text: str, label: str) -> list[str]:
+    """Return Shields badge messages matching a semantic label."""
     messages: list[str] = []
     for match in re.finditer(r"!\[([^\]]*)\]\(([^)]+)\)", text):
         parsed = urlparse(match.group(2))
@@ -139,7 +158,7 @@ def _badge_messages(text: str, label: str) -> list[str]:
         query_label = query.get("label", [None])[0]
         if (
             query_label is not None
-            and _semantic_badge_label(match.group(1), query_label) == label
+            and semantic_badge_label(match.group(1), query_label) == label
             and "message" in query
         ):
             messages.append(unquote(query["message"][0]).replace("--", "-"))
@@ -147,18 +166,21 @@ def _badge_messages(text: str, label: str) -> list[str]:
     return messages
 
 
-def _model_member_slugs() -> set[str]:
+def model_member_slugs() -> set[str]:
+    """Return model workspace member directory names."""
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
 
 
-def _library_member_slugs() -> set[str]:
+def library_member_slugs() -> set[str]:
+    """Return library workspace member directory names."""
     return {
         path.parent.name
         for path in sorted((REPO_ROOT / "lib").glob("*/pyproject.toml"))
     }
 
 
-def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
+def assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
+    """Require unique list values in model-card frontmatter."""
     for key in ("language", "tags", "datasets"):
         values = _frontmatter_list(frontmatter, key)
         duplicates = sorted({value for value in values if values.count(value) > 1})
@@ -168,7 +190,8 @@ def _assert_frontmatter_list_unique(path: Path, frontmatter: str) -> None:
             )
 
 
-def _assert_pipeline_tag(path: Path, frontmatter: str) -> None:
+def assert_pipeline_tag(path: Path, frontmatter: str) -> None:
+    """Require the model-card task metadata for layout generation."""
     pipeline_tag = _frontmatter_scalar(frontmatter, "pipeline_tag")
     if pipeline_tag != "other":
         raise AssertionError(
@@ -188,7 +211,8 @@ def _assert_pipeline_tag(path: Path, frontmatter: str) -> None:
         raise AssertionError(f"{path}: model-index task.type must be 'other'")
 
 
-def _assert_model_index_policy(path: Path, frontmatter: str) -> None:
+def assert_model_index_policy(path: Path, frontmatter: str) -> None:
+    """Require model-index metadata only for weight-backed model cards."""
     has_model_index = "model-index:" in frontmatter
     if path.parent.name in PROMPT_ONLY_SLUGS:
         if has_model_index:
@@ -202,7 +226,8 @@ def _assert_model_index_policy(path: Path, frontmatter: str) -> None:
         raise AssertionError(f"{path}: weight-backed README must include model-index")
 
 
-def _assert_heading_order(path: Path, text: str) -> None:
+def assert_heading_order(path: Path, text: str) -> None:
+    """Require model-card headings in the documented order."""
     cursor = -1
     for heading in REQUIRED_HEADINGS:
         pattern = (
@@ -221,7 +246,8 @@ def _assert_heading_order(path: Path, text: str) -> None:
         cursor = matches[0].start()
 
 
-def _assert_frontmatter(path: Path, text: str) -> None:
+def assert_frontmatter(path: Path, text: str) -> None:
+    """Require the model-card frontmatter envelope and required keys."""
     if not text.startswith("---\n"):
         raise AssertionError(f"{path}: missing YAML frontmatter")
 
@@ -235,16 +261,17 @@ def _assert_frontmatter(path: Path, text: str) -> None:
             raise AssertionError(f"{path}: frontmatter missing {key}")
 
 
-def _assert_expected_frontmatter(path: Path, text: str) -> None:
+def assert_expected_frontmatter(path: Path, text: str) -> None:
+    """Require frontmatter values and dataset badges for the model slug."""
     slug = path.parent.name
     expected = EXPECTED_FRONTMATTER.get(slug)
     if expected is None:
         raise AssertionError(f"{path}: no expected frontmatter contract for {slug}")
 
     frontmatter = _frontmatter(text)
-    _assert_frontmatter_list_unique(path, frontmatter)
-    _assert_pipeline_tag(path, frontmatter)
-    _assert_model_index_policy(path, frontmatter)
+    assert_frontmatter_list_unique(path, frontmatter)
+    assert_pipeline_tag(path, frontmatter)
+    assert_model_index_policy(path, frontmatter)
     actual_license = _frontmatter_scalar(frontmatter, "license")
     expected_license = expected["license"]
     if actual_license != expected_license:
@@ -260,17 +287,18 @@ def _assert_expected_frontmatter(path: Path, text: str) -> None:
         )
 
     expected_badges = {_dataset_display_name(dataset) for dataset in actual_datasets}
-    actual_badges = set(_badge_messages(text, "dataset"))
+    actual_badges = set(badge_messages(text, "dataset"))
     if actual_badges != expected_badges:
         raise AssertionError(
             f"{path}: dataset badges {sorted(actual_badges)} != frontmatter datasets {sorted(expected_badges)}"
         )
 
 
-def _assert_runtime_contract(path: Path, text: str) -> None:
+def assert_runtime_contract(path: Path, text: str) -> None:
+    """Require matching runtime metadata across README and pyproject surfaces."""
     slug = path.parent.name
     frontmatter_library = _frontmatter_scalar(_frontmatter(text), "library_name")
-    metadata = _project_metadata(REPO_ROOT / "models" / slug)
+    metadata = project_metadata(REPO_ROOT / "models" / slug)
     tool = metadata.get("tool")
     if not isinstance(tool, dict):
         raise AssertionError(f"{path}: missing [tool]")
@@ -285,7 +313,7 @@ def _assert_runtime_contract(path: Path, text: str) -> None:
             f"{path}: tool.design-generators.framework must be a string"
         )
 
-    base_badges = _badge_messages(text, "base")
+    base_badges = badge_messages(text, "base")
     if len(base_badges) != 1:
         raise AssertionError(
             f"{path}: expected exactly one base badge, found {base_badges}"
@@ -303,9 +331,10 @@ def _assert_runtime_contract(path: Path, text: str) -> None:
         )
 
 
-def _assert_model_summary_subject(path: Path, text: str) -> None:
+def assert_model_summary_subject(path: Path, text: str) -> None:
+    """Require the first model-card prose sentence to use the package subject."""
     model_name = EXPECTED_MODEL_NAMES[path.parent.name]
-    body = _without_frontmatter_and_code(text)
+    body = without_frontmatter_and_code(text)
     h1 = re.search(r"^# Model Card for .+$", body, re.MULTILINE)
     if h1 is None:
         raise AssertionError(f"{path}: missing model-card H1")
@@ -330,19 +359,21 @@ def _assert_model_summary_subject(path: Path, text: str) -> None:
         break
 
 
-def _assert_expected_repository_links(path: Path, text: str) -> None:
+def assert_expected_repository_links(path: Path, text: str) -> None:
+    """Require the known upstream repository link for a model package."""
     expected = EXPECTED_REPOSITORY_LINKS.get(path.parent.name)
     if expected is None:
         return
 
-    sources = _section(text, "### Model Sources")
+    sources = section(text, "### Model Sources")
     if expected not in sources:
         raise AssertionError(
             f"{path}: Model Sources must link expected repository {expected}"
         )
 
 
-def _assert_prompt_only_readme(path: Path, text: str) -> None:
+def assert_prompt_only_readme(path: Path, text: str) -> None:
+    """Require prompt-only model cards to omit weight-package language."""
     if path.parent.name not in PROMPT_ONLY_SLUGS:
         return
 
@@ -358,10 +389,11 @@ def _assert_prompt_only_readme(path: Path, text: str) -> None:
         )
 
 
-def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
-    supported = _section(text, "## Supported Checkpoints")
-    section = _section(text, "## How to Get Started with the Model")
-    if "<<'PY'" in section or '<<"PY"' in section:
+def assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
+    """Require runnable local setup for unpublished model checkpoints."""
+    supported = section(text, "## Supported Checkpoints")
+    get_started = section(text, "## How to Get Started with the Model")
+    if "<<'PY'" in get_started or '<<"PY"' in get_started:
         raise AssertionError(f"{path}: Get Started must not use heredoc examples")
 
     if path.parent.name in PROMPT_ONLY_SLUGS:
@@ -370,7 +402,7 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
             f"uv sync --package {path.parent.name}",
             "no learned checkpoints",
         ]
-        missing = [snippet for snippet in required if snippet not in section]
+        missing = [snippet for snippet in required if snippet not in get_started]
         if missing:
             raise AssertionError(
                 f"{path}: prompt-only Get Started is missing runnable setup parts {missing}"
@@ -388,14 +420,15 @@ def _assert_unpublished_hub_get_started_note(path: Path, text: str) -> None:
         "REPRODUCING.md](",
         "# After Hub publication: from_pretrained(",
     ]
-    missing = [snippet for snippet in required if snippet not in section]
+    missing = [snippet for snippet in required if snippet not in get_started]
     if missing:
         raise AssertionError(
             f"{path}: unpublished Hub Get Started snippet is missing runnable local-loading parts {missing}"
         )
 
 
-def _assert_code_fences_tagged(path: Path, text: str) -> None:
+def assert_code_fences_tagged(path: Path, text: str) -> None:
+    """Require tagged, terminated Markdown code fences without heredocs."""
     if re.search(r"<<['\"]?(PY|EOF)['\"]?", text):
         raise AssertionError(f"{path}: heredoc examples are not allowed")
 
@@ -418,38 +451,11 @@ def _assert_code_fences_tagged(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: unterminated code fence")
 
 
-def _assert_lib_readme_install_contract(path: Path, text: str) -> None:
-    package = path.parent.name
-    install = _section(text, "## Install")
-    direct_reference = (
-        f'pip install "{package} @ '
-        "git+https://github.com/creative-graphic-design/design-generators.git"
-        f'#subdirectory=lib/{package}"'
-    )
-    if direct_reference not in install:
-        raise AssertionError(
-            f"{path}: Install must include pip direct-reference subdirectory form"
-        )
-
-    if f"uv sync --package {package}" not in install:
-        raise AssertionError(f"{path}: Install must include workspace uv sync form")
-
-
-def _assert_parity_table(path: Path, text: str) -> None:
-    section = _section(text, "### Parity Results")
-    if "| ---" not in section:
-        raise AssertionError(f"{path}: Parity Results must contain a markdown table")
-
-    rows = [
-        line
-        for line in section.splitlines()
-        if line.startswith("|") and not line.startswith("| ---")
-    ]
-    data_rows = rows[1:]
-    if not data_rows:
-        raise AssertionError(f"{path}: Parity Results table has no data rows")
-
-    if not any(re.search(r"\d", row) for row in data_rows):
-        raise AssertionError(
-            f"{path}: Parity Results table must contain numeric evidence"
-        )
+def assert_banned_patterns(path: Path, text: str) -> None:
+    """Reject credentials and repository-process language in reader-facing text."""
+    for pattern in BANNED_PATTERNS:
+        match = re.search(pattern, text)
+        if match:
+            raise AssertionError(
+                f"{path}: banned README content matched {pattern!r}: {match.group(0)!r}"
+            )

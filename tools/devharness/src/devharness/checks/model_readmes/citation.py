@@ -1,13 +1,11 @@
-"""Citation, parity, reproducibility, and banned-content contracts."""
+"""BibTeX and arXiv citation contracts."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from .constants import BANNED_PATTERNS, PROMPT_ONLY_SLUGS
-from .metadata import _without_frontmatter_and_code
-from .repository import _section
+from .card import section, without_frontmatter_and_code
 
 
 ARXIV_ID_RE = re.compile(r"\b\d{4}\.\d{4,5}(?:v\d+)?\b")
@@ -32,8 +30,8 @@ def _arxiv_ids(text: str) -> set[str]:
     return ids
 
 
-def _bibtex_fences(section: str) -> list[str]:
-    return re.findall(r"```bibtex\n(.*?)\n```", section, flags=re.S)
+def _bibtex_fences(section_text: str) -> list[str]:
+    return re.findall(r"```bibtex\n(.*?)\n```", section_text, flags=re.S)
 
 
 def _clean_bibtex_field_value(value: str) -> str:
@@ -99,17 +97,18 @@ def _assert_arxiv_bibtex_fields(path: Path, fields: dict[str, str]) -> set[str]:
     return citation_ids | {eprint_id, url_id}
 
 
-def _assert_citation_bibtex(path: Path, text: str) -> None:
-    section = _section(text, "## Citation")
+def assert_citation_bibtex(path: Path, text: str) -> None:
+    """Require BibTeX citation fields and matching arXiv identifiers."""
+    citation_section = section(text, "## Citation")
     # Coordinator approval is required before adding exceptions to this bibtex
     # requirement; README normalization must preserve citation metadata.
-    if "```bibtex" not in section:
+    if "```bibtex" not in citation_section:
         raise AssertionError(f"{path}: Citation must contain a bibtex code fence")
 
-    body = _without_frontmatter_and_code(text.replace(section, "", 1))
+    body = without_frontmatter_and_code(text.replace(citation_section, "", 1))
     body_arxiv_ids = _arxiv_ids(body)
     citation_arxiv_ids: set[str] = set()
-    for entry in _bibtex_fences(section):
+    for entry in _bibtex_fences(citation_section):
         citation_arxiv_ids.update(
             _assert_arxiv_bibtex_fields(path, _bibtex_fields(entry))
         )
@@ -120,118 +119,4 @@ def _assert_citation_bibtex(path: Path, text: str) -> None:
             raise AssertionError(
                 f"{path}: Citation arXiv ids {unexpected} do not match README "
                 f"arXiv ids {sorted(body_arxiv_ids)}"
-            )
-
-
-def _nonzero_number(text: str) -> bool:
-    try:
-        return float(text) != 0
-    except ValueError:
-        return False
-
-
-def _parity_requires_tolerance(section: str) -> bool:
-    for match in re.finditer(r"\b[ra]tol\s*=?\s*`?([0-9.eE+-]+)`?", section):
-        if _nonzero_number(match.group(1)):
-            return True
-
-    return False
-
-
-def _assert_vendor_parity_badge(path: Path, text: str) -> None:
-    section = _section(text, "### Parity Results")
-    badge = re.search(r"!\[vendor-parity\]\([^)]*[?&]message=([^&)]*)", text)
-    if badge is None:
-        raise AssertionError(f"{path}: missing vendor-parity badge")
-
-    expected = (
-        "not-run"
-        if "not run" in section
-        else "practical-reproduction"
-        if "practical training reproduction" in section
-        else "cpu-contract"
-        if "vendor-parity CPU comparison" in section
-        else "tolerance-verified"
-        if _parity_requires_tolerance(section)
-        else "bit-exact"
-    )
-    actual = badge.group(1)
-    accepted = {
-        expected,
-        expected.replace("--", "-"),
-    }
-    if actual not in accepted:
-        raise AssertionError(
-            f"{path}: vendor-parity badge {actual!r} does not match Parity Results; expected {expected!r}"
-        )
-
-
-def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
-    section = _section(text, "## Reproducibility")
-    absolute_link = (
-        "https://github.com/creative-graphic-design/design-generators/blob/main/"
-        f"models/{path.parent.name}/REPRODUCING.md"
-    )
-    repo_root_link = f"models/{path.parent.name}/REPRODUCING.md"
-    if absolute_link not in section and repo_root_link not in section:
-        raise AssertionError(
-            f"{path}: Reproducibility must link REPRODUCING.md as {repo_root_link} or {absolute_link}"
-        )
-
-    if "uv run --package " in section or "```" in section:
-        raise AssertionError(
-            f"{path}: README Reproducibility must be a short link, not a walkthrough"
-        )
-
-
-def _assert_reproducing_commands(path: Path, text: str) -> None:
-    if "uv run --package " not in text:
-        raise AssertionError(f"{path}: REPRODUCING.md must contain uv package commands")
-
-    lower = text.lower()
-    bad_command_shapes = ["python scripts/", "cd models/", "../.cache", "/tmp/"]
-    for bad in bad_command_shapes:
-        if bad in text:
-            raise AssertionError(
-                f"{path}: stale reproducibility command shape contains {bad!r}"
-            )
-
-    required_terms: list[str | tuple[str, ...]] = [
-        "Workflow order:",
-        "download",
-        ("reference", "golden"),
-        "pytest",
-    ]
-    if path.parent.name in PROMPT_ONLY_SLUGS:
-        required_terms.extend([("prompt configuration", "save_pretrained"), "smoke"])
-        if "convert checkpoints" in lower:
-            raise AssertionError(
-                f"{path}: prompt-only REPRODUCING.md must not mention converting checkpoints"
-            )
-    else:
-        required_terms.extend(["convert", "from_pretrained"])
-
-    for term in required_terms:
-        alternatives = (term,) if isinstance(term, str) else term
-        position = max(lower.find(alternative.lower()) for alternative in alternatives)
-        if position == -1:
-            raise AssertionError(f"{path}: missing reproducibility step {term!r}")
-
-    if path.parent.name in {"coarse-to-fine", "layoutganpp"}:
-        expected = (
-            "Workflow order: download assets, generate references, convert checkpoints, "
-            "run parity checks, then smoke-test local loading."
-        )
-        if expected not in text:
-            raise AssertionError(
-                f"{path}: reproducibility workflow must state reference -> conversion -> parity order"
-            )
-
-
-def _assert_banned_patterns(path: Path, text: str) -> None:
-    for pattern in BANNED_PATTERNS:
-        match = re.search(pattern, text)
-        if match:
-            raise AssertionError(
-                f"{path}: banned README content matched {pattern!r}: {match.group(0)!r}"
             )

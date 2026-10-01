@@ -1,4 +1,4 @@
-"""Repository metadata and install-command contracts."""
+"""Install snippets and workspace dependency contracts."""
 
 from __future__ import annotations
 
@@ -11,31 +11,17 @@ from .constants import (
     LIB_MEMBER_DIRS,
     MODEL_MEMBER_DIRS,
     REPO_ROOT,
-    ROOT_REPO_BLOB_URL,
     PyprojectValue,
 )
 
 
-def _section(text: str, heading: str) -> str:
-    match = re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE)
-    if match is None:
-        return ""
-
-    rest = text[match.end() :]
-    next_heading = re.search(r"\n## ", rest)
-    return rest[: next_heading.start()] if next_heading else rest
-
-
-def _bash_fences(text: str) -> list[str]:
-    return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
-
-
-def _project_metadata(member_dir: Path) -> dict[str, PyprojectValue]:
+def project_metadata(member_dir: Path) -> dict[str, PyprojectValue]:
+    """Read one workspace member's pyproject metadata."""
     return tomllib.loads((member_dir / "pyproject.toml").read_text(encoding="utf-8"))
 
 
 def _project_name(member_dir: Path) -> str:
-    project = _project_metadata(member_dir)["project"]
+    project = project_metadata(member_dir)["project"]
     if not isinstance(project, dict):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
 
@@ -44,10 +30,6 @@ def _project_name(member_dir: Path) -> str:
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: project.name missing")
 
     return name
-
-
-def _normalize_root_repo_link(link: str) -> str:
-    return link.removeprefix(ROOT_REPO_BLOB_URL)
 
 
 def _dependency_name(requirement: str) -> str:
@@ -59,7 +41,7 @@ def _dependency_direct_name(requirement: str) -> str:
 
 
 def _project_dependencies(member_dir: Path) -> list[str]:
-    project = _project_metadata(member_dir)["project"]
+    project = project_metadata(member_dir)["project"]
     if not isinstance(project, dict):
         raise AssertionError(f"{member_dir / 'pyproject.toml'}: missing [project]")
 
@@ -81,7 +63,7 @@ def _workspace_package_subdirs() -> dict[str, str]:
 
 
 def _workspace_source_names(member_dir: Path) -> set[str]:
-    tool = _project_metadata(member_dir).get("tool", {})
+    tool = project_metadata(member_dir).get("tool", {})
     if not isinstance(tool, dict):
         return set()
 
@@ -131,6 +113,10 @@ def _model_install_requirements(member_dir: Path) -> list[tuple[str, str]]:
     return [*workspace_dependencies, (own_package, f"models/{slug}")]
 
 
+def _bash_fences(text: str) -> list[str]:
+    return re.findall(r"```bash\n(.*?)\n```", text, flags=re.S)
+
+
 def _pip_install_snippet(requirements: list[tuple[str, str]]) -> str:
     direct_requirements = [
         _direct_requirement(package_name, subdirectory)
@@ -147,12 +133,13 @@ def _pip_install_snippet(requirements: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _assert_pip_install_snippet(
+def assert_pip_install_snippet(
     path: Path,
     section: str,
     requirements: list[tuple[str, str]],
     section_label: str,
 ) -> None:
+    """Require a bash fence with the expected direct-reference requirements."""
     expected_requirements = [
         _direct_requirement(package_name, subdirectory)
         for package_name, subdirectory in requirements
@@ -176,22 +163,46 @@ def _assert_pip_install_snippet(
     )
 
 
-def _assert_model_pip_install_snippet(path: Path, text: str) -> None:
-    section = _section(text, "## How to Get Started with the Model")
-    _assert_pip_install_snippet(
+def assert_model_pip_install_snippet(path: Path, text: str) -> None:
+    """Require a model README's package and workspace install references."""
+    from .card import section
+
+    assert_pip_install_snippet(
         path,
-        section,
+        section(text, "## How to Get Started with the Model"),
         _model_install_requirements(path.parent),
         "How to Get Started",
     )
 
 
-def _assert_library_pip_install_snippet(path: Path, text: str) -> None:
-    section = _section(text, "## Install")
+def assert_library_pip_install_snippet(path: Path, text: str) -> None:
+    """Require a library README's package direct-reference install form."""
+    from .card import section
+
     member_dir = path.parent
-    _assert_pip_install_snippet(
+    assert_pip_install_snippet(
         path,
-        section,
+        section(text, "## Install"),
         [(_project_name(member_dir), f"lib/{member_dir.name}")],
         "Install",
     )
+
+
+def assert_lib_readme_install_contract(path: Path, text: str) -> None:
+    """Require both direct-reference and workspace install forms for a library."""
+    from .card import section
+
+    package = path.parent.name
+    install = section(text, "## Install")
+    direct_reference = (
+        f'pip install "{package} @ '
+        "git+https://github.com/creative-graphic-design/design-generators.git"
+        f'#subdirectory=lib/{package}"'
+    )
+    if direct_reference not in install:
+        raise AssertionError(
+            f"{path}: Install must include pip direct-reference subdirectory form"
+        )
+
+    if f"uv sync --package {package}" not in install:
+        raise AssertionError(f"{path}: Install must include workspace uv sync form")

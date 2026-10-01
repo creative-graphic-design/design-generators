@@ -52,7 +52,7 @@ A root-tooling environment installs the root package and its tooling group with 
 
 A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
 
-Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, and CLI behavior; migrated checker policies live under `devharness.checks` and use the `devharness check <name>` command surface. The model README checker is the first migrated policy and runs as `devharness check model-readmes`. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers, while one-consumer mechanics stay in the checker. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
+Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, and CLI behavior; migrated checker policies live under `devharness.checks` and use the `devharness check <name>` command surface. The migrated checks include `model-readmes`, and later migrations extend this list. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers, while one-consumer mechanics stay in the checker. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
 
 ## Training ownership
 

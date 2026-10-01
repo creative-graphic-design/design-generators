@@ -3,21 +3,25 @@
 from __future__ import annotations
 
 import os
-import shutil
+import io
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 import pytest
 
 from devharness import cli
 from devharness.checks.model_readmes import (
+    card,
     check,
     citation,
-    metadata,
-    repository,
+    install,
+    parity,
+    reproducing,
     root_readme,
 )
+from devharness.checks.model_readmes.constants import find_repo_root
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -42,6 +46,27 @@ def test_model_readme_contracts() -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert result.stdout == "Model README checks passed.\n"
     assert result.stderr == ""
+
+
+def test_model_readme_cli_resolves_root_from_subdirectory() -> None:
+    result = _run_model_readmes_cli(REPO_ROOT / "models" / "layout-dm")
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout == "Model README checks passed.\n"
+    assert result.stderr == ""
+
+
+def test_model_readme_cli_reports_missing_workspace_root() -> None:
+    result = _run_model_readmes_cli(Path("/proc"))
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "Unable to find repository root with [tool.uv.workspace] in pyproject.toml\n"
+    )
+
+
+def test_find_repo_root_requires_workspace_declaration() -> None:
+    with pytest.raises(ValueError, match=r"\[tool\.uv\.workspace\]"):
+        find_repo_root(Path("/proc"))
 
 
 def test_model_readme_policy_runs_in_process() -> None:
@@ -80,11 +105,15 @@ def test_model_readme_main_reports_policy_failure(
 
 def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     fixture = tmp_path / "repository"
-    shutil.copytree(
-        REPO_ROOT,
-        fixture,
-        ignore=shutil.ignore_patterns(".git", ".venv", "vendor"),
+    archive = subprocess.run(
+        ["git", "archive", "HEAD"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
     )
+    fixture.mkdir()
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
+        tar.extractall(fixture)
     readme = fixture / "README.md"
     readme.write_text(
         readme.read_text(encoding="utf-8").replace(
@@ -124,7 +153,7 @@ def test_citation_contract_accepts_matching_arxiv_metadata() -> None:
 ```
 """
 
-    citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
@@ -148,7 +177,7 @@ def test_citation_contract_rejects_arxiv_id_mismatch() -> None:
 """
 
     with pytest.raises(AssertionError, match="Citation arXiv ids"):
-        citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
@@ -171,7 +200,7 @@ def test_citation_contract_rejects_missing_arxiv_bibtex_fields() -> None:
 """
 
     with pytest.raises(AssertionError, match="missing required fields"):
-        citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 def test_citation_contract_rejects_eprint_url_mismatch() -> None:
@@ -195,7 +224,7 @@ def test_citation_contract_rejects_eprint_url_mismatch() -> None:
 """
 
     with pytest.raises(AssertionError, match="does not match url"):
-        citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+        citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
@@ -215,7 +244,7 @@ def test_citation_contract_allows_conference_bibtex_without_eprint() -> None:
 ```
 """
 
-    citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 @pytest.mark.parametrize(
@@ -263,7 +292,7 @@ def test_arxiv_bibtex_fields_reject_invalid_metadata(
 
 def test_citation_contract_requires_bibtex_fence() -> None:
     with pytest.raises(AssertionError, match="must contain a bibtex code fence"):
-        citation._assert_citation_bibtex(
+        citation.assert_citation_bibtex(
             Path("models/example/README.md"), "## Citation\nplain text\n"
         )
 
@@ -281,7 +310,7 @@ def test_citation_contract_accepts_arxiv_bibtex_without_body_id() -> None:
 ```
 """
 
-    citation._assert_citation_bibtex(Path("models/example/README.md"), text)
+    citation.assert_citation_bibtex(Path("models/example/README.md"), text)
 
 
 @pytest.mark.parametrize(
@@ -298,7 +327,7 @@ def test_vendor_parity_badge_contract_rejects_invalid_badges(
     tmp_path: Path, text: str, message: str
 ) -> None:
     with pytest.raises(AssertionError, match=message):
-        citation._assert_vendor_parity_badge(tmp_path / "README.md", text)
+        parity.assert_vendor_parity_badge(tmp_path / "README.md", text)
 
 
 def test_reproducibility_contract_rejects_missing_link_and_walkthrough(
@@ -306,11 +335,15 @@ def test_reproducibility_contract_rejects_missing_link_and_walkthrough(
 ) -> None:
     path = tmp_path / "models" / "example" / "README.md"
     with pytest.raises(AssertionError, match="must link REPRODUCING.md"):
-        citation._assert_readme_reproducibility_link(path, "## Reproducibility\n")
+        reproducing.assert_readme_reproducibility_link(path, "## Reproducibility\n")
 
-    text = "## Reproducibility\nSee models/example/REPRODUCING.md\n```bash\nrun\n```"
+    text = (
+        "## Reproducibility\nSee "
+        "https://github.com/creative-graphic-design/design-generators/blob/main/"
+        "models/example/REPRODUCING.md\n```bash\nrun\n```"
+    )
     with pytest.raises(AssertionError, match="must be a short link"):
-        citation._assert_readme_reproducibility_link(path, text)
+        reproducing.assert_readme_reproducibility_link(path, text)
 
 
 @pytest.mark.parametrize(
@@ -337,29 +370,29 @@ def test_reproducing_command_contract_rejects_invalid_documents(
     slug = "layout-gpt" if "prompt-only" in message else "example"
     path = tmp_path / "models" / slug / "REPRODUCING.md"
     with pytest.raises(AssertionError, match=message):
-        citation._assert_reproducing_commands(path, text)
+        reproducing.assert_reproducing_commands(path, text)
 
 
 def test_banned_content_contract_rejects_credentials() -> None:
     with pytest.raises(AssertionError, match="GEN_AI_PROXY_PAT"):
-        citation._assert_banned_patterns(
+        card.assert_banned_patterns(
             Path("models/example/README.md"), "GEN_AI_PROXY_PAT"
         )
 
 
-def test_metadata_parsing_helpers_cover_empty_and_inline_cases() -> None:
-    assert metadata._frontmatter("plain") == ""
-    assert metadata._frontmatter("---\nlicense: mit\n") == ""
-    assert metadata._frontmatter_scalar("license: mit", "missing") is None
-    assert metadata._frontmatter_list("license: mit", "datasets") == []
-    assert metadata._dataset_display_name("custom") == "custom"
-    assert metadata._semantic_badge_label("plain", "library") == "library"
-    assert metadata._without_badges("A ![badge](url) B") == "A   B"
-    assert metadata._markdown_link_spans("[link](url)")
-    assert not metadata._in_any_span(0, [])
-    assert metadata._inline_code_span_at("plain", 0) is None
+def test_card_parsing_helpers_cover_empty_and_inline_cases() -> None:
+    assert card._frontmatter("plain") == ""
+    assert card._frontmatter("---\nlicense: mit\n") == ""
+    assert card._frontmatter_scalar("license: mit", "missing") is None
+    assert card._frontmatter_list("license: mit", "datasets") == []
+    assert card._dataset_display_name("custom") == "custom"
+    assert card.semantic_badge_label("plain", "library") == "library"
+    assert card.without_badges("A ![badge](url) B") == "A   B"
+    assert card.markdown_link_spans("[link](url)")
+    assert not card.in_any_span(0, [])
+    assert card.inline_code_span_at("plain", 0) is None
     assert (
-        metadata._without_frontmatter_and_code(
+        card.without_frontmatter_and_code(
             "---\nlicense: mit\n---\ntext\n```\nhidden\n```\nvisible"
         )
         == "text\nvisible"
@@ -378,25 +411,25 @@ def test_frontmatter_contract_rejects_invalid_documents(
     tmp_path: Path, text: str, message: str
 ) -> None:
     with pytest.raises(AssertionError, match=message):
-        metadata._assert_frontmatter(tmp_path / "README.md", text)
+        card.assert_frontmatter(tmp_path / "README.md", text)
 
 
 def test_frontmatter_policy_rejects_duplicates_and_invalid_pipeline() -> None:
     path = Path("models/example/README.md")
     with pytest.raises(AssertionError, match="has duplicates"):
-        metadata._assert_frontmatter_list_unique(path, "tags:\n  - one\n  - one\n")
+        card.assert_frontmatter_list_unique(path, "tags:\n  - one\n  - one\n")
 
     with pytest.raises(AssertionError, match="pipeline_tag"):
-        metadata._assert_pipeline_tag(path, "pipeline_tag: text")
+        card.assert_pipeline_tag(path, "pipeline_tag: text")
 
     with pytest.raises(AssertionError, match="must not be text-to-image"):
-        metadata._assert_pipeline_tag(
+        card.assert_pipeline_tag(
             path,
             'pipeline_tag: other\nmodel-index:\n  - name: example\n    results:\n      type: "text-to-image"',
         )
 
     with pytest.raises(AssertionError, match="task.type must be 'other'"):
-        metadata._assert_pipeline_tag(
+        card.assert_pipeline_tag(
             path,
             "pipeline_tag: other\nmodel-index:\n  - task:\n      type: text-classification",
         )
@@ -406,48 +439,48 @@ def test_model_index_policy_rejects_wrong_weight_mode() -> None:
     prompt_path = Path("models/layout-gpt/README.md")
     weight_path = Path("models/layout-dm/README.md")
     with pytest.raises(AssertionError, match="prompt-only README"):
-        metadata._assert_model_index_policy(prompt_path, "model-index:\n")
+        card.assert_model_index_policy(prompt_path, "model-index:\n")
 
     with pytest.raises(AssertionError, match="must include model-index"):
-        metadata._assert_model_index_policy(weight_path, "pipeline_tag: other\n")
+        card.assert_model_index_policy(weight_path, "pipeline_tag: other\n")
 
 
-def test_metadata_structure_contract_rejects_missing_heading_and_bad_parity() -> None:
+def test_card_and_parity_contracts_reject_missing_heading_and_bad_parity() -> None:
     path = Path("models/example/README.md")
     with pytest.raises(AssertionError, match="missing required heading"):
-        metadata._assert_heading_order(path, "# Model Card for Example\n")
+        card.assert_heading_order(path, "# Model Card for Example\n")
 
     with pytest.raises(AssertionError, match="Parity Results must contain"):
-        metadata._assert_parity_table(path, "### Parity Results\nplain\n")
+        parity.assert_parity_table(path, "### Parity Results\nplain\n")
 
     with pytest.raises(AssertionError, match="has no data rows"):
-        metadata._assert_parity_table(
+        parity.assert_parity_table(
             path, "### Parity Results\n| Name | Result |\n| --- | --- |\n"
         )
 
     with pytest.raises(AssertionError, match="numeric evidence"):
-        metadata._assert_parity_table(
+        parity.assert_parity_table(
             path,
             "### Parity Results\n| Name | Result |\n| --- | --- |\n| case | match |\n",
         )
 
 
-def test_metadata_readme_contract_rejects_bad_summary_and_code_fences() -> None:
+def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
     path = Path("models/layout-dm/README.md")
     with pytest.raises(AssertionError, match="missing model-card H1"):
-        metadata._assert_model_summary_subject(path, "plain")
+        card.assert_model_summary_subject(path, "plain")
 
     with pytest.raises(AssertionError, match="first prose line"):
-        metadata._assert_model_summary_subject(path, "# Model Card for LayoutDM\nWrong")
+        card.assert_model_summary_subject(path, "# Model Card for LayoutDM\nWrong")
 
     with pytest.raises(AssertionError, match="untagged code fence"):
-        metadata._assert_code_fences_tagged(path, "```\ncode\n```\n")
+        card.assert_code_fences_tagged(path, "```\ncode\n```\n")
 
     with pytest.raises(AssertionError, match="unterminated code fence"):
-        metadata._assert_code_fences_tagged(path, "```bash\ncode\n")
+        card.assert_code_fences_tagged(path, "```bash\ncode\n")
 
     with pytest.raises(AssertionError, match="heredoc examples"):
-        metadata._assert_code_fences_tagged(path, "<<'PY'\ncode\nPY\n")
+        card.assert_code_fences_tagged(path, "<<'PY'\ncode\nPY\n")
 
 
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
@@ -468,7 +501,7 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
         encoding="utf-8",
     )
 
-    assert root_readme._root_model_slugs(readme) == {"layoutformerpp"}
+    assert root_readme.root_model_slugs(readme) == {"layoutformerpp"}
 
 
 def test_root_models_table_rejects_metadata_columns(
@@ -490,10 +523,10 @@ def test_root_models_table_rejects_metadata_columns(
     )
 
     with pytest.raises(AssertionError, match="Model, Venue, Ckpt, Train"):
-        root_readme._root_model_slugs(readme)
+        root_readme.root_model_slugs(readme)
 
 
-def test_model_readme_reproducibility_accepts_repo_root_link(tmp_path: Path) -> None:
+def test_model_readme_reproducibility_rejects_repo_root_link(tmp_path: Path) -> None:
     readme = tmp_path / "models" / "layout-dm" / "README.md"
     readme.parent.mkdir(parents=True)
     readme.write_text(
@@ -508,9 +541,12 @@ See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for commands.
         encoding="utf-8",
     )
 
-    citation._assert_readme_reproducibility_link(
-        readme, readme.read_text(encoding="utf-8")
-    )
+    with pytest.raises(
+        AssertionError, match="blob/main/models/layout-dm/REPRODUCING.md"
+    ):
+        reproducing.assert_readme_reproducibility_link(
+            readme, readme.read_text(encoding="utf-8")
+        )
 
 
 def test_root_models_table_requires_training_link_when_file_exists(
@@ -531,7 +567,7 @@ def test_root_models_table_requires_training_link_when_file_exists(
         encoding="utf-8",
     )
 
-    assert root_readme._root_model_slugs(readme) == {"layout-flow"}
+    assert root_readme.root_model_slugs(readme) == {"layout-flow"}
 
 
 def test_root_readme_table_helpers_reject_malformed_cells() -> None:
@@ -587,7 +623,7 @@ def test_library_name_style_rejects_unannotated_names(
     readme.write_text(text, encoding="utf-8")
 
     with pytest.raises(AssertionError):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_linked_first_reference_policy_requires_dataset_links(tmp_path: Path) -> None:
@@ -595,44 +631,44 @@ def test_linked_first_reference_policy_requires_dataset_links(tmp_path: Path) ->
     readme.write_text("creative-graphic-design/Rico", encoding="utf-8")
 
     with pytest.raises(AssertionError, match="dataset id must be linked"):
-        root_readme._assert_linked_first_reference_policy(readme)
+        root_readme.assert_linked_first_reference_policy(readme)
 
 
-def test_repository_helpers_cover_metadata_and_install_contract_errors(
+def test_install_helpers_cover_metadata_and_install_contract_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert repository._section("# Title", "## Missing") == ""
-    assert repository._normalize_root_repo_link("models/example/README.md") == (
+    assert card.section("# Title", "## Missing") == ""
+    assert root_readme.normalize_root_repo_link("models/example/README.md") == (
         "models/example/README.md"
     )
-    assert repository._dependency_name("laygen[agents]>=1") == "laygen"
-    assert repository._dependency_direct_name("laygen[agents]>=1") == "laygen[agents]"
-    assert repository._pip_install_snippet([("example", "models/example")]).startswith(
+    assert install._dependency_name("laygen[agents]>=1") == "laygen"
+    assert install._dependency_direct_name("laygen[agents]>=1") == "laygen[agents]"
+    assert install._pip_install_snippet([("example", "models/example")]).startswith(
         'pip install "example @ '
     )
 
-    monkeypatch.setattr(repository, "_project_metadata", lambda _: {"project": "bad"})
+    monkeypatch.setattr(install, "project_metadata", lambda _: {"project": "bad"})
     with pytest.raises(AssertionError, match=r"missing \[project\]"):
-        repository._project_name(tmp_path)
+        install._project_name(tmp_path)
 
-    monkeypatch.setattr(repository, "_project_metadata", lambda _: {"project": {}})
+    monkeypatch.setattr(install, "project_metadata", lambda _: {"project": {}})
     with pytest.raises(AssertionError, match="project.name missing"):
-        repository._project_name(tmp_path)
+        install._project_name(tmp_path)
 
     monkeypatch.setattr(
-        repository,
-        "_project_metadata",
+        install,
+        "project_metadata",
         lambda _: {"project": {"dependencies": "bad"}},
     )
     with pytest.raises(AssertionError, match="dependencies must be a list"):
-        repository._project_dependencies(tmp_path)
+        install._project_dependencies(tmp_path)
 
-    monkeypatch.setattr(repository, "_project_metadata", lambda _: {"tool": "bad"})
-    assert repository._workspace_source_names(tmp_path) == set()
+    monkeypatch.setattr(install, "project_metadata", lambda _: {"tool": "bad"})
+    assert install._workspace_source_names(tmp_path) == set()
 
     with pytest.raises(AssertionError, match="must include a pip install snippet"):
-        repository._assert_pip_install_snippet(
+        install.assert_pip_install_snippet(
             tmp_path / "README.md",
             "## Install\n",
             [("example", "lib/example")],
@@ -642,9 +678,7 @@ def test_repository_helpers_cover_metadata_and_install_contract_errors(
 
 def test_expected_frontmatter_contract_reports_policy_errors() -> None:
     with pytest.raises(AssertionError, match="no expected frontmatter"):
-        metadata._assert_expected_frontmatter(
-            Path("models/example/README.md"), "---\n---\n"
-        )
+        card.assert_expected_frontmatter(Path("models/example/README.md"), "---\n---\n")
 
     frontmatter = """---
 license: mit
@@ -658,15 +692,15 @@ model-index:
 """
     path = Path("models/layout-dm/README.md")
     with pytest.raises(AssertionError, match="frontmatter license"):
-        metadata._assert_expected_frontmatter(path, frontmatter)
+        card.assert_expected_frontmatter(path, frontmatter)
 
     with pytest.raises(AssertionError, match="datasets missing"):
-        metadata._assert_expected_frontmatter(
+        card.assert_expected_frontmatter(
             path, frontmatter.replace("license: mit", "license: apache-2.0")
         )
 
     with pytest.raises(AssertionError, match="dataset badges"):
-        metadata._assert_expected_frontmatter(
+        card.assert_expected_frontmatter(
             path,
             frontmatter.replace("license: mit", "license: apache-2.0").replace(
                 "creative-graphic-design/Rico",
@@ -687,15 +721,15 @@ model-index:
         ),
     ],
 )
-def test_runtime_contract_rejects_incomplete_metadata(
+def test_card_runtime_contract_rejects_incomplete_metadata(
     monkeypatch: pytest.MonkeyPatch,
     project_metadata: dict[str, object],
     message: str,
 ) -> None:
-    monkeypatch.setattr(metadata, "_project_metadata", lambda _: project_metadata)
+    monkeypatch.setattr(card, "project_metadata", lambda _: project_metadata)
 
     with pytest.raises(AssertionError, match=message):
-        metadata._assert_runtime_contract(
+        card.assert_runtime_contract(
             Path("models/layout-dm/README.md"), "---\nlibrary_name: other\n---\n"
         )
 
@@ -704,8 +738,8 @@ def test_runtime_contract_rejects_surface_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        metadata,
-        "_project_metadata",
+        card,
+        "project_metadata",
         lambda _: {"tool": {"design-generators": {"framework": "other"}}},
     )
     text = """---
@@ -715,51 +749,51 @@ library_name: transformers
 """
 
     with pytest.raises(AssertionError, match="runtime mismatch"):
-        metadata._assert_runtime_contract(Path("models/layout-dm/README.md"), text)
+        card.assert_runtime_contract(Path("models/layout-dm/README.md"), text)
 
 
-def test_metadata_contracts_cover_prompt_and_unpublished_notes() -> None:
+def test_card_contracts_cover_prompt_and_unpublished_notes() -> None:
     path = Path("models/layout-gpt/README.md")
     with pytest.raises(AssertionError, match="stale model-package phrase"):
-        metadata._assert_prompt_only_readme(path, "converted checkpoint")
+        card.assert_prompt_only_readme(path, "converted checkpoint")
 
     with pytest.raises(AssertionError, match="must not mention converting"):
-        metadata._assert_prompt_only_readme(path, "convert checkpoints")
+        card.assert_prompt_only_readme(path, "convert checkpoints")
 
     with pytest.raises(AssertionError, match="missing runnable setup parts"):
-        metadata._assert_unpublished_hub_get_started_note(
+        card.assert_unpublished_hub_get_started_note(
             path, "## Supported Checkpoints\n## How to Get Started with the Model\n"
         )
 
     with pytest.raises(AssertionError, match="heredoc examples"):
-        metadata._assert_unpublished_hub_get_started_note(
+        card.assert_unpublished_hub_get_started_note(
             Path("models/layout-dm/README.md"),
             "## Supported Checkpoints\ncreative-graphic-design/x not-published\n"
             "## How to Get Started with the Model\n<<'PY'\n",
         )
 
 
-def test_metadata_install_contract_requires_both_install_forms() -> None:
+def test_install_contract_requires_both_install_forms() -> None:
     path = Path("lib/laygen/README.md")
     with pytest.raises(AssertionError, match="direct-reference"):
-        metadata._assert_lib_readme_install_contract(path, "## Install\n")
+        install.assert_lib_readme_install_contract(path, "## Install\n")
 
     direct = (
         'pip install "laygen @ git+https://github.com/creative-graphic-design/'
         'design-generators.git#subdirectory=lib/laygen"'
     )
     with pytest.raises(AssertionError, match="workspace uv sync"):
-        metadata._assert_lib_readme_install_contract(path, f"## Install\n{direct}\n")
+        install.assert_lib_readme_install_contract(path, f"## Install\n{direct}\n")
 
 
-def test_metadata_contracts_require_expected_source_and_summary_subject() -> None:
+def test_card_contracts_require_expected_source_and_summary_subject() -> None:
     with pytest.raises(AssertionError, match="must link expected repository"):
-        metadata._assert_expected_repository_links(
+        card.assert_expected_repository_links(
             Path("models/layout-gpt/README.md"), "### Model Sources\n"
         )
 
     with pytest.raises(AssertionError, match="first prose line"):
-        metadata._assert_model_summary_subject(
+        card.assert_model_summary_subject(
             Path("models/layout-dm/README.md"),
             "# Model Card for LayoutDM\nLayoutDM ports layouts.\n",
         )
@@ -775,7 +809,7 @@ def test_hugging_face_emoji_contract_allows_multiple_runtime_mentions(
         encoding="utf-8",
     )
 
-    root_readme._assert_library_name_style(readme)
+    root_readme.assert_library_name_style(readme)
 
 
 @pytest.mark.parametrize(
@@ -797,7 +831,7 @@ def test_runtime_emoji_contract_rejects_space_after_emoji(
     readme.write_text(f"This package uses {runtime_label}.", encoding="utf-8")
 
     with pytest.raises(AssertionError, match=expected_message):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_hugging_face_emoji_contract_rejects_unattached_emoji(
@@ -811,7 +845,7 @@ def test_hugging_face_emoji_contract_rejects_unattached_emoji(
     )
 
     with pytest.raises(AssertionError, match="must annotate"):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_hugging_face_emoji_contract_rejects_emoji_outside_code_span(
@@ -824,7 +858,7 @@ def test_hugging_face_emoji_contract_rejects_emoji_outside_code_span(
     )
 
     with pytest.raises(AssertionError, match="must annotate"):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_diffusers_emoji_contract_rejects_unattached_emoji(
@@ -838,7 +872,7 @@ def test_diffusers_emoji_contract_rejects_unattached_emoji(
     )
 
     with pytest.raises(AssertionError, match="must annotate"):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_diffusers_emoji_contract_rejects_emoji_outside_code_span(
@@ -851,7 +885,7 @@ def test_diffusers_emoji_contract_rejects_emoji_outside_code_span(
     )
 
     with pytest.raises(AssertionError, match="must annotate"):
-        root_readme._assert_library_name_style(readme)
+        root_readme.assert_library_name_style(readme)
 
 
 def test_pip_install_contract_reports_expected_direct_url_example() -> None:
@@ -863,7 +897,7 @@ uv sync --package layout-dm
 """
 
     with pytest.raises(AssertionError, match="Expected example") as exc_info:
-        repository._assert_pip_install_snippet(
+        install.assert_pip_install_snippet(
             Path("models/layout-dm/README.md"),
             section,
             [
@@ -886,7 +920,7 @@ pip install "laygen @ git+https://github.com/creative-graphic-design/design-gene
 ```
 """
 
-    repository._assert_pip_install_snippet(
+    install.assert_pip_install_snippet(
         Path("lib/laygen/README.md"),
         section,
         [("laygen", "lib/laygen")],
@@ -909,7 +943,7 @@ pip install \\
 """
 
     with pytest.raises(AssertionError, match="models/basnet"):
-        repository._assert_model_pip_install_snippet(
+        install.assert_model_pip_install_snippet(
             REPO_ROOT / "models" / "smarttext" / "README.md",
             text,
         )

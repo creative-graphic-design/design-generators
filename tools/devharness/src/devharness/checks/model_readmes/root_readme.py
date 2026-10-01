@@ -12,19 +12,24 @@ from .constants import (
     REPO_ROOT,
     ROOT_LIBRARY_BADGE_COLORS,
     ROOT_MODEL_TABLE_HEADER,
+    ROOT_REPO_BLOB_URL,
 )
-from .metadata import (
-    _badge_messages,
-    _inline_code_span_at,
-    _in_any_span,
-    _library_member_slugs,
-    _markdown_link_spans,
-    _model_member_slugs,
-    _semantic_badge_label,
-    _without_frontmatter_and_code,
-    _without_badges,
+from .card import (
+    badge_messages,
+    inline_code_span_at,
+    in_any_span,
+    library_member_slugs,
+    markdown_link_spans,
+    model_member_slugs,
+    semantic_badge_label,
+    without_frontmatter_and_code,
+    without_badges,
 )
-from .repository import _normalize_root_repo_link
+
+
+def normalize_root_repo_link(link: str) -> str:
+    """Normalize a root README repository link to a repository-relative path."""
+    return link.removeprefix(ROOT_REPO_BLOB_URL)
 
 
 def _root_packages_table_lines(text: str) -> list[str]:
@@ -76,7 +81,7 @@ def _badge_message(alt: str, badge_url: str, label: str) -> str | None:
     query_label = query.get("label", [None])[0]
     if (
         query_label is None
-        or _semantic_badge_label(alt, query_label) != label
+        or semantic_badge_label(alt, query_label) != label
         or "message" not in query
     ):
         return None
@@ -149,7 +154,7 @@ def _assert_root_reproduction_cells(
 ) -> None:
     expected_checkpoint_link = f"models/{slug}/REPRODUCING.md"
     checkpoint_badges = [
-        (message, _normalize_root_repo_link(link))
+        (message, normalize_root_repo_link(link))
         for message, link in _linked_static_badges(checkpoint_cell, "checkpoint")
     ]
     if checkpoint_badges != [("ckpt", expected_checkpoint_link)]:
@@ -158,7 +163,7 @@ def _assert_root_reproduction_cells(
         )
 
     training_badges = [
-        (message, _normalize_root_repo_link(link))
+        (message, normalize_root_repo_link(link))
         for message, link in _linked_static_badges(training_cell, "training")
     ]
     training_messages = _static_badge_messages(training_cell, "training")
@@ -182,16 +187,18 @@ def _assert_root_reproduction_cells(
         )
 
 
-def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
+def assert_root_model_badge_count(path: Path, expected_count: int) -> None:
+    """Require the root README model-count badge to match workspace members."""
     text = path.read_text(encoding="utf-8")
-    messages = _badge_messages(text, "models")
+    messages = badge_messages(text, "models")
     if messages != [str(expected_count)]:
         raise AssertionError(
             f"{path}: models badge {messages} != workspace model member count {expected_count}"
         )
 
 
-def _root_model_slugs(path: Path) -> set[str]:
+def root_model_slugs(path: Path) -> set[str]:
+    """Validate the root model table and return its model slugs."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
     if _split_markdown_table_row(
@@ -222,7 +229,7 @@ def _root_model_slugs(path: Path) -> set[str]:
             )
 
         model_name = model_link.group(1)
-        normalized_model_link = _normalize_root_repo_link(model_link.group(2))
+        normalized_model_link = normalize_root_repo_link(model_link.group(2))
         slug_match = re.fullmatch(r"models/([^/)]+)/README\.md", normalized_model_link)
         if slug_match is None:
             raise AssertionError(
@@ -255,7 +262,8 @@ def _root_model_slugs(path: Path) -> set[str]:
     return slugs
 
 
-def _assert_root_libraries_table_matches_members(path: Path) -> None:
+def assert_root_libraries_table_matches_members(path: Path) -> None:
+    """Require the root library table to match workspace library members."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_libraries_table_lines(text)
     if _split_markdown_table_row(table_lines[0]) != [
@@ -280,7 +288,7 @@ def _assert_root_libraries_table_matches_members(path: Path) -> None:
             )
 
         label, library_link = library_badge
-        normalized_library_link = _normalize_root_repo_link(library_link)
+        normalized_library_link = normalize_root_repo_link(library_link)
         slug_match = re.fullmatch(r"lib/([^/)]+)/README\.md", normalized_library_link)
         if slug_match is None:
             raise AssertionError(
@@ -308,7 +316,7 @@ def _assert_root_libraries_table_matches_members(path: Path) -> None:
 
         root_slugs.add(slug)
 
-    member_slugs = _library_member_slugs()
+    member_slugs = library_member_slugs()
     missing = sorted(member_slugs - root_slugs)
     extra = sorted(root_slugs - member_slugs)
     if missing or extra:
@@ -317,8 +325,9 @@ def _assert_root_libraries_table_matches_members(path: Path) -> None:
         )
 
 
-def _assert_model_doc_sets() -> None:
-    member_slugs = _model_member_slugs()
+def assert_model_doc_sets() -> None:
+    """Require every model workspace member to have its README documents."""
+    member_slugs = model_member_slugs()
     readme_slugs = {
         path.parent.name for path in sorted((REPO_ROOT / "models").glob("*/README.md"))
     }
@@ -338,8 +347,9 @@ def _assert_model_doc_sets() -> None:
             )
 
 
-def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
-    member_slugs = _model_member_slugs()
+def assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
+    """Require root README model rows to match workspace model members."""
+    member_slugs = model_member_slugs()
     missing = sorted(member_slugs - root_slugs)
     extra = sorted(root_slugs - member_slugs)
     if missing or extra:
@@ -348,26 +358,28 @@ def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
         )
 
 
-def _assert_linked_first_reference_policy(path: Path) -> None:
-    text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
-    spans = _markdown_link_spans(text)
+def assert_linked_first_reference_policy(path: Path) -> None:
+    """Require first dataset and arXiv references to be Markdown links."""
+    text = without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+    spans = markdown_link_spans(text)
     for dataset_id in LINK_REQUIRED_DATASET_IDS:
         for match in re.finditer(re.escape(dataset_id), text):
-            if not _in_any_span(match.start(), spans):
+            if not in_any_span(match.start(), spans):
                 raise AssertionError(f"{path}: dataset id must be linked: {dataset_id}")
 
     for match in re.finditer(r"\barXiv\s+\d{4}\.\d{4,5}\b", text):
-        if not _in_any_span(match.start(), spans):
+        if not in_any_span(match.start(), spans):
             raise AssertionError(f"{path}: arXiv id must be linked: {match.group(0)}")
 
     for match in re.finditer(r"https://arxiv\.org/abs/\d{4}\.\d{4,5}", text):
-        if not _in_any_span(match.start(), spans):
+        if not in_any_span(match.start(), spans):
             raise AssertionError(f"{path}: arXiv URL must be in a markdown link")
 
 
-def _assert_library_name_style(path: Path) -> None:
-    text = _without_badges(
-        _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+def assert_library_name_style(path: Path) -> None:
+    """Require reader-facing library names to use their annotated code forms."""
+    text = without_badges(
+        without_frontmatter_and_code(path.read_text(encoding="utf-8"))
     )
     banned_names = {
         "Transformers": "`🤗transformers`",
@@ -406,10 +418,7 @@ def _assert_library_name_style(path: Path) -> None:
     }
     for library in ("transformers", "diffusers", "pydantic-ai"):
         for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
-            if (
-                _inline_code_span_at(text, match.start())
-                == required_code_spans[library]
-            ):
+            if inline_code_span_at(text, match.start()) == required_code_spans[library]:
                 continue
 
             raise AssertionError(
