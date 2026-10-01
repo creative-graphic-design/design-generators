@@ -193,12 +193,12 @@ def test_comparison_scope_legend_table_fails_closed(tmp_path: Path) -> None:
     )
 
     assert check_training_doc_template.current_entries(tmp_path) == {
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'checkpoint-selection rule' column",
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'dataset' column",
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'evaluator' column",
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'sample-count denominator' column",
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'system' column",
-        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'test split' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Checkpoint-selection rule' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Dataset' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Evaluator' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Sample count' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'System' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'Test split' column",
     }
 
 
@@ -284,13 +284,8 @@ def test_comparison_scope_row_count_mismatch_fails(tmp_path: Path) -> None:
     }
 
 
-@pytest.mark.parametrize("system", ["both"])
-def test_comparison_scope_accepts_allowed_system_values(
-    tmp_path: Path, system: str
-) -> None:
-    training_text = valid_training_doc().replace(
-        "| RICO25 | both |", f"| RICO25 | {system} |", 1
-    )
+def test_comparison_scope_accepts_allowed_system_values(tmp_path: Path) -> None:
+    training_text = valid_training_doc()
     write_package_docs(
         tmp_path,
         "example",

@@ -62,6 +62,14 @@ COMPARISON_SCOPE_FIELD_LABELS = {
     "checkpointselectionrule": "checkpoint-selection rule",
     "samplecount": "sample-count denominator",
 }
+COMPARISON_SCOPE_HEADER_LABELS = {
+    "dataset": "Dataset",
+    "system": "System",
+    "evaluator": "Evaluator",
+    "testsplit": "Test split",
+    "checkpointselectionrule": "Checkpoint-selection rule",
+    "samplecount": "Sample count",
+}
 COMPARISON_SCOPE_SYSTEMS = {"both", "package", "original"}
 
 
@@ -311,7 +319,7 @@ def comparison_scope_violations(
                 relative_path,
                 COMPARISON_SCOPE_HEADING,
                 "Comparison Scope table missing "
-                f"{COMPARISON_SCOPE_FIELD_LABELS[column]!r} column",
+                f"{COMPARISON_SCOPE_HEADER_LABELS[column]!r} column",
             )
         )
 
