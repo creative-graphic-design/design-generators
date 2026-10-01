@@ -684,8 +684,6 @@ def baseline_reference_entries(root: Path, baseline_path: Path) -> set[str] | No
     content = git_output(root, ["git", "show", f"{merge_base.strip()}:{rel_path}"])
     if content is None:
         return None
-    if not content:
-        return set()
     return {line for line in content.splitlines() if line and not line.startswith("#")}
 
 

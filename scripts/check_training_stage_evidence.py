@@ -228,14 +228,18 @@ def parse_stage_evidence(
             for row in lines[row_start:]:
                 if not row.lstrip().startswith("|"):
                     break
+
                 if is_table_delimiter(row):
                     continue
+
                 cells = split_markdown_row(row)
                 if len(cells) < len(headers):
                     continue
+
                 stage = cells[positions["stage"]].strip().upper()
                 if stage not in STAGES:
                     continue
+
                 if stage in evidence:
                     duplicates.add(stage)
                 evidence[stage] = StageEvidence(
@@ -312,8 +316,6 @@ def current_entries(root: Path) -> set[str]:
     entries: set[str] = set()
     for path in training_docs(root):
         violations = violations_for_training_doc(path, root)
-        if not violations:
-            continue
         entries.update(violation.as_baseline_entry() for violation in violations)
     return entries
 
