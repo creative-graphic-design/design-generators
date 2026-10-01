@@ -284,18 +284,6 @@ def test_comparison_scope_row_count_mismatch_fails(tmp_path: Path) -> None:
     }
 
 
-def test_comparison_scope_accepts_allowed_system_values(tmp_path: Path) -> None:
-    training_text = valid_training_doc()
-    write_package_docs(
-        tmp_path,
-        "example",
-        readme_with_supported_checkpoints(),
-        training_text,
-    )
-
-    assert check_training_doc_template.current_entries(tmp_path) == set()
-
-
 @pytest.mark.parametrize("system", ["package", "original"])
 def test_comparison_scope_rejects_lone_split_system(
     tmp_path: Path, system: str

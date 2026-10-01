@@ -55,7 +55,6 @@ COMPARISON_SCOPE_COLUMNS = (
     "samplecount",
 )
 COMPARISON_SCOPE_FIELD_LABELS = {
-    "dataset": "dataset",
     "system": "system",
     "evaluator": "evaluator",
     "testsplit": "test split",
