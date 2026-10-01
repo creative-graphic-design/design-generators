@@ -4,9 +4,21 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    from _repo_checks.baselines import (
+        diff_entry_baseline,
+        read_entry_baseline,
+        write_entry_baseline,
+    )
+except ModuleNotFoundError:
+    from scripts._repo_checks.baselines import (
+        diff_entry_baseline,
+        read_entry_baseline,
+        write_entry_baseline,
+    )
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "module_naming_baseline.txt"
@@ -219,31 +231,12 @@ def current_entries(root: Path) -> set[str]:
     return {violation.as_baseline_entry() for violation in current_violations(root)}
 
 
-def baseline_entries(path: Path) -> set[str]:
-    """Return committed shrink-only baseline entries."""
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
-    return {
-        line
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line and not line.startswith("#")
-    }
-
-
-def write_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted baseline entries."""
-    content = "\n".join(sorted(entries))
-    path.write_text(f"{content}\n" if content else "", encoding="utf-8")
-
-
 def check_module_naming(root: Path, baseline_path: Path) -> int:
     """Check current violations against the shrink-only baseline."""
     current = current_entries(root)
-    baseline = baseline_entries(baseline_path)
+    baseline = read_entry_baseline(baseline_path)
 
-    unexpected = sorted(current - baseline)
-    stale = sorted(baseline - current)
+    unexpected, stale = diff_entry_baseline(current, baseline)
 
     if not unexpected and not stale:
         return 0
@@ -270,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.write_baseline:
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
         return 0
     return check_module_naming(ROOT, BASELINE_PATH)
 

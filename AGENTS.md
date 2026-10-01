@@ -100,7 +100,7 @@
 
 ## Machine-Checked Conventions
 
-Each `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Mechanics that two or more checkers need with identical semantics belong in private `scripts/_repo_checks/` modules, which are repository tooling rather than a workspace library; a mechanic with one consumer stays in its checker.
+Each `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Mechanics that two or more checkers need with identical semantics belong in private `scripts/_repo_checks/` modules by default; a mechanic with one consumer stays in its checker. Promote repository tooling to a workspace package only when it develops an independent dependency or execution contract that justifies a separate package boundary.
 
 ### Source Checks
 

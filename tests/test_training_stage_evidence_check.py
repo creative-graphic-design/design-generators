@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from _repo_checks import baselines
+
 
 def load_check_training_stage_evidence() -> ModuleType:
     module_path = (
@@ -360,7 +362,7 @@ training-seed n=3 is accepted.
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_training_stage_evidence.write_baseline(
+    baselines.write_entry_baseline(
         baseline, check_training_stage_evidence.current_entries(tmp_path)
     )
 

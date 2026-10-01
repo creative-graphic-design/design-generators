@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from _repo_checks import baselines
+
 
 def load_check_jaxtyping_annotations() -> ModuleType:
     module_path = (
@@ -307,11 +309,11 @@ def old(x: torch.Tensor) -> None:
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_jaxtyping_annotations.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_jaxtyping_annotations.current_entries(tmp_path),
     )
-    base_entries = check_jaxtyping_annotations.baseline_entries(baseline)
+    base_entries = baselines.read_entry_baseline(baseline)
     monkeypatch.setattr(
         check_jaxtyping_annotations,
         "baseline_reference_entries",
@@ -352,7 +354,7 @@ def added_in_pr(x: torch.Tensor) -> None:
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_jaxtyping_annotations.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_jaxtyping_annotations.current_entries(tmp_path),
     )
@@ -468,7 +470,7 @@ PublicBbox = Float[torch.Tensor, "batch 4"]
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_jaxtyping_annotations.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_jaxtyping_annotations.current_alias_entries(tmp_path),
     )
@@ -495,7 +497,7 @@ def bad(value: object) -> None:
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_jaxtyping_annotations.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_jaxtyping_annotations.current_object_entries(tmp_path),
     )
@@ -519,11 +521,11 @@ def bad(x: torch.Tensor) -> None:
 """,
     )
     baseline = tmp_path / "baseline.txt"
-    check_jaxtyping_annotations.write_baseline(
+    baselines.write_entry_baseline(
         baseline,
         check_jaxtyping_annotations.current_entries(tmp_path),
     )
-    base_entries = check_jaxtyping_annotations.baseline_entries(baseline)
+    base_entries = baselines.read_entry_baseline(baseline)
     monkeypatch.setattr(
         check_jaxtyping_annotations,
         "baseline_reference_entries",

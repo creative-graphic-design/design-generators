@@ -265,7 +265,7 @@ jobs:
           mkdir -p coverage-root
           COVERAGE_FILE=coverage-root/.coverage \
             uv run --no-sync --package design-generators coverage run \
-            --rcfile=/dev/null --include='scripts/*.py' \
+            --rcfile=/dev/null --include='scripts/**/*.py' \
             -m pytest tests -m "not integration" --import-mode=importlib
           COVERAGE_FILE=coverage-root/.coverage \
             uv run --no-sync --package design-generators coverage report --rcfile=/dev/null

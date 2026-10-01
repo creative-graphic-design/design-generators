@@ -8,15 +8,32 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from check_training_stage_evidence import (
-    baseline_entries,
-    iter_heading_sections,
-    iter_unfenced_lines,
-    is_table_delimiter,
-    print_entries,
-    split_markdown_row,
-    write_baseline,
-)
+try:
+    from _repo_checks.baselines import (
+        diff_entry_baseline,
+        print_entries,
+        read_entry_baseline,
+        write_entry_baseline,
+    )
+    from _repo_checks.markdown import (
+        is_table_delimiter,
+        iter_heading_sections,
+        iter_unfenced_lines,
+        split_markdown_row,
+    )
+except ModuleNotFoundError:
+    from scripts._repo_checks.baselines import (
+        diff_entry_baseline,
+        print_entries,
+        read_entry_baseline,
+        write_entry_baseline,
+    )
+    from scripts._repo_checks.markdown import (
+        is_table_delimiter,
+        iter_heading_sections,
+        iter_unfenced_lines,
+        split_markdown_row,
+    )
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_doc_template_baseline.txt"
@@ -337,9 +354,8 @@ def current_entries(root: Path) -> set[str]:
 def check_training_doc_template(root: Path, baseline_path: Path) -> int:
     """Check current TRAINING.md template violations against the baseline."""
     current_snapshot = current_entries(root)
-    baseline_snapshot = baseline_entries(baseline_path)
-    unexpected = sorted(current_snapshot.difference(baseline_snapshot))
-    stale = sorted(baseline_snapshot.difference(current_snapshot))
+    baseline_snapshot = read_entry_baseline(baseline_path)
+    unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
     if not unexpected and not stale:
         return 0
     print_entries("New TRAINING.md template violations:", "+", unexpected)
@@ -355,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-baseline", action="store_true")
     namespace = parser.parse_args(argv)
     if bool(namespace.write_baseline):
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
         return 0
     return check_training_doc_template(ROOT, BASELINE_PATH)
 

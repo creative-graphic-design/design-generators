@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from _repo_checks import baselines
+
 
 def load_check_training_doc_template() -> ModuleType:
     module_path = (
@@ -442,7 +444,7 @@ def test_check_passes_when_baseline_matches(tmp_path: Path) -> None:
         valid_training_doc().replace("## Training Commands\n", "## Commands\n"),
     )
     baseline = tmp_path / "baseline.txt"
-    check_training_doc_template.write_baseline(
+    baselines.write_entry_baseline(
         baseline, check_training_doc_template.current_entries(tmp_path)
     )
 

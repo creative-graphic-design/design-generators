@@ -362,7 +362,10 @@ def audit_imports(
             if module in sys.stdlib_module_names:
                 category = "stdlib"
                 distribution = None
-            elif normalized_module in script_modules or normalized_module == "scripts":
+            elif normalized_module in script_modules or normalized_module in {
+                "scripts",
+                "_repo_checks",
+            }:
                 category = "local-root-script"
                 distribution = None
             elif normalized_module in workspace_modules:
