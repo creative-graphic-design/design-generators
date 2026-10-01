@@ -52,7 +52,7 @@ model-index:
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
 
-<one-sentence summary with method name, venue, and arXiv or paper link>
+This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
 <!-- Include the literature method name, conference or journal if known, and a stable paper URL. -->
 
@@ -83,11 +83,11 @@ model-index:
 
 ## Supported Checkpoints
 
-<!-- Project-specific section placed after Model Sources because checkpoint publication state is model provenance. Use planned Hub ids from the model issue and mark Status as public or planned. Hub ids stay planned until publication is complete. -->
+<!-- Use the model issue's checkpoint/dataset/task matrix. Mark an unpublished Hub id as not-published until publication is complete. Prompt-only packages describe reusable configuration and exemplars rather than learned checkpoints. -->
 
-| Checkpoint           | Hub ID                                  | Status  |
-| -------------------- | --------------------------------------- | ------- |
-| <dataset-or-variant> | `creative-graphic-design/<hub-repo-id>` | planned |
+| Checkpoint           | Hub ID                                  | Status        |
+| -------------------- | --------------------------------------- | ------------- |
+| <dataset-or-variant> | `creative-graphic-design/<hub-repo-id>` | not-published |
 
 ## Uses
 
@@ -116,6 +116,18 @@ model-index:
 ## How to Get Started with the Model
 
 <!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as planned until they are published. -->
+
+Install the package and its unpublished workspace dependencies together.
+
+```bash
+pip install \
+  "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "<member-name> @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/<slug>"
+```
+
+<!-- Include posgen in the same pip command when required, and preserve required shared-package extras. -->
+
+For local conversion and reproduction, use the repository checkout. Follow [the package reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -193,9 +205,10 @@ print(out.mask)    # valid element mask
 
 ## Reproducibility
 
-See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+Reproduce agreement with the original implementation using [the package reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md), which covers asset download, original-code reference generation, required-asset parity checks, conversion, and local loading.
 
 <!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
+<!-- For prompt-only methods, replace checkpoint conversion with configuration/exemplar serialization and state that there are no learned checkpoints. For retraining claims, link models/<slug>/TRAINING.md and report only its demonstrated dataset/seed scope. -->
 <!-- Commands that need CUDA should use CUDA_VISIBLE_DEVICES=<gpu-index> and explain that <gpu-index> is the selected local CUDA device. Do not hardcode machine-specific GPU numbers. -->
 
 ## Model Examination [optional]
