@@ -28,6 +28,7 @@ evaluation = [
 [dependency-groups]
 dev = [
     "beartype>=0.22.9,<0.23",
+    "devharness",
     "pre-commit>=4.6.0",
     "pylint>=4.0.0",
     "pytest>=6.0.0",
@@ -107,9 +108,10 @@ conflicts = [
 ]
 
 [tool.uv.workspace]
-members = ["lib/*", "models/*"]
+members = ["lib/*", "models/*", "tools/*"]
 
 [tool.uv.sources]
+devharness = { workspace = true }
 basnet = { workspace = true }
 coarse-to-fine = { workspace = true }
 cgb-dm = { workspace = true }
@@ -160,6 +162,8 @@ ignore = ["F722", "F821"]
 "models/*/scripts/**/*.py" = ["ANN", "D"]
 "models/*/tests/*.py" = ["ANN", "D"]
 "models/*/tests/**/*.py" = ["ANN", "D"]
+"tools/*/tests/*.py" = ["ANN", "D"]
+"tools/*/tests/**/*.py" = ["ANN", "D"]
 "scripts/**/*.py" = ["ANN", "D"]
 "tests/*.py" = ["D"]
 "tests/**/*.py" = ["D"]
@@ -193,7 +197,7 @@ ignore-imports = true
 min-similarity-lines = 8
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "lib", "models"]
+testpaths = ["tests", "lib", "models", "tools"]
 addopts = ["--import-mode=importlib"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
@@ -224,5 +228,5 @@ skip_covered = true
 [tool.vulture]
 min_confidence = 70
 sort_by_size = true
-paths = ["lib", "models", "scripts"]
+paths = ["lib", "models", "scripts", "tools"]
 verbose = false
