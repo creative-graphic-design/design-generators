@@ -1,0 +1,6 @@
+[project]
+name = "devharness"
+version = "0.1.0"
+description = "Repository development and validation tooling."
+requires-python = ">=3.11"
+dependencies = []

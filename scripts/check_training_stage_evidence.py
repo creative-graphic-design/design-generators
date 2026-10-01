@@ -8,10 +8,20 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+from devharness.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from devharness.markdown import (
+    is_table_delimiter,
+    iter_heading_sections,
+    split_markdown_row,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
@@ -52,7 +62,6 @@ ARTIFACT_PREFIXES = (
 )
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
-FENCE_START_RE = re.compile(r"^\s*(```|~~~)")
 CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
 NEGATED_CLAIM_RE = re.compile(
     r"\b(?:pending|not claimed|not yet claimed|no s-?5|no stage\s*5)\b",
@@ -146,90 +155,6 @@ def is_artifact_path(value: str) -> bool:
     return artifact.startswith(ARTIFACT_PREFIXES) or artifact.startswith(
         GITHUB_ARTIFACT_PREFIX
     )
-
-
-def split_markdown_row(line: str) -> list[str]:
-    """Split a simple Markdown table row into stripped cells."""
-    cells: list[str] = []
-    current: list[str] = []
-    escaped = False
-    for char in line.strip().strip("|"):
-        if escaped:
-            current.append(char)
-            escaped = False
-        elif char == "\\":
-            escaped = True
-        elif char == "|":
-            cells.append("".join(current).strip())
-            current = []
-        else:
-            current.append(char)
-    if escaped:
-        current.append("\\")
-    cells.append("".join(current).strip())
-    return cells
-
-
-def is_table_delimiter(line: str) -> bool:
-    """Return whether a Markdown table row is a delimiter row."""
-    cells = split_markdown_row(line)
-    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
-
-
-def iter_unfenced_lines(text: str) -> Iterable[str]:
-    """Yield Markdown lines outside fenced code blocks."""
-    in_fence = False
-    fence_marker = ""
-
-    for line in text.splitlines():
-        match = FENCE_START_RE.match(line)
-
-        if match:
-            marker = match.group(1)
-
-            if not in_fence:
-                in_fence = True
-                fence_marker = marker
-            elif marker == fence_marker:
-                in_fence = False
-                fence_marker = ""
-            continue
-
-        if not in_fence:
-            yield line
-
-
-def iter_heading_sections_with_level(
-    text: str,
-) -> Iterable[tuple[int, str, list[str]]]:
-    """Yield Markdown heading level, text, and section lines outside fences."""
-    current_heading: str | None = None
-    current_level: int | None = None
-    current_lines: list[str] = []
-
-    for line in iter_unfenced_lines(text):
-        match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
-        if match:
-            if current_heading is not None:
-                assert current_level is not None
-                yield current_level, current_heading, current_lines
-                current_lines = []
-
-            current_level = len(match.group(1))
-            current_heading = match.group(2).strip()
-            continue
-        if current_heading is not None:
-            current_lines.append(line)
-
-    if current_heading is not None:
-        assert current_level is not None
-        yield current_level, current_heading, current_lines
-
-
-def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
-    """Yield Markdown heading text with the lines inside that heading."""
-    for _, current_heading, current_lines in iter_heading_sections_with_level(text):
-        yield current_heading, current_lines
 
 
 def section_named(text: str, heading_name: str) -> str:
@@ -388,46 +313,18 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
 
 def current_entries(root: Path) -> set[str]:
     """Return current violation entries."""
-    return {
-        violation.as_baseline_entry()
-        for path in training_docs(root)
-        for violation in violations_for_training_doc(path, root)
-    }
-
-
-def baseline_entries(path: Path) -> set[str]:
-    """Return committed shrink-only baseline entries."""
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
     entries: set[str] = set()
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        if raw_line and not raw_line.startswith("#"):
-            entries.add(raw_line)
+    for path in training_docs(root):
+        violations = violations_for_training_doc(path, root)
+        entries.update(violation.as_baseline_entry() for violation in violations)
     return entries
-
-
-def write_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted baseline entries."""
-    lines = sorted(entries)
-    path.write_text("\n".join([*lines, ""]) if lines else "", encoding="utf-8")
-
-
-def print_entries(header: str, marker: str, entries: list[str]) -> None:
-    """Print formatted violation entries to stderr."""
-    if not entries:
-        return
-    print(header, file=sys.stderr)
-    for entry in entries:
-        print(f"  {marker} {entry}", file=sys.stderr)
 
 
 def check_training_stage_evidence(root: Path, baseline_path: Path) -> int:
     """Check current training evidence violations against the baseline."""
     current_snapshot = current_entries(root)
-    baseline_snapshot = baseline_entries(baseline_path)
-    unexpected = sorted(current_snapshot.difference(baseline_snapshot))
-    stale = sorted(baseline_snapshot.difference(current_snapshot))
+    baseline_snapshot = read_entry_baseline(baseline_path)
+    unexpected, stale = diff_entry_baseline(current_snapshot, baseline_snapshot)
     if not unexpected and not stale:
         return 0
     print_entries("New training stage evidence violations:", "+", unexpected)
@@ -444,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     namespace = parser.parse_args(argv)
     should_update_baseline = bool(namespace.write_baseline)
     if should_update_baseline:
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
         return 0
     exit_status = check_training_stage_evidence(ROOT, BASELINE_PATH)
     return exit_status

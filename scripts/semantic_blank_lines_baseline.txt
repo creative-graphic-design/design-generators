@@ -226,7 +226,7 @@ scripts/check_committed_paths.py	block-end	6
 scripts/check_config_defaults.py	block-end	8
 scripts/check_draft_prs.py	block-end	40
 scripts/check_duplicate_code.py	block-end	10
-scripts/check_jaxtyping_annotations.py	block-end	76
+scripts/check_jaxtyping_annotations.py	block-end	75
 scripts/check_model_readmes.py	block-end	48
 scripts/check_module_naming.py	block-end	11
 scripts/check_pr_issue_reference.py	block-end	13
@@ -236,6 +236,6 @@ scripts/check_readme_links.py	block-end	11
 scripts/check_semantic_blank_lines.py	block-end	15
 scripts/check_src_vendor_language.py	block-end	4
 scripts/check_training_doc_template.py	block-end	18
-scripts/check_training_stage_evidence.py	block-end	29
+scripts/check_training_stage_evidence.py	block-end	24
 scripts/verify_badge_rendering.py	block-end	11
 scripts/verify_evaluate_layout_metrics.py	block-end	11

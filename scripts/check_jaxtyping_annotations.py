@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import ast
-import subprocess
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
+from devharness.baselines import read_entry_baseline, write_entry_baseline
+from devharness.git import git_output
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
@@ -673,33 +675,6 @@ def current_weak_cast_entries(root: Path) -> set[str]:
     }
 
 
-def baseline_entries(path: Path) -> set[str]:
-    """Return committed baseline entries."""
-    if not path.is_file():
-        raise FileNotFoundError(path)
-
-    return {
-        line
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line and not line.startswith("#")
-    }
-
-
-def git_output(root: Path, command: list[str]) -> str | None:
-    """Return stdout for a best-effort git command."""
-    result = subprocess.run(
-        command,
-        check=False,
-        cwd=root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout
-
-
 def baseline_reference_entries(root: Path, baseline_path: Path) -> set[str] | None:
     """Return baseline entries from the merge-base with origin/main, if present."""
     merge_base = git_output(root, ["git", "merge-base", "origin/main", "HEAD"])
@@ -712,17 +687,11 @@ def baseline_reference_entries(root: Path, baseline_path: Path) -> set[str] | No
     return {line for line in content.splitlines() if line and not line.startswith("#")}
 
 
-def write_baseline(path: Path, entries: Iterable[str]) -> None:
-    """Write sorted baseline entries."""
-    content = "\n".join(sorted(entries))
-    path.write_text(f"{content}\n" if content else "", encoding="utf-8")
-
-
 def check_jaxtyping_annotations(root: Path, baseline_path: Path) -> int:
     """Check current raw annotations against the shrink-only baseline."""
     current = current_entries(root)
 
-    baseline = baseline_entries(baseline_path)
+    baseline = read_entry_baseline(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
 
     baseline_additions = sorted(baseline - reference) if reference is not None else []
@@ -744,7 +713,7 @@ def check_jaxtyping_aliases(root: Path, baseline_path: Path) -> int:
     """Check current jaxtyping aliases against the shrink-only baseline."""
     current = current_alias_entries(root)
 
-    baseline = baseline_entries(baseline_path)
+    baseline = read_entry_baseline(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
 
     baseline_additions = sorted(baseline - reference) if reference is not None else []
@@ -766,7 +735,7 @@ def check_object_annotations(root: Path, baseline_path: Path) -> int:
     """Check current function object annotations against the shrink-only baseline."""
     current = current_object_entries(root)
 
-    baseline = baseline_entries(baseline_path)
+    baseline = read_entry_baseline(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
 
     baseline_additions = sorted(baseline - reference) if reference is not None else []
@@ -788,7 +757,7 @@ def check_weak_cast_types(root: Path, baseline_path: Path) -> int:
     """Check weak cast target types against the shrink-only baseline."""
     current = current_weak_cast_entries(root)
 
-    baseline = baseline_entries(baseline_path)
+    baseline = read_entry_baseline(baseline_path)
     reference = baseline_reference_entries(root, baseline_path)
 
     baseline_additions = sorted(baseline - reference) if reference is not None else []
@@ -816,10 +785,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.write_baseline:
-        write_baseline(BASELINE_PATH, current_entries(ROOT))
-        write_baseline(ALIAS_BASELINE_PATH, current_alias_entries(ROOT))
-        write_baseline(OBJECT_BASELINE_PATH, current_object_entries(ROOT))
-        write_baseline(WEAK_CAST_BASELINE_PATH, current_weak_cast_entries(ROOT))
+        write_entry_baseline(BASELINE_PATH, current_entries(ROOT))
+        write_entry_baseline(ALIAS_BASELINE_PATH, current_alias_entries(ROOT))
+        write_entry_baseline(OBJECT_BASELINE_PATH, current_object_entries(ROOT))
+        write_entry_baseline(WEAK_CAST_BASELINE_PATH, current_weak_cast_entries(ROOT))
         return 0
     raw_status = check_jaxtyping_annotations(ROOT, BASELINE_PATH)
     alias_status = check_jaxtyping_aliases(ROOT, ALIAS_BASELINE_PATH)
