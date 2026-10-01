@@ -177,6 +177,58 @@ def test_comparison_scope_heading_without_table_fails(tmp_path: Path) -> None:
     }
 
 
+def test_comparison_scope_legend_table_fails_closed(tmp_path: Path) -> None:
+    training_text = valid_training_doc().replace(
+        "### Comparison Scope\n\n",
+        "### Comparison Scope\n\n"
+        "| Field | Meaning |\n"
+        "| --- | --- |\n"
+        "| Scope field | Definition. |\n\n",
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'checkpoint-selection rule' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'dataset' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'evaluator' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'sample-count denominator' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'system' column",
+        "models/example/TRAINING.md\tComparison Scope\tComparison Scope table missing 'test split' column",
+    }
+
+
+def test_comparison_scope_heading_outside_reproduction_results_fails(
+    tmp_path: Path,
+) -> None:
+    scope = (
+        "### Comparison Scope\n\n"
+        "| Dataset | System | Evaluator | Test split | Checkpoint-selection rule | Sample count |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| RICO25 | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n"
+        "| PubLayNet | both | evaluator | test | best validation loss | 100 layouts per evaluation seed |\n\n"
+    )
+    training_text = valid_training_doc().replace(scope, "")
+    training_text = training_text.replace(
+        "RICO25 and PubLayNet use training-seed n=3.\n\n",
+        "RICO25 and PubLayNet use training-seed n=3.\n\n" + scope,
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\tComparison Scope\tmissing Comparison Scope subsection"
+    }
+
+
 @pytest.mark.parametrize(
     ("value", "reason"),
     [
@@ -232,7 +284,7 @@ def test_comparison_scope_row_count_mismatch_fails(tmp_path: Path) -> None:
     }
 
 
-@pytest.mark.parametrize("system", ["both", "package", "original"])
+@pytest.mark.parametrize("system", ["both"])
 def test_comparison_scope_accepts_allowed_system_values(
     tmp_path: Path, system: str
 ) -> None:
@@ -249,6 +301,25 @@ def test_comparison_scope_accepts_allowed_system_values(
     assert check_training_doc_template.current_entries(tmp_path) == set()
 
 
+@pytest.mark.parametrize("system", ["package", "original"])
+def test_comparison_scope_rejects_lone_split_system(
+    tmp_path: Path, system: str
+) -> None:
+    training_text = valid_training_doc().replace(
+        "| RICO25 | both |", f"| RICO25 | {system} |", 1
+    )
+    write_package_docs(
+        tmp_path,
+        "example",
+        readme_with_supported_checkpoints(),
+        training_text,
+    )
+
+    assert check_training_doc_template.current_entries(tmp_path) == {
+        "models/example/TRAINING.md\trico25\tComparison Scope row count mismatch for dataset"
+    }
+
+
 def test_comparison_scope_rejects_unknown_system_value(tmp_path: Path) -> None:
     training_text = valid_training_doc().replace(
         "| RICO25 | both |", "| RICO25 | shared |", 1
@@ -261,7 +332,8 @@ def test_comparison_scope_rejects_unknown_system_value(tmp_path: Path) -> None:
     )
 
     assert check_training_doc_template.current_entries(tmp_path) == {
-        "models/example/TRAINING.md\tRICO25\tComparison Scope System must be one of: both, original, package"
+        "models/example/TRAINING.md\tRICO25\tComparison Scope System must be one of: both, original, package",
+        "models/example/TRAINING.md\trico25\tComparison Scope row count mismatch for dataset",
     }
 
 

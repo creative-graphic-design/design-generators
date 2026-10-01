@@ -205,22 +205,20 @@ def reproduction_result_rows(text: str) -> tuple[list[str], list[list[str]]]:
 
 def comparison_scope_section(text: str) -> tuple[int, list[str]] | None:
     """Return the Comparison Scope heading level and section lines."""
-    for level, heading, lines in iter_heading_sections_with_level(text):
+    reproduction_section = heading_sections(text).get(
+        REPRODUCTION_RESULTS_HEADING.lower()
+    )
+    if reproduction_section is None:
+        return None
+
+    _, reproduction_lines = reproduction_section
+    for level, heading, lines in iter_heading_sections_with_level(
+        "\n".join(reproduction_lines)
+    ):
         if heading.lower() == COMPARISON_SCOPE_HEADING.lower():
             return level, lines
 
     return None
-
-
-def comparison_scope_rows(text: str) -> tuple[int, list[str], list[list[str]]]:
-    """Return the Comparison Scope heading level, headers, and rows."""
-    section = comparison_scope_section(text)
-    if section is None:
-        return 0, [], []
-
-    level, lines = section
-    headers, rows = first_table(lines)
-    return level, headers, rows
 
 
 def is_valid_status(value: str) -> bool:
@@ -285,7 +283,8 @@ def comparison_scope_violations(
             )
         ]
 
-    level, headers, rows = comparison_scope_rows(text)
+    level, scope_lines = section
+    headers, rows = first_table(scope_lines)
     if level != 3:
         return [
             TrainingDocViolation(
@@ -311,7 +310,8 @@ def comparison_scope_violations(
             TrainingDocViolation(
                 relative_path,
                 COMPARISON_SCOPE_HEADING,
-                f"Comparison Scope table missing {column!r} column",
+                "Comparison Scope table missing "
+                f"{COMPARISON_SCOPE_FIELD_LABELS[column]!r} column",
             )
         )
 
@@ -327,7 +327,7 @@ def comparison_scope_violations(
             comparison_scope_value(row, column_indexes["dataset"])
         )
         row_target = (
-            normalize_cell(comparison_scope_value(row, column_indexes["dataset"]))
+            comparison_scope_value(row, column_indexes["dataset"])
             or f"row {row_number}"
         )
         if not dataset:
@@ -385,7 +385,7 @@ def comparison_scope_violations(
             comparison_scope_value(row, column_indexes["system"]).lower()
             for row in dataset_rows
         }
-        valid_row_count = len(dataset_rows) == 1 or (
+        valid_row_count = (len(dataset_rows) == 1 and systems == {"both"}) or (
             len(dataset_rows) == 2 and systems == {"original", "package"}
         )
         if not valid_row_count:
