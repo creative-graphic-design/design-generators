@@ -16,6 +16,7 @@ from laygen.common.layout_keys import (
     LAYOUT_LABEL_KEYS,
 )
 from torch.utils.data import Dataset as TorchDataset
+from laygen.common.randomness import rand
 
 from ..configuration_layout_dm import LayoutDMConfig
 from ..processing_layout_dm import LayoutDMProcessor
@@ -239,7 +240,7 @@ class LayoutDMSyntheticDataset(
     def __getitem__(self, index: int) -> dict[str, Shaped[torch.Tensor, "..."] | str]:
         """Return one deterministic synthetic tokenized layout."""
         generator = torch.Generator().manual_seed(index)
-        bbox = torch.rand(self.elements, 4, generator=generator)
+        bbox = rand(self.elements, 4, generator=generator)
         bbox[:, 2:] = bbox[:, 2:].mul(0.35).add(0.05)
         labels = (
             torch.arange(self.elements, dtype=torch.long) % self.config.num_categories

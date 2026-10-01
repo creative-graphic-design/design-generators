@@ -14,11 +14,11 @@ from jaxtyping import Bool, Float, Int
 from laygen.common import (
     ConditionType,
     normalize_condition_type,
-    resolve_torch_generator,
 )
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
 from laygen.common.discrete import index_to_log_onehot, log_onehot_to_index
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
+from laygen.common.randomness import resolve_torch_generator
 
 from .conditioning import build_condition
 from .modeling_layoutdiffusion import LayoutDiffusionTransformer
@@ -157,9 +157,7 @@ class LayoutDiffusionPipeline(DiffusionPipeline):
             ValueError: If ``output_type`` is unsupported.
         """
         _ = model_kwargs
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         canonical = normalize_condition_type(condition_type)
         processed = self.processor(
             bbox=bbox,

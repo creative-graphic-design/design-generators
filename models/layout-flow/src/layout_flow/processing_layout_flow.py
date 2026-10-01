@@ -20,6 +20,7 @@ from laygen.common.bbox import (
     normalize_boxes,
 )
 from laygen.common.conditions import ConditionType, normalize_condition_type
+from laygen.common.randomness import rand
 
 from .configuration_layout_flow import LayoutFlowConfig
 
@@ -274,7 +275,7 @@ class LayoutFlowProcessor(ProcessorMixin):
             if length <= 1:
                 continue
             keep = max(1, int(length * 0.2))
-            scores = torch.rand(length, device=mask.device, generator=generator)
+            scores = rand(length, device=mask.device, generator=generator)
             idx = scores.topk(keep).indices
             cond_mask[i, idx] = 0
         return cond_mask

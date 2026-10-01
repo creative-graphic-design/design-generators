@@ -14,9 +14,9 @@ from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common import (
     ConditionType,
     normalize_condition_type,
-    resolve_torch_generator,
 )
 from laygen.common.bbox import ArrayLikeInput, BoxFormat
+from laygen.common.randomness import resolve_torch_generator
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .modeling_layousyn import LayouSynDiTModel
@@ -186,9 +186,7 @@ class LayouSynPipeline(DiffusionPipeline):
                 f"LayouSyn public pipeline supports condition_type='text', got {condition_type}"
             )
 
-        generator = resolve_torch_generator(
-            generator=generator, seed=seed, device=self.device
-        )
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             prompt=prompt,
             labels=labels,
