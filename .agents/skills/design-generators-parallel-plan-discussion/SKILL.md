@@ -7,7 +7,7 @@ description: Coordinate a requested Herdr planning council when independent mode
 
 Use this protocol when independent investigations must converge on shared decisions. The protocol owns council policy only. The installed Herdr binary and the generic Herdr skill own all CLI syntax and pane, tab, worktree, agent, and notification mechanics.
 
-Use this skill for a requested planning council, not for an ordinary single-package change. Before controlling Herdr, verify `HERDR_ENV=1` and read the `herdr` skill, or retrieve it with `herdr --skill` when it is not already loaded. The installed CLI is the authority for syntax. Do not copy a command manual into this skill.
+Use this skill for a requested planning council, not for an ordinary single-package change. Before controlling Herdr, verify `HERDR_ENV=1` and read the `herdr` skill, or retrieve it with `herdr --skill` when it is not already loaded. Do not copy a command manual into this skill.
 
 ## Council contract
 
