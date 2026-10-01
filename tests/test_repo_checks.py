@@ -35,7 +35,13 @@ def test_write_entry_baseline_is_sorted_and_empty_bytes_are_stable(
 
 
 def test_diff_entry_baseline_returns_sorted_unexpected_and_stale_entries() -> None:
-    assert baselines.diff_entry_baseline({"z", "b"}, {"a", "z"}) == (["b"], ["a"])
+    current = {"unexpected-two", "unexpected-one", "shared"}
+    baseline = {"stale-two", "stale-one", "shared"}
+
+    assert baselines.diff_entry_baseline(current, baseline) == (
+        ["unexpected-one", "unexpected-two"],
+        ["stale-one", "stale-two"],
+    )
 
 
 def test_git_output_returns_stdout_and_hides_failed_stderr(

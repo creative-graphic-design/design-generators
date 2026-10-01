@@ -8,32 +8,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    from _repo_checks.baselines import (
-        diff_entry_baseline,
-        print_entries,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-    from _repo_checks.markdown import (
-        is_table_delimiter,
-        iter_heading_sections,
-        iter_unfenced_lines,
-        split_markdown_row,
-    )
-except ModuleNotFoundError:
-    from scripts._repo_checks.baselines import (
-        diff_entry_baseline,
-        print_entries,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-    from scripts._repo_checks.markdown import (
-        is_table_delimiter,
-        iter_heading_sections,
-        iter_unfenced_lines,
-        split_markdown_row,
-    )
+from _repo_checks.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from _repo_checks.markdown import (
+    is_table_delimiter,
+    iter_heading_sections,
+    iter_unfenced_lines,
+    split_markdown_row,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_doc_template_baseline.txt"

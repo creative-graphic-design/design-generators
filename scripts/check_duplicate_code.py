@@ -8,10 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-try:
-    from _repo_checks.git import git_output
-except ModuleNotFoundError:
-    from scripts._repo_checks.git import git_output
+from _repo_checks.git import git_output
 
 TARGET_DIRS = ("lib", "models", "scripts")
 _DUPLICATE_START_RE = re.compile(r"^.+:\d+:\d+: R0801: Similar lines in \d+ files$")

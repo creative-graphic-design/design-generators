@@ -7,18 +7,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    from _repo_checks.baselines import (
-        diff_entry_baseline,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-except ModuleNotFoundError:
-    from scripts._repo_checks.baselines import (
-        diff_entry_baseline,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
+from _repo_checks.baselines import (
+    diff_entry_baseline,
+    read_entry_baseline,
+    write_entry_baseline,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "module_naming_baseline.txt"

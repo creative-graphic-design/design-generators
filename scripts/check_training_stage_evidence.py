@@ -8,34 +8,20 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    from _repo_checks.baselines import (
-        diff_entry_baseline,
-        print_entries,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-    from _repo_checks.markdown import (
-        is_table_delimiter as _is_table_delimiter,
-        iter_heading_sections_with_level as _iter_heading_sections_with_level,
-        split_markdown_row as _split_markdown_row,
-    )
-except ModuleNotFoundError:
-    from scripts._repo_checks.baselines import (
-        diff_entry_baseline,
-        print_entries,
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-    from scripts._repo_checks.markdown import (
-        is_table_delimiter as _is_table_delimiter,
-        iter_heading_sections_with_level as _iter_heading_sections_with_level,
-        split_markdown_row as _split_markdown_row,
-    )
+from _repo_checks.baselines import (
+    diff_entry_baseline,
+    print_entries,
+    read_entry_baseline,
+    write_entry_baseline,
+)
+from _repo_checks.markdown import (
+    is_table_delimiter,
+    iter_heading_sections,
+    split_markdown_row,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "training_stage_evidence_baseline.txt"
@@ -171,40 +157,6 @@ def is_artifact_path(value: str) -> bool:
     )
 
 
-def split_markdown_row(line: str) -> list[str]:
-    """Return cells from the shared Markdown table-row parser."""
-    cells = _split_markdown_row(line)
-    if line.startswith("|"):
-        return cells
-    if line.endswith("|"):
-        return cells
-    return cells
-
-
-def is_table_delimiter(line: str) -> bool:
-    """Return whether the shared Markdown parser finds a delimiter row."""
-    result = _is_table_delimiter(line)
-    if result:
-        return True
-    return False
-
-
-def iter_heading_sections_with_level(
-    text: str,
-) -> Iterable[tuple[int, str, list[str]]]:
-    """Yield heading sections from the shared Markdown parser."""
-    for section in _iter_heading_sections_with_level(text):
-        yield section
-    return
-
-
-def iter_heading_sections(text: str) -> Iterable[tuple[str, list[str]]]:
-    """Yield heading text and lines from the shared Markdown parser."""
-    for _, heading, lines in iter_heading_sections_with_level(text):
-        yield heading, lines
-    return
-
-
 def section_named(text: str, heading_name: str) -> str:
     """Return the content for the first matching Markdown heading."""
     for heading, lines in iter_heading_sections(text):
@@ -276,20 +228,16 @@ def parse_stage_evidence(
             for row in lines[row_start:]:
                 if not row.lstrip().startswith("|"):
                     break
-
                 if is_table_delimiter(row):
                     continue
                 cells = split_markdown_row(row)
                 if len(cells) < len(headers):
                     continue
-
                 stage = cells[positions["stage"]].strip().upper()
                 if stage not in STAGES:
                     continue
-
                 if stage in evidence:
                     duplicates.add(stage)
-
                 evidence[stage] = StageEvidence(
                     stage=stage,
                     command=cells[positions["command"]],
@@ -363,10 +311,10 @@ def current_entries(root: Path) -> set[str]:
     """Return current violation entries."""
     entries: set[str] = set()
     for path in training_docs(root):
-        entries.update(
-            violation.as_baseline_entry()
-            for violation in violations_for_training_doc(path, root)
-        )
+        violations = violations_for_training_doc(path, root)
+        if not violations:
+            continue
+        entries.update(violation.as_baseline_entry() for violation in violations)
     return entries
 
 

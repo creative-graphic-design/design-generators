@@ -38,6 +38,54 @@ def write_source(root: Path, text: str) -> Path:
     return path
 
 
+def test_baseline_reference_entries_handles_git_failures_and_filters_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    baseline = tmp_path / "scripts" / "baseline.txt"
+    baseline.parent.mkdir()
+    responses: list[str | None] = []
+    calls: list[list[str]] = []
+
+    def fake_git_output(root: Path, command: list[str]) -> str | None:
+        assert root == tmp_path
+        calls.append(command)
+        return responses.pop(0)
+
+    monkeypatch.setattr(check_jaxtyping_annotations, "git_output", fake_git_output)
+
+    responses[:] = [None]
+    calls.clear()
+    assert (
+        check_jaxtyping_annotations.baseline_reference_entries(tmp_path, baseline)
+        is None
+    )
+    assert calls == [["git", "merge-base", "origin/main", "HEAD"]]
+
+    responses[:] = ["merge-base\n", None]
+    calls.clear()
+    assert (
+        check_jaxtyping_annotations.baseline_reference_entries(tmp_path, baseline)
+        is None
+    )
+    assert calls == [
+        ["git", "merge-base", "origin/main", "HEAD"],
+        ["git", "show", "merge-base:scripts/baseline.txt"],
+    ]
+
+    responses[:] = [
+        "merge-base\n",
+        "\n# comment\nentry\n  preserved  \n# ignored\n",
+    ]
+    calls.clear()
+    assert check_jaxtyping_annotations.baseline_reference_entries(
+        tmp_path, baseline
+    ) == {
+        "entry",
+        "  preserved  ",
+    }
+
+
 def test_current_entries_detects_raw_annotations_only(tmp_path: Path) -> None:
     write_source(
         tmp_path,

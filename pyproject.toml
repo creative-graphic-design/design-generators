@@ -195,6 +195,7 @@ min-similarity-lines = 8
 [tool.pytest.ini_options]
 testpaths = ["tests", "lib", "models"]
 addopts = ["--import-mode=importlib"]
+pythonpath = ["scripts"]
 markers = [
     "integration: tests that require external downloads or heavyweight runtime setup",
     "training: tests that exercise Lightning training loops or training CLI entrypoints",

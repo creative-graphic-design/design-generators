@@ -5,19 +5,12 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    from _repo_checks.baselines import read_entry_baseline, write_entry_baseline
-    from _repo_checks.git import git_output as _git_output
-except ModuleNotFoundError:
-    from scripts._repo_checks.baselines import (
-        read_entry_baseline,
-        write_entry_baseline,
-    )
-    from scripts._repo_checks.git import git_output as _git_output
+from _repo_checks.baselines import read_entry_baseline, write_entry_baseline
+from _repo_checks.git import git_output
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "jaxtyping_baseline.txt"
@@ -682,14 +675,6 @@ def current_weak_cast_entries(root: Path) -> set[str]:
     }
 
 
-def git_output(root: Path, command: Sequence[str]) -> str | None:
-    """Return stdout for a best-effort Git command."""
-    output = _git_output(root, command)
-    if output is None:
-        return None
-    return output
-
-
 def baseline_reference_entries(root: Path, baseline_path: Path) -> set[str] | None:
     """Return baseline entries from the merge-base with origin/main, if present."""
     merge_base = git_output(root, ["git", "merge-base", "origin/main", "HEAD"])
@@ -699,6 +684,8 @@ def baseline_reference_entries(root: Path, baseline_path: Path) -> set[str] | No
     content = git_output(root, ["git", "show", f"{merge_base.strip()}:{rel_path}"])
     if content is None:
         return None
+    if not content:
+        return set()
     return {line for line in content.splitlines() if line and not line.startswith("#")}
 
 

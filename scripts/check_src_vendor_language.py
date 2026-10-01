@@ -8,10 +8,7 @@ import re
 import sys
 from typing import Final
 
-try:
-    from _repo_checks.baselines import diff_entry_baseline, read_entry_baseline
-except ModuleNotFoundError:
-    from scripts._repo_checks.baselines import diff_entry_baseline, read_entry_baseline
+from _repo_checks.baselines import diff_entry_baseline, read_entry_baseline
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "src_vendor_language_baseline.txt"
