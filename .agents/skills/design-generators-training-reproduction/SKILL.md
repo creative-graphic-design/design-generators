@@ -29,6 +29,7 @@ Use this order for every training-first package:
 ## S5 Gate
 
 Do not launch S5-scale GPU jobs, mark an issue with the `parity-verified` status label, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
+Finish every commit the campaign intends to make, including documentation commits, before launching the seed queue because the queue pins the source commit once at startup. Before launch, run a deliberate source-gate mismatch dry run and verify that the queue stops on the gate failure; a nonzero gate exit swallowed by an `&&` chain or a function body does not stop the queue.
 
 The durable package document must include a machine-readable `Stage Evidence` table in `models/<package>/TRAINING.md`:
 
