@@ -79,8 +79,14 @@ def test_api_stubs_match_workspace_members_and_nav() -> None:
     for (group, slug), import_name in members.items():
         stub = REPO_ROOT / "docs/api" / group / f"{slug}.md"
         assert stub.is_file(), f"{slug}: missing API stub (stub)"
-        assert f"::: {import_name}" in stub.read_text(encoding="utf-8"), (
-            f"{slug}: missing directive (directive)"
+        text = stub.read_text(encoding="utf-8")
+        assert f"::: {import_name}" in text, f"{slug}: missing directive (directive)"
+        readme = f"{'lib' if group == 'libraries' else 'models'}/{slug}/README.md"
+        snippet = (
+            f'--8<-- "{readme}:card"' if group == "models" else f'--8<-- "{readme}"'
+        )
+        assert text.count(snippet) == 1, (
+            f"{slug}: README must be included once (readme)"
         )
         expected = f"api/{group}/{slug}.md"
         matches = [parents for path, parents in nav_files if path == expected]

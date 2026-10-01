@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayouSyn
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2505.04718&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2505.04718)
@@ -268,3 +269,5 @@ Repository wrapper code is Apache-2.0. The original Lay-Your-Scene implementatio
   year = {2025}
 }
 ```
+
+<!-- --8<-- [end:card] -->

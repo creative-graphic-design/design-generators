@@ -30,6 +30,7 @@ model-index:
             name: Vendor parity
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for PosterLLaVA
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2406.02884&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2406.02884)
@@ -155,3 +156,5 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
   url = "https://arxiv.org/abs/2406.02884"
 }
 ```
+
+<!-- --8<-- [end:card] -->

@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutFlow
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2403.18187&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2403.18187)
@@ -135,7 +136,7 @@ The released LayoutFlow checkpoints were trained on the RICO and PubLayNet split
 
 ### Training Procedure
 
-This package includes package-local LightningCLI configs for reproducing LayoutFlow training. See [TRAINING.md](models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged agreement checks, and trained-checkpoint conversion.
+This package includes package-local LightningCLI configs for reproducing LayoutFlow training. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/TRAINING.md) for config names, seed modes, launch commands, staged agreement checks, and trained-checkpoint conversion.
 
 #### Speeds, Sizes, Times
 
@@ -210,3 +211,5 @@ Repository wrapper code is Apache-2.0. The original implementation is MIT licens
   organization={Springer}
 }
 ```
+
+<!-- --8<-- [end:card] -->

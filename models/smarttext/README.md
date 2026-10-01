@@ -29,6 +29,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for SmartText
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=TMM+2021&color=blue&style=flat-square)](https://ieeexplore.ieee.org/document/9520053)
@@ -177,3 +178,5 @@ The wrapper code follows this repository's license. Upstream SmartText code and 
   year={2021}
 }
 ```
+
+<!-- --8<-- [end:card] -->

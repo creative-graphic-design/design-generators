@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutFormer++
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2208.08037&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2208.08037)
@@ -236,3 +237,5 @@ Repository wrapper code is Apache-2.0. The original implementation is MIT licens
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

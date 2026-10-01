@@ -10,7 +10,7 @@
 
 Keep package-specific trace-point selection in the model package. The shared `trace_training_step()` primitive accepts model-owned structured batch types while this library remains agnostic to their schemas.
 
-The repository-wide methodology for S0-S5 training reproduction, topology guards, dataset coverage, seed policy, and evidence recording is defined in the [training reproduction protocol](docs/training-reproduction.md).
+The repository-wide methodology for S0-S5 training reproduction, topology guards, dataset coverage, seed policy, and evidence recording is defined in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md).
 
 ## Install
 
