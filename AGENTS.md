@@ -11,12 +11,12 @@
 
 - Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy remains in [docs/conventions.md](docs/conventions.md), shared-library structure remains in [docs/architecture.md](docs/architecture.md), and repository workflow remains here. Historical discussion remains preserved in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2).
 - The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
-- Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*` and `models/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*`, `models/*`, and `tools/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
 ## Workspace
 
-- The root uv workspace uses members `["lib/*", "models/*"]`.
+- The root uv workspace uses members `["lib/*", "models/*", "tools/*"]`.
 - Run member-specific commands with the member package selected: `uv run --package <name> ...`. Examples: `uv run --package laygen pytest`, `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends on that member's extras, dependency source mapping, or package metadata.
 - Do not commit host-specific absolute filesystem paths. Pass runtime absolute paths through environment variables or CLI arguments; repository defaults must be repo-root-relative.
@@ -100,7 +100,7 @@
 
 ## Machine-Checked Conventions
 
-Each `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Exact repository-development mechanics with at least two concrete consumers belong in a stdlib-only tooling package under `tools/*`; a mechanic with one consumer stays in its checker. Tooling packages are unavailable to runtime libraries and model packages.
+Each `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Repository-development mechanics that two or more checkers need with identical semantics belong in the stdlib-only `tools/devharness` tooling package; a mechanic with one consumer stays in its checker. Tooling packages are unavailable to runtime libraries and model packages.
 
 ### Source Checks
 
@@ -129,7 +129,7 @@ Each `scripts/check_*.py` owns one repository policy area together with its CLI,
 - `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
-- `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; root-tooling checks use `uv sync --package design-generators --group dev` in an environment that excludes workspace-member distributions, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
+- `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; root-tooling checks use `uv sync --package design-generators --group dev` in an environment whose only workspace member is `devharness`, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
 - The root project is a tooling coordinator with no runtime dependencies installed by default. Workspace-wide `transformers` and `diffusers` version floors are declared in root `[tool.uv].constraint-dependencies`; workspace members install their runtime dependencies through `uv run --package <name>` or `uv sync --all-packages`. The root `evaluation` extra is used only by `scripts/verify_evaluate_layout_metrics.py`.
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.

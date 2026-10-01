@@ -22,6 +22,7 @@ SCAN_GLOBS = (
     "lib/*/src/**/*.py",
     "models/*/scripts/**/*.py",
     "lib/*/scripts/**/*.py",
+    "tools/*/src/**/*.py",
     "scripts/**/*.py",
 )
 

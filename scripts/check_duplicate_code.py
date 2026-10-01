@@ -10,7 +10,7 @@ from pathlib import Path
 
 from devharness.git import git_output
 
-TARGET_DIRS = ("lib", "models", "scripts")
+TARGET_DIRS = ("lib", "models", "scripts", "tools")
 _DUPLICATE_START_RE = re.compile(r"^.+:\d+:\d+: R0801: Similar lines in \d+ files$")
 _MODULE_SPAN_RE = re.compile(r"^(==[^:\n]+):\[\d+:\d+\](.*)$")
 

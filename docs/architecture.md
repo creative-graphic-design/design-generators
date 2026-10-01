@@ -8,7 +8,7 @@ tags:
 
 # Shared library architecture
 
-The repository keeps reusable layout and poster-generation code in shared workspace libraries, repository checks in tooling packages, and model-specific behavior in model packages.
+The repository keeps reusable layout and poster-generation code in shared workspace libraries, shared repository-checker mechanics in tooling packages, and model-specific behavior in model packages.
 
 ## Workspace layout
 

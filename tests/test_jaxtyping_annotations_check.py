@@ -31,6 +31,39 @@ def load_check_jaxtyping_annotations() -> ModuleType:
 check_jaxtyping_annotations = load_check_jaxtyping_annotations()
 
 
+def test_baseline_reference_entries_reads_merge_base_and_show_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = tmp_path / "scripts" / "baseline.txt"
+    baseline.parent.mkdir()
+    baseline.write_text("working-entry\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_git_output(root: Path, command: list[str]) -> str | None:
+        del root
+        calls.append(command)
+        if command[:2] == ["git", "merge-base"]:
+            return "merge-base-sha\n"
+        return "# comment\nreference-entry\n\n"
+
+    monkeypatch.setattr(check_jaxtyping_annotations, "git_output", fake_git_output)
+
+    assert check_jaxtyping_annotations.baseline_reference_entries(
+        tmp_path, baseline
+    ) == {"reference-entry"}
+    assert calls == [
+        ["git", "merge-base", "origin/main", "HEAD"],
+        ["git", "show", "merge-base-sha:scripts/baseline.txt"],
+    ]
+
+    monkeypatch.setattr(check_jaxtyping_annotations, "git_output", lambda *_: None)
+
+    assert (
+        check_jaxtyping_annotations.baseline_reference_entries(tmp_path, baseline)
+        is None
+    )
+
+
 def write_source(root: Path, text: str) -> Path:
     path = root / "models" / "layout-dm" / "src" / "layout_dm" / "example.py"
     path.parent.mkdir(parents=True, exist_ok=True)

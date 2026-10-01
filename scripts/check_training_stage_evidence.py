@@ -317,6 +317,7 @@ def current_entries(root: Path) -> set[str]:
     for path in training_docs(root):
         violations = violations_for_training_doc(path, root)
         entries.update(violation.as_baseline_entry() for violation in violations)
+
     return entries
 
 

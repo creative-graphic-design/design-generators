@@ -51,6 +51,9 @@ def test_print_entries_writes_exact_diagnostics(
 
     assert capsys.readouterr().err == "Header\n  + one\n  + two\n"
 
+    baselines.print_entries("Ignored", "+", [])
+    assert capsys.readouterr().err == ""
+
 
 def test_git_output_returns_stdout_and_hides_failed_stderr(
     tmp_path: Path,
@@ -134,6 +137,7 @@ three
         "## Third",
         "three",
     ]
+    assert markdown.split_markdown_row("| trailing\\") == ["trailing\\"]
     assert [
         (level, heading)
         for level, heading, _ in markdown.iter_heading_sections_with_level(text)
@@ -141,4 +145,9 @@ three
         (2, "First"),
         (3, "Second"),
         (2, "Third"),
+    ]
+    assert list(markdown.iter_heading_sections(text)) == [
+        ("First", ["one"]),
+        ("Second", ["two"]),
+        ("Third", ["three"]),
     ]
