@@ -10,6 +10,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES_BASE_URL = "https://creative-graphic-design.github.io/design-generators/"
+REPO_URL = "https://github.com/creative-graphic-design/design-generators"
+REPO_BLOB_URL = f"{REPO_URL}/blob/main/"
+REPO_TREE_URL = f"{REPO_URL}/tree/main/"
 MARKDOWN_LINK_RE = re.compile(
     r"(?<!!)\[[^\]\n]+\]\((?P<link>[^)\s]+)(?:\s+\"[^\"]*\")?\)"
 )
@@ -31,11 +34,12 @@ class LinkViolation:
 
 
 def readme_paths(root: Path = ROOT) -> list[Path]:
-    """Return first-party README, TRAINING, and skill files checked by this script."""
+    """Return first-party README, guide, and skill files checked by this script."""
     paths = [root / "README.md"]
     paths.extend(sorted((root / "lib").glob("*/README.md")))
     paths.extend(sorted((root / "models").glob("*/README.md")))
     paths.extend(sorted((root / "models").glob("*/TRAINING.md")))
+    paths.extend(sorted((root / "models").glob("*/REPRODUCING.md")))
     paths.extend(sorted((root / ".agents" / "skills").rglob("SKILL.md")))
     return [path for path in paths if path.is_file()]
 
@@ -50,26 +54,9 @@ def is_external_or_anchor(link: str) -> bool:
     return link.startswith(("#", "mailto:", "http://", "https://"))
 
 
-def is_supported_repo_root_link(link: str) -> bool:
-    """Return whether a repo-root-relative README link is docs-site rewriteable."""
-    target = strip_link_suffix(link).removeprefix("./")
-    if re.fullmatch(r"docs/[^/]+\.md", target):
-        return True
-    if re.fullmatch(r"lib/[^/]+/README\.md", target):
-        return True
-    if re.fullmatch(r"models/[^/]+/(README|REPRODUCING|TRAINING)\.md", target):
-        return True
-    return False
-
-
-def _is_skill_path(path: Path, root: Path) -> bool:
-    """Return whether a path is a repository-local skill document."""
-    try:
-        path.relative_to(root / ".agents" / "skills")
-    except ValueError:
-        return False
-
-    return True
+def _is_package_document(path: Path, root: Path) -> bool:
+    """Return whether a path is a workspace-member document."""
+    return path.relative_to(root).parts[0] in {"lib", "models"}
 
 
 def violation_for_link(
@@ -79,47 +66,6 @@ def violation_for_link(
     root: Path = ROOT,
 ) -> LinkViolation | None:
     """Return a README link convention violation, if any."""
-    target = strip_link_suffix(link).removeprefix("./")
-    if _is_skill_path(path, root):
-        if is_external_or_anchor(link):
-            return None
-
-        if target.startswith("../"):
-            return LinkViolation(
-                path,
-                line,
-                link,
-                "skill Markdown links must use repo-root-relative paths",
-            )
-
-        resolved = (root / target).resolve()
-        try:
-            resolved.relative_to(root.resolve())
-        except ValueError:
-            return LinkViolation(
-                path,
-                line,
-                link,
-                "skill-relative Markdown links must stay within the repository",
-            )
-
-        if not resolved.is_file():
-            return LinkViolation(
-                path,
-                line,
-                link,
-                "skill-relative Markdown links must resolve to an existing file",
-            )
-
-        return None
-
-    if target.startswith("../"):
-        return LinkViolation(
-            path,
-            line,
-            link,
-            "repository README links must not use ../ relative escapes",
-        )
     if link.startswith(PAGES_BASE_URL) and strip_link_suffix(link).endswith(".md"):
         return LinkViolation(
             path,
@@ -127,17 +73,46 @@ def violation_for_link(
             link,
             "repository README links must not point at unpublished Pages markdown URLs",
         )
+
     if is_external_or_anchor(link):
         return None
-    if target.startswith(
-        ("docs/", "lib/", "models/")
-    ) and not is_supported_repo_root_link(target):
+
+    if _is_package_document(path, root):
         return LinkViolation(
             path,
             line,
             link,
-            "repo-root-relative README links must use docs/*.md, lib/*/README.md, models/*/README.md, models/*/REPRODUCING.md, or models/*/TRAINING.md",
+            f"package document links must use absolute {REPO_BLOB_URL} or {REPO_TREE_URL} URLs",
         )
+
+    target = strip_link_suffix(link).removeprefix("./")
+    if target.startswith("../"):
+        return LinkViolation(
+            path,
+            line,
+            link,
+            "Markdown links must use repo-root-relative paths",
+        )
+
+    resolved = (root / target).resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        return LinkViolation(
+            path,
+            line,
+            link,
+            "repo-root-relative Markdown links must stay within the repository",
+        )
+
+    if not resolved.exists():
+        return LinkViolation(
+            path,
+            line,
+            link,
+            "repo-root-relative Markdown links must resolve to an existing path",
+        )
+
     return None
 
 

@@ -29,6 +29,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for RALF
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.13602&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2311.13602)
@@ -227,3 +228,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
   year = {2024}
 }
 ```
+
+<!-- --8<-- [end:card] -->

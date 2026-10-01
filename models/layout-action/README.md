@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutAction
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=AAAI+2023&color=blue&style=flat-square)](https://ojs.aaai.org/index.php/AAAI/article/view/26277)
@@ -155,3 +156,5 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

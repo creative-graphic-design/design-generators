@@ -26,6 +26,7 @@ model-index:
             name: Vendor reference task cases
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for Flex-DM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.18248&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.18248)
@@ -162,3 +163,5 @@ Repository code is Apache-2.0. The original Flex-DM implementation is Apache-2.0
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

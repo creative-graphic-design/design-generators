@@ -1,6 +1,6 @@
 # LayoutDM Training
 
-This guide covers package-local LightningCLI training configs, trained-checkpoint conversion, and the staged S0-S5 reproduction protocol for LayoutDM. It follows the repository [training reproduction protocol](docs/training-reproduction.md).
+This guide covers package-local LightningCLI training configs, trained-checkpoint conversion, and the staged S0-S5 reproduction protocol for LayoutDM. It follows the repository [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md).
 
 Run commands from the repository root. Training data, logs, generated checkpoints, converted local pipelines, and evaluation artifacts stay under `.cache/layout-dm`.
 

@@ -1093,10 +1093,9 @@ def _assert_readme_reproducibility_link(path: Path, text: str) -> None:
         "https://github.com/creative-graphic-design/design-generators/blob/main/"
         f"models/{path.parent.name}/REPRODUCING.md"
     )
-    repo_root_link = f"models/{path.parent.name}/REPRODUCING.md"
-    if absolute_link not in section and repo_root_link not in section:
+    if absolute_link not in section:
         raise AssertionError(
-            f"{path}: Reproducibility must link REPRODUCING.md as {repo_root_link} or {absolute_link}"
+            f"{path}: Reproducibility must link REPRODUCING.md as {absolute_link}"
         )
 
     if "uv run --package " in section or "```" in section:

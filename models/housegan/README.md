@@ -26,6 +26,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for House-GAN
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2003.06988&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2003.06988)
@@ -251,3 +252,5 @@ Repository code is licensed under Apache-2.0. Upstream House-GAN code and checkp
   year = {2020}
 }
 ```
+
+<!-- --8<-- [end:card] -->

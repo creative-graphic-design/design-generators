@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutDM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.08137&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.08137)
@@ -109,7 +110,7 @@ pip install \
   "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm"
 ```
 
-Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](models/layout-dm/REPRODUCING.md). Those steps create `.cache/layout-dm/converted/layoutdm-rico25`.
+Clone this repository, install the workspace member, and run the download and conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md). Those steps create `.cache/layout-dm/converted/layoutdm-rico25`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -151,7 +152,7 @@ print(out.bbox.shape)
 
 ### Training Procedure
 
-Package-local training reproduction is tracked in [TRAINING.md](models/layout-dm/TRAINING.md). Exact step-level numeric agreement currently covers a fixed PubLayNet-style synthetic batch; deterministic loader checks cover tokenizer, loader row encoding, and preprocessed stream reader agreement for local fixtures; the full-run statistical comparison is pending.
+Package-local training reproduction is tracked in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md). Exact step-level numeric agreement currently covers a fixed PubLayNet-style synthetic batch; deterministic loader checks cover tokenizer, loader row encoding, and preprocessed stream reader agreement for local fixtures; the full-run statistical comparison is pending.
 
 #### Preprocessing
 
@@ -192,7 +193,7 @@ The deterministic sequence check uses the non-default argmax sampling mode (`sam
 
 ## Reproducibility
 
-See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
 
 
 ## Environmental Impact
@@ -232,3 +233,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
   pages = {10167-10176}
 }
 ```
+
+<!-- --8<-- [end:card] -->

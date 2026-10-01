@@ -28,6 +28,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for Layout FID
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2108.00871&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2108.00871)
@@ -188,7 +189,7 @@ Agreement results are reported separately by dataset, checkpoint family, referen
 
 #### Metrics
 
-Metrics include feature tensor allclose, Frechet distance equality, reference-statistics conversion equality, and Alignment, Overlap, and mIoU metadata compatible with the full-run comparison described in the [training reproduction protocol](docs/training-reproduction.md).
+Metrics include feature tensor allclose, Frechet distance equality, reference-statistics conversion equality, and Alignment, Overlap, and mIoU metadata compatible with the full-run comparison described in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md).
 
 ### Parity Results
 
@@ -245,3 +246,5 @@ Repository code is Apache-2.0. The LayoutFlow source repository is MIT licensed;
     doi = {10.1145/3474085.3475497}
 }
 ```
+
+<!-- --8<-- [end:card] -->

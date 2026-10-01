@@ -25,6 +25,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for PosterLlama
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2404.00995&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2404.00995)
@@ -240,3 +241,5 @@ dependencies such as PEFT, Deepspeed, DINO/EVA helpers, and parity-only pins.
   year = {2024}
 }
 ```
+
+<!-- --8<-- [end:card] -->

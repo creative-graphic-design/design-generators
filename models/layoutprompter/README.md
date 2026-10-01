@@ -14,6 +14,7 @@ datasets:
   - "PosterLayout"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutPrompter
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.06495&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2311.06495)
@@ -230,3 +231,5 @@ Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration r
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->

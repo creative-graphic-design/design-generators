@@ -12,6 +12,7 @@ datasets:
   - "NSR-1K"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutGPT
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2305.15393&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2305.15393)
@@ -218,3 +219,5 @@ Repository wrapper code is Apache-2.0. The original LayoutGPT repository is MIT 
   year = {2023}
 }
 ```
+
+<!-- --8<-- [end:card] -->
