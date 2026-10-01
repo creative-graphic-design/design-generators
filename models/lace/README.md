@@ -28,6 +28,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LACE
 
 [![OpenReview](https://img.shields.io/static/v1?label=OpenReview&message=kJ0qp9Xdsh&color=blue&style=flat-square)](https://openreview.net/forum?id=kJ0qp9Xdsh)
@@ -255,3 +256,5 @@ Vendor links:
     url={https://openreview.net/forum?id=kJ0qp9Xdsh}
 }
 ```
+
+<!-- --8<-- [end:card] -->

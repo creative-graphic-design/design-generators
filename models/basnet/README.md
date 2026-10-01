@@ -26,6 +26,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for BASNet
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2019&color=blue&style=flat-square)](https://openaccess.thecvf.com/content_CVPR_2019/html/Qin_BASNet_Boundary-Aware_Salient_Object_Detection_CVPR_2019_paper.html)
@@ -165,3 +166,5 @@ This package code is Apache-2.0. Checkpoint redistribution depends on the checkp
   year={2019}
 }
 ```
+
+<!-- --8<-- [end:card] -->

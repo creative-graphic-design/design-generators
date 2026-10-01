@@ -46,6 +46,7 @@ model-index:
             name: "<metric-display-name>"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for <model-id>
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
@@ -191,7 +192,7 @@ print(out.mask)    # valid element mask
 
 ## Reproducibility
 
-See `models/<slug>/REPRODUCING.md` for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
+See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) for the commands that download vendor assets, generate reference outputs, run parity checks, convert checkpoints, and smoke-test local loading.
 
 <!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
 <!-- Commands that need CUDA should use CUDA_VISIBLE_DEVICES=<gpu-index> and explain that <gpu-index> is the selected local CUDA device. Do not hardcode machine-specific GPU numbers. -->
@@ -245,3 +246,5 @@ creative-graphic-design maintainers.
 ## Model Card Contact
 
 Open an issue or pull request in the creative-graphic-design design-generators repository.
+
+<!-- --8<-- [end:card] -->

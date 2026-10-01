@@ -27,6 +27,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for Coarse-to-Fine
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
@@ -232,3 +233,5 @@ Repository wrapper code is Apache-2.0. The original Microsoft LayoutGeneration r
   year = {2022}
 }
 ```
+
+<!-- --8<-- [end:card] -->

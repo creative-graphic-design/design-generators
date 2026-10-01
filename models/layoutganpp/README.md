@@ -28,6 +28,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LayoutGAN++
 
 [![DOI](https://img.shields.io/static/v1?label=DOI&message=10.1145%2F3474085.3475497&color=blue&style=flat-square&logo=doi&logoColor=white)](https://doi.org/10.1145/3474085.3475497)
@@ -245,3 +246,5 @@ Repository wrapper code is Apache-2.0. The original implementation is released u
     doi = {10.1145/3474085.3475497}
 }
 ```
+
+<!-- --8<-- [end:card] -->

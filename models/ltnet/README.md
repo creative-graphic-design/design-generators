@@ -29,6 +29,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for LT-Net
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2021&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html)
@@ -223,3 +224,5 @@ Repository wrapper code is Apache-2.0. The original implementation has no top-le
   year = {2021}
 }
 ```
+
+<!-- --8<-- [end:card] -->

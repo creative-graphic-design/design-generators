@@ -98,6 +98,9 @@ markdown_extensions:
       emoji_generator: zensical.extensions.emoji.to_svg
       emoji_index: zensical.extensions.emoji.twemoji
   - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

@@ -18,7 +18,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
   ```bash
   uv run --group docs zensical build --strict -f mkdocs.yml
   ```
-- The API reference has one committed stub under `docs/api/` for each workspace member under `lib/*` and `models/*`; each stub uses `::: <import-name>` with `show_submodules: true`.
+- The API reference has one committed stub under `docs/api/` for each workspace member under `lib/*` and `models/*`; each stub includes the package README with `pymdownx.snippets` (`--8<-- "models/<slug>/README.md:card"` for models, `--8<-- "lib/<slug>/README.md"` for libraries), then an `## API Reference` heading and `::: <import-name>` with `show_submodules: true`. Model READMEs wrap everything after the YAML front matter in `<!-- --8<-- [start:card] -->` and `<!-- --8<-- [end:card] -->` so the front matter stays off the docs page.
 - Public API docstrings are the source text for the API reference. Use google-style docstrings with `Args`, `Returns`, `Raises`, and `Examples` sections for public pipelines, tokenizers, processors, configs, `laygen.common` modules, `posgen.common` modules, and agents.
 - `Examples` in public API docstrings should be doctest-ready snippets whenever the API can run without heavyweight assets, downloads, or credentials.
 - Every `docs/*.md` page needs YAML frontmatter with `icon: lucide/...` and non-empty `tags`.
@@ -30,7 +30,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 - Markdown code fences must be tagged. Use `bash` for executable shell commands and `text` for non-executable output, logs, or examples.
 - Docs and READMEs link the first mention of external projects and repositories. Do not use internal validation stage codes such as `S0-S2` in reader-facing docs unless that page defines them in place or links directly to the definition.
 - Environment-specific documentation must distinguish observed verification conditions from general requirements. Write "the currently verified setup is ..." or equivalent when only one machine/GPU/driver combination has been tested; do not present that setup as the package's inherent training environment.
-- Package READMEs reference repository docs with repo-root-relative links such as `docs/training-reproduction.md`, not `../` or `../../` relative escapes.
+- Package documents (`lib/*/README.md`, `models/*/README.md`, `models/*/TRAINING.md`, and `models/*/REPRODUCING.md`) link repository files with absolute `https://github.com/creative-graphic-design/design-generators/blob/main/...` (or `tree/main/...` for directories) URLs, because the same text is read on GitHub, included on the docs site, and reused on the Hub; relative links break in at least one of those places. The root README and skills use repo-root-relative links such as `docs/training-reproduction.md`.
 
 ## Model README and Hub model-card procedure
 
@@ -64,7 +64,7 @@ The `Reproducibility` section must open with one sentence that states how to rep
 
 ## Machine-checked companions
 
-- The docs site uses hand-written `docs/api/<group>/<pkg>.md` stubs with `::: <pkg>` and `show_submodules: true`, explicit navigation in `mkdocs.yml`, and strict Zensical in `.github/workflows/ci.yml`; adding a package requires its stub and nav line, and `test_api_stubs_match_workspace_members_and_nav` enforces the project name with hyphens changed to underscores in the stub and nav.
+- The docs site uses hand-written `docs/api/<group>/<pkg>.md` stubs that include the package README and then `::: <pkg>` with `show_submodules: true`, explicit navigation in `mkdocs.yml`, and strict Zensical in `.github/workflows/ci.yml`; adding a package requires its stub and nav line, and `test_api_stubs_match_workspace_members_and_nav` enforces the project name with hyphens changed to underscores in the stub and nav, plus the README include. `scripts/check_readme_links.py` enforces the package-document link form.
 - Model README structure, install commands, parity sections, tagged fences, first external links, and reproducibility commands are checked by `scripts/check_model_readmes.py` and `tests/test_readme_contracts.py`.
 - Changed external URLs are checked by `scripts/check_changed_urls.py` in `.github/workflows/ci.yml`, and full Markdown links are checked by `.github/workflows/link-check.yml`.
 - Reader-facing internal references are checked by `scripts/check_reader_facing_references.py`.

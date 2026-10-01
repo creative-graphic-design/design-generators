@@ -1,6 +1,6 @@
 # Training DLT
 
-DLT training uses the shared class-path-driven LightningCLI entry point. The package does not define `dlt.training.cli`. PubLayNet and RICO13 have accepted S5 practical reproduction, the full-run statistical stage defined in the [training reproduction protocol](docs/training-reproduction.md), with stochastic residuals disclosed. Magazine is not claimed until polygon and train-only handling is amended.
+DLT training uses the shared class-path-driven LightningCLI entry point. The package does not define `dlt.training.cli`. PubLayNet and RICO13 have accepted S5 practical reproduction, the full-run statistical stage defined in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md), with stochastic residuals disclosed. Magazine is not claimed until polygon and train-only handling is amended.
 
 Run commands from the repository root. Generated checkpoints, result JSON,
 converted local pipelines, and downloaded assets stay outside git under

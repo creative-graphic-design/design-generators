@@ -1,6 +1,6 @@
 # LayoutFlow Training
 
-This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity checks described in the [training reproduction protocol](docs/training-reproduction.md).
+This guide covers package-local LightningCLI training configs, full training runs, trained-checkpoint conversion, and the staged training-parity checks described in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md).
 
 Run commands from the repository root. Training data, generated checkpoints, CSV logs, and converted local pipelines stay under `.cache/layout-flow`.
 

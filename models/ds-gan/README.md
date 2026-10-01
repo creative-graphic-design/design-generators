@@ -30,6 +30,7 @@ model-index:
             name: "Vendor parity"
 ---
 
+<!-- --8<-- [start:card] -->
 # Model Card for DS-GAN
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2023&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html)
@@ -241,3 +242,5 @@ Repository wrapper code is Apache-2.0. The upstream PosterLayout repository does
   pages = {6018--6026}
 }
 ```
+
+<!-- --8<-- [end:card] -->
