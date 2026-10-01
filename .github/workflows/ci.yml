@@ -140,11 +140,12 @@ jobs:
           # are typechecked with the rest of the repository.
           uv sync --all-packages --group docs
 
+      - name: Check lockfile
+        run: uv lock --check
+
       - name: Run pre-commit
         env:
-          # uv-lock is intentionally skipped in CI. The local development
-          # environment writes uv global exclude-newer options into uv.lock,
-          # so lock checks/resolution are handled by the local pre-commit hook.
+          # uv-lock is a writer hook, and CI must not modify files.
           #
           # pytest-models duplicates the coverage-enforcing member matrix, and
           # vulture runs as the dedicated Dead Code job below on merge queue,
