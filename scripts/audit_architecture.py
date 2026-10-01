@@ -1,7 +1,7 @@
 """Report repository architecture facts without enforcing policy.
 
 Member stats cover only ``src/`` and ``tests/``, while hotspots scan Python
-files under ``lib/``, ``models/``, and ``scripts/`` except paths containing
+files under ``lib/``, ``models/``, ``scripts/``, and ``tools/`` except paths containing
 ``tests`` or ``vendor``.
 
 The original report payload keys remain stable. The ``import_audit`` payload
@@ -25,8 +25,9 @@ from typing import Final, TypeAlias, cast
 WORKSPACE_KINDS: Final[dict[str, str]] = {
     "lib": "library",
     "models": "model",
+    "tools": "tooling",
 }
-PYTHON_TARGET_DIRS: Final[tuple[str, ...]] = ("lib", "models", "scripts")
+PYTHON_TARGET_DIRS: Final[tuple[str, ...]] = ("lib", "models", "scripts", "tools")
 _REQUIREMENT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*")
 IMPORT_DISTRIBUTION_OVERRIDES: Final[dict[str, str]] = {
     "PIL": "Pillow",
@@ -125,6 +126,11 @@ class ArchitectureReport:
     def model_count(self) -> int:
         """Return the number of model workspace members."""
         return sum(member.kind == "model" for member in self.members)
+
+    @property
+    def tooling_count(self) -> int:
+        """Return the number of repository-tooling workspace members."""
+        return sum(member.kind == "tooling" for member in self.members)
 
     @property
     def root_count(self) -> int:
@@ -481,6 +487,7 @@ def report_payload(report: ArchitectureReport) -> JsonObject:
             "roots": report.root_count,
             "libraries": report.library_count,
             "models": report.model_count,
+            "tooling": report.tooling_count,
             "dependency_edges": len(report.dependency_edges),
         },
         "warnings": list(report.warnings),
@@ -513,10 +520,10 @@ def render_text(report: ArchitectureReport) -> str:
         (
             f"Workspace: {len(report.members)} members "
             f"({report.root_count} root, {report.library_count} libraries, "
-            f"{report.model_count} models)"
+            f"{report.model_count} models, {report.tooling_count} tooling)"
         ),
         "Member stats cover only src/ and tests/; hotspots scan Python files under "
-        "lib/, models/, and scripts/ except paths containing tests or vendor.",
+        "lib/, models/, scripts/, and tools/ except paths containing tests or vendor.",
         f"Workspace dependency edges: {len(report.dependency_edges)}",
         f"Warnings: {len(report.warnings)}",
         "",

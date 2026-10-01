@@ -181,15 +181,68 @@ dependencies = []
         "roots": 0,
         "libraries": 1,
         "models": 0,
+        "tooling": 0,
         "dependency_edges": 0,
     }
     assert payload["warnings"] == []
     encoded = json.dumps(payload, sort_keys=True)
     assert '"name": "shared"' in encoded
     assert audit_architecture.render_text(report).startswith(
-        "Workspace: 1 members (0 root, 1 libraries, 0 models)\n"
+        "Workspace: 1 members (0 root, 1 libraries, 0 models, 0 tooling)\n"
         "Member stats cover only src/ and tests/; hotspots scan Python files under "
-        "lib/, models/, and scripts/ except paths containing tests or vendor.\n"
+        "lib/, models/, scripts/, and tools/ except paths containing tests or vendor.\n"
+    )
+
+
+def test_tooling_member_kind_and_dependency_direction(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        """
+[project]
+name = "root"
+dependencies = []
+
+[dependency-groups]
+dev = ["devharness"]
+
+[tool.uv.workspace]
+members = ["lib/*", "models/*", "tools/*"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    write_project(
+        tmp_path / "lib" / "shared",
+        '[project]\nname = "shared"\ndependencies = []\n',
+    )
+    write_project(
+        tmp_path / "models" / "example",
+        '[project]\nname = "example"\ndependencies = ["shared"]\n',
+    )
+    write_project(
+        tmp_path / "tools" / "devharness",
+        '[project]\nname = "devharness"\ndependencies = []\n',
+    )
+
+    report = audit_architecture.build_report(tmp_path)
+
+    assert [(member.name, member.kind) for member in report.members] == [
+        ("root", "root"),
+        ("shared", "library"),
+        ("example", "model"),
+        ("devharness", "tooling"),
+    ]
+    assert report.tooling_count == 1
+    assert report.dependency_edges == (
+        audit_architecture.DependencyEdge("example", "shared", "core"),
+        audit_architecture.DependencyEdge("root", "devharness", "group:dev"),
+    )
+    assert not any(
+        edge.target == "devharness" and edge.source != "root"
+        for edge in report.dependency_edges
+    )
+    assert not any(
+        edge.source == "devharness" and edge.target in {"shared", "example"}
+        for edge in report.dependency_edges
     )
 
 

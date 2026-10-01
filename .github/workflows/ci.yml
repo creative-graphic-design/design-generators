@@ -209,7 +209,7 @@ jobs:
           uv sync --all-packages --group docs
 
       - name: Run ty
-        run: uv run ty check lib models
+        run: uv run ty check lib models tools
 
   discover-test-members:
     name: Discover Test Members
@@ -259,7 +259,7 @@ jobs:
         run: uv sync --package design-generators --group dev
 
       - name: Assert root environment excludes workspace members
-        run: uv pip list --editable --format json | jq -e 'map(.name) == []'
+        run: uv pip list --editable --format json | jq -e 'map(.name) | sort == ["devharness"]'
 
       - name: Run root tests
         run: |

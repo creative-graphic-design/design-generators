@@ -8,6 +8,8 @@ import re
 import sys
 from typing import Final
 
+from devharness.baselines import diff_entry_baseline, read_entry_baseline
+
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "scripts" / "src_vendor_language_baseline.txt"
 SCAN_GLOBS = ("models/*/src/**/*.py", "lib/*/src/**/*.py")
@@ -58,18 +60,6 @@ def current_entries() -> set[str]:
     return entries
 
 
-def baseline_entries() -> set[str]:
-    """Return committed baseline entries."""
-    if not BASELINE_PATH.is_file():
-        raise FileNotFoundError(BASELINE_PATH)
-
-    return {
-        line
-        for line in BASELINE_PATH.read_text(encoding="utf-8").splitlines()
-        if line and not line.startswith("#")
-    }
-
-
 def main() -> int:
     """Compare source matches against the shrink-only baseline."""
     if sys.argv[1:] == ["--write-baseline"]:
@@ -79,10 +69,9 @@ def main() -> int:
         return 0
 
     current = current_entries()
-    baseline = baseline_entries()
+    baseline = read_entry_baseline(BASELINE_PATH)
 
-    unexpected = sorted(current - baseline)
-    stale = sorted(baseline - current)
+    unexpected, stale = diff_entry_baseline(current, baseline)
 
     if not unexpected and not stale:
         return 0

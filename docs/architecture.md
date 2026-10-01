@@ -8,13 +8,13 @@ tags:
 
 # Shared library architecture
 
-The repository keeps reusable layout and poster-generation code in shared workspace libraries, while model packages keep model-specific behavior local.
+The repository keeps reusable layout and poster-generation code in shared workspace libraries, shared repository-checker mechanics in tooling packages, and model-specific behavior in model packages.
 
 ## Workspace layout
 
 A workspace member is a package included in the root `uv` workspace, so contributors can develop it alongside the model packages that consume it.
 
-The workspace contains shared libraries under `lib/*` and model packages under `models/*`.
+The workspace contains shared libraries under `lib/*`, model packages under `models/*`, and repository-development tooling packages under `tools/*`.
 
 ```text
 lib/
@@ -24,16 +24,18 @@ lib/
   traingen-parity/
 models/
   <model-package>/
+tools/
+  devharness/
 ```
 
 The root workspace declaration is:
 
 ```toml
 [tool.uv.workspace]
-members = ["lib/*", "models/*"]
+members = ["lib/*", "models/*", "tools/*"]
 ```
 
-The `lib/` and `models/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, while a model package owns its model-specific processing, inference, conversion, training, and configuration code.
+The `lib/`, `models/`, and `tools/` directories are separate ownership boundaries: shared libraries provide reusable contracts and helpers, model packages own model-specific processing, inference, conversion, training, and configuration, and tooling packages provide repository-development helpers.
 
 ## Dependency environments
 
@@ -49,6 +51,8 @@ A root-tooling environment installs the root package and its tooling group with 
 | `docs` group             | Root tooling                             | `make setup` (`uv sync --all-packages --group docs`)                                                      | Documentation generation is a repository-wide root workflow.                                                            |
 
 A full-workspace environment installs all workspace members with `uv sync --all-packages` and serves as an explicit compatibility check for cross-member development and CI. Add `--group docs` when preparing the full checkout for documentation work, as in `make setup`.
+
+Repository checker entrypoints stay under `scripts/check_*.py` and own policy, diagnostics, baseline paths, and CLI behavior. `tools/devharness` owns exact reusable repository-development mechanics with at least two concrete consumers, while one-consumer mechanics stay in the checker. Runtime libraries and model packages do not depend on `devharness`, and `devharness` does not depend on runtime or model packages.
 
 ## Training ownership
 
@@ -133,6 +137,8 @@ Move a helper into a shared package when at least two packages need the same beh
 All model packages may import `laygen` directly. Poster or content-aware model packages may additionally import `posgen`; `posgen` may depend on `laygen` when shared layout primitives are needed, but the current `posgen` package does not. Shared libraries never import model packages.
 
 `laygen` must not import `posgen` or model packages, and `posgen` must not import model packages.
+
+Root tooling and `scripts/check_*.py` may import `devharness`. The `devharness` tooling package must not import `laygen`, `posgen`, or model packages, and runtime libraries and model packages must not import `devharness`.
 
 The Transformers-side shared layout output in `laygen.modeling_outputs` is based on `transformers.utils.ModelOutput`, not `diffusers.utils.BaseOutput`. The Diffusers-side output in `laygen.pipelines.pipeline_output` may use the Diffusers base type behind the optional `diffusion` extra. The `laygen` core dependencies must not gain a hard `diffusers` dependency.
 

@@ -223,6 +223,7 @@ members = [
     "cgb-dm",
     "coarse-to-fine",
     "design-generators",
+    "devharness",
     "dlt",
     "ds-gan",
     "flex-dm",
@@ -1612,6 +1613,7 @@ evaluation = [
 [package.dev-dependencies]
 dev = [
     { name = "beartype" },
+    { name = "devharness" },
     { name = "pre-commit" },
     { name = "pylint" },
     { name = "pytest" },
@@ -1643,6 +1645,7 @@ provides-extras = ["evaluation"]
 [package.metadata.requires-dev]
 dev = [
     { name = "beartype", specifier = ">=0.22.9,<0.23" },
+    { name = "devharness", editable = "tools/devharness" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pylint", specifier = ">=4.0.0" },
     { name = "pytest", specifier = ">=6.0.0" },
@@ -1657,6 +1660,11 @@ docs = [
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.31.0" },
     { name = "zensical", specifier = ">=0.0.50,<0.1" },
 ]
+
+[[package]]
+name = "devharness"
+version = "0.1.0"
+source = { editable = "tools/devharness" }
 
 [[package]]
 name = "diffusers"

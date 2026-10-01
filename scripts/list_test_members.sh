@@ -19,7 +19,7 @@ import tomllib
 repo_root = pathlib.Path(sys.argv[1])
 members: list[dict[str, str]] = []
 
-for parent in ("lib", "models"):
+for parent in ("lib", "models", "tools"):
     parent_dir = repo_root / parent
     if not parent_dir.is_dir():
         continue

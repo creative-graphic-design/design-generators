@@ -8,6 +8,8 @@ from types import ModuleType
 
 import pytest
 
+from devharness import baselines
+
 
 def load_check_training_doc_template() -> ModuleType:
     module_path = (
@@ -15,8 +17,6 @@ def load_check_training_doc_template() -> ModuleType:
         / "scripts"
         / "check_training_doc_template.py"
     )
-    module_dir = str(module_path.parent)
-    sys.path.insert(0, module_dir)
     spec = importlib.util.spec_from_file_location(
         "check_training_doc_template", module_path
     )
@@ -24,10 +24,7 @@ def load_check_training_doc_template() -> ModuleType:
     assert isinstance(spec.loader, SourceFileLoader)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.path.remove(module_dir)
+    spec.loader.exec_module(module)
     return module
 
 
@@ -442,7 +439,7 @@ def test_check_passes_when_baseline_matches(tmp_path: Path) -> None:
         valid_training_doc().replace("## Training Commands\n", "## Commands\n"),
     )
     baseline = tmp_path / "baseline.txt"
-    check_training_doc_template.write_baseline(
+    baselines.write_entry_baseline(
         baseline, check_training_doc_template.current_entries(tmp_path)
     )
 
