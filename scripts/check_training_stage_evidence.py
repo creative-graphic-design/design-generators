@@ -231,7 +231,6 @@ def parse_stage_evidence(
 
                 if is_table_delimiter(row):
                     continue
-
                 cells = split_markdown_row(row)
                 if len(cells) < len(headers):
                     continue
@@ -242,6 +241,7 @@ def parse_stage_evidence(
 
                 if stage in evidence:
                     duplicates.add(stage)
+
                 evidence[stage] = StageEvidence(
                     stage=stage,
                     command=cells[positions["command"]],
