@@ -193,6 +193,14 @@ Use this table shape unless a model requires extra metric columns:
 | `<dataset>` | original | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 | `<dataset>` | package  | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 
+### Comparison Scope
+
+Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
+
+| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
+| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
+| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
 Commands must be executable from the repository root and must not depend on untracked helper scripts unless the helper creation command is also shown.
 
 ```bash

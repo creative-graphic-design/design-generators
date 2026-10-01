@@ -31,16 +31,16 @@ uv sync --package <package> --extra training --extra vendor
 List every training dataset and the exact source or local artifact layout used by
 the package-local and original-code runs.
 
-| Dataset | Source | Config or path |
-| --- | --- | --- |
+| Dataset     | Source                       | Config or path                     |
+| ----------- | ---------------------------- | ---------------------------------- |
 | `<dataset>` | `<dataset id or local path>` | `<config, split, or layout notes>` |
 
 ## Configs
 
 Training configs live under `models/<package>/configs/training`.
 
-| Config | Dataset | Seed mode | Purpose |
-| --- | --- | --- | --- |
+| Config          | Dataset     | Seed mode                    | Purpose     |
+| --------------- | ----------- | ---------------------------- | ----------- |
 | `<config>.yaml` | `<dataset>` | `<default or deterministic>` | `<purpose>` |
 
 ## Scheduler and Recipe Notes
@@ -58,25 +58,25 @@ describe evaluation-seed evidence as training-seed reproduction.
 
 ## Validation Stages
 
-| Stage | Scope | Purpose |
-| --- | --- | --- |
-| S0 | Static config and initialized state parity | `<summary>` |
-| S1 | Fixed-batch pre-optimizer trace parity | `<summary>` |
-| S2 | One optimizer-step parity | `<summary>` |
-| S3 | Short deterministic multi-batch run | `<summary>` |
-| S4 | Deterministic loader stream | `<summary>` |
-| S5 | Full-run statistical comparison | `<summary>` |
+| Stage | Scope                                      | Purpose     |
+| ----- | ------------------------------------------ | ----------- |
+| S0    | Static config and initialized state parity | `<summary>` |
+| S1    | Fixed-batch pre-optimizer trace parity     | `<summary>` |
+| S2    | One optimizer-step parity                  | `<summary>` |
+| S3    | Short deterministic multi-batch run        | `<summary>` |
+| S4    | Deterministic loader stream                | `<summary>` |
+| S5    | Full-run statistical comparison            | `<summary>` |
 
 ## Stage Evidence
 
-| Stage | Command | Artifact | Result |
-| --- | --- | --- | --- |
-| S0 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S1 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S2 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S3 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S4 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5 | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| Stage | Command     | Artifact                                             | Result     |
+| ----- | ----------- | ---------------------------------------------------- | ---------- |
+| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S5    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 
 ## Reproduction Results
 
@@ -93,10 +93,18 @@ Allowed `Status` values are:
 - `not-yet-run (<tracking ref>)`
 - `blocked (<reason>)`
 
-| Dataset | System | Status | Seed scope | Primary metrics | Loss evidence | Artifact summary |
-| --- | --- | --- | --- | --- | --- | --- |
+| Dataset     | System   | Status                   | Seed scope     | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | ------------------------ | -------------- | ----------------------- | ---------------- | ---------------------- |
 | `<dataset>` | original | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | `not-yet-run (#<issue>)` | `<seed scope>` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+
+### Comparison Scope
+
+Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
+
+| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
+| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
+| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
 
 ## Regeneration Metadata
 
