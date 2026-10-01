@@ -1,0 +1,417 @@
+"""Root README model and library table contracts."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
+
+from .constants import (
+    EXPECTED_MODEL_NAMES,
+    LINK_REQUIRED_DATASET_IDS,
+    REPO_ROOT,
+    ROOT_LIBRARY_BADGE_COLORS,
+    ROOT_MODEL_TABLE_HEADER,
+)
+from .metadata import (
+    _badge_messages,
+    _inline_code_span_at,
+    _in_any_span,
+    _library_member_slugs,
+    _markdown_link_spans,
+    _model_member_slugs,
+    _semantic_badge_label,
+    _without_frontmatter_and_code,
+    _without_badges,
+)
+from .repository import _normalize_root_repo_link
+
+
+def _root_packages_table_lines(text: str) -> list[str]:
+    marker = "## Models\n\n"
+    start = text.index(marker) + len(marker)
+    lines = text[start:].splitlines()
+    table_start = next(
+        (index for index, line in enumerate(lines) if line.startswith("| ")),
+        None,
+    )
+    if table_start is None:
+        raise AssertionError("root README missing Models table")
+
+    table_lines: list[str] = []
+    for line in lines[table_start:]:
+        if not line.startswith("|"):
+            break
+
+        table_lines.append(line)
+
+    return table_lines
+
+
+def _root_libraries_table_lines(text: str) -> list[str]:
+    marker = "## Libraries\n\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n\n", start)
+    return text[start:end].splitlines()
+
+
+def _split_markdown_table_row(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        raise AssertionError(f"malformed markdown table row: {line}")
+
+    return [cell.strip() for cell in stripped.strip("|").split("|")]
+
+
+def _is_markdown_table_separator(line: str, width: int) -> bool:
+    cells = _split_markdown_table_row(line)
+    if len(cells) != width:
+        return False
+
+    return all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+
+
+def _badge_message(alt: str, badge_url: str, label: str) -> str | None:
+    query = parse_qs(urlparse(badge_url).query)
+    query_label = query.get("label", [None])[0]
+    if (
+        query_label is None
+        or _semantic_badge_label(alt, query_label) != label
+        or "message" not in query
+    ):
+        return None
+
+    return unquote(query["message"][0])
+
+
+def _linked_static_badge(cell: str, label: str) -> tuple[str, str] | None:
+    badges = _linked_static_badges(cell, label)
+    match = _LINKED_BADGE_RE.search(cell)
+    if len(badges) != 1 or match is None or cell != match.group(0):
+        return None
+
+    return badges[0]
+
+
+_LINKED_BADGE_RE = re.compile(
+    r"\[!\[([^\]]*)\]\((https://img\.shields\.io/static/v1\?[^)]*)\)\]\(([^)]+)\)"
+)
+
+
+def _linked_static_badges(cell: str, label: str) -> list[tuple[str, str]]:
+    badges: list[tuple[str, str]] = []
+    for match in _LINKED_BADGE_RE.finditer(cell):
+        message = _badge_message(match.group(1), match.group(2), label)
+        if message is not None:
+            badges.append((message, match.group(3)))
+
+    return badges
+
+
+def _static_badge_messages(cell: str, label: str) -> list[str]:
+    messages: list[str] = []
+    for match in re.finditer(
+        r"!\[([^\]]*)\]\((https://img\.shields\.io/static/v1\?[^)]*)\)", cell
+    ):
+        message = _badge_message(match.group(1), match.group(2), label)
+        if message is not None:
+            messages.append(message)
+
+    return messages
+
+
+def _static_badge_colors(cell: str, label: str) -> list[str]:
+    colors: list[str] = []
+    for match in re.finditer(
+        r"!\[([^\]]*)\]\((https://img\.shields\.io/static/v1\?[^)]*)\)", cell
+    ):
+        if _badge_message(match.group(1), match.group(2), label) is None:
+            continue
+
+        query = parse_qs(urlparse(match.group(2)).query)
+        if "color" not in query:
+            raise AssertionError(f"badge missing color: {match.group(0)}")
+
+        colors.append(query["color"][0])
+
+    return colors
+
+
+def _model_training_slugs() -> set[str]:
+    return {
+        path.parent.name
+        for path in sorted((REPO_ROOT / "models").glob("*/TRAINING.md"))
+    }
+
+
+def _assert_root_reproduction_cells(
+    path: Path, slug: str, checkpoint_cell: str, training_cell: str
+) -> None:
+    expected_checkpoint_link = f"models/{slug}/REPRODUCING.md"
+    checkpoint_badges = [
+        (message, _normalize_root_repo_link(link))
+        for message, link in _linked_static_badges(checkpoint_cell, "checkpoint")
+    ]
+    if checkpoint_badges != [("ckpt", expected_checkpoint_link)]:
+        raise AssertionError(
+            f"{path}: package {slug} must use one linked checkpoint reproduction badge"
+        )
+
+    training_badges = [
+        (message, _normalize_root_repo_link(link))
+        for message, link in _linked_static_badges(training_cell, "training")
+    ]
+    training_messages = _static_badge_messages(training_cell, "training")
+    expected_link = f"models/{slug}/TRAINING.md"
+    if slug in _model_training_slugs():
+        if training_badges != [("train", expected_link)]:
+            raise AssertionError(
+                f"{path}: package {slug} must use one linked training reproduction badge"
+            )
+
+        return
+
+    if training_badges:
+        raise AssertionError(
+            f"{path}: package {slug} without TRAINING.md must not link training badge"
+        )
+
+    if training_messages != ["n/a"]:
+        raise AssertionError(
+            f"{path}: package {slug} without TRAINING.md must use training n/a badge"
+        )
+
+
+def _assert_root_model_badge_count(path: Path, expected_count: int) -> None:
+    text = path.read_text(encoding="utf-8")
+    messages = _badge_messages(text, "models")
+    if messages != [str(expected_count)]:
+        raise AssertionError(
+            f"{path}: models badge {messages} != workspace model member count {expected_count}"
+        )
+
+
+def _root_model_slugs(path: Path) -> set[str]:
+    text = path.read_text(encoding="utf-8")
+    table_lines = _root_packages_table_lines(text)
+    if _split_markdown_table_row(
+        table_lines[0]
+    ) != ROOT_MODEL_TABLE_HEADER or not _is_markdown_table_separator(
+        table_lines[1], len(ROOT_MODEL_TABLE_HEADER)
+    ):
+        raise AssertionError(
+            f"{path}: Models table must use {', '.join(ROOT_MODEL_TABLE_HEADER)}"
+        )
+
+    slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = _split_markdown_table_row(line)
+        if len(cells) != len(ROOT_MODEL_TABLE_HEADER):
+            raise AssertionError(f"{path}: malformed Models table row: {line}")
+
+        (
+            method_cell,
+            venue_cell,
+            checkpoint_cell,
+            training_cell,
+        ) = cells
+        model_link = re.fullmatch(r"\[`([^`\]]+)`\]\(([^)]+)\)", method_cell)
+        if model_link is None:
+            raise AssertionError(
+                f"{path}: Model cell must be a `Model` markdown link: {line}"
+            )
+
+        model_name = model_link.group(1)
+        normalized_model_link = _normalize_root_repo_link(model_link.group(2))
+        slug_match = re.fullmatch(r"models/([^/)]+)/README\.md", normalized_model_link)
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Model cell must link models/<slug>/README.md: {line}"
+            )
+
+        slug = slug_match.group(1)
+        expected_name = EXPECTED_MODEL_NAMES.get(slug)
+        if expected_name is not None and model_name != expected_name:
+            raise AssertionError(
+                f"{path}: model link text {model_name!r} != {expected_name!r}"
+            )
+
+        if len(_static_badge_messages(venue_cell, "venue")) != 1:
+            raise AssertionError(
+                f"{path}: Models table Venue cell must contain exactly one venue badge: {line}"
+            )
+
+        if (
+            "documented" in checkpoint_cell.lower()
+            or "documented" in training_cell.lower()
+        ):
+            raise AssertionError(
+                f"{path}: Models table reproduction cells must not use status wording"
+            )
+
+        _assert_root_reproduction_cells(path, slug, checkpoint_cell, training_cell)
+        slugs.add(slug)
+
+    return slugs
+
+
+def _assert_root_libraries_table_matches_members(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    table_lines = _root_libraries_table_lines(text)
+    if _split_markdown_table_row(table_lines[0]) != [
+        "Library",
+        "Description",
+    ] or not _is_markdown_table_separator(table_lines[1], 2):
+        raise AssertionError(
+            f"{path}: Libraries table must use Library and Description"
+        )
+
+    root_slugs: set[str] = set()
+    for line in table_lines[2:]:
+        cells = _split_markdown_table_row(line)
+        if len(cells) != 2:
+            raise AssertionError(f"{path}: malformed Libraries table row: {line}")
+
+        library_cell, description_cell = cells
+        library_badge = _linked_static_badge(library_cell, "library")
+        if library_badge is None:
+            raise AssertionError(
+                f"{path}: Library cell must be a linked library badge: {line}"
+            )
+
+        label, library_link = library_badge
+        normalized_library_link = _normalize_root_repo_link(library_link)
+        slug_match = re.fullmatch(r"lib/([^/)]+)/README\.md", normalized_library_link)
+        if slug_match is None:
+            raise AssertionError(
+                f"{path}: Library cell must link lib/<slug>/README.md: {line}"
+            )
+
+        slug = slug_match.group(1)
+        if label != slug:
+            raise AssertionError(
+                f"{path}: Library badge message {label!r} must match {slug!r}"
+            )
+
+        expected_color = ROOT_LIBRARY_BADGE_COLORS.get(slug)
+        if expected_color is None:
+            raise AssertionError(f"{path}: no library badge color for {slug!r}")
+
+        library_colors = _static_badge_colors(library_cell, "library")
+        if library_colors != [expected_color]:
+            raise AssertionError(
+                f"{path}: Library {slug} badge color {library_colors} != {expected_color!r}"
+            )
+
+        if not description_cell:
+            raise AssertionError(f"{path}: Library {slug} must have a description")
+
+        root_slugs.add(slug)
+
+    member_slugs = _library_member_slugs()
+    missing = sorted(member_slugs - root_slugs)
+    extra = sorted(root_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"root README Libraries table mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def _assert_model_doc_sets() -> None:
+    member_slugs = _model_member_slugs()
+    readme_slugs = {
+        path.parent.name for path in sorted((REPO_ROOT / "models").glob("*/README.md"))
+    }
+    reproducing_slugs = {
+        path.parent.name
+        for path in sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md"))
+    }
+    for label, actual in (
+        ("README.md", readme_slugs),
+        ("REPRODUCING.md", reproducing_slugs),
+    ):
+        missing = sorted(member_slugs - actual)
+        extra = sorted(actual - member_slugs)
+        if missing or extra:
+            raise AssertionError(
+                f"model {label} set mismatch: missing={missing}, extra={extra}"
+            )
+
+
+def _assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
+    member_slugs = _model_member_slugs()
+    missing = sorted(member_slugs - root_slugs)
+    extra = sorted(root_slugs - member_slugs)
+    if missing or extra:
+        raise AssertionError(
+            f"root README Models table mismatch: missing={missing}, extra={extra}"
+        )
+
+
+def _assert_linked_first_reference_policy(path: Path) -> None:
+    text = _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+    spans = _markdown_link_spans(text)
+    for dataset_id in LINK_REQUIRED_DATASET_IDS:
+        for match in re.finditer(re.escape(dataset_id), text):
+            if not _in_any_span(match.start(), spans):
+                raise AssertionError(f"{path}: dataset id must be linked: {dataset_id}")
+
+    for match in re.finditer(r"\barXiv\s+\d{4}\.\d{4,5}\b", text):
+        if not _in_any_span(match.start(), spans):
+            raise AssertionError(f"{path}: arXiv id must be linked: {match.group(0)}")
+
+    for match in re.finditer(r"https://arxiv\.org/abs/\d{4}\.\d{4,5}", text):
+        if not _in_any_span(match.start(), spans):
+            raise AssertionError(f"{path}: arXiv URL must be in a markdown link")
+
+
+def _assert_library_name_style(path: Path) -> None:
+    text = _without_badges(
+        _without_frontmatter_and_code(path.read_text(encoding="utf-8"))
+    )
+    banned_names = {
+        "Transformers": "`🤗transformers`",
+        "Diffusers": "`🧨diffusers`",
+        "Pydantic AI": "`🤖pydantic-ai`",
+    }
+    for name, replacement in banned_names.items():
+        match = re.search(rf"(?<![`/\w]){re.escape(name)}(?![`/\w])", text)
+        if match:
+            raise AssertionError(
+                f"{path}: use {replacement} instead of prose library name {name!r}"
+            )
+
+    huggingface_mentions = re.findall(r"`🤗transformers`", text)
+    if text.count("🤗") != len(huggingface_mentions):
+        raise AssertionError(f"{path}: 🤗 must annotate a transformers library mention")
+
+    diffusers_mentions = re.findall(r"`🧨diffusers`", text)
+    if text.count("🧨") != len(diffusers_mentions):
+        raise AssertionError(f"{path}: 🧨 must annotate a diffusers library mention")
+
+    pydantic_ai_mentions = re.findall(r"`🤖pydantic-ai`", text)
+    if text.count("🤖") != len(pydantic_ai_mentions):
+        raise AssertionError(f"{path}: 🤖 must annotate a pydantic-ai library mention")
+
+    if re.search(r"🤗\s+(?:\[`pydantic-ai`\]\([^)]*\)|`pydantic-ai`)", text):
+        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+
+    if re.search(r"🤗\s+pydantic-ai", text):
+        raise AssertionError(f"{path}: pydantic-ai mentions must not use 🤗")
+
+    required_code_spans = {
+        "transformers": "`🤗transformers`",
+        "diffusers": "`🧨diffusers`",
+        "pydantic-ai": "`🤖pydantic-ai`",
+    }
+    for library in ("transformers", "diffusers", "pydantic-ai"):
+        for match in re.finditer(rf"(?<![`/\w=-]){re.escape(library)}(?![`/\w])", text):
+            if (
+                _inline_code_span_at(text, match.start())
+                == required_code_spans[library]
+            ):
+                continue
+
+            raise AssertionError(
+                f"{path}: use code-form {required_code_spans[library]} for library names"
+            )
