@@ -23,7 +23,7 @@ Use this order for every training-first package:
 6. Produce S3 deterministic multi-batch evidence.
 7. Produce S4 deterministic loader-stream evidence.
 8. Post or update issue evidence for S3-S4.
-9. Only then start S5-scale GPU training and full-run evaluation.
+9. Only then start S5-scale GPU training and full-run evaluation, after the GPU-bound step-loop check in the protocol's GPU placement section.
 10. Record final S0-S5 evidence in `models/<package>/TRAINING.md`.
 
 ## S5 Gate
