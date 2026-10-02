@@ -76,7 +76,7 @@ def relative_difference(
 
 
 def float64_adam_update(
-    gradient: Shaped[np.ndarray, "..."]
+    gradient: Shaped[np.ndarray, "..."],
 ) -> tuple[Shaped[np.ndarray, "..."], Shaped[np.ndarray, "..."]]:
     """Return a clipped first-step Keras Adam update and second moment."""
     clipped = np.asarray(gradient, np.float64)
@@ -222,9 +222,7 @@ def main() -> None:
         "post_step_max_relative": {},
     }
     expected_parameters = {
-        key.removeprefix("after/")
-        for key in step0.files
-        if key.startswith("after/")
+        key.removeprefix("after/") for key in step0.files if key.startswith("after/")
     }
     actual_parameters = set(after)
     report["parameter_key_match"] = {
@@ -234,9 +232,7 @@ def main() -> None:
         "extra": sorted(actual_parameters - expected_parameters),
     }
     expected_logits = {
-        key.removeprefix("logits/")
-        for key in step0.files
-        if key.startswith("logits/")
+        key.removeprefix("logits/") for key in step0.files if key.startswith("logits/")
     }
     report["logits_key_match"] = {
         "expected": len(expected_logits),
@@ -283,6 +279,11 @@ def main() -> None:
         near_zero_difference_sq += float(np.square(delta[~well]).sum())
         near_zero_elements += int((~well).sum())
         total_elements += delta.size
+
+    if total_elements <= 0:
+        raise AssertionError("The control model has no trainable elements.")
+
+    near_zero_gradient_element_fraction = near_zero_elements / total_elements
     report["post_step_parameter_tolerance"] = {
         "limit": FP32_RELATIVE_TOLERANCE,
         "within": sum(
@@ -297,7 +298,7 @@ def main() -> None:
         "max_tf215_adam_rule_relative_l2": max(rule_errors["tf215"].values()),
         "max_well_conditioned_relative_l2": max(well_conditioned_relative.values()),
         "sqrt_v_threshold": 100 * 1e-7,
-        "near_zero_gradient_element_fraction": near_zero_elements / total_elements,
+        "near_zero_gradient_element_fraction": near_zero_gradient_element_fraction,
         "near_zero_share_of_update_difference": near_zero_difference_sq
         / max(update_difference_sq, 1e-300),
         "tf211_rule_errors": rule_errors["tf211"],
@@ -329,12 +330,15 @@ def main() -> None:
         and not report["logits_key_match"]["extra"]
         and max(compared_differences) <= FP32_RELATIVE_TOLERANCE
     )
-    report["forward_and_batch_norm_within_fp32_tolerance"] = max(
-        report["total_loss"]["relative"],
-        report["logits_max_relative"],
-        report["batch_norm_moving_mean_max_relative"],
-        report["batch_norm_moving_variance_max_relative"],
-    ) <= FP32_RELATIVE_TOLERANCE
+    report["forward_and_batch_norm_within_fp32_tolerance"] = (
+        max(
+            report["total_loss"]["relative"],
+            report["logits_max_relative"],
+            report["batch_norm_moving_mean_max_relative"],
+            report["batch_norm_moving_variance_max_relative"],
+        )
+        <= FP32_RELATIVE_TOLERANCE
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=1, sort_keys=True))
     print(
