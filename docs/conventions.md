@@ -145,7 +145,7 @@ Original implementations stay under `vendor/` and are treated as read-only refer
 
 ### Code style
 
-Apply the repository's [Class Design And Code Style](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#class-design-and-code-style) rules and the [code and review safeguards](implementation-checklist.md#code-and-review-safeguards) checklist; this page does not duplicate them.
+Apply the repository's [Class Design And Code Style](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#class-design-and-code-style) rules and the [code and review safeguards](implementation-checklist.md#code-and-review-safeguards) checklist.
 
 ### Data And Parity
 

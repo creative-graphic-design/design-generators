@@ -13,7 +13,7 @@ Paths below are relative to the repository root. Read the model issue's plan, am
 
 - Read `docs/implementation-checklist.md` for a new model package or a complete conversion review; use only the affected sections for maintenance.
 - Use `docs/roadmap.md` to resolve the method/package identity and planned scope, and `docs/data-sources.md` for approved datasets and their configs.
-- Use `docs/conventions.md` for public interfaces, schema, framework selection, typing, and source-language rules. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
+- Use `docs/conventions.md` for public interfaces, schema, and framework selection; use the [Class Design And Code Style](AGENTS.md#class-design-and-code-style) rules and [jaxtyping checker](AGENTS.md#source-checks) for typing. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
 - Use the `design-generators-documentation` skill for README, model-card, and reproduction instructions. Its starting template is `references/model-readme-template.md` in this skill directory.
 
 Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the model-issue maintainer checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
@@ -28,12 +28,11 @@ References phrased in vendor terms are limited to conversion-responsibility modu
 
 Create or update `models/<slug>/` with its `pyproject.toml`, `src/<package>/`, `scripts/`, and tests. Keep original-code dependencies in the `vendor` optional extra and the original checkout read-only. Reuse the shared helpers assigned in `docs/architecture.md`; keep model-specific transforms and numerical behavior local.
 
-This skill owns conversion and parity; public interfaces and serialization remain with their documented owners.
-
 Use shared libraries by import:
 
 ```python
-from laygen.common.outputs import LayoutGenerationOutput
+from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.pipelines.pipeline_output import LayoutGenerationOutput as DiffusersLayoutGenerationOutput
 from laygen.common.bbox import ltwh_to_xywh, ltrb_to_xywh
 from laygen.common.testing import assert_layout_output_schema
 ```

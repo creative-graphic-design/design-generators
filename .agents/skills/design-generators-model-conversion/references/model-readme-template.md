@@ -49,12 +49,14 @@ model-index:
 <!-- --8<-- [start:card] -->
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
+<!-- Include the arXiv, venue, license, base-library, dataset, vendor-parity, and Hub-status badges required by the model README checker. -->
 
 # Model Card for <model-id>
 
 This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
 <!-- Include the literature method name, conference or journal if known, and a stable paper URL. -->
+<!-- Link the framework name to its official documentation, for example [`🧨diffusers`](https://huggingface.co/docs/diffusers/index). -->
 
 ## Model Details
 
@@ -74,7 +76,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ### Model Sources
 
-<!-- Optional section. Link the exact sources used for conversion and parity. -->
+<!-- Link the exact sources used for conversion and parity. -->
 
 - **Repository:** <original-implementation-url>
 - **Paper [optional]:** <paper-or-arxiv-url>
@@ -99,7 +101,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ### Downstream Use
 
-<!-- Optional section. Describe how generated layouts may feed rendering, design tooling, retrieval, or evaluation pipelines. -->
+<!-- Describe how generated layouts may feed rendering, design tooling, retrieval, or evaluation pipelines. -->
 
 <how generated layouts may feed rendering, design tooling, retrieval, or evaluation pipelines>
 
@@ -239,7 +241,7 @@ Reproduce agreement with the original implementation using [REPRODUCING.md](http
 
 <python-package-and-vendor-extra-requirements>
 
-## Citation [optional]
+## Citation
 
 <!-- Verify the upstream paper citation against the paper or proceedings page before filling this block. Do not infer author lists from memory. -->
 

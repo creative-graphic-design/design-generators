@@ -30,7 +30,7 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 - [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for standard model entry points and pipeline orchestration.
 - [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for `save_pretrained`, `from_pretrained`, and documented overrides.
 - [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for framework class suffixes and base-class contracts.
-- [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator check that justification under the [model and serialization contracts](conventions.md#model-and-serialization-contracts).
+- [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator, meaning the maintainer who owns the model issue and is distinct from the evidence producer, check that justification under the [model and serialization contracts](conventions.md#model-and-serialization-contracts).
 - [ ] Make Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`; the shared base owns config and subfolder loading, serialization, device and dtype handling, `generator`-over-`seed` behavior, and the canonical layout-output contract.
 
 ## Package layout
@@ -93,7 +93,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 
 ## Code and review safeguards
 
-- [ ] Apply [code conventions](conventions.md#code-style) for closed vocabularies, including shared enums, typed alias tables, and `Literal` for small fixed parameter sets.
+- [ ] Use `StrEnum` with `auto()` for closed string sets rather than bare `str`, `tuple[str, ...]`, or string-literal unions; type alias tables as `dict[SomeAliasEnum, SomeEnum]`, and use shared dataset and condition enums instead of local redefinitions.
 - [ ] Use `typing.assert_never` for exhaustive enum dispatch.
 - [ ] Annotate module constants with `Final[...]`, including tokens, thresholds, and paths.
 - [ ] Annotate every public signature and structured specification; use `NamedTuple` or `TypedDict` for structured tuples and dictionaries, and use `Literal` or enums for closed parameter sets.
@@ -107,5 +107,9 @@ Models whose weights this repository trains itself are called train-ourselves mo
 ## Verification commands
 
 Run the checks for the changed scope once, then rerun affected checks if a fix changes their inputs. Record commands, results, and unavailable checks in the PR. Use the repository's [dependency environments](architecture.md#dependency-environments) for package, root-tooling, full-workspace, and documentation command selection.
+
+- Run affected member tests with `uv run --package <member> pytest`.
+- Run the full hook set with `uv run pre-commit run --all-files`.
+- Build the documentation site strictly with `uv run --group docs zensical build --strict -f mkdocs.yml`.
 
 Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. A coordinator reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.
