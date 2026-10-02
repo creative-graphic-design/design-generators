@@ -72,6 +72,7 @@ class KerasAdam(torch.optim.Optimizer):
                     state["step"] = 0
                     state["exp_avg"] = torch.zeros_like(param)
                     state["exp_avg_sq"] = torch.zeros_like(param)
+
                 state["step"] += 1
                 step = torch.tensor(
                     float(state["step"]), dtype=param.dtype, device=param.device
@@ -90,6 +91,7 @@ class KerasAdam(torch.optim.Optimizer):
                 exp_avg.add_((grad - exp_avg) * (1 - beta1))
                 exp_avg_sq.add_((grad.square() - exp_avg_sq) * (1 - beta2))
                 param.sub_((exp_avg * alpha) / (exp_avg_sq.sqrt() + group["eps"]))
+
         return loss
 
 

@@ -338,6 +338,7 @@ class CanvasVAEPreTrainedModel(PreTrainedModel):
         elif isinstance(module, (nn.LayerNorm, CanvasVAEBatchNorm)):
             nn.init.ones_(module.weight)
             nn.init.zeros_(module.bias)
+
         if isinstance(module, CanvasVAEBatchNorm):
             module.running_mean.zero_()
             module.running_var.fill_(1.0)
@@ -412,6 +413,7 @@ class CanvasVAEModel(CanvasVAEPreTrainedModel):
                 mask=mask,
                 latents=latents,
             )
+
         if num_elements is None or element_ids is None:
             raise ValueError("pass num_elements and element_ids, or latents")
 
@@ -424,6 +426,7 @@ class CanvasVAEModel(CanvasVAEPreTrainedModel):
             posterior_noise = randn(
                 z_mean.shape, device=z_mean.device, dtype=z_mean.dtype
             )
+
         latents = z_mean
         if posterior_noise is not None:
             latents = z_mean + torch.exp(0.5 * z_log_var) * posterior_noise

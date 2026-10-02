@@ -166,6 +166,10 @@ EXPECTED_FRONTMATTER = {
         "license": "other",
         "datasets": ["creative-graphic-design/PKU-PosterLayout"],
     },
+    "canvas-vae": {
+        "license": "apache-2.0",
+        "datasets": ["creative-graphic-design/Rico"],
+    },
     "dlt": {
         "license": "apache-2.0",
         "datasets": [
@@ -309,6 +313,7 @@ EXPECTED_MODEL_NAMES = {
     "coarse-to-fine": "Coarse-to-Fine",
     "cgb-dm": "CGB-DM",
     "ds-gan": "DS-GAN",
+    "canvas-vae": "CanvasVAE",
     "dlt": "DLT",
     "flex-dm": "Flex-DM",
     "housegan": "House-GAN",
@@ -351,6 +356,7 @@ EXPECTED_REPOSITORY_LINKS = {
     "posterllava": "https://github.com/PosterLLaVA/PosterLLaVA",
     "ds-gan": "https://github.com/PKU-ICST-MIPL/PosterLayout-CVPR2023",
     "cgb-dm": "https://github.com/yuli0103/LayoutDiT",
+    "canvas-vae": "https://github.com/CyberAgentAILab/canvas-vae",
     "dlt": "https://github.com/wix-incubator/DLT",
     "smarttext": "https://github.com/intchous/SmartText",
     "basnet": "https://github.com/xuebinqin/BASNet",

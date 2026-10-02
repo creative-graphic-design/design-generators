@@ -29,6 +29,7 @@ def main() -> None:
     tf, _, _ = import_original()
     for device in tf.config.list_physical_devices("GPU"):
         tf.config.experimental.set_memory_growth(device, True)
+
     tf.keras.utils.set_random_seed(args.seed)
 
     from canvasvae.main import parse_args

@@ -200,6 +200,7 @@ def test_s0_topology_and_static_config(
     assert columns["length"]["input_dim"] == config.max_length == 50
     for field, size in config.field_sizes.items():
         assert columns[field]["input_dim"] == size
+
     assert [
         config.field_sizes[key]
         for key in ("left", "clickable", "component", "icon", "text_button")
@@ -368,6 +369,7 @@ def test_s0_topology_and_static_config(
             FORWARD_ATOL,
             measured,
         )
+
     report("s0", measured)
 
 
@@ -414,6 +416,7 @@ def test_s1_fixed_batch_forward_trace(
             FORWARD_ATOL,
             measured,
         )
+
     assert_close(
         "z_mean", output.z_mean, step0["z_mean"], FORWARD_RTOL, FORWARD_ATOL, measured
     )
@@ -443,10 +446,12 @@ def test_s1_fixed_batch_forward_trace(
             FORWARD_ATOL,
             measured,
         )
+
     for key, value in output.reconstruction_losses.items():
         assert_close(
             f"loss/{key}", value, step0[f"metric/{key}_loss"], FORWARD_RTOL, 0, measured
         )
+
     assert_close(
         "kl_divergence",
         output.kl_divergence,
@@ -528,6 +533,7 @@ def test_s2_one_optimizer_step(
             STEP_ATOL,
             measured,
         )
+
     assert_close(
         "running_mean",
         model.encoder.norm.running_mean,
@@ -578,6 +584,7 @@ def package_trajectory(
             snapshots[step + 1] = {
                 key: value.detach().clone() for key, value in model.state_dict().items()
             }
+
     return losses, norms, snapshots
 
 
@@ -615,7 +622,9 @@ def test_s3_natural_trajectory(
                     .max()
                 ),
             )
+
         parameter_drift[step] = drift
+
     envelope = {
         "package_repeat_max_loss_diff": max(
             abs(a - b) for a, b in zip(first[0], second[0], strict=True)
@@ -627,6 +636,7 @@ def test_s3_natural_trajectory(
         envelope["original_repeat_max_loss_diff"] = float(
             np.abs(repeated - expected).max()
         )
+
     report(
         "s3",
         {
@@ -691,6 +701,7 @@ def content_hashes() -> dict[int, str]:
         for name in handle.namelist():
             if name.endswith(".json"):
                 hashes[int(Path(name).stem)] = f"{stable_hash(handle.read(name)):032x}"
+
     return hashes
 
 
@@ -728,6 +739,7 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id):
             stream_dir / f"records_{split}.jsonl.gz", "rt", encoding="utf-8"
         ) as handle:
             rows = [json.loads(line) for line in handle]
+
         package = {
             key for key, doc in package_documents.items() if doc["split"] == split
         }
@@ -769,6 +781,7 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id):
     replayed = count_values(kept)
     for key in ("class", "component", "icon", "text_button"):
         assert dict(replayed[key]) == dict(original_counts[key]), key
+
     package_counts = json.loads((DATA_DIR / "vocabulary.json").read_text())
     measured["vocabulary_order_equal"] = {
         key: list(package_counts[key]) == list(original_counts[key])
@@ -803,6 +816,7 @@ def test_s4_stream_replay(stream_dir, package_documents, hashes_by_id, static):
         for key in ("length", *SEQUENCE_COLUMNS):
             hasher.update(key.encode())
             hasher.update(np.ascontiguousarray(arrays[key], dtype=np.int64).tobytes())
+
         return hasher.hexdigest(), element_ids.shape[1]
 
     measured = {}

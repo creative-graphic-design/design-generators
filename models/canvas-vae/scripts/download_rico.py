@@ -18,6 +18,7 @@ def md5sum(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             digest.update(chunk)
+
     return digest.hexdigest()
 
 
@@ -36,6 +37,7 @@ def main() -> None:
         partial = args.output.with_suffix(".part")
         with urllib.request.urlopen(RICO_URL) as response, partial.open("wb") as handle:
             shutil.copyfileobj(response, handle)
+
         partial.rename(args.output)
 
     checksum = md5sum(args.output)

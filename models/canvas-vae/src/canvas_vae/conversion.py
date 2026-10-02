@@ -55,6 +55,7 @@ def _block(package: str, original: str) -> dict[str, TensorFlowSource]:
     }
     for name, source in projections.items():
         mapping |= _dense(f"{package}.attention.{name}", f"{original}/attn/{source}")
+
     mapping |= _dense(f"{package}.conditional", f"{original}/conditional")
     mapping |= _dense(f"{package}.mlp.0", f"{original}/mlp/layer_with_weights-0")
     return mapping | _dense(f"{package}.mlp.2", f"{original}/mlp/layer_with_weights-1")
@@ -106,11 +107,13 @@ def tensorflow_key_map(config: CanvasVAEConfig) -> dict[str, TensorFlowSource]:
         mapping |= _dense(
             f"decoder.field_heads.{field}", f"decoder/head/decoders/{field}"
         )
+
     for index in range(config.num_blocks):
         for part in ("encoder", "decoder"):
             mapping |= _block(
                 f"{part}.blocks.{index}", f"{part}/seq2seq/seq2seq_{index}"
             )
+
     return mapping
 
 
@@ -153,6 +156,7 @@ def convert_tensorflow_variables(
         state_dict[key] = torch.from_numpy(
             np.ascontiguousarray(value.T if source.transpose else value)
         )
+
     return state_dict
 
 

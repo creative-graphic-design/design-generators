@@ -139,6 +139,7 @@ class CanvasVAEConfig(PretrainedConfig):
         sizes[CanvasVAEField.clickable] = NUM_CLICKABLE_CLASSES
         for key in VOCABULARY_FIELDS:
             sizes[key] = len(self.vocabularies[key])
+
         return sizes
 
     @property

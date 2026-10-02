@@ -17,6 +17,7 @@ def tensorflow_variables(model, config):
     for key, source in tensorflow_key_map(config).items():
         value = state[key].numpy()
         variables[source.key + VARIABLE_SUFFIX] = value.T if source.transpose else value
+
     variables["optimizer/iter/.ATTRIBUTES/VARIABLE_VALUE"] = np.zeros(())
     variables["encoder/norm/gamma/.OPTIMIZER_SLOT/optimizer/m/.ATTRIBUTES/VARIABLE_VALUE"] = np.zeros(16)
     return variables

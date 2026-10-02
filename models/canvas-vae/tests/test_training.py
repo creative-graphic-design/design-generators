@@ -22,6 +22,7 @@ def keras_adam_reference(param, grads, lr=1e-3, b1=0.9, b2=0.999, eps=1e-7):
         v = v + (grad**2 - v) * (1 - b2)
         alpha = lr * math.sqrt(1 - b2**step) / (1 - b1**step)
         param = param - m * alpha / (v.sqrt() + eps)
+
     return param, m, v
 
 
@@ -34,6 +35,7 @@ def test_keras_adam_matches_reference():
     for grad in grads:
         param.grad = grad.clone()
         optimizer.step()
+
     expected, m, v = keras_adam_reference(start, grads)
     torch.testing.assert_close(param.detach(), expected)
     torch.testing.assert_close(optimizer.state[param]["exp_avg"], m)
@@ -64,6 +66,7 @@ def test_l2_penalty_covers_dense_and_embedding_only():
     model = nn.Sequential(nn.Embedding(2, 2), nn.Linear(2, 1), nn.LayerNorm(1))
     for param in model.parameters():
         nn.init.ones_(param)
+
     assert l2_penalty(model, 0.5).item() == 0.5 * (4 + 2 + 1)
 
 

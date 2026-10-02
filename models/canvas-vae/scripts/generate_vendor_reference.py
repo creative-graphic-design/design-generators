@@ -229,12 +229,13 @@ def install_noise_recorder(tf, encoder):
             epsilon = tf.random.normal(shape=tf.shape(z_log_sigma))
             self.noise.assign(epsilon)
             z_mean += tf.exp(0.5 * z_log_sigma) * epsilon
+
         return z_mean
 
     encoder.VariationalHead.call = call
 
 
-def batch_arrays(batch) -> dict[str, np.ndarray]:
+def batch_arrays(batch) -> dict[str, Shaped[np.ndarray, "..."]]:
     """Return the prepared model inputs of one original batch as compact arrays."""
     return {
         key: batch[key].numpy().reshape(batch[key].shape[0], -1).astype(np.uint8)
@@ -244,16 +245,17 @@ def batch_arrays(batch) -> dict[str, np.ndarray]:
     }
 
 
-def batch_digest(arrays: dict[str, np.ndarray]) -> str:
+def batch_digest(arrays: dict[str, Shaped[np.ndarray, "..."]]) -> str:
     """Return a SHA-256 digest of prepared batch arrays."""
     digest = hashlib.sha256()
     for key in COLUMNS:
         digest.update(key.encode())
         digest.update(np.ascontiguousarray(arrays[key], dtype=np.int64).tobytes())
+
     return digest.hexdigest()
 
 
-def weight_arrays(model) -> dict[str, np.ndarray]:
+def weight_arrays(model) -> dict[str, Shaped[np.ndarray, "..."]]:
     """Return model variables keyed by checkpoint object-graph path."""
     return {
         path.replace(".", "/"): variable.numpy()
@@ -271,6 +273,7 @@ def regularization_loss(tf, model):
             variable = getattr(layer, attribute, None)
             if regularizer is not None and variable is not None:
                 terms.append(regularizer(variable))
+
     return tf.add_n(terms), len(terms)
 
 
@@ -302,6 +305,7 @@ def static_record(tf, spec_module, dataspec, model, input_columns) -> dict:
                 initializers[
                     f"{type(initializer).__name__}:{json.dumps(config, sort_keys=True)}"
                 ] = 1
+
     _, num_regularized = regularization_loss(tf, model)
     return {
         "tensorflow_version": tf.__version__,
@@ -391,6 +395,7 @@ def record_layer_outputs(model):
             return output
 
         layer.call = call
+
     return recorded
 
 
@@ -424,6 +429,7 @@ def trace(args: argparse.Namespace) -> None:
     with tf.GradientTape() as tape:
         outputs = model(inputs[0], training=True)
         total = model.compute_loss(inputs[0], None, outputs, None)
+
     l2, _ = regularization_loss(tf, model)
     step0 = dict(eval_trace)
     step0.update({f"logits/{key}": value.numpy() for key, value in outputs.items()})
@@ -464,6 +470,7 @@ def trace(args: argparse.Namespace) -> None:
         index = model.optimizer._index_dict[model.optimizer._var_key(variable)]
         step0[f"m/{paths[id(variable)]}"] = model.optimizer._momentums[index].numpy()
         step0[f"v/{paths[id(variable)]}"] = model.optimizer._velocities[index].numpy()
+
     step0["iterations"] = model.optimizer.iterations.numpy()
     step0["learning_rate"] = model.optimizer.learning_rate.numpy()
     step0.update({f"after/{key}": value for key, value in weight_arrays(model).items()})
@@ -474,6 +481,7 @@ def trace(args: argparse.Namespace) -> None:
         with tf.GradientTape() as tape:
             y_pred = model(x, training=True)
             loss = model.compute_loss(x, None, y_pred, None)
+
         grads = tape.gradient(loss, model.trainable_variables)
         norm = tf.linalg.global_norm(grads)
         model.optimizer.apply_gradients(zip(grads, model.trainable_variables))
@@ -496,6 +504,7 @@ def trace(args: argparse.Namespace) -> None:
         trajectory["grad_norm"].append(float(norm))
         for metric in model.metrics:
             trajectory[f"metric/{metric.name}"].append(float(metric.result()))
+
         if (step + 1) % args.snapshot_every == 0:
             snapshots.update(
                 {
@@ -570,7 +579,9 @@ def dump_records(tf, path_pattern: str) -> list[dict]:
                 if value.dtype == tf.string
                 else values
             )
+
         rows.append(row)
+
     return rows
 
 
@@ -585,6 +596,7 @@ def stream(args: argparse.Namespace) -> None:
             out / f"records_{split}.jsonl.gz", "wt", encoding="utf-8"
         ) as handle:
             handle.writelines(json.dumps(row) + "\n" for row in rows)
+
     for name in ("vocabulary.json", "count.json"):
         (out / name).write_bytes((args.data_dir / name).read_bytes())
 
@@ -611,6 +623,7 @@ def stream(args: argparse.Namespace) -> None:
             for index, batch in enumerate(dataset):
                 if steps is not None and index >= steps:
                     break
+
                 arrays = batch_arrays(batch)
                 batches.append(
                     {
@@ -619,7 +632,9 @@ def stream(args: argparse.Namespace) -> None:
                         "digest": batch_digest(arrays),
                     }
                 )
+
             orders[f"{split}/attempt{attempt}"] = batches
+
     (out / "streams.json").write_text(json.dumps(orders))
 
 

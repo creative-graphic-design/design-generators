@@ -110,8 +110,10 @@ def split_for_hash(content_hash: int) -> RicoSplit:
     remainder = content_hash % 10
     if remainder == 0:
         return RicoSplit.val
+
     if remainder == 1:
         return RicoSplit.test
+
     return RicoSplit.train
 
 
@@ -188,6 +190,7 @@ def read_rico_archive(
                     "elements": elements,
                 }
             )
+
     return documents
 
 
@@ -214,6 +217,7 @@ def count_values(documents: Sequence[RicoDocument]) -> dict[str, dict[str, int]]
         for element in document["elements"]:
             for key in COUNTED_FIELDS:
                 counters[key][element[key]] += 1  # ty: ignore[invalid-key]
+
     return {
         key: dict(sorted(counter.items(), key=lambda item: (-item[1], item[0])))
         for key, counter in counters.items()

@@ -35,10 +35,12 @@ def main() -> None:
     parser.add_argument("--device", default="cpu", help="Torch device (default: %(default)s).")
     parser.add_argument("--output", type=Path, required=True, help="Result JSON path.")
     args = parser.parse_args()
+
     model = CanvasVAEPipeline.from_pretrained(args.checkpoint, local_files_only=True).model.to(args.device).eval()
     config = model.config
     processor = CanvasVAEProcessor(config.vocabularies, num_bins=config.num_bins)
     documents = load_rico_split(args.data_dir, "test")
+
     sums: dict[str, float] = {}
     kl_values = []
     for batch in sequential_batches(len(documents), args.batch_size):
@@ -50,6 +52,7 @@ def main() -> None:
         scores |= layout_scores(encoded["element_ids"], target_mask, predicted, output.mask, grid_size=config.num_bins, num_labels=config.field_sizes["component"], background_id=config.primary_label_id)
         for key, values in scores.items():
             sums[key] = sums.get(key, 0.0) + float(values.sum())
+
         kl_values.append(float(output.kl_divergence))
 
     results = {f"reconst_{key}": value / len(documents) for key, value in sums.items()}
@@ -62,6 +65,7 @@ def main() -> None:
         predicted = torch.stack([logits.argmax(-1) for logits in output.element_logits.values()], dim=-1)
         generated = field_histograms(output.mask.sum(-1), predicted, config.field_sizes, config.max_length)
         results |= {f"random_seed{seed}_{key}": value for key, value in histogram_scores(reference_histograms, generated).items()}
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=1))
     print(json.dumps(results, indent=1))

@@ -50,6 +50,7 @@ def write_archive(path: Path, screens: dict[str, dict]) -> Path:
         for name, screen in screens.items():
             handle.writestr(f"semantic_annotations/{name}.json", json.dumps(screen))
             handle.writestr(f"semantic_annotations/{name}.png", b"")
+
     return path
 
 
@@ -66,6 +67,7 @@ def synthetic_screens(count: int = 40) -> dict[str, dict]:
             for j in range(1 + index % 4)
         ]
         screens[str(index)] = node((0, 0, 1440, 2560), children=children, salt=index)
+
     return screens
 
 

@@ -136,6 +136,7 @@ def component_grid(
             continue
 
         grid[top : bottom + 1, left : right + 1] = rest[-1]
+
     return grid
 
 
@@ -186,6 +187,7 @@ def layout_scores(
         valid = (union > 0).float()
         accuracies.append(intersection.sum() / confusion.sum())
         mean_ious.append((valid * intersection / (union + 1e-9)).sum() / valid.sum())
+
     return {
         "layout_acc": torch.stack(accuracies),
         "layout_miou": torch.stack(mean_ious),
@@ -223,6 +225,7 @@ def field_histograms(
     for index, field in enumerate(CanvasVAEField):
         values = element_ids[..., index][mask]
         histograms[field] = torch.bincount(values, minlength=field_sizes[field]).float()
+
     return {key: value / value.sum() for key, value in histograms.items()}
 
 

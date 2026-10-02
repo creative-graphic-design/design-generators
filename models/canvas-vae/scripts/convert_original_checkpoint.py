@@ -38,6 +38,7 @@ def main() -> None:
         state_dict = load_lightning_state_dict(args.checkpoint)
     else:
         state_dict = convert_tensorflow_variables(read_tensorflow_variables(args.checkpoint), config)
+
     model = CanvasVAEModel(config)
     model.load_state_dict(state_dict, strict=True)
     CanvasVAEPipeline(model=model).save_pretrained(args.output_dir)

@@ -9,7 +9,7 @@ from typing import ClassVar, Literal, Self, cast
 
 import numpy as np
 import torch
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float, Int, Shaped
 from laygen.common.bbox import BoxFormat, clamp_boxes, ltwh_to_xywh
 from laygen.common.conditions import ConditionType, normalize_condition_type
 from laygen.common.randomness import randn
@@ -19,9 +19,6 @@ from laygen.pipelines.base import PipelineComponent
 
 from .configuration_canvas_vae import CanvasVAEConfig, CanvasVAEField
 from .modeling_canvas_vae import CanvasVAEModel
-
-LayoutArgument = torch.Tensor | np.ndarray | list | None
-
 
 class OutputType(StrEnum):
     """Return container of :meth:`CanvasVAEPipeline.__call__`."""
@@ -122,17 +119,17 @@ class CanvasVAEPipeline(LayoutGenerationPipeline):
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: LayoutArgument = None,
-        bbox: LayoutArgument = None,
-        mask: LayoutArgument = None,
-        num_elements: int | list[int] | torch.Tensor | None = None,
+        labels: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
+        bbox: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
+        mask: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
+        num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
         normalized: bool = True,
         canvas_size: tuple[int, int] | None = None,
         num_inference_steps: int | None = None,
         output_type: OutputType | str = OutputType.dataclass,
         return_intermediates: bool = False,
-    ) -> LayoutGenerationOutput | dict[str, torch.Tensor]:
+    ) -> LayoutGenerationOutput | dict[str, Shaped[torch.Tensor, "..."]]:
         """Generate layouts from prior samples.
 
         Args:
