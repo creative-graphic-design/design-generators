@@ -1,10 +1,12 @@
 import json
+from typing import cast
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from canvas_vae import CanvasVAEConfig
+from canvas_vae.processing_canvas_vae import RicoNode
 
 VOCABULARIES = {
     "component": ["[UNK]", "", "Text", "Icon"],
@@ -13,16 +15,14 @@ VOCABULARIES = {
 }
 
 
-def tiny_config(**overrides) -> CanvasVAEConfig:
-    options = {
-        "vocabularies": VOCABULARIES,
-        "max_length": 6,
-        "num_bins": 8,
-        "latent_dim": 16,
-        "num_heads": 2,
-    }
-    options.update(overrides)
-    return CanvasVAEConfig(**options)
+def tiny_config(**overrides: float) -> CanvasVAEConfig:
+    config = CanvasVAEConfig(
+        vocabularies=VOCABULARIES, max_length=6, num_bins=8, latent_dim=16, num_heads=2
+    )
+    for key, value in overrides.items():
+        setattr(config, key, value)
+
+    return config
 
 
 @pytest.fixture
@@ -40,11 +40,19 @@ def vocabularies():
     return VOCABULARIES
 
 
-def node(bounds, *, children=(), **attributes):
-    return {"bounds": list(bounds), "class": "View", "children": list(children), **attributes}
+def node(bounds, *, children=(), **attributes: str | bool) -> RicoNode:
+    return cast(
+        RicoNode,
+        {
+            "bounds": list(bounds),
+            "class": "View",
+            "children": list(children),
+            **attributes,
+        },
+    )
 
 
-def write_archive(path: Path, screens: dict[str, dict]) -> Path:
+def write_archive(path: Path, screens: dict[str, RicoNode]) -> Path:
     with zipfile.ZipFile(path, "w") as handle:
         handle.writestr("semantic_annotations/", "")
         for name, screen in screens.items():
@@ -54,7 +62,7 @@ def write_archive(path: Path, screens: dict[str, dict]) -> Path:
     return path
 
 
-def synthetic_screens(count: int = 40) -> dict[str, dict]:
+def synthetic_screens(count: int = 40) -> dict[str, RicoNode]:
     screens = {}
     for index in range(count):
         children = [
@@ -66,7 +74,7 @@ def synthetic_screens(count: int = 40) -> dict[str, dict]:
             )
             for j in range(1 + index % 4)
         ]
-        screens[str(index)] = node((0, 0, 1440, 2560), children=children, salt=index)
+        screens[str(index)] = node((0, 0, 1440, 2560 - index), children=children)
 
     return screens
 

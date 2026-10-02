@@ -15,6 +15,7 @@ from ..modeling_canvas_vae import CanvasVAEModel, length_mask
 from ..processing_canvas_vae import load_rico_vocabularies
 from .optim import KerasAdam, clip_gradients_by_norm, l2_penalty
 
+
 class CanvasVAETrainingModule(L.LightningModule):
     """Train a CanvasVAE model with its reconstruction, KL, and L2 losses.
 
@@ -115,7 +116,9 @@ class CanvasVAETrainingModule(L.LightningModule):
         self.validation_sums = {}
         self.validation_count = 0
 
-    def validation_step(self, batch: Mapping[str, Int[torch.Tensor, "..."]], batch_idx: int) -> None:
+    def validation_step(
+        self, batch: Mapping[str, Int[torch.Tensor, "..."]], batch_idx: int
+    ) -> None:
         """Accumulate per-document reconstruction scores.
 
         Args:

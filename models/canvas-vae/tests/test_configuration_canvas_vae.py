@@ -3,10 +3,16 @@ import pytest
 from canvas_vae import CanvasVAEConfig
 
 
-
 def test_field_sizes_and_labels(config, vocabularies):
     assert list(config.field_sizes) == [
-        "left", "top", "width", "height", "clickable", "component", "icon", "text_button"
+        "left",
+        "top",
+        "width",
+        "height",
+        "clickable",
+        "component",
+        "icon",
+        "text_button",
     ]
     assert config.field_sizes["left"] == 8
     assert config.field_sizes["clickable"] == 2

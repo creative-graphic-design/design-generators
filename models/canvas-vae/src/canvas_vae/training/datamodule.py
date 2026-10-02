@@ -96,7 +96,7 @@ class CanvasVAEDataModule(L.LightningDataModule):
 
     def _loader(
         self, split: RicoSplit, batches: CrossEpochBatchSampler | list[list[int]] | None
-    ) -> DataLoader:
+    ) -> DataLoader[list[RicoElement]]:
         if self.processor is None or batches is None:
             raise RuntimeError("call setup() before requesting data loaders")
 
@@ -107,16 +107,16 @@ class CanvasVAEDataModule(L.LightningDataModule):
             num_workers=self.num_workers,
         )
 
-    def train_dataloader(self) -> DataLoader:
+    def train_dataloader(self) -> DataLoader[list[RicoElement]]:
         """Return the cross-epoch training stream."""
         return self._loader(RicoSplit.train, self.train_sampler)
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> DataLoader[list[RicoElement]]:
         """Return full batches over a repeated ordered validation pass."""
         size = len(self.splits.get(RicoSplit.val, ()))
         return self._loader(RicoSplit.val, wrapping_batches(size, self.batch_size))
 
-    def test_dataloader(self) -> DataLoader:
+    def test_dataloader(self) -> DataLoader[list[RicoElement]]:
         """Return one ordered test pass."""
         size = len(self.splits.get(RicoSplit.test, ()))
         return self._loader(RicoSplit.test, sequential_batches(size, self.batch_size))

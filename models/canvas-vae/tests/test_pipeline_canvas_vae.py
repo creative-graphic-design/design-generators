@@ -1,6 +1,10 @@
 import pytest
 import torch
-from laygen.common.testing import assert_generator_reproducible, assert_layout_output_schema
+from laygen.modeling_outputs import LayoutGenerationOutput
+from laygen.common.testing import (
+    assert_generator_reproducible,
+    assert_layout_output_schema,
+)
 
 from canvas_vae import CanvasVAEModel, CanvasVAEPipeline
 from canvas_vae.pipeline_canvas_vae import bins_to_ltwh
@@ -20,9 +24,21 @@ def test_unconditional_output_schema(pipe):
 
 
 def test_generator_reproducible_and_wins_over_seed(pipe):
-    assert_generator_reproducible(lambda generator: pipe(batch_size=2, generator=generator))
-    first = pipe(batch_size=2, seed=1, generator=torch.Generator().manual_seed(5), return_intermediates=True)
-    second = pipe(batch_size=2, seed=2, generator=torch.Generator().manual_seed(5), return_intermediates=True)
+    assert_generator_reproducible(
+        lambda generator: pipe(batch_size=2, generator=generator)
+    )
+    first = pipe(
+        batch_size=2,
+        seed=1,
+        generator=torch.Generator().manual_seed(5),
+        return_intermediates=True,
+    )
+    second = pipe(
+        batch_size=2,
+        seed=2,
+        generator=torch.Generator().manual_seed(5),
+        return_intermediates=True,
+    )
     assert torch.equal(first.intermediates["latents"], second.intermediates["latents"])
 
 
@@ -52,7 +68,12 @@ def test_save_and_load(tmp_path, pipe):
     loaded = CanvasVAEPipeline.from_pretrained(tmp_path)
     expected = pipe(batch_size=2, seed=3)
     actual = loaded(batch_size=2, seed=3)
-    assert torch.equal(actual.bbox, expected.bbox) and torch.equal(actual.labels, expected.labels)
+    assert isinstance(actual, LayoutGenerationOutput) and isinstance(
+        expected, LayoutGenerationOutput
+    )
+    assert torch.equal(actual.bbox, expected.bbox) and torch.equal(
+        actual.labels, expected.labels
+    )
 
 
 def test_bins_to_ltwh():

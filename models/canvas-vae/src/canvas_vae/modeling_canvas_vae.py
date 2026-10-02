@@ -49,7 +49,7 @@ class CanvasVAEModelOutput(ModelOutput):
 
 
 def length_mask(
-    length_ids: Int[torch.Tensor, batch], max_elements: int | None = None
+    length_ids: Int[torch.Tensor, "batch"], max_elements: int | None = None
 ) -> Bool[torch.Tensor, "batch elements"]:
     """Build a valid-element mask from zero-based element-count ids.
 
@@ -82,6 +82,9 @@ class CanvasVAEBatchNorm(nn.Module):
         eps: Variance epsilon.
         momentum: Moving-average momentum of the previous statistic.
     """
+
+    running_mean: Float[torch.Tensor, "features"]
+    running_var: Float[torch.Tensor, "features"]
 
     def __init__(self, num_features: int, eps: float, momentum: float) -> None:
         """Create parameters and moving statistics."""
@@ -229,7 +232,7 @@ class CanvasVAEEncoder(nn.Module):
 
     def forward(
         self,
-        length_ids: Int[torch.Tensor, batch],
+        length_ids: Int[torch.Tensor, "batch"],
         element_ids: Int[torch.Tensor, "batch elements fields"],
     ) -> tuple[Float[torch.Tensor, "batch dim"], Float[torch.Tensor, "batch dim"]]:
         """Return the posterior mean and log-variance.
@@ -383,7 +386,7 @@ class CanvasVAEModel(CanvasVAEPreTrainedModel):
 
     def forward(
         self,
-        num_elements: Int[torch.Tensor, batch] | None = None,
+        num_elements: Int[torch.Tensor, "batch"] | None = None,
         element_ids: Int[torch.Tensor, "batch elements fields"] | None = None,
         *,
         latents: Float[torch.Tensor, "batch dim"] | None = None,

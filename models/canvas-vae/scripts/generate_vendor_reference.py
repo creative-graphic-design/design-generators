@@ -32,15 +32,22 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-import numpy as np
-from laygen.common.vendor import vendor_root
-from traingen_parity.tensorflow_compat import (
+import numpy as np  # noqa: E402
+from jaxtyping import Shaped  # noqa: E402
+from laygen.common.vendor import vendor_root  # noqa: E402
+from traingen_parity.tensorflow_compat import (  # noqa: E402
     install_keras_preprocessing_compat,
 )
+
+if TYPE_CHECKING:
+    import tensorflow as tf
+
+JsonValue = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VENDOR = vendor_root("canvas-vae", marker="src/canvas-vae/canvasvae/train.py")
@@ -60,8 +67,8 @@ SEQUENCE_COLUMNS = COLUMNS[1:]
 # in-process FnApiRunner in the Beam releases of its time; current Beam routes
 # DirectRunner to the Prism runner instead, so the runner is named explicitly.
 FN_API_RUNNER = "apache_beam.runners.portability.fn_api_runner.FnApiRunner"
-NOISE: list = []
-MASK_CONSUMING_BATCH_NORMALIZATION: list = []
+NOISE: list[tf.Variable] = []
+MASK_CONSUMING_BATCH_NORMALIZATION: list[type[tf.keras.layers.BatchNormalization]] = []
 
 
 def parse_args() -> argparse.Namespace:
@@ -287,7 +294,9 @@ def regularization_loss(tf, model):
     return tf.add_n(terms), len(terms)
 
 
-def static_record(tf, spec_module, dataspec, model, input_columns) -> dict:
+def static_record(
+    tf, spec_module, dataspec, model, input_columns
+) -> dict[str, JsonValue]:
     """Collect configuration and effective-behavior facts of the original run."""
     from canvasvae import main
 
@@ -520,7 +529,9 @@ def trace(args: argparse.Namespace) -> None:
         model.reset_metrics()
         before = optimizer_state(model, paths)
         loss, norm, grads = train_step(inputs[step])
-        before.update({f"grad/{paths[id(v)]}": g.numpy() for g, v in zip(grads, variables)})
+        before.update(
+            {f"grad/{paths[id(v)]}": g.numpy() for g, v in zip(grads, variables)}
+        )
         np.savez(sync_dir / f"step{step}.npz", total_loss=loss.numpy(), **before)
         trajectory["noise"].append(NOISE[0].numpy())
         trajectory["total_loss"].append(float(loss))
@@ -537,11 +548,8 @@ def trace(args: argparse.Namespace) -> None:
             )
 
     np.savez(sync_dir / "final.npz", **optimizer_state(model, paths))
-    np.savez(
-        out / "trajectory.npz",
-        **{key: np.asarray(value) for key, value in trajectory.items()},
-        **snapshots,
-    )
+    arrays = {key: np.asarray(value) for key, value in trajectory.items()}
+    np.savez(out / "trajectory.npz", **arrays, **snapshots)  # ty: ignore[invalid-argument-type]
     np.savez_compressed(
         out / "batches.npz",
         **{
@@ -553,7 +561,9 @@ def trace(args: argparse.Namespace) -> None:
     static["unpatched_batch_norm_error"] = unpatched_batch_norm_error(
         tf, input_columns, inputs[0]
     )
-    (out / "static.json").write_text(json.dumps(static, indent=1, default=lambda value: value.item()))
+    (out / "static.json").write_text(
+        json.dumps(static, indent=1, default=lambda value: value.item())
+    )
 
 
 def unpatched_batch_norm_error(tf, input_columns, inputs) -> str:
@@ -572,7 +582,7 @@ def unpatched_batch_norm_error(tf, input_columns, inputs) -> str:
     return "none"
 
 
-def dump_records(tf, path_pattern: str) -> list[dict]:
+def dump_records(tf, path_pattern: str) -> list[dict[str, JsonValue]]:
     """Return every TFRecord of a split with raw field values."""
     rows = []
     files = sorted(tf.io.gfile.glob(path_pattern))

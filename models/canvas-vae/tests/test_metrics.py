@@ -21,7 +21,19 @@ def test_bleu1_precision_and_brevity():
 
 
 def test_reconstruction_scores_total_is_field_mean():
-    sizes = {name: 4 for name in ("left", "top", "width", "height", "clickable", "component", "icon", "text_button")}
+    sizes = {
+        name: 4
+        for name in (
+            "left",
+            "top",
+            "width",
+            "height",
+            "clickable",
+            "component",
+            "icon",
+            "text_button",
+        )
+    }
     ids = torch.randint(0, 4, (2, 3, 8), generator=torch.Generator().manual_seed(0))
     mask = torch.ones(2, 3, dtype=torch.bool)
     scores = reconstruction_scores(ids, mask, ids, mask, sizes)
@@ -30,10 +42,12 @@ def test_reconstruction_scores_total_is_field_mean():
 
 
 def test_component_grid_skips_empty_spans_and_clips():
-    elements = torch.tensor([
-        [0, 0, 0, 2, 0, 5, 0, 0],
-        [1, 1, 9, 9, 0, 3, 0, 0],
-    ])
+    elements = torch.tensor(
+        [
+            [0, 0, 0, 2, 0, 5, 0, 0],
+            [1, 1, 9, 9, 0, 3, 0, 0],
+        ]
+    )
     grid = component_grid(elements, grid_size=4, background_id=1)
     assert grid.tolist() == [[1, 1, 1, 1], [1, 3, 3, 3], [1, 3, 3, 3], [1, 3, 3, 3]]
 
@@ -41,17 +55,33 @@ def test_component_grid_skips_empty_spans_and_clips():
 def test_layout_scores_perfect_and_partial():
     target = torch.tensor([[[0, 0, 1, 1, 0, 2, 0, 0]]])
     mask = torch.tensor([[True]])
-    perfect = layout_scores(target, mask, target, mask, grid_size=4, num_labels=3, background_id=1)
+    perfect = layout_scores(
+        target, mask, target, mask, grid_size=4, num_labels=3, background_id=1
+    )
     assert perfect["layout_acc"].tolist() == [1.0]
     torch.testing.assert_close(perfect["layout_miou"], torch.tensor([1.0]))
     shifted = target.clone()
     shifted[..., 0] = 2
-    partial = layout_scores(target, mask, shifted, mask, grid_size=4, num_labels=3, background_id=1)
+    partial = layout_scores(
+        target, mask, shifted, mask, grid_size=4, num_labels=3, background_id=1
+    )
     assert partial["layout_acc"].item() == 8 / 16
 
 
 def test_histograms_and_scores():
-    sizes = {name: 3 for name in ("left", "top", "width", "height", "clickable", "component", "icon", "text_button")}
+    sizes = {
+        name: 3
+        for name in (
+            "left",
+            "top",
+            "width",
+            "height",
+            "clickable",
+            "component",
+            "icon",
+            "text_button",
+        )
+    }
     ids = torch.tensor([[[1] * 8, [2] * 8], [[0] * 8, [9] * 8]])
     hist = field_histograms(torch.tensor([2, 1]), ids, sizes, max_length=3)
     assert hist["length"].tolist() == [0.5, 0.5, 0.0]

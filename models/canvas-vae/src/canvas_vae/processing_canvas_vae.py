@@ -347,7 +347,7 @@ class CanvasVAEProcessor(ProcessorMixin):
         self.num_bins = num_bins
 
     @property
-    def bin_boundaries(self) -> Float[np.ndarray, boundaries]:
+    def bin_boundaries(self) -> Float[np.ndarray, "boundaries"]:
         """Return the float32 geometry bin boundaries."""
         return np.linspace(0.0, 1.0, self.num_bins)[1:].astype(np.float32)
 

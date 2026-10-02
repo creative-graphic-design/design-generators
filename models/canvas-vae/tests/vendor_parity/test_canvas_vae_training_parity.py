@@ -27,6 +27,7 @@ from canvas_vae import CanvasVAEConfig, CanvasVAEModel, CanvasVAEProcessor
 from canvas_vae.configuration_canvas_vae import CanvasVAEField
 from canvas_vae.conversion import convert_tensorflow_variables, tensorflow_key_map
 from canvas_vae.processing_canvas_vae import (
+    RicoDocument,
     build_vocabularies,
     count_values,
     load_rico_split,
@@ -42,6 +43,7 @@ from canvas_vae.training import (
 )
 from laygen.common.testing import skip_or_fail_vendor_parity
 from laygen.common.vendor import vendor_root
+
 
 class Tolerance(NamedTuple):
     """Comparison metric and its upper limit."""
@@ -91,11 +93,13 @@ UPDATE = Tolerance("norm_rel", 5e-2)
 EXACT = Tolerance("max_abs", 0.0)
 ZERO_GRADIENT_LIMIT = 1e-6
 # Later trajectory steps have smaller, more cancelling batch-summed gradients,
-# so some tensors exceed the one-step gradient limit. Such a tensor still agrees
-# when both systems sit at a comparable float32 rounding distance from the same
-# step recomputed in float64: a semantic difference would leave one system far
-# from the float64 gradient while the other stays close.
-ROUNDING_RATIO = 3.0
+# so some tensors exceed the one-step gradient limit. For those tensors the
+# synchronized step recomputes the same step in float64 and requires both the
+# package and the original float32 gradients to lie within ROUNDING_LIMIT of
+# it. In the reference run the largest such distances are 1.6e-3 for both
+# systems (encoder biases at step 36); the original's float32 gradients are
+# typically twice as far from float64 as the package's.
+ROUNDING_LIMIT = 5e-3
 
 
 def require(*paths: Path) -> None:
@@ -108,7 +112,7 @@ def require(*paths: Path) -> None:
         )
 
 
-def report(name: str, payload: dict) -> None:
+def report(name: str, payload) -> None:
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"{name}.json").write_text(json.dumps(payload, indent=1, sort_keys=True))
 
@@ -133,7 +137,7 @@ def assert_close(name, actual, expected, tolerance, measured):
     measured[name]["within"] = measured[name][tolerance.metric] <= tolerance.limit
 
 
-def check_measured(name: str, measured: dict, extra: dict | None = None) -> None:
+def check_measured(name: str, measured, extra=None) -> None:
     report(name, {**(extra or {}), **measured})
     failed = sorted(key for key, value in measured.items() if not value["within"])
     assert not failed, f"outside tolerance: {failed}"
@@ -158,7 +162,7 @@ def trace_dir() -> Path:
 
 
 @pytest.fixture(scope="module")
-def static(trace_dir) -> dict:
+def static(trace_dir):
     return json.loads((trace_dir / "static.json").read_text())
 
 
@@ -262,7 +266,11 @@ def test_s0_topology_and_static_config(
     )
     optimizer = static["optimizer"]
     assert np.float32(optimizer["learning_rate"]) == np.float32(0.001)
-    assert (optimizer["beta_1"], optimizer["beta_2"], optimizer["epsilon"]) == (0.9, 0.999, 1e-07)
+    assert (optimizer["beta_1"], optimizer["beta_2"], optimizer["epsilon"]) == (
+        0.9,
+        0.999,
+        1e-07,
+    )
     assert optimizer["clipnorm"] == 1.0 and optimizer["global_clipnorm"] is None
     assert (
         optimizer["use_ema"] is False
@@ -446,9 +454,7 @@ def test_s1_fixed_batch_forward_trace(
             measured,
         )
 
-    assert_close(
-        "z_mean", output.z_mean, step0["z_mean"], FORWARD, measured
-    )
+    assert_close("z_mean", output.z_mean, step0["z_mean"], FORWARD, measured)
     assert_close(
         "z_log_var",
         output.z_log_var,
@@ -474,9 +480,7 @@ def test_s1_fixed_batch_forward_trace(
         )
 
     for key, value in output.reconstruction_losses.items():
-        assert_close(
-            f"loss/{key}", value, step0[f"metric/{key}_loss"], LOSS, measured
-        )
+        assert_close(f"loss/{key}", value, step0[f"metric/{key}_loss"], LOSS, measured)
 
     assert_close(
         "kl_divergence",
@@ -564,7 +568,8 @@ def test_s2_one_optimizer_step(
         assert_close(
             f"update/{key}",
             parameters[key].detach() - initial_state[key],
-            as_package(step0[f"after/{source}"], transpose) - initial_state[key].numpy(),
+            as_package(step0[f"after/{source}"], transpose)
+            - initial_state[key].numpy(),
             UPDATE,
             measured,
         )
@@ -695,7 +700,9 @@ def test_s3_natural_trajectory(
     assert all(math.isfinite(value) for value in first[0])
 
 
-def float64_gradients(model, num_elements, element_ids, noise) -> dict[str, torch.Tensor]:
+def float64_gradients(
+    model, num_elements, element_ids, noise
+) -> dict[str, torch.Tensor]:
     """Return the gradients of the same step recomputed in float64."""
     exact = copy.deepcopy(model).double()
     output = exact(num_elements, element_ids, posterior_noise=noise.double())
@@ -705,7 +712,11 @@ def float64_gradients(model, num_elements, element_ids, noise) -> dict[str, torc
 
 def synchronized_step(model, optimizer, state, config):
     """Load original weights and Adam state, returning fresh-storage tensors."""
-    weights = {key.removeprefix("weight/"): value for key, value in state.items() if key.startswith("weight/")}
+    weights = {
+        key.removeprefix("weight/"): value
+        for key, value in state.items()
+        if key.startswith("weight/")
+    }
     model.load_state_dict(convert_tensorflow_variables(weights, config), strict=True)
     step = int(state["iterations"])
     for key, source in tensorflow_key_map(config).items():
@@ -717,12 +728,17 @@ def synchronized_step(model, optimizer, state, config):
         for name, prefix in (("exp_avg", "m"), ("exp_avg_sq", "v")):
             array = as_package(state[f"{prefix}/{source.key}"], source.transpose)
             moments[name] = torch.tensor(np.ascontiguousarray(array))
-            assert moments[name].untyped_storage().data_ptr() != parameter.untyped_storage().data_ptr()
+            assert (
+                moments[name].untyped_storage().data_ptr()
+                != parameter.untyped_storage().data_ptr()
+            )
 
         optimizer.state[parameter] = {"step": step, **moments}
 
 
-def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocabularies):
+def test_s3_synchronized_steps(
+    trace_dir, batches, initial_state, original_vocabularies
+):
     sync = trace_dir / "sync"
     trajectory = np.load(trace_dir / "trajectory.npz")
     steps = len(trajectory["total_loss"])
@@ -730,12 +746,18 @@ def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocab
     config = make_config(original_vocabularies, 0.0)
     model = fresh_model(initial_state, original_vocabularies)
     optimizer = KerasAdam(model.parameters())
-    sources = {key: value for key, value in trainable_sources(config).items() if not key.endswith("attention.k_proj.bias")}
+    sources = {
+        key: value
+        for key, value in trainable_sources(config).items()
+        if not key.endswith("attention.k_proj.bias")
+    }
     parameters = dict(model.named_parameters())
     measured: dict[str, dict[str, float]] = {}
     for step in range(1, steps):
         state = dict(np.load(sync / f"step{step}.npz"))
-        after = dict(np.load(sync / (f"step{step + 1}.npz" if step + 1 < steps else "final.npz")))
+        after = dict(
+            np.load(sync / (f"step{step + 1}.npz" if step + 1 < steps else "final.npz"))
+        )
         synchronized_step(model, optimizer, state, config)
         before = {key: value.detach().clone() for key, value in parameters.items()}
         optimizer.zero_grad(set_to_none=True)
@@ -745,7 +767,9 @@ def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocab
         output = model(num_elements, element_ids, posterior_noise=noise)
         loss = output.loss + l2_penalty(model, model.config.l2_weight)
         loss.backward()
-        assert_close(f"step{step}/total_loss", loss, state["total_loss"], LOSS, measured)
+        assert_close(
+            f"step{step}/total_loss", loss, state["total_loss"], LOSS, measured
+        )
         grads = {key: parameters[key].grad.clone() for key in sources}
         clip_gradients_by_norm(model.parameters(), 1.0)
         optimizer.step()
@@ -753,17 +777,44 @@ def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocab
             original = as_package(state[f"grad/{source}"], transpose)
             name = f"step{step}/grad/{key}"
             assert_close(name, grads[key], original, GRADIENT, measured)
-            package_error = float((grads[key].double() - exact[key]).norm() / exact[key].norm())
-            original_error = float((torch.from_numpy(np.ascontiguousarray(original)).double() - exact[key]).norm() / exact[key].norm())
-            measured[name] |= {"package_float64_error": package_error, "original_float64_error": original_error}
+            package_error = float(
+                (grads[key].double() - exact[key]).norm() / exact[key].norm()
+            )
+            original_error = float(
+                (
+                    torch.from_numpy(np.ascontiguousarray(original)).double()
+                    - exact[key]
+                ).norm()
+                / exact[key].norm()
+            )
+            measured[name] |= {
+                "package_float64_error": package_error,
+                "original_float64_error": original_error,
+            }
             if not measured[name]["within"]:
-                ratio = max(package_error, original_error) / max(min(package_error, original_error), 1e-30)
-                measured[name]["within"] = ratio <= ROUNDING_RATIO
+                measured[name]["within"] = (
+                    max(package_error, original_error) <= ROUNDING_LIMIT
+                )
+                measured[name]["float64_arbitrated"] = True
 
-            reference = as_package(after[f"weight/{source}"], transpose) - as_package(state[f"weight/{source}"], transpose)
-            assert_close(f"step{step}/update/{key}", parameters[key].detach() - before[key], reference, UPDATE, measured)
+            reference = as_package(after[f"weight/{source}"], transpose) - as_package(
+                state[f"weight/{source}"], transpose
+            )
+            assert_close(
+                f"step{step}/update/{key}",
+                parameters[key].detach() - before[key],
+                reference,
+                UPDATE,
+                measured,
+            )
 
-        assert_close(f"step{step}/running_var", model.encoder.norm.running_var, after["weight/encoder/norm/moving_variance"], FORWARD, measured)
+        assert_close(
+            f"step{step}/running_var",
+            model.encoder.norm.running_var,
+            after["weight/encoder/norm/moving_variance"],
+            FORWARD,
+            measured,
+        )
 
     check_measured("s3_synchronized", measured)
 
@@ -831,7 +882,7 @@ def stream_dir() -> Path:
 
 
 @pytest.fixture(scope="module")
-def package_documents() -> dict[str, dict]:
+def package_documents() -> dict[str, RicoDocument]:
     return {
         document["content_hash"]: document
         for split in ("train", "val", "test")

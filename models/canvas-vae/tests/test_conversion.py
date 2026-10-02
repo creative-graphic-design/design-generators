@@ -19,7 +19,9 @@ def tensorflow_variables(model, config):
         variables[source.key + VARIABLE_SUFFIX] = value.T if source.transpose else value
 
     variables["optimizer/iter/.ATTRIBUTES/VARIABLE_VALUE"] = np.zeros(())
-    variables["encoder/norm/gamma/.OPTIMIZER_SLOT/optimizer/m/.ATTRIBUTES/VARIABLE_VALUE"] = np.zeros(16)
+    variables[
+        "encoder/norm/gamma/.OPTIMIZER_SLOT/optimizer/m/.ATTRIBUTES/VARIABLE_VALUE"
+    ] = np.zeros(16)
     return variables
 
 
@@ -39,7 +41,9 @@ def test_round_trip_and_rejections(config):
         assert torch.equal(restored.state_dict()[key], value), key
 
     with pytest.raises(KeyError, match="unexpected"):
-        convert_tensorflow_variables({**variables, "encoder/seq2seq/seq2seq_0/norm3/gamma": np.ones(16)}, config)
+        convert_tensorflow_variables(
+            {**variables, "encoder/seq2seq/seq2seq_0/norm3/gamma": np.ones(16)}, config
+        )
 
     missing = dict(variables)
     missing.pop("encoder/norm/moving_mean" + VARIABLE_SUFFIX)
@@ -49,7 +53,10 @@ def test_round_trip_and_rejections(config):
 
 def test_load_lightning_state_dict(tmp_path, config):
     model = CanvasVAEModel(config)
-    payload = {"state_dict": {f"model.{k}": v for k, v in model.state_dict().items()} | {"other.x": torch.zeros(1)}}
+    payload = {
+        "state_dict": {f"model.{k}": v for k, v in model.state_dict().items()}
+        | {"other.x": torch.zeros(1)}
+    }
     torch.save(payload, tmp_path / "last.ckpt")
     state = load_lightning_state_dict(tmp_path / "last.ckpt")
     assert set(state) == set(model.state_dict())

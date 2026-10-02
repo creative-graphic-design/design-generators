@@ -16,9 +16,11 @@ from laygen.common.randomness import randn
 from laygen.modeling_outputs import LayoutGenerationOutput
 from laygen.pipelines import LayoutGenerationPipeline, PipelineComponentSpec
 from laygen.pipelines.base import PipelineComponent
+from transformers import PretrainedConfig
 
 from .configuration_canvas_vae import CanvasVAEConfig, CanvasVAEField
 from .modeling_canvas_vae import CanvasVAEModel
+
 
 class OutputType(StrEnum):
     """Return container of :meth:`CanvasVAEPipeline.__call__`."""
@@ -104,7 +106,7 @@ class CanvasVAEPipeline(LayoutGenerationPipeline):
     def _from_pretrained_components(
         cls,
         *,
-        config: CanvasVAEConfig,
+        config: PretrainedConfig,
         components: Mapping[str, PipelineComponent | None],
     ) -> CanvasVAEPipeline:
         """Build the pipeline from a loaded model."""
@@ -112,16 +114,25 @@ class CanvasVAEPipeline(LayoutGenerationPipeline):
         return cls(model=cast(CanvasVAEModel, components["model"]))
 
     @torch.no_grad()
-    def __call__(
+    def __call__(  # ty: ignore[invalid-method-override]
         self,
         *,
         batch_size: int = 1,
         seed: int | None = None,
         generator: torch.Generator | None = None,
         condition_type: ConditionType | str = ConditionType.unconditional,
-        labels: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
-        bbox: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
-        mask: Shaped[torch.Tensor, "..."] | Shaped[np.ndarray, "..."] | list | None = None,
+        labels: Shaped[torch.Tensor, "..."]
+        | Shaped[np.ndarray, "..."]
+        | list[list[int]]
+        | None = None,
+        bbox: Shaped[torch.Tensor, "..."]
+        | Shaped[np.ndarray, "..."]
+        | list[list[list[float]]]
+        | None = None,
+        mask: Shaped[torch.Tensor, "..."]
+        | Shaped[np.ndarray, "..."]
+        | list[list[bool]]
+        | None = None,
         num_elements: int | list[int] | Int[torch.Tensor, "batch"] | None = None,
         box_format: Literal["xywh", "ltwh", "ltrb"] = "xywh",
         normalized: bool = True,

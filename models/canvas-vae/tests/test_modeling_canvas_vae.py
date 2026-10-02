@@ -5,7 +5,6 @@ from canvas_vae import CanvasVAEModel
 from canvas_vae.modeling_canvas_vae import CanvasVAEBatchNorm, length_mask
 
 
-
 def batch(config, sizes=(3, 1)):
     generator = torch.Generator().manual_seed(0)
     width = max(sizes)
@@ -70,10 +69,14 @@ def test_batch_norm_updates_population_statistics():
     output = norm(inputs)
     torch.testing.assert_close(norm.running_mean, torch.tensor([0.2, 0.4]))
     torch.testing.assert_close(norm.running_var, torch.tensor([0.9 + 0.1, 0.9 + 0.4]))
-    expected = (inputs - inputs.mean(0)) / torch.sqrt(inputs.var(0, unbiased=False) + 1e-3)
+    expected = (inputs - inputs.mean(0)) / torch.sqrt(
+        inputs.var(0, unbiased=False) + 1e-3
+    )
     torch.testing.assert_close(output, expected)
     norm.eval()
-    torch.testing.assert_close(norm(inputs), (inputs - norm.running_mean) / torch.sqrt(norm.running_var + 1e-3))
+    torch.testing.assert_close(
+        norm(inputs), (inputs - norm.running_mean) / torch.sqrt(norm.running_var + 1e-3)
+    )
 
 
 def test_length_mask():
@@ -85,5 +88,9 @@ def test_save_load_round_trip(tmp_path, config):
     model.save_pretrained(tmp_path)
     loaded = CanvasVAEModel.from_pretrained(tmp_path).eval()
     latents = torch.randn(2, 16, generator=torch.Generator().manual_seed(1))
-    torch.testing.assert_close(loaded(latents=latents).length_logits, model(latents=latents).length_logits)
-    torch.testing.assert_close(loaded.encoder.norm.running_var, model.encoder.norm.running_var)
+    torch.testing.assert_close(
+        loaded(latents=latents).length_logits, model(latents=latents).length_logits
+    )
+    torch.testing.assert_close(
+        loaded.encoder.norm.running_var, model.encoder.norm.running_var
+    )
