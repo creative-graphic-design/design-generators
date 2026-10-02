@@ -211,7 +211,7 @@ The both-direction range test requires each system mean to lie within the other 
 
 Analysis script SHA-256: `f7c1ae4627c88d1c784484223f38146e73bfe756a7920eb507ebbbbd9fedd66c`. Comparison JSON SHA-256: `c0304445fe378b38f350ce1504a2f6196a0fe88c5a915f47dc9b5e1d4a7b1fc6`.
 
-Verdict: [VERDICT PENDING MAINTAINER] Proposed: Relation-conditioned CGL training is reproduced within vendor seed-to-seed variation: 13/15 metrics pass the both-direction range test, and no metric reaches p<0.05 under Welch or exact permutation. The authors' checkpoint is recorded as a reference-only row and is excluded from package/vendor significance tests.
+Verdict: Relation-conditioned CGL training is reproduced within the vendor's seed-to-seed variation. 13/15 metrics pass the both-direction range test; the two misses are `alignment-LayoutGAN++` (standardized difference 1.1190826789960107, Welch p≈0.144, exact permutation p=38/252≈0.151) and `test_coverage_layout` (Welch p≈0.210, exact permutation p=50/252≈0.198). No metric reaches p<0.05 under either test. Layout FID is 0.587291940494553 (package) against 0.5876304874301543 (vendor), exact permutation p=250/252≈0.992. The authors' published checkpoint is listed as a reference row and is excluded from the package/vendor tests.
 
 Status: `s5-practical-reproduction`.
 
