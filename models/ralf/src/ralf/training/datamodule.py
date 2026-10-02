@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TypeAlias, TypedDict, cast
+from typing import NotRequired, TypeAlias, TypedDict, cast
 
 import torch
 from jaxtyping import Bool, Float, Int, Shaped
@@ -43,6 +43,7 @@ class RalfTrainingSample(TypedDict):
     layout_labels: Int[torch.Tensor, "elements"]
     layout_bbox: Float[torch.Tensor, "elements 4"]
     layout_mask: Bool[torch.Tensor, "elements"]
+    sample_id: str | int
     retrieved: RalfRetrievedBatch
 
 
@@ -57,6 +58,7 @@ class RalfTrainingBatch(TypedDict):
     layout_labels: Int[torch.Tensor, "batch elements"]
     layout_bbox: Float[torch.Tensor, "batch elements 4"]
     layout_mask: Bool[torch.Tensor, "batch elements"]
+    sample_ids: NotRequired[list[str | int]]
     retrieved: RalfRetrievedBatch
 
 
@@ -256,6 +258,7 @@ def encode_training_sample(
         "layout_labels": labels[0].long(),
         "layout_bbox": bbox[0].float(),
         "layout_mask": mask[0].bool(),
+        "sample_id": cast(str | int, sample["id"]),
         "retrieved": retrieved,
     }
 
@@ -295,10 +298,8 @@ class RalfTrainingDataset(Dataset[RalfTrainingSample]):
     def __getitem__(self, index: int) -> RalfTrainingSample:
         """Encode one indexed sample for package training."""
         sample = self.samples[index]
-        sample_id = sample.get("id", index)
-        retrieval_indexes = self.retrieval_table.lookup([cast(str | int, sample_id)])[
-            0
-        ].tolist()
+        sample_id = cast(str | int, sample["id"])
+        retrieval_indexes = self.retrieval_table.lookup([sample_id])[0].tolist()
         if any(item < 0 for item in retrieval_indexes):
             raise ValueError(
                 f"retrieval table has no complete row for sample {sample_id!r}"
@@ -341,6 +342,7 @@ def collate_training_batch(
         "layout_labels": torch.stack([item["layout_labels"] for item in batch]),
         "layout_bbox": torch.stack([item["layout_bbox"] for item in batch]),
         "layout_mask": torch.stack([item["layout_mask"] for item in batch]),
+        "sample_ids": [item["sample_id"] for item in batch],
         "retrieved": retrieved_batch,
     }
 
@@ -405,13 +407,16 @@ class RalfDataModule(LightningDataModule):
         if self.train_dataset is None:
             raise RuntimeError("training dataset was not initialized")
 
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            shuffle=True,
-            num_workers=self.num_workers,
-            collate_fn=collate_training_batch,
-            drop_last=False,
+        return cast(
+            DataLoader[RalfTrainingBatch],
+            DataLoader(
+                self.train_dataset,
+                batch_size=self.batch_size,
+                shuffle=True,
+                num_workers=self.num_workers,
+                collate_fn=collate_training_batch,
+                drop_last=False,
+            ),
         )
 
     def val_dataloader(
@@ -424,13 +429,16 @@ class RalfDataModule(LightningDataModule):
         if self.validation_dataset is None:
             raise RuntimeError("validation dataset was not initialized")
 
-        return DataLoader(
-            self.validation_dataset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            collate_fn=collate_training_batch,
-            drop_last=False,
+        return cast(
+            DataLoader[RalfTrainingBatch],
+            DataLoader(
+                self.validation_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                num_workers=self.num_workers,
+                collate_fn=collate_training_batch,
+                drop_last=False,
+            ),
         )
 
     def _load_split(
