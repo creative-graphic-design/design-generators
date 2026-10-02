@@ -49,7 +49,7 @@ def complete_stage_evidence_table() -> str:
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | One optimizer step parity passed. |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3/metrics.csv` | Multi-batch deterministic run passed. |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4/stream.jsonl` | Loader stream parity passed. |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | training-seed n=3 accepted. |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | training-seed n=3 accepted. |
 """
 
 
@@ -62,6 +62,127 @@ def test_parse_stage_evidence_accepts_complete_rows() -> None:
     assert sorted(rows) == ["S0", "S1", "S2", "S3", "S4", "S5"]
     assert rows["S0"].is_complete
     assert duplicates == set()
+
+
+def test_s5_manifest_artifact_passes(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table()}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == set()
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    [
+        ".cache/pkg/full-run/summary.csv",
+        ".cache/pkg/full-run/notmanifest.json",
+        "/tmp/full-run/manifest.json",
+        "../outside/manifest.json",
+        ".cache/pkg/../manifest.json",
+        "https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-1",
+    ],
+)
+def test_s5_artifact_requires_relative_manifest_path(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/full-run/manifest.json", artifact)}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must be a repository- or cache-relative path to a file named manifest.json"
+    }
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ["pending", "<repo/cache-relative path or project issue/PR URL>"],
+)
+def test_s5_placeholder_artifact_uses_placeholder_violation(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/full-run/manifest.json", artifact)}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
+def test_s5_row_missing_uses_complete_row_violation(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | training-seed n=3 accepted. |\n",
+        "",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 result claim requires a complete evidence row for this stage"
+    }
+
+
+def test_non_s5_artifact_rules_are_unchanged(tmp_path: Path) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/s4/stream.jsonl", "https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-1")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == set()
 
 
 def test_parse_stage_evidence_ignores_fenced_heading_and_table() -> None:
@@ -141,7 +262,7 @@ S5 verdict: full-run statistical comparison is accepted at training-seed n=3.
 
 | Stage | Command | Artifact | Result |
 | --- | --- | --- | --- |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | PASS |
 """,
     )
 
@@ -177,7 +298,7 @@ training-seed n=3 is accepted.
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | PASS |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3.json` | PASS |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | PASS |
 """,
     )
 
@@ -285,7 +406,7 @@ training-seed n=3 is accepted.
 | S2 | `uv run pytest s2` | `.cache/pkg/s2.json` | PASS |
 | S3 | `uv run pytest s3` | `.cache/pkg/s3.json` | PASS |
 | S4 | `uv run pytest s4` | `.cache/pkg/s4.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/full-run/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | PASS |
 """,
     )
 
@@ -358,7 +479,7 @@ training-seed n=3 is accepted.
 | S0 | `uv run pytest s0` | `.cache/pkg/trace.json` | PASS |
 | S1 | `uv run pytest s1` | `.cache/pkg/trace.json` | PASS |
 | S2 | `uv run pytest s2` | `.cache/pkg/trace.json` | PASS |
-| S5 | `uv run train full` | `.cache/pkg/summary.csv` | PASS |
+| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | PASS |
 """,
     )
     baseline = tmp_path / "baseline.txt"

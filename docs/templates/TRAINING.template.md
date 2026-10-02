@@ -76,7 +76,7 @@ describe evaluation-seed evidence as training-seed reproduction.
 | S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json`  | `<result>` |
 
 ## Reproduction Results
 
@@ -105,6 +105,8 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 ## Regeneration Metadata
 
