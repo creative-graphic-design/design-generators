@@ -16,6 +16,7 @@ BADGE_RE = re.compile(
 )
 BADGE_DOCS = [
     REPO_ROOT / "README.md",
+    REPO_ROOT / "docs" / "index.md",
     *sorted((REPO_ROOT / "lib").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/README.md")),
     *sorted((REPO_ROOT / "models").glob("*/REPRODUCING.md")),
@@ -192,7 +193,7 @@ class Badge:
 
 
 def _is_root_readme(path: Path) -> bool:
-    return path == REPO_ROOT / "README.md"
+    return path in {REPO_ROOT / "README.md", REPO_ROOT / "docs" / "index.md"}
 
 
 def _semantic_label(alt: str, query_label: str) -> str:
@@ -499,7 +500,11 @@ def _expected_link(badge: Badge) -> str | None:
             return None
         return HUB_LINKS.get(badge.path.parent.name)
     if badge.label == "library" and badge.message:
-        return f"lib/{badge.message}/README.md"
+        return (
+            f"api/libraries/{badge.message}/"
+            if badge.path == REPO_ROOT / "docs" / "index.md"
+            else f"lib/{badge.message}/README.md"
+        )
     if badge.label in {"paper", "OpenReview", "arXiv", "DOI"} and badge.message:
         return PAPER_LINKS[(badge.label, unquote(badge.message))]
     return None

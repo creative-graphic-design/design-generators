@@ -64,19 +64,19 @@ Unsupported conditions should raise explicit errors. `generator` is the reproduc
 
 #### Model catalog classification
 
-`Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does.
+`Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
 
 `Task` is classified as follows:
 
-- `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference.
-- `task-aware`: a separate checkpoint or training run exists for each accepted generation condition.
-- `single-task`: the package accepts exactly one condition; packages whose model-card Conditioning value is `none` count as single-task because their only accepted condition is `content_image`.
+- `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference; this value requires two or more accepted generation conditions.
+- `task-aware`: a separate checkpoint or training run exists for each accepted generation condition; this value requires two or more accepted generation conditions.
+- `single-task`: the package accepts exactly one condition; packages whose `conditioning:` value of the model card's `Model type:` line is `none` count as single-task because their only accepted condition is `content_image`.
 - `evaluation`: the package evaluates layouts rather than generating them.
 - `saliency`: the package predicts saliency rather than generating layouts.
 
 The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
 
-Model-card Conditioning may use these catalog-only values, which are not `condition_type` arguments:
+The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
 
 - `evaluation`: evaluate layouts rather than generate them.
 - `saliency`: predict saliency as the package's primary public operation.

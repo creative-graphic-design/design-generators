@@ -546,6 +546,10 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
             "- **Model type:** content-agnostic; task: evaluation; conditioning: none.\n",
             "evaluation task requires",
         ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: evaluation.\n",
+            "evaluation and saliency conditioning require matching task",
+        ),
     ],
 )
 def test_model_type_contract_rejects_invalid_values(line: str, message: str) -> None:
@@ -692,6 +696,32 @@ def test_root_models_table_escapes_link_pattern_punctuation(tmp_path: Path) -> N
             "models/<slug>/README.md",
             tmp_path,
         )
+
+
+def test_root_models_table_rejects_unknown_model_link_with_diagnostic(
+    tmp_path: Path,
+) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"{_root_model_row('DLTX', 'dltx', 'task-agnostic', 'content-agnostic')}\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as exc_info:
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
+
+    assert str(exc_info.value) == (
+        f"{readme}: Models table package dltx has no models/dltx/README.md"
+    )
 
 
 def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:

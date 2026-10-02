@@ -41,6 +41,11 @@ def _assert_root_model_type_cells(
     content_cell: str,
 ) -> None:
     model_readme = repository_root / "models" / slug / "README.md"
+    if not model_readme.is_file():
+        raise AssertionError(
+            f"{path}: Models table package {slug} has no models/{slug}/README.md"
+        )
+
     expected_content, expected_task, _ = parse_model_type(
         model_readme, model_readme.read_text(encoding="utf-8")
     )
@@ -259,8 +264,14 @@ def root_model_slugs(
         if len(cells) != len(expected_header):
             raise AssertionError(f"{path}: malformed Models table row: {line}")
 
-        method_cell, task_cell, content_cell = cells[:3]
-        _, _, _, venue_cell, checkpoint_cell, training_cell = cells[:6]
+        (
+            method_cell,
+            task_cell,
+            content_cell,
+            venue_cell,
+            checkpoint_cell,
+            training_cell,
+        ) = cells[:6]
 
         model_link = re.fullmatch(r"\[`([^`\]]+)`\]\(([^)]+)\)", method_cell)
         if model_link is None:
