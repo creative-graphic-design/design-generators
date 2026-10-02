@@ -12,6 +12,14 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 - Follow the reader-first and no-hard-wrap rules in the repository's core `AGENTS.md`.
 - Before publishing or approving a document, run a reduction pass: for every table column, table row, and sentence, state what a first-time reader would lose if it were deleted, and delete anything that loses nothing. A column that restates another column, a row whose owner cell already says what the row would add, and a sentence that repeats the section's opening principle are the usual casualties.
 
+## Writing Rules for Reader-Facing Documentation
+
+- Write facts and rules as reader-facing prose; do not expose work-history or evidence-receipt language without context.
+- Put a section where its subject belongs; do not grow a section merely where related work happened.
+- Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
+- The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.
+- Treat excessive emotional intensity, redundant enumeration, and hedging as model-review targets for the separately developing slop-review; do not add them to this checker.
+
 ## Repository documentation rules
 
 - The docs site uses `zensical` and `mkdocstrings[python]`; build it with:
