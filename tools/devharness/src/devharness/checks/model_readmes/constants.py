@@ -57,9 +57,7 @@ ROOT_MODEL_TABLE_HEADER = [
     "Train",
 ]
 DOCS_MODEL_TABLE_HEADER = [
-    "Model",
-    "Content",
-    "Conditioning",
+    *ROOT_MODEL_TABLE_HEADER[:3],
     "Venue",
     "Weights",
     "Training",

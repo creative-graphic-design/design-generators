@@ -6,6 +6,7 @@ import sys
 
 from . import card, citation, install, parity, reproducing, root_readme
 from .constants import (
+    DOCS_MODEL_TABLE_HEADER,
     LIB_MEMBER_DIRS,
     LIB_READMES,
     MODEL_MEMBER_DIRS,
@@ -14,6 +15,7 @@ from .constants import (
     README_LINK_CONTRACTS,
     README_POLICY_DOCS,
     REPO_ROOT,
+    ROOT_MODEL_TABLE_HEADER,
 )
 
 
@@ -24,8 +26,19 @@ def check() -> None:
     root_readme.assert_root_model_badge_count(
         REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS)
     )
-    for path in (REPO_ROOT / "README.md", REPO_ROOT / "docs" / "index.md"):
-        root_slugs = root_readme.root_model_slugs(path)
+    for path, header, link_pattern in (
+        (
+            REPO_ROOT / "README.md",
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+        ),
+        (
+            REPO_ROOT / "docs" / "index.md",
+            DOCS_MODEL_TABLE_HEADER,
+            "api/models/<slug>/",
+        ),
+    ):
+        root_slugs = root_readme.root_model_slugs(path, header, link_pattern, REPO_ROOT)
         root_readme.assert_root_models_table_matches_members(root_slugs, path)
 
     root_readme.assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")

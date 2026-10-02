@@ -207,7 +207,7 @@ def parse_model_type(path: Path, text: str) -> ModelType:
     conditioning = tuple(
         value.strip() for value in match.group("conditioning").split(",")
     )
-    if not conditioning or any(not value for value in conditioning):
+    if any(not value for value in conditioning):
         raise AssertionError(f"{path}: Model type conditioning values cannot be empty")
 
     for value in conditioning:

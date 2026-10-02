@@ -59,6 +59,13 @@ Canonical `condition_type` names are:
 - `relation`: condition on pairwise or graph-style element relations.
 - `hierarchical`: condition on a tree or grouped layout structure.
 - `retrieval`: condition on retrieved exemplar layouts or records.
+- `evaluation`: evaluate layouts rather than generate them.
+- `saliency`: predict saliency as the package's primary public operation.
+- `none`: provide a content-aware operation without a separate `condition_type` selector.
+- `content-agnostic`: use no canvas/background image or saliency input in package inference.
+- `content-aware`: use a canvas/background image or saliency input in package inference.
+
+The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
 
 Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 

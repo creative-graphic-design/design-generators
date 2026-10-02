@@ -21,7 +21,11 @@ from devharness.checks.model_readmes import (
     reproducing,
     root_readme,
 )
-from devharness.checks.model_readmes.constants import find_repo_root
+from devharness.checks.model_readmes.constants import (
+    DOCS_MODEL_TABLE_HEADER,
+    ROOT_MODEL_TABLE_HEADER,
+    find_repo_root,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -491,11 +495,27 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
     ("line", "message"),
     [
         (
+            "- **Model type:** architecture-and-task\n",
+            "Model type line must match",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: label\n",
+            "Model type line must match",
+        ),
+        (
             "- **Model type:** image-aware; conditioning: none.\n",
             "content value",
         ),
         (
+            "- **Model type:** Content-agnostic; conditioning: none.\n",
+            "content value",
+        ),
+        (
             "- **Model type:** content-agnostic; conditioning: label-size.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: content_image.\n",
             "conditioning value",
         ),
         (
@@ -537,6 +557,12 @@ def test_model_type_contract_accepts_structured_line() -> None:
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layoutformerpp",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement, relation.\n",
+    )
     readme = tmp_path / "README.md"
     readme.write_text(
         """# Example
@@ -552,7 +578,12 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
         encoding="utf-8",
     )
 
-    assert root_readme.root_model_slugs(readme) == {"layoutformerpp"}
+    assert root_readme.root_model_slugs(
+        readme,
+        ROOT_MODEL_TABLE_HEADER,
+        "models/<slug>/README.md",
+        tmp_path,
+    ) == {"layoutformerpp"}
 
 
 def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:
@@ -600,7 +631,12 @@ def test_root_model_table_rejects_content_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="package layout-dm Content cell"):
-        root_readme.root_model_slugs(readme)
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
 
 
 def test_root_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
@@ -627,7 +663,12 @@ def test_root_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="package layout-dm Conditioning cell"):
-        root_readme.root_model_slugs(readme)
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
 
 
 def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> None:
@@ -648,7 +689,42 @@ def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    assert root_readme.root_model_slugs(index) == {"layout-dm"}
+    assert root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    ) == {"layout-dm"}
+
+
+def test_docs_index_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('label')}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="docs/index.md: Models table package layout-dm Conditioning cell",
+    ):
+        root_readme.root_model_slugs(
+            index,
+            DOCS_MODEL_TABLE_HEADER,
+            "api/models/<slug>/",
+            tmp_path,
+        )
 
 
 def test_docs_index_model_table_reports_missing_package(
@@ -674,8 +750,13 @@ def test_docs_index_model_table_reports_missing_package(
         root_readme, "model_member_slugs", lambda: {"layout-dm", "layout-flow"}
     )
 
-    slugs = root_readme.root_model_slugs(index)
-    with pytest.raises(AssertionError, match="docs/index.md Models table mismatch"):
+    slugs = root_readme.root_model_slugs(
+        index,
+        DOCS_MODEL_TABLE_HEADER,
+        "api/models/<slug>/",
+        tmp_path,
+    )
+    with pytest.raises(AssertionError, match="docs/index.md: Models table mismatch"):
         root_readme.assert_root_models_table_matches_members(slugs, index)
 
 
@@ -700,7 +781,12 @@ def test_root_models_table_rejects_metadata_columns(
     with pytest.raises(
         AssertionError, match="Model, Content, Conditioning, Venue, Ckpt, Train"
     ):
-        root_readme.root_model_slugs(readme)
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
 
 
 def test_model_readme_reproducibility_rejects_repo_root_link(tmp_path: Path) -> None:
@@ -729,6 +815,12 @@ See [REPRODUCING.md](models/layout-dm/REPRODUCING.md) for commands.
 def test_root_models_table_requires_training_link_when_file_exists(
     tmp_path: Path,
 ) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-flow",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
     readme = tmp_path / "README.md"
     readme.write_text(
         """# Example
@@ -744,7 +836,12 @@ def test_root_models_table_requires_training_link_when_file_exists(
         encoding="utf-8",
     )
 
-    assert root_readme.root_model_slugs(readme) == {"layout-flow"}
+    assert root_readme.root_model_slugs(
+        readme,
+        ROOT_MODEL_TABLE_HEADER,
+        "models/<slug>/README.md",
+        tmp_path,
+    ) == {"layout-flow"}
 
 
 def test_root_readme_table_helpers_reject_malformed_cells() -> None:
