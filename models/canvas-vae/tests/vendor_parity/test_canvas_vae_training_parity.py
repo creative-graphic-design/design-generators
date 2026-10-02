@@ -89,7 +89,18 @@ FORWARD = Tolerance("max_rel_to_max", 1e-5)
 LOSS = Tolerance("max_rel_to_max", 1e-6)
 GRADIENT = Tolerance("norm_rel", 1e-4)
 SECOND_MOMENT = Tolerance("norm_rel", 2e-4)
-UPDATE = Tolerance("norm_rel", 5e-2)
+# Parameter updates are checked through Keras Adam itself instead of a blanket
+# bound: each system's update must equal the Keras Adam update recomputed in
+# float64 from that system's own gradient and prior moments (ADAM_RULE_LIMIT),
+# and on well-conditioned elements, where sqrt(v) is at least 100 times the
+# epsilon 1e-7, the two systems' updates must agree within
+# WELL_CONDITIONED_LIMIT. On the remaining near-zero-gradient elements, Adam
+# divides by a denominator dominated by epsilon, so the update follows the
+# gradient's rounding; there the difference is fully explained by the gradient
+# differences already checked against GRADIENT.
+ADAM_RULE_LIMIT = 1e-5
+WELL_CONDITIONED_LIMIT = 1e-3
+WELL_CONDITIONED_SQRT_V = 100 * 1e-7
 EXACT = Tolerance("max_abs", 0.0)
 ZERO_GRADIENT_LIMIT = 1e-6
 # Later trajectory steps have smaller, more cancelling batch-summed gradients,
@@ -500,6 +511,56 @@ def test_s1_fixed_batch_forward_trace(
     check_measured("s1", measured)
 
 
+def keras_adam_float64(grad, m, v, step: int):
+    """Return the clipped Keras Adam update and second moment in float64."""
+    g = torch.as_tensor(np.asarray(grad), dtype=torch.float64)
+    g = g * 1.0 / max(float(g.norm()), 1.0)
+    m = torch.as_tensor(np.asarray(m), dtype=torch.float64)
+    v = torch.as_tensor(np.asarray(v), dtype=torch.float64)
+    m = m + (g - m) * (1 - 0.9)
+    v = v + (g * g - v) * (1 - 0.999)
+    alpha = 1e-3 * math.sqrt(1 - 0.999**step) / (1 - 0.9**step)
+    return -(m * alpha) / (v.sqrt() + 1e-7), v
+
+
+def check_update(
+    name, package, original, package_grad, original_grad, m, v, step, measured
+):
+    """Check both updates against float64 Keras Adam and each other where well conditioned."""
+    package = torch.as_tensor(package, dtype=torch.float64)
+    original = torch.as_tensor(np.asarray(original), dtype=torch.float64)
+    package_exact, _ = keras_adam_float64(
+        package_grad.detach().cpu().numpy(), m, v, step
+    )
+    original_exact, v_exact = keras_adam_float64(original_grad, m, v, step)
+    well = v_exact.sqrt() >= WELL_CONDITIONED_SQRT_V
+    delta = package - original
+    rule = {
+        "package_adam_rule": float(
+            (package - package_exact).norm() / package_exact.norm().clamp_min(1e-30)
+        ),
+        "original_adam_rule": float(
+            (original - original_exact).norm() / original_exact.norm().clamp_min(1e-30)
+        ),
+    }
+    well_rel = (
+        float(delta[well].norm() / original[well].norm().clamp_min(1e-30))
+        if well.any()
+        else 0.0
+    )
+    measured[name] = {
+        "norm_rel": float(delta.norm() / original.norm().clamp_min(1e-30)),
+        **rule,
+        "well_conditioned_fraction": float(well.double().mean()),
+        "well_conditioned_norm_rel": well_rel,
+        "near_zero_share_of_difference": float(
+            delta[~well].square().sum() / delta.square().sum().clamp_min(1e-300)
+        ),
+        "within": max(rule.values()) <= ADAM_RULE_LIMIT
+        and well_rel <= WELL_CONDITIONED_LIMIT,
+    }
+
+
 def test_s2_one_optimizer_step(
     trace_dir, batches, initial_state, original_vocabularies
 ):
@@ -529,6 +590,7 @@ def test_s2_one_optimizer_step(
             measured,
         )
 
+    raw = {key: parameters[key].grad.clone() for key in sources}
     clip_gradients_by_norm(model.parameters(), 1.0)
     for key, (source, transpose) in sources.items():
         assert_close(
@@ -558,19 +620,17 @@ def test_s2_one_optimizer_step(
             SECOND_MOMENT,
             measured,
         )
-        assert_close(
-            f"after/{key}",
-            parameters[key],
-            as_package(step0[f"after/{source}"], transpose),
-            UPDATE,
-            measured,
-        )
-        assert_close(
+        zeros = np.zeros(tuple(parameters[key].shape))
+        check_update(
             f"update/{key}",
             parameters[key].detach() - initial_state[key],
             as_package(step0[f"after/{source}"], transpose)
             - initial_state[key].numpy(),
-            UPDATE,
+            raw[key],
+            as_package(step0[f"grad/{source}"], transpose),
+            zeros,
+            zeros,
+            1,
             measured,
         )
 
@@ -800,11 +860,15 @@ def test_s3_synchronized_steps(
             reference = as_package(after[f"weight/{source}"], transpose) - as_package(
                 state[f"weight/{source}"], transpose
             )
-            assert_close(
+            check_update(
                 f"step{step}/update/{key}",
                 parameters[key].detach() - before[key],
                 reference,
-                UPDATE,
+                grads[key],
+                as_package(state[f"grad/{source}"], transpose),
+                as_package(state[f"m/{source}"], transpose),
+                as_package(state[f"v/{source}"], transpose),
+                int(state["iterations"]) + 1,
                 measured,
             )
 
@@ -915,7 +979,7 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, 
             "only_package": sorted(package - original),
             "only_original": sorted(original - package),
         }
-        assert not original - package
+        assert original == package, split
         for row in rows:
             document = package_documents[hashes_by_id[row["id"]]]
             elements = document["elements"]

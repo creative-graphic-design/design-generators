@@ -5,7 +5,10 @@ Subcommands:
 - ``beam`` runs the original Apache Beam preprocessing on the RICO archive and
   writes TFRecords, ``vocabulary.json``, and ``count.json``. It uses the
   in-process ``FnApiRunner`` that the original ``DirectRunner`` command
-  selected for batch pipelines before Beam switched it to Prism.
+  selected for batch pipelines before Beam switched it to Prism, with one
+  worker in ``in_memory`` mode: the original command's ``multi_threading``
+  mode drops a run-dependent handful of records (34 and 2 screens in two
+  Beam 2.76 runs), while the single-worker run keeps every record.
 - ``trace`` builds the original model on the original TFRecords and exports
   static configuration, initial weights, the first training batches with their
   posterior noise, a fixed-batch forward trace, a one-step optimizer trace, and
@@ -18,8 +21,10 @@ Original-code runs disable TF32 with ``NVIDIA_TF32_OVERRIDE=0``. Under
 TensorFlow 2.15 the encoder's ``BatchNormalization`` would receive the
 ``(batch, elements)`` padding mask propagated from the pooled transformer block
 and fail on its ``(batch, latent)`` input; the script installs a
-``BatchNormalization`` that ignores Keras masks, which is the behavior of the
-TensorFlow 2.3/2.4 releases the original code was written for.
+``BatchNormalization`` that ignores Keras masks, which is the behavior of
+every TensorFlow release before 2.12, whose release notes add the ``mask``
+argument to ``BatchNormalization``. ``compare_batch_norm_control.py`` checks
+the shim against the unpatched original on TensorFlow 2.11.
 """
 
 from __future__ import annotations
@@ -177,9 +182,9 @@ def run_beam(archive: Path, output_dir: Path) -> None:
             "--runner",
             FN_API_RUNNER,
             "--direct_num_workers",
-            "0",
+            "1",
             "--direct_running_mode",
-            "multi_threading",
+            "in_memory",
         ],
         check=True,
         cwd=VENDOR,
