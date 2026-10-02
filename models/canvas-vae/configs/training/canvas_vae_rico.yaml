@@ -1,0 +1,36 @@
+seed_everything: 0
+trainer:
+  accelerator: auto
+  devices: 1
+  precision: 32-true
+  max_epochs: 500
+  check_val_every_n_epoch: 20
+  num_sanity_val_steps: 0
+  default_root_dir: .cache/canvas-vae/training-runs/rico
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/total_score
+        mode: max
+        save_top_k: 1
+        save_last: true
+        filename: best
+        auto_insert_metric_name: false
+model:
+  class_path: canvas_vae.training.CanvasVAETrainingModule
+  init_args:
+    data_dir: .cache/canvas-vae/data/rico
+    latent_dim: 256
+    num_blocks: 1
+    num_heads: 8
+    dropout: 0.1
+    kl_weight: 16.0
+    l2_weight: 1.0e-06
+    learning_rate: 0.001
+    clip_norm: 1.0
+data:
+  class_path: canvas_vae.training.CanvasVAEDataModule
+  init_args:
+    data_dir: .cache/canvas-vae/data/rico
+    batch_size: 1024
+    num_workers: 0

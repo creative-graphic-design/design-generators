@@ -1,0 +1,51 @@
+[project]
+name = "canvas-vae"
+version = "0.1.0"
+description = "Transformers-style CanvasVAE layout generation package."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jaxtyping>=0.3",
+    "laygen",
+    "numpy>=1.24",
+    "safetensors>=0.4",
+    "torch>=2.1",
+    "transformers[torch]>=5.0.0",
+]
+
+[project.optional-dependencies]
+training = [
+    "jsonargparse[signatures]>=4.27.7",
+    "lightning>=2.4,<3",
+    "traingen",
+    "traingen-parity",
+]
+vendor = [
+    "apache-beam>=2.70",
+    "pyyaml>=6",
+    "tensorflow[and-cuda]==2.15.1",
+    "traingen-parity",
+]
+
+[tool.uv.sources]
+laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
+
+[tool.design-generators]
+framework = "transformers"
+task = "content-agnostic-layout-generation"
+conditions = ["unconditional"]
+datasets = ["rico25"]
+vendor = "CyberAgentAILab/canvas-vae"
+paper = "https://arxiv.org/abs/2108.01249"
+
+[tool.pytest.ini_options]
+markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
+    "vendor_parity: requires the original TensorFlow environment, the RICO archive, and generated reference traces",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

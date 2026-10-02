@@ -105,6 +105,31 @@ conflicts = [
         { package = "housegan", extra = "vendor" },
         { package = "flex-dm", extra = "vendor-tf" },
     ],
+    # laygen[agents] -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "laygen", extra = "agents" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # layout-gpt -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "layout-gpt" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # layoutprompter -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "layoutprompter" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # postero -> pydantic-ai>=2.7.0 -> protobuf>=5; canvas-vae[vendor] -> TensorFlow 2.15.1 -> protobuf<5.
+    [
+        { package = "postero" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
+    # housegan[vendor] pins networkx==2.4; canvas-vae[vendor] -> tensorflow[and-cuda]==2.15.1 forces torch>=2.9 -> networkx>=2.5.1.
+    [
+        { package = "housegan", extra = "vendor" },
+        { package = "canvas-vae", extra = "vendor" },
+    ],
 ]
 
 [tool.uv.workspace]
@@ -113,6 +138,7 @@ members = ["lib/*", "models/*", "tools/*"]
 [tool.uv.sources]
 devharness = { workspace = true }
 basnet = { workspace = true }
+canvas-vae = { workspace = true }
 coarse-to-fine = { workspace = true }
 cgb-dm = { workspace = true }
 dlt = { workspace = true }
