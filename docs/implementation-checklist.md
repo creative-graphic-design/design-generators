@@ -13,7 +13,7 @@ Use this checklist when implementing a model package. Complete each applicable i
 ## Before starting
 
 - [ ] Create a fresh worktree from the current `origin/main`; local checkouts may be stale, and vendor submodules must remain untouched.
-- [ ] Read the [project roadmap](roadmap.md), [shared data sources](data-sources.md), [public conventions](conventions.md), and [shared-library architecture](architecture.md) before applying the current repository contracts; historical umbrella discussion remains preserved in [issue 2](https://github.com/creative-graphic-design/design-generators/issues/2).
+- [ ] Read the [project roadmap](roadmap.md), [shared data sources](data-sources.md), [public conventions](conventions.md), and [shared-library architecture](architecture.md) before applying the current repository contracts; historical umbrella discussion lives in [issue 2](https://github.com/creative-graphic-design/design-generators/issues/2).
 - [ ] Read the model issue's plan comment and every later amendment comment; later amendments override earlier plan text when they conflict.
 - [ ] Add the `in-progress` label to the model issue before implementation begins.
 
