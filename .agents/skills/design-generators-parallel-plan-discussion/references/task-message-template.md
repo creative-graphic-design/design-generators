@@ -15,14 +15,14 @@ Investigate `<target>` and agree on `<shared interface decisions>` with the othe
 
 - Target issue/document and amendments: `<sources>`.
 - Agenda: `<decisions every proposal must cover>`.
-- Participants and direct peer recipients: `<target, agent name, pane id>`.
+- Participants and direct peer recipients: `<comma-separated target slugs and role names `impl-plan-<target-slug>`, agent names, and pane ids>`.
 - Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`.
 - Chair: `<agent name>`.
 - Assigned worktree and tab: `<paths/ids from the coordinator's ledger>`.
 - Writable draft: `<shared-drafts-dir>/<target-slug>.md`.
 - Chair's unified specification: `<shared-drafts-dir>/unified-interface.md`.
 
-You are not alone in the repository. Read sources without modifying them or another participant's draft. Write in only the shared drafts directory, to your assigned draft and, if you are chair, the unified specification.
+Read sources without modifying them or another participant's draft. Stay in the assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports. Write only in the shared drafts directory, to your assigned draft and, if you are chair, the unified specification.
 
 ## Acceptance
 

@@ -145,17 +145,7 @@ Original implementations stay under `vendor/` and are treated as read-only refer
 
 ### Code style
 
-- Keep `__init__` bodies to variable initialization. Data holders use dataclasses, with unavoidable initialization logic in `__post_init__` or a classmethod factory. Framework-bound classes such as `PretrainedConfig`, `PreTrainedModel`, and `LightningModule` follow framework constructor contracts.
-- Use Pydantic at serialization boundaries when runtime validation is useful; do not duplicate LightningCLI/jsonargparse validation.
-- Prefer early returns and raises. Separate semantic units with one blank line, including after a raise block or a compound suite when ordinary code follows at the enclosing indentation.
-- Preserve precise annotations. Use inline jaxtyping shaped types such as `Float[torch.Tensor, "batch elements 4"]`; do not introduce raw tensor/array annotations or shaped-type aliases outside the documented checker baselines.
-- Use shared dataset/condition enums and normalize public strings at the boundary. Use `StrEnum` with `auto()` for reusable closed vocabularies, typed alias maps, and `typing.assert_never` for exhaustive dispatch. `Literal` is appropriate for a small fixed parameter set. Package-specific aliases and capability validation use the owners listed in [Architecture](architecture.md#runtime-ownership).
-- Use `Final` for module constants and `NamedTuple` or `TypedDict` for structured tuples/dictionaries. Do not weaken annotations to `object` or bare containers to satisfy a checker.
-- Keep public arguments explicit and keyword-only. Use public imports rather than importing private underscore-prefixed modules across modules; tests must resolve imports through the workspace rather than `sys.path` edits.
-- Core model filenames use the package suffix: `configuration_<pkg>.py`, `modeling_<pkg>.py`, `pipeline_<pkg>.py`, `scheduling_<pkg>.py`, `processing_<pkg>.py`, `tokenization_<pkg>.py`, `image_processing_<pkg>.py`, or `generation_<pkg>.py`. Conversion and domain helper names follow `scripts/check_module_naming.py`.
-- Runtime source and configs describe this package's behavior. Keep original-implementation references in conversion/reference tooling, parity tests, and reproduction docs. `laygen.common.vendor` is the narrow shared resolver exception recorded in `scripts/check_src_vendor_language.py`.
-- Comments, docstrings, and runtime messages describe training checks in plain words; stage codes belong in training evidence documents and their checkers.
-- Keep Ruff docstring rules enabled for `src/`. Package scripts need a module docstring and CLI help describing every argument and default; defaults resolve from the repository rather than a developer's machine.
+Apply the repository's [Class Design And Code Style](../AGENTS.md#class-design-and-code-style) rules and the [code and review safeguards](implementation-checklist.md#code-and-review-safeguards) checklist; this page does not duplicate them.
 
 ### Data And Parity
 

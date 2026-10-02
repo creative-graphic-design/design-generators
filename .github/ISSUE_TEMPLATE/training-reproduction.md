@@ -8,7 +8,7 @@ assignees: ""
 
 ## Goal
 
-Reproduce package-local training for `<package>` so trained checkpoints can be claimed only after the staged S0-S5 protocol in `docs/training-reproduction.md` has durable evidence. S0-S4 evidence is required before any S5-scale run or S5 claim.
+Reproduce package-local training for `<package>` using the staged S0-S5 [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md#stage-overview), which requires S0-S4 evidence before any S5-scale run or S5 claim.
 
 ## Method
 
@@ -44,13 +44,13 @@ Reproduce package-local training for `<package>` so trained checkpoints can be c
   comment before any S5-scale GPU run starts.
 - Package-local `LightningModule`, datamodule, configs, deterministic seed
   controls, and parity helpers.
-- S3 short-run and S4 loader-stream evidence posted before any S5-scale run or S5 claim.
+- S3 short-run and S4 loader-stream evidence posted.
 - S5 full-run original/package metrics, seed scope, and artifact locations.
 - `TRAINING.md` with a `Stage Evidence` table covering S0-S5.
 - README/model-card updates that describe only the datasets and seed scope with
   completed evidence.
 
-Do not launch S5-scale GPU training, apply `parity-verified`, or claim S5 reproduction before the issue contains the vendor reference adapter plus complete S0-S4 evidence. Follow the source-pinned seed-queue guard and fail-closed parity rules in `docs/training-reproduction.md`.
+Follow the [training reproduction skill](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-training-reproduction/SKILL.md) for the source-pinned seed-queue guard and fail-closed parity procedure.
 
 ## Tracking
 

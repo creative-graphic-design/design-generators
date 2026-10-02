@@ -48,9 +48,9 @@ model-index:
 
 <!-- --8<-- [start:card] -->
 
-# Model Card for <model-id>
-
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
+
+# Model Card for <model-id>
 
 This package ports <method linked to its paper>, <venue and key idea>, into a <linked framework>-style package.
 
@@ -72,9 +72,9 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 - **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
 
-### Model Sources [optional]
+### Model Sources
 
-<!-- Link the exact sources used for conversion and parity. -->
+<!-- Optional section. Link the exact sources used for conversion and parity. -->
 
 - **Repository:** <original-implementation-url>
 - **Paper [optional]:** <paper-or-arxiv-url>
@@ -97,7 +97,9 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 <direct research or inference use case>
 
-### Downstream Use [optional]
+### Downstream Use
+
+<!-- Optional section. Describe how generated layouts may feed rendering, design tooling, retrieval, or evaluation pipelines. -->
 
 <how generated layouts may feed rendering, design tooling, retrieval, or evaluation pipelines>
 
@@ -127,7 +129,7 @@ pip install \
 
 <!-- Include posgen in the same pip command when required, and preserve required shared-package extras. -->
 
-For local conversion and reproduction, use the repository checkout. Follow [the package reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
+For local conversion and reproduction, use the repository checkout. Follow [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md) to create `.cache/<slug>/converted/<local-checkpoint-dir>` before loading it.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -205,7 +207,7 @@ print(out.mask)    # valid element mask
 
 ## Reproducibility
 
-Reproduce agreement with the original implementation using [the package reproduction guide](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md), which covers asset download, original-code reference generation, required-asset parity checks, conversion, and local loading.
+Reproduce agreement with the original implementation using [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/<slug>/REPRODUCING.md), which covers asset download, original-code reference generation, required-asset parity checks, conversion, and local loading.
 
 <!-- Put the command walkthrough in models/<slug>/REPRODUCING.md, not in this README. -->
 <!-- For prompt-only methods, replace checkpoint conversion with configuration/exemplar serialization and state that there are no learned checkpoints. For retraining claims, link models/<slug>/TRAINING.md and report only its demonstrated dataset/seed scope. -->

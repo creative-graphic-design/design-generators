@@ -18,11 +18,27 @@ Paths below are relative to the repository root. Read the model issue's plan, am
 
 Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the model-issue maintainer checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
 
+## Source Language
+
+Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
+
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
+
 ## Package and interface
 
 Create or update `models/<slug>/` with its `pyproject.toml`, `src/<package>/`, `scripts/`, and tests. Keep original-code dependencies in the `vendor` optional extra and the original checkout read-only. Reuse the shared helpers assigned in `docs/architecture.md`; keep model-specific transforms and numerical behavior local.
 
-The agreed pipeline arguments and output schema live in `docs/conventions.md`. Keep standard model `forward` and token-level `generate` entrypoints; put layout orchestration in the pipeline. Justify unavoidable serialization overrides in the PR. Do not copy a generic signature with bare tensor types or `**kwargs` into a package.
+Use the [model and serialization contracts](docs/conventions.md#model-and-serialization-contracts) for the agreed pipeline arguments, output schema, model entry points, and serialization rules; this skill owns conversion and parity, not those public contracts.
+
+Use shared libraries by import:
+
+```python
+from laygen.common.outputs import LayoutGenerationOutput
+from laygen.common.bbox import ltwh_to_xywh, ltrb_to_xywh
+from laygen.common.testing import assert_layout_output_schema
+```
+
+Use `posgen.common` only for poster/content-aware helpers that already exist. Do not copy common bbox, label, output, or testing helpers into the model package.
 
 ## Establish inference parity
 
@@ -36,10 +52,12 @@ Deterministic tokens/ids must match exactly. Floating outputs use bitwise equali
 
 For API/LLM or in-context methods, compare prompt bytes, exemplar selection, parser behavior, and repair/retry policy. Do not invent a learned-checkpoint conversion for a prompt-only method.
 
-Parity is complete only when real original-code references, package comparisons, and local artifact round-trips pass. A skip-only suite or a follow-up issue does not satisfy acceptance. The independent reviewer reruns the actual suite with required assets before accepting parity.
+Parity is complete only when real original-code references, package comparisons, and local artifact round-trips pass. A skip-only suite or a follow-up issue does not satisfy acceptance. The coordinator independently reruns the actual suite with required assets before accepting parity.
 
 ## Finish the task
 
 Run the affected member tests and the repository gates in `docs/implementation-checklist.md#verification-commands`. Keep vendor parity and heavyweight integration behind explicit pytest markers. Unit tests use local tiny fixtures rather than downloading weights or full datasets.
+
+For root-only documentation changes, the final pre-commit command is still required. If a package has extras for vendor or parity work, document the exact extra in the README and PR body.
 
 Use `.github/PULL_REQUEST_TEMPLATE.md` and the lifecycle in `AGENTS.md`. Report the implemented matrix, measured parity and smoke-test results, exact commands, checklist deviations, license questions, and publication state. Local artifacts and verified parity can be complete while Hub publication remains unrequested.

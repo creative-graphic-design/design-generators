@@ -25,12 +25,12 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 - [ ] Make `generator` take precedence over `seed`, and verify that generation is reproducible from the seed or generator.
 - [ ] Use canonical `condition_type` names (`unconditional`, `label`, `label_size`, `completion`, `refinement`, `text`, `content_image`, `relation`, `hierarchical`, and `retrieval`); normalize original-implementation aliases before dispatch and raise explicitly for unsupported conditions instead of falling back silently.
 - [ ] Expose the full agreed v1 (initial interface) pipeline `__call__` signature and the relevant v2 (later interface) additions even when the model rejects some inputs.
-- [ ] Make discrete-vocabulary layout tokenizers subclass [`transformers.PreTrainedTokenizer`](https://huggingface.co/docs/transformers/main_classes/tokenizer), use synthetic token strings and standard `pad_token` and `mask_token` values, expose `encode_layout()` and `decode_layout()` as the primary API, serialize auxiliary data such as cluster centers with tokenizer files, preserve float64 decode paths required for agreement checks, and use a custom class only when a documented conflict requires it.
-- [ ] Ensure every [`transformers.PreTrainedModel`](https://huggingface.co/docs/transformers/main_classes/model) subclass implements `forward`; if its computation cannot be represented as one forward pass, compose the stages in the package pipeline instead of using `PreTrainedModel` for the composite.
-- [ ] Expose only standard model entry points (`forward` and token-level `generate`) on model classes; put processor encoding, generation, decoding, layout-level orchestration, and the `LayoutGenerationOutput` result in the pipeline's `__call__`, and do not add `generate_layout`-style model methods. Vendor-specific constrained decoding that cannot be expressed as a stateless `LogitsProcessor` may remain as a model-side helper called by the pipeline, but it is not a public generation API.
-- [ ] Do not override [`from_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) or [`save_pretrained`](https://huggingface.co/docs/transformers/main_classes/model) in a way that bypasses standard loading and serialization; document the reason in the pull request description if an override is unavoidable.
-- [ ] Use upstream class suffixes only when the class satisfies the upstream contract; for example, `ForConditionalGeneration` requires seq2seq-style `forward` and `generate` methods.
-- [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator, meaning the maintainer who owns the model issue and is distinct from the evidence producer, check that justification.
+- [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for discrete-vocabulary layout tokenizers and their serialized auxiliary data.
+- [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for `PreTrainedModel.forward` and pipeline composition.
+- [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for standard model entry points and pipeline orchestration.
+- [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for `save_pretrained`, `from_pretrained`, and documented overrides.
+- [ ] Follow the [model and serialization contracts](conventions.md#model-and-serialization-contracts) for framework class suffixes and base-class contracts.
+- [ ] Before applying `plan-agreed`, document and justify any novel public method or override on a Hugging Face base class, and have the coordinator check that justification under the [model and serialization contracts](conventions.md#model-and-serialization-contracts).
 - [ ] Make Transformers-side layout pipelines subclass `laygen.pipelines.LayoutGenerationPipeline` rather than `transformers.Pipeline`; the shared base owns config and subfolder loading, serialization, device and dtype handling, `generator`-over-`seed` behavior, and the canonical layout-output contract.
 
 ## Package layout
@@ -53,7 +53,7 @@ Use this checklist when implementing or reviewing a model package. For maintenan
 - [ ] Apply the [model-conversion parity contract](https://github.com/creative-graphic-design/design-generators/blob/main/.agents/skills/design-generators-model-conversion/SKILL.md#establish-inference-parity): exact deterministic tokens/ids and bitwise floating comparison by default, with a measured numerical justification for any tolerance. Regular tests may skip absent assets; acceptance uses `PARITY_REQUIRE=1` and reports pass/skip counts.
 - [ ] Reach at least 90% coverage per package under the CI selection `-m "not vendor_parity and not integration"` with real unit tests such as tiny random-weight CPU configurations; never lower the gate or add broad pragma exclusions.
 - [ ] Run root pytest with `--import-mode=importlib` from the root `pyproject.toml` `addopts` setting, and preserve that setting when resolving pyproject merge conflicts because packages share test basenames; adding `tests/__init__.py` does not fix import mode.
-- [ ] Keep unit tests independent of weights and network access. CI checks committed lockfile freshness with `uv lock --check`; keep host-specific uv options out of `uv.lock` and use the existing workflow as the command authority.
+- [ ] Keep unit tests independent of weights and network access.
 - [ ] Pass a local `save_pretrained` to `from_pretrained` round-trip test.
 
 ## Training for train-ourselves models
@@ -78,10 +78,10 @@ Models whose weights this repository trains itself are called train-ourselves mo
 - [ ] Give public pipelines, tokenizers, processors, configs, `laygen.common` modules, and agents google-style docstrings with `Args`, `Returns`, `Raises`, and runnable doctest-style `Examples`; these docstrings feed the generated API reference.
 - [ ] Do not commit machine-specific absolute paths that contain a developer's local checkout directory; resolve script defaults relative to the repository root and provide an explicit CLI override, and use repository-relative paths such as `./vendor/<repo>` in documentation.
 - [ ] Give every script under `models/<pkg>/scripts/` a module docstring and an argparse `--help` description for every argument and default, with defaults that work from a clean checkout.
-- [ ] Ship every model package README in model-card style with an overview, install and usage snippet using `from_pretrained` or a pipeline call, supported Hub ids, datasets, a numeric original-implementation agreement summary, and the original implementation's license and citation.
+- [ ] Ship every model package README in model-card style with an overview, install and usage snippet using `from_pretrained` or a pipeline call, supported Hub ids, datasets, a numeric original-implementation agreement summary, and the original implementation's license and citation; prompt-only packages may instead document configuration/exemplar serialization and the absence of learned checkpoints.
 - [ ] Give every model README a `### Parity Results` section under `## Evaluation` with a numeric table stating what was compared, the number of cases, the match criterion, and the result. Prose mentions do not satisfy this contract; use `models/layout-dm/README.md` as the reference format.
 - [ ] Give every Hub model repository a model card based on the [official Hugging Face model-card template](https://huggingface.co/docs/hub/model-card-annotated) through `huggingface_hub.ModelCard.from_template`, with YAML metadata for `license`, `library_name` (`transformers` or `diffusers`), `pipeline_tag`, `tags` including `layout-generation`, and organization dataset ids, plus model details, intended uses and limitations, a `from_pretrained` example, training data, numeric agreement results, citation BibTeX, and a link to the original implementation.
-- [ ] Follow the issue-closure rule in [AGENTS.md](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#issue-and-pr-lifecycle): merge, independent agreement checks, and a local save/load smoke test for every planned checkpoint, dataset, or task repository. Hub publication is separate.
+- [ ] Follow the issue-closure rule in [AGENTS.md](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#status-labels-and-milestones): merge, independent agreement checks, and a local save/load smoke test for every planned checkpoint, dataset, or task repository. Hub publication is separate.
 
 ## Process
 
@@ -89,6 +89,7 @@ Models whose weights this repository trains itself are called train-ourselves mo
 - [ ] Apply the same lane or topic labels as the implementation issue to the pull request, and keep status labels such as `plan-agreed`, `in-progress`, and `parity-verified` on the issue rather than the pull request.
 - [ ] Build the pull request description from `.github/PULL_REQUEST_TEMPLATE.md`, keep it as the single current summary of the pull request, and keep progress reports out of pull request comments.
 - [ ] Include the pull request URL, checklist verification with deviations, agreement results, and follow-ups in progress reports.
+- [ ] Mark checklist items with `[x]` only when they were actually verified.
 
 ## Code and review safeguards
 
@@ -105,34 +106,6 @@ Models whose weights this repository trains itself are called train-ourselves mo
 
 ## Verification commands
 
-Run the checks for the changed scope once, then rerun affected checks if a fix changes their inputs. Record commands, results, and unavailable checks in the PR. The local hooks and CI remain required; documentation-only work does not require new GPU runs or scientific claims.
+Run the checks for the changed scope once, then rerun affected checks if a fix changes their inputs. Record commands, results, and unavailable checks in the PR. Use the repository's [dependency environments](architecture.md#dependency-environments) for package, root-tooling, full-workspace, and documentation command selection.
 
-For package behavior, use its member environment and the regular test selection:
-
-```bash
-uv run --package <member> pytest <member-path>/tests -m "not vendor_parity and not integration"
-```
-
-For documentation and instruction changes, the existing root tests check README contracts, docs navigation, and checker behavior:
-
-```bash
-uv run --package design-generators --group dev pytest tests -m "not integration"
-uv run --package devharness devharness check model-readmes
-uv run --package design-generators scripts/check_training_doc_template.py
-uv run --package design-generators scripts/check_training_stage_evidence.py
-```
-
-The strict site build needs installed workspace packages for API imports. Preserve that environment for the build:
-
-```bash
-uv sync --all-packages --group docs
-uv run --no-sync --package design-generators zensical build --strict -f mkdocs.yml
-```
-
-Run the repository's pre-commit suite in the full-workspace environment above before opening the PR; its member-test hooks expect installed packages. The documented `uv-lock` exclusion prevents a validation run from rewriting the lockfile; dependency changes still require a deliberate lock update and CI freshness check.
-
-```bash
-SKIP=uv-lock uv run --no-sync --package design-generators pre-commit run --all-files
-```
-
-Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. An independent reviewer reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.
+Use the package's `REPRODUCING.md` or `TRAINING.md` for asset-dependent acceptance commands. A coordinator reports actual comparisons with `PARITY_REQUIRE=1`, not an all-skip result.

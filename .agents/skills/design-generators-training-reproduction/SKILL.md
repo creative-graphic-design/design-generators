@@ -1,6 +1,6 @@
 ---
 name: design-generators-training-reproduction
-description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages S0-S5 defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks S5 claims or S5-scale GPU runs when evidence for stages S0-S4 is missing, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
+description: Use this skill whenever implementing, reviewing, documenting, or planning package-local training reproduction in design-generators. It enforces the six ordered stages and S5 gate defined in docs/training-reproduction.md, requires evidence comments for each stage, and blocks unsupported S5 claims or S5-scale GPU runs, even if the user only asks for training, models whose weights this repository trains itself (called "train-ourselves" work), TRAINING.md updates, or reproduction evidence.
 ---
 
 # Training Reproduction
@@ -30,7 +30,7 @@ Use this order for every training-first package:
 
 ## S5 Gate
 
-Do not launch S5-scale GPU jobs, mark an issue with the `parity-verified` status label, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
+Apply the [protocol's Stage Overview](docs/training-reproduction.md#stage-overview) before launching S5-scale GPU jobs, marking an issue with the `parity-verified` status label, or writing a README/model-card/PR claim that S5 reproduction is complete.
 
 Before launching S5, write one launch manifest: a JSON file with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
@@ -73,7 +73,6 @@ Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. I
 - A root-level `traingen` launch is not the supported model-training workflow; select the member environment above.
 - Training-first packages follow the canonical [training reproduction protocol](docs/training-reproduction.md) for S0-S5 evidence, topology guards, dataset coverage, seed policy, and evidence recording.
 - Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
-- Do not run or claim S5 full-run training reproduction before S0-S4 stage evidence exists; S5-only results are rejected by `scripts/check_training_stage_evidence.py`.
 - PRs for models whose only weight path is self-training stay draft until S5 is confirmed for every claimed dataset; partial coverage must be stated in the package `TRAINING.md`, README, and PR body.
 
 ## Comparison Scope Rules
