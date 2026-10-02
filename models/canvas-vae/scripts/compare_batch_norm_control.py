@@ -292,7 +292,7 @@ def main() -> None:
     if total_elements <= 0:
         raise AssertionError("The control model has no trainable elements.")
 
-    near_zero_gradient_element_fraction = near_zero_elements / total_elements
+    near_zero_gradient_element_fraction = near_zero_elements / max(total_elements, 1)
     report["post_step_parameter_tolerance"] = {
         "limit": FP32_RELATIVE_TOLERANCE,
         "within": sum(
