@@ -107,6 +107,79 @@ def test_model_readme_main_reports_policy_failure(
     assert capsys.readouterr().err == "bad README\n"
 
 
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        (
+            "```python\nprint('output')\n```\n",
+            "must be followed by a text fence",
+        ),
+        (
+            "```python\nprint('output')\n```\nThe example prints:\n\n```text\noutput\n```\n",
+            "must be followed by a text fence",
+        ),
+        (
+            "```python\nprint('output')\n```\n```bash\noutput\n```\n",
+            "must be followed by a text fence",
+        ),
+        ("No usage example.", "must contain a python fence"),
+        (
+            "```python\nprint('output')\n```\n```text\noutput\n```\n",
+            None,
+        ),
+    ],
+)
+def test_model_readme_usage_output_contract(text: str, message: str | None) -> None:
+    path = Path("models/layout-gpt/README.md")
+    if message is None:
+        card.assert_usage_output_fence(path, text)
+        return
+
+    with pytest.raises(AssertionError, match=message):
+        card.assert_usage_output_fence(path, text)
+
+
+def test_model_readme_baseline_flag_preserves_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = tmp_path / "model_readme_baseline.txt"
+    header = b"# Policy\r\n# Keep this header\n"
+    baseline.write_bytes(header + b"models/stale/README.md\n")
+    monkeypatch.setattr(check, "MODEL_README_BASELINE_PATH", baseline)
+
+    assert check.main(["--write-baseline"]) == 0
+
+    entries = {
+        line
+        for line in baseline.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    }
+    assert baseline.read_bytes().startswith(header)
+    assert len(entries) == 26
+    assert "models/layoutprompter/README.md" not in entries
+    assert "models/parse-then-place/README.md" not in entries
+
+
+def test_model_readme_cli_forwards_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def fake_main(argv: list[str]) -> int:
+        seen.extend(argv)
+        return 17
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["devharness", "check", "model-readmes", "--write-baseline"],
+    )
+    monkeypatch.setattr(check, "main", fake_main)
+
+    assert cli.main() == 17
+    assert seen == ["--write-baseline"]
+
+
 def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     fixture = tmp_path / "repository"
     archive = subprocess.run(

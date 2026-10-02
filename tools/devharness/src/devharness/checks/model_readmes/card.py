@@ -543,6 +543,43 @@ def assert_code_fences_tagged(path: Path, text: str) -> None:
         raise AssertionError(f"{path}: unterminated code fence")
 
 
+def usage_output_violation(path: Path, text: str) -> str | None:
+    """Return a violation when the first Python usage fence lacks text output."""
+    lines = text.splitlines()
+    start = next(
+        (index for index, line in enumerate(lines) if line.strip() == "```python"),
+        None,
+    )
+    if start is None:
+        return f"{path}: usage example must contain a python fence"
+
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index].startswith("```")
+        ),
+        None,
+    )
+    if end is None:
+        return f"{path}: first python fence is unterminated"
+
+    next_line = end + 1
+    while next_line < len(lines) and not lines[next_line].strip():
+        next_line += 1
+
+    if next_line == len(lines) or lines[next_line].strip() != "```text":
+        return f"{path}: first python fence must be followed by a text fence"
+
+    return None
+
+
+def assert_usage_output_fence(path: Path, text: str) -> None:
+    """Require captured output after the first Python usage fence."""
+    if violation := usage_output_violation(path, text):
+        raise AssertionError(violation)
+
+
 def assert_banned_patterns(path: Path, text: str) -> None:
     """Reject credentials and repository-process language in reader-facing text."""
     for pattern in BANNED_PATTERNS:
