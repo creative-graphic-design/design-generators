@@ -259,10 +259,4 @@ If a package run degenerates while the original self-recovers, or if a checkpoin
 
 ## Writing Rules for Reader-Facing Documentation
 
-- Start with what the reader needs to understand or decide, then order procedures by that reader path.
-- Define each internal term at first use, including evidence labels, hashes, and stage names.
-- Write facts and rules as reader-facing prose; do not expose work-history or evidence-receipt language without context.
-- Put a section where its subject belongs; do not grow a section merely where related work happened.
-- Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
-- The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.
-- Treat excessive emotional intensity, redundant enumeration, and hedging as model-review targets for the separately developing slop-review; do not add them to this checker.
+- Follow the [Reader-First Documentation](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#reader-first-documentation) rules in `AGENTS.md`.

@@ -13,7 +13,7 @@ Use this checklist when implementing a model package. Complete each applicable i
 ## Before starting
 
 - [ ] Create a fresh worktree from the current `origin/main`; local checkouts may be stale, and vendor submodules must remain untouched.
-- [ ] Read the [project roadmap](roadmap.md), [shared data sources](data-sources.md), [public conventions](conventions.md), and [shared-library architecture](architecture.md) before applying the current repository contracts; historical umbrella discussion remains preserved in [issue 2](https://github.com/creative-graphic-design/design-generators/issues/2).
+- [ ] Read the [project roadmap](roadmap.md), [shared data sources](data-sources.md), [public conventions](conventions.md), and [shared-library architecture](architecture.md) before applying the current repository contracts; historical umbrella discussion lives in [issue 2](https://github.com/creative-graphic-design/design-generators/issues/2).
 - [ ] Read the model issue's plan comment and every later amendment comment; later amendments override earlier plan text when they conflict.
 - [ ] Add the `in-progress` label to the model issue before implementation begins.
 
@@ -53,7 +53,7 @@ Use this checklist when implementing a model package. Complete each applicable i
 - [ ] Require exact token or id matches for deterministic generation and tolerance-based comparison only for logits, gate parity tests behind a pytest marker, and skip them cleanly when weights are absent.
 - [ ] Reach at least 90% coverage per package under the CI selection `-m "not vendor_parity and not integration"` with real unit tests such as tiny random-weight CPU configurations; never lower the gate or add broad pragma exclusions.
 - [ ] Run root pytest with `--import-mode=importlib` from the root `pyproject.toml` `addopts` setting, and preserve that setting when resolving pyproject merge conflicts because packages share test basenames; adding `tests/__init__.py` does not fix import mode.
-- [ ] Keep unit tests independent of weights and network access, and do not add `uv lock --check` to CI because the environment uses specific lock options.
+- [ ] Keep unit tests independent of weights and network access.
 - [ ] Pass a local `save_pretrained` to `from_pretrained` round-trip test.
 
 ## Training for train-ourselves models

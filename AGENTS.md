@@ -9,14 +9,12 @@
 
 ## Sources Of Truth
 
-- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy remains in [docs/conventions.md](docs/conventions.md), shared-library structure remains in [docs/architecture.md](docs/architecture.md), and repository workflow remains here. Historical discussion remains preserved in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2).
-- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
-- Shared library structure is defined in [docs/architecture.md](docs/architecture.md): workspace members are `lib/*`, `models/*`, and `tools/*`; shared layout helpers import from `laygen.common`; poster helpers import from `posgen.common` when needed. Historical discussion remains preserved in [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy lives in [docs/conventions.md](docs/conventions.md), shared-library structure lives in [docs/architecture.md](docs/architecture.md), and repository workflow lives here. Historical discussion lives in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion lives in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
 ## Workspace
 
-- The root uv workspace uses members `["lib/*", "models/*", "tools/*"]`.
 - Run member-specific commands with the member package selected: `uv run --package <name> ...`. Examples: `uv run --package laygen pytest`, `uv run --package layout-dm pytest`.
 - Do not run plain root `uv run` against a member path when the command depends on that member's extras, dependency source mapping, or package metadata.
 - Do not commit host-specific absolute filesystem paths. Pass runtime absolute paths through environment variables or CLI arguments; repository defaults must be repo-root-relative.
@@ -49,7 +47,6 @@
 
 - Model package names and Hub repo ids use the method name known in the literature, not necessarily the vendor repository slug.
 - Example: vendor `const-layout` becomes package `layoutganpp` and Hub ids such as `creative-graphic-design/layoutganpp-rico`.
-- Shared packages are `laygen.common` for layout-generation utilities and `posgen.common` for poster/content-aware utilities.
 
 ### Class Design And Code Style
 
@@ -100,8 +97,6 @@
 
 ## Machine-Checked Conventions
 
-Each unmigrated `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Migrated checker policies live under `devharness.checks`, with migrated command dispatch through `devharness check <name>`. Repository-development mechanics that two or more checkers need with identical semantics belong in the stdlib-only `tools/devharness` tooling package; a mechanic with one consumer stays in its checker. Tooling packages are unavailable to runtime libraries and model packages.
-
 ### Source Checks
 
 - `scripts/check_committed_paths.py` rejects host-specific absolute paths in tracked files, with its documented exclusions.
@@ -129,8 +124,9 @@ Each unmigrated `scripts/check_*.py` owns one repository policy area together wi
 - `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
-- `.github/workflows/ci.yml` is the CI entry point for pre-commit with `SKIP=uv-lock`, `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests; root-tooling checks use `uv sync --package design-generators --group dev` in an environment whose only workspace member is `devharness`, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
-- The root project is a tooling coordinator with no runtime dependencies installed by default. Workspace-wide `transformers` and `diffusers` version floors are declared in root `[tool.uv].constraint-dependencies`; workspace members install their runtime dependencies through `uv run --package <name>` or `uv sync --all-packages`. The root `evaluation` extra is used only by `scripts/verify_evaluate_layout_metrics.py`.
+- The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
+- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests.
+- Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
 - Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
