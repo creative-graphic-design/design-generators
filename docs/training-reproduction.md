@@ -108,11 +108,13 @@ S5 must cover every dataset that the original implementation trains on for the c
 
 Use these status values in `TRAINING.md`:
 
-- `s5-bit-parity`: Full S5 evidence shows bit-level agreement for this dataset and seed scope.
-- `s5-practical-reproduction`: Full S5 evidence shows practical reproduction for this dataset and seed scope.
-- `recipe-unstable (documented)`: Full S5 evidence is affected by documented recipe instability for this dataset.
-- `not-yet-run (<tracking ref>)`: S5 evidence is not yet available for this dataset; the parenthetical identifies follow-up tracking.
+- `s5-bit-parity`: Package and original metrics and losses are bit-identical for this dataset and seed scope.
+- `s5-practical-reproduction`: Full S5 metrics fall within the accepted per-dataset parity thresholds without bit-level equality; see Parity thresholds above.
+- `recipe-unstable (documented)`: The original training recipe itself gives unstable results across seeds; the interpretation paragraph documents the instability.
+- `not-yet-run (<tracking ref>)`: S5 evidence is not yet available for this dataset; the parenthetical links the issue or pull request that tracks the run.
 - `blocked (<reason>)`: Required data, original code, assets, or compute are unavailable; the parenthetical states the reason.
+
+A dataset the package does not claim uses `not-yet-run (<tracking ref>)` or `blocked (<reason>)` and the conclusion states it is not claimed.
 
 Partial dataset coverage must be stated in the conclusion and table. A README or model card must not imply general training reproduction if S5 exists for only a subset of the original training datasets.
 
