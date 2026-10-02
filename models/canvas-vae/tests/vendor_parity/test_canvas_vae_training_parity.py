@@ -93,13 +93,25 @@ def diff(actual: torch.Tensor, expected: np.ndarray) -> dict[str, float]:
 
 
 def assert_close(name, actual, expected, rtol, atol, measured):
+    """Record the difference; ``check_measured`` fails after the report is written."""
     reference = torch.as_tensor(np.asarray(expected), dtype=actual.dtype).reshape(
         actual.shape
     )
-    measured[name] = diff(actual, expected)
-    torch.testing.assert_close(
-        actual.detach(), reference, rtol=rtol, atol=atol, msg=name
-    )
+    delta = (actual.detach() - reference).abs()
+    excess = delta - (atol + rtol * reference.abs())
+    measured[name] = {
+        **diff(actual, expected),
+        "rtol": rtol,
+        "atol": atol,
+        "within": bool((excess <= 0).all()),
+        "max_excess": float(excess.max()) if excess.numel() else 0.0,
+    }
+
+
+def check_measured(name: str, measured: dict, extra: dict | None = None) -> None:
+    report(name, {**(extra or {}), **measured})
+    failed = sorted(key for key, value in measured.items() if not value["within"])
+    assert not failed, f"outside tolerance: {failed}"
 
 
 @pytest.fixture(scope="module")
@@ -366,7 +378,7 @@ def test_s0_topology_and_static_config(
             measured,
         )
 
-    report("s0", measured)
+    check_measured("s0", measured)
 
 
 def run_traced_step(model, batches, step0):
@@ -465,7 +477,7 @@ def test_s1_fixed_batch_forward_trace(
         0,
         measured,
     )
-    report("s1", measured)
+    check_measured("s1", measured)
 
 
 def test_s2_one_optimizer_step(
@@ -549,7 +561,7 @@ def test_s2_one_optimizer_step(
     assert math.isclose(
         float(step0["learning_rate"]), optimizer.param_groups[0]["lr"], rel_tol=1e-7
     )
-    report("s2", {"grad_types": sorted(grad_types), **measured})
+    check_measured("s2", measured, {"grad_types": sorted(grad_types)})
 
 
 def package_trajectory(
