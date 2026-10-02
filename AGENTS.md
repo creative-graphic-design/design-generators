@@ -100,7 +100,7 @@
 
 ## Machine-Checked Conventions
 
-Each `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Repository-development mechanics that two or more checkers need with identical semantics belong in the stdlib-only `tools/devharness` tooling package; a mechanic with one consumer stays in its checker. Tooling packages are unavailable to runtime libraries and model packages.
+Each unmigrated `scripts/check_*.py` owns one repository policy area together with its CLI, diagnostics, baseline shape, and git or network access. Migrated checker policies live under `devharness.checks`, with migrated command dispatch through `devharness check <name>`. Repository-development mechanics that two or more checkers need with identical semantics belong in the stdlib-only `tools/devharness` tooling package; a mechanic with one consumer stays in its checker. Tooling packages are unavailable to runtime libraries and model packages.
 
 ### Source Checks
 
@@ -115,7 +115,7 @@ Each `scripts/check_*.py` owns one repository policy area together with its CLI,
 
 ### Documentation Checks
 
-- `scripts/check_model_readmes.py` enforces README and model-card contracts.
+- `devharness.checks.model_readmes` enforces README and model-card contracts through `devharness check model-readmes`.
 - `scripts/check_readme_badges.py` enforces README badge contracts.
 - `scripts/check_readme_links.py` enforces repository-relative README links.
 - `scripts/check_reader_facing_references.py` enforces reader-facing reference contracts.
