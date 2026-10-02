@@ -60,6 +60,7 @@ SEQUENCE_COLUMNS = COLUMNS[1:]
 # in-process FnApiRunner in the Beam releases of its time; current Beam routes
 # DirectRunner to the Prism runner instead, so the runner is named explicitly.
 FN_API_RUNNER = "apache_beam.runners.portability.fn_api_runner.FnApiRunner"
+NOISE: list = []
 
 
 def parse_args() -> argparse.Namespace:
@@ -215,7 +216,14 @@ def recording_spec(tf, spec):
 
 
 def install_noise_recorder(tf, encoder):
-    """Make the posterior head store each standard-normal draw in ``noise``."""
+    """Make the posterior head store each standard-normal draw in ``NOISE``.
+
+    The variable lives outside the Keras object graph so it never appears among
+    the model or checkpoint variables.
+    """
+    NOISE.append(
+        tf.Variable(tf.zeros((1, 256)), shape=tf.TensorShape(None), trainable=False)
+    )
 
     def call(self, inputs, training=False):
         z_mean = self.z_mean(inputs)
@@ -227,7 +235,7 @@ def install_noise_recorder(tf, encoder):
         self.add_metric(kl_div, name="kl_divergence")
         if training:
             epsilon = tf.random.normal(shape=tf.shape(z_log_sigma))
-            self.noise.assign(epsilon)
+            NOISE[0].assign(epsilon)
             z_mean += tf.exp(0.5 * z_log_sigma) * epsilon
 
         return z_mean
@@ -369,10 +377,6 @@ def build_model(tf, spec_module, encoder, data_dir: Path, dropout: float):
         dropout=dropout,
     )
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=1.0))
-    head = model.encoder.head
-    head.noise = tf.Variable(
-        tf.zeros((1, 256)), shape=tf.TensorShape(None), trainable=False
-    )
     model.optimizer.build(model.trainable_variables)
     return dataspec, input_columns, model
 
@@ -437,7 +441,7 @@ def trace(args: argparse.Namespace) -> None:
     step0.update(
         {f"metric/{metric.name}": metric.result().numpy() for metric in model.metrics}
     )
-    step0["noise"] = model.encoder.head.noise.numpy()
+    step0["noise"] = NOISE[0].numpy()
     z_mean = model.encoder.head.z_mean(recorded["encoder_norm"])
     z_log_var = model.encoder.head.z_log_sigma(recorded["encoder_norm"])
     step0["z_mean"] = z_mean.numpy()
@@ -499,7 +503,7 @@ def trace(args: argparse.Namespace) -> None:
     for step in range(1, args.steps):
         model.reset_metrics()
         loss, norm = train_step(inputs[step])
-        trajectory["noise"].append(model.encoder.head.noise.numpy())
+        trajectory["noise"].append(NOISE[0].numpy())
         trajectory["total_loss"].append(float(loss))
         trajectory["grad_norm"].append(float(norm))
         for metric in model.metrics:
