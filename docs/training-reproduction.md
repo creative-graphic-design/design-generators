@@ -29,6 +29,8 @@ Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missin
 | S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                           |
 | S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                    |
 
+Every full run that makes an S5 claim must have one launch manifest: a JSON file written before the S5 launch with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; the S5 Stage Evidence row's Artifact cell cites its repository- or cache-relative path, such as `.cache/<package>/full-run/<dataset>/manifest.json`.
+
 ## Stage Rules
 
 ### Step Parity and Full-Run Parity
@@ -200,6 +202,8 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The Comparison Scope `Evaluator` cell names the evaluator that the manifest's `evaluator_command` runs, and the `Checkpoint-selection rule` cell equals the manifest's `checkpoint_rule`.
 
 Commands must be executable from the repository root and must not depend on untracked helper scripts unless the helper creation command is also shown.
 
