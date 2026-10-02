@@ -554,6 +554,14 @@ def test_model_type_contract_accepts_structured_line() -> None:
     ) == ("content-aware", ("label", "label_size"))
 
 
+def test_model_type_contract_rejects_empty_conditioning_value() -> None:
+    with pytest.raises(AssertionError, match="conditioning values cannot be empty"):
+        card.parse_model_type(
+            Path("models/example/README.md"),
+            "- **Model type:** content-agnostic; conditioning: label_size, .\n",
+        )
+
+
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:
@@ -584,6 +592,32 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
         "models/<slug>/README.md",
         tmp_path,
     ) == {"layoutformerpp"}
+
+
+def test_root_models_table_escapes_link_pattern_punctuation(tmp_path: Path) -> None:
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| [`LayoutDM`](models/layout-dm/READMExmd) | content-agnostic | "
+        "unconditional | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        "label=venue&message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "![training: n/a](https://img.shields.io/static/v1?label=training&"
+        "message=n%2Fa&color=lightgrey) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="must link models/<slug>/README.md"):
+        root_readme.root_model_slugs(
+            readme,
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+            tmp_path,
+        )
 
 
 def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:

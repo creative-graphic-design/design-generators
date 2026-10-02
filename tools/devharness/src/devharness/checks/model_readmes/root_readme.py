@@ -259,10 +259,10 @@ def root_model_slugs(
 
         model_name = model_link.group(1)
         normalized_model_link = normalize_root_repo_link(model_link.group(2))
-        slug_match = re.fullmatch(
-            model_link_pattern.replace("<slug>", r"([^/)]+)"),
-            normalized_model_link,
+        link_pattern = re.escape(model_link_pattern).replace(
+            re.escape("<slug>"), r"([^/)]+)"
         )
+        slug_match = re.fullmatch(link_pattern, normalized_model_link)
         if slug_match is None:
             raise AssertionError(
                 f"{path}: Model cell must link {model_link_pattern}: {line}"
