@@ -157,6 +157,16 @@ def is_artifact_path(value: str) -> bool:
     )
 
 
+def is_s5_artifact_path(value: str) -> bool:
+    """Return whether an S5 artifact is a relative launch manifest path."""
+    artifact = unquote_cell(value)
+    return (
+        is_artifact_path(value)
+        and artifact.startswith(ARTIFACT_PREFIXES)
+        and artifact.endswith("manifest.json")
+    )
+
+
 def section_named(text: str, heading_name: str) -> str:
     """Return the content for the first matching Markdown heading."""
     for heading, lines in iter_heading_sections(text):
@@ -298,6 +308,18 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                     relative_path,
                     stage,
                     "S5 result claim requires a complete evidence row for this stage",
+                )
+            )
+        elif (
+            stage == "S5"
+            and is_artifact_path(row.artifact)
+            and not is_s5_artifact_path(row.artifact)
+        ):
+            violations.append(
+                StageEvidenceViolation(
+                    relative_path,
+                    stage,
+                    "S5 artifact must be a repository- or cache-relative path ending in manifest.json",
                 )
             )
         elif not row.is_complete:

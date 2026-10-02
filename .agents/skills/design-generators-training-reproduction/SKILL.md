@@ -29,6 +29,8 @@ Use this order for every training-first package:
 ## S5 Gate
 
 Do not launch S5-scale GPU jobs, mark an issue with the `parity-verified` status label, or write a README/model-card/PR claim that S5 reproduction is complete unless S0-S4 evidence already exists and is cited. If earlier evidence is missing, stop at the current stage and document the blocker instead of using S5 as a substitute.
+Before launching S5, write one launch manifest: a JSON file with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; cite its repository- or cache-relative path in the S5 Stage Evidence row. The evaluator and checkpoint-selection rule in the Comparison Scope table must equal the `evaluator_command` and `checkpoint_rule` values in that manifest.
+
 Finish every commit the campaign intends to make, including documentation commits, before launching the seed queue (the supervisor that trains and evaluates the per-seed runs in sequence) because the queue pins the source commit once at startup. Before launch, run a deliberate mismatch dry run for the source gate (each run's check that the worktree commit equals the commit pinned at queue start) and verify that the queue stops on the gate failure; a nonzero gate exit swallowed by an `&&` chain or a function body does not stop the queue.
 
 The durable package document must include a machine-readable `Stage Evidence` table in `models/<package>/TRAINING.md`:
@@ -43,7 +45,7 @@ The durable package document must include a machine-readable `Stage Evidence` ta
 | S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json`  | `<result>` |
 ```
 
 Run `uv run --package design-generators scripts/check_training_stage_evidence.py` before opening or updating a PR that touches training reproduction docs.

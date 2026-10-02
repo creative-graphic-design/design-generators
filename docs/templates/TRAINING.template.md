@@ -76,7 +76,7 @@ describe evaluation-seed evidence as training-seed reproduction.
 | S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
 | S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json`  | `<result>` |
 
 ## Reproduction Results
 
@@ -105,6 +105,8 @@ Comparison Scope records the evaluation setup for each dataset comparison. Use o
 | Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
 | ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
 | `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
+
+The evaluator and checkpoint-selection rule recorded in this table must equal the `evaluator_command` and `checkpoint_rule` values in the launch manifest cited by the S5 Stage Evidence row.
 
 ## Regeneration Metadata
 
