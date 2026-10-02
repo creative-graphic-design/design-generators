@@ -30,6 +30,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for RALF
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.13602&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2311.13602)
@@ -51,7 +52,7 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware layout generation.
+- **Model type:** content-aware; task: task-aware; conditioning: unconditional, label, label_size, completion, refinement, relation, retrieval.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 
@@ -63,20 +64,20 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| CGL unconditional | [`creative-graphic-design/ralf-cgl-unconditional`](https://huggingface.co/creative-graphic-design/ralf-cgl-unconditional) | not-published |
-| CGL label | [`creative-graphic-design/ralf-cgl-label`](https://huggingface.co/creative-graphic-design/ralf-cgl-label) | local conversion supported |
-| CGL label-size | [`creative-graphic-design/ralf-cgl-label-size`](https://huggingface.co/creative-graphic-design/ralf-cgl-label-size) | local conversion supported |
-| CGL completion | [`creative-graphic-design/ralf-cgl-completion`](https://huggingface.co/creative-graphic-design/ralf-cgl-completion) | local conversion supported |
-| CGL refinement | [`creative-graphic-design/ralf-cgl-refinement`](https://huggingface.co/creative-graphic-design/ralf-cgl-refinement) | local conversion supported |
-| CGL relation | [`creative-graphic-design/ralf-cgl-relation`](https://huggingface.co/creative-graphic-design/ralf-cgl-relation) | local conversion supported |
-| PKU unconditional | [`creative-graphic-design/ralf-pku-unconditional`](https://huggingface.co/creative-graphic-design/ralf-pku-unconditional) | not-published |
-| PKU label | [`creative-graphic-design/ralf-pku-label`](https://huggingface.co/creative-graphic-design/ralf-pku-label) | local conversion supported |
-| PKU label-size | [`creative-graphic-design/ralf-pku-label-size`](https://huggingface.co/creative-graphic-design/ralf-pku-label-size) | local conversion supported |
-| PKU completion | [`creative-graphic-design/ralf-pku-completion`](https://huggingface.co/creative-graphic-design/ralf-pku-completion) | local conversion supported |
-| PKU refinement | [`creative-graphic-design/ralf-pku-refinement`](https://huggingface.co/creative-graphic-design/ralf-pku-refinement) | local conversion supported |
-| PKU relation | [`creative-graphic-design/ralf-pku-relation`](https://huggingface.co/creative-graphic-design/ralf-pku-relation) | local conversion supported |
+| Checkpoint        | Hub ID                                                                                                                    | Status                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| CGL unconditional | [`creative-graphic-design/ralf-cgl-unconditional`](https://huggingface.co/creative-graphic-design/ralf-cgl-unconditional) | not-published              |
+| CGL label         | [`creative-graphic-design/ralf-cgl-label`](https://huggingface.co/creative-graphic-design/ralf-cgl-label)                 | local conversion supported |
+| CGL label-size    | [`creative-graphic-design/ralf-cgl-label-size`](https://huggingface.co/creative-graphic-design/ralf-cgl-label-size)       | local conversion supported |
+| CGL completion    | [`creative-graphic-design/ralf-cgl-completion`](https://huggingface.co/creative-graphic-design/ralf-cgl-completion)       | local conversion supported |
+| CGL refinement    | [`creative-graphic-design/ralf-cgl-refinement`](https://huggingface.co/creative-graphic-design/ralf-cgl-refinement)       | local conversion supported |
+| CGL relation      | [`creative-graphic-design/ralf-cgl-relation`](https://huggingface.co/creative-graphic-design/ralf-cgl-relation)           | local conversion supported |
+| PKU unconditional | [`creative-graphic-design/ralf-pku-unconditional`](https://huggingface.co/creative-graphic-design/ralf-pku-unconditional) | not-published              |
+| PKU label         | [`creative-graphic-design/ralf-pku-label`](https://huggingface.co/creative-graphic-design/ralf-pku-label)                 | local conversion supported |
+| PKU label-size    | [`creative-graphic-design/ralf-pku-label-size`](https://huggingface.co/creative-graphic-design/ralf-pku-label-size)       | local conversion supported |
+| PKU completion    | [`creative-graphic-design/ralf-pku-completion`](https://huggingface.co/creative-graphic-design/ralf-pku-completion)       | local conversion supported |
+| PKU refinement    | [`creative-graphic-design/ralf-pku-refinement`](https://huggingface.co/creative-graphic-design/ralf-pku-refinement)       | local conversion supported |
+| PKU relation      | [`creative-graphic-design/ralf-pku-relation`](https://huggingface.co/creative-graphic-design/ralf-pku-relation)           | local conversion supported |
 
 ## Uses
 
@@ -141,10 +142,10 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| CGL | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | `ralf-style` poster layout conversion |
-| PKU | [`creative-graphic-design/PKU-PosterLayout`](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout) | `ralf-style` poster layout conversion |
+| Dataset | Dataset ID                                                                                                             | Notes                                 |
+| ------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| CGL     | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset)           | `ralf-style` poster layout conversion |
+| PKU     | [`creative-graphic-design/PKU-PosterLayout`](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout) | `ralf-style` poster layout conversion |
 
 ### Training Procedure
 
@@ -180,13 +181,13 @@ Metrics are exact state-dict equality, exact tensor equality, or explicitly stat
 
 ### Parity Results
 
-| Dataset | Compared artifact | Cases | Match criterion | Result |
-| --- | --- | ---: | --- | --- |
-| CGL | `ralf_uncond_cgl` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| CGL | `ralf_uncond_cgl` local-vs-vendor logits | 1 synthetic GPU 0 batch | `max_abs_diff=0.0` | passed |
-| PKU | `ralf_uncond_pku10` strict conversion | 1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
-| PKU | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic GPU 0 batch | `max_abs_diff=0.0` | passed |
-| Synthetic CPU smoke | local `save_pretrained` reload | 1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label` | passed |
+| Dataset             | Compared artifact                          |                   Cases | Match criterion                                                                                                                        | Result |
+| ------------------- | ------------------------------------------ | ----------------------: | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| CGL                 | `ralf_uncond_cgl` strict conversion        |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| CGL                 | `ralf_uncond_cgl` local-vs-vendor logits   | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
+| PKU                 | `ralf_uncond_pku10` strict conversion      |                       1 | 664 source keys, 664 target keys, 664 matched keys; missing and unexpected keys empty; converted state dict equals original checkpoint | passed |
+| PKU                 | `ralf_uncond_pku10` local-vs-vendor logits | 1 synthetic GPU 0 batch | `max_abs_diff=0.0`                                                                                                                     | passed |
+| Synthetic CPU smoke | local `save_pretrained` reload             |                       1 | `from_pretrained` succeeds and returns `bbox`, `labels`, `mask`, and `id2label`                                                        | passed |
 
 ## Reproducibility
 

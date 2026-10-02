@@ -62,6 +62,28 @@ Canonical `condition_type` names are:
 
 Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 
+#### Model catalog classification
+
+`Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does; element-level image or text feature fields, such as Flex-DM's feature infilling, do not count.
+
+`Task` is classified as follows:
+
+- `task-agnostic`: one trained checkpoint or configuration serves every accepted generation condition by applying the condition at inference; this value requires two or more accepted generation conditions.
+- `task-aware`: a separate checkpoint or training run exists for each accepted generation condition; this value requires two or more accepted generation conditions.
+- `single-task`: the package accepts exactly one condition; packages whose `conditioning:` value of the model card's `Model type:` line is `none` count as single-task because their only accepted condition is `content_image`.
+- `evaluation`: the package evaluates layouts rather than generating them.
+- `saliency`: the package predicts saliency rather than generating layouts.
+
+The literature sometimes uses `task-agnostic` for the same single-checkpoint property used by this catalog.
+
+The `conditioning:` value of the model card's `Model type:` line may use these catalog-only values, which are not `condition_type` arguments:
+
+- `evaluation`: evaluate layouts rather than generate them.
+- `saliency`: predict saliency as the package's primary public operation.
+- `none`: the package's only accepted condition is `content_image`.
+
+The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
+
 ### Seeded Sampling
 
 Seeded sampling uses a CPU `torch.Generator` when the caller supplies a seed. The shared `laygen.common.randomness` wrappers (`randn`, `rand`, `randint`, `randperm`, `multinomial`, `bernoulli`, `normal`, and `poisson`) draw on an explicit generator's device, or on the requested output device when no generator is supplied, and then move the result to the requested device and dtype. Explicit generators keep their identity and device, so a CUDA generator remains a CUDA-local stream while a CPU generator gives the same stream for CPU and GPU targets. When a CPU generator samples GPU-resident tensor arguments, `multinomial`, `bernoulli`, `normal`, and `poisson` copy those arguments device-to-host for the CPU draw, synchronizing the stream, and copy the result host-to-device on every draw; this cost is paid on every step of discrete-diffusion and autoregressive decode loops.

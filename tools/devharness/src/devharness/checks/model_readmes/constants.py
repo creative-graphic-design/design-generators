@@ -50,10 +50,41 @@ ROOT_LIBRARY_BADGE_COLORS = {
 }
 ROOT_MODEL_TABLE_HEADER = [
     "Model",
+    "Task",
+    "Content",
     "Venue",
     "Ckpt",
     "Train",
 ]
+DOCS_MODEL_TABLE_HEADER = [
+    *ROOT_MODEL_TABLE_HEADER[:4],
+    "Weights",
+    "Training",
+    "Paper",
+    "Docs",
+]
+MODEL_CONTENT_VALUES = ("content-agnostic", "content-aware")
+MODEL_TASK_VALUES = (
+    "task-agnostic",
+    "task-aware",
+    "single-task",
+    "evaluation",
+    "saliency",
+)
+MODEL_CONDITIONING_ORDER = (
+    "unconditional",
+    "label",
+    "label_size",
+    "completion",
+    "refinement",
+    "text",
+    "relation",
+    "hierarchical",
+    "retrieval",
+    "evaluation",
+    "saliency",
+    "none",
+)
 MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )

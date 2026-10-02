@@ -6,6 +6,7 @@ import sys
 
 from . import card, citation, install, parity, reproducing, root_readme
 from .constants import (
+    DOCS_MODEL_TABLE_HEADER,
     LIB_MEMBER_DIRS,
     LIB_READMES,
     MODEL_MEMBER_DIRS,
@@ -14,6 +15,7 @@ from .constants import (
     README_LINK_CONTRACTS,
     README_POLICY_DOCS,
     REPO_ROOT,
+    ROOT_MODEL_TABLE_HEADER,
 )
 
 
@@ -21,11 +23,24 @@ def check() -> None:
     """Run every model README policy check in scan order."""
     root_readme.assert_model_doc_sets()
 
-    root_slugs = root_readme.root_model_slugs(REPO_ROOT / "README.md")
     root_readme.assert_root_model_badge_count(
         REPO_ROOT / "README.md", len(MODEL_MEMBER_DIRS)
     )
-    root_readme.assert_root_models_table_matches_members(root_slugs)
+    for path, header, link_pattern in (
+        (
+            REPO_ROOT / "README.md",
+            ROOT_MODEL_TABLE_HEADER,
+            "models/<slug>/README.md",
+        ),
+        (
+            REPO_ROOT / "docs" / "index.md",
+            DOCS_MODEL_TABLE_HEADER,
+            "api/models/<slug>/",
+        ),
+    ):
+        root_slugs = root_readme.root_model_slugs(path, header, link_pattern, REPO_ROOT)
+        root_readme.assert_root_models_table_matches_members(root_slugs, path)
+
     root_readme.assert_root_libraries_table_matches_members(REPO_ROOT / "README.md")
 
     for path in MODEL_READMES:
@@ -33,6 +48,7 @@ def check() -> None:
         card.assert_frontmatter(path, text)
         card.assert_expected_frontmatter(path, text)
         card.assert_runtime_contract(path, text)
+        card.parse_model_type(path, text)
         card.assert_heading_order(path, text)
         install.assert_model_pip_install_snippet(path, text)
         card.assert_model_summary_subject(path, text)

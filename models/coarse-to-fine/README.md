@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for Coarse-to-Fine
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=AAAI&color=blue&style=flat-square)](https://ojs.aaai.org/index.php/AAAI/article/view/19994)
@@ -49,7 +50,7 @@ Coarse-to-Fine generates page or UI layouts through a hierarchy-aware `transform
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: unconditional.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -60,10 +61,10 @@ Coarse-to-Fine generates page or UI layouts through a hierarchy-aware `transform
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/coarse-to-fine-rico25`](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/coarse-to-fine-publaynet`](https://huggingface.co/creative-graphic-design/coarse-to-fine-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                                        | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/coarse-to-fine-rico25`](https://huggingface.co/creative-graphic-design/coarse-to-fine-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/coarse-to-fine-publaynet`](https://huggingface.co/creative-graphic-design/coarse-to-fine-publaynet) | not-published |
 
 ## Uses
 
@@ -73,10 +74,10 @@ Use this package for research inference, conversion checks, and agreement checks
 
 The released checkpoints support unconditional hierarchical generation only. Canonical `condition_type` names are normalized at the API boundary, and unsupported modes fail explicitly.
 
-| `condition_type` | Required inputs | Support |
-| --- | --- | --- |
-| `unconditional` | none | supported |
-| `label`, `label_size`, `completion`, `refinement`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+| `condition_type`                                                                                                    | Required inputs | Support                      |
+| ------------------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------- |
+| `unconditional`                                                                                                     | none            | supported                    |
+| `label`, `label_size`, `completion`, `refinement`, `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable  | raises `NotImplementedError` |
 
 ### Downstream Use
 
@@ -137,10 +138,10 @@ print(out.intermediates["hierarchy"]["group_bbox"].shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 RICO25 public labels are zero-based; original-implementation tensors use one-based labels with SOS/EOS ids. PubLayNet COCO-style document boxes are converted to normalized `ltwh`, discretized on the original 128-bin grid, and returned publicly as normalized center `xywh`.
 
@@ -178,24 +179,23 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Comparison target | Cases | Agreement criterion | Result |
-| --- | --- | ---: | --- | --- |
-| RICO25 | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
-| RICO25 | Original implementation vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `3.004e-05` |
-| PubLayNet | Strict checkpoint conversion + `from_pretrained` | 1 checkpoint | Missing/unexpected keys fail strict load | Pass |
-| PubLayNet | Original implementation vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `7.75e-06` |
+| Dataset   | Comparison target                                     |                       Cases | Agreement criterion                           | Result                    |
+| --------- | ----------------------------------------------------- | --------------------------: | --------------------------------------------- | ------------------------- |
+| RICO25    | Strict checkpoint conversion + `from_pretrained`      |                1 checkpoint | Missing/unexpected keys fail strict load      | Pass                      |
+| RICO25    | Original implementation vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `3.004e-05` |
+| PubLayNet | Strict checkpoint conversion + `from_pretrained`      |                1 checkpoint | Missing/unexpected keys fail strict load      | Pass                      |
+| PubLayNet | Original implementation vs converted hierarchy logits | batch 2, 20 groups/elements | `rtol=5e-5`, `atol=5e-5`; greedy argmax exact | Pass; max abs `7.75e-06`  |
 
 Detailed max-abs values for the logits checks were:
 
-| Dataset | Group bbox | Group label histogram | Grouped bbox | Grouped label | Argmax |
-| --- | ---: | ---: | ---: | ---: | --- |
-| RICO25 | `3.004e-05` | `2.026e-06` | `2.098e-05` | `2.193e-05` | exact |
-| PubLayNet | `3.814e-06` | `5.960e-07` | `5.600e-06` | `7.750e-06` | exact |
+| Dataset   |  Group bbox | Group label histogram | Grouped bbox | Grouped label | Argmax |
+| --------- | ----------: | --------------------: | -----------: | ------------: | ------ |
+| RICO25    | `3.004e-05` |           `2.026e-06` |  `2.098e-05` |   `2.193e-05` | exact  |
+| PubLayNet | `3.814e-06` |           `5.960e-07` |  `5.600e-06` |   `7.750e-06` | exact  |
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/coarse-to-fine/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
-
 
 ## Environmental Impact
 
