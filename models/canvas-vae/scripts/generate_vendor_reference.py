@@ -61,6 +61,7 @@ SEQUENCE_COLUMNS = COLUMNS[1:]
 # DirectRunner to the Prism runner instead, so the runner is named explicitly.
 FN_API_RUNNER = "apache_beam.runners.portability.fn_api_runner.FnApiRunner"
 NOISE: list = []
+MASK_CONSUMING_BATCH_NORMALIZATION: list = []
 
 
 def parse_args() -> argparse.Namespace:
@@ -541,7 +542,7 @@ def unpatched_batch_norm_error(tf, input_columns, inputs) -> str:
     from canvasvae.models.vae import VAE
 
     patched = tf.keras.layers.BatchNormalization
-    tf.keras.layers.BatchNormalization = tf.keras.layers.MaskConsumingBatchNormalization
+    tf.keras.layers.BatchNormalization = MASK_CONSUMING_BATCH_NORMALIZATION[0]
     try:
         VAE(input_columns, latent_dim=256, kl=16.0, l2=1e-6)(inputs, training=True)
     except Exception as error:  # noqa: BLE001 - the error type is the recorded fact.
