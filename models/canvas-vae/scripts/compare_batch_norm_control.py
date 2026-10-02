@@ -24,6 +24,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Final
 
 os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
@@ -32,6 +33,7 @@ import numpy as np  # noqa: E402
 from jaxtyping import Shaped  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+FP32_RELATIVE_TOLERANCE: Final[float] = 1e-5
 
 
 def parse_args() -> argparse.Namespace:
@@ -147,6 +149,10 @@ def main() -> None:
         "tensorflow_version": tf.__version__,
         "batch_norm_call_has_mask": "mask"
         in tf.keras.layers.BatchNormalization.call.__code__.co_varnames,
+        "dropout": 0.0,
+        "batch_size": int(batches["0/length"].shape[0]),
+        "posterior_noise_injected": True,
+        "fp32_relative_tolerance": FP32_RELATIVE_TOLERANCE,
         "total_loss": {
             "tf211": float(loss),
             "tf215": float(step0["total_loss"]),
@@ -158,6 +164,29 @@ def main() -> None:
             for key in outputs
         ),
         "post_step_max_relative": {},
+    }
+    expected_parameters = {
+        key.removeprefix("after/")
+        for key in step0.files
+        if key.startswith("after/")
+    }
+    actual_parameters = set(after)
+    report["parameter_key_match"] = {
+        "expected": len(expected_parameters),
+        "actual": len(actual_parameters),
+        "missing": sorted(expected_parameters - actual_parameters),
+        "extra": sorted(actual_parameters - expected_parameters),
+    }
+    expected_logits = {
+        key.removeprefix("logits/")
+        for key in step0.files
+        if key.startswith("logits/")
+    }
+    report["logits_key_match"] = {
+        "expected": len(expected_logits),
+        "actual": len(outputs),
+        "missing": sorted(expected_logits - set(outputs)),
+        "extra": sorted(set(outputs) - expected_logits),
     }
     for key, value in after.items():
         reference = step0.get(f"after/{key}")
@@ -174,6 +203,22 @@ def main() -> None:
     report["post_step_worst"] = max(
         report["post_step_max_relative"].items(), key=lambda item: item[1]
     )
+    compared_differences = (
+        report["total_loss"]["relative"],
+        report["logits_max_relative"],
+        report["batch_norm_moving_mean_max_relative"],
+        report["batch_norm_moving_variance_max_relative"],
+        report["post_step_worst"][1],
+    )
+    report["agreement_within_fp32_tolerance"] = (
+        tf.__version__ == "2.11.1"
+        and not report["batch_norm_call_has_mask"]
+        and not report["parameter_key_match"]["missing"]
+        and not report["parameter_key_match"]["extra"]
+        and not report["logits_key_match"]["missing"]
+        and not report["logits_key_match"]["extra"]
+        and max(compared_differences) <= FP32_RELATIVE_TOLERANCE
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=1, sort_keys=True))
     print(
@@ -186,6 +231,10 @@ def main() -> None:
             indent=1,
         )
     )
+    if not report["agreement_within_fp32_tolerance"]:
+        raise AssertionError(
+            "TensorFlow 2.11.1 control exceeded fp32 agreement tolerance"
+        )
 
 
 if __name__ == "__main__":

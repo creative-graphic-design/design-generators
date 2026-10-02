@@ -552,12 +552,51 @@ def check_update(
         "norm_rel": float(delta.norm() / original.norm().clamp_min(1e-30)),
         **rule,
         "well_conditioned_fraction": float(well.double().mean()),
+        "well_conditioned_elements": int(well.sum()),
+        "elements": delta.numel(),
         "well_conditioned_norm_rel": well_rel,
+        "adam_rule_limit": ADAM_RULE_LIMIT,
+        "well_conditioned_limit": WELL_CONDITIONED_LIMIT,
+        "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
+        "near_zero_difference_sq": float(delta[~well].square().sum()),
+        "total_difference_sq": float(delta.square().sum()),
         "near_zero_share_of_difference": float(
             delta[~well].square().sum() / delta.square().sum().clamp_min(1e-300)
         ),
         "within": max(rule.values()) <= ADAM_RULE_LIMIT
         and well_rel <= WELL_CONDITIONED_LIMIT,
+    }
+
+
+def summarize_updates(measured):
+    """Summarize Adam-rule checks and the squared update-difference split."""
+    updates = {
+        name: values
+        for name, values in measured.items()
+        if name.startswith("update/") or "/update/" in name
+    }
+    near_zero_sq = sum(values["near_zero_difference_sq"] for values in updates.values())
+    total_sq = sum(values["total_difference_sq"] for values in updates.values())
+    return {
+        "updates": len(updates),
+        "max_adam_rule_relative_l2": max(
+            max(values["package_adam_rule"], values["original_adam_rule"])
+            for values in updates.values()
+        ),
+        "max_well_conditioned_relative_l2": max(
+            values["well_conditioned_norm_rel"] for values in updates.values()
+        ),
+        "near_zero_gradient_element_fraction": sum(
+            values["elements"] - values["well_conditioned_elements"]
+            for values in updates.values()
+        )
+        / sum(values["elements"] for values in updates.values()),
+        "near_zero_gradient_share_of_update_difference": near_zero_sq
+        / max(total_sq, 1e-300),
+        "sqrt_v_threshold": WELL_CONDITIONED_SQRT_V,
+        "epsilon": 1e-7,
+        "adam_rule_limit": ADAM_RULE_LIMIT,
+        "well_conditioned_limit": WELL_CONDITIONED_LIMIT,
     }
 
 
@@ -654,7 +693,11 @@ def test_s2_one_optimizer_step(
     check_measured(
         "s2",
         measured,
-        {"grad_types": sorted(grad_types), "zero_gradient_max_abs": zero_gradient},
+        {
+            "grad_types": sorted(grad_types),
+            "zero_gradient_max_abs": zero_gradient,
+            "update_criterion": summarize_updates(measured),
+        },
     )
 
 
@@ -880,7 +923,9 @@ def test_s3_synchronized_steps(
             measured,
         )
 
-    check_measured("s3_synchronized", measured)
+    check_measured(
+        "s3_synchronized", measured, {"update_criterion": summarize_updates(measured)}
+    )
 
 
 def test_s3_production_wiring(tmp_path):
@@ -962,6 +1007,8 @@ def hashes_by_id() -> dict[int, str]:
 def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, static):
     measured = {}
     original_hashes = {}
+    expected_counts = {"train": 45_222, "val": 5_584, "test": 5_623}
+    assert len(package_documents) == sum(expected_counts.values())
     for split in ("train", "val", "test"):
         with gzip.open(
             stream_dir / f"records_{split}.jsonl.gz", "rt", encoding="utf-8"
@@ -974,11 +1021,16 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, 
         original = {hashes_by_id[row["id"]] for row in rows}
         original_hashes[split] = original
         measured[split] = {
-            "original": len(rows),
+            "original_rows": len(rows),
+            "original_hashes": len(original),
             "package": len(package),
+            "expected": expected_counts[split],
             "only_package": sorted(package - original),
             "only_original": sorted(original - package),
         }
+        assert len(rows) == expected_counts[split], split
+        assert len(original) == expected_counts[split], split
+        assert len(package) == expected_counts[split], split
         assert original == package, split
         for row in rows:
             document = package_documents[hashes_by_id[row["id"]]]
