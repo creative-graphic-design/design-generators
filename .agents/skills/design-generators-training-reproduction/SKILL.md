@@ -70,3 +70,13 @@ Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. I
 - Package `TRAINING.md` files must follow [docs/templates/TRAINING.template.md](docs/templates/TRAINING.template.md) and pass `scripts/check_training_doc_template.py`.
 - Do not run or claim S5 full-run training reproduction before S0-S4 stage evidence exists; S5-only results are rejected by `scripts/check_training_stage_evidence.py`.
 - PRs for models whose only weight path is self-training stay draft until S5 is confirmed for every claimed dataset; partial coverage must be stated in the package `TRAINING.md`, README, and PR body.
+
+## Comparison Scope Rules
+
+Add the following subsection after the `Reproduction Results` table. Comparison Scope records the evaluation setup for each dataset comparison. Use one row with `System` set to `both` when the evaluator, test split, checkpoint-selection rule, and sample count apply to both systems. Use separate `package` and `original` rows when any of these values differs. The four scope fields state the evaluator used, the evaluated test split, the rule that selects the checkpoint entering evaluation, and the sample count. Sample count is the metric denominator for the reported metrics.
+
+### Comparison Scope
+
+| Dataset     | System | Evaluator     | Test split | Checkpoint-selection rule | Sample count                      |
+| ----------- | ------ | ------------- | ---------- | ------------------------- | --------------------------------- |
+| `<dataset>` | both   | `<evaluator>` | `<split>`  | `<rule>`                  | `<N> layouts per evaluation seed` |
