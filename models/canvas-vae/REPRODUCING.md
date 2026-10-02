@@ -2,6 +2,8 @@
 
 These commands rerun the agreement checks between this package and the [original CanvasVAE TensorFlow code](https://github.com/CyberAgentAILab/canvas-vae): RICO preparation, reference traces from the original trainer, the parity suite, checkpoint conversion, and a local `from_pretrained` smoke test. Run them from the repository root after `git submodule update --init vendor/canvas-vae`. Generated data, traces, and checkpoints stay under `.cache/canvas-vae/`.
 
+Workflow order: download and prepare RICO, generate original-code references, run the parity suite, convert a checkpoint, then smoke-test `from_pretrained` local loading.
+
 CanvasVAE has no released weights, so agreement is checked on the training path. The stages S0-S4 are defined in the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md); [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) records their results.
 
 The `vendor` extra installs TensorFlow 2.15.1 and Apache Beam next to PyTorch. Original-code commands disable TF32 with `NVIDIA_TF32_OVERRIDE=0`; the currently verified setup runs every command on a CPU-only runtime with `CUDA_VISIBLE_DEVICES=""`. On a GPU host, set `CUDA_VISIBLE_DEVICES=<gpu-index>` to one free device instead.

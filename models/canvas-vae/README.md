@@ -167,9 +167,18 @@ Training agreement compares forward activations, losses, gradients, optimizer st
 
 ### Parity Results
 
-| Check   | Cases | Criterion       | Result  |
-| ------- | ----: | --------------- | ------- |
-| Pending |     0 | see TRAINING.md | pending |
+Training agreement with the original TensorFlow trainer on RICO, measured on CPU in fp32 with the original's posterior noise injected and dropout 0. Stage names S0-S4 follow the [training reproduction protocol](https://github.com/creative-graphic-design/design-generators/blob/main/docs/training-reproduction.md); [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/canvas-vae/TRAINING.md) gives the full evidence.
+
+| Check | Cases | Criterion | Result |
+| --- | ---: | --- | --- |
+| S0 static configuration and checkpoint key map | 1,558,435 parameters in 71 tensors | exact | equal |
+| S0 eval-mode forward with copied weights | 1 batch of 1024 layouts | max difference / max magnitude, `atol=1e-5` | 1.2e-6 |
+| S1 train-mode forward activations and logits | 1 batch of 1024 layouts | max difference / max magnitude, `atol=1e-5` | 1.3e-6 |
+| S1 per-field losses, KL, L2, total loss | 12 scalars | `rtol=1e-6` | 1.4e-7; total loss bit-identical |
+| S2 gradients, clipped gradients, Adam moments | 61 tensors | relative L2 norm, `rtol=1e-4` | 4.9e-5 |
+| S2 first-step parameter updates | 61 tensors | relative L2 norm, `rtol=5e-2` | 1.2e-2 |
+| S3 synchronized steps: loss and updates | 49 steps | `rtol=1e-6` and `rtol=5e-2` | 9.5e-7 and 4.1e-2 |
+| S4 original records and replayed data streams | 56,395 records, 102 batches | exact | equal |
 
 ## Reproducibility
 
