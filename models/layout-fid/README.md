@@ -29,6 +29,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for Layout FID
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2108.00871&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2108.00871)
@@ -51,7 +52,7 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 - **Developed by:** Kotaro Kikuchi, Edgar Simo-Serra, Mayu Otani, and Kota Yamaguchi.
 - **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout evaluation.
+- **Model type:** content-agnostic; task: evaluation; conditioning: evaluation.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for repository code.
 
@@ -65,24 +66,24 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-rico25-layoutflow` | not-published |
-| PubLayNet LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-publaynet-layoutflow` | not-published |
-| RICO25 LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-rico25-layoutdm` | Planned; not yet converted |
-| PubLayNet LayoutDM FIDNetV3 | `creative-graphic-design/layout-fid-publaynet-layoutdm` | Planned; not yet converted |
-| PKU10 RALF FIDNetV3 | `creative-graphic-design/layout-fid-pku10-ralf` | Planned; not yet converted |
-| CGL RALF FIDNetV3 | `creative-graphic-design/layout-fid-cgl-ralf` | Planned; not yet converted |
+| Checkpoint                     | Hub ID                                                    | Status                     |
+| ------------------------------ | --------------------------------------------------------- | -------------------------- |
+| RICO25 LayoutFlow LayoutNet    | `creative-graphic-design/layout-fid-rico25-layoutflow`    | not-published              |
+| PubLayNet LayoutFlow LayoutNet | `creative-graphic-design/layout-fid-publaynet-layoutflow` | not-published              |
+| RICO25 LayoutDM FIDNetV3       | `creative-graphic-design/layout-fid-rico25-layoutdm`      | Planned; not yet converted |
+| PubLayNet LayoutDM FIDNetV3    | `creative-graphic-design/layout-fid-publaynet-layoutdm`   | Planned; not yet converted |
+| PKU10 RALF FIDNetV3            | `creative-graphic-design/layout-fid-pku10-ralf`           | Planned; not yet converted |
+| CGL RALF FIDNetV3              | `creative-graphic-design/layout-fid-cgl-ralf`             | Planned; not yet converted |
 
 ### Checkpoint Families
 
 `LayoutFIDConfig.architecture` records the encoder topology, while `LayoutFIDConfig.source` records the checkpoint family and provenance. The source suffix is not the generation method being evaluated; it identifies which released evaluator weights, label convention, bbox convention, sequence length, and reference-statistics path the artifact follows.
 
-| Source family | Architecture | Datasets | Internal boxes | Max length | Status |
-| --- | --- | --- | --- | ---: | --- |
-| `layoutflow` | `layoutnet` | RICO25, PubLayNet | `ltrb` | 20 | The package converts LayoutFlow-hosted LayoutNet/FIDNet assets and released `FIDNet_musig_{val,test}_*.pt` statistics. |
-| `layoutdm` | `fidnet_v3` | RICO25, PubLayNet | `xywh` | 25 | The package plans to rebuild the LayoutDM FIDNetV3 variants from original assets; they are not yet converted, and the 2024 Hub repos are only secondary tensor-for-tensor cross-checks. |
-| `ralf` | `fidnet_v3` | PKU10, CGL | `xywh` | checkpoint-specific | The package plans to rebuild the RALF FIDNetV3 variants from the vendored RALF FID model and corresponding weights; they are not yet converted. |
+| Source family | Architecture | Datasets          | Internal boxes |          Max length | Status                                                                                                                                                                                  |
+| ------------- | ------------ | ----------------- | -------------- | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layoutflow`  | `layoutnet`  | RICO25, PubLayNet | `ltrb`         |                  20 | The package converts LayoutFlow-hosted LayoutNet/FIDNet assets and released `FIDNet_musig_{val,test}_*.pt` statistics.                                                                  |
+| `layoutdm`    | `fidnet_v3`  | RICO25, PubLayNet | `xywh`         |                  25 | The package plans to rebuild the LayoutDM FIDNetV3 variants from original assets; they are not yet converted, and the 2024 Hub repos are only secondary tensor-for-tensor cross-checks. |
+| `ralf`        | `fidnet_v3`  | PKU10, CGL        | `xywh`         | checkpoint-specific | The package plans to rebuild the RALF FIDNetV3 variants from the vendored RALF FID model and corresponding weights; they are not yet converted.                                         |
 
 The conversion CLI accepts `--source layoutflow` for the converted LayoutFlow family and keeps `--source layoutdm` for the planned FIDNetV3 path. RALF is documented as a planned checkpoint family but is not a selectable conversion source because its checkpoints are not yet converted.
 
@@ -90,13 +91,13 @@ The conversion CLI accepts `--source layoutflow` for the converted LayoutFlow fa
 
 No checkpoint, statistics, generated tensor, or downloaded archive is committed in the repository. Each row records where a family is expected to come from before conversion.
 
-| Source family | Primary source | Expected local files | Package uses |
-| --- | --- | --- | --- |
-| `layoutflow` | [JulianGuerreiro/LayoutFlow source repository](https://github.com/julianguerreiro/LayoutFlow) and [JulianGuerreiro/LayoutFlow checkpoint host](https://huggingface.co/JulianGuerreiro/LayoutFlow) | `vendor/layout-flow/pretrained/fid_rico.pth.tar`, `fid_publaynet.pth.tar`, and `FIDNet_musig_{val,test}_{rico,publaynet}.pt` | Yes, for local conversion and agreement checks only. |
-| `layoutdm` | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), archive `layoutdm_starter.zip` | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the release archive | No; planned and not yet converted. |
-| `layoutdm` cross-check | 2024 repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
-| `ralf` | Original RALF FIDNetV3 source at `vendor/ralf/image2layout/train/fid/model.py`; the exact original weight release must be recorded before conversion | PKU10 and CGL FIDNetV3 weights selected for conversion | No; planned and not yet converted. |
-| `ralf` cross-check | 2024 repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl) | `model.safetensors` from each Hub repo | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
+| Source family          | Primary source                                                                                                                                                                                                                                                   | Expected local files                                                                                                         | Package uses                                                                            |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `layoutflow`           | [JulianGuerreiro/LayoutFlow source repository](https://github.com/julianguerreiro/LayoutFlow) and [JulianGuerreiro/LayoutFlow checkpoint host](https://huggingface.co/JulianGuerreiro/LayoutFlow)                                                                | `vendor/layout-flow/pretrained/fid_rico.pth.tar`, `fid_publaynet.pth.tar`, and `FIDNet_musig_{val,test}_{rico,publaynet}.pt` | Yes, for local conversion and agreement checks only.                                    |
+| `layoutdm`             | [CyberAgentAILab/layout-dm release `v1.0.0`](https://github.com/CyberAgentAILab/layout-dm/releases/tag/v1.0.0), archive `layoutdm_starter.zip`                                                                                                                   | `vendor/layout-dm/download/fid_weights/FIDNetV3/...` after unpacking the release archive                                     | No; planned and not yet converted.                                                      |
+| `layoutdm` cross-check | 2024 repos [`layout-fidnet-v3-layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-rico25) and [`layout-fidnet-v3-layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-layoutdm-publaynet) | `model.safetensors` from each Hub repo                                                                                       | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
+| `ralf`                 | Original RALF FIDNetV3 source at `vendor/ralf/image2layout/train/fid/model.py`; the exact original weight release must be recorded before conversion                                                                                                             | PKU10 and CGL FIDNetV3 weights selected for conversion                                                                       | No; planned and not yet converted.                                                      |
+| `ralf` cross-check     | 2024 repos [`layout-fidnet-v3-ralf-pku10`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-pku10) and [`layout-fidnet-v3-ralf-cgl`](https://huggingface.co/creative-graphic-design/layout-fidnet-v3-ralf-cgl)                               | `model.safetensors` from each Hub repo                                                                                       | No; secondary tensor-for-tensor check planned after conversion, not the primary source. |
 
 ## Uses
 
@@ -160,10 +161,10 @@ print(fid)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 Reference statistics are converted from the released LayoutFlow real-distribution statistics for each dataset.
 
@@ -193,13 +194,13 @@ Metrics include feature tensor allclose, Frechet distance equality, reference-st
 
 ### Parity Results
 
-| Dataset | Compared path | Cases | Assertion | Result |
-| --- | --- | ---: | --- | --- |
-| RICO25 | LayoutFlow `LayoutNet.extract_features` vs. converted `LayoutFIDModel.extract_features` | 1 deterministic CPU batch | `atol=1e-6`, `rtol=1e-5` | max_abs 0.0, max_rel 0.0 |
-| PubLayNet | LayoutFlow `LayoutNet.extract_features` vs. converted `LayoutFIDModel.extract_features` | 1 deterministic CPU batch | `atol=1e-6`, `rtol=1e-5` | max_abs 0.0, max_rel 0.0 |
-| RICO25 statistics | `FIDNet_musig_test_rico.pt` and `FIDNet_musig_val_rico.pt` row conversion | 2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 2.0987218740 |
-| PubLayNet statistics | `FIDNet_musig_test_publaynet.pt` and `FIDNet_musig_val_publaynet.pt` row conversion | 2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 8.1038132169 |
-| Full-run RICO25 metadata | [Issue #149](https://github.com/creative-graphic-design/design-generators/issues/149) reported final metrics | 1 metadata record | FID 6.5372 and 5.0896 recorded | recorded |
+| Dataset                  | Compared path                                                                                                |                     Cases | Assertion                                                              | Result                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------: | ---------------------------------------------------------------------- | ---------------------------- |
+| RICO25                   | LayoutFlow `LayoutNet.extract_features` vs. converted `LayoutFIDModel.extract_features`                      | 1 deterministic CPU batch | `atol=1e-6`, `rtol=1e-5`                                               | max_abs 0.0, max_rel 0.0     |
+| PubLayNet                | LayoutFlow `LayoutNet.extract_features` vs. converted `LayoutFIDModel.extract_features`                      | 1 deterministic CPU batch | `atol=1e-6`, `rtol=1e-5`                                               | max_abs 0.0, max_rel 0.0     |
+| RICO25 statistics        | `FIDNet_musig_test_rico.pt` and `FIDNet_musig_val_rico.pt` row conversion                                    |             2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 2.0987218740 |
+| PubLayNet statistics     | `FIDNet_musig_test_publaynet.pt` and `FIDNet_musig_val_publaynet.pt` row conversion                          |             2 stats files | exact `float64` array equality; Frechet implementation delta `<= 5e-5` | `FID(test,val)` 8.1038132169 |
+| Full-run RICO25 metadata | [Issue #149](https://github.com/creative-graphic-design/design-generators/issues/149) reported final metrics |         1 metadata record | FID 6.5372 and 5.0896 recorded                                         | recorded                     |
 
 The LayoutFlow `label_id_offset` default is `0`. The agreement-check suite includes an offset fixture and records any evidence before changing that config value.
 

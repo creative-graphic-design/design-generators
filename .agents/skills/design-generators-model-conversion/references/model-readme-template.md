@@ -47,6 +47,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for <model-id>
 
 <!-- Replace <model-id> with the planned `creative-graphic-design/<hub-repo-id>`. -->
@@ -66,7 +67,7 @@ model-index:
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
-- **Model type:** <architecture-and-task>
+- **Model type:** <content-agnostic|content-aware>; task: <task-agnostic|task-aware|single-task|evaluation|saliency>; conditioning: <canonical values in conventions order>.
 - **Language(s) (NLP):** <not-applicable-or-language-list>
 - **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>
@@ -84,8 +85,8 @@ model-index:
 
 <!-- Project-specific section placed after Model Sources because checkpoint publication state is model provenance. Use planned Hub ids from the model issue and mark Status as public or planned. Hub ids stay planned until publication is complete. -->
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint           | Hub ID                                  | Status  |
+| -------------------- | --------------------------------------- | ------- |
 | <dataset-or-variant> | `creative-graphic-design/<hub-repo-id>` | planned |
 
 ## Uses
@@ -143,10 +144,10 @@ print(out.mask)    # valid element mask
 
 <!-- Use canonical dataset ids and note dataset-specific configs or quirks. -->
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | config `ui-screenshots-and-hierarchies-with-semantic-annotations` |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default config |
+| Dataset   | Dataset ID                                                                                               | Notes                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | config `ui-screenshots-and-hierarchies-with-semantic-annotations` |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default config                                                    |
 
 ### Training Procedure
 
@@ -186,8 +187,8 @@ print(out.mask)    # valid element mask
 
 <!-- Fill with numeric results from the real vendor-parity suite; do not replace this with prose. -->
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
+| Check                                    |        Cases | Criterion            | Result                  |
+| ---------------------------------------- | -----------: | -------------------- | ----------------------- |
 | <tokenizer-or-forward-or-sampling-check> | <case-count> | <exact-or-tolerance> | <passed-count-or-error> |
 
 ## Reproducibility

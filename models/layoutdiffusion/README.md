@@ -30,6 +30,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDiffusion
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.11589&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.11589)
@@ -51,7 +52,7 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 

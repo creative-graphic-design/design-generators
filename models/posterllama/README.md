@@ -26,6 +26,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for PosterLlama
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2404.00995&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2404.00995)
@@ -53,7 +54,7 @@ while the pipeline owns local runtime generation after conversion.
 - **Developed by:** PosterLlama authors.
 - **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation recipe.
+- **Model type:** content-aware; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** English prompt metadata.
 - **License:** source and converted-weight redistribution are unverified.
 
@@ -65,10 +66,10 @@ while the pipeline owns local runtime generation after conversion.
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| Raw PosterLlama state dict | `poong/PosterLlama` | public source checkpoint |
-| CGL recipe artifact | `creative-graphic-design/posterllama-cgl` | not published; redistribution blocked |
+| Checkpoint                 | Hub ID                                    | Status                                |
+| -------------------------- | ----------------------------------------- | ------------------------------------- |
+| Raw PosterLlama state dict | `poong/PosterLlama`                       | public source checkpoint              |
+| CGL recipe artifact        | `creative-graphic-design/posterllama-cgl` | not published; redistribution blocked |
 
 The raw checkpoint is a `pytorch_model.bin` state dict. Local conversion also
 requires explicit CodeLLaMA or Llama-2-family backbone access and the selected
@@ -150,9 +151,9 @@ uv run --package posterllama models/posterllama/scripts/smoke_from_pretrained.py
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| CGL | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster element labels used by the recipe interface |
+| Dataset | Dataset ID                                                                                                   | Notes                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| CGL     | [`creative-graphic-design/CGL-Dataset`](https://huggingface.co/datasets/creative-graphic-design/CGL-Dataset) | poster element labels used by the recipe interface |
 
 The package records CGL labels through `posgen.common`. PKU-PosterLayout remains
 metadata-only for this initial package until checkpoint evidence confirms a
@@ -189,11 +190,11 @@ box values, schema output fields, and local `save_pretrained` to
 
 ### Parity Results
 
-| Check | Cases | Match criterion | Result |
-| --- | ---: | --- | --- |
-| Prompt construction | 5 condition aliases | Byte-exact against original source templates | passed in prompt/parser parity |
-| HTML/SVG parser | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in prompt/parser parity and unit tests |
-| Original GPU generation | 0 committed cases | Original `generate.py` run with fixed local assets | blocked until local 7B assets and GPU window are available |
+| Check                   |                                   Cases | Match criterion                                                                   | Result                                                     |
+| ----------------------- | --------------------------------------: | --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Prompt construction     |                     5 condition aliases | Byte-exact against original source templates                                      | passed in prompt/parser parity                             |
+| HTML/SVG parser         | 1 source parser case plus unit coverage | `html_to_ui.get_bbox()` `ltwh`/label identity and public normalized center `xywh` | passed in prompt/parser parity and unit tests              |
+| Original GPU generation |                       0 committed cases | Original `generate.py` run with fixed local assets                                | blocked until local 7B assets and GPU window are available |
 
 ## Reproducibility
 

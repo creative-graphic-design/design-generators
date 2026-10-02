@@ -27,6 +27,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for House-GAN
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2003.06988&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2003.06988)
@@ -47,7 +48,7 @@ House-GAN predicts room masks from a room-relation graph and decodes those masks
 
 - **Developed by:** Nelson Nauata, Kai-Hung Chang, Chin-Yi Cheng, Greg Mori, and Yasutaka Furukawa.
 - **Shared by:** creative-graphic-design.
-- **Model type:** graph-constrained floorplan layout generation.
+- **Model type:** content-agnostic; task: single-task; conditioning: relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** gpl-3.0.
 
@@ -58,8 +59,8 @@ House-GAN predicts room masks from a room-relation graph and decodes those masks
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint   | Hub ID                                                                                                                | Status        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------- | ------------- |
 | Target set A | [`creative-graphic-design/housegan-floorplan-a`](https://huggingface.co/creative-graphic-design/housegan-floorplan-a) | not-published |
 | Target set B | [`creative-graphic-design/housegan-floorplan-b`](https://huggingface.co/creative-graphic-design/housegan-floorplan-b) | not-published |
 | Target set C | [`creative-graphic-design/housegan-floorplan-c`](https://huggingface.co/creative-graphic-design/housegan-floorplan-c) | not-published |
@@ -167,8 +168,8 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
+| Dataset                        | Dataset ID                    | Notes                                                                                          |
+| ------------------------------ | ----------------------------- | ---------------------------------------------------------------------------------------------- |
 | House-GAN floorplan vectorized | housegan-floorplan-vectorized | upstream Dropbox assets; graph nodes are room categories and graph edges encode room adjacency |
 
 ### Training Procedure
@@ -205,12 +206,12 @@ Metrics are exact key mapping checks, exact model-output checks against regenera
 
 ### Parity Results
 
-| Check | Cases | Match criterion | Result |
-| --- | ---: | --- | --- |
-| State-dict key mapping | 1 synthetic model state dict | strict key prefix validation | passed |
-| Forward masks | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated original-implementation fixture | passed |
-| Mask-to-box postprocessing | 1 unit mask | original-implementation inclusive `x1+1` / `y1+1` behavior | passed |
-| Public layout schema | 1 synthetic graph | `assert_layout_output_schema` | passed |
+| Check                      |                                              Cases | Match criterion                                                      | Result |
+| -------------------------- | -------------------------------------------------: | -------------------------------------------------------------------- | ------ |
+| State-dict key mapping     |                       1 synthetic model state dict | strict key prefix validation                                         | passed |
+| Forward masks              | 3 target-set D graphs from `exp_demo_D_500000.pth` | bitwise equality against regenerated original-implementation fixture | passed |
+| Mask-to-box postprocessing |                                        1 unit mask | original-implementation inclusive `x1+1` / `y1+1` behavior           | passed |
+| Public layout schema       |                                  1 synthetic graph | `assert_layout_output_schema`                                        | passed |
 
 ## Reproducibility
 

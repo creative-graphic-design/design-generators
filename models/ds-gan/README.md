@@ -31,6 +31,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for DS-GAN
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2023&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2023/html/Hsu_PosterLayout_A_New_Benchmark_and_Approach_for_Content-Aware_Visual-Textual_Presentation_CVPR_2023_paper.html)
@@ -51,7 +52,7 @@ DS-GAN is a content-aware poster layout generator that predicts text, logo, and 
 
 - **Developed by:** HsiaoYuan Hsu, Xiangteng He, Yuxin Peng, Hao Kong, and Qing Zhang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** upstream license review needed before publishing converted weights.
 
@@ -62,8 +63,8 @@ DS-GAN is a content-aware poster layout generator that predicts text, logo, and 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint                        | Hub ID                                                                                                                      | Status        |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | PKU PosterLayout DS-GAN Epoch 300 | [`creative-graphic-design/ds-gan-pku-posterlayout`](https://huggingface.co/creative-graphic-design/ds-gan-pku-posterlayout) | not-published |
 
 ## Uses
@@ -156,8 +157,8 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
+| Dataset          | Dataset ID                                                                                                             | Notes                                                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | PKU-PosterLayout | [`creative-graphic-design/PKU-PosterLayout`](https://huggingface.co/datasets/creative-graphic-design/PKU-PosterLayout) | PKU release agreement; `box_elem` stores pixel `ltrb` boxes and `cls_elem` includes `text`, `logo`, `underlay`, and `INVALID` |
 
 ### Training Procedure
@@ -194,12 +195,12 @@ Metrics are exact tensor equality for model outputs, exact processor pixel-value
 
 ### Parity Results
 
-| Check | Cases | Match criterion | Result |
-| --- | ---: | --- | --- |
-| Original-implementation DS-GAN class probabilities | 905 canvases x 32 slots x 4 classes | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
-| Original-implementation DS-GAN boxes | 905 canvases x 32 slots x 4 values | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0` | passed |
-| Processor `pixel_values` | 905 canvases x 4 x 350 x 240 pixels | `max_abs=0.0`, `mismatched=0` against regenerated fixture | passed |
-| Public postprocessing | `bbox`, `labels`, and `mask` for 905 decoded layouts | exact equality against decoded original-implementation fixture | passed |
+| Check                                              |                                                Cases | Match criterion                                                | Result |
+| -------------------------------------------------- | ---------------------------------------------------: | -------------------------------------------------------------- | ------ |
+| Original-implementation DS-GAN class probabilities |                  905 canvases x 32 slots x 4 classes | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0`              | passed |
+| Original-implementation DS-GAN boxes               |                   905 canvases x 32 slots x 4 values | `rtol=0`, `atol=0`, `max_abs=0.0`, `mismatched=0`              | passed |
+| Processor `pixel_values`                           |                  905 canvases x 4 x 350 x 240 pixels | `max_abs=0.0`, `mismatched=0` against regenerated fixture      | passed |
+| Public postprocessing                              | `bbox`, `labels`, and `mask` for 905 decoded layouts | exact equality against decoded original-implementation fixture | passed |
 
 ## Reproducibility
 

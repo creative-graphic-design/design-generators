@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -11,7 +12,6 @@ from .constants import (
     LINK_REQUIRED_DATASET_IDS,
     REPO_ROOT,
     ROOT_LIBRARY_BADGE_COLORS,
-    ROOT_MODEL_TABLE_HEADER,
     ROOT_REPO_BLOB_URL,
 )
 from .card import (
@@ -21,6 +21,7 @@ from .card import (
     library_member_slugs,
     markdown_link_spans,
     model_member_slugs,
+    parse_model_type,
     semantic_badge_label,
     without_frontmatter_and_code,
     without_badges,
@@ -30,6 +31,48 @@ from .card import (
 def normalize_root_repo_link(link: str) -> str:
     """Normalize a root README repository link to a repository-relative path."""
     return link.removeprefix(ROOT_REPO_BLOB_URL)
+
+
+def _assert_root_model_type_cells(
+    path: Path,
+    repository_root: Path,
+    slug: str,
+    task_cell: str,
+    content_cell: str,
+) -> None:
+    model_readme = repository_root / "models" / slug / "README.md"
+    if not model_readme.is_file():
+        raise AssertionError(
+            f"{path}: Models table package {slug} has no models/{slug}/README.md"
+        )
+
+    expected_content, expected_task, _ = parse_model_type(
+        model_readme, model_readme.read_text(encoding="utf-8")
+    )
+
+    task_badges = _static_badge_messages(task_cell, "task")
+    if len(task_badges) != 1:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Task cell must contain exactly one task badge"
+        )
+
+    if task_badges[0] != expected_task:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Task cell {task_badges[0]!r} "
+            f"!= Model type task {expected_task!r}"
+        )
+
+    content_badges = _static_badge_messages(content_cell, "content")
+    if len(content_badges) != 1:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Content cell must contain exactly one content badge"
+        )
+
+    if content_badges[0] != expected_content:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Content cell {content_badges[0]!r} "
+            f"!= Model type content {expected_content!r}"
+        )
 
 
 def _root_packages_table_lines(text: str) -> list[str]:
@@ -197,31 +240,39 @@ def assert_root_model_badge_count(path: Path, expected_count: int) -> None:
         )
 
 
-def root_model_slugs(path: Path) -> set[str]:
+def root_model_slugs(
+    path: Path,
+    expected_header: Sequence[str],
+    model_link_pattern: str,
+    repository_root: Path,
+) -> set[str]:
     """Validate the root model table and return its model slugs."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
     if _split_markdown_table_row(
         table_lines[0]
-    ) != ROOT_MODEL_TABLE_HEADER or not _is_markdown_table_separator(
-        table_lines[1], len(ROOT_MODEL_TABLE_HEADER)
+    ) != expected_header or not _is_markdown_table_separator(
+        table_lines[1], len(expected_header)
     ):
         raise AssertionError(
-            f"{path}: Models table must use {', '.join(ROOT_MODEL_TABLE_HEADER)}"
+            f"{path}: Models table must use {', '.join(expected_header)}"
         )
 
     slugs: set[str] = set()
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
-        if len(cells) != len(ROOT_MODEL_TABLE_HEADER):
+        if len(cells) != len(expected_header):
             raise AssertionError(f"{path}: malformed Models table row: {line}")
 
         (
             method_cell,
+            task_cell,
+            content_cell,
             venue_cell,
             checkpoint_cell,
             training_cell,
-        ) = cells
+        ) = cells[:6]
+
         model_link = re.fullmatch(r"\[`([^`\]]+)`\]\(([^)]+)\)", method_cell)
         if model_link is None:
             raise AssertionError(
@@ -230,10 +281,13 @@ def root_model_slugs(path: Path) -> set[str]:
 
         model_name = model_link.group(1)
         normalized_model_link = normalize_root_repo_link(model_link.group(2))
-        slug_match = re.fullmatch(r"models/([^/)]+)/README\.md", normalized_model_link)
+        link_pattern = re.escape(model_link_pattern).replace(
+            re.escape("<slug>"), r"([^/)]+)"
+        )
+        slug_match = re.fullmatch(link_pattern, normalized_model_link)
         if slug_match is None:
             raise AssertionError(
-                f"{path}: Model cell must link models/<slug>/README.md: {line}"
+                f"{path}: Model cell must link {model_link_pattern}: {line}"
             )
 
         slug = slug_match.group(1)
@@ -242,6 +296,14 @@ def root_model_slugs(path: Path) -> set[str]:
             raise AssertionError(
                 f"{path}: model link text {model_name!r} != {expected_name!r}"
             )
+
+        _assert_root_model_type_cells(
+            path,
+            repository_root,
+            slug,
+            task_cell,
+            content_cell,
+        )
 
         if len(_static_badge_messages(venue_cell, "venue")) != 1:
             raise AssertionError(
@@ -347,14 +409,14 @@ def assert_model_doc_sets() -> None:
             )
 
 
-def assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
+def assert_root_models_table_matches_members(root_slugs: set[str], path: Path) -> None:
     """Require root README model rows to match workspace model members."""
     member_slugs = model_member_slugs()
     missing = sorted(member_slugs - root_slugs)
     extra = sorted(root_slugs - member_slugs)
     if missing or extra:
         raise AssertionError(
-            f"root README Models table mismatch: missing={missing}, extra={extra}"
+            f"{path}: Models table mismatch: missing={missing}, extra={extra}"
         )
 
 
