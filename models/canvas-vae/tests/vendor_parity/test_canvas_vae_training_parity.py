@@ -9,6 +9,7 @@ Inputs come from ``scripts/generate_vendor_reference.py`` (``trace``, a repeated
 
 from __future__ import annotations
 
+import copy
 import gzip
 import json
 import math
@@ -25,7 +26,12 @@ import yaml
 from canvas_vae import CanvasVAEConfig, CanvasVAEModel, CanvasVAEProcessor
 from canvas_vae.configuration_canvas_vae import CanvasVAEField
 from canvas_vae.conversion import convert_tensorflow_variables, tensorflow_key_map
-from canvas_vae.processing_canvas_vae import count_values, load_rico_split, stable_hash
+from canvas_vae.processing_canvas_vae import (
+    build_vocabularies,
+    count_values,
+    load_rico_split,
+    stable_hash,
+)
 from canvas_vae.training import (
     CrossEpochBatchSampler,
     KerasAdam,
@@ -84,6 +90,12 @@ SECOND_MOMENT = Tolerance("norm_rel", 2e-4)
 UPDATE = Tolerance("norm_rel", 5e-2)
 EXACT = Tolerance("max_abs", 0.0)
 ZERO_GRADIENT_LIMIT = 1e-6
+# Later trajectory steps have smaller, more cancelling batch-summed gradients,
+# so some tensors exceed the one-step gradient limit. Such a tensor still agrees
+# when both systems sit at a comparable float32 rounding distance from the same
+# step recomputed in float64: a semantic difference would leave one system far
+# from the float64 gradient while the other stays close.
+ROUNDING_RATIO = 3.0
 
 
 def require(*paths: Path) -> None:
@@ -683,6 +695,14 @@ def test_s3_natural_trajectory(
     assert all(math.isfinite(value) for value in first[0])
 
 
+def float64_gradients(model, num_elements, element_ids, noise) -> dict[str, torch.Tensor]:
+    """Return the gradients of the same step recomputed in float64."""
+    exact = copy.deepcopy(model).double()
+    output = exact(num_elements, element_ids, posterior_noise=noise.double())
+    (output.loss + l2_penalty(exact, exact.config.l2_weight)).backward()
+    return {key: parameter.grad for key, parameter in exact.named_parameters()}
+
+
 def synchronized_step(model, optimizer, state, config):
     """Load original weights and Adam state, returning fresh-storage tensors."""
     weights = {key.removeprefix("weight/"): value for key, value in state.items() if key.startswith("weight/")}
@@ -720,7 +740,9 @@ def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocab
         before = {key: value.detach().clone() for key, value in parameters.items()}
         optimizer.zero_grad(set_to_none=True)
         num_elements, element_ids = model_inputs(batches, step)
-        output = model(num_elements, element_ids, posterior_noise=torch.from_numpy(trajectory["noise"][step]))
+        noise = torch.from_numpy(trajectory["noise"][step])
+        exact = float64_gradients(model, num_elements, element_ids, noise)
+        output = model(num_elements, element_ids, posterior_noise=noise)
         loss = output.loss + l2_penalty(model, model.config.l2_weight)
         loss.backward()
         assert_close(f"step{step}/total_loss", loss, state["total_loss"], LOSS, measured)
@@ -728,7 +750,16 @@ def test_s3_synchronized_steps(trace_dir, batches, initial_state, original_vocab
         clip_gradients_by_norm(model.parameters(), 1.0)
         optimizer.step()
         for key, (source, transpose) in sources.items():
-            assert_close(f"step{step}/grad/{key}", grads[key], as_package(state[f"grad/{source}"], transpose), GRADIENT, measured)
+            original = as_package(state[f"grad/{source}"], transpose)
+            name = f"step{step}/grad/{key}"
+            assert_close(name, grads[key], original, GRADIENT, measured)
+            package_error = float((grads[key].double() - exact[key]).norm() / exact[key].norm())
+            original_error = float((torch.from_numpy(np.ascontiguousarray(original)).double() - exact[key]).norm() / exact[key].norm())
+            measured[name] |= {"package_float64_error": package_error, "original_float64_error": original_error}
+            if not measured[name]["within"]:
+                ratio = max(package_error, original_error) / max(min(package_error, original_error), 1e-30)
+                measured[name]["within"] = ratio <= ROUNDING_RATIO
+
             reference = as_package(after[f"weight/{source}"], transpose) - as_package(state[f"weight/{source}"], transpose)
             assert_close(f"step{step}/update/{key}", parameters[key].detach() - before[key], reference, UPDATE, measured)
 
@@ -813,7 +844,7 @@ def hashes_by_id() -> dict[int, str]:
     return content_hashes()
 
 
-def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id):
+def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, static):
     measured = {}
     original_hashes = {}
     for split in ("train", "val", "test"):
@@ -872,6 +903,10 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id):
     measured["original_count_json"] = json.loads(
         (stream_dir / "count.json").read_text()
     )
+    measured["lookup_tables_equal"] = {
+        key: tables == static["lookups"][key]
+        for key, tables in build_vocabularies(package_counts).items()
+    }
     report("s4_records", measured)
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import ClassVar, Literal, Self, cast
+from typing import ClassVar, Literal, cast
 
 import numpy as np
 import torch
@@ -106,7 +106,7 @@ class CanvasVAEPipeline(LayoutGenerationPipeline):
         *,
         config: CanvasVAEConfig,
         components: Mapping[str, PipelineComponent | None],
-    ) -> Self:
+    ) -> CanvasVAEPipeline:
         """Build the pipeline from a loaded model."""
         del config
         return cls(model=cast(CanvasVAEModel, components["model"]))
