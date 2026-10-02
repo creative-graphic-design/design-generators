@@ -22,7 +22,7 @@ Investigate `<target>` and agree on `<shared interface decisions>` with the othe
 - Writable draft: `<shared-drafts-dir>/<target-slug>.md`.
 - Chair's unified specification: `<shared-drafts-dir>/unified-interface.md`.
 
-Read sources without modifying them or another participant's draft. Stay in the assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports. Write only in the shared drafts directory, to your assigned draft and, if you are chair, the unified specification.
+Read sources without modifying them or another participant's draft. Stay in the assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports. Write to only the shared drafts directory, to your assigned draft and, if you are chair, the unified specification.
 
 ## Acceptance
 
