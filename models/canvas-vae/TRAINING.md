@@ -106,7 +106,7 @@ The original-code references were generated with commit [`1be2f4e`](https://gith
 .cache/canvas-vae/reference/reports/                 measured differences per stage
 ```
 
-The original Beam preprocessing is not deterministic in which screens it keeps: the reference run wrote 45,196 / 5,580 / 5,619 records and an earlier run 45,221 / 5,584 / 5,622, although the original record function emits every dropped screen when called directly. The package keeps all 45,222 / 5,584 / 5,623 screens; S4 compares the screens both keep.
+The original Beam preprocessing is not deterministic in which screens it keeps: the reference run wrote 45,196 / 5,580 / 5,619 records and an earlier run 45,221 / 5,584 / 5,622, although the original record function emits every dropped screen when called directly. The drop comes from the multi-threaded runner mode of the original command: the same job on Beam's in-process runner with one worker in `in_memory` mode keeps all 45,222 / 5,584 / 5,623 screens, matching the package. The package keeps all screens; S4 compares the screens both keep.
 
 ## Training Commands
 
