@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
         default=REPO_ROOT / "vendor" / "canvas-vae",
         help="Original code checkout (default: vendor/canvas-vae).",
     )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Run one forward and gradient pass without applying an optimizer step.",
+    )
     return parser.parse_args()
 
 
@@ -114,6 +119,7 @@ def main() -> None:
         str(args.trace_dir / "initial" / "initial.ckpt")
     ).expect_partial()
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=1.0)
+    model.compile(optimizer=optimizer)
     inputs = {
         "length": tf.constant(batches["0/length"].reshape(-1, 1).astype(np.int64))
     }
@@ -134,6 +140,31 @@ def main() -> None:
         loss = model.compute_loss(inputs, None, outputs, None)
 
     grads = tape.gradient(loss, model.trainable_variables)
+    if args.smoke:
+        missing = [
+            variable.name
+            for gradient, variable in zip(grads, model.trainable_variables)
+            if gradient is None
+        ]
+        if missing:
+            raise AssertionError(f"Missing gradients: {missing}")
+        tf.debugging.assert_all_finite(loss, "non-finite smoke loss")
+        for gradient in grads:
+            tf.debugging.assert_all_finite(gradient, "non-finite smoke gradient")
+        print(
+            json.dumps(
+                {
+                    "tensorflow_version": tf.__version__,
+                    "batch_size": int(batches["0/length"].shape[0]),
+                    "loss": float(loss),
+                    "gradient_tensors": len(grads),
+                    "loss_definition": "compiled Model.compute_loss over model.losses",
+                },
+                indent=1,
+            )
+        )
+        return
+
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     checkpoint = args.output.parent / "batch_norm_control" / "after.ckpt"
     model.save_weights(str(checkpoint))
@@ -152,6 +183,7 @@ def main() -> None:
         "dropout": 0.0,
         "batch_size": int(batches["0/length"].shape[0]),
         "posterior_noise_injected": True,
+        "loss_definition": "compiled Model.compute_loss over model.losses",
         "fp32_relative_tolerance": FP32_RELATIVE_TOLERANCE,
         "total_loss": {
             "tf211": float(loss),
