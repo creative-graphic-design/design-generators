@@ -16,7 +16,7 @@ Paths below are relative to the repository root. Read the model issue's plan, am
 - Use `docs/conventions.md` for public interfaces, schema, and framework selection; use the [Class Design And Code Style](AGENTS.md#class-design-and-code-style) rules and [jaxtyping checker](AGENTS.md#source-checks) for typing. Use `docs/architecture.md` when choosing shared owners or dependency boundaries.
 - Use the `design-generators-documentation` skill for README, model-card, and reproduction instructions. Its starting template is `references/model-readme-template.md` in this skill directory.
 
-Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the model-issue maintainer checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
+Confirm the checkpoint/dataset/task matrix and license from the issue and original sources. Before `plan-agreed`, the coordinator checks the written justification for any novel public method or override of a Hugging Face base-class entrypoint.
 
 ## Source Language
 
