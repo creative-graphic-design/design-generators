@@ -131,20 +131,64 @@ def test_model_readme_main_reports_policy_failure(
 )
 def test_model_readme_usage_output_contract(text: str, message: str | None) -> None:
     path = Path("models/layout-gpt/README.md")
+    violation = card.usage_output_violation(path, text)
     if message is None:
-        card.assert_usage_output_fence(path, text)
+        assert violation is None
         return
 
-    with pytest.raises(AssertionError, match=message):
-        card.assert_usage_output_fence(path, text)
+    assert violation is not None
+    assert message in violation
+
+
+def test_model_readme_baseline_reports_new_and_stale_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    new_readme = tmp_path / "models" / "new" / "README.md"
+    fixed_readme = tmp_path / "models" / "fixed" / "README.md"
+    new_readme.parent.mkdir(parents=True)
+    fixed_readme.parent.mkdir(parents=True)
+    new_readme.write_text("```python\nprint('output')\n```\n", encoding="utf-8")
+    fixed_readme.write_text(
+        "```python\nprint('output')\n```\n```text\noutput\n```\n",
+        encoding="utf-8",
+    )
+
+    baseline = tmp_path / "model_readme_baseline.txt"
+    baseline.write_text("models/fixed/README.md\n", encoding="utf-8")
+    monkeypatch.setattr(check, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(check, "MODEL_READMES", [new_readme, fixed_readme])
+    monkeypatch.setattr(check, "MODEL_README_BASELINE_PATH", baseline)
+    monkeypatch.setattr(check, "check", check.assert_model_readme_usage_baseline)
+
+    assert check.main([]) == 1
+    assert capsys.readouterr().err == (
+        "New model README usage-output violations:\n"
+        "  + models/new/README.md: first python fence must be followed by a text fence\n"
+        "Stale model README usage-output baseline entries:\n"
+        "  - models/fixed/README.md\n"
+    )
 
 
 def test_model_readme_baseline_flag_preserves_header(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    violating_readme = tmp_path / "models" / "violating" / "README.md"
+    passing_readme = tmp_path / "models" / "passing" / "README.md"
+    violating_readme.parent.mkdir(parents=True)
+    passing_readme.parent.mkdir(parents=True)
+    violating_readme.write_text("```python\nprint('output')\n```\n", encoding="utf-8")
+    passing_readme.write_text(
+        "```python\nprint('output')\n```\n```text\noutput\n```\n",
+        encoding="utf-8",
+    )
+
     baseline = tmp_path / "model_readme_baseline.txt"
     header = b"# Policy\r\n# Keep this header\n"
     baseline.write_bytes(header + b"models/stale/README.md\n")
+    monkeypatch.setattr(check, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(check, "MODEL_READMES", [violating_readme, passing_readme])
     monkeypatch.setattr(check, "MODEL_README_BASELINE_PATH", baseline)
 
     assert check.main(["--write-baseline"]) == 0
@@ -155,9 +199,7 @@ def test_model_readme_baseline_flag_preserves_header(
         if line and not line.startswith("#")
     }
     assert baseline.read_bytes().startswith(header)
-    assert len(entries) == 26
-    assert "models/layoutprompter/README.md" not in entries
-    assert "models/parse-then-place/README.md" not in entries
+    assert entries == {"models/violating/README.md"}
 
 
 def test_model_readme_cli_forwards_options(

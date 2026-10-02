@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from devharness.baselines import (
     diff_entry_baseline,
@@ -27,24 +28,29 @@ from .constants import (
 )
 
 
-def current_model_readme_usage_violations() -> set[str]:
-    """Return repository-relative model README paths missing captured output."""
-    return {
-        path.relative_to(REPO_ROOT).as_posix()
-        for path in MODEL_READMES
-        if card.usage_output_violation(path, path.read_text(encoding="utf-8"))
-    }
+def current_model_readme_usage_violations() -> dict[str, str]:
+    """Return repository-relative paths and diagnostics for missing output."""
+    violations: dict[str, str] = {}
+    for path in MODEL_READMES:
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        violation = card.usage_output_violation(
+            Path(relative_path), path.read_text(encoding="utf-8")
+        )
+        if violation:
+            violations[relative_path] = violation
+
+    return violations
 
 
 def assert_model_readme_usage_baseline() -> None:
     """Require the model README usage-output baseline to match current violations."""
     current = current_model_readme_usage_violations()
     baseline = read_entry_baseline(MODEL_README_BASELINE_PATH)
-    unexpected, stale = diff_entry_baseline(current, baseline)
+    unexpected, stale = diff_entry_baseline(set(current), baseline)
     messages: list[str] = []
     if unexpected:
         messages.append("New model README usage-output violations:")
-        messages.extend(f"  + {entry}" for entry in unexpected)
+        messages.extend(f"  + {current[entry]}" for entry in unexpected)
 
     if stale:
         messages.append("Stale model README usage-output baseline entries:")

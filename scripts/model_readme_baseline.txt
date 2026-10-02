@@ -1,6 +1,6 @@
 # Model README usage-output baseline.
-# This is shrink-only: fixed README entries may leave the baseline, while new violations fail the checker.
-# The rule is applied to every model README; regenerate with --write-baseline after fixing an entry.
+# Remove an entry when its README is fixed; stale entries fail the checker.
+# Regenerate with `uv run --package devharness devharness check model-readmes --write-baseline`.
 models/basnet/README.md
 models/cgb-dm/README.md
 models/coarse-to-fine/README.md
