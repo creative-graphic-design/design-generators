@@ -106,15 +106,13 @@ For schedulers that step every optimizer update, return the scheduler from `conf
 
 S5 must cover every dataset that the original implementation trains on for the checkpoints or claims being documented. Record status per dataset even when the PR implements only one package.
 
-Use these status labels in `TRAINING.md`:
+Use these status values in `TRAINING.md`:
 
-| Status        | Meaning                                                                               |
-| ------------- | ------------------------------------------------------------------------------------- |
-| `PASS`        | Full S5 evidence exists for this dataset and seed scope.                              |
-| `CHECK`       | Evidence is partially aligned or mixed, and the remaining interpretation is explicit. |
-| `BLOCKED`     | Required data, original code, assets, or compute are unavailable.                     |
-| `PENDING`     | The dataset is planned but not yet run.                                               |
-| `NOT CLAIMED` | The package does not claim trained-checkpoint support for this dataset.               |
+- `s5-bit-parity`: Full S5 evidence shows bit-level agreement for this dataset and seed scope.
+- `s5-practical-reproduction`: Full S5 evidence shows practical reproduction for this dataset and seed scope.
+- `recipe-unstable (documented)`: Full S5 evidence is affected by documented recipe instability for this dataset.
+- `not-yet-run (<tracking ref>)`: S5 evidence is not yet available for this dataset; the parenthetical identifies follow-up tracking.
+- `blocked (<reason>)`: Required data, original code, assets, or compute are unavailable; the parenthetical states the reason.
 
 Partial dataset coverage must be stated in the conclusion and table. A README or model card must not imply general training reproduction if S5 exists for only a subset of the original training datasets.
 
@@ -190,10 +188,10 @@ Write `Reproduction Results` in this order:
 
 Use this table shape unless a model requires extra metric columns:
 
-| Dataset     | System   | Status | Seed scope          | Primary metrics         | Loss evidence    | Artifact summary       |
-| ----------- | -------- | ------ | ------------------- | ----------------------- | ---------------- | ---------------------- |
-| `<dataset>` | original | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
-| `<dataset>` | package  | `PASS` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| Dataset     | System   | Status                      | Seed scope          | Primary metrics         | Loss evidence    | Artifact summary       |
+| ----------- | -------- | --------------------------- | ------------------- | ----------------------- | ---------------- | ---------------------- |
+| `<dataset>` | original | `s5-practical-reproduction` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
+| `<dataset>` | package  | `s5-practical-reproduction` | `training-seed n=3` | `<metric mean +/- std>` | `<loss summary>` | `.cache/<package>/...` |
 
 ### Comparison Scope
 
