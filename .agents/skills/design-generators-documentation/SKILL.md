@@ -16,6 +16,10 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 - Give every issue or pull-request reference a descriptive Markdown link, including references in headings.
 - The reader-facing reference checker enforces the linked-reference rule; it does not judge prose, structure, or terminology.
 - Treat excessive emotional intensity, redundant enumeration, and hedging as model-review targets for the slop review (the review of reader-facing text for machine-writing patterns); do not add them to this checker.
+- An exact result is agreement from explicitly matched inputs, evaluator, checkpoint-selection rule, and exact comparison criterion, with the criterion met.
+- A confirmatory p-value is the result of a test and threshold named in the model issue plan or an amendment before the run.
+- An exploratory p-value is any other p-value; label it exploratory, name the test and sample or seed scope, state its interpretation limits, and do not present it as confirmatory evidence.
+- State rounding once per table or paragraph, for example, `Values are rounded to two decimal places.` Rounded values are not exact, and equal rounded values do not establish exact agreement. For example, metrics displayed as `0.81` and `0.81` remain rounded values, and an exploratory Welch p-value of `0.42` from `10` samples per group is not confirmatory evidence.
 
 ## Repository documentation rules
 
@@ -60,7 +64,7 @@ pip install \
 
 Omit `posgen` when the model does not depend on it, and keep extras on the shared package requirement when the model depends on one, for example `laygen[agents]`.
 
-Every model README must include a `### Parity Results` section under `## Evaluation`. Put the vendor-parity summary in a numeric table that states what was compared, the number of cases, the match criterion, and the result. Prose inside `## Reproducibility` is not enough. Put the mechanical walkthrough in `REPRODUCING.md`; reviewers run that file's download, reference-generation, parity, conversion, and smoke-test commands. `.agents/skills/design-generators-model-conversion/references/model-readme-template.md` is the reference format.
+Every model README must include a `### Parity Results` section under `## Evaluation`. Put the vendor-parity summary in a numeric table that states the compared inputs, evaluator, checkpoint-selection rule, number of cases, exact comparison criterion, result, and rounding statement. Prose inside `## Reproducibility` is not enough. Put the mechanical walkthrough in `REPRODUCING.md`; reviewers run that file's download, reference-generation, parity, conversion, and smoke-test commands. `.agents/skills/design-generators-model-conversion/references/model-readme-template.md` is the reference format.
 
 The `Reproducibility` section must open with one sentence that states how to reproduce the original-implementation agreement checks. The remaining commands must be copy-pasteable and ordered: download vendor assets, generate vendor references with `CUDA_VISIBLE_DEVICES`, run `pytest -m vendor_parity`, convert checkpoints, and run `from_pretrained` smoke tests.
 
