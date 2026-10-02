@@ -324,7 +324,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                 StageEvidenceViolation(
                     relative_path,
                     stage,
-                    "S5 artifact must be a repository- or cache-relative path ending in manifest.json",
+                    "S5 artifact must be a repository- or cache-relative path to a file named manifest.json",
                 )
             )
         elif not row.is_complete:

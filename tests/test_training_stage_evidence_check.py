@@ -112,7 +112,7 @@ Package training reproduction is achieved with training-seed n=3.
     )
 
     assert check_training_stage_evidence.current_entries(tmp_path) == {
-        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must be a repository- or cache-relative path ending in manifest.json"
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must be a repository- or cache-relative path to a file named manifest.json"
     }
 
 
