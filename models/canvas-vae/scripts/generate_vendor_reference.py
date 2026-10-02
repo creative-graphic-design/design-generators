@@ -535,7 +535,7 @@ def trace(args: argparse.Namespace) -> None:
     static["unpatched_batch_norm_error"] = unpatched_batch_norm_error(
         tf, input_columns, inputs[0]
     )
-    (out / "static.json").write_text(json.dumps(static, indent=1))
+    (out / "static.json").write_text(json.dumps(static, indent=1, default=lambda value: value.item()))
 
 
 def unpatched_batch_norm_error(tf, input_columns, inputs) -> str:
