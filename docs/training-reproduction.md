@@ -33,6 +33,10 @@ Every full run that makes an S5 claim must have one launch manifest: a JSON file
 
 ## Stage Rules
 
+A rule applies when the package training loop contains the component the rule names: scheduler, sampler, exponential moving average (EMA), automatic mixed precision (AMP), or a multi-worker loader. The 300-step lockstep minimum, GPU-bound check, and data-route rules apply to the corresponding training or data path. Record each inapplicable rule once, with its reason, in the package `TRAINING.md` `Scheduler and Recipe Notes` section; for example, `Scheduler cadence — not applicable: the loop has no scheduler.`
+
+Only an amendment comment on the model's issue can authorize a package-specific deviation from an applicable rule, including the 300-step lockstep minimum, GPU-bound check, or data-route rule. Record the amendment URL and the rule it changes once in the same `Scheduler and Recipe Notes` section; for example, `Data route — amended by <amendment URL>: the package uses the issue-approved preprocessed stream.` Use the model-issue plan and later amendment comments as the design source of truth under [AGENTS.md Sources of Truth](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth). Issues and pull requests may quote this citation, but this protocol does not authorize a package-specific deviation by itself.
+
 ### Step Parity and Full-Run Parity
 
 S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.

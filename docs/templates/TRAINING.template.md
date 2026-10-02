@@ -45,10 +45,7 @@ Training configs live under `models/<package>/configs/training`.
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size,
-accumulation, initialization, and recipe differences that affect reproduction.
-State observed environment constraints as verified setup, not as inherent
-package requirements.
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. State observed environment constraints as verified setup, not as inherent package requirements. Record each inapplicable protocol rule once with its reason, for example, `Scheduler cadence — not applicable: the loop has no scheduler.` Record each package-specific deviation from an applicable rule once with the amendment URL and changed rule, for example, `Data route — amended by <amendment URL>: the package uses the issue-approved preprocessed stream.` The model-issue plan and later amendment comments are the design source of truth under [AGENTS.md Sources of Truth](https://github.com/creative-graphic-design/design-generators/blob/main/AGENTS.md#sources-of-truth); issues and pull requests may quote the citation.
 
 ## Seed Policy
 
