@@ -224,12 +224,8 @@ def test_s0_topology_and_static_config(
         ]
     )
     optimizer = static["optimizer"]
-    assert (
-        optimizer["learning_rate"],
-        optimizer["beta_1"],
-        optimizer["beta_2"],
-        optimizer["epsilon"],
-    ) == (0.001, 0.9, 0.999, 1e-07)
+    assert np.float32(optimizer["learning_rate"]) == np.float32(0.001)
+    assert (optimizer["beta_1"], optimizer["beta_2"], optimizer["epsilon"]) == (0.9, 0.999, 1e-07)
     assert optimizer["clipnorm"] == 1.0 and optimizer["global_clipnorm"] is None
     assert (
         optimizer["use_ema"] is False
