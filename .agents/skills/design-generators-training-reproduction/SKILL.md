@@ -26,7 +26,7 @@ Use this order for every training-first package:
 7. Produce S4 deterministic loader-stream evidence.
 8. Post or update issue evidence for S3-S4.
 9. Only then start S5-scale GPU training and full-run evaluation, after the GPU-bound step-loop check in the protocol's GPU placement section.
-10. Record final S0-S5 evidence in `models/<package>/TRAINING.md`, including each inapplicable protocol rule once with its reason and each amendment URL with the rule it changes once in `Scheduler and Recipe Notes`; issues and pull requests may quote that citation.
+10. Record final S0-S5 evidence in `models/<package>/TRAINING.md`, including the inapplicable-rule notes and amendment citations required by the protocol's [Stage Rules](docs/training-reproduction.md#stage-rules); issues and pull requests may quote them.
 
 ## S5 Gate
 
