@@ -89,6 +89,7 @@ def diff(actual: torch.Tensor, expected: np.ndarray) -> dict[str, float]:
     return {
         "max_abs": float(delta.max()) if delta.numel() else 0.0,
         "max_rel_to_max": float(delta.max() / scale) if delta.numel() else 0.0,
+        "norm_rel": float(delta.norm() / reference.norm().clamp_min(1e-30)),
     }
 
 
@@ -537,6 +538,14 @@ def test_s2_one_optimizer_step(
             f"after/{key}",
             parameters[key],
             as_package(step0[f"after/{source}"], transpose),
+            STEP_RTOL,
+            STEP_ATOL,
+            measured,
+        )
+        assert_close(
+            f"update/{key}",
+            parameters[key].detach() - initial_state[key],
+            as_package(step0[f"after/{source}"], transpose) - initial_state[key].numpy(),
             STEP_RTOL,
             STEP_ATOL,
             measured,
