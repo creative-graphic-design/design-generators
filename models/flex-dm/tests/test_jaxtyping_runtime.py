@@ -26,12 +26,13 @@ def test_modeling_hook_liveness_rejects_hidden_dtype_mismatch() -> None:
         from jaxtyping import install_import_hook
 
         with install_import_hook(["flex_dm.modeling_flex_dm"], "beartype.beartype"):
-            from flex_dm.modeling_flex_dm import FlexDmMultiHeadSelfAttention
+            from flex_dm.modeling_flex_dm import FlexDmDeepSvgBlock
+            from flex_dm.testing import tiny_config
 
-        attention = FlexDmMultiHeadSelfAttention(hidden_size=8, num_heads=2)
-        attention._split(torch.zeros(1, 2, 8, dtype=torch.long))
+        block = FlexDmDeepSvgBlock(tiny_config())
+        block(torch.zeros(1, 2, 16, dtype=torch.long), torch.ones(1, 2, dtype=torch.bool))
         """,
-        "FlexDmMultiHeadSelfAttention._split",
+        "FlexDmDeepSvgBlock.forward",
     )
 
 
@@ -59,12 +60,13 @@ def test_modeling_hook_liveness_rejects_mask_shape_mismatch() -> None:
         from jaxtyping import install_import_hook
 
         with install_import_hook(["flex_dm.modeling_flex_dm"], "beartype.beartype"):
-            from flex_dm.modeling_flex_dm import FlexDmMultiHeadSelfAttention
+            from flex_dm.modeling_flex_dm import FlexDmDeepSvgBlock
+            from flex_dm.testing import tiny_config
 
-        attention = FlexDmMultiHeadSelfAttention(hidden_size=8, num_heads=2)
-        attention(torch.zeros(1, 2, 8), torch.ones(1, 3, dtype=torch.bool))
+        block = FlexDmDeepSvgBlock(tiny_config())
+        block(torch.zeros(1, 2, 16), torch.ones(1, 3, dtype=torch.bool))
         """,
-        "FlexDmMultiHeadSelfAttention.forward",
+        "FlexDmDeepSvgBlock.forward",
     )
 
 
@@ -73,11 +75,8 @@ def test_modeling_without_hook_accepts_annotation_only_mismatches() -> None:
         """
         import torch
 
-        from flex_dm.modeling_flex_dm import FlexDmDecoder, FlexDmMultiHeadSelfAttention
+        from flex_dm.modeling_flex_dm import FlexDmDecoder
         from flex_dm.testing import tiny_config
-
-        attention = FlexDmMultiHeadSelfAttention(hidden_size=8, num_heads=2)
-        assert attention._split(torch.zeros(1, 2, 8, dtype=torch.long)).shape == (1, 2, 2, 4)
 
         decoder = FlexDmDecoder(tiny_config())
         outputs = decoder(torch.zeros(1, 2, 1, 16))

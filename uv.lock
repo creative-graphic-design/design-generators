@@ -2179,6 +2179,7 @@ vendor-tf = [
     { name = "tensorflow-probability" },
     { name = "tinycss" },
     { name = "tqdm" },
+    { name = "traingen-parity" },
 ]
 
 [package.metadata]
@@ -2205,6 +2206,7 @@ requires-dist = [
     { name = "tinycss", marker = "extra == 'vendor-tf'" },
     { name = "torch", specifier = ">=2.1" },
     { name = "tqdm", marker = "extra == 'vendor-tf'" },
+    { name = "traingen-parity", marker = "extra == 'vendor-tf'", editable = "lib/traingen-parity" },
     { name = "transformers", extras = ["torch"], specifier = ">=5.0.0" },
 ]
 provides-extras = ["data", "convert", "vendor-tf"]

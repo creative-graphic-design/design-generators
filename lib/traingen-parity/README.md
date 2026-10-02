@@ -35,7 +35,8 @@ uv run --package traingen-parity python
 
 ```python
 import torch
-from traingen_parity import build_step_trace, compare_step_trace
+from traingen_parity.compare import compare_step_trace
+from traingen_parity.trace import build_step_trace
 
 reference = build_step_trace("reference", {"loss": torch.tensor(0.0)})
 target = build_step_trace("target", {"loss": torch.tensor(0.0)})
@@ -47,12 +48,12 @@ Capture deterministic summaries and RNG state for reproducible parity hooks.
 
 ```python
 import torch
-from traingen_parity import (
+from traingen_parity.determinism import (
     DeterminismConfig,
     apply_determinism,
     capture_rng_state,
-    summarize_tensor,
 )
+from traingen_parity.trace import summarize_tensor
 
 apply_determinism(DeterminismConfig(seed=1, deterministic_algorithms=False))
 state = capture_rng_state()
@@ -66,7 +67,7 @@ Compare optimizer parameters after one update.
 
 ```python
 import torch
-from traingen_parity import compare_optimizer_step
+from traingen_parity.compare import compare_optimizer_step
 
 reference_state = {"weight": torch.ones(2)}
 target_state = {"weight": torch.ones(2)}
@@ -74,9 +75,19 @@ target_state = {"weight": torch.ones(2)}
 print(compare_optimizer_step(reference_state, target_state).passed)
 ```
 
+Let reference code written for TensorFlow 2.8 Keras import its preprocessing layers on TensorFlow 2.15. Call this before importing that code, in an environment that has TensorFlow installed.
+
+```python
+from traingen_parity.tensorflow_compat import install_keras_preprocessing_compat
+
+install_keras_preprocessing_compat()
+```
+
 ## Scope
 
 - Keep comparison dataclasses, tensor summaries, RNG helpers, and deterministic runtime controls here.
+- Keep `traingen_parity.tensorflow_compat` here: `install_keras_preprocessing_compat()` lets reference scripts run TensorFlow 2.8 Keras code on TensorFlow 2.15 by registering `tensorflow.keras.layers.experimental.preprocessing` and renaming `mask_value` to `mask_token`. It imports TensorFlow only when called.
+- Import helpers from their submodules (`compare`, `determinism`, `trace`, `tensorflow_compat`); the package root re-exports nothing, so a TensorFlow reference process can import `traingen_parity.tensorflow_compat` without importing PyTorch (the package still installs PyTorch as a dependency).
 - Keep model-specific fixture construction, trace-point names, and parity pytest markers in `models/*`.
 - Keep routine Lightning hooks and CLI integration in `traingen`.
 
