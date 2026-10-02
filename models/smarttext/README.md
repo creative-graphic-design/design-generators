@@ -50,7 +50,7 @@ SmartText places text on natural images with a BASNet/GDI saliency model, determ
 
 - **Developed by:** Chenhui Li et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware text placement.
+- **Model type:** content-aware; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** upstream license review needed before publishing converted weights.
 

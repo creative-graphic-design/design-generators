@@ -51,7 +51,7 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 - **Developed by:** Cheng-Fu Yang, Wan-Cyuan Fan, Fu-En Yang, and Yu-Chiang Frank Wang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 

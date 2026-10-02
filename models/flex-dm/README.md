@@ -48,7 +48,7 @@ Flex-DM models document elements as rows with element class, position, size, col
 
 - **Developed by:** Naoto Inoue et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** masked document layout generation.
+- **Model type:** content-agnostic; conditioning: completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 

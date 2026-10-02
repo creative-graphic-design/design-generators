@@ -51,7 +51,7 @@ LACE is a `diffusers`-style layout generator that samples layouts under learned 
 
 - **Developed by:** Jian Chen et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 

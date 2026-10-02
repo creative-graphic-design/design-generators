@@ -51,7 +51,7 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 - **Developed by:** Yu Li, Yifan Chen, Gongye Liu, Fei Yin, Qingyan Bai, Jie Wu, Hongfa Wang, Ruihang Chu, and Yujiu Yang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation.
+- **Model type:** content-aware; conditioning: label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for the original implementation and this package.
 

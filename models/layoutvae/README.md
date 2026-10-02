@@ -46,7 +46,7 @@ LayoutVAE is a `🤗transformers`-style implementation for label-conditioned Pub
 
 - **Developed by:** Akash Abdu Jyothi, Thibaut Durand, Jiawei He, Leonid Sigal, and Greg Mori.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: label.
 - **Language(s) (NLP):** not applicable.
 - **License:** mit.
 

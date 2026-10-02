@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TypeAlias
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
@@ -11,6 +12,8 @@ from .constants import (
     EXPECTED_FRONTMATTER,
     EXPECTED_MODEL_NAMES,
     EXPECTED_REPOSITORY_LINKS,
+    MODEL_CONTENT_VALUES,
+    MODEL_CONDITIONING_ORDER,
     MODEL_MEMBER_DIRS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
@@ -169,6 +172,67 @@ def badge_messages(text: str, label: str) -> list[str]:
 def model_member_slugs() -> set[str]:
     """Return model workspace member directory names."""
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
+
+
+ModelType: TypeAlias = tuple[str, tuple[str, ...]]
+
+_MODEL_TYPE_LINE_RE = re.compile(
+    r"^- \*\*Model type:\*\* (?P<content>[^;\n]+); conditioning: "
+    r"(?P<conditioning>[^.\n]+)\.$"
+)
+
+
+def parse_model_type(path: Path, text: str) -> ModelType:
+    """Parse and validate the one structured model classification line."""
+    lines = [line for line in text.splitlines() if "**Model type:**" in line]
+    if len(lines) != 1:
+        raise AssertionError(
+            f"{path}: Model type line must appear exactly once, found {len(lines)}"
+        )
+
+    match = _MODEL_TYPE_LINE_RE.fullmatch(lines[0])
+    if match is None:
+        raise AssertionError(
+            f"{path}: Model type line must match "
+            "'- **Model type:** <content>; conditioning: <values>.'"
+        )
+
+    content = match.group("content")
+    if content not in MODEL_CONTENT_VALUES:
+        raise AssertionError(
+            f"{path}: Model type content value {content!r} is invalid; "
+            f"expected one of {MODEL_CONTENT_VALUES}"
+        )
+
+    conditioning = tuple(
+        value.strip() for value in match.group("conditioning").split(",")
+    )
+    if not conditioning or any(not value for value in conditioning):
+        raise AssertionError(f"{path}: Model type conditioning values cannot be empty")
+
+    for value in conditioning:
+        if value not in MODEL_CONDITIONING_ORDER:
+            raise AssertionError(
+                f"{path}: Model type conditioning value {value!r} is invalid; "
+                f"expected one of {MODEL_CONDITIONING_ORDER}"
+            )
+
+    if len(set(conditioning)) != len(conditioning):
+        raise AssertionError(f"{path}: Model type conditioning values must be unique")
+
+    special_values = {"evaluation", "saliency", "none"}
+    if len(conditioning) > 1 and special_values.intersection(conditioning):
+        raise AssertionError(
+            f"{path}: evaluation, saliency, and none must appear alone"
+        )
+
+    positions = [MODEL_CONDITIONING_ORDER.index(value) for value in conditioning]
+    if positions != sorted(positions):
+        raise AssertionError(
+            f"{path}: Model type conditioning values must use the canonical order"
+        )
+
+    return content, conditioning
 
 
 def library_member_slugs() -> set[str]:

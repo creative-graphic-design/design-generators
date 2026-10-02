@@ -33,7 +33,7 @@ LayoutGPT is a prompt-based layout agent that turns natural-language scene descr
 
 - **Developed by:** Weixi Feng et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, text.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
 

@@ -47,7 +47,7 @@ House-GAN predicts room masks from a room-relation graph and decodes those masks
 
 - **Developed by:** Nelson Nauata, Kai-Hung Chang, Chin-Yi Cheng, Greg Mori, and Yasutaka Furukawa.
 - **Shared by:** creative-graphic-design.
-- **Model type:** graph-constrained floorplan layout generation.
+- **Model type:** content-agnostic; conditioning: relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** gpl-3.0.
 

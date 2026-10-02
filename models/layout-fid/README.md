@@ -51,7 +51,7 @@ Layout FID is a feature-extraction and scoring package for normalized layout ten
 - **Developed by:** Kotaro Kikuchi, Edgar Simo-Serra, Mayu Otani, and Kota Yamaguchi.
 - **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout evaluation.
+- **Model type:** content-agnostic; conditioning: evaluation.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for repository code.
 

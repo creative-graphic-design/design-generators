@@ -50,7 +50,7 @@ LayoutAction is an autoregressive GPT-style model over synthetic action tokens. 
 
 - **Developed by:** LayoutAction authors.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-agnostic layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, completion.
 - **Language(s) (NLP):** not applicable.
 - **License:** original LayoutAction license not found; converted weight publication requires maintainer approval.
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .constants import (
+    DOCS_MODEL_TABLE_HEADER,
     EXPECTED_MODEL_NAMES,
     LINK_REQUIRED_DATASET_IDS,
     REPO_ROOT,
@@ -21,6 +22,7 @@ from .card import (
     library_member_slugs,
     markdown_link_spans,
     model_member_slugs,
+    parse_model_type,
     semantic_badge_label,
     without_frontmatter_and_code,
     without_badges,
@@ -30,6 +32,39 @@ from .card import (
 def normalize_root_repo_link(link: str) -> str:
     """Normalize a root README repository link to a repository-relative path."""
     return link.removeprefix(ROOT_REPO_BLOB_URL)
+
+
+def _catalog_repo_root(path: Path) -> Path:
+    """Return the repository root containing a catalog document."""
+    if path.resolve().is_relative_to(REPO_ROOT.resolve()):
+        return REPO_ROOT
+
+    return path.parent if path.name == "README.md" else path.parent.parent
+
+
+def _assert_root_model_type_cells(
+    path: Path, slug: str, content_cell: str, conditioning_cell: str
+) -> None:
+    model_readme = _catalog_repo_root(path) / "models" / slug / "README.md"
+    if not model_readme.is_file():
+        return
+
+    expected_content, expected_conditioning = parse_model_type(
+        model_readme, model_readme.read_text(encoding="utf-8")
+    )
+    if content_cell != expected_content:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Content cell {content_cell!r} "
+            f"!= Model type content {expected_content!r}"
+        )
+
+    expected_conditioning_cell = ", ".join(expected_conditioning)
+    if conditioning_cell != expected_conditioning_cell:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Conditioning cell "
+            f"{conditioning_cell!r} != Model type conditioning "
+            f"{expected_conditioning_cell!r}"
+        )
 
 
 def _root_packages_table_lines(text: str) -> list[str]:
@@ -201,27 +236,32 @@ def root_model_slugs(path: Path) -> set[str]:
     """Validate the root model table and return its model slugs."""
     text = path.read_text(encoding="utf-8")
     table_lines = _root_packages_table_lines(text)
+    expected_header = (
+        DOCS_MODEL_TABLE_HEADER
+        if path.name == "index.md" and path.parent.name == "docs"
+        else ROOT_MODEL_TABLE_HEADER
+    )
     if _split_markdown_table_row(
         table_lines[0]
-    ) != ROOT_MODEL_TABLE_HEADER or not _is_markdown_table_separator(
-        table_lines[1], len(ROOT_MODEL_TABLE_HEADER)
+    ) != expected_header or not _is_markdown_table_separator(
+        table_lines[1], len(expected_header)
     ):
         raise AssertionError(
-            f"{path}: Models table must use {', '.join(ROOT_MODEL_TABLE_HEADER)}"
+            f"{path}: Models table must use {', '.join(expected_header)}"
         )
 
     slugs: set[str] = set()
     for line in table_lines[2:]:
         cells = _split_markdown_table_row(line)
-        if len(cells) != len(ROOT_MODEL_TABLE_HEADER):
+        if len(cells) != len(expected_header):
             raise AssertionError(f"{path}: malformed Models table row: {line}")
 
-        (
-            method_cell,
-            venue_cell,
-            checkpoint_cell,
-            training_cell,
-        ) = cells
+        method_cell, content_cell, conditioning_cell = cells[:3]
+        if expected_header is DOCS_MODEL_TABLE_HEADER:
+            _, _, _, venue_cell, checkpoint_cell, training_cell, _, _ = cells
+        else:
+            _, _, _, venue_cell, checkpoint_cell, training_cell = cells
+
         model_link = re.fullmatch(r"\[`([^`\]]+)`\]\(([^)]+)\)", method_cell)
         if model_link is None:
             raise AssertionError(
@@ -230,10 +270,15 @@ def root_model_slugs(path: Path) -> set[str]:
 
         model_name = model_link.group(1)
         normalized_model_link = normalize_root_repo_link(model_link.group(2))
-        slug_match = re.fullmatch(r"models/([^/)]+)/README\.md", normalized_model_link)
+        slug_pattern = (
+            r"api/models/([^/)]+)/"
+            if expected_header is DOCS_MODEL_TABLE_HEADER
+            else r"models/([^/)]+)/README\.md"
+        )
+        slug_match = re.fullmatch(slug_pattern, normalized_model_link)
         if slug_match is None:
             raise AssertionError(
-                f"{path}: Model cell must link models/<slug>/README.md: {line}"
+                f"{path}: Model cell has an invalid model link: {line}"
             )
 
         slug = slug_match.group(1)
@@ -242,6 +287,8 @@ def root_model_slugs(path: Path) -> set[str]:
             raise AssertionError(
                 f"{path}: model link text {model_name!r} != {expected_name!r}"
             )
+
+        _assert_root_model_type_cells(path, slug, content_cell, conditioning_cell)
 
         if len(_static_badge_messages(venue_cell, "venue")) != 1:
             raise AssertionError(
@@ -347,14 +394,17 @@ def assert_model_doc_sets() -> None:
             )
 
 
-def assert_root_models_table_matches_members(root_slugs: set[str]) -> None:
+def assert_root_models_table_matches_members(
+    root_slugs: set[str], path: Path | None = None
+) -> None:
     """Require root README model rows to match workspace model members."""
     member_slugs = model_member_slugs()
     missing = sorted(member_slugs - root_slugs)
     extra = sorted(root_slugs - member_slugs)
     if missing or extra:
         raise AssertionError(
-            f"root README Models table mismatch: missing={missing}, extra={extra}"
+            f"{path or 'root README'} Models table mismatch: "
+            f"missing={missing}, extra={extra}"
         )
 
 

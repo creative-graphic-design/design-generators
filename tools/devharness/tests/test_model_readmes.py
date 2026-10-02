@@ -117,8 +117,8 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     readme = fixture / "README.md"
     readme.write_text(
         readme.read_text(encoding="utf-8").replace(
-            "| Model | Venue | Ckpt | Train |",
-            "| Model | Venue | Runtime | Datasets | Ckpt | Train |",
+            "| Model | Content | Conditioning | Venue | Ckpt | Train |",
+            "| Model | Content | Conditioning | Venue | Runtime | Datasets | Ckpt | Train |",
             1,
         ),
         encoding="utf-8",
@@ -129,7 +129,8 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert result.stdout == ""
     assert result.stderr == (
-        f"{fixture / 'README.md'}: Models table must use Model, Venue, Ckpt, Train\n"
+        f"{fixture / 'README.md'}: Models table must use "
+        "Model, Content, Conditioning, Venue, Ckpt, Train\n"
     )
 
 
@@ -483,6 +484,53 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
         card.assert_code_fences_tagged(path, "<<'PY'\ncode\nPY\n")
 
 
+@pytest.mark.parametrize(
+    ("line", "message"),
+    [
+        (
+            "- **Model type:** image-aware; conditioning: none.\n",
+            "content value",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: label-size.\n",
+            "conditioning value",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: label_size, label.\n",
+            "canonical order",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: label, label.\n",
+            "must be unique",
+        ),
+        (
+            "- **Model type:** content-agnostic; conditioning: evaluation, label.\n",
+            "must appear alone",
+        ),
+    ],
+)
+def test_model_type_contract_rejects_invalid_values(line: str, message: str) -> None:
+    with pytest.raises(AssertionError, match=message):
+        card.parse_model_type(Path("models/example/README.md"), line)
+
+
+def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
+    path = Path("models/example/README.md")
+    with pytest.raises(AssertionError, match="exactly once"):
+        card.parse_model_type(path, "plain")
+
+    duplicate = "- **Model type:** content-agnostic; conditioning: label.\n" * 2
+    with pytest.raises(AssertionError, match="exactly once"):
+        card.parse_model_type(path, duplicate)
+
+
+def test_model_type_contract_accepts_structured_line() -> None:
+    assert card.parse_model_type(
+        Path("models/example/README.md"),
+        "- **Model type:** content-aware; conditioning: label, label_size.\n",
+    ) == ("content-aware", ("label", "label_size"))
+
+
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     tmp_path: Path,
 ) -> None:
@@ -492,9 +540,9 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
 
 ## Models
 
-| Model | Venue | Ckpt | Train |
-| :--- | :---: | --- | --- |
-| [`LayoutFormer++`](models/layoutformerpp/README.md) | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+| Model | Content | Conditioning | Venue | Ckpt | Train |
+| :--- | :--- | :--- | :---: | --- | --- |
+| [`LayoutFormer++`](models/layoutformerpp/README.md) | content-agnostic | unconditional, label, label_size, completion, refinement, relation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
 
 ## Libraries
 """,
@@ -502,6 +550,130 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     )
 
     assert root_readme.root_model_slugs(readme) == {"layoutformerpp"}
+
+
+def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:
+    model_readme = root / "models" / slug / "README.md"
+    model_readme.parent.mkdir(parents=True)
+    model_readme.write_text(line, encoding="utf-8")
+
+
+def _docs_model_row(conditioning: str) -> str:
+    return (
+        "| [`LayoutDM`](api/models/layout-dm/) | content-agnostic | "
+        f"{conditioning} | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) | "
+        "[Paper](https://arxiv.org/abs/2303.03755) | "
+        "[README](models/layout-dm/README.md) |"
+    )
+
+
+def test_root_model_table_rejects_content_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| [`LayoutDM`](models/layout-dm/README.md) | content-aware | "
+        "unconditional, label, label_size, completion, refinement | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="package layout-dm Content cell"):
+        root_readme.root_model_slugs(readme)
+
+
+def test_root_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        "| [`LayoutDM`](models/layout-dm/README.md) | content-agnostic | label | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) |\n\n"
+        "## Libraries\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="package layout-dm Conditioning cell"):
+        root_readme.root_model_slugs(readme)
+
+
+def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('unconditional, label, label_size, completion, refinement')}\n",
+        encoding="utf-8",
+    )
+
+    assert root_readme.root_model_slugs(index) == {"layout-dm"}
+
+
+def test_docs_index_model_table_reports_missing_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_model_type_fixture(
+        tmp_path,
+        "layout-dm",
+        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "label_size, completion, refinement.\n",
+    )
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    index = docs / "index.md"
+    index.write_text(
+        "## Models\n\n"
+        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+        f"{_docs_model_row('unconditional, label, label_size, completion, refinement')}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        root_readme, "model_member_slugs", lambda: {"layout-dm", "layout-flow"}
+    )
+
+    slugs = root_readme.root_model_slugs(index)
+    with pytest.raises(AssertionError, match="docs/index.md Models table mismatch"):
+        root_readme.assert_root_models_table_matches_members(slugs, index)
 
 
 def test_root_models_table_rejects_metadata_columns(
@@ -522,7 +694,9 @@ def test_root_models_table_rejects_metadata_columns(
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="Model, Venue, Ckpt, Train"):
+    with pytest.raises(
+        AssertionError, match="Model, Content, Conditioning, Venue, Ckpt, Train"
+    ):
         root_readme.root_model_slugs(readme)
 
 
@@ -558,9 +732,9 @@ def test_root_models_table_requires_training_link_when_file_exists(
 
 ## Models
 
-| Model | Venue | Ckpt | Train |
-| --- | --- | --- | --- |
-| [`LayoutFlow`](models/layout-flow/README.md) | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
+| Model | Content | Conditioning | Venue | Ckpt | Train |
+| --- | --- | --- | --- | --- | --- |
+| [`LayoutFlow`](models/layout-flow/README.md) | content-agnostic | unconditional, label, label_size, completion, refinement | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
 
 ## Libraries
 """,

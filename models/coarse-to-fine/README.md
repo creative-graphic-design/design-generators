@@ -49,7 +49,7 @@ Coarse-to-Fine generates page or UI layouts through a hierarchy-aware `transform
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 

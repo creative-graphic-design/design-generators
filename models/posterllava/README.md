@@ -46,6 +46,8 @@ model-index:
 
 This package contains a PosterLLaVA processor and inference pipeline for parsing generated poster-layout JSON into normalized center `xywh` boxes, integer labels, valid-element masks, and `id2label`.
 
+- **Model type:** content-aware; conditioning: none.
+
 ## Model Details
 
 ### Model Description

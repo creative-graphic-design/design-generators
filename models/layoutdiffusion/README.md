@@ -51,7 +51,7 @@ LayoutDiffusion is a discrete `diffusers` pipeline for RICO25 and PubLayNet layo
 
 - **Developed by:** Junyi Zhang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 

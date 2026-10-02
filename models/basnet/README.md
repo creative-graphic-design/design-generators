@@ -47,7 +47,7 @@ BASNet predicts foreground saliency maps from RGB images. The package exposes `B
 
 - **Developed by:** Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan, Osmar R. Zaiane, and Martin Jagersand.
 - **Shared by:** creative-graphic-design.
-- **Model type:** salient object detection.
+- **Model type:** content-aware; conditioning: saliency.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for repository code; checkpoint redistribution depends on the checkpoint source license.
 

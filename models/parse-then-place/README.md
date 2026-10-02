@@ -49,7 +49,7 @@ Parse-Then-Place generates layouts through a two-stage `transformers` pipeline: 
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: text.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 

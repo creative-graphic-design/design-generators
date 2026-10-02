@@ -33,6 +33,8 @@ This package exposes [PosterO](https://openaccess.thecvf.com/content/CVPR2025/ht
 
 PosterO is a CVPR 2025 method for generalized content-aware poster layout generation with structured layout-tree prompts. This package stores prompt/parser configuration and returns `bbox`, `labels`, `mask`, and `id2label` through `laygen.modeling_outputs.LayoutGenerationOutput`.
 
+- **Model type:** content-aware; conditioning: retrieval.
+
 ### Model Sources
 
 - Paper: [PosterO: Structuring Layout Trees to Enable Language Models in Generalized Content-Aware Layout Generation](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html)

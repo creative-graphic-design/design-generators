@@ -50,7 +50,7 @@ DLT denoises bounding boxes and category tokens with coupled continuous and disc
 
 - **Developed by:** Elad Levi, Eli Brosh, Mykola Mykhailych, and Meir Perez.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, label_size.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 

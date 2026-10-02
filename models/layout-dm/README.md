@@ -49,7 +49,7 @@ LayoutDM is a discrete diffusion layout generator for controllable UI and docume
 
 - **Developed by:** Naoto Inoue et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 

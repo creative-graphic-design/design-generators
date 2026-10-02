@@ -48,7 +48,7 @@ LayouSyn generates natural-scene object layouts from caption and concept embeddi
 
 - **Developed by:** Dhruv Srivastava et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: text.
 - **Language(s) (NLP):** not applicable.
 - **License:** cc-by-nc-4.0.
 

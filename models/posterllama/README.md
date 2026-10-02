@@ -53,7 +53,7 @@ while the pipeline owns local runtime generation after conversion.
 - **Developed by:** PosterLlama authors.
 - **Converted and maintained by:** creative-graphic-design.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation recipe.
+- **Model type:** content-aware; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** English prompt metadata.
 - **License:** source and converted-weight redistribution are unverified.
 

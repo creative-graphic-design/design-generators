@@ -49,7 +49,7 @@ LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 

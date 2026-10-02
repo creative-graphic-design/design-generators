@@ -51,7 +51,7 @@ RALF combines retrieved layout examples with content images and saliency maps fo
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware layout generation.
+- **Model type:** content-aware; conditioning: unconditional, label, label_size, completion, refinement, relation, retrieval.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 

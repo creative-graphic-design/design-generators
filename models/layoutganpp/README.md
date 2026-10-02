@@ -51,7 +51,7 @@ LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator 
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: label.
 - **Language(s) (NLP):** not applicable.
 - **License:** agpl-3.0.
 

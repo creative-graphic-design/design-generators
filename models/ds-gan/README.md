@@ -51,7 +51,7 @@ DS-GAN is a content-aware poster layout generator that predicts text, logo, and 
 
 - **Developed by:** HsiaoYuan Hsu, Xiangteng He, Yuxin Peng, Hao Kong, and Qing Zhang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation.
+- **Model type:** content-aware; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** upstream license review needed before publishing converted weights.
 

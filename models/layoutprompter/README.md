@@ -37,7 +37,7 @@ LayoutPrompter is a prompt-based layout agent that selects in-context exemplars 
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: label, label_size, completion, refinement, text, relation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
 

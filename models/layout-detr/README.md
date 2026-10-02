@@ -48,7 +48,7 @@ LayoutDETR generates normalized center `xywh` foreground text boxes for a backgr
 
 - **Developed by:** Ning Yu, Chia-Chih Chen, Zeyuan Chen, Rui Meng, Gang Wu, Paul Josel, Juan Carlos Niebles, Caiming Xiong, and Ran Xu.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-image layout generation.
+- **Model type:** content-aware; conditioning: none.
 - **Language(s) (NLP):** English ad-banner text strings.
 - **License:** Apache-2.0 for the original LayoutDETR repository; notices cover the components acknowledged by that repository, including [StyleGAN3](https://github.com/NVlabs/stylegan3), [DETR](https://github.com/facebookresearch/detr), [Up-DETR](https://github.com/dddzg/up-detr), [BLIP/BERT](https://github.com/salesforce/BLIP), [LayoutGAN++](https://github.com/ktrk115/const_layout), [Pitt Image Ads](https://people.cs.pitt.edu/~kovashka/ads/), and [LaMa](https://github.com/advimman/lama).
 

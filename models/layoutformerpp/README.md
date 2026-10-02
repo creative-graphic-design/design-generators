@@ -49,7 +49,7 @@ LayoutFormer++ is a `transformers` layout generator that models layout sequences
 
 - **Developed by:** Zhaoyun Jiang et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; conditioning: unconditional, label, label_size, completion, refinement, relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
