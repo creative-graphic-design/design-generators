@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutFlow
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2403.18187&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2403.18187)
@@ -49,7 +50,7 @@ LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector
 
 - **Developed by:** Julian Jorge Andrade Guerreiro et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -62,10 +63,10 @@ LayoutFlow is a continuous-flow `diffusers` pipeline that predicts layout vector
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layout-flow-rico25`](https://huggingface.co/creative-graphic-design/layout-flow-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/layout-flow-publaynet`](https://huggingface.co/creative-graphic-design/layout-flow-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                                  | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layout-flow-rico25`](https://huggingface.co/creative-graphic-design/layout-flow-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/layout-flow-publaynet`](https://huggingface.co/creative-graphic-design/layout-flow-publaynet) | not-published |
 
 ## Uses
 
@@ -127,10 +128,10 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 The released LayoutFlow checkpoints were trained on the RICO and PubLayNet splits distributed by the original authors; this repository aligns dataset metadata to the org datasets above.
 
@@ -160,18 +161,17 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Compared path | Cases | Assertion |
-| --- | --- | ---: | --- |
-| PubLayNet | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
-| RICO25 | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field | 1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`) |
-| Training parity stages | LightningCLI training wrapper vs. original-implementation training protocol | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
+| Dataset                | Compared path                                                                      |                                       Cases | Assertion                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------: | --------------------------------------------------------------------- |
+| PubLayNet              | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field |                           1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`)      |
+| RICO25                 | Original-implementation `LayoutDMBackbone` vector field vs. converted vector field |                           1 synthetic batch | `max_abs <= 1e-6` (`atol=1e-6`), `max_rel <= 1e-5` (`rtol=1e-5`)      |
+| Training parity stages | LightningCLI training wrapper vs. original-implementation training protocol        | 1 synthetic PubLayNet-shaped batch on GPU 4 | static state exact, fixed-batch trace exact, one optimizer step exact |
 
 Agreement checks compare the released checkpoints against the original `LayoutDMBackbone` vector-field path. The local pipeline uses `LayoutFlowEulerScheduler` for inference, but no committed agreement check compares an Euler trajectory against the original implementation.
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-flow/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
-
 
 ## Environmental Impact
 

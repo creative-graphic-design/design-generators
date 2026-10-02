@@ -15,6 +15,7 @@ datasets:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for PosterO
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2025&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2025/html/Hsu_PosterO_Structuring_Layout_Trees_to_Enable_Language_Models_in_Generalized_CVPR_2025_paper.html)
@@ -33,7 +34,7 @@ This package exposes [PosterO](https://openaccess.thecvf.com/content/CVPR2025/ht
 
 PosterO is a CVPR 2025 method for generalized content-aware poster layout generation with structured layout-tree prompts. This package stores prompt/parser configuration and returns `bbox`, `labels`, `mask`, and `id2label` through `laygen.modeling_outputs.LayoutGenerationOutput`.
 
-- **Model type:** content-aware; conditioning: retrieval.
+- **Model type:** content-aware; task: single-task; conditioning: retrieval.
 
 ### Model Sources
 
@@ -44,8 +45,8 @@ PosterO is a CVPR 2025 method for generalized content-aware poster layout genera
 
 PosterO has no learned checkpoints in this package. `save_pretrained()` writes prompt and parser state to `postero_config.json`; no `model.safetensors` is produced.
 
-| Artifact | Contents |
-| --- | --- |
+| Artifact              | Contents                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
 | `postero_config.json` | prompt structure, parser settings, sampling settings, canvas size, dataset name, and `id2label` |
 
 ## Uses
@@ -123,12 +124,12 @@ There is no training procedure in this package because generation is provider-ba
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Prompt bytes | 1 | SHA-256 metadata match | 1/1 |
-| Exemplar selection | 1 | selected id list exact match | 1/1 |
-| SVG parser | 1 | label ids and pixel `ltrb` boxes exact match | 1/1 |
-| Retry policy | 1 | invalid response skipped before valid SVG | 1/1 |
+| Check              | Cases | Criterion                                    | Result |
+| ------------------ | ----: | -------------------------------------------- | ------ |
+| Prompt bytes       |     1 | SHA-256 metadata match                       | 1/1    |
+| Exemplar selection |     1 | selected id list exact match                 | 1/1    |
+| SVG parser         |     1 | label ids and pixel `ltrb` boxes exact match | 1/1    |
+| Retry policy       |     1 | invalid response skipped before valid SVG    | 1/1    |
 
 ## Reproducibility
 

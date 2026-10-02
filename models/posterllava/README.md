@@ -53,7 +53,7 @@ This package contains a PosterLLaVA processor and inference pipeline for parsing
 
 PosterLLaVA is a LLaVA-style multimodal recipe for generating poster layout JSON from a background image and layout instructions. The public output uses the shared layout schema with normalized center `xywh` boxes.
 
-- **Model type:** content-aware; conditioning: none.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 
 ### Model Sources
 

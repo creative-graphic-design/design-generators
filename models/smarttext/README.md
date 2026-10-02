@@ -30,6 +30,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for SmartText
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=TMM+2021&color=blue&style=flat-square)](https://ieeexplore.ieee.org/document/9520053)
@@ -50,7 +51,7 @@ SmartText places text on natural images with a BASNet/GDI saliency model, determ
 
 - **Developed by:** Chenhui Li et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware; conditioning: none.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** upstream license review needed before publishing converted weights.
 
@@ -61,8 +62,8 @@ SmartText places text on natural images with a BASNet/GDI saliency model, determ
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint                          | Hub ID                                  | Status        |
+| ----------------------------------- | --------------------------------------- | ------------- |
 | SMT released scorer plus GDI BASNet | `creative-graphic-design/smarttext-smt` | not-published |
 
 ## Uses
@@ -151,14 +152,14 @@ Training is not implemented in this workspace member. The package focuses on arc
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| BASNet saliency maps | 3 original demo images | Bit-exact PNG-space tensor match, `max_abs_diff=0.0`, same-device comparison | Passed |
-| Candidate JSON | 3 original demo images / 43 candidates | Exact JSON match against original `gen_boxes_multi`, mismatches=0 | Passed |
-| Scorer inputs | 43 candidates | Exact tensor match against original `setup_test_dataset` RoE preprocessing, `max_abs_diff=0.0` | Passed |
-| Raw SMT scores | 43 candidates | Bit-exact with `torch.use_deterministic_algorithms(True)`, TF32 disabled, cuDNN disabled, `max_abs_diff=0.0` | Passed |
-| Selected boxes | 3 images, top 3 each | Exact selected candidate indices | Passed |
-| Text color | 3 selected top boxes | Exact hex color match against original `cal_best_color` with fixed KMeans seed and threadpool limit | Passed |
+| Check                |                                  Cases | Criterion                                                                                                    | Result |
+| -------------------- | -------------------------------------: | ------------------------------------------------------------------------------------------------------------ | ------ |
+| BASNet saliency maps |                 3 original demo images | Bit-exact PNG-space tensor match, `max_abs_diff=0.0`, same-device comparison                                 | Passed |
+| Candidate JSON       | 3 original demo images / 43 candidates | Exact JSON match against original `gen_boxes_multi`, mismatches=0                                            | Passed |
+| Scorer inputs        |                          43 candidates | Exact tensor match against original `setup_test_dataset` RoE preprocessing, `max_abs_diff=0.0`               | Passed |
+| Raw SMT scores       |                          43 candidates | Bit-exact with `torch.use_deterministic_algorithms(True)`, TF32 disabled, cuDNN disabled, `max_abs_diff=0.0` | Passed |
+| Selected boxes       |                   3 images, top 3 each | Exact selected candidate indices                                                                             | Passed |
+| Text color           |                   3 selected top boxes | Exact hex color match against original `cal_best_color` with fixed KMeans seed and threadpool limit          | Passed |
 
 ## Reproducibility
 

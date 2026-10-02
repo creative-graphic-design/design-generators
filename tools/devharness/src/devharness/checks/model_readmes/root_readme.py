@@ -37,25 +37,36 @@ def _assert_root_model_type_cells(
     path: Path,
     repository_root: Path,
     slug: str,
+    task_cell: str,
     content_cell: str,
-    conditioning_cell: str,
 ) -> None:
     model_readme = repository_root / "models" / slug / "README.md"
-    expected_content, expected_conditioning = parse_model_type(
+    expected_content, expected_task, _ = parse_model_type(
         model_readme, model_readme.read_text(encoding="utf-8")
     )
-    if content_cell != expected_content:
+
+    task_badges = _static_badge_messages(task_cell, "task")
+    if len(task_badges) != 1:
         raise AssertionError(
-            f"{path}: Models table package {slug} Content cell {content_cell!r} "
-            f"!= Model type content {expected_content!r}"
+            f"{path}: Models table package {slug} Task cell must contain exactly one task badge"
         )
 
-    expected_conditioning_cell = ", ".join(expected_conditioning)
-    if conditioning_cell != expected_conditioning_cell:
+    if task_badges[0] != expected_task:
         raise AssertionError(
-            f"{path}: Models table package {slug} Conditioning cell "
-            f"{conditioning_cell!r} != Model type conditioning "
-            f"{expected_conditioning_cell!r}"
+            f"{path}: Models table package {slug} Task cell {task_badges[0]!r} "
+            f"!= Model type task {expected_task!r}"
+        )
+
+    content_badges = _static_badge_messages(content_cell, "content")
+    if len(content_badges) != 1:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Content cell must contain exactly one content badge"
+        )
+
+    if content_badges[0] != expected_content:
+        raise AssertionError(
+            f"{path}: Models table package {slug} Content cell {content_badges[0]!r} "
+            f"!= Model type content {expected_content!r}"
         )
 
 
@@ -248,7 +259,7 @@ def root_model_slugs(
         if len(cells) != len(expected_header):
             raise AssertionError(f"{path}: malformed Models table row: {line}")
 
-        method_cell, content_cell, conditioning_cell = cells[:3]
+        method_cell, task_cell, content_cell = cells[:3]
         _, _, _, venue_cell, checkpoint_cell, training_cell = cells[:6]
 
         model_link = re.fullmatch(r"\[`([^`\]]+)`\]\(([^)]+)\)", method_cell)
@@ -279,8 +290,8 @@ def root_model_slugs(
             path,
             repository_root,
             slug,
+            task_cell,
             content_cell,
-            conditioning_cell,
         )
 
         if len(_static_badge_messages(venue_cell, "venue")) != 1:

@@ -30,6 +30,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LT-Net
 
 [![paper](https://img.shields.io/static/v1?label=paper&message=CVPR+2021&color=blue&style=flat-square)](https://openaccess.thecvf.com/content/CVPR2021/html/Yang_LayoutTransformer_Scene_Layout_Generation_With_Conceptual_and_Spatial_Diversity_CVPR_2021_paper.html)
@@ -51,7 +52,7 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 - **Developed by:** Cheng-Fu Yang, Wan-Cyuan Fan, Fu-En Yang, and Yu-Chiang Frank Wang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-agnostic; conditioning: relation.
+- **Model type:** content-agnostic; task: single-task; conditioning: relation.
 - **Language(s) (NLP):** not applicable.
 - **License:** unknown.
 
@@ -63,9 +64,9 @@ LT-Net is a scene-graph-to-layout model for natural-image scene layouts. It enco
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| COCO full LT-Net | [`creative-graphic-design/ltnet-coco`](https://huggingface.co/creative-graphic-design/ltnet-coco) | not-published |
+| Checkpoint          | Hub ID                                                                                                  | Status        |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ------------- |
+| COCO full LT-Net    | [`creative-graphic-design/ltnet-coco`](https://huggingface.co/creative-graphic-design/ltnet-coco)       | not-published |
 | VG-MSDN full LT-Net | [`creative-graphic-design/ltnet-vg-msdn`](https://huggingface.co/creative-graphic-design/ltnet-vg-msdn) | not-published |
 
 ## Uses
@@ -138,10 +139,10 @@ print(out.mask)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| COCO | unknown | original LT-Net COCO scene-graph preprocessing |
-| VG-MSDN | unknown | original Visual Genome MSDN split and vocabulary |
+| Dataset | Dataset ID | Notes                                            |
+| ------- | ---------- | ------------------------------------------------ |
+| COCO    | unknown    | original LT-Net COCO scene-graph preprocessing   |
+| VG-MSDN | unknown    | original Visual Genome MSDN split and vocabulary |
 
 COCO and VG-MSDN are not yet available in the `creative-graphic-design` Hugging Face org in LT-Net-ready scene-graph form. Agreement and conversion scripts therefore follow the original repository's dataset and vocabulary paths.
 
@@ -179,10 +180,10 @@ Metrics are exact tensor equality or an explicitly stated numeric tolerance agai
 
 ### Parity Results
 
-| Dataset | Cases | Compared tensors | Max abs |
-| --- | ---: | --- | ---: |
-| COCO | 1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` | 0 |
-| VG-MSDN | 1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` | 0 |
+| Dataset | Cases | Compared tensors                                                                 | Max abs |
+| ------- | ----: | -------------------------------------------------------------------------------- | ------: |
+| COCO    |     1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` |       0 |
+| VG-MSDN |     1 | `vocab_logits`, `obj_id_logits`, `token_type_logits`, `coarse_box`, `refine_box` |       0 |
 
 ## Reproducibility
 

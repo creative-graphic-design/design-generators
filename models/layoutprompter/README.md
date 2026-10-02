@@ -15,6 +15,7 @@ datasets:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutPrompter
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2311.06495&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2311.06495)
@@ -37,7 +38,7 @@ LayoutPrompter is a prompt-based layout agent that selects in-context exemplars 
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-agnostic; conditioning: label, label_size, completion, refinement, text, relation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: label, label_size, completion, refinement, text, relation.
 - **Language(s) (NLP):** English prompts for prompt-only operation.
 - **License:** MIT.
 
@@ -48,9 +49,9 @@ LayoutPrompter is a prompt-based layout agent that selects in-context exemplars 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| prompt configuration | n/a | no learned checkpoint; `save_pretrained` stores reloadable prompt configuration |
+| Checkpoint           | Hub ID | Status                                                                          |
+| -------------------- | ------ | ------------------------------------------------------------------------------- |
+| prompt configuration | n/a    | no learned checkpoint; `save_pretrained` stores reloadable prompt configuration |
 
 ## Uses
 
@@ -131,12 +132,12 @@ LayoutPrompter records are dict-like examples with `labels`, `bboxes`, and `disc
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PosterLayout | unknown | built-in label vocabulary |
-| WebUI | unknown | deterministic local fixture |
+| Dataset      | Dataset ID                                                                                               | Notes                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| PubLayNet    | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
+| RICO25       | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PosterLayout | unknown                                                                                                  | built-in label vocabulary                                |
+| WebUI        | unknown                                                                                                  | deterministic local fixture                              |
 
 Built-in label vocabularies are available for `publaynet`, `rico`, `posterlayout`, and `webui`.
 
@@ -174,16 +175,15 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
-| Prompt byte equality | 1 prompt fixture | exact byte match | pass |
-| Exemplar selection | 2 selected exemplar ids | exact id match | pass |
-| Parser golden output | 2 arrays (`labels`, `bbox`) | exact value match | pass |
+| Check                |                       Cases | Criterion         | Result |
+| -------------------- | --------------------------: | ----------------- | ------ |
+| Prompt byte equality |            1 prompt fixture | exact byte match  | pass   |
+| Exemplar selection   |     2 selected exemplar ids | exact id match    | pass   |
+| Parser golden output | 2 arrays (`labels`, `bbox`) | exact value match | pass   |
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layoutprompter/REPRODUCING.md) for the commands that prepare prompt assets, generate reference outputs, run parity checks, save prompt configuration, and smoke-test local loading.
-
 
 ## Environmental Impact
 

@@ -88,11 +88,16 @@ ROOT_VENUE_BADGE_COLORS = {
     "NeurIPS 2023": "4b2e83",
     "TMM 2021": "00629b",
 }
-ROOT_TASK_LEGEND_BADGE_COLORS = {
+ROOT_TASK_BADGE_COLORS = {
+    "task-agnostic": "2f80ed",
+    "task-aware": "9b51e0",
+    "single-task": "6b7280",
+    "evaluation": "6b7280",
+    "saliency": "f39c12",
+}
+ROOT_CONTENT_BADGE_COLORS = {
     "content-agnostic": "2f80ed",
     "content-aware": "eb5757",
-    "layout-evaluation": "6b7280",
-    "mixed": "9b51e0",
 }
 ROOT_LIBRARY_BADGE_COLORS = {
     "laygen": "2f80ed",
@@ -197,18 +202,6 @@ def _semantic_label(alt: str, query_label: str) -> str:
             f"badge with label=> must use '<semantic label>: ...' alt text: {alt!r}"
         )
 
-    semantic_alt_prefixes = {
-        "checkpoint",
-        "dataset",
-        "framework",
-        "library",
-        "model",
-        "task",
-        "training",
-        "venue",
-    }
-    if separator and alt_prefix in semantic_alt_prefixes:
-        return alt_prefix
     return alt_prefix
 
 
@@ -255,6 +248,9 @@ def _allowed_logos(path: Path, label: str, message: str | None) -> set[str | Non
         return {None}
 
     if label == "task":
+        return {None}
+
+    if label == "content":
         return {None}
 
     if label == "framework":
@@ -318,8 +314,13 @@ def _expected_color(path: Path, label: str, message: str | None) -> str | None:
         return "blue"
 
     if label == "task":
-        if _is_root_readme(path) and message in ROOT_TASK_LEGEND_BADGE_COLORS:
-            return ROOT_TASK_LEGEND_BADGE_COLORS[message]
+        if _is_root_readme(path) and message in ROOT_TASK_BADGE_COLORS:
+            return ROOT_TASK_BADGE_COLORS[message]
+        return "purple"
+
+    if label == "content":
+        if _is_root_readme(path) and message in ROOT_CONTENT_BADGE_COLORS:
+            return ROOT_CONTENT_BADGE_COLORS[message]
         return "purple"
 
     if label == "framework" and message:

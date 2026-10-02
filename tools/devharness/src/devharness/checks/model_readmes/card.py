@@ -14,6 +14,7 @@ from .constants import (
     EXPECTED_REPOSITORY_LINKS,
     MODEL_CONTENT_VALUES,
     MODEL_CONDITIONING_ORDER,
+    MODEL_TASK_VALUES,
     MODEL_MEMBER_DIRS,
     PROMPT_ONLY_SLUGS,
     PROMPT_ONLY_STALE_PHRASES,
@@ -136,10 +137,12 @@ def semantic_badge_label(alt: str, query_label: str) -> str:
     alt_prefix, separator, _ = alt.partition(":")
     semantic_alt_prefixes = {
         "checkpoint",
+        "content",
         "dataset",
         "framework",
         "library",
         "model",
+        "task",
         "training",
         "venue",
     }
@@ -174,10 +177,10 @@ def model_member_slugs() -> set[str]:
     return {member_dir.name for member_dir in MODEL_MEMBER_DIRS}
 
 
-ModelType: TypeAlias = tuple[str, tuple[str, ...]]
+ModelType: TypeAlias = tuple[str, str, tuple[str, ...]]
 
 _MODEL_TYPE_LINE_RE = re.compile(
-    r"^- \*\*Model type:\*\* (?P<content>[^;\n]+); conditioning: "
+    r"^- \*\*Model type:\*\* (?P<content>[^;\n]+); task: (?P<task>[^;\n]+); conditioning: "
     r"(?P<conditioning>[^.\n]+)\.$"
 )
 
@@ -194,7 +197,7 @@ def parse_model_type(path: Path, text: str) -> ModelType:
     if match is None:
         raise AssertionError(
             f"{path}: Model type line must match "
-            "'- **Model type:** <content>; conditioning: <values>.'"
+            "'- **Model type:** <content>; task: <task>; conditioning: <values>.'"
         )
 
     content = match.group("content")
@@ -202,6 +205,13 @@ def parse_model_type(path: Path, text: str) -> ModelType:
         raise AssertionError(
             f"{path}: Model type content value {content!r} is invalid; "
             f"expected one of {MODEL_CONTENT_VALUES}"
+        )
+
+    task = match.group("task")
+    if task not in MODEL_TASK_VALUES:
+        raise AssertionError(
+            f"{path}: Model type task value {task!r} is invalid; "
+            f"expected one of {MODEL_TASK_VALUES}"
         )
 
     conditioning = tuple(
@@ -226,13 +236,31 @@ def parse_model_type(path: Path, text: str) -> ModelType:
             f"{path}: evaluation, saliency, and none must appear alone"
         )
 
+    if task in {"evaluation", "saliency"}:
+        if conditioning != (task,):
+            raise AssertionError(
+                f"{path}: {task} task requires matching non-generation conditioning"
+            )
+    elif conditioning in (("evaluation",), ("saliency",)):
+        raise AssertionError(
+            f"{path}: evaluation and saliency conditioning require matching task"
+        )
+    elif len(conditioning) == 1 and task != "single-task":
+        raise AssertionError(
+            f"{path}: single-task is required for one conditioning value"
+        )
+    elif len(conditioning) >= 2 and task not in {"task-agnostic", "task-aware"}:
+        raise AssertionError(
+            f"{path}: task-agnostic or task-aware is required for multiple conditioning values"
+        )
+
     positions = [MODEL_CONDITIONING_ORDER.index(value) for value in conditioning]
     if positions != sorted(positions):
         raise AssertionError(
             f"{path}: Model type conditioning values must use the canonical order"
         )
 
-    return content, conditioning
+    return content, task, conditioning
 
 
 def library_member_slugs() -> set[str]:

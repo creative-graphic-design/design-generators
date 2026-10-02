@@ -67,7 +67,7 @@ model-index:
 - **Developed by:** <upstream-authors-or-lab>
 - **Funded by [optional]:** <funding-or-more-information-needed>
 - **Shared by [optional]:** creative-graphic-design
-- **Model type:** <content-agnostic|content-aware>; conditioning: <canonical values in conventions order>.
+- **Model type:** <content-agnostic|content-aware>; task: <task-agnostic|task-aware|single-task|evaluation|saliency>; conditioning: <canonical values in conventions order>.
 - **Language(s) (NLP):** <not-applicable-or-language-list>
 - **License:** <license-id-or-unknown>
 - **Finetuned from model [optional]:** <base-model-or-not-applicable>

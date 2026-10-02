@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for Parse-Then-Place
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2308.12700&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2308.12700)
@@ -49,7 +50,7 @@ Parse-Then-Place generates layouts through a two-stage `transformers` pipeline: 
 
 - **Developed by:** Jiawei Lin et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-agnostic; conditioning: text.
+- **Model type:** content-agnostic; task: single-task; conditioning: text.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -60,12 +61,12 @@ Parse-Then-Place generates layouts through a two-stage `transformers` pipeline: 
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint    | Hub ID                                                                                                                                    | Status        |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | RICO finetune | [`creative-graphic-design/parse-then-place-rico-finetune`](https://huggingface.co/creative-graphic-design/parse-then-place-rico-finetune) | not-published |
 | RICO pretrain | [`creative-graphic-design/parse-then-place-rico-pretrain`](https://huggingface.co/creative-graphic-design/parse-then-place-rico-pretrain) | not-published |
-| Web finetune | [`creative-graphic-design/parse-then-place-web-finetune`](https://huggingface.co/creative-graphic-design/parse-then-place-web-finetune) | not-published |
-| Web pretrain | [`creative-graphic-design/parse-then-place-web-pretrain`](https://huggingface.co/creative-graphic-design/parse-then-place-web-pretrain) | not-published |
+| Web finetune  | [`creative-graphic-design/parse-then-place-web-finetune`](https://huggingface.co/creative-graphic-design/parse-then-place-web-finetune)   | not-published |
+| Web pretrain  | [`creative-graphic-design/parse-then-place-web-pretrain`](https://huggingface.co/creative-graphic-design/parse-then-place-web-pretrain)   | not-published |
 
 ## Uses
 
@@ -151,10 +152,10 @@ print(out.bbox.shape, out.labels.tolist())
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| Web | unknown | original-implementation web pretraining split |
+| Dataset | Dataset ID                                                                                     | Notes                                                    |
+| ------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25  | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| Web     | unknown                                                                                        | original-implementation web pretraining split            |
 
 Datasets are RICO text-to-layout and WebUI as distributed by the original repository. WebUI is not yet mirrored under the `creative-graphic-design` org, so conversion scripts accept the original asset tree as the interim source.
 
@@ -192,17 +193,16 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | ---: |
-| RICO finetune stage-2 token ids | 1 prompt x 5 samples | Exact generated token-id sequence match | 5/5 |
-| RICO finetune stage-2 decoded layouts | 1 prompt x 5 samples | Exact decoded layout string match | 5/5 |
+| Check                                 |                Cases | Criterion                               | Result |
+| ------------------------------------- | -------------------: | --------------------------------------- | -----: |
+| RICO finetune stage-2 token ids       | 1 prompt x 5 samples | Exact generated token-id sequence match |    5/5 |
+| RICO finetune stage-2 decoded layouts | 1 prompt x 5 samples | Exact decoded layout string match       |    5/5 |
 
 The current agreement test loads the original stage-2 placement checkpoint through the converted package wrapper and compares it with references produced by a direct `transformers` generation call using hand-copied original generation settings; it does not execute the original trainer path or the converted checkpoint artifact.
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/parse-then-place/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
-
 
 ## Environmental Impact
 

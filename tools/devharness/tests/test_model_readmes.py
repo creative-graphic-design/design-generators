@@ -137,7 +137,7 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     assert result.stdout == ""
     assert result.stderr == (
         f"{fixture / 'README.md'}: Models table must use "
-        "Model, Content, Conditioning, Venue, Ckpt, Train\n"
+        "Model, Task, Content, Venue, Ckpt, Train\n"
     )
 
 
@@ -499,36 +499,52 @@ def test_card_contracts_reject_bad_summary_and_code_fences() -> None:
             "Model type line must match",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: label\n",
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label\n",
             "Model type line must match",
         ),
         (
-            "- **Model type:** image-aware; conditioning: none.\n",
+            "- **Model type:** image-aware; task: single-task; conditioning: none.\n",
             "content value",
         ),
         (
-            "- **Model type:** Content-agnostic; conditioning: none.\n",
+            "- **Model type:** Content-agnostic; task: single-task; conditioning: none.\n",
             "content value",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: label-size.\n",
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label-size.\n",
             "conditioning value",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: content_image.\n",
+            "- **Model type:** content-agnostic; task: single-task; conditioning: content_image.\n",
             "conditioning value",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: label_size, label.\n",
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label_size, label.\n",
             "canonical order",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: label, label.\n",
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label, label.\n",
             "must be unique",
         ),
         (
-            "- **Model type:** content-agnostic; conditioning: evaluation, label.\n",
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: evaluation, label.\n",
             "must appear alone",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: unknown; conditioning: label.\n",
+            "task value",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label.\n",
+            "single-task is required",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: single-task; conditioning: label, label_size.\n",
+            "task-agnostic or task-aware",
+        ),
+        (
+            "- **Model type:** content-agnostic; task: evaluation; conditioning: none.\n",
+            "evaluation task requires",
         ),
     ],
 )
@@ -542,7 +558,10 @@ def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
     with pytest.raises(AssertionError, match="exactly once"):
         card.parse_model_type(path, "plain")
 
-    duplicate = "- **Model type:** content-agnostic; conditioning: label.\n" * 2
+    duplicate = (
+        "- **Model type:** content-agnostic; task: single-task; conditioning: label.\n"
+        * 2
+    )
     with pytest.raises(AssertionError, match="exactly once"):
         card.parse_model_type(path, duplicate)
 
@@ -550,16 +569,71 @@ def test_model_type_contract_rejects_missing_and_duplicate_lines() -> None:
 def test_model_type_contract_accepts_structured_line() -> None:
     assert card.parse_model_type(
         Path("models/example/README.md"),
-        "- **Model type:** content-aware; conditioning: label, label_size.\n",
-    ) == ("content-aware", ("label", "label_size"))
+        "- **Model type:** content-aware; task: task-aware; conditioning: label, label_size.\n",
+    ) == ("content-aware", "task-aware", ("label", "label_size"))
 
 
 def test_model_type_contract_rejects_empty_conditioning_value() -> None:
     with pytest.raises(AssertionError, match="conditioning values cannot be empty"):
         card.parse_model_type(
             Path("models/example/README.md"),
-            "- **Model type:** content-agnostic; conditioning: label_size, .\n",
+            "- **Model type:** content-agnostic; task: task-agnostic; conditioning: label_size, .\n",
         )
+
+
+def _catalog_badge(kind: str, message: str) -> str:
+    emoji = "%F0%9F%8E%AF" if kind == "task" else "%F0%9F%96%BC%EF%B8%8F"
+    colors = {
+        "task-agnostic": "2f80ed",
+        "task-aware": "9b51e0",
+        "single-task": "6b7280",
+        "content-agnostic": "2f80ed",
+        "content-aware": "eb5757",
+    }
+    return (
+        f"![{kind}: {message}](https://img.shields.io/static/v1?label={emoji}"
+        f"&message={message}&color={colors[message]})"
+    )
+
+
+def _root_model_row(
+    model: str,
+    slug: str,
+    task: str,
+    content: str,
+    training: str = "n/a",
+) -> str:
+    train = (
+        "[![training: train](https://img.shields.io/static/v1?label=training&"
+        "message=train&color=success)](models/"
+        f"{slug}/TRAINING.md)"
+        if training == "train"
+        else "![training: n/a](https://img.shields.io/static/v1?label=training&"
+        "message=n%2Fa&color=lightgrey)"
+    )
+    return (
+        f"| [`{model}`](models/{slug}/README.md) | {_catalog_badge('task', task)} | "
+        f"{_catalog_badge('content', content)} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
+        "message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
+        f"message=ckpt&color=success)](models/{slug}/REPRODUCING.md) | {train} |"
+    )
+
+
+def _docs_model_row(task: str, content: str = "content-agnostic") -> str:
+    return (
+        f"| [`LayoutDM`](api/models/layout-dm/) | {_catalog_badge('task', task)} | "
+        f"{_catalog_badge('content', content)} | "
+        "![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        "label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | "
+        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&"
+        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
+        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&"
+        "message=train&color=success)](models/layout-dm/TRAINING.md) | "
+        "[Paper](https://arxiv.org/abs/2303.03755) | "
+        "[README](models/layout-dm/README.md) |"
+    )
 
 
 def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
@@ -568,18 +642,18 @@ def test_root_models_table_accepts_linked_model_names_and_reproduction_badges(
     _write_model_type_fixture(
         tmp_path,
         "layoutformerpp",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
         "label_size, completion, refinement, relation.\n",
     )
     readme = tmp_path / "README.md"
     readme.write_text(
-        """# Example
+        f"""# Example
 
 ## Models
 
-| Model | Content | Conditioning | Venue | Ckpt | Train |
+| Model | Task | Content | Venue | Ckpt | Train |
 | :--- | :--- | :--- | :---: | --- | --- |
-| [`LayoutFormer++`](models/layoutformerpp/README.md) | content-agnostic | unconditional, label, label_size, completion, refinement, relation | ![venue: CVPR 2023](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layoutformerpp/REPRODUCING.md) | ![training: n/a](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=n%2Fa&color=lightgrey) |
+{_root_model_row("LayoutFormer++", "layoutformerpp", "task-aware", "content-agnostic")}
 
 ## Libraries
 """,
@@ -598,10 +672,10 @@ def test_root_models_table_escapes_link_pattern_punctuation(tmp_path: Path) -> N
     readme = tmp_path / "README.md"
     readme.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
-        "| [`LayoutDM`](models/layout-dm/READMExmd) | content-agnostic | "
-        "unconditional | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
+        f"| [`LayoutDM`](models/layout-dm/READMExmd) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-agnostic')} | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
         "label=venue&message=CVPR%202023&color=0076a8) | "
         "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
         "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
@@ -626,34 +700,20 @@ def _write_model_type_fixture(root: Path, slug: str, line: str) -> None:
     model_readme.write_text(line, encoding="utf-8")
 
 
-def _docs_model_row(conditioning: str) -> str:
-    return (
-        "| [`LayoutDM`](api/models/layout-dm/) | content-agnostic | "
-        f"{conditioning} | ![venue: CVPR 2023](https://img.shields.io/static/v1?"
-        "label=%F0%9F%8E%93&message=CVPR%202023&color=0076a8) | "
-        "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&"
-        "message=ckpt&color=success)](models/layout-dm/REPRODUCING.md) | "
-        "[![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&"
-        "message=train&color=success)](models/layout-dm/TRAINING.md) | "
-        "[Paper](https://arxiv.org/abs/2303.03755) | "
-        "[README](models/layout-dm/README.md) |"
-    )
-
-
 def test_root_model_table_rejects_content_mismatch(tmp_path: Path) -> None:
     _write_model_type_fixture(
         tmp_path,
         "layout-dm",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     readme = tmp_path / "README.md"
     readme.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
-        "| [`LayoutDM`](models/layout-dm/README.md) | content-aware | "
-        "unconditional, label, label_size, completion, refinement | "
+        f"| [`LayoutDM`](models/layout-dm/README.md) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-aware')} | "
         "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
         "message=CVPR%202023&color=0076a8) | "
         "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
@@ -673,19 +733,20 @@ def test_root_model_table_rejects_content_mismatch(tmp_path: Path) -> None:
         )
 
 
-def test_root_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
+def test_root_model_table_rejects_task_mismatch(tmp_path: Path) -> None:
     _write_model_type_fixture(
         tmp_path,
         "layout-dm",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     readme = tmp_path / "README.md"
     readme.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Ckpt | Train |\n"
+        "| Model | Task | Content | Venue | Ckpt | Train |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
-        "| [`LayoutDM`](models/layout-dm/README.md) | content-agnostic | label | "
+        f"| [`LayoutDM`](models/layout-dm/README.md) | {_catalog_badge('task', 'task-agnostic')} | "
+        f"{_catalog_badge('content', 'content-agnostic')} | "
         "![venue: CVPR 2023](https://img.shields.io/static/v1?label=venue&"
         "message=CVPR%202023&color=0076a8) | "
         "[![checkpoint: ckpt](https://img.shields.io/static/v1?label=checkpoint&"
@@ -696,7 +757,7 @@ def test_root_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="package layout-dm Conditioning cell"):
+    with pytest.raises(AssertionError, match="package layout-dm Task cell"):
         root_readme.root_model_slugs(
             readme,
             ROOT_MODEL_TABLE_HEADER,
@@ -709,7 +770,7 @@ def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> N
     _write_model_type_fixture(
         tmp_path,
         "layout-dm",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     docs = tmp_path / "docs"
@@ -717,9 +778,9 @@ def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> N
     index = docs / "index.md"
     index.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"{_docs_model_row('unconditional, label, label_size, completion, refinement')}\n",
+        f"{_docs_model_row('task-agnostic')}\n",
         encoding="utf-8",
     )
 
@@ -731,11 +792,11 @@ def test_docs_index_model_table_accepts_matching_model_type(tmp_path: Path) -> N
     ) == {"layout-dm"}
 
 
-def test_docs_index_model_table_rejects_conditioning_mismatch(tmp_path: Path) -> None:
+def test_docs_index_model_table_rejects_task_mismatch(tmp_path: Path) -> None:
     _write_model_type_fixture(
         tmp_path,
         "layout-dm",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-aware; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     docs = tmp_path / "docs"
@@ -743,15 +804,15 @@ def test_docs_index_model_table_rejects_conditioning_mismatch(tmp_path: Path) ->
     index = docs / "index.md"
     index.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"{_docs_model_row('label')}\n",
+        f"{_docs_model_row('task-agnostic')}\n",
         encoding="utf-8",
     )
 
     with pytest.raises(
         AssertionError,
-        match="docs/index.md: Models table package layout-dm Conditioning cell",
+        match="docs/index.md: Models table package layout-dm Task cell",
     ):
         root_readme.root_model_slugs(
             index,
@@ -767,7 +828,7 @@ def test_docs_index_model_table_reports_missing_package(
     _write_model_type_fixture(
         tmp_path,
         "layout-dm",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     docs = tmp_path / "docs"
@@ -775,9 +836,9 @@ def test_docs_index_model_table_reports_missing_package(
     index = docs / "index.md"
     index.write_text(
         "## Models\n\n"
-        "| Model | Content | Conditioning | Venue | Weights | Training | Paper | Docs |\n"
+        "| Model | Task | Content | Venue | Weights | Training | Paper | Docs |\n"
         "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-        f"{_docs_model_row('unconditional, label, label_size, completion, refinement')}\n",
+        f"{_docs_model_row('task-agnostic')}\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -813,7 +874,7 @@ def test_root_models_table_rejects_metadata_columns(
     )
 
     with pytest.raises(
-        AssertionError, match="Model, Content, Conditioning, Venue, Ckpt, Train"
+        AssertionError, match="Model, Task, Content, Venue, Ckpt, Train"
     ):
         root_readme.root_model_slugs(
             readme,
@@ -852,18 +913,18 @@ def test_root_models_table_requires_training_link_when_file_exists(
     _write_model_type_fixture(
         tmp_path,
         "layout-flow",
-        "- **Model type:** content-agnostic; conditioning: unconditional, label, "
+        "- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, "
         "label_size, completion, refinement.\n",
     )
     readme = tmp_path / "README.md"
     readme.write_text(
-        """# Example
+        f"""# Example
 
 ## Models
 
-| Model | Content | Conditioning | Venue | Ckpt | Train |
+| Model | Task | Content | Venue | Ckpt | Train |
 | --- | --- | --- | --- | --- | --- |
-| [`LayoutFlow`](models/layout-flow/README.md) | content-agnostic | unconditional, label, label_size, completion, refinement | ![venue: ECCV 2024](https://img.shields.io/static/v1?label=%F0%9F%8E%93&message=ECCV%202024&color=009688) | [![checkpoint: ckpt](https://img.shields.io/static/v1?label=%F0%9F%92%BE&message=ckpt&color=success)](models/layout-flow/REPRODUCING.md) | [![training: train](https://img.shields.io/static/v1?label=%F0%9F%8F%8B%EF%B8%8F&message=train&color=success)](models/layout-flow/TRAINING.md) |
+{_root_model_row("LayoutFlow", "layout-flow", "task-agnostic", "content-agnostic", "train")}
 
 ## Libraries
 """,
