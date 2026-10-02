@@ -75,6 +75,18 @@ def relative_difference(
     return float(np.abs(np.asarray(actual, np.float64) - expected).max() / scale)
 
 
+def float64_adam_update(
+    gradient: Shaped[np.ndarray, "..."]
+) -> tuple[Shaped[np.ndarray, "..."], Shaped[np.ndarray, "..."]]:
+    """Return a clipped first-step Keras Adam update and second moment."""
+    clipped = np.asarray(gradient, np.float64)
+    clipped *= 1 / max(float(np.linalg.norm(clipped)), 1.0)
+    first = clipped * 0.1
+    second = np.square(clipped) * 0.001
+    alpha = 1e-3 * np.sqrt(1 - 0.999) / (1 - 0.9)
+    return -(first * alpha) / (np.sqrt(second) + 1e-7), second
+
+
 def main() -> None:
     """Run the control and write the report."""
     args = parse_args()
@@ -120,6 +132,14 @@ def main() -> None:
     ).expect_partial()
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, clipnorm=1.0)
     model.compile(optimizer=optimizer)
+    paths = {
+        id(variable): path.replace(".", "/")
+        for path, variable in model.get_weight_paths().items()
+    }
+    before = {
+        paths[id(variable)]: variable.numpy().copy()
+        for variable in model.trainable_variables
+    }
     inputs = {
         "length": tf.constant(batches["0/length"].reshape(-1, 1).astype(np.int64))
     }
@@ -140,6 +160,10 @@ def main() -> None:
         loss = model.compute_loss(inputs, None, outputs, None)
 
     grads = tape.gradient(loss, model.trainable_variables)
+    gradients = {
+        paths[id(variable)]: tf.convert_to_tensor(gradient).numpy()
+        for gradient, variable in zip(grads, model.trainable_variables, strict=True)
+    }
     if args.smoke:
         missing = [
             variable.name
@@ -226,6 +250,60 @@ def main() -> None:
             report["post_step_max_relative"][key] = relative_difference(
                 value, reference
             )
+    rule_errors = {"tf211": {}, "tf215": {}}
+    update_difference_sq = 0.0
+    near_zero_difference_sq = 0.0
+    near_zero_elements = 0
+    total_elements = 0
+    well_conditioned_relative = {}
+    for key, gradient in gradients.items():
+        reference_gradient = step0[f"grad/{key}"]
+        update211 = after[key] - before[key]
+        update215 = step0[f"after/{key}"] - before[key]
+        exact211, _ = float64_adam_update(gradient)
+        exact215, second215 = float64_adam_update(reference_gradient)
+        rule_errors["tf211"][key] = float(
+            np.linalg.norm(update211.astype(np.float64) - exact211)
+            / max(float(np.linalg.norm(exact211)), 1e-30)
+        )
+        rule_errors["tf215"][key] = float(
+            np.linalg.norm(update215.astype(np.float64) - exact215)
+            / max(float(np.linalg.norm(exact215)), 1e-30)
+        )
+        delta = update211.astype(np.float64) - update215.astype(np.float64)
+        well = np.sqrt(second215) >= 100 * 1e-7
+        if np.any(well):
+            well_conditioned_relative[key] = float(
+                np.linalg.norm(delta[well])
+                / max(float(np.linalg.norm(update215.astype(np.float64)[well])), 1e-30)
+            )
+        else:
+            well_conditioned_relative[key] = 0.0
+        update_difference_sq += float(np.square(delta).sum())
+        near_zero_difference_sq += float(np.square(delta[~well]).sum())
+        near_zero_elements += int((~well).sum())
+        total_elements += delta.size
+    report["post_step_parameter_tolerance"] = {
+        "limit": FP32_RELATIVE_TOLERANCE,
+        "within": sum(
+            value <= FP32_RELATIVE_TOLERANCE
+            for value in report["post_step_max_relative"].values()
+        ),
+        "total": len(report["post_step_max_relative"]),
+    }
+    report["float64_update_analysis"] = {
+        "trainable_parameters": len(gradients),
+        "max_tf211_adam_rule_relative_l2": max(rule_errors["tf211"].values()),
+        "max_tf215_adam_rule_relative_l2": max(rule_errors["tf215"].values()),
+        "max_well_conditioned_relative_l2": max(well_conditioned_relative.values()),
+        "sqrt_v_threshold": 100 * 1e-7,
+        "near_zero_gradient_element_fraction": near_zero_elements / total_elements,
+        "near_zero_share_of_update_difference": near_zero_difference_sq
+        / max(update_difference_sq, 1e-300),
+        "tf211_rule_errors": rule_errors["tf211"],
+        "tf215_rule_errors": rule_errors["tf215"],
+        "well_conditioned_relative_l2": well_conditioned_relative,
+    }
     report["batch_norm_moving_mean_max_relative"] = report["post_step_max_relative"][
         "encoder/norm/moving_mean"
     ]
@@ -251,6 +329,12 @@ def main() -> None:
         and not report["logits_key_match"]["extra"]
         and max(compared_differences) <= FP32_RELATIVE_TOLERANCE
     )
+    report["forward_and_batch_norm_within_fp32_tolerance"] = max(
+        report["total_loss"]["relative"],
+        report["logits_max_relative"],
+        report["batch_norm_moving_mean_max_relative"],
+        report["batch_norm_moving_variance_max_relative"],
+    ) <= FP32_RELATIVE_TOLERANCE
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=1, sort_keys=True))
     print(
@@ -258,7 +342,11 @@ def main() -> None:
             {
                 key: value
                 for key, value in report.items()
-                if key != "post_step_max_relative"
+                if key
+                not in (
+                    "post_step_max_relative",
+                    "float64_update_analysis",
+                )
             },
             indent=1,
         )
