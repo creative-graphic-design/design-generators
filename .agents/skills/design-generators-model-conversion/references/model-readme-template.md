@@ -115,7 +115,7 @@ This package ports <method linked to its paper>, <venue and key idea>, into a <l
 
 ## How to Get Started with the Model
 
-<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as planned until they are published. -->
+<!-- Lead with a local converted checkpoint path that works before Hub publication. Mark Hub ids as not-published until they are published. -->
 
 Install the package and its unpublished workspace dependencies together.
 

@@ -117,7 +117,7 @@ For documentation and instruction changes, the existing root tests check README 
 
 ```bash
 uv run --package design-generators --group dev pytest tests -m "not integration"
-uv run --package design-generators devharness check model-readmes
+uv run --package devharness devharness check model-readmes
 uv run --package design-generators scripts/check_training_doc_template.py
 uv run --package design-generators scripts/check_training_stage_evidence.py
 ```
