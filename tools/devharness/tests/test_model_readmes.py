@@ -115,12 +115,15 @@ def test_model_readme_cli_reports_failing_fixture(tmp_path: Path) -> None:
     with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
         tar.extractall(fixture)
     readme = fixture / "README.md"
+    lines = readme.read_text(encoding="utf-8").splitlines(keepends=True)
+    header_index = next(
+        index for index, line in enumerate(lines) if line.startswith("| Model ")
+    )
+    lines[header_index] = (
+        "| Model | Content | Conditioning | Venue | Runtime | Datasets | Ckpt | Train |\n"
+    )
     readme.write_text(
-        readme.read_text(encoding="utf-8").replace(
-            "| Model | Content | Conditioning | Venue | Ckpt | Train |",
-            "| Model | Content | Conditioning | Venue | Runtime | Datasets | Ckpt | Train |",
-            1,
-        ),
+        "".join(lines),
         encoding="utf-8",
     )
 
