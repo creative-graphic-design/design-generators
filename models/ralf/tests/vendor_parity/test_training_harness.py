@@ -11,7 +11,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
-from jaxtyping import Shaped
 import pytest
 import torch
 from lightning.pytorch import LightningModule, Trainer
@@ -19,6 +18,7 @@ from lightning.pytorch import LightningModule, Trainer
 import run_training_stages as stages
 from ralf import RalfForConditionalLayoutGeneration
 from ralf.training.datamodule import RalfTrainingBatch
+from ralf.training.lightning_module import _ConditionKwargs
 from run_training_stages import (
     _assert_optimizer_state_storage_independent,
     _compare_learning_rates,
@@ -326,9 +326,7 @@ def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
         def __init__(self) -> None:
             self.model = cast(RalfForConditionalLayoutGeneration, StubModel())
 
-        def _condition_kwargs(
-            self, batch: RalfTrainingBatch
-        ) -> dict[str, Shaped[torch.Tensor, "..."]]:
+        def _condition_kwargs(self, batch: RalfTrainingBatch) -> _ConditionKwargs:
             del batch
             state = torch.get_rng_state().clone()
             condition = torch.randperm(4)
@@ -337,7 +335,7 @@ def test_loss_pair_reseeds_each_stochastic_condition_pipeline(
 
         def _prepare_refinement_layout(
             self, batch: RalfTrainingBatch
-        ) -> tuple[RalfTrainingBatch, dict[str, torch.Tensor]]:
+        ) -> tuple[RalfTrainingBatch, _ConditionKwargs]:
             return batch, self._condition_kwargs(batch)
 
     class StubVendor:

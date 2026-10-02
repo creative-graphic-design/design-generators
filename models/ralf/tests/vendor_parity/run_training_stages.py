@@ -42,7 +42,7 @@ from ralf.training.datamodule import (
     RalfTrainingBatch,
     collate_training_batch,
 )
-from ralf.training.lightning_module import RalfTrainingModule
+from ralf.training.lightning_module import RalfTrainingModule, _ConditionKwargs
 
 from training_reference import (
     build_vendor_model,
@@ -244,13 +244,11 @@ class _LossPairPackageModule(Protocol):
     model: RalfForConditionalLayoutGeneration
     condition_type: str
 
-    def _condition_kwargs(
-        self, batch: RalfTrainingBatch
-    ) -> dict[str, Shaped[Tensor, "..."]]: ...
+    def _condition_kwargs(self, batch: RalfTrainingBatch) -> _ConditionKwargs: ...
 
     def _prepare_refinement_layout(
         self, batch: RalfTrainingBatch
-    ) -> tuple[RalfTrainingBatch, dict[str, Shaped[Tensor, "..."]]]: ...
+    ) -> tuple[RalfTrainingBatch, _ConditionKwargs]: ...
 
 
 class _NaturalEnvelope(TypedDict):
@@ -2434,9 +2432,7 @@ def _s1(
             condition_type="relation",
             constraint_input_ids=package_condition_kwargs["constraint_input_ids"],
             constraint_mask=package_condition_kwargs["constraint_mask"],
-            sample_ids=cast(
-                Sequence[str | int], package_condition_kwargs["sample_ids"]
-            ),
+            sample_ids=package_condition_kwargs["sample_ids"],
         )
         package_condition_ids = (
             cast(Tensor, package_condition["seq_layout_const"]).detach().cpu()

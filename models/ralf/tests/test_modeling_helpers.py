@@ -271,11 +271,11 @@ def test_relation_task_preprocessor_sequences_and_helpers() -> None:
         task="relation",
         relationship_table={"other": [relation]},
     )
-    missing_sequence = missing(inputs)["seq"]
-    assert missing_sequence[0, 1].item() == missing.name_to_id("relationship")
-    assert missing_sequence[0, -1].item() == config.eos_token_id
+    with pytest.raises(KeyError, match="sample"):
+        missing(inputs)
 
-    assert preprocessor._relation_ids(None, 2) == ["", ""]
+    with pytest.raises(KeyError, match="sample ids"):
+        preprocessor._relation_ids(None, 2)
     assert preprocessor._relation_ids(torch.tensor([3]), 1) == ["3"]
     assert preprocessor._relation_ids(["a"], 1) == ["a"]
 

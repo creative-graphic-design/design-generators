@@ -258,7 +258,7 @@ def encode_training_sample(
         "layout_labels": labels[0].long(),
         "layout_bbox": bbox[0].float(),
         "layout_mask": mask[0].bool(),
-        "sample_id": cast(str | int, sample.get("id", "")),
+        "sample_id": cast(str | int, sample["id"]),
         "retrieved": retrieved,
     }
 
@@ -298,10 +298,8 @@ class RalfTrainingDataset(Dataset[RalfTrainingSample]):
     def __getitem__(self, index: int) -> RalfTrainingSample:
         """Encode one indexed sample for package training."""
         sample = self.samples[index]
-        sample_id = sample.get("id", index)
-        retrieval_indexes = self.retrieval_table.lookup([cast(str | int, sample_id)])[
-            0
-        ].tolist()
+        sample_id = cast(str | int, sample["id"])
+        retrieval_indexes = self.retrieval_table.lookup([sample_id])[0].tolist()
         if any(item < 0 for item in retrieval_indexes):
             raise ValueError(
                 f"retrieval table has no complete row for sample {sample_id!r}"

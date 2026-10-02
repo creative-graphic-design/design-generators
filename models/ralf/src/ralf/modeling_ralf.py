@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from itertools import combinations
-from typing import Final, Literal, Protocol, cast, runtime_checkable
+from typing import Final, Literal, NoReturn, Protocol, cast, runtime_checkable
 
 import timm
 import torch
@@ -65,6 +65,10 @@ RalfTaskTokenName = Literal[
     "refinement",
     "completion",
 ]
+
+
+def _raise_relation_ids_error(message: str) -> NoReturn:
+    raise KeyError(message)
 
 
 @runtime_checkable
@@ -915,12 +919,18 @@ class RalfTaskPreprocessor:
         batch_size: int,
     ) -> list[str]:
         if ids is None:
-            return [""] * batch_size
+            _raise_relation_ids_error("relation condition requires sample ids")
         if isinstance(ids, Tensor):
-            return [str(item) for item in ids.detach().cpu().tolist()]
-        if isinstance(ids, (list, tuple)):
-            return [str(item) for item in ids]
-        return [str(ids)] * batch_size
+            relation_ids = [str(item) for item in ids.detach().cpu().tolist()]
+        elif isinstance(ids, (list, tuple)):
+            relation_ids = [str(item) for item in ids]
+        else:
+            relation_ids = [str(ids)] * batch_size
+        if len(relation_ids) != batch_size or any(not item for item in relation_ids):
+            _raise_relation_ids_error(
+                "relation condition requires one sample id per item"
+            )
+        return relation_ids
 
     def _relation_sequence(
         self,
@@ -952,7 +962,7 @@ class RalfTaskPreprocessor:
                 [seq, self.get_token("relation_sep", 1)[0]],
                 dim=0,
             )
-            relations = self.relationship_table.get(item_id, [])
+            relations = self.relationship_table[item_id]
             if not relations:
                 seq = torch.cat([seq, self.get_token("eos", 1)[0]], dim=0)
                 outputs.append(seq)

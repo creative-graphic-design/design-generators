@@ -7,7 +7,7 @@ import pickle
 from collections.abc import Mapping, Sequence
 from enum import IntEnum
 from types import SimpleNamespace
-from typing import ClassVar, Protocol, cast
+from typing import ClassVar, Protocol, TypedDict, cast
 
 import torch
 from jaxtyping import Float, Shaped
@@ -35,6 +35,14 @@ class _GradientTraceHook(Protocol):
 
     def on_package_gradients_clipped(self, pl_module: "RalfTrainingModule") -> None:
         """Observe package gradients after Lightning applies clipping."""
+
+
+class _ConditionKwargs(TypedDict, total=False):
+    """Typed condition arguments passed from training to the model."""
+
+    constraint_input_ids: Shaped[torch.Tensor, "batch tokens"]
+    constraint_mask: Shaped[torch.Tensor, "batch tokens"]
+    sample_ids: Sequence[str | int]
 
 
 class _RelationTableUnpickler(pickle.Unpickler):
@@ -108,17 +116,14 @@ class RalfTrainingModule(LightningModule):
         self.ralf_config = config
         relationship_table = None
         if condition_type == "relation":
-            table_path = relationship_table_path or os.environ.get(
-                "RALF_RELATIONSHIP_TABLE_PATH"
-            )
             existing_table = None if model is None else model.relationship_table
-            if table_path is None and existing_table is not None:
-                relationship_table = existing_table
-            elif table_path is None:
-                raise ValueError("relation training requires a relationship table path")
-
+            if relationship_table_path is not None:
+                relationship_table = _load_relationship_table(relationship_table_path)
             else:
-                relationship_table = _load_relationship_table(table_path)
+                relationship_table = existing_table
+
+            if relationship_table is None:
+                raise ValueError("relation training requires a relationship table path")
 
         self.relationship_table = relationship_table
         self.model = model or RalfForConditionalLayoutGeneration(
@@ -164,9 +169,7 @@ class RalfTrainingModule(LightningModule):
             **condition_kwargs,
         )
 
-    def _condition_kwargs(
-        self, batch: RalfTrainingBatch
-    ) -> dict[str, Shaped[torch.Tensor, ...]]:
+    def _condition_kwargs(self, batch: RalfTrainingBatch) -> _ConditionKwargs:
         """Build the full layout condition before decoder shifting."""
         if self.condition_type == "refinement":
             _, condition_kwargs = self._prepare_refinement_layout(batch)
@@ -185,7 +188,7 @@ class RalfTrainingModule(LightningModule):
         else:
             return {}
 
-        condition_kwargs: dict[str, Shaped[torch.Tensor, ...]] = {
+        condition_kwargs: _ConditionKwargs = {
             "constraint_input_ids": cast(
                 Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
             ),
@@ -194,15 +197,13 @@ class RalfTrainingModule(LightningModule):
             ),
         }
         if self.condition_type == "relation":
-            condition_kwargs["sample_ids"] = cast(
-                Shaped[torch.Tensor, "batch"], batch.get("sample_ids", [])
-            )
+            condition_kwargs["sample_ids"] = batch["sample_ids"]
 
         return condition_kwargs
 
     def _prepare_refinement_layout(
         self, batch: RalfTrainingBatch
-    ) -> tuple[RalfTrainingBatch, dict[str, Shaped[torch.Tensor, "..."]]]:
+    ) -> tuple[RalfTrainingBatch, _ConditionKwargs]:
         """Prepare the perturbed layout used for refinement training."""
         bbox = batch["layout_bbox"].clone()
         for bbox_index in range(bbox.size(-1)):
@@ -223,7 +224,7 @@ class RalfTrainingModule(LightningModule):
             mask=batch["layout_mask"],
         )
         prepared_batch = cast(RalfTrainingBatch, dict(batch))
-        return prepared_batch, {
+        condition_kwargs: _ConditionKwargs = {
             "constraint_input_ids": cast(
                 Shaped[torch.Tensor, "batch tokens"], encoded["input_ids"]
             ),
@@ -231,6 +232,7 @@ class RalfTrainingModule(LightningModule):
                 Shaped[torch.Tensor, "batch tokens"], encoded["attention_mask"]
             ),
         }
+        return prepared_batch, condition_kwargs
 
     def training_step(
         self,
@@ -413,8 +415,8 @@ class RalfTrainingModule(LightningModule):
         if trace_hook is not None:
             trace_hook.on_package_gradients_clipped(self)
 
-    @staticmethod
     def _model_batch(
+        self,
         batch: RalfTrainingBatch,
     ) -> RalfTrainingBatch:
         batch_retrieved = batch["retrieved"]
@@ -427,6 +429,10 @@ class RalfTrainingModule(LightningModule):
             "layout_labels": batch["layout_labels"].long(),
             "layout_bbox": batch["layout_bbox"].float(),
             "layout_mask": batch["layout_mask"].bool(),
-            "sample_ids": batch.get("sample_ids", []),
+            "sample_ids": (
+                batch["sample_ids"]
+                if self.condition_type == "relation"
+                else batch.get("sample_ids", [])
+            ),
             "retrieved": batch_retrieved,
         }

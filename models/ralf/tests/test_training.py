@@ -200,6 +200,46 @@ def test_relation_training_requires_relationship_table() -> None:
         RalfTrainingModule(config=config, condition_type="relation")
 
 
+def test_relation_training_requires_sample_ids() -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    sample = _sample()
+    sample.pop("id")
+    config.task = "relation"
+    dataset = RalfTrainingDataset(
+        samples=[sample],
+        config=config,
+        retrieval_table={0: [0]},
+        retrieval_samples=[_sample()],
+    )
+
+    with pytest.raises(KeyError, match="id"):
+        dataset[0]
+
+
+def test_relation_condition_requires_batch_sample_ids(tmp_path: Path) -> None:
+    config = _small_config(max_seq_length=2, top_k=1)
+    table = {"sample-0": [["logo", "left", "larger", "text", "A"]]}
+    table_path = tmp_path / "relationships.pt"
+    torch.save(table, table_path)
+    encoded = encode_training_sample(
+        _sample(),
+        config=config,
+        retrieval_indexes=[0],
+        retrieval_samples=[_sample()],
+    )
+    batch = collate_training_batch([encoded])
+    batch.pop("sample_ids")
+    module = RalfTrainingModule(
+        config=config,
+        model=RalfForConditionalLayoutGeneration(config),
+        condition_type="relation",
+        relationship_table_path=str(table_path),
+    )
+
+    with pytest.raises(KeyError, match="sample_ids"):
+        module._condition_kwargs(batch)
+
+
 def test_label_condition_uses_full_sequence_before_decoder_shift() -> None:
     """Mirror vendor preprocessing: condition on full layout, then shift targets."""
     config = _small_config(max_seq_length=2, top_k=1)
