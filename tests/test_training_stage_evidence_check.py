@@ -86,6 +86,10 @@ Package training reproduction is achieved with training-seed n=3.
     "artifact",
     [
         ".cache/pkg/full-run/summary.csv",
+        ".cache/pkg/full-run/notmanifest.json",
+        "/tmp/full-run/manifest.json",
+        "../outside/manifest.json",
+        ".cache/pkg/../manifest.json",
         "https://github.com/creative-graphic-design/design-generators/issues/149#issuecomment-1",
     ],
 )
@@ -109,6 +113,57 @@ Package training reproduction is achieved with training-seed n=3.
 
     assert check_training_stage_evidence.current_entries(tmp_path) == {
         "models/layout-dm/TRAINING.md\tS5\tS5 artifact must be a repository- or cache-relative path ending in manifest.json"
+    }
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ["pending", "<repo/cache-relative path or project issue/PR URL>"],
+)
+def test_s5_placeholder_artifact_uses_placeholder_violation(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{complete_stage_evidence_table().replace(".cache/pkg/full-run/manifest.json", artifact)}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
+def test_s5_row_missing_uses_complete_row_violation(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "| S5 | `uv run train full` | `.cache/pkg/full-run/manifest.json` | training-seed n=3 accepted. |\n",
+        "",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 result claim requires a complete evidence row for this stage"
     }
 
 

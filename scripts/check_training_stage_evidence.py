@@ -38,6 +38,7 @@ PENDING_VALUES = {
     "pending",
     "tbd",
     "todo",
+    "<repo/cache-relative path or project issue/pr url>",
 }
 COMMAND_STARTERS = (
     "./",
@@ -163,7 +164,7 @@ def is_s5_artifact_path(value: str) -> bool:
     return (
         is_artifact_path(value)
         and artifact.startswith(ARTIFACT_PREFIXES)
-        and artifact.endswith("manifest.json")
+        and Path(artifact).name == "manifest.json"
     )
 
 
@@ -268,7 +269,11 @@ def training_docs(root: Path) -> list[Path]:
 
 
 def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceViolation]:
-    """Return evidence violations for one TRAINING.md."""
+    """Return evidence violations for one TRAINING.md.
+
+    The launch-manifest diagnostic takes precedence and can hide other defects
+    in the same S5 row.
+    """
     text = path.read_text(encoding="utf-8")
     if not has_s5_claim(text):
         return []
@@ -312,7 +317,7 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
             )
         elif (
             stage == "S5"
-            and is_artifact_path(row.artifact)
+            and normalize_value(row.artifact) not in PENDING_VALUES
             and not is_s5_artifact_path(row.artifact)
         ):
             violations.append(
