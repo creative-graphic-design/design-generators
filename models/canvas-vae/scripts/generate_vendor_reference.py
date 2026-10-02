@@ -405,11 +405,7 @@ def trace(args: argparse.Namespace) -> None:
     )
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
-    (out / "static.json").write_text(
-        json.dumps(
-            static_record(tf, spec_module, dataspec, model, input_columns), indent=1
-        )
-    )
+    static = static_record(tf, spec_module, dataspec, model, input_columns)
     np.savez(out / "initial_variables.npz", **weight_arrays(model))
     model.save_weights(str(out / "initial" / "initial.ckpt"))
 
@@ -521,6 +517,26 @@ def trace(args: argparse.Namespace) -> None:
             for key, value in {**batch_arrays(batch), "id": batch["id"].numpy()}.items()
         },
     )
+    static["unpatched_batch_norm_error"] = unpatched_batch_norm_error(
+        tf, input_columns, inputs[0]
+    )
+    (out / "static.json").write_text(json.dumps(static, indent=1))
+
+
+def unpatched_batch_norm_error(tf, input_columns, inputs) -> str:
+    """Return the error of an original training forward with mask-consuming BatchNorm."""
+    from canvasvae.models.vae import VAE
+
+    patched = tf.keras.layers.BatchNormalization
+    tf.keras.layers.BatchNormalization = tf.keras.layers.MaskConsumingBatchNormalization
+    try:
+        VAE(input_columns, latent_dim=256, kl=16.0, l2=1e-6)(inputs, training=True)
+    except Exception as error:  # noqa: BLE001 - the error type is the recorded fact.
+        return f"{type(error).__name__}: {str(error).splitlines()[0]}"
+    finally:
+        tf.keras.layers.BatchNormalization = patched
+
+    return "none"
 
 
 def dump_records(tf, path_pattern: str) -> list[dict]:
