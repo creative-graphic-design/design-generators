@@ -53,7 +53,7 @@ Use this checklist when implementing a model package. Complete each applicable i
 - [ ] Require exact token or id matches for deterministic generation and tolerance-based comparison only for logits, gate parity tests behind a pytest marker, and skip them cleanly when weights are absent.
 - [ ] Reach at least 90% coverage per package under the CI selection `-m "not vendor_parity and not integration"` with real unit tests such as tiny random-weight CPU configurations; never lower the gate or add broad pragma exclusions.
 - [ ] Run root pytest with `--import-mode=importlib` from the root `pyproject.toml` `addopts` setting, and preserve that setting when resolving pyproject merge conflicts because packages share test basenames; adding `tests/__init__.py` does not fix import mode.
-- [ ] Keep unit tests independent of weights and network access, and do not add `uv lock --check` to CI because the environment uses specific lock options.
+- [ ] Keep unit tests independent of weights and network access.
 - [ ] Pass a local `save_pretrained` to `from_pretrained` round-trip test.
 
 ## Training for train-ourselves models

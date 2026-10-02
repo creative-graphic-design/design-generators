@@ -9,8 +9,8 @@
 
 ## Sources Of Truth
 
-- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy remains in [docs/conventions.md](docs/conventions.md), shared-library structure remains in [docs/architecture.md](docs/architecture.md), and repository workflow remains here. Historical discussion remains preserved in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2).
-- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion remains preserved in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
+- Stable targets and execution order live in [docs/roadmap.md](docs/roadmap.md), and cross-package dataset policy and sources live in [docs/data-sources.md](docs/data-sources.md); public interface policy lives in [docs/conventions.md](docs/conventions.md), shared-library structure lives in [docs/architecture.md](docs/architecture.md), and repository workflow lives here. Historical discussion lives in [issue #2](https://github.com/creative-graphic-design/design-generators/issues/2) and [issue #64 (shared library structure)](https://github.com/creative-graphic-design/design-generators/issues/64).
+- The implementation checklist is [docs/implementation-checklist.md](docs/implementation-checklist.md). Check it before starting a model package and quote verification results in the PR body; historical checklist discussion lives in [issue #60](https://github.com/creative-graphic-design/design-generators/issues/60).
 - A model issue's plan comment plus all later amendment comments define that model's design. Amendments override earlier plan text.
 
 ## Workspace
@@ -124,7 +124,9 @@
 - `scripts/check_pr_issue_reference.py` enforces PR issue and checklist references, excluding the standing roadmap/data-source issue and historical checklist issue.
 - `scripts/check_changed_urls.py` enforces changed-URL status in `.github/workflows/ci.yml`, and `.github/workflows/link-check.yml` checks full Markdown links.
 - `scripts/check_draft_prs.py` enforces draft completion, and `.github/workflows/draft-pr-audit.yml` runs it daily.
-- `.github/workflows/ci.yml` is the CI entry point for pre-commit; the lint job runs `uv lock --check`, and pre-commit runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests. Root-tooling checks use `uv sync --package design-generators --group dev` in an environment whose only workspace member is `devharness`, followed by an explicit full-workspace compatibility check with `uv sync --all-packages`.
+- The lint job in `.github/workflows/ci.yml` runs `uv lock --check`.
+- Its pre-commit step runs with `SKIP=uv-lock,pytest-models,vulture`; the workflow also runs `ty`, root tests, generated API pages, strict Zensical, and workspace-member tests.
+- Root-tooling checks use an environment whose only workspace member is `devharness`; root-tooling and full-workspace commands live in [docs/architecture.md](docs/architecture.md#dependency-environments).
 - `scripts/run_member_tests.sh` excludes `vendor_parity` and `integration` tests from regular member-test runs.
 - CI runs root pytest with coverage limited to scripts because the root has no import package, and each workspace member is measured separately without combined coverage.
 - Coverage has a 90% floor for every workspace member; do not lower `fail_under` below 90; member-specific overrides may only raise the floor.
