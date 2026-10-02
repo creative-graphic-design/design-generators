@@ -9,6 +9,8 @@ description: Use this skill whenever implementing, reviewing, documenting, or pl
 
 Read `docs/training-reproduction.md` before starting training-reproduction work. That protocol defines stage scope, dataset coverage, seed policy, GPU placement, evidence recording, and PR gates. This skill only turns the protocol into an execution checklist for coding agents.
 
+For exact, p-value, and rounding wording in `TRAINING.md`, follow the claim-strength rules in the documentation skill.
+
 ## Required Order
 
 Work in stage order: S0, S1, S2, S3, S4, then S5. Do not skip ahead because S5 is the visible deliverable. S0-S2 localize model, loss, optimizer, and reference adapter differences; S3-S4 localize repeated training and data-stream differences. Without those records, an S5 mismatch is not diagnosable.
