@@ -19,7 +19,7 @@ Use this skill for repository documentation and model-card work. Read `AGENTS.md
 - An exact result is agreement from explicitly matched inputs, evaluator, checkpoint-selection rule, and a comparison criterion of bitwise or token-identical equality, with the criterion met; a tolerance criterion supports a within-tolerance claim, not an exact one.
 - A confirmatory p-value is the result of a test and threshold named in the model issue plan or an amendment before the run.
 - An exploratory p-value is any other p-value; label it exploratory, name the test and sample or seed scope, state that the result covers only the named samples or seeds and that a non-significant p-value does not show equivalence, and do not present it as confirmatory evidence.
-- State rounding once per table or paragraph, for example, `Values are rounded to two decimal places.` Rounded values are not exact, and equal rounded values do not establish exact agreement. For example: `Values are rounded to two decimal places. Package and vendor alignment are 0.81 and 0.81. Exploratory two-sided Welch test, 10 training seeds per system: p = 0.42; this covers only these seeds and does not show equivalence.`
+- State rounding once per table or paragraph. Rounded values are not exact, and equal rounded values do not establish exact agreement. For example: `Values are rounded to two decimal places. Package and vendor alignment are 0.81 and 0.81. Exploratory two-sided Welch test, 10 training seeds per system: p = 0.42; this covers only these seeds and does not show equivalence.`
 
 ## Repository documentation rules
 
