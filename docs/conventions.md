@@ -60,6 +60,8 @@ Canonical `condition_type` names are:
 - `hierarchical`: condition on a tree or grouped layout structure.
 - `retrieval`: condition on retrieved exemplar layouts or records.
 
+Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
+
 #### Model catalog classification
 
 `Content` is `content-agnostic` when package inference uses no canvas/background image or saliency input and `content-aware` when it does. `Conditioning` uses the canonical `condition_type` names above plus catalog-only values that are not `condition_type` arguments:
@@ -69,8 +71,6 @@ Canonical `condition_type` names are:
 - `none`: the package's only accepted condition is `content_image`.
 
 The `content_image` condition is excluded from model-card Conditioning because it classifies the Content axis.
-
-Unsupported conditions should raise explicit errors. `generator` is the reproducibility API and takes precedence over `seed`.
 
 ### Seeded Sampling
 
