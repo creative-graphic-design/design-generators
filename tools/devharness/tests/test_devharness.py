@@ -40,6 +40,17 @@ def test_write_entry_baseline_preserves_multiline_header_bytes(tmp_path: Path) -
     assert path.read_bytes() == b"# First\r\n# Second\na\n"
 
 
+def test_write_entry_baseline_terminates_unterminated_header_before_entries(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "baseline.txt"
+    path.write_bytes(b"# H")
+
+    baselines.write_entry_baseline(path, {"a"})
+
+    assert path.read_bytes() == b"# H\na\n"
+
+
 @pytest.mark.parametrize("header", [b"# Header\n", b"# Header"])
 def test_write_entry_baseline_preserves_header_only_final_newline(
     tmp_path: Path, header: bytes
