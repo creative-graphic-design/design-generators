@@ -58,19 +58,20 @@ Unmigrated repository checker entrypoints stay under `scripts/check_*.py` and ow
 
 Training infrastructure follows the current package boundaries below. Model packages retain dataset, numerical, scheduling, configuration, and model-specific parity behavior.
 
-| Concern                                                | Current owner              | Notes                                                                                                                             |
-| ------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| LightningCLI/bootstrap                                 | `traingen`                 | Model-agnostic repository training entrypoint used by package-scoped training environments.                                       |
-| Generic Lightning logging/reduction helpers            | `traingen.lightning.steps` | Model-agnostic logging, loss reduction, and training-trace helpers used by package-scoped training environments.                  |
-| RNG capture/restore and deterministic runtime controls | `traingen-parity`          | Parity-only primitives are used by LayoutDM, LayoutFlow, and LayoutDiffusion adapters; model-specific seed wrappers remain local. |
-| Trace construction/comparison/report helpers           | `traingen-parity`          | Generic parity primitives; model packages provide trace schemas and adapter functions.                                            |
-| Model-specific trace point names                       | Model package              | Each package owns its trace tuple; trace names are not shared merely for reuse.                                                   |
-| Dataset/data transforms                                | Model package              | Dataset formats, preprocessing, ordering, and loader behavior remain package-specific.                                            |
-| Loss definitions                                       | Model package              | Loss formulas and reduction semantics remain package-specific.                                                                    |
-| Scheduler/sampler policy                               | Model package              | Optimizer cadence, timestep sampling, EMA, and scheduler behavior remain package-specific.                                        |
-| Training YAML/config values                            | Model package              | Dataset and model configuration values live with each package's training entrypoints.                                             |
-| Model-specific callbacks                               | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                            |
-| Checkpoint conversion                                  | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                            |
+| Concern                                                   | Current owner              | Notes                                                                                                                                 |
+| --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| LightningCLI/bootstrap                                    | `traingen`                 | Model-agnostic repository training entrypoint used by package-scoped training environments.                                           |
+| Generic Lightning logging/reduction helpers               | `traingen.lightning.steps` | Model-agnostic logging, loss reduction, and training-trace helpers used by package-scoped training environments.                      |
+| RNG capture/restore and deterministic runtime controls    | `traingen-parity`          | Parity-only primitives are used by LayoutDM, LayoutFlow, and LayoutDiffusion adapters; model-specific seed wrappers remain local.     |
+| Trace construction/comparison/report helpers              | `traingen-parity`          | Generic parity primitives; model packages provide trace schemas and adapter functions.                                                |
+| TensorFlow 2.15 Keras compatibility for reference scripts | `traingen-parity`          | `traingen_parity.tensorflow_compat` is used by Flex-DM reference scripts; it imports neither TensorFlow nor PyTorch at module import. |
+| Model-specific trace point names                          | Model package              | Each package owns its trace tuple; trace names are not shared merely for reuse.                                                       |
+| Dataset/data transforms                                   | Model package              | Dataset formats, preprocessing, ordering, and loader behavior remain package-specific.                                                |
+| Loss definitions                                          | Model package              | Loss formulas and reduction semantics remain package-specific.                                                                        |
+| Scheduler/sampler policy                                  | Model package              | Optimizer cadence, timestep sampling, EMA, and scheduler behavior remain package-specific.                                            |
+| Training YAML/config values                               | Model package              | Dataset and model configuration values live with each package's training entrypoints.                                                 |
+| Model-specific callbacks                                  | Model package              | Callbacks remain local unless at least two concrete consumers have identical behavior.                                                |
+| Checkpoint conversion                                     | Model package              | Conversion code follows each model's checkpoint and topology contract.                                                                |
 
 The generated API exposes these helpers under `traingen.lightning.steps`.
 
