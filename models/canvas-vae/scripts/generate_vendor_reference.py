@@ -252,6 +252,17 @@ def install_noise_recorder(tf, encoder):
     encoder.VariationalHead.call = call
 
 
+def save_npz(
+    path: Path,
+    arrays: dict[str, Shaped[np.ndarray, "..."]],
+    *,
+    compressed: bool = False,
+) -> None:
+    """Write named arrays to an ``.npz`` file."""
+    save = np.savez_compressed if compressed else np.savez
+    save(path, **arrays)  # ty: ignore[invalid-argument-type]
+
+
 def batch_arrays(batch) -> dict[str, Shaped[np.ndarray, "..."]]:
     """Return the prepared model inputs of one original batch as compact arrays."""
     return {
@@ -438,7 +449,7 @@ def trace(args: argparse.Namespace) -> None:
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
     static = static_record(tf, spec_module, dataspec, model, input_columns)
-    np.savez(out / "initial_variables.npz", **weight_arrays(model))
+    save_npz(out / "initial_variables.npz", weight_arrays(model))
     model.save_weights(str(out / "initial" / "initial.ckpt"))
 
     stream = iter(dataspec.make_dataset("train", shuffle=True, repeat=True, cache=True))
@@ -501,7 +512,7 @@ def trace(args: argparse.Namespace) -> None:
     step0["iterations"] = model.optimizer.iterations.numpy()
     step0["learning_rate"] = model.optimizer.learning_rate.numpy()
     step0.update({f"after/{key}": value for key, value in weight_arrays(model).items()})
-    np.savez(out / "step0.npz", **step0)
+    save_npz(out / "step0.npz", step0)
 
     @tf.function(reduce_retracing=True)
     def train_step(x):
@@ -532,7 +543,7 @@ def trace(args: argparse.Namespace) -> None:
         before.update(
             {f"grad/{paths[id(v)]}": g.numpy() for g, v in zip(grads, variables)}
         )
-        np.savez(sync_dir / f"step{step}.npz", total_loss=loss.numpy(), **before)
+        save_npz(sync_dir / f"step{step}.npz", {"total_loss": loss.numpy(), **before})
         trajectory["noise"].append(NOISE[0].numpy())
         trajectory["total_loss"].append(float(loss))
         trajectory["grad_norm"].append(float(norm))
@@ -547,16 +558,17 @@ def trace(args: argparse.Namespace) -> None:
                 }
             )
 
-    np.savez(sync_dir / "final.npz", **optimizer_state(model, paths))
+    save_npz(sync_dir / "final.npz", optimizer_state(model, paths))
     arrays = {key: np.asarray(value) for key, value in trajectory.items()}
-    np.savez(out / "trajectory.npz", **arrays, **snapshots)  # ty: ignore[invalid-argument-type]
-    np.savez_compressed(
+    save_npz(out / "trajectory.npz", {**arrays, **snapshots})
+    save_npz(
         out / "batches.npz",
-        **{
+        {
             f"{step}/{key}": value
             for step, batch in enumerate(batches)
             for key, value in {**batch_arrays(batch), "id": batch["id"].numpy()}.items()
         },
+        compressed=True,
     )
     static["unpatched_batch_norm_error"] = unpatched_batch_norm_error(
         tf, input_columns, inputs[0]

@@ -71,9 +71,8 @@ def test_save_and_load(tmp_path, pipe):
     assert isinstance(actual, LayoutGenerationOutput) and isinstance(
         expected, LayoutGenerationOutput
     )
-    assert torch.equal(actual.bbox, expected.bbox) and torch.equal(
-        actual.labels, expected.labels
-    )
+    assert torch.equal(torch.as_tensor(actual.bbox), torch.as_tensor(expected.bbox))
+    assert torch.equal(torch.as_tensor(actual.labels), torch.as_tensor(expected.labels))
 
 
 def test_bins_to_ltwh():
