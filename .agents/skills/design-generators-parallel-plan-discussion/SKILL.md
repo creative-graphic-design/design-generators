@@ -12,10 +12,12 @@ Use this skill for a requested planning council, not for an ordinary single-pack
 ## Council contract
 
 - Choose 2–6 targets, a concrete agenda, a shared drafts directory outside the repository, and exactly two rounds: proposals, then reconciliation. State the scope and completion criteria in the dispatch.
-- Assign one Herdr-recognized agent per target. Every participant must use a separate Herdr-managed worktree and Herdr tab.
+- Assign one Herdr-recognized agent per target with the role name `impl-plan-<target-slug>`. Every participant must use a separate Herdr-managed worktree and Herdr tab.
 - Record a participant ledger before sending work. It must include the actual coordinator agent name and coordinator pane ID, plus role, agent names, pane IDs, tab IDs, worktree paths, and chair designation.
 - The coordinator is the agent recorded in that ledger; it designs the council, relays rounds, reconciles progress, reviews artifacts, and publishes only when separately authorized. It does not write participant plans.
 - Participants are read-only in repositories. They may write only their plan to the shared drafts directory. The chair additionally writes `unified-interface.md` there in Round 2.
+
+Participants stay in their assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports.
 
 Use `references/task-message-template.md` when preparing participant assignments; it carries task facts while this skill owns the round protocol.
 

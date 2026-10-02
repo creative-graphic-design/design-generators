@@ -158,10 +158,10 @@ print(out.mask)    # valid element mask
 
 <!-- Use canonical dataset ids and note dataset-specific configs or quirks. -->
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | config `ui-screenshots-and-hierarchies-with-semantic-annotations` |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default config |
+| Dataset   | Dataset ID                                                                                               | Notes                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | config `ui-screenshots-and-hierarchies-with-semantic-annotations` |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default config                                                    |
 
 ### Training Procedure
 
@@ -201,8 +201,8 @@ print(out.mask)    # valid element mask
 
 <!-- Fill with numeric results from the real vendor-parity suite; do not replace this with prose. -->
 
-| Check | Cases | Criterion | Result |
-| --- | ---: | --- | --- |
+| Check                                    |        Cases | Criterion            | Result                  |
+| ---------------------------------------- | -----------: | -------------------- | ----------------------- |
 | <tokenizer-or-forward-or-sampling-check> | <case-count> | <exact-or-tolerance> | <passed-count-or-error> |
 
 ## Reproducibility

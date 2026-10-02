@@ -22,13 +22,13 @@ Confirm the checkpoint/dataset/task matrix and license from the issue and origin
 
 Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API.
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API. Use the [model and serialization contracts](docs/conventions.md#model-and-serialization-contracts) for public pipeline arguments, output schemas, model entry points, and serialization rules.
 
 ## Package and interface
 
 Create or update `models/<slug>/` with its `pyproject.toml`, `src/<package>/`, `scripts/`, and tests. Keep original-code dependencies in the `vendor` optional extra and the original checkout read-only. Reuse the shared helpers assigned in `docs/architecture.md`; keep model-specific transforms and numerical behavior local.
 
-Use the [model and serialization contracts](docs/conventions.md#model-and-serialization-contracts) for the agreed pipeline arguments, output schema, model entry points, and serialization rules; this skill owns conversion and parity, not those public contracts.
+This skill owns conversion and parity; public interfaces and serialization remain with their documented owners.
 
 Use shared libraries by import:
 

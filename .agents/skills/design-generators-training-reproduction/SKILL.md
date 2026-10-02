@@ -13,7 +13,7 @@ For exact, p-value, and rounding wording in `TRAINING.md`, follow the claim-stre
 
 ## Required Order
 
-Work in stage order: S0, S1, S2, S3, S4, then S5. Do not skip ahead because S5 is the visible deliverable. S0-S2 localize model, loss, optimizer, and reference adapter differences; S3-S4 localize repeated training and data-stream differences. Without those records, an S5 mismatch is not diagnosable.
+Work in stage order: S0, S1, S2, S3, S4, then S5. S0-S2 localize model, loss, optimizer, and reference adapter differences; S3-S4 localize repeated training and data-stream differences.
 
 Use this order for every training-first package:
 
@@ -25,7 +25,7 @@ Use this order for every training-first package:
 6. Produce S3 deterministic multi-batch evidence.
 7. Produce S4 deterministic loader-stream evidence.
 8. Post or update issue evidence for S3-S4.
-9. Only then start S5-scale GPU training and full-run evaluation, after the GPU-bound step-loop check in the protocol's GPU placement section.
+9. Start S5-scale GPU training and full-run evaluation after the GPU-bound step-loop check in the protocol's GPU placement section.
 10. Record final S0-S5 evidence in `models/<package>/TRAINING.md`, including the inapplicable-rule notes and amendment citations required by the protocol's [Stage Rules](docs/training-reproduction.md#stage-rules); issues and pull requests may quote them.
 
 ## S5 Gate

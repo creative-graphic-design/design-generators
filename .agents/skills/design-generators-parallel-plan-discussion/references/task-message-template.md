@@ -15,7 +15,7 @@ Investigate `<target>` and agree on `<shared interface decisions>` with the othe
 
 - Target issue/document and amendments: `<sources>`.
 - Agenda: `<decisions every proposal must cover>`.
-- Participants and direct peer recipients: `<comma-separated target slugs and role names `impl-plan-<target-slug>`, agent names, and pane ids>`.
+- Participants and direct peer recipients: `<2–6 target slugs with role names `impl-plan-<target-slug>`, agent names, and pane ids>`.
 - Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`.
 - Chair: `<agent name>`.
 - Assigned worktree and tab: `<paths/ids from the coordinator's ledger>`.
@@ -26,7 +26,7 @@ Read sources without modifying them or another participant's draft. Stay in the 
 
 ## Acceptance
 
-Cover each agenda item with evidence, an interface decision, or an explicit unresolved question. Record target-specific exceptions with reasons. Preserve the user's literal requirements and distinguish them from your proposals.
+Cover each agenda item with evidence, an interface decision, or an explicit unresolved question. Keep each Round 1 proposal to 15 lines or fewer. Record target-specific exceptions with reasons. Preserve the user's literal requirements and distinguish them from your proposals.
 
 After Round 1, report the draft path directly to `<coordinator-agent-name-or-pane-id>` and end the turn. Start Round 2 only when the coordinator requests it. After Round 2, report agreements and remaining disagreements to the same recorded recipient and end the turn. The coordinator reviews the plans; publication and implementation require their own authorization.
 
