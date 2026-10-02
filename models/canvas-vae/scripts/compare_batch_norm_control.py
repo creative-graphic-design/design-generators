@@ -34,6 +34,9 @@ from jaxtyping import Shaped  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FP32_RELATIVE_TOLERANCE: Final[float] = 1e-5
+LOSS_DEFINITION: Final[str] = (
+    "sum of model.losses (the no-compiled-loss Model.compute_loss path)"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,7 +160,13 @@ def main() -> None:
 
     with tf.GradientTape() as tape:
         outputs = model(inputs, training=True)
-        loss = model.compute_loss(inputs, None, outputs, None)
+        # The original is compiled with an optimizer but no supervised loss.
+        # Keras 2.11 calls the absent compiled_loss from compute_loss; its
+        # regularization-only path is the sum of model.losses.
+        if not model.losses:
+            raise AssertionError("The control model has no collected losses.")
+
+        loss = tf.add_n(model.losses)
 
     grads = tape.gradient(loss, model.trainable_variables)
     gradients = {
@@ -182,7 +191,7 @@ def main() -> None:
                     "batch_size": int(batches["0/length"].shape[0]),
                     "loss": float(loss),
                     "gradient_tensors": len(grads),
-                    "loss_definition": "compiled Model.compute_loss over model.losses",
+                    "loss_definition": LOSS_DEFINITION,
                 },
                 indent=1,
             )
@@ -207,7 +216,7 @@ def main() -> None:
         "dropout": 0.0,
         "batch_size": int(batches["0/length"].shape[0]),
         "posterior_noise_injected": True,
-        "loss_definition": "compiled Model.compute_loss over model.losses",
+        "loss_definition": LOSS_DEFINITION,
         "fp32_relative_tolerance": FP32_RELATIVE_TOLERANCE,
         "total_loss": {
             "tf211": float(loss),
