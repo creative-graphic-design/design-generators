@@ -194,6 +194,7 @@ def import_original():
             return super().call(inputs, training=training)
 
     tf.keras.layers.BatchNormalization = BatchNormalization
+    MASK_CONSUMING_BATCH_NORMALIZATION.append(base)
     sys.path.insert(0, str(VENDOR / "src" / "canvas-vae"))
     from canvasvae.data import spec
     from canvasvae.models import encoder
