@@ -14,7 +14,7 @@ pytest.importorskip("lightning")
 from dlt.training.datamodule import DLTDataModule
 from dlt.training.lightning_module import DLTTrainingModule
 from dlt.training.parity import TRACE_POINTS
-from traingen_parity import trace_training_step
+from traingen_parity.trace import trace_training_step
 
 
 def _parameter_count(model: torch.nn.Module) -> int:

@@ -31,7 +31,7 @@ from dlt.training.lightning_module import (
 )
 from dlt.training.parity import TRACE_POINTS
 from dlt.training.seed import apply_seed_mode
-from traingen_parity import trace_training_step
+from traingen_parity.trace import trace_training_step
 
 
 CONFIG_DIR = Path("models/dlt/configs/training")

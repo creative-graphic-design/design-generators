@@ -175,3 +175,19 @@ def test_nn_adaptive_norm_path_hook_liveness_rejects_bad_timestep_shape() -> Non
         """,
         "TimestepTransformerEncoderLayer.forward",
     )
+
+
+def test_nn_attention_hook_liveness_rejects_bad_mask_shape() -> None:
+    _assert_probe_rejected(
+        """
+        import torch
+        from jaxtyping import install_import_hook
+
+        with install_import_hook(["laygen.nn"], "beartype.beartype"):
+            from laygen.nn.attention import MultiHeadSelfAttention
+
+        attention = MultiHeadSelfAttention(hidden_size=8, num_heads=2)
+        attention(torch.zeros(1, 2, 8), torch.ones(1, 3, dtype=torch.bool))
+        """,
+        "MultiHeadSelfAttention.forward",
+    )

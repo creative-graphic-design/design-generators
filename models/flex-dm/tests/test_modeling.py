@@ -51,3 +51,12 @@ def test_forward_tuple_and_loss() -> None:
 
     assert "left" in logits
     assert loss is not None
+
+
+def test_blocks_use_eight_attention_heads() -> None:
+    """Every block keeps the original eight-head attention split."""
+    model = FlexDmForMaskedDocumentModeling(tiny_config())
+
+    assert [block.attention.num_heads for block in model.blocks] == [8] * len(
+        model.blocks
+    )
