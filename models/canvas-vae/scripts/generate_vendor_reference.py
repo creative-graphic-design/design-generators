@@ -383,6 +383,18 @@ def build_model(tf, spec_module, encoder, data_dir: Path, dropout: float):
     return dataspec, input_columns, model
 
 
+def optimizer_state(model, paths) -> dict[str, Shaped[np.ndarray, "..."]]:
+    """Return weights, Adam moments, and the iteration count keyed by checkpoint path."""
+    state = {f"weight/{key}": value for key, value in weight_arrays(model).items()}
+    optimizer = model.optimizer
+    for variable in model.trainable_variables:
+        index = optimizer._index_dict[optimizer._var_key(variable)]
+        state[f"m/{paths[id(variable)]}"] = optimizer._momentums[index].numpy()
+        state[f"v/{paths[id(variable)]}"] = optimizer._velocities[index].numpy()
+    state["iterations"] = optimizer.iterations.numpy()
+    return state
+
+
 def record_layer_outputs(model):
     """Wrap layer calls so an eager forward records intermediate outputs."""
     recorded = {}
@@ -491,7 +503,7 @@ def trace(args: argparse.Namespace) -> None:
         grads = tape.gradient(loss, model.trainable_variables)
         norm = tf.linalg.global_norm(grads)
         model.optimizer.apply_gradients(zip(grads, model.trainable_variables))
-        return loss, norm
+        return loss, norm, grads
 
     trajectory = {
         "noise": [step0["noise"]],
@@ -502,9 +514,14 @@ def trace(args: argparse.Namespace) -> None:
         {f"metric/{metric.name}": [float(metric.result())] for metric in model.metrics}
     )
     snapshots = {}
+    sync_dir = out / "sync"
+    sync_dir.mkdir(exist_ok=True)
     for step in range(1, args.steps):
         model.reset_metrics()
-        loss, norm = train_step(inputs[step])
+        before = optimizer_state(model, paths)
+        loss, norm, grads = train_step(inputs[step])
+        before.update({f"grad/{paths[id(v)]}": g.numpy() for g, v in zip(grads, variables)})
+        np.savez(sync_dir / f"step{step}.npz", total_loss=loss.numpy(), **before)
         trajectory["noise"].append(NOISE[0].numpy())
         trajectory["total_loss"].append(float(loss))
         trajectory["grad_norm"].append(float(norm))
@@ -519,6 +536,7 @@ def trace(args: argparse.Namespace) -> None:
                 }
             )
 
+    np.savez(sync_dir / "final.npz", **optimizer_state(model, paths))
     np.savez(
         out / "trajectory.npz",
         **{key: np.asarray(value) for key, value in trajectory.items()},
