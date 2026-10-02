@@ -21,7 +21,7 @@ training = [
     "traingen-parity",
 ]
 vendor = [
-    "apache-beam>=2.70",
+    "apache-beam[tfrecord]>=2.70",
     "pyyaml>=6",
     "tensorflow[and-cuda]==2.15.1",
     "traingen-parity",
