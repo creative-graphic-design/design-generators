@@ -42,13 +42,13 @@ model-index:
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name.
+This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name. The package now includes training infrastructure and exact S0-S4 staged evidence for the cached Magazine fixture; S5 full-run reproduction is not claimed and remains a separate decision for all datasets.
 
 ## Model Details
 
 ### Model Description
 
-LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO25, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
+LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator for RICO13, PubLayNet, and Magazine layouts. It generates element boxes from label prompts with the converted generator and processor while keeping original-implementation-specific label and coordinate handling behind the package boundary. Public outputs use normalized center `xywh` boxes in `[0, 1]`, dataset-local integer labels, a valid-element `mask`, and `id2label`.
 
 - **Developed by:** Kotaro Kikuchi et al.
 - **Shared by:** creative-graphic-design.
@@ -65,7 +65,7 @@ LayoutGAN++ is a `transformers`-style wrapper around the Const-layout generator 
 
 | Checkpoint | Hub ID                                                                                                                  | Status        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------- | ------------- |
-| RICO25     | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico)           | not-published |
+| RICO13     | [`creative-graphic-design/layoutganpp-rico`](https://huggingface.co/creative-graphic-design/layoutganpp-rico)           | not-published |
 | PubLayNet  | [`creative-graphic-design/layoutganpp-publaynet`](https://huggingface.co/creative-graphic-design/layoutganpp-publaynet) | not-published |
 | Magazine   | [`creative-graphic-design/layoutganpp-magazine`](https://huggingface.co/creative-graphic-design/layoutganpp-magazine)   | not-published |
 
@@ -157,15 +157,15 @@ print(out.mask)
 
 | Dataset   | Dataset ID                                                                                               | Notes                                                    |
 | --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
 | PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 | Magazine  | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine)   | polygon-based train-only source                          |
 
-The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...), not the 25-class RICO25 mapping used by most other layout packages in this repository. The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
+The LayoutGAN++ `rico` checkpoint uses the original 13-class RICO label space (`Toolbar`, `Image`, `Text`, ...). The dataset badge and metadata point to [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) because that is the canonical hosted source; the processor keeps the checkpoint-local RICO13 label mapping in `id2label`.
 
 ### Training Procedure
 
-This package ports released behavior and does not retrain the method in this repository.
+This package ports released behavior and includes package-local training infrastructure. S0-S4 staged evidence is complete for the cached Magazine fixture; S5 full-run training and evaluation are not claimed.
 
 #### Preprocessing
 
@@ -173,7 +173,7 @@ Inputs and outputs are normalized to the public layout schema at package boundar
 
 #### Training Hyperparameters
 
-- **Training regime:** original upstream training; not rerun in this repository.
+- **Training regime:** original upstream recipe represented by package-local configs; S0-S4 staged evidence is available for Magazine, while S5 full-run training is not claimed.
 
 #### Speeds, Sizes, Times
 
@@ -209,7 +209,7 @@ See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generator
 
 ## Environmental Impact
 
-No new model training is performed by these conversion packages. Conversion and agreement-check costs depend on the selected checkpoint and local hardware.
+No S5 full-run model training is claimed by this package. Conversion, staged training checks, and agreement-check costs depend on the selected dataset and local hardware.
 
 ## Technical Specifications
 

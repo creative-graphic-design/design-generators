@@ -13,6 +13,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+training = [
+    "datasets>=3",
+    "jsonargparse[signatures]>=4.27.7",
+    "lightning>=2.0.0",
+    "traingen",
+    "traingen-parity",
+]
 download = [
     "requests>=2.31",
 ]
@@ -31,6 +38,8 @@ vendor = [
 
 [tool.uv.sources]
 laygen = { workspace = true }
+traingen = { workspace = true }
+traingen-parity = { workspace = true }
 
 [tool.design-generators]
 framework = "transformers"
@@ -40,5 +49,6 @@ datasets = ["rico13", "publaynet", "magazine"]
 
 [tool.pytest.ini_options]
 markers = [
+    "training: tests that exercise Lightning training loops or training CLI entrypoints",
     "vendor_parity: requires original LayoutGAN++ weights and vendor dependencies",
 ]
