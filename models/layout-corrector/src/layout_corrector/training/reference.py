@@ -14,7 +14,10 @@ from laygen.common.randomness import multinomial, rand, randint
 
 from layout_dm.configuration_layout_dm import LayoutDMConfig
 from layout_dm.conversion import split_original_state_dict
-from layout_dm.modeling_layout_dm import LayoutDMDenoiser
+from layout_dm.modeling_layout_dm import (
+    LayoutDMDenoiser,
+    skip_layoutdm_initialization,
+)
 from layout_dm.scheduling_layout_dm import LayoutDMScheduler
 from layout_dm.tokenization_layout_dm import LayoutDMTokenizer
 
@@ -45,6 +48,7 @@ class FrozenLayoutDMReference:
         dataset_name: str,
         checkpoint_path: str | Path,
         cluster_centers_path: str | Path,
+        initialization_device: torch.device | str = "cpu",
     ) -> "FrozenLayoutDMReference":
         """Load the selected seed-0 checkpoint and preserve its state tensors."""
         path = Path(checkpoint_path)
@@ -75,17 +79,24 @@ class FrozenLayoutDMReference:
             q_type="constrained",
         )
         tokenizer = LayoutDMTokenizer(config)
-        model = LayoutDMDenoiser(
-            vocab_size=config.vocab_size,
-            max_token_length=config.max_token_length,
-            hidden_size=config.hidden_size,
-            num_attention_heads=config.num_attention_heads,
-            num_hidden_layers=config.num_hidden_layers,
-            intermediate_size=config.intermediate_size,
-            dropout=config.dropout,
-            timestep_type=config.timestep_type,
-        )
+        with skip_layoutdm_initialization():
+            with torch.device("cpu"):
+                model = LayoutDMDenoiser(
+                    vocab_size=config.vocab_size,
+                    max_token_length=config.max_token_length,
+                    hidden_size=config.hidden_size,
+                    num_attention_heads=config.num_attention_heads,
+                    num_hidden_layers=config.num_hidden_layers,
+                    intermediate_size=config.intermediate_size,
+                    dropout=config.dropout,
+                    timestep_type=config.timestep_type,
+                )
+
+        target_device = torch.device(initialization_device)
+        torch.nn.Module.to(model, target_device)
+        model.initialize_weights()
         model.load_state_dict(split_original_state_dict(raw), strict=True)
+        torch.nn.Module.to(model, "cpu")
         for parameter in model.parameters():
             parameter.requires_grad_(False)
 

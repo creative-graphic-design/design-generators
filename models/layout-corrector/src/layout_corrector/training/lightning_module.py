@@ -52,10 +52,12 @@ class LayoutCorrectorTrainingModule(LightningModule):
         """Initialize the corrector and its immutable LayoutDM reference."""
         super().__init__()
         self.config = config
+        initialization_device = _initialization_device()
         reference = FrozenLayoutDMReference.from_checkpoint(
             dataset_name=config.dataset_name,
             checkpoint_path=layout_dm_checkpoint_path,
             cluster_centers_path=cluster_centers_path,
+            initialization_device=initialization_device,
         )
         self.layout_dm_config: LayoutDMConfig = reference.config
         self.layout_dm_checkpoint_sha256 = reference.checkpoint_sha256
@@ -66,7 +68,6 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.register_buffer("layout_dm_lt_history", reference.lt_history)
         self.register_buffer("layout_dm_lt_count", reference.lt_count)
 
-        initialization_device = _initialization_device()
         with torch.device("cpu"):
             self.model = LayoutCorrectorModel(**dict(config.config))
 
