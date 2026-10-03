@@ -117,6 +117,7 @@ class DSGANDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."]]]):
                 Mapping[str, DSGANExampleValue],
                 {
                     "annotations": cast(DSGANExampleValue, source["annotations"]),
+                    "canvas": image,
                     "inpainted_poster": image,
                 },
             ),
