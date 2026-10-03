@@ -1254,6 +1254,8 @@ def _run_package_natural_side(
             )
 
     module = fixture.package
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    module.to(device)
     module.model.model.load_state_dict(initial_state, strict=True)
     module.scheduler = None
     module.latest_gradient_norm = None
@@ -1261,7 +1263,7 @@ def _run_package_natural_side(
     callback = TraceCallback()
     loader = DataLoader(BatchDataset(batches), batch_size=None, num_workers=0)
     trainer = Trainer(
-        accelerator="gpu" if next(module.parameters()).is_cuda else "cpu",
+        accelerator="gpu" if device.type == "cuda" else "cpu",
         devices=1,
         max_epochs=1,
         limit_train_batches=steps,
