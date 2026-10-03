@@ -1,21 +1,25 @@
 ---
 name: design-generators-parallel-plan-discussion
-description: Orchestrate a two-round council of Herdr-managed agents that investigate distinct targets, debate shared interface decisions directly, and have one chair consolidate the result into a unified specification. Use when several plans must agree on a shared design.
+description: Coordinate a requested Herdr planning council when independent model plans must agree on shared interfaces.
 ---
 
 # Parallel Plan Discussion
 
 Use this protocol when independent investigations must converge on shared decisions. The protocol owns council policy only. The installed Herdr binary and the generic Herdr skill own all CLI syntax and pane, tab, worktree, agent, and notification mechanics.
 
-Before any orchestration command, verify `HERDR_ENV=1` and inspect the current installed guidance with `herdr --skill`. If this skill and the installed guidance differ, follow the installed guidance. Do not copy a Herdr command manual into this skill.
+Use this skill for a requested planning council, not for an ordinary single-package change. Before controlling Herdr, verify `HERDR_ENV=1` and read the `herdr` skill, or retrieve it with `herdr --skill` when it is not already loaded. Do not copy a command manual into this skill.
 
-## Council contract
+## Council protocol
 
-- Choose 2–6 targets, a concrete agenda, a shared drafts directory outside the repository, and exactly two rounds.
-- Assign one Herdr-recognized agent per target. Every participant must use a separate Herdr-managed worktree and Herdr tab.
+- Choose 2–6 targets, a concrete agenda, a shared drafts directory outside the repository, and exactly two rounds: proposals, then reconciliation. State the scope and completion criteria in the dispatch.
+- Assign one Herdr-recognized agent per target with the role name `impl-plan-<target-slug>`. Every participant must use a separate Herdr-managed worktree and Herdr tab.
 - Record a participant ledger before sending work. It must include the actual coordinator agent name and coordinator pane ID, plus role, agent names, pane IDs, tab IDs, worktree paths, and chair designation.
 - The coordinator is the agent recorded in that ledger; it designs the council, relays rounds, reconciles progress, reviews artifacts, and publishes only when separately authorized. It does not write participant plans.
 - Participants are read-only in repositories. They may write only their plan to the shared drafts directory. The chair additionally writes `unified-interface.md` there in Round 2.
+
+Participants stay in their assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports.
+
+Use `references/task-message-template.md` when preparing participant assignments; it carries task facts while this skill owns the round protocol.
 
 ## Round 1: independent proposals
 

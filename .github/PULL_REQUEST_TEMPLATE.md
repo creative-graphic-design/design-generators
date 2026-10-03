@@ -16,7 +16,7 @@
 
 ## Verification
 
-<!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
+<!-- Record executed commands and results. Include coverage and parity numbers when applicable, distinguishing passes from skips. For docs/skills, report the affected rules and the existing checks; do not claim model parity from documentation checks. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
 
 - TODO
 
@@ -39,8 +39,8 @@ Full checklist: see [docs/implementation-checklist.md](https://github.com/creati
 
 <!-- Draft PRs may leave these pending. Ready-for-review PRs must either satisfy each item, or keep an actionable blocker/reason in the item text. -->
 
-- [ ] Vendor parity verified, or gated-pending: <blocker name and short reason>.
-- [ ] Training S5 reproduction complete, or N/A: <reason>.
+- [ ] Vendor parity verified, or gated-pending: <independent rerun, cases, criterion, and artifact scope; or state why parity is not applicable; otherwise name the blocker>.
+- [ ] Training S5 reproduction complete, or N/A: <claimed datasets and training/evaluation seed scope, with S0-S4 evidence cited before S5; or N/A with reason>. Infrastructure-only work must state that full-run reproduction is not claimed.
 - [ ] Pre-PR adversarial review completed (reviewer spawned before opening the PR; findings resolved)
 
 <!-- Optional for complete PRs that must remain draft:

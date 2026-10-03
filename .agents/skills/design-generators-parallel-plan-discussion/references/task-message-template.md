@@ -1,54 +1,36 @@
-# Participant task-message template
+# Participant assignment template
 
-Send one direct message to each participant with the generic Herdr agent surface:
+Use this template with the round protocol in `design-generators-parallel-plan-discussion`. Fill the task facts and remove non-applicable fields. Give each participant a readable path to the skill; do not duplicate the protocol in every assignment.
 
-```text
-herdr agent prompt <agent-name> "<message>"
-```
-
-Fill every `<...>` placeholder and remove sections that do not apply. Keep both round protocols intact.
+Send the completed assignment with `herdr agent prompt <agent-name> "<message>"`.
 
 ```markdown
-## Background
+## Task
 
-<One or two sentences describing the project>. Your target is **<target-slug>** (<issue or document pointer>). The council must agree on <concrete agenda summary> across <N> targets.
+Read `<checkout>/.agents/skills/design-generators-parallel-plan-discussion/SKILL.md` and follow its two-round protocol.
 
-- Participants: <comma-separated target slugs and role names `impl-plan-<target-slug>`>
-- Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`; use these recorded values for reports.
-- Worktree: your assigned Herdr-managed worktree and tab; the coordinator recorded your agent name and pane ID in the participant ledger.
-- Sources: read <source checkout absolute path> and the named issue or documents read-only.
-- Writable location: only the shared drafts directory `<shared-drafts-dir>/`. Do not write to any repository.
+Investigate `<target>` and agree on `<shared interface decisions>` with the other participants. The intended reader of your plan is `<implementer or reviewer>`.
 
-## Round 1: independent proposal
+## Context and ownership
 
-1. Read <umbrella issue or document> and <target issue or document> first.
-2. Investigate <target-specific sources and agenda questions>.
-3. Write `<shared-drafts-dir>/<target-slug>.md` with evidence, file-level plan, open questions, and an `## Interface proposal` section covering:
-   - <agenda item 1>
-   - <agenda item 2>
-   - <agenda item 3>
-4. Send a proposal summary of 15 lines or fewer directly to every peer by their recorded agent name using `herdr agent prompt`.
-5. Send `Round 1 complete` and the draft path directly to `<coordinator-agent-name-or-pane-id>` using `herdr agent prompt`, then end your turn.
+- Target issue/document and amendments: `<sources>`.
+- Agenda: `<decisions every proposal must cover>`.
+- Participants and direct peer recipients: `<2–6 target slugs with role names `impl-plan-<target-slug>`, agent names, and pane ids>`.
+- Coordinator: `<coordinator-agent-name>` on pane `<coordinator-pane-id>`.
+- Chair: `<agent name>`.
+- Assigned worktree and tab: `<paths/ids from the coordinator's ledger>`.
+- Writable draft: `<shared-drafts-dir>/<target-slug>.md`.
+- Chair's unified specification: `<shared-drafts-dir>/unified-interface.md`.
 
-## Round 2: debate and convergence
+Read sources without modifying them or another participant's draft. Stay in the assigned Herdr-managed worktree and tab; do not create alternate worktrees or transports. Write to only the shared drafts directory, to your assigned draft and, if you are chair, the unified specification.
 
-1. Review all peer proposals delivered through the agent prompt surface.
-2. Debate each disagreement directly with the relevant peer using `herdr agent prompt`; do not route peer discussion through the coordinator.
-3. Update your plan to the agreed version. Record target-specific exceptions as `Deviation` entries with reasons.
-4. <If you are the chair: write the unified spec at `<shared-drafts-dir>/unified-interface.md` with every agenda decision, each `Deviation`, and unresolved questions.>
-5. Send `Round 2 complete` to `<coordinator-agent-name-or-pane-id>` with the agreements and remaining disagreements, then end your turn.
+## Acceptance
 
-## Boundaries
+Cover each agenda item with evidence, an interface decision, or an explicit unresolved question. Keep each Round 1 proposal to 15 lines or fewer. Record target-specific exceptions with reasons. Preserve the user's literal requirements and distinguish them from your proposals.
 
-- This council has exactly two rounds. Leave unresolved questions explicit; do not add another round implicitly.
-- Stay in the assigned Herdr-managed worktree and tab. Do not create alternate worktrees or transports.
-- Write only the plan or chair specification in `<shared-drafts-dir>/`; do not modify repository files, commit, push, publish, or implement.
-- The coordinator reconciles progress with bounded `herdr agent get` and `herdr agent read` checks, followed by `herdr agent wait` only when a finite wait is needed. Get/read are immediate; only wait uses a timeout. Preserve evidence when a participant is unresolved.
-- `herdr notification show` is a UI fallback for the coordinator/user when a participant is blocked or timed out; it does not send a participant message. Do not treat silence as completion.
-- Retain worktrees, tabs, branches, drafts, and outputs unless the user gives explicit authorization naming cleanup targets and scope.
+After Round 1, report the draft path directly to `<coordinator-agent-name-or-pane-id>` and end the turn. Start Round 2 only when the coordinator requests it. After Round 2, report agreements and remaining disagreements to the same recorded recipient and end the turn. The coordinator reviews the plans; publication and implementation require their own authorization.
 
-## Completion
+If a participant is unresolved, the coordinator uses bounded reconciliation from the skill. `herdr notification show` is a UI fallback for the coordinator/user; it does not deliver a participant message.
 
-- Round 1: draft written, proposal sent directly to every peer, and completion reported to `<coordinator-agent-name-or-pane-id>`.
-- Round 2: agreed plan written, chair specification written when applicable, and agreements or remaining disagreements reported to `<coordinator-agent-name-or-pane-id>`.
+Preserve drafts, outputs, tabs, worktrees, and the participant ledger. Do not clean up resources without user authorization for that scope.
 ```
