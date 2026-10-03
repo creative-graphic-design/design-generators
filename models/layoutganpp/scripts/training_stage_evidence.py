@@ -1239,6 +1239,12 @@ def _stage_s4(device: torch.device) -> Path:
         "--out_path",
         str(vendor_pickle.resolve()),
     ]
+    recorded_vendor_command = (
+        "python vendor/const-layout/generate.py "
+        ".cache/layoutganpp/vendor-work/pretrained/layoutganpp_magazine.pth.tar "
+        f"--batch_size {VENDOR_BATCH_SIZE} --seed {S4_EVALUATION_SEED} "
+        ".cache/layoutganpp/stage-evidence/s4-loader-eval/vendor-predictions.pkl"
+    )
     vendor_environment = os.environ.copy()
     vendor_environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     subprocess.run(
@@ -1322,10 +1328,13 @@ def _stage_s4(device: torch.device) -> Path:
             check=True,
             env=vendor_environment,
         )
-        output = evaluator.stdout + evaluator.stderr
+        output = (evaluator.stdout + evaluator.stderr).replace(f"{ROOT}/", "")
         evaluator_outputs[system] = output
         evaluator_metrics[system] = _parse_vendor_metrics(output)
-        evaluator_commands[system] = " ".join(command)
+        evaluator_commands[system] = (
+            "python vendor/const-layout/eval.py magazine "
+            f"{prediction_file.relative_to(ROOT)} --batch_size {VENDOR_BATCH_SIZE}"
+        )
         (evaluator_dir / f"{system}-evaluator.txt").write_text(output)
 
     maximum_difference, first_divergence = _compare_prediction_rows(
@@ -1415,6 +1424,7 @@ def _stage_s4(device: torch.device) -> Path:
             "model_mode": "eval",
             "shuffle": False,
         },
+        "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
         "evaluator": {
             "vendor_generate": "vendor/const-layout/generate.py:main",
             "vendor_eval": "vendor/const-layout/eval.py:main",
@@ -1485,7 +1495,7 @@ def _stage_s4(device: torch.device) -> Path:
             "vendor_processed_cache_cleared": True,
         },
         evaluator={
-            "vendor_command": " ".join(vendor_command),
+            "vendor_command": recorded_vendor_command,
             "commands_by_system": evaluator_commands,
             "source": "vendor/const-layout/eval.py:main; one invocation per prediction file",
             "metrics_output_by_system": evaluator_outputs,
