@@ -41,6 +41,12 @@ PKU_MODEL_LABEL2ID: dict[str, int] = {
     "logo": 2,
     "underlay": 3,
 }
+PKU_SOURCE_LABELS: dict[int, str] = {
+    0: "text",
+    1: "logo",
+    2: "underlay",
+    3: "INVALID",
+}
 _BILINEAR: Final = Image.Resampling.BILINEAR
 
 
@@ -430,7 +436,15 @@ def annotations_from_pku_example(
     boxes: list[list[float]] = []
 
     for raw_label, raw_box in zip(raw_labels, raw_boxes, strict=True):
-        label = str(raw_label)
+        if isinstance(raw_label, (int, float)):
+            numeric_label = int(raw_label)
+            if numeric_label != raw_label or numeric_label not in PKU_SOURCE_LABELS:
+                raise ValueError(f"Unsupported PKU source label: {raw_label!r}")
+
+            label = PKU_SOURCE_LABELS[numeric_label]
+        else:
+            label = raw_label
+
         if label == "INVALID":
             continue
         public_id = PKU_DATASET_LABEL2ID[label]
