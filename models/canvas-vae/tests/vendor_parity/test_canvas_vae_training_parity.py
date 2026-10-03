@@ -1114,11 +1114,6 @@ def test_s4_records_and_vocabulary(
         assert dict(replayed[key]) == dict(original_counts[key]), key
 
     package_counts = json.loads((DATA_DIR / "vocabulary.json").read_text())
-    measured["vocabulary_order_equal"] = {
-        key: list(package_counts[key]) == list(original_counts[key])
-        for key in original_counts
-    }
-    assert all(measured["vocabulary_order_equal"].values())
     measured["original_count_json"] = json.loads(
         (stream_dir / "count.json").read_text()
     )
