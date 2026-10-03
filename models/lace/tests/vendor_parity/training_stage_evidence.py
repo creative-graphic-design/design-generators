@@ -1013,6 +1013,10 @@ class _PackageNaturalTraceCallback(Callback):
         del trainer
         self._finalize_record(pl_module)
 
+    def finalize(self, pl_module: LightningModule) -> None:
+        """Finalize a step whose trainer stopped at the configured max step."""
+        self._finalize_record(pl_module)
+
     def _finalize_record(self, pl_module: LightningModule) -> None:
         if self._record is None:
             return
@@ -1061,6 +1065,7 @@ def _run_natural_system(
             log_every_n_steps=steps,
         )
         trainer.fit(target, datamodule=datamodule)
+        callback.finalize(target)
         if trainer.global_step != steps or len(callback.records) != steps:
             raise RuntimeError(
                 f"package Trainer produced {trainer.global_step} steps and "
