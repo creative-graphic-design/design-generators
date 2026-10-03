@@ -893,7 +893,9 @@ def _stage_s3(device: torch.device) -> Path:
     natural_path.write_text(json.dumps(natural, indent=2, sort_keys=True) + "\n")
     production_path = OUTPUT_ROOT / "s3-lockstep" / "production-wiring.json"
     command = [
-        "traingen",
+        sys.executable,
+        "-m",
+        "traingen.lightning.cli",
         "fit",
         "--config",
         "models/layoutganpp/configs/training/layoutganpp_magazine.yaml",
