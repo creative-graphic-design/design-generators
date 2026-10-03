@@ -502,6 +502,7 @@ def _materialize_bridge() -> dict[str, Any]:
     paths["train_csv"].parent.mkdir(parents=True, exist_ok=True)
     train_rows = source["train"]
     test_rows = source["test"]
+    invalid_only_rows = 0
     train_images_complete = len(list(paths["train_images"].glob("*.png"))) == len(
         train_rows
     )
@@ -530,6 +531,7 @@ def _materialize_bridge() -> dict[str, Any]:
                     paths["train_pfpn"] / filename.replace(".png", "_pred.png")
                 )
                 source_row["basnet_saliency_map"].save(paths["train_basnet"] / filename)
+            mapped_rows = 0
             for label, box in zip(
                 annotations["cls_elem"], annotations["box_elem"], strict=True
             ):
@@ -538,6 +540,12 @@ def _materialize_bridge() -> dict[str, Any]:
                     continue
                 writer.writerow(
                     [poster_path, len(annotations["cls_elem"]), vendor_label, repr(box)]
+                )
+                mapped_rows += 1
+            if mapped_rows == 0:
+                invalid_only_rows += 1
+                writer.writerow(
+                    [poster_path, len(annotations["cls_elem"]), 0, "[0, 0, 0, 0]"]
                 )
     test_images_complete = len(list(paths["test_images"].glob("*.png"))) == len(
         test_rows
@@ -577,6 +585,7 @@ def _materialize_bridge() -> dict[str, Any]:
         "train.annotations": {
             "count": train_rows.num_rows,
             "sha256": _sha256(paths["train_csv"]),
+            "invalid_only_rows": invalid_only_rows,
         },
         "test.canvas": _aggregate_files(
             list(paths["test_images"].glob("*.png")), paths["root"]
