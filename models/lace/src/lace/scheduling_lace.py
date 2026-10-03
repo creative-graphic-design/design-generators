@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import torch
@@ -18,6 +19,43 @@ from laygen.schedulers.continuous import (
     normalize_ddim_discretization,
 )
 from laygen.common.randomness import randn
+
+
+def _reference_cosine_betas(num_timesteps: int) -> Float[torch.Tensor, "timesteps"]:
+    """Build the cosine schedule with the reference scalar operation order."""
+    cosine_s = 0.008
+    max_beta = 0.999
+    values = [
+        min(
+            1
+            - (
+                math.cos(
+                    ((index + 1) / num_timesteps + cosine_s)
+                    / (1 + cosine_s)
+                    * math.pi
+                    / 2
+                )
+                ** 2
+            )
+            / (
+                math.cos(
+                    (index / num_timesteps + cosine_s) / (1 + cosine_s) * math.pi / 2
+                )
+                ** 2
+            ),
+            max_beta,
+        )
+        for index in range(num_timesteps)
+    ]
+    return torch.tensor(values)
+
+
+def _alphas_cumprod_on_device(
+    num_timesteps: int, device: torch.device
+) -> Float[torch.Tensor, "timesteps"]:
+    """Compute cumulative alphas with the reference reduction order."""
+    betas = _reference_cosine_betas(num_timesteps).to(device)
+    return (1.0 - betas).cumprod(dim=0)
 
 
 @dataclass
@@ -65,11 +103,15 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         self.ddim_num_steps = ddim_num_steps
         self.ddim_discretize = str(canonical_ddim)
         self.eta = eta
-        betas = make_beta_schedule(
-            canonical_beta,
-            num_timesteps=num_train_timesteps,
-            start=0.0001,
-            end=0.02,
+        betas = (
+            _reference_cosine_betas(num_train_timesteps)
+            if canonical_beta in (BetaSchedule.cosine, BetaSchedule.cosine_reverse)
+            else make_beta_schedule(
+                canonical_beta,
+                num_timesteps=num_train_timesteps,
+                start=0.0001,
+                end=0.02,
+            )
         ).float()
         alphas = 1.0 - betas
         self.alphas_cumprod = alphas.cumprod(dim=0)
@@ -92,7 +134,16 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         )
         self.ddim_timesteps = torch.as_tensor(ddim, dtype=torch.long, device=device)
         self.timesteps = torch.flip(self.ddim_timesteps, dims=(0,))
-        alphas_cumprod = self.alphas_cumprod.to(device)
+        if device is not None and self.beta_schedule in {
+            str(BetaSchedule.cosine),
+            str(BetaSchedule.cosine_reverse),
+        }:
+            alphas_cumprod = _alphas_cumprod_on_device(
+                self.num_train_timesteps, torch.device(device)
+            )
+        else:
+            alphas_cumprod = self.alphas_cumprod.to(device)
+
         self.ddim_alphas = alphas_cumprod[self.ddim_timesteps]
         self.ddim_alphas_prev = torch.as_tensor(
             [alphas_cumprod[0].item()]
@@ -155,6 +206,7 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
         """
         if not stochastic:
             return torch.zeros(batch_size, seq_len, seq_dim, device=device)
+
         return randn(batch_size, seq_len, seq_dim, device=device, generator=generator)
 
     def step(
@@ -178,11 +230,30 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
             Previous sample and predicted clean sample.
         """
         del timestep
-        alpha_t = self.ddim_alphas[index].to(sample.device)
-        alpha_prev = self.ddim_alphas_prev[index].to(sample.device)
-        sigma_t = self.ddim_sigmas[index].to(sample.device)
-        sqrt_one_minus = self.sqrt_one_minus_alphas[index].to(sample.device)
-        pred_original = (sample - sqrt_one_minus * model_output) / alpha_t.sqrt()
+        alpha_t = torch.full(
+            model_output.shape,
+            float(self.ddim_alphas[index].item()),
+            device=sample.device,
+            dtype=sample.dtype,
+        )
+        alpha_prev = torch.full(
+            model_output.shape,
+            float(self.ddim_alphas_prev[index].item()),
+            device=sample.device,
+            dtype=sample.dtype,
+        )
+        sigma_t = torch.full(
+            model_output.shape,
+            float(self.ddim_sigmas[index].item()),
+            device=sample.device,
+            dtype=sample.dtype,
+        )
+        sqrt_one_minus = torch.full(
+            model_output.shape,
+            float(self.sqrt_one_minus_alphas[index].item()),
+            device=sample.device,
+            dtype=sample.dtype,
+        )
         direction = (1.0 - alpha_prev - sigma_t**2).sqrt() * model_output
         noise = sigma_t * randn(
             sample.shape,
@@ -190,6 +261,7 @@ class LaceScheduler(SchedulerMixin, ConfigMixin):
             device=sample.device,
             generator=generator,
         )
+        pred_original = (sample - sqrt_one_minus * model_output) / alpha_t.sqrt()
         prev_sample = alpha_prev.sqrt() * pred_original + direction + noise
         return LaceSchedulerOutput(
             prev_sample=prev_sample, pred_original_sample=pred_original

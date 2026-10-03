@@ -1,0 +1,30 @@
+seed_everything: false
+trainer:
+  accelerator: auto
+  devices: auto
+  precision: 32-true
+  max_epochs: 50
+  limit_val_batches: 0
+  num_sanity_val_steps: 0
+  gradient_clip_val: 1.0
+model:
+  class_path: lace.training.LaceTrainingModule
+  init_args:
+    dataset_name: publaynet
+    learning_rate: 1.0e-5
+    batch_size: 256
+    sample_t_max: 999
+    feature_dim: 2048
+    dim_transformer: 1024
+    nhead: 16
+    num_layers: 4
+    ema_mu: 0.9999
+data:
+  class_path: lace.training.LaceDataModule
+  init_args:
+    processed_data_dir: .cache/lace/processed
+    dataset_name: publaynet
+    batch_size: 256
+    max_seq_length: 25
+    num_workers: 4
+    pin_memory: true
