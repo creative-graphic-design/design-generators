@@ -16,10 +16,13 @@ import torch
 from radm import RADMConfig, RADMDenoiser
 from radm.training.config import effective_radm_config
 from radm.training.dataset import (
+    RADMCOCODataset,
     RADMDataCollator,
     RADMTrainingExample,
     _apply_training_transforms,
+    _resize_shortest_edge,
 )
+from radm.training.datamodule import RADMAspectRatioBatchSampler
 from radm.training.optim import build_radm_optimizer, build_radm_scheduler
 from radm.modeling_radm import RADMProposalHead, RADMDenoiserOutput
 from radm.training.topology import (
@@ -598,7 +601,11 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
             "labels": torch.tensor([0]),
             "text_features": torch.ones(20, 768),
             "text_mask": torch.ones(20, 1, dtype=torch.bool),
+            "image_id": 1,
             "image_size_xyxy": torch.tensor([48.0, 32.0, 48.0, 32.0]),
+            "original_image_size_xyxy": torch.tensor([48.0, 32.0, 48.0, 32.0]),
+            "transform_flipped": False,
+            "transform_min_size": 480,
         },
         {
             "image": torch.zeros(3, 64, 32),
@@ -606,7 +613,11 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
             "labels": torch.zeros(0, dtype=torch.long),
             "text_features": torch.full((20, 768), 2.0),
             "text_mask": torch.zeros(20, 1, dtype=torch.bool),
+            "image_id": 2,
             "image_size_xyxy": torch.tensor([32.0, 64.0, 32.0, 64.0]),
+            "original_image_size_xyxy": torch.tensor([32.0, 64.0, 32.0, 64.0]),
+            "transform_flipped": False,
+            "transform_min_size": 480,
         },
     ]
     batch = RADMDataCollator(effective=effective)(
@@ -614,6 +625,10 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
     )
     assert tuple(batch["images"].shape) == (2, 3, 64, 64)
     assert batch["image_scales"].tolist() == [
+        [48.0, 32.0, 48.0, 32.0],
+        [32.0, 64.0, 32.0, 64.0],
+    ]
+    assert batch["original_image_scales"].tolist() == [
         [48.0, 32.0, 48.0, 32.0],
         [32.0, 64.0, 32.0, 64.0],
     ]
@@ -629,3 +644,69 @@ def test_s0_mapper_transform_and_collator_preserve_effective_encoding(
     assert batch["text_mask"].shape == (2, 20, 1)
     assert batch["text_mask"][0].all()
     assert not batch["text_mask"][1].any()
+
+
+def test_s0_resize_matches_vendor_integer_target_coordinates() -> None:
+    """Match the vendor mapper's integer-array resize behavior for targets."""
+    image = torch.zeros(3, 100, 200)
+    boxes = torch.tensor([[21.25, 10.5, 80.75, 61.25]])
+
+    _, transformed = _resize_shortest_edge(
+        image,
+        boxes,
+        min_size=480,
+        max_size=1333,
+    )
+
+    torch.testing.assert_close(
+        transformed,
+        torch.trunc(boxes * torch.tensor([[4.8, 4.8, 4.8, 4.8]])),
+    )
+
+
+def test_s0_training_sampler_matches_seeded_grouped_full_batches() -> None:
+    """Group a seeded infinite permutation stream without partial batches."""
+    dataset = cast(
+        RADMCOCODataset,
+        type(
+            "DatasetMetadata",
+            (),
+            {
+                "images": [
+                    {"width": 10, "height": 20},
+                    {"width": 20, "height": 10},
+                    {"width": 30, "height": 40},
+                    {"width": 40, "height": 30},
+                    {"width": 50, "height": 60},
+                    {"width": 60, "height": 50},
+                ],
+                "__len__": lambda self: len(self.images),
+            },
+        )(),
+    )
+    sampler = RADMAspectRatioBatchSampler(
+        dataset,
+        batch_size=2,
+        seed=261,
+        max_batches=3,
+    )
+
+    generator = torch.Generator().manual_seed(261)
+    buckets: list[list[int]] = [[], []]
+    expected: list[list[int]] = []
+    while len(expected) < 3:
+        for index in torch.randperm(6, generator=generator).tolist():
+            bucket_index = (
+                0
+                if dataset.images[index]["width"] > dataset.images[index]["height"]
+                else 1
+            )
+            buckets[bucket_index].append(index)
+            if len(buckets[bucket_index]) == 2:
+                expected.append(buckets[bucket_index][:])
+                buckets[bucket_index].clear()
+                if len(expected) == 3:
+                    break
+
+    assert list(sampler) == expected
+    assert all(len(batch) == 2 for batch in expected)

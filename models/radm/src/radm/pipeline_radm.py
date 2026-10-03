@@ -180,7 +180,9 @@ class RADMPipeline(DiffusionPipeline):
         """
         del labels, bbox, mask, num_elements, box_format, normalized, canvas_size
         self.processor.validate_condition(condition_type)
-        generator = resolve_torch_generator(generator=generator, seed=seed)
+        generator = resolve_torch_generator(
+            generator=generator, seed=seed, device=self.device
+        )
         encoded = self.processor(
             images,
             content=content,
@@ -200,10 +202,12 @@ class RADMPipeline(DiffusionPipeline):
         text = encoded["text_features"].to(self.device)
         text_valid = encoded["text_mask"].to(self.device)
         trajectory = [] if return_intermediates else None
+        final_boxes = self.scheduler.latent_to_normalized_boxes(sample)
         logits = sample.new_zeros(
             batch_size, self.radm_config.num_proposals, self.radm_config.num_classes
         )
         for timestep in self.scheduler.timesteps:
+            normalized_sample = self.scheduler.latent_to_normalized_boxes(sample)
             t_batch = torch.full(
                 (batch_size,),
                 float(timestep.item()),
@@ -211,15 +215,18 @@ class RADMPipeline(DiffusionPipeline):
                 dtype=sample.dtype,
             )
             denoised = self.denoiser(
-                boxes_xyxy=sample,
+                boxes_xyxy=normalized_sample,
                 timesteps=t_batch,
                 text_features=text,
                 text_mask=text_valid,
                 images=encoded["pixel_values"].to(self.device),
             )
             logits = denoised.logits
+            final_boxes = denoised.boxes_xyxy
             sample = self.scheduler.step(
-                denoised.pred_original_sample,
+                self.scheduler.normalized_boxes_to_latent(
+                    denoised.pred_original_sample
+                ),
                 timestep,
                 sample,
                 generator=generator,
@@ -235,7 +242,7 @@ class RADMPipeline(DiffusionPipeline):
         if trajectory is not None:
             intermediates["trajectory"] = trajectory
         output = self.processor.decode(
-            boxes_xyxy=sample,
+            boxes_xyxy=final_boxes,
             logits=logits,
             class_threshold=class_threshold
             if class_threshold is not None

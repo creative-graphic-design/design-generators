@@ -18,6 +18,7 @@ from ..training.config import RADMEffectiveConfig
 
 
 RADM_TRAIN_TRANSFORM_NAMES: tuple[str, ...] = ("RandomFlip", "ResizeShortestEdge")
+RADM_TEST_TRANSFORM_NAMES: tuple[str, ...] = ("ResizeShortestEdge",)
 RADM_CROP_TRANSFORM_NAMES: tuple[str, ...] = ()
 RADM_TEXT_ENCODING_SUMMARY: dict[str, object] = {
     "mask_semantics": "true_valid_false_padding",
@@ -33,7 +34,11 @@ class RADMTrainingExample(TypedDict):
     labels: Int[torch.Tensor, "elements"]
     text_features: Float[torch.Tensor, "text text_dim"]
     text_mask: Bool[torch.Tensor, "text 1"]
+    image_id: int
     image_size_xyxy: Float[torch.Tensor, "4"]
+    original_image_size_xyxy: Float[torch.Tensor, "4"]
+    transform_flipped: bool
+    transform_min_size: int
 
 
 class RADMCOCOImage(TypedDict):
@@ -77,6 +82,8 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
         text_feature_root: str | Path,
         effective: RADMEffectiveConfig,
         allow_missing_text_features: bool = False,
+        train: bool,
+        read_text_features: bool = True,
         image_loader: Callable[[Path], Image.Image] | None = None,
     ) -> None:
         """Initialize explicit local annotation, image, and feature paths."""
@@ -85,8 +92,12 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
         self.text_feature_root = Path(text_feature_root)
         self.effective = effective
         self.allow_missing_text_features = allow_missing_text_features
+        self.train = train
+        self.read_text_features = read_text_features
         self.image_loader = image_loader or Image.open
-        self.transform_names = RADM_TRAIN_TRANSFORM_NAMES
+        self.transform_names = (
+            RADM_TRAIN_TRANSFORM_NAMES if train else RADM_TEST_TRANSFORM_NAMES
+        )
         self.crop_transform_names = RADM_CROP_TRANSFORM_NAMES
         self.image_format = "RGB"
         self.text_encoding_summary = {
@@ -120,6 +131,7 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             image_tensor = torch.from_numpy(np.asarray(rgb, dtype="float32")).permute(
                 2, 0, 1
             )
+        original_height, original_width = image_tensor.shape[-2:]
         boxes: list[list[float]] = []
         labels: list[int] = []
         for annotation in self.annotations[image_id]:
@@ -138,11 +150,20 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
             )
             labels.append(int(annotation["category_id"]) - 1)
         box_tensor = torch.tensor(boxes, dtype=torch.float32).reshape(-1, 4)
-        image_tensor, box_tensor = _apply_training_transforms(
-            image_tensor,
-            box_tensor,
-            effective=self.effective,
-        )
+        if self.train:
+            image_tensor, box_tensor, transform_metadata = (
+                _apply_training_transforms_with_metadata(
+                    image_tensor,
+                    box_tensor,
+                    effective=self.effective,
+                )
+            )
+        else:
+            image_tensor, box_tensor = _apply_evaluation_transforms(
+                image_tensor, box_tensor
+            )
+            transform_metadata = {"flipped": False, "min_size": 800}
+
         transformed_height, transformed_width = image_tensor.shape[-2:]
         box_tensor = box_tensor / image_tensor.new_tensor(
             (
@@ -155,18 +176,27 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
         mean = image_tensor.new_tensor(self.effective.pixel_mean).reshape(3, 1, 1)
         std = image_tensor.new_tensor(self.effective.pixel_std).reshape(3, 1, 1)
         image_tensor = (image_tensor - mean) / std
-        text_features, text_mask = load_text_features(
-            image_path.name,
-            root=self.text_feature_root,
-            effective=self.effective,
-            allow_missing=self.allow_missing_text_features,
-        )
+        if self.read_text_features:
+            text_features, text_mask = load_text_features(
+                image_path.name,
+                root=self.text_feature_root,
+                effective=self.effective,
+                allow_missing=self.allow_missing_text_features,
+            )
+        else:
+            text_features = torch.zeros(
+                self.effective.max_text_num,
+                self.effective.text_feature_dim,
+            )
+            text_mask = torch.zeros(self.effective.max_text_num, 1, dtype=torch.bool)
+
         return {
             "image": image_tensor,
             "boxes_xyxy": box_tensor,
             "labels": torch.tensor(labels, dtype=torch.long),
             "text_features": text_features,
             "text_mask": text_mask,
+            "image_id": image_id,
             "image_size_xyxy": torch.tensor(
                 (
                     transformed_width,
@@ -176,6 +206,17 @@ class RADMCOCODataset(Dataset[RADMTrainingExample]):
                 ),
                 dtype=torch.float32,
             ),
+            "original_image_size_xyxy": torch.tensor(
+                (
+                    original_width,
+                    original_height,
+                    original_width,
+                    original_height,
+                ),
+                dtype=torch.float32,
+            ),
+            "transform_flipped": bool(transform_metadata["flipped"]),
+            "transform_min_size": int(transform_metadata["min_size"]),
         }
 
 
@@ -236,12 +277,26 @@ class RADMDataCollator:
             "image_scales": torch.stack(
                 [example["image_size_xyxy"] for example in examples]
             ),
+            "original_image_scales": torch.stack(
+                [example["original_image_size_xyxy"] for example in examples]
+            ),
             "forward_image_scales": forward_image_scales,
             "boxes_xyxy": boxes,
             "labels": labels,
             "mask": mask,
             "text_features": text_features,
             "text_mask": text_mask,
+            "image_ids": torch.tensor(
+                [example["image_id"] for example in examples], dtype=torch.long
+            ),
+            "transform_flipped": torch.tensor(
+                [example["transform_flipped"] for example in examples],
+                dtype=torch.bool,
+            ),
+            "transform_min_size": torch.tensor(
+                [example["transform_min_size"] for example in examples],
+                dtype=torch.long,
+            ),
         }
 
 
@@ -258,10 +313,29 @@ def _apply_training_transforms(
     Float[torch.Tensor, "channels height width"],
     Float[torch.Tensor, "elements 4"],
 ]:
+    image, boxes, _ = _apply_training_transforms_with_metadata(
+        image,
+        boxes_xyxy,
+        effective=effective,
+    )
+    return image, boxes
+
+
+def _apply_training_transforms_with_metadata(
+    image: Float[torch.Tensor, "channels height width"],
+    boxes_xyxy: Float[torch.Tensor, "elements 4"],
+    *,
+    effective: RADMEffectiveConfig,
+) -> tuple[
+    Float[torch.Tensor, "channels height width"],
+    Float[torch.Tensor, "elements 4"],
+    dict[str, bool | int],
+]:
     """Apply flip and shortest-edge resize to absolute pixel coordinates."""
     transformed_boxes = boxes_xyxy.clone()
     original_height, original_width = image.shape[-2:]
-    if np.random.random() < 0.5:
+    flipped = np.random.random() < 0.5
+    if flipped:
         image = image.flip(-1)
         if transformed_boxes.numel():
             left = transformed_boxes[:, 0].clone()
@@ -279,8 +353,46 @@ def _apply_training_transforms(
             "unsupported released ResizeShortestEdge sampling style: "
             f"{effective.min_size_train_sampling}"
         )
+    image, transformed_boxes = _resize_shortest_edge(
+        image,
+        transformed_boxes,
+        min_size=min_size,
+        max_size=effective.max_size_train,
+    )
+    return image, transformed_boxes, {"flipped": flipped, "min_size": min_size}
+
+
+def _apply_evaluation_transforms(
+    image: Float[torch.Tensor, "channels height width"],
+    boxes_xyxy: Float[torch.Tensor, "elements 4"],
+) -> tuple[
+    Float[torch.Tensor, "channels height width"],
+    Float[torch.Tensor, "elements 4"],
+]:
+    """Apply the fixed, non-random evaluation resize to absolute boxes."""
+    return _resize_shortest_edge(
+        image,
+        boxes_xyxy,
+        min_size=800,
+        max_size=1333,
+    )
+
+
+def _resize_shortest_edge(
+    image: Float[torch.Tensor, "channels height width"],
+    boxes_xyxy: Float[torch.Tensor, "elements 4"],
+    *,
+    min_size: int,
+    max_size: int,
+) -> tuple[
+    Float[torch.Tensor, "channels height width"],
+    Float[torch.Tensor, "elements 4"],
+]:
+    """Resize an image and its absolute boxes without introducing randomness."""
+    transformed_boxes = boxes_xyxy.clone()
+    original_height, original_width = image.shape[-2:]
     scale = min_size / min(original_height, original_width)
-    scale = min(scale, effective.max_size_train / max(original_height, original_width))
+    scale = min(scale, max_size / max(original_height, original_width))
     resized_height = max(1, round(original_height * scale))
     resized_width = max(1, round(original_width * scale))
     if (resized_height, resized_width) != (original_height, original_width):

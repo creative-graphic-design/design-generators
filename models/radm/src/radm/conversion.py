@@ -46,6 +46,7 @@ def build_pipeline(config: RADMConfig) -> RADMPipeline:
     scheduler = RADMScheduler(
         num_train_timesteps=config.num_train_timesteps,
         num_inference_steps=config.inference_steps,
+        snr_scale=config.snr_scale,
     )
     return RADMPipeline(
         denoiser=denoiser,

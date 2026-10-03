@@ -25,6 +25,22 @@ def test_scheduler_timesteps_and_generator_reproducibility() -> None:
     assert torch.allclose(sample1, sample2)
 
 
+def test_scheduler_initial_latents_match_source_randn_and_box_boundary() -> None:
+    scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=1)
+    generator = torch.Generator().manual_seed(17)
+    expected = torch.randn((1, 2, 4), generator=generator)
+    actual = scheduler.sample_initial_proposals(
+        batch_size=1,
+        num_proposals=2,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert torch.equal(actual, expected)
+    boxes = scheduler.latent_to_normalized_boxes(actual)
+    restored = scheduler.normalized_boxes_to_latent(boxes)
+    torch.testing.assert_close(restored, actual.clamp(-2.0, 2.0))
+
+
 def test_scheduler_step_tuple() -> None:
     scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=2, eta=0.0)
     scheduler.set_timesteps(2)
