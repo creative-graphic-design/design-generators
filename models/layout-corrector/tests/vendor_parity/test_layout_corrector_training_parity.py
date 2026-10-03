@@ -989,7 +989,8 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor(
     dataset: LayoutCorrectorTrainingDatasetName,
 ) -> None:
     apply_determinism(DeterminismConfig(seed=42975, deterministic_algorithms=False))
-    fixture = _fixture(dataset, torch.device("cpu"))
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    fixture = _fixture(dataset, device)
     vendor_batch, package_batch = _paired_real_batch(
         dataset, "train", fixture.vendor_tokenizer
     )
@@ -1019,7 +1020,8 @@ def test_s2_one_optimizer_step_matches_vendor(
     dataset: LayoutCorrectorTrainingDatasetName,
 ) -> None:
     apply_determinism(DeterminismConfig(seed=42975, deterministic_algorithms=False))
-    fixture = _fixture(dataset, torch.device("cpu"))
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    fixture = _fixture(dataset, device)
     vendor_batch, package_batch = _paired_real_batch(
         dataset, "train", fixture.vendor_tokenizer
     )
