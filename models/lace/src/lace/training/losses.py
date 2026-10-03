@@ -11,10 +11,14 @@ from jaxtyping import Bool, Float, Int
 def xywh_to_ltrb_reference(
     bbox: Float[torch.Tensor, "batch elements 4"],
 ) -> Float[torch.Tensor, "batch elements 4"]:
-    """Convert center boxes with the reference absolute-width behavior."""
-    xy = torch.abs(bbox[:, :, :2])
-    wh = torch.abs(bbox[:, :, 2:])
-    return torch.cat((xy - 0.5 * wh, xy + 0.5 * wh), dim=-1)
+    """Convert center boxes using the reference implementation's split order."""
+    channels = bbox.permute(2, 0, 1)
+    xc, yc, width, height = channels
+    ltrb = torch.stack(
+        (xc - width / 2, yc - height / 2, xc + width / 2, yc + height / 2),
+        dim=0,
+    )
+    return ltrb.permute(1, 2, 0)
 
 
 def pairwise_iou(

@@ -149,7 +149,9 @@ class LaceTrainingModule(LightningModule):
             all_timesteps
         ].reshape(-1, 1, 1)
         sqrt_alpha_all = (1 - sqrt_one_minus_all.square()).sqrt()
-        reconstructed = (all_inputs - output * sqrt_one_minus_all) / sqrt_alpha_all
+        reconstructed = (
+            1 / sqrt_alpha_all * (all_inputs - output * sqrt_one_minus_all)
+        ).to(all_inputs.device)
         return output, all_noise, reconstructed, all_timesteps
 
     def training_step(

@@ -20,13 +20,14 @@ import sys
 import time
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Callable, Protocol, cast
+from typing import Callable, cast
 
 import numpy as np
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch import nn
 from torch.utils.data import DataLoader
+from torch_geometric.data import Dataset as GeometricDataset
 from traingen_parity.compare import (
     compare_batch_stream,
     compare_optimizer_step,
@@ -37,14 +38,6 @@ from traingen_parity.trace import build_step_trace, tensor_sha256
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 ROOT = Path(__file__).resolve().parents[4]
-
-
-class VendorDataset(Protocol):
-    def __len__(self) -> int:
-        """Return the number of layouts."""
-
-    def __getitem__(self, index: int) -> object:
-        """Return one vendor layout."""
 
 
 DEFAULT_OUTPUT_ROOT = ROOT / ".cache" / "lace" / "stage-evidence"
@@ -261,6 +254,7 @@ def _vendor_trace(
     batch: Mapping[str, torch.Tensor],
     *,
     num_classes: int,
+    detach: bool = True,
 ) -> dict[str, torch.Tensor]:
     layout_input, mask = _layout_input(batch, num_classes=num_classes)
     timestep = vendor.sample_t([layout_input.shape[0]], t_max=999)
@@ -279,7 +273,7 @@ def _vendor_trace(
     )
     prepared_labels = batch["labels"].long().clone()
     prepared_labels[~mask] = num_classes - 1
-    return {
+    trace = {
         "bbox": batch["bbox"].detach(),
         "labels": prepared_labels.detach(),
         "mask": mask.detach(),
@@ -291,25 +285,37 @@ def _vendor_trace(
         "all_timesteps": all_timesteps.detach(),
         **{key: value.detach() for key, value in vendor_values.items()},
     }
+    if not detach:
+        trace["train_loss"] = vendor_values["train_loss"]
+    return trace
 
 
 def _package_trace(
     target: LaceTrainingModule,
     batch: Mapping[str, torch.Tensor],
+    *,
+    detach: bool = True,
 ) -> dict[str, torch.Tensor]:
-    target.training_step(dict(batch), 0)
-    return dict(target.latest_step_trace)
+    loss = target.training_step(dict(batch), 0)
+    trace = dict(target.latest_step_trace)
+    if not detach:
+        trace["train_loss"] = loss
+    return trace
 
 
 def _paired_trace(
     vendor: VendorDiffusion,
     target: LaceTrainingModule,
     batch: Mapping[str, torch.Tensor],
+    *,
+    detach: bool = True,
 ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
     rng_state = capture_rng_state()
-    vendor_trace = _vendor_trace(vendor, batch, num_classes=target.num_classes)
+    vendor_trace = _vendor_trace(
+        vendor, batch, num_classes=target.num_classes, detach=detach
+    )
     restore_rng_state(rng_state)
-    package_trace = _package_trace(target, batch)
+    package_trace = _package_trace(target, batch, detach=detach)
     return vendor_trace, package_trace
 
 
@@ -675,7 +681,7 @@ def run_s2(args: argparse.Namespace) -> Path:
     package_ema = target.ema_helper
     sdpa_context = sdpa_kernel(SDPBackend.MATH) if args.sdpa_math else nullcontext()
     with sdpa_context:
-        vendor_trace, package_trace = _paired_trace(vendor, target, batch)
+        vendor_trace, package_trace = _paired_trace(vendor, target, batch, detach=False)
         vendor_optimizer.zero_grad()
         package_optimizer.zero_grad()
         vendor_trace["train_loss"].backward()
@@ -931,9 +937,9 @@ def _run_natural_system(
     for step, source_batch in enumerate(batches, start=1):
         batch = _batch_tensors(source_batch, device)
         trace = (
-            _vendor_trace(vendor, batch, num_classes=target.num_classes)
+            _vendor_trace(vendor, batch, num_classes=target.num_classes, detach=False)
             if system == "vendor"
-            else _package_trace(target, batch)
+            else _package_trace(target, batch, detach=False)
         )
         optimizer.zero_grad()
         trace["train_loss"].backward()
@@ -1198,10 +1204,13 @@ def run_s3(args: argparse.Namespace) -> Path:
             batch = _batch_tensors(package_source_batch, device)
             rng_state = capture_rng_state()
             vendor_trace = _vendor_trace(
-                synchronized_vendor, batch, num_classes=synchronized_package.num_classes
+                synchronized_vendor,
+                batch,
+                num_classes=synchronized_package.num_classes,
+                detach=False,
             )
             restore_rng_state(rng_state)
-            package_trace = _package_trace(synchronized_package, batch)
+            package_trace = _package_trace(synchronized_package, batch, detach=False)
             synchronized_vendor_optimizer.zero_grad()
             synchronized_package_optimizer.zero_grad()
             vendor_trace["train_loss"].backward()
@@ -1385,7 +1394,7 @@ def _write_jsonl(
     return path
 
 
-def _vendor_dataset(dataset: str, data_root: Path, split: str) -> VendorDataset:
+def _vendor_dataset(dataset: str, data_root: Path, split: str) -> GeometricDataset:
     original_torch_load = cast(Callable[..., object], torch.load)
 
     def load_legacy_processed_stream(*args: object, **kwargs: object) -> object:
