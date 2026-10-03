@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
+from pathlib import Path
+
+from devharness.baselines import (
+    diff_entry_baseline,
+    read_entry_baseline,
+    write_entry_baseline,
+)
 
 from . import card, citation, install, parity, reproducing, root_readme
 from .constants import (
@@ -10,6 +18,7 @@ from .constants import (
     LIB_MEMBER_DIRS,
     LIB_READMES,
     MODEL_MEMBER_DIRS,
+    MODEL_README_BASELINE_PATH,
     MODEL_READMES,
     MODEL_REPRODUCING,
     README_LINK_CONTRACTS,
@@ -17,6 +26,38 @@ from .constants import (
     REPO_ROOT,
     ROOT_MODEL_TABLE_HEADER,
 )
+
+
+def current_model_readme_usage_violations() -> dict[str, str]:
+    """Return repository-relative paths and diagnostics for missing output."""
+    violations: dict[str, str] = {}
+    for path in MODEL_READMES:
+        relative_path = path.relative_to(REPO_ROOT).as_posix()
+        violation = card.usage_output_violation(
+            Path(relative_path), path.read_text(encoding="utf-8")
+        )
+        if violation:
+            violations[relative_path] = violation
+
+    return violations
+
+
+def assert_model_readme_usage_baseline() -> None:
+    """Require the model README usage-output baseline to match current violations."""
+    current = current_model_readme_usage_violations()
+    baseline = read_entry_baseline(MODEL_README_BASELINE_PATH)
+    unexpected, stale = diff_entry_baseline(set(current), baseline)
+    messages: list[str] = []
+    if unexpected:
+        messages.append("New model README usage-output violations:")
+        messages.extend(f"  + {current[entry]}" for entry in unexpected)
+
+    if stale:
+        messages.append("Stale model README usage-output baseline entries:")
+        messages.extend(f"  - {entry}" for entry in stale)
+
+    if messages:
+        raise AssertionError("\n".join(messages))
 
 
 def check() -> None:
@@ -63,6 +104,8 @@ def check() -> None:
         reproducing.assert_readme_reproducibility_link(path, text)
         card.assert_banned_patterns(path, text)
 
+    assert_model_readme_usage_baseline()
+
     for path in MODEL_REPRODUCING:
         text = path.read_text(encoding="utf-8")
         card.assert_code_fences_tagged(path, text)
@@ -92,8 +135,22 @@ def check() -> None:
         )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Print one diagnostic and return the checker status."""
+    parser = argparse.ArgumentParser(prog="devharness check model-readmes")
+    parser.add_argument(
+        "--write-baseline",
+        action="store_true",
+        help="rewrite the shrink-only baseline from current violations",
+    )
+    args = parser.parse_args([] if argv is None else argv)
+    if args.write_baseline:
+        write_entry_baseline(
+            MODEL_README_BASELINE_PATH,
+            current_model_readme_usage_violations(),
+        )
+        return 0
+
     try:
         check()
     except AssertionError as exc:
