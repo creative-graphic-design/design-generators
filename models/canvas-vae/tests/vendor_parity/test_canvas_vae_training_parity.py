@@ -1142,7 +1142,7 @@ def test_s4_records_and_vocabulary(
     report("s4_records", measured)
 
 
-def test_s4_stream_replay(stream_dir, production_data_module):
+def test_s4_stream_replay(stream_dir, static, production_data_module):
     streams = json.loads((stream_dir / "streams.json").read_text())
 
     def document_id_batches(split, reference_batches):
