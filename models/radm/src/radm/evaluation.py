@@ -10,7 +10,6 @@ from typing import TypeAlias
 
 import torch
 from jaxtyping import Bool, Float, Int
-from laygen.common.randomness import resolve_torch_generator
 
 from .configuration_radm import RADMConfig
 from .postprocessing import select_predictions
@@ -47,6 +46,8 @@ def layout_predictions_to_coco(
     mask: Bool[torch.Tensor, "batch proposals"],
     scores: Float[torch.Tensor, "batch proposals"],
     image_scales: Float[torch.Tensor, "batch 4"],
+    original_image_scales: Float[torch.Tensor, "batch 4"],
+    model_image_scales: Float[torch.Tensor, "batch 4"] | None = None,
     category_id_map: Mapping[int, int] | None = None,
 ) -> list[CocoPrediction]:
     """Convert selected normalized boxes into COCO detection records.
@@ -59,11 +60,24 @@ def layout_predictions_to_coco(
         raise ValueError("image_ids must align with the prediction batch")
     results: list[CocoPrediction] = []
     for batch_index, image_id in enumerate(image_ids):
-        width, height = image_scales[batch_index, :2].tolist()
+        resized_width, resized_height = image_scales[batch_index, :2].tolist()
+        width, height = original_image_scales[batch_index, :2].tolist()
+        model_scale = image_scales if model_image_scales is None else model_image_scales
+        scale_x = width / resized_width
+        scale_y = height / resized_height
         for proposal_index in torch.nonzero(
             mask[batch_index], as_tuple=False
         ).flatten():
-            left, top, right, bottom = boxes_xyxy[batch_index, proposal_index].tolist()
+            left, top, right, bottom = (
+                boxes_xyxy[batch_index, proposal_index] * model_scale[batch_index]
+            ).tolist()
+            left = min(max(left * scale_x, 0.0), width)
+            top = min(max(top * scale_y, 0.0), height)
+            right = min(max(right * scale_x, 0.0), width)
+            bottom = min(max(bottom * scale_y, 0.0), height)
+            if right <= left or bottom <= top:
+                continue
+
             label = int(labels[batch_index, proposal_index].item())
             category_id = (
                 int(category_id_map[label])
@@ -74,10 +88,10 @@ def layout_predictions_to_coco(
                 {
                     "image_id": int(image_id),
                     "bbox": [
-                        float(left * width),
-                        float(top * height),
-                        float((right - left) * width),
-                        float((bottom - top) * height),
+                        float(left),
+                        float(top),
+                        float(right - left),
+                        float(bottom - top),
                     ],
                     "score": float(scores[batch_index, proposal_index].item()),
                     "category_id": category_id,
@@ -189,6 +203,7 @@ def evaluate_checkpoint(
     """Load a Lightning checkpoint and evaluate its CGL test predictions."""
     from .training.lightning_module import RADMTrainingModule
 
+    torch.manual_seed(seed)
     module = RADMTrainingModule.load_from_checkpoint(
         checkpoint_path,
         config=config,
@@ -209,8 +224,9 @@ def evaluate_checkpoint(
         num_train_timesteps=config.num_train_timesteps,
         num_inference_steps=steps,
         eta=1.0,
+        snr_scale=config.snr_scale,
     )
-    generator = resolve_torch_generator(seed=seed)
+    generator = None
     predictions: list[CocoPrediction] = []
     offset = 0
     with torch.no_grad():
@@ -225,6 +241,7 @@ def evaluate_checkpoint(
                 key: value.to(device) if isinstance(value, torch.Tensor) else value
                 for key, value in batch.items()
             }
+            source_image_scales = batch_device["image_scales"][:, [1, 0, 1, 0]]
             batch_size = current_batch
             sample = scheduler.sample_initial_proposals(
                 batch_size=batch_size,
@@ -234,10 +251,12 @@ def evaluate_checkpoint(
                 dtype=batch_device["images"].dtype,
             )
             scheduler.set_timesteps(steps, device=device)
+            final_boxes = scheduler.latent_to_normalized_boxes(sample)
             logits = sample.new_zeros(
                 batch_size, config.num_proposals, config.num_classes
             )
             for timestep in scheduler.timesteps:
+                normalized_sample = scheduler.latent_to_normalized_boxes(sample)
                 timestep_batch = torch.full(
                     (batch_size,),
                     int(timestep.item()),
@@ -245,21 +264,23 @@ def evaluate_checkpoint(
                     dtype=torch.long,
                 )
                 denoised = module_model(
-                    boxes_xyxy=sample,
+                    boxes_xyxy=normalized_sample,
                     timesteps=timestep_batch,
                     text_features=batch_device["text_features"],
                     text_mask=batch_device["text_mask"],
                     images=batch_device["images"],
+                    image_scales=source_image_scales,
                 )
                 logits = denoised.logits
+                final_boxes = denoised.boxes_xyxy
                 sample = scheduler.step(
-                    denoised.pred_original_sample,
+                    scheduler.normalized_boxes_to_latent(denoised.pred_original_sample),
                     timestep,
                     sample,
                     generator=generator,
                 ).prev_sample
             selected_boxes, labels, mask, scores, _ = select_predictions(
-                boxes_xyxy=sample,
+                boxes_xyxy=final_boxes,
                 logits=logits,
                 class_threshold=class_threshold,
                 nms_threshold=nms_threshold,
@@ -276,6 +297,8 @@ def evaluate_checkpoint(
                     mask=mask,
                     scores=scores,
                     image_scales=batch_device["image_scales"],
+                    original_image_scales=batch_device["original_image_scales"],
+                    model_image_scales=source_image_scales,
                 )
             )
             offset += batch_size

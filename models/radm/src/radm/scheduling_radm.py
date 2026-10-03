@@ -24,7 +24,7 @@ class RADMSchedulerOutput(BaseOutput):
 
 
 class RADMScheduler(SchedulerMixin, ConfigMixin):
-    """DDIM-style scheduler for normalized proposal boxes.
+    """DDIM-style scheduler for RADM's scaled proposal latents.
 
     Args:
         num_train_timesteps: Number of training diffusion timesteps.
@@ -32,6 +32,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         beta_schedule: Schedule name. Only ``"cosine"`` is supported.
         eta: DDIM stochasticity parameter.
         prediction_type: Model prediction type.
+        snr_scale: Scaling applied to the latent at the model boundary.
 
     Examples:
         >>> scheduler = RADMScheduler(num_train_timesteps=10, num_inference_steps=3)
@@ -51,6 +52,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         beta_schedule: Literal["cosine"] = "cosine",
         eta: float = 1.0,
         prediction_type: Literal["sample"] = "sample",
+        snr_scale: float = 2.0,
     ) -> None:
         """Initialize RADM scheduler metadata."""
         if beta_schedule != "cosine":
@@ -60,6 +62,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         self.num_train_timesteps = int(num_train_timesteps)
         self.num_inference_steps = int(num_inference_steps)
         self.eta = float(eta)
+        self.snr_scale = float(snr_scale)
         betas = cosine_beta_schedule(self.num_train_timesteps)
         alphas = 1.0 - betas
         alphas_cumprod_prev = F.pad(
@@ -116,7 +119,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         device: torch.device | str | None = None,
         dtype: torch.dtype = torch.float32,
     ) -> Float[torch.Tensor, "batch proposals 4"]:
-        """Sample initial normalized ``xyxy`` proposal boxes.
+        """Sample the source-effective unbounded Gaussian proposal latents.
 
         Args:
             batch_size: Number of examples.
@@ -126,7 +129,7 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
             dtype: Output dtype.
 
         Returns:
-            Sorted normalized boxes in ``xyxy`` order.
+            Raw Gaussian proposal latents in source ``cxcywh`` coordinates.
         """
         noise = randn(
             batch_size,
@@ -136,10 +139,43 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
             device=device or "cpu",
             dtype=dtype,
         )
-        points = noise.sigmoid()
-        left_top = torch.minimum(points[..., :2], points[..., 2:])
-        right_bottom = torch.maximum(points[..., :2], points[..., 2:])
-        return torch.cat((left_top, right_bottom), dim=-1)
+        return noise
+
+    def latent_to_normalized_boxes(
+        self,
+        sample: Float[torch.Tensor, "batch proposals 4"],
+    ) -> Float[torch.Tensor, "batch proposals 4"]:
+        """Convert a scaled source latent to normalized ``xyxy`` boxes."""
+        scale = sample.new_tensor(self.snr_scale)
+        cxcywh = (sample.clamp(-scale, scale) / scale + 1.0) * 0.5
+        center_x, center_y, width, height = cxcywh.unbind(dim=-1)
+        return torch.stack(
+            (
+                center_x - 0.5 * width,
+                center_y - 0.5 * height,
+                center_x + 0.5 * width,
+                center_y + 0.5 * height,
+            ),
+            dim=-1,
+        )
+
+    def normalized_boxes_to_latent(
+        self,
+        boxes_xyxy: Float[torch.Tensor, "batch proposals 4"],
+    ) -> Float[torch.Tensor, "batch proposals 4"]:
+        """Convert normalized ``xyxy`` model output to a scaled source latent."""
+        left, top, right, bottom = boxes_xyxy.unbind(dim=-1)
+        cxcywh = torch.stack(
+            (
+                (left + right) * 0.5,
+                (top + bottom) * 0.5,
+                right - left,
+                bottom - top,
+            ),
+            dim=-1,
+        )
+        scale = boxes_xyxy.new_tensor(self.snr_scale)
+        return ((cxcywh * 2.0 - 1.0) * scale).clamp(-scale, scale)
 
     def scale_model_input(
         self,
@@ -286,7 +322,6 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
                     dtype=model_output.dtype,
                 )
                 prev_sample = prev_sample + sigma * noise
-        prev_sample = prev_sample.clamp(0.0, 1.0)
         if not return_dict:
             return (prev_sample, model_output)
         return RADMSchedulerOutput(
