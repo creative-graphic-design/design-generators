@@ -89,9 +89,7 @@ def test_cross_epoch_sampler_default_order_matches_random_stream():
     expected_generator = torch.Generator().manual_seed(0)
     expected_stream = []
     while len(expected_stream) < 12:
-        expected_stream.extend(
-            torch.randperm(5, generator=expected_generator).tolist()
-        )
+        expected_stream.extend(torch.randperm(5, generator=expected_generator).tolist())
 
     expected = [expected_stream[index : index + 2] for index in range(0, 12, 2)]
     assert list(sampler) + list(sampler) == expected

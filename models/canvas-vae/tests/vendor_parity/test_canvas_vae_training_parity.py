@@ -941,9 +941,7 @@ def test_s3_synchronized_steps(
             measured,
         )
 
-    gradient_checks = [
-        value for name, value in measured.items() if "/grad/" in name
-    ]
+    gradient_checks = [value for name, value in measured.items() if "/grad/" in name]
     arbitrated = [value for value in gradient_checks if value.get("float64_arbitrated")]
     direct = [value for value in gradient_checks if not value.get("float64_arbitrated")]
     assert len(gradient_checks) == 3_381
@@ -1157,9 +1155,7 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
 
     def ids_from_indices(split, index_batches):
         documents = production_data_module.splits[RicoSplit(split)].documents
-        return [
-            [documents[index]["id"] for index in batch] for batch in index_batches
-        ]
+        return [[documents[index]["id"] for index in batch] for batch in index_batches]
 
     def digest(encoded, reference_batch, lengths_by_id):
         num_elements = encoded["num_elements"].numpy()
@@ -1200,7 +1196,9 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
     train_indices = document_id_batches("train", train)
     ordered_train_indices = [index for batch in train_indices for index in batch]
     sampler_probe = CrossEpochBatchSampler(
-        sizes["train"], 1024, torch.Generator().manual_seed(0),
+        sizes["train"],
+        1024,
+        torch.Generator().manual_seed(0),
         ordered_indices=ordered_train_indices,
     )
     sampled_indices = list(sampler_probe) + list(sampler_probe)
