@@ -112,6 +112,40 @@ def test_kmeans_assignment_matches_sklearn_for_real_centers():
 
 @pytest.mark.vendor_parity
 @pytest.mark.parametrize("dataset", DATASETS)
+def test_kmeans_assignment_matches_sklearn_at_real_bin_centers(dataset: str):
+    pytest.importorskip("sklearn")
+    cluster_path = _cluster_path(dataset)
+    with cluster_path.open("rb") as handle:
+        models = pickle.load(handle)
+
+    centers: dict[str, list[float]] = {}
+    for key in ("x", "y", "w", "h"):
+        model = models[f"{key}-32"]
+        model.cluster_centers_ = np.sort(
+            np.asarray(model.cluster_centers_, dtype=np.float32), axis=0
+        )
+        centers[key] = model.cluster_centers_.reshape(-1).tolist()
+
+    tokenizer = LayoutDMTokenizer(
+        LayoutDMConfig(
+            dataset_name=dataset,
+            max_seq_length=1,
+            num_bin_bboxes=32,
+            bbox_quantization="kmeans",
+            cluster_centers=centers,
+        )
+    )
+    for index, key in enumerate(("x", "y", "w", "h")):
+        values = np.asarray(centers[key], dtype=np.float32).reshape(-1, 1)
+        bbox = np.zeros((len(values), 1, 4), dtype=np.float32)
+        bbox[:, 0, index] = values[:, 0]
+        package_ids = tokenizer._encode_bbox(torch.from_numpy(bbox)).cpu().numpy()
+        expected = models[f"{key}-32"].predict(values).reshape(-1) + index * 32
+        assert np.array_equal(package_ids[:, 0, index], expected)
+
+
+@pytest.mark.vendor_parity
+@pytest.mark.parametrize("dataset", DATASETS)
 def test_denoiser_logits_parity(dataset: str):
     fixture_dir, converted_dir = _paths(dataset)
     fixture = fixture_dir / "denoiser_forward.pt"

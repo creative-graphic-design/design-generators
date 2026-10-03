@@ -968,7 +968,7 @@ def test_s0_training_static_state_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert path.exists()
@@ -998,7 +998,7 @@ def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert path.exists()
@@ -1053,7 +1053,7 @@ def test_s2_one_optimizer_step_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert path.exists()
@@ -1352,7 +1352,7 @@ def test_s3_natural_lockstep_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert path.exists()
@@ -1540,7 +1540,7 @@ def test_s3_synchronized_diagnostic_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert path.exists()
@@ -1682,7 +1682,7 @@ def test_s4_loader_stream_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
             "runtime": _runtime_record(),
         },
     )
@@ -1996,7 +1996,7 @@ def test_s4_test_evaluation_path_matches_vendor(
                 ROOT / "vendor" / "layout-corrector"
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "package_source_commit": _source_commit(ROOT),
+            "source_commit": _source_commit(ROOT),
         },
     )
     assert evaluation.exists()
