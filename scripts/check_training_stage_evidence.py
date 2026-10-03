@@ -62,6 +62,7 @@ ARTIFACT_PREFIXES = (
     "vendor/",
 )
 GITHUB_ARTIFACT_PREFIX = "https://github.com/creative-graphic-design/design-generators/"
+EVALUATION_PATH_PARITY_MARKER = "evaluation-path-parity"
 REPRODUCTION_RESULTS_HEADING = "Reproduction Results"
 CLAUSE_BOUNDARY_RE = re.compile(r"[.;]")
 NEGATED_CLAIM_RE = re.compile(
@@ -101,9 +102,15 @@ class StageEvidence:
     @property
     def is_complete(self) -> bool:
         """Return whether the row carries non-placeholder evidence."""
+        artifact_is_complete = is_artifact_path(self.artifact)
+        if self.stage == "S5":
+            artifact_is_complete = s5_artifact_paths_are_valid(
+                *parse_s5_artifact_paths(self.artifact)
+            )
+
         return (
             is_rerunnable_command(self.command)
-            and is_artifact_path(self.artifact)
+            and artifact_is_complete
             and normalize_value(self.result) not in PENDING_VALUES
         )
 
@@ -158,13 +165,33 @@ def is_artifact_path(value: str) -> bool:
     )
 
 
-def is_s5_artifact_path(value: str) -> bool:
-    """Return whether an S5 artifact is a relative launch manifest path."""
-    artifact = unquote_cell(value)
+def parse_s5_artifact_paths(value: str) -> tuple[str | None, str | None]:
+    """Return the manifest path and evaluation-path parity path from an S5 cell."""
+    manifest: str | None = None
+    parity_path: str | None = None
+    for part in value.strip().split(";"):
+        cleaned = part.strip().strip("`").strip()
+        marker, _separator, path = cleaned.partition(":")
+        if marker.strip().lower() == EVALUATION_PATH_PARITY_MARKER:
+            parity_path = path.strip().strip("`").strip() or None
+            continue
+
+        if cleaned:
+            manifest = cleaned
+
+    return manifest, parity_path
+
+
+def s5_artifact_paths_are_valid(manifest: str | None, parity_path: str | None) -> bool:
+    """Return whether parsed S5 artifact paths satisfy the artifact contract."""
     return (
-        is_artifact_path(value)
-        and artifact.startswith(ARTIFACT_PREFIXES)
-        and Path(artifact).name == "manifest.json"
+        manifest is not None
+        and parity_path is not None
+        and is_artifact_path(manifest)
+        and manifest.startswith(ARTIFACT_PREFIXES)
+        and Path(manifest).name == "manifest.json"
+        and is_artifact_path(parity_path)
+        and parity_path != manifest
     )
 
 
@@ -271,8 +298,8 @@ def training_docs(root: Path) -> list[Path]:
 def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceViolation]:
     """Return evidence violations for one TRAINING.md.
 
-    The launch-manifest diagnostic takes precedence and can hide other defects
-    in the same S5 row.
+    S5 artifact diagnostics run before row-completeness diagnostics without
+    suppressing a completeness diagnostic for an otherwise valid S5 artifact.
     """
     text = path.read_text(encoding="utf-8")
     if not has_s5_claim(text):
@@ -315,18 +342,32 @@ def violations_for_training_doc(path: Path, root: Path) -> list[StageEvidenceVio
                     "S5 result claim requires a complete evidence row for this stage",
                 )
             )
-        elif (
-            stage == "S5"
-            and normalize_value(row.artifact) not in PENDING_VALUES
-            and not is_s5_artifact_path(row.artifact)
-        ):
-            violations.append(
-                StageEvidenceViolation(
-                    relative_path,
-                    stage,
-                    "S5 artifact must be a repository- or cache-relative path to a file named manifest.json",
+        elif stage == "S5" and normalize_value(row.artifact) not in PENDING_VALUES:
+            manifest, parity_path = parse_s5_artifact_paths(row.artifact)
+            if parity_path is None:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 artifact must include an evaluation-path parity artifact reference",
+                    )
                 )
-            )
+            elif not s5_artifact_paths_are_valid(manifest, parity_path):
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "S5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact",
+                    )
+                )
+            elif not row.is_complete:
+                violations.append(
+                    StageEvidenceViolation(
+                        relative_path,
+                        stage,
+                        "stage evidence row has a placeholder command, artifact, or result",
+                    )
+                )
         elif not row.is_complete:
             violations.append(
                 StageEvidenceViolation(
