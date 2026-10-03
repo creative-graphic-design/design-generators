@@ -1,4 +1,4 @@
-"""S0 topology guards for the RADM package model."""
+"""Topology guards for the RADM package model."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def build_reviewed_state_key_map(
 def build_state_key_map(model: RADMDenoiser) -> dict[str, str]:
     """Compatibility wrapper kept for static map inspection.
 
-    The real S0 guard calls :func:`build_reviewed_state_key_map` with both
+    The real static guard calls :func:`build_reviewed_state_key_map` with both
     instantiated models and then validates every reference key.
     """
     return {key: _package_key_to_reference_key(key) for key in model.state_dict()}

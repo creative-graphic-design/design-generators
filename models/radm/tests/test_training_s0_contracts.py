@@ -225,7 +225,7 @@ def test_s0_forward_parity_checks_derived_diffusion_outputs() -> None:
 
 
 def test_s0_training_doc_records_accepted_topology_evidence() -> None:
-    """Keep the durable S0 record aligned with the recorded evidence."""
+    """Keep the durable static record aligned with the recorded evidence."""
     repository_root = Path(__file__).parents[3]
     training_doc = (repository_root / "models/radm/TRAINING.md").read_text(
         encoding="utf-8"

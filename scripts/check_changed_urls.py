@@ -67,6 +67,7 @@ def normalize_url(raw_url: str) -> str:
     url = raw_url.rstrip(TRAILING_PUNCTUATION)
     while url.endswith((")", "]", "}")) and url.count("(") < url.count(")"):
         url = url[:-1]
+
     return url
 
 

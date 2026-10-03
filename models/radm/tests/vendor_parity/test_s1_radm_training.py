@@ -1,4 +1,4 @@
-"""S1 fixed-batch training parity against the pinned RADM source."""
+"""Fixed-batch training parity against the pinned RADM source."""
 
 from __future__ import annotations
 
@@ -41,14 +41,15 @@ from reference_adapter import (
     _legacy_pillow_compat,
     _vendor_import_root,
 )
-from traingen_parity import (
+from traingen_parity.compare import TensorTolerance, compare_step_trace
+from traingen_parity.determinism import (
     DeterminismConfig,
-    TensorTolerance,
     apply_determinism,
-    build_step_trace,
     capture_rng_state,
-    compare_step_trace,
     restore_rng_state,
+)
+from traingen_parity.trace import (
+    build_step_trace,
     tensor_sha256,
 )
 
@@ -646,7 +647,7 @@ def test_s1_radm_real_batch16_backbone_bitwise_parity() -> None:
 def _build_s3_followup_fixtures(
     state: ReferenceTrainingState, root: Path
 ) -> list[tuple[dict[str, Any], dict[str, torch.Tensor], dict[str, torch.Tensor]]]:
-    """Generate two additional source-mapped batches for the S3 stream."""
+    """Generate two additional source-mapped batches for the multi-batch stream."""
     return [
         _build_source_fixture(
             state,
@@ -1189,7 +1190,7 @@ def _digest_optimizer_snapshot(
 def _digest_scheduler_state(
     scheduler: torch.optim.lr_scheduler.LRScheduler,
 ) -> str:
-    """Hash scheduler state values for the S3 trajectory record."""
+    """Hash scheduler state values for the trajectory record."""
     return hashlib.sha256(
         json.dumps(scheduler.state_dict(), sort_keys=True, default=str).encode()
     ).hexdigest()
@@ -1249,7 +1250,7 @@ def _s3_state_hashes(case: _ParityCase) -> dict[str, dict[str, str]]:
 
 
 def _synchronize_s3_state(case: _ParityCase) -> dict[str, Any]:
-    """Synchronize package state from source before the next S3 batch."""
+    """Synchronize package state from source before the next multi-batch run."""
     before = _s3_state_hashes(case)
     copy_reviewed_state_dict(
         case.state.model,
@@ -1562,7 +1563,7 @@ def _compare_paired_optimizer_step(
 ) -> tuple[
     dict[str, dict[str, dict[str, float]]], list[str], torch.Tensor, torch.Tensor
 ]:
-    """Compare the common S2/S3 backward, update, and scheduler surfaces."""
+    """Compare backward, update, and scheduler surfaces."""
     paired = step.paired
     source_losses = {**paired.source["losses"], "train_loss": paired.source["total"]}
     package_losses = {
@@ -2204,7 +2205,7 @@ def test_s3_optimizer_state_sync_deepcopies_tensor_storage() -> None:
 
 
 def _run_s3_radm_mode(mode: str, run_root: Path) -> dict[str, Any]:
-    """Record one natural or synchronized source-shaped S3 trajectory."""
+    """Record one natural or synchronized source-shaped trajectory."""
     if mode not in {"natural", "synchronized"}:
         raise ValueError(f"unsupported S3 evidence mode: {mode}")
     enforce = mode == "synchronized"
@@ -2430,7 +2431,7 @@ def _run_s3_radm_mode(mode: str, run_root: Path) -> dict[str, Any]:
 
 
 def _fresh_s3_run_root(base_root: Path) -> Path:
-    """Allocate a non-overwriting numbered root for one S3 evidence run."""
+    """Allocate a non-overwriting numbered root for one multi-batch evidence run."""
     runs_root = base_root / "runs"
     runs_root.mkdir(parents=True, exist_ok=True)
     for index in range(1, 10000):

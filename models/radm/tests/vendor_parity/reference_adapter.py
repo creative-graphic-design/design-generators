@@ -59,7 +59,7 @@ class RuntimeTextEncoding:
 
 @dataclass
 class ReferenceTrainingState:
-    """Real initialized graph and static runtime state exposed to S0."""
+    """Real initialized graph and static runtime state exposed to topology checks."""
 
     config: Any
     model: torch.nn.Module

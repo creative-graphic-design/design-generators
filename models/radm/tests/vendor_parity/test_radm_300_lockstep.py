@@ -43,11 +43,13 @@ from test_s1_radm_training import (
     _snapshot_optimizer_state,
     _snapshot_parameters,
 )
-from traingen_parity import (
+from traingen_parity.determinism import (
     DeterminismConfig,
     apply_determinism,
     capture_rng_state,
     restore_rng_state,
+)
+from traingen_parity.trace import (
     tensor_sha256,
 )
 
@@ -856,7 +858,7 @@ def _install_roi_plumbing_hooks(*, package: bool) -> tuple[dict[str, Any], list[
         original_assign_levels = pooler_module.RADMProposalHead._assign_pooler_levels
 
         def trace_assign_levels(boxes: torch.Tensor) -> torch.Tensor:
-            levels = cast(Any, original_assign_levels)(boxes)
+            levels = original_assign_levels(boxes)
             captured["scatter"].append(
                 {
                     "levels": levels.detach().cpu().clone(),

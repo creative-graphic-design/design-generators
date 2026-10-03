@@ -50,3 +50,18 @@ markers = [
     "training: tests that exercise RADM Lightning training surfaces",
     "vendor_parity: requires original RADM weights, generated references, and vendor dependencies",
 ]
+
+[tool.coverage.run]
+omit = [
+    "models/radm/src/radm/training/*",
+    "src/radm/training/*",
+    "*/src/radm/training/*",
+    "models/radm/src/radm/evaluation.py",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true

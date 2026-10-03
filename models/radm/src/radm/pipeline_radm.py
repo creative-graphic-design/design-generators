@@ -14,6 +14,7 @@ from transformers.image_utils import ImageInput
 
 from laygen.common.bbox import BoxFormat
 from laygen.common.conditions import ConditionType
+from laygen.common.randomness import resolve_torch_generator
 from laygen.pipelines.pipeline_output import LayoutGenerationOutput
 
 from .configuration_radm import RADMConfig
@@ -179,8 +180,7 @@ class RADMPipeline(DiffusionPipeline):
         """
         del labels, bbox, mask, num_elements, box_format, normalized, canvas_size
         self.processor.validate_condition(condition_type)
-        if generator is None and seed is not None:
-            generator = torch.Generator(device=self.device).manual_seed(seed)
+        generator = resolve_torch_generator(generator=generator, seed=seed)
         encoded = self.processor(
             images,
             content=content,

@@ -18,6 +18,8 @@ from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torchvision.ops.misc import FrozenBatchNorm2d
 from torchvision.ops import roi_align
 
+from laygen.common.randomness import randint, randn
+
 from .configuration_radm import RADMConfig
 from .scheduling_radm import cosine_beta_schedule
 
@@ -953,22 +955,30 @@ class RADMDenoiser(ModelMixin, ConfigMixin):
     ]:
         """Prepare one image's padded proposals using the configured sampler."""
         device = boxes_cxcywh.device
-        timestep = torch.randint(
+        timestep = randint(
             0,
             self.radm_config.num_train_timesteps,
             (1,),
-            device=device,
             generator=generator,
+            device=device,
         ).long()
-        noise = torch.randn(self.num_proposals, 4, device=device, generator=generator)
+        noise = randn(
+            self.num_proposals,
+            4,
+            generator=generator,
+            device=device,
+        )
         count = boxes_cxcywh.shape[0]
         if count == 0:
             boxes_cxcywh = boxes_cxcywh.new_tensor([[0.5, 0.5, 1.0, 1.0]])
             count = 1
         if count < self.num_proposals:
             placeholders = (
-                torch.randn(
-                    self.num_proposals - count, 4, device=device, generator=generator
+                randn(
+                    self.num_proposals - count,
+                    4,
+                    generator=generator,
+                    device=device,
                 )
                 / 6.0
                 + 0.5
