@@ -82,6 +82,30 @@ Package training reproduction is achieved with training-seed n=3.
     assert check_training_stage_evidence.current_entries(tmp_path) == set()
 
 
+def test_s5_valid_artifact_still_checks_placeholder_cells(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "`uv run train full`", "`<command>`"
+    )
+    table = table.replace("training-seed n=3 accepted.", "<result>")
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tstage evidence row has a placeholder command, artifact, or result"
+    }
+
+
 def test_s5_claim_without_evaluation_path_parity_artifact_fails(
     tmp_path: Path,
 ) -> None:
@@ -96,6 +120,65 @@ def test_s5_claim_without_evaluation_path_parity_artifact_fails(
 Package training reproduction is achieved with training-seed n=3.
 
 {complete_stage_evidence_table().replace("; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json", "")}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must include an evaluation-path parity artifact reference"
+    }
+
+
+def test_s5_marker_without_path_fails_as_missing_reference(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table().replace(
+        "evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        "evaluation-path-parity:",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
+""",
+    )
+
+    assert check_training_stage_evidence.current_entries(tmp_path) == {
+        "models/layout-dm/TRAINING.md\tS5\tS5 artifact must include an evaluation-path parity artifact reference"
+    }
+
+
+def test_s5_reversed_artifact_order_and_part_quotes_pass() -> None:
+    assert check_training_stage_evidence.parse_s5_artifact_paths(
+        "`evaluation-path-parity: x.json`; `manifest.json`"
+    ) == ("manifest.json", "x.json")
+
+
+def test_s5_parity_reference_in_s4_does_not_satisfy_s5(tmp_path: Path) -> None:
+    table = complete_stage_evidence_table()
+    table = table.replace(
+        "Loader stream parity passed.",
+        "Loader stream parity passed; evaluation-path-parity: .cache/pkg/s4/parity.json",
+    )
+    table = table.replace(
+        "; evaluation-path-parity: .cache/pkg/full-run/evaluation-path-parity.json",
+        "",
+    )
+    write_training_md(
+        tmp_path,
+        "layout-dm",
+        f"""
+# Training
+
+## Reproduction Results
+
+Package training reproduction is achieved with training-seed n=3.
+
+{table}
 """,
     )
 
@@ -136,6 +219,17 @@ Package training reproduction is achieved with training-seed n=3.
     assert check_training_stage_evidence.current_entries(tmp_path) == {
         "models/layout-dm/TRAINING.md\tS5\tS5 artifact must cite a repository- or cache-relative manifest.json and evaluation-path parity artifact"
     }
+
+
+def test_s5_artifact_rejects_same_manifest_and_parity_path() -> None:
+    artifact = (
+        ".cache/pkg/full-run/manifest.json; "
+        "evaluation-path-parity: .cache/pkg/full-run/manifest.json"
+    )
+
+    assert not check_training_stage_evidence.s5_artifact_paths_are_valid(
+        *check_training_stage_evidence.parse_s5_artifact_paths(artifact)
+    )
 
 
 @pytest.mark.parametrize(
