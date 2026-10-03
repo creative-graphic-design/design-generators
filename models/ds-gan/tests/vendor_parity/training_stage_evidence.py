@@ -757,6 +757,11 @@ def _vendor_criterion(device: torch.device) -> nn.Module:
     ).to(device)
 
 
+class _DeferredScheduler:
+    def step(self) -> None:
+        return None
+
+
 def _vendor_step(
     generator: nn.Module,
     discriminator: nn.Module,
@@ -768,39 +773,89 @@ def _vendor_step(
     initial_layout: torch.Tensor | None = None,
 ) -> dict[str, torch.Tensor]:
     vendor_main = _vendor_main()
-    batch_size = batch["pixel_values"].shape[0]
-    if initial_layout is None:
-        initial_layout = vendor_main.random_init(batch_size, MAX_ELEM).to(
-            batch["pixel_values"].device
+    vendor_main.device = batch["pixel_values"].device
+    raw_batch = (batch["pixel_values"].detach().cpu(), batch["layout"].detach().cpu())
+    captured_layout: list[torch.Tensor] = []
+    captured_generator: list[tuple[torch.Tensor, torch.Tensor]] = []
+    captured_scores: list[torch.Tensor] = []
+    original_random_init = vendor_main.random_init
+    original_generator_forward = generator.forward
+    original_discriminator_forward = discriminator.forward
+
+    def capture_random_init(batch_size: int, max_elem: int) -> torch.Tensor:
+        if initial_layout is not None:
+            layout = initial_layout.detach().cpu()
+            captured_layout.append(layout)
+            return layout
+
+        layout = original_random_init(batch_size, max_elem)
+        captured_layout.append(layout.detach())
+        return layout
+
+    def capture_generator(
+        *args: Any, **kwargs: Any
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        result = original_generator_forward(*args, **kwargs)
+        captured_generator.append((result[0].detach(), result[1].detach()))
+        return result
+
+    def capture_discriminator(*args: Any, **kwargs: Any) -> torch.Tensor:
+        result = original_discriminator_forward(*args, **kwargs)
+        captured_scores.append(result.detach())
+        return result
+
+    setattr(vendor_main, "random_init", capture_random_init)
+    setattr(generator, "forward", capture_generator)
+    setattr(discriminator, "forward", capture_discriminator)
+    try:
+        with redirect_stdout(io.StringIO()):
+            vendor_main.train(
+                generator,
+                discriminator,
+                [raw_batch],
+                criterion,
+                nn.HingeEmbeddingLoss(),
+                min(1.0, max(0, epoch - 1) / 100),
+                optimizer_g,
+                optimizer_d,
+                _DeferredScheduler(),
+                _DeferredScheduler(),
+                epoch,
+                MAX_ELEM,
+            )
+    finally:
+        setattr(vendor_main, "random_init", original_random_init)
+        setattr(generator, "forward", original_generator_forward)
+        setattr(discriminator, "forward", original_discriminator_forward)
+
+    if len(captured_layout) != 1 or len(captured_generator) != 1:
+        raise RuntimeError("vendor train entry point did not produce one captured step")
+    if len(captured_scores) != 3:
+        raise RuntimeError(
+            "vendor train entry point did not produce three discriminator calls"
         )
+    initial_layout = captured_layout[0].to(batch["pixel_values"].device)
+    classes, boxes = captured_generator[0]
+    classes = classes.to(batch["pixel_values"].device)
+    boxes = boxes.to(batch["pixel_values"].device)
+    generated_score, discriminator_fake, discriminator_real = captured_scores
+    generated_score = generated_score.to(batch["pixel_values"].device)
+    discriminator_fake = discriminator_fake.to(batch["pixel_values"].device)
+    discriminator_real = discriminator_real.to(batch["pixel_values"].device)
+    batch_size = batch["pixel_values"].shape[0]
     real = torch.ones(batch_size, device=batch["pixel_values"].device)
     fake = torch.full((batch_size,), -1.0, device=batch["pixel_values"].device)
-    targets = _targets(batch)
-    weight = min(1.0, max(0, epoch - 1) / 100)
-    generator.train()
-    discriminator.train()
-    optimizer_g.zero_grad(set_to_none=True)
-    classes, boxes = generator(batch["pixel_values"], initial_layout)
-    generated_layout = torch.stack((classes, boxes), dim=2)
-    generated_score = discriminator(batch["pixel_values"], generated_layout)
-    loss_g_adv = nn.functional.hinge_embedding_loss(generated_score.reshape(-1), real)
-    losses = criterion({"pred_logits": classes, "pred_boxes": boxes}, targets)
+    losses = criterion({"pred_logits": classes, "pred_boxes": boxes}, _targets(batch))
     loss_reconstruction = sum(losses.values())
-    loss_g = weight * loss_g_adv + loss_reconstruction
-    loss_g.backward()
-    optimizer_g.step()
-    optimizer_d.zero_grad(set_to_none=True)
-    discriminator_fake = discriminator(batch["pixel_values"], generated_layout.detach())
-    discriminator_real = discriminator(batch["pixel_values"], batch["layout"].clone())
+    loss_g_adv = nn.functional.hinge_embedding_loss(generated_score.reshape(-1), real)
+    loss_g = min(1.0, max(0, epoch - 1) / 100) * loss_g_adv + loss_reconstruction
     loss_d_fake = nn.functional.hinge_embedding_loss(
         discriminator_fake.reshape(-1), fake
     )
     loss_d_real = nn.functional.hinge_embedding_loss(
         discriminator_real.reshape(-1), real
     )
-    loss_d = weight * (loss_d_real + loss_d_fake)
-    loss_d.backward()
-    optimizer_d.step()
+    loss_d = min(1.0, max(0, epoch - 1) / 100) * (loss_d_real + loss_d_fake)
     return {
         "initial_layout": initial_layout.detach(),
         "class_probs": classes.detach(),
@@ -1446,6 +1501,10 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         "max_abs_difference": max_abs,
         "trace": str(trace_path.relative_to(ROOT)),
         "seed": SEED,
+        "vendor_training_entry_point": (
+            f"{Path(_vendor_main().__file__).resolve().relative_to(ROOT)}:"
+            f"{_vendor_main().train.__qualname__}"
+        ),
         "package_training_entry_point": (
             f"{type(package_module).__module__}.{type(package_module).__qualname__}.training_step"
         ),
