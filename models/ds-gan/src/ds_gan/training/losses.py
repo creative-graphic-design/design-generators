@@ -125,7 +125,15 @@ class DSGANSetCriterion(nn.Module):
         """Return the three weighted reconstruction components."""
         outputs = {"pred_logits": pred_logits, "pred_boxes": pred_boxes}
         indices = self.matcher(outputs, targets)
-        target_count = max(sum(len(target["labels"]) for target in targets), 1)
+        target_count = (
+            torch.as_tensor(
+                [sum(len(target["labels"]) for target in targets)],
+                dtype=torch.float,
+                device=pred_logits.device,
+            )
+            .clamp_min(1)
+            .item()
+        )
         batch_indices = torch.cat(
             [
                 torch.full_like(source, index)

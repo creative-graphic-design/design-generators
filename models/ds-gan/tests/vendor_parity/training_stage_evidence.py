@@ -779,9 +779,11 @@ def _vendor_step(
     captured_layout: list[torch.Tensor] = []
     captured_generator: list[tuple[torch.Tensor, torch.Tensor]] = []
     captured_scores: list[torch.Tensor] = []
+    captured_reconstruction: list[torch.Tensor] = []
     original_random_init = vendor_main.random_init
     original_generator_forward = generator.forward
     original_discriminator_forward = discriminator.forward
+    original_criterion_forward = criterion.forward
 
     def capture_random_init(batch_size: int, max_elem: int) -> torch.Tensor:
         if initial_layout is not None:
@@ -805,9 +807,16 @@ def _vendor_step(
         captured_scores.append(result.detach())
         return result
 
+    def capture_criterion(*args: Any, **kwargs: Any) -> dict[str, torch.Tensor]:
+        losses = original_criterion_forward(*args, **kwargs)
+        if not captured_reconstruction:
+            captured_reconstruction.append(sum(losses.values()).detach())
+        return losses
+
     setattr(vendor_main, "random_init", capture_random_init)
     setattr(generator, "forward", capture_generator)
     setattr(discriminator, "forward", capture_discriminator)
+    setattr(criterion, "forward", capture_criterion)
     try:
         with redirect_stdout(io.StringIO()):
             vendor_main.train(
@@ -828,8 +837,13 @@ def _vendor_step(
         setattr(vendor_main, "random_init", original_random_init)
         setattr(generator, "forward", original_generator_forward)
         setattr(discriminator, "forward", original_discriminator_forward)
+        setattr(criterion, "forward", original_criterion_forward)
 
-    if len(captured_layout) != 1 or len(captured_generator) != 1:
+    if (
+        len(captured_layout) != 1
+        or len(captured_generator) != 1
+        or len(captured_reconstruction) != 1
+    ):
         raise RuntimeError("vendor train entry point did not produce one captured step")
     if len(captured_scores) != 3:
         raise RuntimeError(
@@ -846,8 +860,7 @@ def _vendor_step(
     batch_size = batch["pixel_values"].shape[0]
     real = torch.ones(batch_size, device=batch["pixel_values"].device)
     fake = torch.full((batch_size,), -1.0, device=batch["pixel_values"].device)
-    losses = criterion({"pred_logits": classes, "pred_boxes": boxes}, _targets(batch))
-    loss_reconstruction = sum(losses.values())
+    loss_reconstruction = captured_reconstruction[0].to(batch["pixel_values"].device)
     loss_g_adv = nn.functional.hinge_embedding_loss(generated_score.reshape(-1), real)
     loss_g = min(1.0, max(0, epoch - 1) / 100) * loss_g_adv + loss_reconstruction
     loss_d_fake = nn.functional.hinge_embedding_loss(
@@ -1439,7 +1452,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         enable_checkpointing=False,
         enable_progress_bar=False,
         logger=False,
-        deterministic=True,
+        deterministic="warn",
         gradient_clip_val=None,
         gradient_clip_algorithm="norm",
         callbacks=[callback],
