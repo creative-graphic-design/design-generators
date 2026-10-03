@@ -18,7 +18,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import TextIO, TypeAlias, cast
 from types import ModuleType, SimpleNamespace
 
 import numpy as np
@@ -27,7 +27,7 @@ from jaxtyping import Float, Int, Shaped
 from lightning.pytorch import Callback, LightningModule, Trainer
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch_geometric.data import Data
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, IterableDataset
 
 from laygen.common.randomness import randn, resolve_torch_generator
 from traingen_parity.compare import (
@@ -379,6 +379,131 @@ def _float_field(record: Mapping[str, JsonValue], key: str) -> float:
     if not isinstance(value, (int, float)):
         raise TypeError(f"{key} is not numeric")
     return float(value)
+
+
+def _rss_bytes() -> int:
+    page_size = os.sysconf("SC_PAGE_SIZE")
+    with Path("/proc/self/statm").open() as handle:
+        resident_pages = int(handle.read().split()[1])
+    return resident_pages * page_size
+
+
+def _jsonl_record(
+    handle: TextIO,
+    *,
+    system: str,
+    repeat: int,
+    record: Mapping[str, JsonValue],
+) -> None:
+    handle.write(
+        json.dumps(
+            {"system": system, "repeat": repeat, "record": dict(record)},
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    handle.flush()
+
+
+def _trajectory_records(
+    path: Path, system: str, repeat: int
+) -> Iterator[dict[str, JsonValue]]:
+    with path.open() as handle:
+        for line in handle:
+            item = cast(dict[str, JsonValue], json.loads(line))
+            if item.get("system") != system or item.get("repeat") != repeat:
+                continue
+            record = item.get("record")
+            if not isinstance(record, dict):
+                raise TypeError("JSONL trajectory record must contain an object")
+            yield record
+
+
+def _trajectory_repeat_ids(path: Path, system: str) -> list[int]:
+    repeats: set[int] = set()
+    with path.open() as handle:
+        for line in handle:
+            item = cast(dict[str, JsonValue], json.loads(line))
+            if item.get("system") != system:
+                continue
+            repeat = item.get("repeat")
+            if not isinstance(repeat, int):
+                raise TypeError("JSONL trajectory repeat must be an integer")
+            repeats.add(repeat)
+    return sorted(repeats)
+
+
+def _compare_trajectory_records(
+    path: Path,
+    left_system: str,
+    left_repeat: int,
+    right_system: str,
+    right_repeat: int,
+    steps: int,
+) -> dict[str, JsonValue] | None:
+    left = _trajectory_records(path, left_system, left_repeat)
+    right = _trajectory_records(path, right_system, right_repeat)
+    for step in range(steps):
+        try:
+            left_record = next(left)
+            right_record = next(right)
+        except StopIteration as error:
+            raise RuntimeError(
+                "JSONL trajectory ended before the requested steps"
+            ) from error
+        if left_record == right_record:
+            continue
+        fields = sorted(set(left_record) | set(right_record))
+        for field in fields:
+            if left_record.get(field) != right_record.get(field):
+                return {
+                    "step": step,
+                    "field": field,
+                    left_system: left_record.get(field),
+                    right_system: right_record.get(field),
+                }
+    return None
+
+
+def _repeat_loss_envelope(path: Path, system: str, steps: int) -> dict[str, JsonValue]:
+    repeat_ids = _trajectory_repeat_ids(path, system)
+    if not repeat_ids:
+        raise RuntimeError(f"JSONL trajectory has no records for {system}")
+
+    baseline_id = repeat_ids[0]
+    maximum_generator = 0.0
+    maximum_discriminator = 0.0
+    for repeat_id in repeat_ids[1:]:
+        baseline = _trajectory_records(path, system, baseline_id)
+        repeat = _trajectory_records(path, system, repeat_id)
+        for _ in range(steps):
+            try:
+                baseline_record = next(baseline)
+                repeat_record = next(repeat)
+            except StopIteration as error:
+                raise RuntimeError(
+                    "JSONL repeat trajectory ended before the requested steps"
+                ) from error
+            maximum_generator = max(
+                maximum_generator,
+                abs(
+                    _float_field(baseline_record, "generator_loss")
+                    - _float_field(repeat_record, "generator_loss")
+                ),
+            )
+            maximum_discriminator = max(
+                maximum_discriminator,
+                abs(
+                    _float_field(baseline_record, "discriminator_loss")
+                    - _float_field(repeat_record, "discriminator_loss")
+                ),
+            )
+    return {
+        "repeat_count": len(repeat_ids),
+        "repeat_ids": repeat_ids,
+        "max_abs_generator_loss": maximum_generator,
+        "max_abs_discriminator_loss": maximum_discriminator,
+    }
 
 
 def _vendor_classes() -> tuple[type[torch.nn.Module], type[torch.nn.Module]]:
@@ -900,28 +1025,16 @@ def _all_loader_streams(device: torch.device, seed: int) -> dict[str, JsonValue]
     }
 
 
-class _BatchDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | list[str]]]):
-    def __init__(
-        self,
-        batches: list[dict[str, Shaped[torch.Tensor, "..."] | list[str]]],
-    ) -> None:
-        self.batches = batches
+class _BatchStreamDataset(
+    IterableDataset[dict[str, Shaped[torch.Tensor, "..."] | list[str]]]
+):
+    def __init__(self, steps: int) -> None:
+        self.steps = steps
 
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    def __getitem__(
-        self, index: int
-    ) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
-        return self.batches[index]
-
-
-def _identity_batch(
-    batch: list[dict[str, Shaped[torch.Tensor, "..."] | list[str]]],
-) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
-    if len(batch) != 1:
-        raise ValueError("the production Trainer must receive one pre-collated batch")
-    return batch[0]
+    def __iter__(self) -> Iterator[dict[str, Shaped[torch.Tensor, "..."] | list[str]]]:
+        stream = _loader_stream(_package_loader("train", S3_BATCH_SEED))
+        for _ in range(self.steps):
+            yield next(stream)
 
 
 def _script_entry_point(path: Path) -> str:
@@ -980,11 +1093,10 @@ def _package_training_trajectory(
     seed: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
-) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
-    batches = []
-    loader = _loader_stream(_package_loader("train", S3_BATCH_SEED))
-    for _ in range(steps):
-        batches.append(next(loader))
+    record_sink: Callable[[dict[str, JsonValue]], None],
+    rss_samples: dict[str, int],
+    sample_prefix: str,
+) -> tuple[int, dict[str, JsonValue]]:
     _, _, package = _build_models(device, copy_vendor_weights=False)
     package.generator.load_state_dict(initial_generator, strict=True)
     package.discriminator.load_state_dict(initial_discriminator, strict=True)
@@ -992,7 +1104,7 @@ def _package_training_trajectory(
     class Capture(Callback):
         def __init__(self) -> None:
             super().__init__()
-            self.records: list[dict[str, JsonValue]] = []
+            self.record_count = 0
             self.previous_generator = _state_map(package.generator)
             self.previous_discriminator = _state_map(package.discriminator)
 
@@ -1024,17 +1136,18 @@ def _package_training_trajectory(
                 previous_generator=self.previous_generator,
                 previous_discriminator=self.previous_discriminator,
             )
-            self.records.append(record)
+            record_sink(record)
+            self.record_count += 1
+            if batch_idx + 1 in (5, steps):
+                rss_samples[f"{sample_prefix}:step{batch_idx + 1}"] = _rss_bytes()
             self.previous_generator = _state_map(package_module.generator)
             self.previous_discriminator = _state_map(package_module.discriminator)
 
     capture = Capture()
     data_loader = DataLoader(
-        _BatchDataset(batches),
-        batch_size=1,
-        shuffle=False,
+        _BatchStreamDataset(steps),
+        batch_size=None,
         num_workers=0,
-        collate_fn=_identity_batch,
     )
     torch.manual_seed(seed)
     trainer = Trainer(
@@ -1055,9 +1168,9 @@ def _package_training_trajectory(
         default_root_dir=str(OUTPUT_ROOT / "s3-lockstep" / "production"),
     )
     trainer.fit(package, train_dataloaders=data_loader)
-    if len(capture.records) != steps:
+    if capture.record_count != steps:
         raise RuntimeError(
-            f"package Trainer recorded {len(capture.records)} steps, expected {steps}"
+            f"package Trainer recorded {capture.record_count} steps, expected {steps}"
         )
     package_optimizers = trainer.optimizers
     metadata: dict[str, JsonValue] = {
@@ -1088,7 +1201,7 @@ def _package_training_trajectory(
         "fit_calls": 1,
         "latent_seed": seed,
     }
-    return capture.records, metadata
+    return capture.record_count, metadata
 
 
 def _vendor_training_trajectory(
@@ -1098,15 +1211,21 @@ def _vendor_training_trajectory(
     seed: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
-) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    record_sink: Callable[[dict[str, JsonValue]], None],
+    rss_samples: dict[str, int],
+    sample_prefix: str,
+) -> tuple[int, dict[str, JsonValue]]:
     if system != "vendor":
         raise ValueError("the vendor entry point helper only accepts the vendor system")
     generator_cls, discriminator_cls = _vendor_classes()
     captured_models: dict[str, torch.nn.Module] = {}
     constructed_states: dict[str, dict[str, Shaped[torch.Tensor, "..."]]] = {}
     captured_optimizers: list["CapturingAdam"] = []
-    captured_losses: list[float] = []
-    records: list[dict[str, JsonValue]] = []
+    captured_losses: dict[str, float | None] = {
+        "first": None,
+        "second": None,
+    }
+    capture_state = {"record_count": 0}
     previous_generator = dict(initial_generator)
     previous_discriminator = dict(initial_discriminator)
 
@@ -1141,30 +1260,38 @@ def _vendor_training_trajectory(
         ) -> int | float | None:
             result = self.raw.step(closure=closure)
             if len(captured_optimizers) == 2 and self is captured_optimizers[0]:
-                if len(captured_losses) < 2:
+                if (
+                    captured_losses["first"] is None
+                    or captured_losses["second"] is None
+                ):
                     raise RuntimeError("vendor training step did not record two losses")
                 generator = captured_models["generator"]
                 discriminator = captured_models["discriminator"]
                 generator_optimizer = captured_optimizers[1].raw
                 discriminator_optimizer = captured_optimizers[0].raw
-                records.append(
-                    _trajectory_record(
-                        step=len(records),
-                        generator=generator,
-                        discriminator=discriminator,
-                        optimizer_g=generator_optimizer,
-                        optimizer_d=discriminator_optimizer,
-                        generator_loss=captured_losses[-2],
-                        discriminator_loss=captured_losses[-1],
-                        previous_generator=previous_generator,
-                        previous_discriminator=previous_discriminator,
-                    )
+                record = _trajectory_record(
+                    step=capture_state["record_count"],
+                    generator=generator,
+                    discriminator=discriminator,
+                    optimizer_g=generator_optimizer,
+                    optimizer_d=discriminator_optimizer,
+                    generator_loss=captured_losses["first"],
+                    discriminator_loss=captured_losses["second"],
+                    previous_generator=previous_generator,
+                    previous_discriminator=previous_discriminator,
                 )
+                record_sink(record)
+                capture_state["record_count"] += 1
+                if capture_state["record_count"] in (5, steps):
+                    rss_samples[
+                        f"{sample_prefix}:step{capture_state['record_count']}"
+                    ] = _rss_bytes()
                 previous_generator.clear()
                 previous_generator.update(_state_map(generator))
                 previous_discriminator.clear()
                 previous_discriminator.update(_state_map(discriminator))
-                captured_losses.clear()
+                captured_losses["first"] = None
+                captured_losses["second"] = None
             return result
 
     class DatasetView(Dataset[Data]):
@@ -1181,24 +1308,29 @@ def _vendor_training_trajectory(
             return self.rows[index % len(self.rows)]
 
     class Sequence:
-        def __init__(self, batches: list[Data]) -> None:
-            self.batches = batches
+        def __init__(self, loader: Iterable[Data], length: int) -> None:
+            self.loader = loader
+            self.length = length
+            self.iterator = iter(loader)
 
         def __len__(self) -> int:
-            return len(self.batches)
+            return self.length
 
         def __iter__(self) -> Iterator[Data]:
-            return iter(self.batches)
+            for _ in range(self.length):
+                try:
+                    yield next(self.iterator)
+                except StopIteration:
+                    self.iterator = iter(self.loader)
+                    yield next(self.iterator)
 
     train_rows = _vendor_rows("train")
     val_rows = _vendor_rows("val")
     train_dataset = DatasetView(train_rows, steps * VENDOR_BATCH_SIZE)
     val_dataset = DatasetView(val_rows, len(val_rows))
-    train_batches = list(_vendor_loader("train", S3_BATCH_SEED))
-    train_batches = (
-        train_batches * ((steps + len(train_batches) - 1) // len(train_batches))
-    )[:steps]
-    val_batches = list(_vendor_loader("val", S3_BATCH_SEED))
+    train_loader = _vendor_loader("train", S3_BATCH_SEED)
+    val_loader = _vendor_loader("val", S3_BATCH_SEED)
+    val_batch_count = (len(val_rows) + VENDOR_BATCH_SIZE - 1) // VENDOR_BATCH_SIZE
     captured_module = importlib.util.spec_from_file_location(
         "layoutganpp_vendor_train", VENDOR_ROOT / "train.py"
     )
@@ -1214,8 +1346,9 @@ def _vendor_training_trajectory(
         train_dataset if split == "train" else val_dataset
     )
     vendor_module.__dict__["DataLoader"] = (
-        lambda dataset, batch_size, num_workers, pin_memory, shuffle: Sequence(
-            train_batches if shuffle else val_batches
+        lambda dataset, batch_size, num_workers, _pin_memory, shuffle: Sequence(
+            train_loader if shuffle else val_loader,
+            steps if shuffle else val_batch_count,
         )
     )
 
@@ -1268,7 +1401,13 @@ def _vendor_training_trajectory(
         *args: Shaped[torch.Tensor, "..."] | bool,
         **kwargs: Shaped[torch.Tensor, "..."] | bool,
     ) -> None:
-        captured_losses.append(float(self.detach().item()))
+        loss = float(self.detach().item())
+        if captured_losses["first"] is None:
+            captured_losses["first"] = loss
+        elif captured_losses["second"] is None:
+            captured_losses["second"] = loss
+        else:
+            raise RuntimeError("vendor training step recorded more than two losses")
         original_backward(self, *args, **kwargs)  # type: ignore[arg-type]
 
     try:
@@ -1280,9 +1419,10 @@ def _vendor_training_trajectory(
         torch.Tensor.backward = original_backward  # type: ignore[method-assign]
         sys.argv = original_argv
         os.chdir(original_cwd)
-    if len(records) != steps:
+    record_count = capture_state["record_count"]
+    if record_count != steps:
         raise RuntimeError(
-            f"vendor train.py recorded {len(records)} steps, expected {steps}"
+            f"vendor train.py recorded {record_count} steps, expected {steps}"
         )
     if not _state_values_equal(initial_generator, constructed_states["generator"]):
         raise RuntimeError("vendor entry point changed the initialized generator")
@@ -1295,7 +1435,7 @@ def _vendor_training_trajectory(
         "command": shlex.join(
             ["python", str((VENDOR_ROOT / "train.py").relative_to(ROOT)), *args]
         ),
-        "training_module_calls": len(records),
+        "training_module_calls": record_count,
         "optimizer_creation_order": [
             _optimizer_parameter_names(
                 optimizer.raw,
@@ -1312,7 +1452,7 @@ def _vendor_training_trajectory(
         "latent_seed": seed,
     }
     del device
-    return records, metadata
+    return record_count, metadata
 
 
 def _trajectory(
@@ -1322,7 +1462,10 @@ def _trajectory(
     seed: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
-) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    record_sink: Callable[[dict[str, JsonValue]], None],
+    rss_samples: dict[str, int],
+    sample_prefix: str,
+) -> tuple[int, dict[str, JsonValue]]:
     if system == "package":
         return _package_training_trajectory(
             device,
@@ -1330,6 +1473,9 @@ def _trajectory(
             seed,
             initial_generator,
             initial_discriminator,
+            record_sink,
+            rss_samples,
+            sample_prefix,
         )
     return _vendor_training_trajectory(
         device,
@@ -1338,13 +1484,41 @@ def _trajectory(
         seed,
         initial_generator,
         initial_discriminator,
+        record_sink,
+        rss_samples,
+        sample_prefix,
     )
 
 
-def _stage_s3(device: torch.device) -> Path:
+def _production_metadata_summary(
+    path: Path,
+) -> tuple[dict[int, dict[str, int]], dict[str, int]]:
+    seeds: dict[int, dict[str, int]] = {}
+    counts: dict[str, int] = {}
+    with path.open() as handle:
+        for line in handle:
+            item = cast(dict[str, JsonValue], json.loads(line))
+            system = item.get("system")
+            repeat = item.get("repeat")
+            metadata = item.get("metadata")
+            if (
+                not isinstance(system, str)
+                or not isinstance(repeat, int)
+                or not isinstance(metadata, dict)
+            ):
+                raise TypeError("production metadata JSONL record has invalid fields")
+            latent_seed = metadata.get("latent_seed")
+            if not isinstance(latent_seed, int):
+                raise TypeError("production metadata is missing its latent seed")
+            seeds.setdefault(repeat, {})[system] = latent_seed
+            counts[system] = counts.get(system, 0) + 1
+    return seeds, counts
+
+
+def _stage_s3(device: torch.device, steps: int, rss_report: Path | None) -> Path:
     started = time.time()
     _require_previous("s3-lockstep", "s2-one-step")
-    stream = _compare_loader_streams(device, S3_STEPS)
+    stream = _compare_loader_streams(device, steps)
     initial_generator, initial_discriminator, _ = _build_models(
         device, copy_vendor_weights=False
     )
@@ -1356,60 +1530,108 @@ def _stage_s3(device: torch.device) -> Path:
         name: value.detach().clone()
         for name, value in initial_discriminator.state_dict().items()
     }
-    natural: dict[str, list[list[dict[str, JsonValue]]]] = {"vendor": [], "package": []}
-    production_runs: list[dict[str, JsonValue]] = []
-    for system in natural:
-        for repeat in range(S3_REPEATS):
-            trajectory, metadata = _trajectory(
-                device,
-                system,
-                S3_STEPS,
-                S3_LATENT_SEED + repeat,
-                initial_g,
-                initial_d,
-            )
-            natural[system].append(trajectory)
-            if system == "package":
-                production_runs.append(metadata)
-    first: dict[str, JsonValue] | None = None
-    for step in range(S3_STEPS):
-        for name in natural["vendor"][0][step]:
-            left = natural["vendor"][0][step][name]
-            right = natural["package"][0][step][name]
-            if left != right:
-                first = {"step": step, "field": name, "vendor": left, "package": right}
-                break
-        if first is not None:
-            break
-    repeat_envelope = {
-        system: {
-            "repeat_count": S3_REPEATS,
-            "max_abs_generator_loss": max(
-                abs(
-                    _float_field(natural[system][0][step], "generator_loss")
-                    - _float_field(natural[system][repeat][step], "generator_loss")
-                )
-                for repeat in range(1, S3_REPEATS)
-                for step in range(S3_STEPS)
-            )
-            if S3_REPEATS > 1
-            else 0.0,
-            "max_abs_discriminator_loss": max(
-                abs(
-                    _float_field(natural[system][0][step], "discriminator_loss")
-                    - _float_field(natural[system][repeat][step], "discriminator_loss")
-                )
-                for repeat in range(1, S3_REPEATS)
-                for step in range(S3_STEPS)
-            )
-            if S3_REPEATS > 1
-            else 0.0,
-        }
-        for system in natural
-    }
-    natural_path = OUTPUT_ROOT / "s3-lockstep" / "natural.json"
+    natural_path = OUTPUT_ROOT / "s3-lockstep" / "natural.jsonl"
     natural_path.parent.mkdir(parents=True, exist_ok=True)
-    natural_path.write_text(json.dumps(natural, indent=2, sort_keys=True) + "\n")
+    metadata_path = OUTPUT_ROOT / "s3-lockstep" / "production-metadata.jsonl"
+    rss_samples: dict[str, int] = {}
+    trajectory_counts: dict[str, int] = {}
+    system_names = ("vendor", "package")
+    with (
+        natural_path.open("w") as natural_handle,
+        metadata_path.open("w") as metadata_handle,
+    ):
+        for system in system_names:
+            for repeat in range(S3_REPEATS):
+                run_key = f"{system}:{repeat}"
+
+                def write_record(record: dict[str, JsonValue]) -> None:
+                    _jsonl_record(
+                        natural_handle,
+                        system=system,
+                        repeat=repeat,
+                        record=record,
+                    )
+
+                record_count, metadata = _trajectory(
+                    device,
+                    system,
+                    steps,
+                    S3_LATENT_SEED + repeat,
+                    initial_g,
+                    initial_d,
+                    write_record,
+                    rss_samples,
+                    run_key,
+                )
+                trajectory_counts[run_key] = record_count
+                metadata_handle.write(
+                    json.dumps(
+                        {"system": system, "repeat": repeat, "metadata": metadata},
+                        sort_keys=True,
+                    )
+                    + "\n"
+                )
+    vendor_repeats = _trajectory_repeat_ids(natural_path, "vendor")
+    package_repeats = _trajectory_repeat_ids(natural_path, "package")
+    if not vendor_repeats or not package_repeats:
+        raise RuntimeError("natural trajectory is missing a system")
+    first = _compare_trajectory_records(
+        natural_path,
+        "vendor",
+        vendor_repeats[0],
+        "package",
+        package_repeats[0],
+        steps,
+    )
+    latent_seed_runs, metadata_counts = _production_metadata_summary(metadata_path)
+    latent_seed_policy: list[dict[str, JsonValue]] = []
+    for repeat, system_seeds in sorted(latent_seed_runs.items()):
+        seeds = set(system_seeds.values())
+        if len(seeds) != 1:
+            raise RuntimeError(
+                f"systems used different latent seeds for repeat {repeat}"
+            )
+        latent_seed_policy.append(
+            {
+                "repeat": repeat,
+                "seed": next(iter(seeds)),
+                "systems": sorted(system_seeds),
+            }
+        )
+    latent_seeds = sorted(
+        {
+            seed
+            for system_seeds in latent_seed_runs.values()
+            for seed in system_seeds.values()
+        }
+    )
+    repeat_envelope = {
+        system: _repeat_loss_envelope(natural_path, system, steps)
+        for system in system_names
+    }
+    if rss_report is not None:
+        rss_report.parent.mkdir(parents=True, exist_ok=True)
+        rss_report.write_text(
+            json.dumps(
+                {
+                    "steps": steps,
+                    "rss_bytes": rss_samples,
+                    "rss_step_5_bytes": {
+                        key: value
+                        for key, value in rss_samples.items()
+                        if key.endswith(":step5")
+                    },
+                    "rss_step_final_bytes": {
+                        key: value
+                        for key, value in rss_samples.items()
+                        if key.endswith(f":step{steps}")
+                    },
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
     production_path = OUTPUT_ROOT / "s3-lockstep" / "production-wiring.json"
     command = [
         sys.executable,
@@ -1433,28 +1655,16 @@ def _stage_s3(device: torch.device) -> Path:
         if stream.passed and first is None and process.returncode == 0
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
-        natural_steps=S3_STEPS,
+        natural_steps=steps,
+        trajectory_counts=trajectory_counts,
         batch_stream={
             "checked_steps": stream.checked_steps,
             "passed": stream.passed,
             "first_mismatch": stream.first_mismatch,
             "batch_seed": S3_BATCH_SEED,
         },
-        latent_seeds=[S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
-        latent_seed_policy={
-            "per_repeat_run": [
-                {
-                    "repeat": repeat,
-                    "seed": S3_LATENT_SEED + repeat,
-                    "systems": list(natural),
-                }
-                for repeat in range(S3_REPEATS)
-            ],
-            "draw_paths": {
-                "vendor": "vendor adapter torch.randn path",
-                "package": "package step path",
-            },
-        },
+        latent_seeds=latent_seeds,
+        latent_seed_policy={"per_repeat_run": latent_seed_policy},
         repeat_run_envelope=repeat_envelope,
         synchronized_layer={
             "status": "not-needed" if first is None else "required",
@@ -1464,9 +1674,12 @@ def _stage_s3(device: torch.device) -> Path:
             "command": " ".join(command),
             "returncode": process.returncode,
             "artifact": str(production_path.relative_to(ROOT)),
-            "package_trainer_runs": production_runs,
+            "metadata_artifact": str(metadata_path.relative_to(ROOT)),
+            "metadata_record_counts": metadata_counts,
+            "package_trainer_run_count": metadata_counts.get("package", 0),
         },
         first_divergence=first,
+        rss_report=None if rss_report is None else str(rss_report.relative_to(ROOT)),
     )
     return _write("s3-lockstep", summary)
 
@@ -2034,6 +2247,7 @@ def main() -> None:
         ),
     )
     parser.add_argument("--steps", type=int, default=S3_STEPS)
+    parser.add_argument("--rss-report", type=Path)
     args = parser.parse_args()
     apply_determinism(DeterminismConfig(seed=INIT_SEED))
     if not torch.cuda.is_available() and args.stage in {
@@ -2049,7 +2263,7 @@ def main() -> None:
     elif args.stage == "s2-one-step":
         path = _stage_s2(device)
     elif args.stage == "s3-lockstep":
-        path = _stage_s3(device)
+        path = _stage_s3(device, args.steps, args.rss_report)
     else:
         path = _stage_s4(device)
 
