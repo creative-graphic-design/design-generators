@@ -70,3 +70,5 @@ Run the documentation checks and strict site build in `docs/implementation-check
 When editing templates or copyable examples, check required headings, status values, and prefixes against the consuming checker, and validate a filled example. Checking existing package documents alone does not validate their template.
 
 Before review, check that the commands match the actual scripts and the claims match recorded evidence. Report unrun heavyweight commands and unavailable assets in the PR rather than presenting them as passes.
+
+Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. The PR must use `.github/PULL_REQUEST_TEMPLATE.md` and include the implementation issue, checklist verification, tests, and shared-library rationale when applicable.
