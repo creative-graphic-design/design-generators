@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
 
 from devharness.baselines import write_entry_baseline
-from devharness.checks.model_readmes.constants import find_repo_root
+from devharness.repo import find_repo_root
 
 from . import (
     baseline,
@@ -37,7 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         help="rewrite all four baselines from current annotations",
     )
     args = parser.parse_args([] if argv is None else argv)
-    root = find_repo_root(Path.cwd())
+    try:
+        root = find_repo_root(Path.cwd())
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
     raw_path, alias_path, object_path, weak_cast_path = baseline_paths(root)
     if args.write_baseline:
         write_entry_baseline(raw_path, raw_annotations.current_entries(root))

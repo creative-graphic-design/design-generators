@@ -27,16 +27,9 @@ def main() -> int:
         return model_readmes.main(args[2:])
 
     if args[1] == "jaxtyping-annotations":
-        try:
-            from .checks.jaxtyping_annotations import check as jaxtyping_annotations
-        except ValueError as exc:
-            print(exc, file=sys.stderr)
-            return 1
+        from .checks.jaxtyping_annotations import check as jaxtyping_annotations
 
         return jaxtyping_annotations.main(args[2:])
 
-    print(
-        USAGE,
-        file=sys.stderr,
-    )
+    print(USAGE, file=sys.stderr)
     return 2

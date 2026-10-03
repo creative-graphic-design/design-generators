@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .ast_utils import (
     ImportResolver,
+    alias_target_name,
     contains_object_annotation,
     is_type_checking_guard,
     line_for_node,
@@ -103,7 +104,7 @@ def violations(root: Path) -> list[ObjectAnnotationViolation]:
                     continue
 
                 for target in fallback.targets:
-                    alias = target.id if isinstance(target, ast.Name) else None
+                    alias = alias_target_name(target)
                     if alias not in shaped_aliases:
                         continue
 

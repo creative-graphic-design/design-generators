@@ -53,6 +53,35 @@ def _archive_fixture(tmp_path: Path) -> Path:
     return fixture
 
 
+def _initialize_git_fixture(fixture: Path) -> None:
+    subprocess.run(
+        ["git", "init", "--quiet", "--initial-branch", "main"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "devharness test"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "devharness@example.invalid"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(["git", "add", "."], cwd=fixture, check=True)
+    subprocess.run(
+        ["git", "commit", "--quiet", "--message", "fixture"],
+        cwd=fixture,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", "HEAD"],
+        cwd=fixture,
+        check=True,
+    )
+
+
 def test_baseline_reference_entries_reads_merge_base_and_show_outputs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -577,22 +606,77 @@ def fixed(x: Float[torch.Tensor, "batch"]) -> None:
     assert baseline_checks.check_jaxtyping_annotations(tmp_path, baseline) == 0
 
 
-def test_jaxtyping_cli_runs_in_isolated_fixture(tmp_path: Path) -> None:
+def test_jaxtyping_cli_rewrites_baselines_and_accepts_shrink(
+    tmp_path: Path,
+) -> None:
     fixture = _archive_fixture(tmp_path)
+    raw_path = baseline_paths(fixture)[0]
+    raw_path.write_text(
+        "models/layout-dm/src/layout_dm/removed.py\ttorch.Tensor\t"
+        "def removed(value: torch.Tensor) -> None:\n",
+        encoding="utf-8",
+    )
+    _initialize_git_fixture(fixture)
+
+    expected_baselines = [path.read_bytes() for path in baseline_paths(REPO_ROOT)]
 
     write_result = _run_jaxtyping_cli(fixture, "--write-baseline")
 
     assert write_result.returncode == 0
     assert write_result.stdout == ""
     assert write_result.stderr == ""
-    for path in baseline_paths(fixture):
-        assert path.is_file()
+    assert [path.read_bytes() for path in baseline_paths(fixture)] == expected_baselines
 
     check_result = _run_jaxtyping_cli(fixture)
 
     assert check_result.returncode == 0
     assert check_result.stdout == ""
     assert check_result.stderr == ""
+
+
+def test_jaxtyping_cli_reports_new_annotation_with_exact_diagnostic(
+    tmp_path: Path,
+) -> None:
+    fixture = _archive_fixture(tmp_path)
+    violation = write_source(
+        fixture,
+        """
+import torch
+
+def bad(value: torch.Tensor) -> None:
+    pass
+""",
+    )
+
+    result = _run_jaxtyping_cli(fixture)
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "New raw tensor/ndarray annotations in package source:\n"
+        f"  + {violation.relative_to(fixture).as_posix()}\t"
+        "torch.Tensor\tdef bad(value: torch.Tensor) -> None:\n"
+    )
+
+
+def test_jaxtyping_cli_passes_without_git_reference(tmp_path: Path) -> None:
+    fixture = _archive_fixture(tmp_path)
+
+    result = _run_jaxtyping_cli(fixture)
+
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+
+
+def test_jaxtyping_cli_reports_missing_workspace_root() -> None:
+    result = _run_jaxtyping_cli(Path("/proc"))
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "Unable to find repository root with [tool.uv.workspace] in pyproject.toml\n"
+    )
 
 
 def test_jaxtyping_main_runs_from_a_repository_root(

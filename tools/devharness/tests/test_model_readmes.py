@@ -25,8 +25,8 @@ from devharness.checks.jaxtyping_annotations import check as jaxtyping_annotatio
 from devharness.checks.model_readmes.constants import (
     DOCS_MODEL_TABLE_HEADER,
     ROOT_MODEL_TABLE_HEADER,
-    find_repo_root,
 )
+from devharness.repo import find_repo_root
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
