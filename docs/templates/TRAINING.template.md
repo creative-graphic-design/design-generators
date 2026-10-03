@@ -66,14 +66,14 @@ describe evaluation-seed evidence as training-seed reproduction.
 
 ## Stage Evidence
 
-| Stage | Command     | Artifact                                             | Result     |
-| ----- | ----------- | ---------------------------------------------------- | ---------- |
-| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>` | `<result>` |
-| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json`  | `<result>` |
+| Stage | Command     | Artifact                                                                                                                        | Result     |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| S0    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S1    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S2    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S3    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S4    | `<command>` | `<repo/cache-relative path or project issue/PR URL>`                                                                            | `<result>` |
+| S5    | `<command>` | `.cache/<package>/full-run/<dataset>/manifest.json; evaluation-path-parity: <repo/cache-relative path or project issue/PR URL>` | `<result>` |
 
 ## Reproduction Results
 
