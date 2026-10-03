@@ -10,6 +10,8 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 
+pytest.importorskip("lightning")
+
 import layout_corrector.training.dataset as dataset_module
 import layout_corrector.training.reference as reference_module
 import layout_corrector.training.lightning_module as lightning_module
@@ -36,6 +38,84 @@ def _tiny_config() -> LayoutCorrectorConfig:
         pos_emb="none",
         num_timesteps=4,
     )
+
+
+def _registration_config() -> LayoutCorrectorConfig:
+    return LayoutCorrectorConfig(
+        dataset_name="rico25",
+        vocab_size=155,
+        max_seq_length=25,
+        hidden_size=432,
+        intermediate_size=1728,
+        num_attention_heads=8,
+        num_hidden_layers=4,
+        pos_emb="none",
+        num_timesteps=100,
+    )
+
+
+EXPECTED_PARAMETER_NAMES = (
+    "backbone.layers.0.self_attn.in_proj_weight",
+    "backbone.layers.0.self_attn.in_proj_bias",
+    "backbone.layers.0.self_attn.out_proj.weight",
+    "backbone.layers.0.self_attn.out_proj.bias",
+    "backbone.layers.0.linear1.weight",
+    "backbone.layers.0.linear1.bias",
+    "backbone.layers.0.linear2.weight",
+    "backbone.layers.0.linear2.bias",
+    "backbone.layers.0.norm1.emb.weight",
+    "backbone.layers.0.norm1.linear.weight",
+    "backbone.layers.0.norm1.linear.bias",
+    "backbone.layers.0.norm2.weight",
+    "backbone.layers.0.norm2.bias",
+    "backbone.layers.1.self_attn.in_proj_weight",
+    "backbone.layers.1.self_attn.in_proj_bias",
+    "backbone.layers.1.self_attn.out_proj.weight",
+    "backbone.layers.1.self_attn.out_proj.bias",
+    "backbone.layers.1.linear1.weight",
+    "backbone.layers.1.linear1.bias",
+    "backbone.layers.1.linear2.weight",
+    "backbone.layers.1.linear2.bias",
+    "backbone.layers.1.norm1.emb.weight",
+    "backbone.layers.1.norm1.linear.weight",
+    "backbone.layers.1.norm1.linear.bias",
+    "backbone.layers.1.norm2.weight",
+    "backbone.layers.1.norm2.bias",
+    "backbone.layers.2.self_attn.in_proj_weight",
+    "backbone.layers.2.self_attn.in_proj_bias",
+    "backbone.layers.2.self_attn.out_proj.weight",
+    "backbone.layers.2.self_attn.out_proj.bias",
+    "backbone.layers.2.linear1.weight",
+    "backbone.layers.2.linear1.bias",
+    "backbone.layers.2.linear2.weight",
+    "backbone.layers.2.linear2.bias",
+    "backbone.layers.2.norm1.emb.weight",
+    "backbone.layers.2.norm1.linear.weight",
+    "backbone.layers.2.norm1.linear.bias",
+    "backbone.layers.2.norm2.weight",
+    "backbone.layers.2.norm2.bias",
+    "backbone.layers.3.self_attn.in_proj_weight",
+    "backbone.layers.3.self_attn.in_proj_bias",
+    "backbone.layers.3.self_attn.out_proj.weight",
+    "backbone.layers.3.self_attn.out_proj.bias",
+    "backbone.layers.3.linear1.weight",
+    "backbone.layers.3.linear1.bias",
+    "backbone.layers.3.linear2.weight",
+    "backbone.layers.3.linear2.bias",
+    "backbone.layers.3.norm1.emb.weight",
+    "backbone.layers.3.norm1.linear.weight",
+    "backbone.layers.3.norm1.linear.bias",
+    "backbone.layers.3.norm2.weight",
+    "backbone.layers.3.norm2.bias",
+    "cat_emb.weight",
+    "head.0.weight",
+    "head.0.bias",
+    "head.1.weight",
+    "enc.0.weight",
+    "enc.0.bias",
+    "dec.0.weight",
+    "dec.0.bias",
+)
 
 
 class _FakeReference:
@@ -77,9 +157,16 @@ def test_training_namespace_and_registration_order() -> None:
     assert LayoutCorrectorTrainingModule is not None
     assert FROZEN_LAYOUT_DM_SHA256["rico25"]
 
-    model = LayoutCorrectorModel(**dict(_tiny_config().config))
+    model = LayoutCorrectorModel(**dict(_registration_config().config))
     names = [name for name, _ in model.model.named_parameters()]
-    assert names[0].startswith("backbone.")
+    assert tuple(names) == EXPECTED_PARAMETER_NAMES
+
+
+def test_initialization_device_is_cpu_without_cuda(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert lightning_module._initialization_device() == torch.device("cpu")
 
 
 class _FakeProcessedDataset(Dataset[dict[str, object]]):
@@ -129,6 +216,7 @@ def test_first_sample_ids_handles_batch_shapes() -> None:
 def test_training_module_runs_sampler_loss_and_scheduler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(lightning_module.torch.cuda, "is_available", lambda: False)
     reference = _FakeReference()
     monkeypatch.setattr(
         lightning_module.FrozenLayoutDMReference,
@@ -148,6 +236,7 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert module.layout_dm_checkpoint_sha256 == "checkpoint-hash"
     assert module._reference_value() is reference
     assert module._reference_model_value() is reference.model
+    assert module.initialization_device == "cpu"
     assert len(module.optim_groups()) == 2
 
     optimizer_config = module.configure_optimizers()
@@ -173,6 +262,14 @@ def test_training_module_runs_sampler_loss_and_scheduler(
     assert loss.ndim == 0
     assert "train_loss" in module.latest_step_trace
     assert module.validation_step(batch, 0).ndim == 0
+
+    loss.backward()
+    module.configure_gradient_clipping(
+        torch.optim.AdamW(module.model.parameters(), lr=1.0e-3),
+        gradient_clip_val=1.0,
+        gradient_clip_algorithm="norm",
+    )
+    assert module.latest_gradient_norm is not None
 
     reference.lt_count.fill_(11)
     reference.lt_history.copy_(torch.arange(4, dtype=torch.float32))

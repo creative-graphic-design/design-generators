@@ -26,7 +26,7 @@ from .config import LayoutCorrectorTrainingScheduler
 from .reference import FrozenLayoutDMReference
 
 
-def _vendor_initialization_device() -> torch.device:
+def _initialization_device() -> torch.device:
     """Select the device used by the original corrector during construction."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -52,13 +52,11 @@ class LayoutCorrectorTrainingModule(LightningModule):
         """Initialize the corrector and its immutable LayoutDM reference."""
         super().__init__()
         self.config = config
-        rng_state = torch.random.get_rng_state()
         reference = FrozenLayoutDMReference.from_checkpoint(
             dataset_name=config.dataset_name,
             checkpoint_path=layout_dm_checkpoint_path,
             cluster_centers_path=cluster_centers_path,
         )
-        torch.random.set_rng_state(rng_state)
         self.layout_dm_config: LayoutDMConfig = reference.config
         self.layout_dm_checkpoint_sha256 = reference.checkpoint_sha256
         self.layout_dm_checkpoint_path = str(reference.checkpoint_path)
@@ -68,7 +66,7 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.register_buffer("layout_dm_lt_history", reference.lt_history)
         self.register_buffer("layout_dm_lt_count", reference.lt_count)
 
-        initialization_device = _vendor_initialization_device()
+        initialization_device = _initialization_device()
         with torch.device("cpu"):
             self.model = LayoutCorrectorModel(**dict(config.config))
 
@@ -84,6 +82,7 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.scheduler_patience = scheduler_patience
         self.scheduler_threshold = scheduler_threshold
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
+        self.latest_gradient_norm: Shaped[torch.Tensor, ""] | None = None
 
     def _ensure_reference_device(self, device: torch.device) -> None:
         reference_model = self._reference_model_value()
@@ -187,6 +186,35 @@ class LayoutCorrectorTrainingModule(LightningModule):
             "lr_scheduler": scheduler_config,
         }
         return result
+
+    def configure_gradient_clipping(
+        self,
+        optimizer: torch.optim.Optimizer,
+        gradient_clip_val: float | None = None,
+        gradient_clip_algorithm: str | None = None,
+    ) -> None:
+        """Clip in model registration order, matching the original loop."""
+        del optimizer
+        if gradient_clip_algorithm not in {None, "norm"}:
+            raise ValueError(
+                "Layout-Corrector supports norm gradient clipping only, "
+                f"got {gradient_clip_algorithm!r}"
+            )
+
+        clip_value = (
+            self.gradient_clip_norm if gradient_clip_val is None else gradient_clip_val
+        )
+        if clip_value <= 0.0:
+            self.latest_gradient_norm = None
+            return
+
+        self.latest_gradient_norm = torch.nn.utils.clip_grad_norm_(
+            self.model.parameters(),
+            clip_value,
+            norm_type=2.0,
+            error_if_nonfinite=False,
+            foreach=False,
+        )
 
     @torch.no_grad()
     def preprocess(

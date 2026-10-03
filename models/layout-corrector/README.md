@@ -172,11 +172,12 @@ Re-run the agreement-check suite against the original implementation before publ
 
 ## How to Get Started with the Model
 
-Install the package directly from this repository. The command includes shared packages when they are not published on PyPI.
+Install the package directly from this repository. The command includes the shared packages required by the pipeline.
 
 ```bash
 pip install \
   "laygen @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=lib/laygen" \
+  "layout-dm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-dm" \
   "layout-corrector @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/layout-corrector"
 ```
 

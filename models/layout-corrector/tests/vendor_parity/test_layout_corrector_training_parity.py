@@ -3,19 +3,21 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pickle
+import shutil
 import subprocess
 import sys
+import tempfile
 import types
+import time
 from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Final, Protocol, cast  # noqa: TID251 - vendor APIs are dynamic.
 
 import pytest
 import torch
-import torch.nn.functional as F
 
 pytest.importorskip("lightning")
 pytest.importorskip("traingen_parity")
@@ -23,7 +25,7 @@ pytest.importorskip("omegaconf")
 pytest.importorskip("torch_geometric")
 
 from omegaconf import DictConfig, OmegaConf
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch_geometric.loader import DataLoader as GeometricDataLoader
 
 from laygen.common.testing import skip_or_fail_vendor_parity
@@ -55,6 +57,7 @@ from layout_corrector.training.config import (
     LayoutCorrectorTrainingSplit,
 )
 from layout_dm.configuration_layout_dm import LayoutDMConfig
+from layout_dm.training.config import LayoutDMTrainingDatasetName
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
@@ -90,6 +93,11 @@ class VendorCorrector(Protocol):
     """Reference-adapter surface used by the gated parity harness."""
 
     model: VendorCorrectorModel
+
+    def __call__(
+        self, batch: dict[str, torch.Tensor]
+    ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+        """Run the original corrector forward and loss path."""
 
     def eval(self) -> VendorCorrector:
         """Switch the original corrector to evaluation mode."""
@@ -334,7 +342,7 @@ def _cluster_path(dataset: str) -> Path:
 
 def _package_layout_dm_config(dataset: str) -> LayoutDMConfig:
     return LayoutDMConfig(
-        dataset_name=dataset,
+        dataset_name=cast(LayoutDMTrainingDatasetName, dataset),
         max_seq_length=25,
         num_bin_bboxes=32,
         bbox_quantization="kmeans",
@@ -567,23 +575,14 @@ def _vendor_trace(fixture: Fixture, batch: dict[str, Any]) -> dict[str, torch.Te
         fixture.vendor_diffusion,
         OmegaConf.create({"name": "random", "temperature": 1.0}),
     )
-    outputs = fixture.vendor.model.module(
-        prepared["x0_recon"],
-        timestep=prepared["t"],
-        self_cond=None,
-        src_key_padding_mask=None,
-        attention_bias=None,
-    )
-    logits = outputs["logits"].squeeze(-1)
-    target = prepared["recon_acc"].float()
-    bce = F.binary_cross_entropy_with_logits(logits, target, reduction="none")
-    weights = torch.ones(5, device=logits.device, dtype=logits.dtype).repeat(25)
-    loss = bce.mul(weights.unsqueeze(0)).mean()
+    outputs, losses = fixture.vendor(prepared)
+    logits = outputs["logits"].squeeze(-1).detach()
+    loss = losses["bce_loss"]
     return {
         **prepared,
-        "logits": logits.detach(),
-        "bce_loss": bce.detach(),
-        "weighted_bce_loss": (bce * weights).detach(),
+        "logits": logits,
+        "bce_loss": loss.detach(),
+        "weighted_bce_loss": loss.detach(),
         "train_loss": loss,
     }
 
@@ -599,6 +598,8 @@ def _package_trace(fixture: Fixture, batch: dict[str, Any]) -> dict[str, torch.T
     )
     loss, trace = fixture.package._corrector_loss(prepared)
     trace["mask"] = (prepared["xt"] == prepared["x0"]).long()
+    trace["bce_loss"] = loss.detach()
+    trace["weighted_bce_loss"] = loss.detach()
     trace["train_loss"] = loss
     return trace
 
@@ -1148,26 +1149,20 @@ def _run_natural_side(
         model = fixture.vendor.model.module
         optimizer = _adamw(fixture.vendor.optim_groups(weight_decay=0.1))
     else:
-        model = fixture.package.model.model
-        optimizer = _adamw(fixture.package.optim_groups())
+        return _run_package_natural_side(
+            fixture, batches, initial_state=initial_state, steps=steps
+        )
+
     model.load_state_dict(initial_state, strict=True)
+    model.train()
     _apply_s3_determinism()
     rows: list[dict[str, Any]] = []
     for step, batch in enumerate(batches[:steps]):
         optimizer.zero_grad()
         rng_digest = _state_digest(capture_rng_state())
-        trace = (
-            _vendor_trace(fixture, batch)
-            if side == "vendor"
-            else _package_trace(fixture, batch)
-        )
+        trace = _vendor_trace(fixture, batch)
         trace["train_loss"].backward()
-        parameters = (
-            fixture.vendor.parameters()
-            if side == "vendor"
-            else fixture.package.model.parameters()
-        )
-        grad_norm = _clip_grad_norm(parameters)
+        grad_norm = _clip_grad_norm(fixture.vendor.parameters(), foreach=False)
         optimizer.step()
         loss = float(trace["train_loss"].detach().cpu().item())
         importance_probability = trace.get("pt")
@@ -1189,6 +1184,96 @@ def _run_natural_side(
             }
         )
     return rows, deepcopy(model.state_dict())
+
+
+def _run_package_natural_side(
+    fixture: Fixture,
+    batches: list[dict[str, Any]],
+    *,
+    initial_state: dict[str, torch.Tensor],
+    steps: int,
+) -> tuple[list[dict[str, Any]], dict[str, torch.Tensor]]:
+    from lightning.pytorch import Callback, Trainer
+    from torch.utils.data import DataLoader
+
+    class BatchDataset(Dataset[dict[str, Any]]):
+        def __init__(self, values: list[dict[str, Any]]) -> None:
+            self.values = values
+
+        def __len__(self) -> int:
+            return len(self.values)
+
+        def __getitem__(self, index: int) -> dict[str, Any]:
+            return self.values[index]
+
+    class TraceCallback(Callback):
+        def __init__(self) -> None:
+            self.rng_digests: list[str] = []
+            self.rows: list[dict[str, Any]] = []
+
+        def on_train_batch_start(
+            self,
+            trainer: Trainer,
+            pl_module: Any,
+            batch: Any,
+            batch_idx: int,
+        ) -> None:
+            del trainer, pl_module, batch, batch_idx
+            self.rng_digests.append(_state_digest(capture_rng_state()))
+
+        def on_train_batch_end(
+            self,
+            trainer: Trainer,
+            pl_module: Any,
+            outputs: Any,
+            batch: Any,
+            batch_idx: int,
+        ) -> None:
+            del outputs, batch
+            optimizer = trainer.optimizers[0]
+            module = cast(LayoutCorrectorTrainingModule, pl_module)
+            trace = module.latest_step_trace
+            gradient_norm = module.latest_gradient_norm
+            if gradient_norm is None:
+                raise AssertionError("production clipping hook did not run")
+            self.rows.append(
+                {
+                    "step": batch_idx,
+                    "loss": float(trace["train_loss"].cpu().item()),
+                    "gradient_norm": float(gradient_norm.detach().cpu().item()),
+                    "learning_rate": float(optimizer.param_groups[0]["lr"]),
+                    "optimizer_state_digest": _nested_digest(optimizer.state_dict()),
+                    "parameter_state_digest": _state_dict_digest(
+                        module.model.model.state_dict()
+                    ),
+                    "rng_digest": self.rng_digests[-1],
+                    "timesteps_digest": _tensor_digest(trace["t"]),
+                    "importance_probability_digest": _tensor_digest(trace["pt"]),
+                }
+            )
+
+    module = fixture.package
+    module.model.model.load_state_dict(initial_state, strict=True)
+    module.scheduler = None
+    module.latest_gradient_norm = None
+    _apply_s3_determinism()
+    callback = TraceCallback()
+    loader = DataLoader(BatchDataset(batches), batch_size=None, num_workers=0)
+    trainer = Trainer(
+        accelerator="gpu" if next(module.parameters()).is_cuda else "cpu",
+        devices=1,
+        max_epochs=1,
+        limit_train_batches=steps,
+        num_sanity_val_steps=0,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        gradient_clip_val=module.gradient_clip_norm,
+        gradient_clip_algorithm="norm",
+        callbacks=[callback],
+    )
+    trainer.fit(module, train_dataloaders=loader)
+    return callback.rows, deepcopy(module.model.model.state_dict())
 
 
 def _natural_comparison(
@@ -1344,9 +1429,7 @@ def test_s3_natural_lockstep_matches_vendor(
         {
             "dataset": dataset,
             "steps": len(rows),
-            "num_workers": _loader_worker_count(),
             "adamw_mode": os.environ.get("LAYOUT_CORRECTOR_ADAMW_MODE", "default"),
-            "gradient_clip_call": "torch.nn.utils.clip_grad_norm_(parameters, 1.0, norm_type=2.0, error_if_nonfinite=False, foreach=None)",
             "torch_use_deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
             "cudnn_deterministic": torch.backends.cudnn.deterministic,
             "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
@@ -1357,8 +1440,6 @@ def test_s3_natural_lockstep_matches_vendor(
                 "vendor": _repeat_envelope(vendor_rows, vendor_repeat_rows),
                 "package": _repeat_envelope(package_rows, package_repeat_rows),
             },
-            "rng_restore_inside_run": False,
-            "shared_injected_random_tensors": False,
             "trace_artifact": str(trace_path.relative_to(ROOT)),
             "runtime": _runtime_record(),
             "vendor_source_commit": _source_commit(
@@ -1510,7 +1591,6 @@ def test_s3_synchronized_diagnostic_matches_vendor(
         {
             "dataset": dataset,
             "steps": len(trace_rows),
-            "num_workers": _loader_worker_count(),
             "adamw_mode": os.environ.get("LAYOUT_CORRECTOR_ADAMW_MODE", "default"),
             "gradient_clip_mode": (
                 "disabled"
@@ -1518,11 +1598,6 @@ def test_s3_synchronized_diagnostic_matches_vendor(
                 else "aligned_parameter_order_norm_1.0"
                 if aligned_clip
                 else "norm_1.0"
-            ),
-            "gradient_clip_call": (
-                "torch.nn.utils.clip_grad_norm_(parameters, 1.0, norm_type=2.0, error_if_nonfinite=False, foreach=False)"
-                if aligned_clip
-                else "torch.nn.utils.clip_grad_norm_(parameters, 1.0, norm_type=2.0, error_if_nonfinite=False, foreach=None)"
             ),
             "vendor_parameter_order_digest": _parameter_order_digest(
                 [name for name, _ in vendor_named_parameters]
@@ -1592,7 +1667,7 @@ def _loader_stream_rows(
         config=_package_layout_dm_config(dataset),
         processed_data_dir=_layout_dm_cache() / "datasets",
         batch_size=8,
-        num_workers=16,
+        num_workers=evidence_num_workers,
         random_order=random_order,
         pin_memory=False,
     )
@@ -1649,6 +1724,8 @@ def _loader_stream_rows(
                 "package_input_digest": _tensor_digest(package_input_ids),
                 "max_abs_input_id_diff": int(token_diff.max().item()),
                 "attention_mask_mismatch_count": int(mask_diff),
+                "vendor_loader_num_workers": vendor_loader.num_workers,
+                "package_loader_num_workers": package_loader.num_workers,
             }
         )
         assert torch.equal(vendor_encoded["seq"], package_input_ids)
@@ -1679,9 +1756,18 @@ def test_s4_loader_stream_matches_vendor(
         {
             "dataset": dataset,
             "splits": split_rows,
-            "configured_num_workers": 16,
-            "evidence_num_workers": _loader_worker_count(),
-            "num_workers_override": "none; vendor-configured 16 workers retained",
+            "observed_loader_num_workers": sorted(
+                {
+                    row["vendor_loader_num_workers"]
+                    for rows in split_rows.values()
+                    for row in rows
+                }
+                | {
+                    row["package_loader_num_workers"]
+                    for rows in split_rows.values()
+                    for row in rows
+                }
+            ),
             "batch_stream_comparison": all(
                 row["max_abs_input_id_diff"] == 0
                 and row["attention_mask_mismatch_count"] == 0
@@ -1700,20 +1786,6 @@ def test_s4_loader_stream_matches_vendor(
         },
     )
     assert path.exists()
-
-
-def _write_weight_artifact(path: Path, state_dict: dict[str, torch.Tensor]) -> str:
-    with path.open("wb") as handle:
-        for name in sorted(state_dict):
-            value = state_dict[name].detach().cpu().contiguous()
-            encoded_name = name.encode()
-            raw = value.view(torch.uint8).numpy().tobytes()
-            handle.write(len(encoded_name).to_bytes(8, "little"))
-            handle.write(encoded_name)
-            handle.write(str(value.dtype).encode() + b"\0")
-            handle.write(len(raw).to_bytes(8, "little"))
-            handle.write(raw)
-    return _sha256(path)
 
 
 def _prediction_records(
@@ -1762,255 +1834,327 @@ def _prediction_difference(
     return maximum, first
 
 
-def _evaluation_metric_values(
-    predictions: list[dict[str, list[Any]]],
-) -> dict[str, float]:
-    from trainer.helpers.metric import (
-        compute_alignment,
-        compute_average_iou,
-        compute_docsim,
-        compute_overlap,
-    )
+def _evaluation_asset_root() -> Path:
+    value = os.environ.get("LAYOUT_CORRECTOR_EVAL_ASSET_ROOT")
+    if value is None:
+        skip_or_fail_vendor_parity(
+            "full evaluation assets are local-only",
+            missing_paths=[Path("$LAYOUT_CORRECTOR_EVAL_ASSET_ROOT")],
+            regeneration_hint="set LAYOUT_CORRECTOR_EVAL_ASSET_ROOT to the extracted starter-kit download directory",
+        )
+    return Path(value)
 
-    layouts = [
-        (
-            torch.as_tensor(item["bbox"], dtype=torch.float32).numpy(),
-            torch.as_tensor(item["labels"], dtype=torch.long).numpy(),
+
+def _evaluation_pipeline_root(dataset: str) -> Path:
+    root = os.environ.get("LAYOUT_CORRECTOR_EVAL_PIPELINE_ROOT")
+    if root is None:
+        skip_or_fail_vendor_parity(
+            "converted evaluation pipelines are local-only",
+            missing_paths=[Path("$LAYOUT_CORRECTOR_EVAL_PIPELINE_ROOT")],
+            regeneration_hint="convert the released seed-0 LayoutDM and Layout-Corrector checkpoints",
         )
-        for item in predictions
+    path = Path(root) / dataset
+    if not path.is_dir():
+        skip_or_fail_vendor_parity(
+            "converted evaluation pipeline is missing",
+            missing_paths=[path],
+            regeneration_hint="run the conversion commands in TRAINING.md",
+        )
+    return path
+
+
+def _evaluation_environment(scratch: Path) -> dict[str, str]:
+    environment = os.environ.copy()
+    runtime = os.environ.get("LAYOUT_CORRECTOR_AUDIT_VENV")
+    if runtime is not None:
+        environment["PATH"] = f"{runtime}/bin:{environment['PATH']}"
+    environment["PYTHONPATH"] = str(scratch / "src" / "trainer")
+    environment["CUDA_VISIBLE_DEVICES"] = "0"
+    environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+    return environment
+
+
+def _run_vendor_evaluation(
+    dataset: str,
+) -> tuple[Path, list[str], dict[str, Path], Path]:
+    asset_root = _evaluation_asset_root()
+    scratch = Path(tempfile.mkdtemp(prefix=f"layout-corrector-evaluation-{dataset}-"))
+    shutil.copytree(
+        ROOT / "vendor" / "layout-corrector" / "src",
+        scratch / "src",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    shutil.copytree(ROOT / "vendor" / "layout-corrector" / "bin", scratch / "bin")
+    shutil.copy2(ROOT / "vendor" / "layout-corrector" / "eval.py", scratch / "eval.py")
+    (scratch / "download").symlink_to(asset_root, target_is_directory=True)
+    job_dir = asset_root / "pretrained_weights" / dataset / "layout_corrector" / "0"
+    if not (job_dir / "best_model.pt").is_file():
+        skip_or_fail_vendor_parity(
+            "released corrector checkpoint is missing",
+            missing_paths=[job_dir / "best_model.pt"],
+            regeneration_hint="download the Layout-Corrector starter kit",
+        )
+    command = [
+        sys.executable,
+        str(ROOT / "vendor" / "layout-corrector" / "bin" / "corrector_test_eval.py"),
+        str(job_dir),
+        dataset,
+        "--device",
+        "0",
+        "--batch_size",
+        "512",
+        "--test_only",
+        "--timesteps",
+        "100",
+        "--corrector_t_list",
+        "10",
+        "20",
+        "30",
+        "--force",
+        "--cond_list",
+        "unconditional",
+        "c",
+        "cwh",
+        "--no_gumbel_noise",
     ]
-    max_length = max((len(item["bbox"]) for item in predictions), default=0)
-    bbox = torch.zeros((len(predictions), max_length, 4), dtype=torch.float32)
-    mask = torch.zeros((len(predictions), max_length), dtype=torch.bool)
-    for index, item in enumerate(predictions):
-        values = torch.as_tensor(item["bbox"], dtype=torch.float32)
-        if values.numel():
-            bbox[index, : values.shape[0]] = values
-            mask[index, : values.shape[0]] = True
-    metrics: dict[str, float] = {}
-    for function in (compute_alignment, compute_overlap):
-        metrics.update(
-            {
-                key: float(value.mean().item())
-                for key, value in function(bbox, mask).items()
-            }
+    subprocess.run(
+        command,
+        cwd=scratch,
+        env=_evaluation_environment(scratch),
+        check=True,
+    )
+    result_root = scratch / "results" / dataset / "layout_corrector"
+    result_dirs = {
+        condition: sorted(result_root.glob(f"{condition}_*/"))[-1]
+        for condition in ("unconditional", "c", "cwh")
+    }
+    pkl_paths = {
+        condition: next(result_dirs[condition].glob("seed_0.pkl"))
+        for condition in result_dirs
+    }
+    return scratch, command, pkl_paths, job_dir
+
+
+def _numeric_metrics(path: Path) -> dict[str, float]:
+    values = json.loads(path.read_text())
+    return {
+        key: float(value)
+        for key, value in values.items()
+        if isinstance(value, (int, float))
+    }
+
+
+def _package_evaluation(
+    dataset: str,
+    pipeline_path: Path,
+    vendor_pkl_paths: dict[str, Path],
+    scratch: Path,
+) -> tuple[dict[str, Path], dict[str, list[torch.Tensor]]]:
+    from layout_corrector import LayoutCorrectorPipeline
+    from layout_dm.training.dataset import LayoutDMProcessedDataset
+
+    device = torch.device(os.environ.get("LAYOUT_CORRECTOR_S4_DEVICE", "cuda:0"))
+    pipeline = LayoutCorrectorPipeline.from_pretrained(pipeline_path).to(device)
+    processed_root = _evaluation_asset_root() / "datasets"
+    dataset_config = pipeline.layout_dm.tokenizer.config
+    package_dataset = LayoutDMProcessedDataset(
+        dataset_name=cast(LayoutDMTrainingDatasetName, dataset),
+        config=dataset_config,
+        processed_data_dir=processed_root,
+        max_seq_length=25,
+        random_order=False,
+    )
+    loader = DataLoader(package_dataset, batch_size=512, shuffle=False, num_workers=0)
+    package_dirs: dict[str, Path] = {}
+    package_inputs: dict[str, list[torch.Tensor]] = {}
+    for condition, vendor_path in vendor_pkl_paths.items():
+        with vendor_path.open("rb") as handle:
+            vendor_meta = pickle.load(handle)
+        generator = torch.Generator(device=device).manual_seed(0)
+        package_predictions: list[tuple[torch.Tensor, torch.Tensor]] = []
+        inputs: list[torch.Tensor] = []
+        started = time.perf_counter()
+        if condition == "unconditional":
+            output = pipeline(
+                batch_size=int(vendor_meta["N_total"]),
+                generator=generator,
+                num_inference_steps=100,
+                sampling="random",
+                corrector_steps=1,
+                corrector_t_list=(10, 20, 30),
+                corrector_start=-1,
+                corrector_end=-1,
+                corrector_mask_mode="thresh",
+                corrector_mask_threshold=0.7,
+                use_gumbel_noise=False,
+            )
+            package_predictions = [
+                (
+                    output.bbox[index][output.mask[index]],
+                    output.labels[index][output.mask[index]],
+                )
+                for index in range(output.bbox.shape[0])
+            ]
+        else:
+            condition_type = "label" if condition == "c" else "label_size"
+            for batch in loader:
+                input_ids = cast(torch.Tensor, batch["input_ids"])
+                inputs.append(input_ids.detach().cpu())
+                decoded = pipeline.layout_dm.tokenizer.decode_layout(input_ids)
+                output = pipeline(
+                    generator=generator,
+                    condition_type=condition_type,
+                    labels=decoded["labels"],
+                    bbox=decoded["bbox"],
+                    mask=decoded["mask"],
+                    num_inference_steps=100,
+                    sampling="random",
+                    corrector_steps=1,
+                    corrector_t_list=(10, 20, 30),
+                    corrector_start=-1,
+                    corrector_end=-1,
+                    corrector_mask_mode="thresh",
+                    corrector_mask_threshold=0.7,
+                    use_gumbel_noise=False,
+                )
+                package_predictions.extend(
+                    (
+                        output.bbox[index][output.mask[index]],
+                        output.labels[index][output.mask[index]],
+                    )
+                    for index in range(output.bbox.shape[0])
+                )
+        package_dir = scratch / "results" / dataset / f"package_{condition}"
+        package_dir.mkdir(parents=True, exist_ok=True)
+        package_meta = dict(vendor_meta)
+        package_meta["results"] = package_predictions
+        package_meta["t_total"] = time.perf_counter() - started
+        package_meta["N_total"] = len(package_predictions)
+        with (package_dir / "seed_0.pkl").open("wb") as handle:
+            pickle.dump(package_meta, handle)
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
+                str(package_dir),
+                "--force",
+            ],
+            cwd=scratch,
+            env=_evaluation_environment(scratch),
+            check=True,
         )
-    metrics.update(compute_average_iou(layouts))
-    metrics["self_docsim"] = float(compute_docsim(layouts, layouts))
-    return metrics
+        package_dirs[condition] = package_dir
+        package_inputs[condition] = inputs
+    return package_dirs, package_inputs
 
 
 @pytest.mark.parametrize("dataset", DATASETS)
 def test_s4_test_evaluation_path_matches_vendor(
     dataset: LayoutCorrectorTrainingDatasetName,
 ) -> None:
-    apply_determinism(DeterminismConfig(seed=314159, deterministic_algorithms=False))
-    device = torch.device(os.environ.get("LAYOUT_CORRECTOR_S4_DEVICE", "cpu"))
-    fixture = _fixture(dataset, device)
-    from trainer import corrector_test
-
-    vendor_dataset = _vendor_dataset(dataset, "test")
-    vendor_loader = GeometricDataLoader(
-        vendor_dataset,
-        batch_size=512,
-        shuffle=False,
-        num_workers=0,
+    if not torch.cuda.is_available():
+        pytest.fail("S4 evaluation-path parity requires the selected GPU")
+    scratch, vendor_command, vendor_pkl_paths, corrector_checkpoint = (
+        _run_vendor_evaluation(dataset)
     )
-
-    class EvaluationProbeDiffusion:
-        tokenizer = fixture.vendor_tokenizer
-
-        def __init__(self) -> None:
-            self.input_batches: list[torch.Tensor] = []
-            self.score_batches: list[torch.Tensor] = []
-            self.batch_sizes: list[int] = []
-
-        def sample(
-            self,
-            *,
-            batch_size: int,
-            cond: dict[str, torch.Tensor],
-            sampling_cfg: dict[str, Any],
-            cond_type: str,
-            corrector: Any,
-        ) -> dict[str, torch.Tensor]:
-            del batch_size, sampling_cfg
-            assert cond_type == "gt"
-            probe_ids = cond["seq"].to(device)
-            timestep = torch.full(
-                (probe_ids.shape[0],), 10, dtype=torch.long, device=probe_ids.device
-            )
-            scores = corrector.calc_confidence_score(probe_ids, timestep)
-            self.input_batches.append(probe_ids.detach().cpu())
-            self.score_batches.append(scores.detach().cpu())
-            self.batch_sizes.append(int(probe_ids.shape[0]))
-            return self.tokenizer.decode(probe_ids.cpu())
-
-    probe_diffusion = EvaluationProbeDiffusion()
-    _, vendor_predictions, _, vendor_total = corrector_test.run(
-        probe_diffusion,
-        fixture.vendor,
-        vendor_loader,
-        SimpleNamespace(cond="gt", num_run=1, refine_noise_std=0.1),
-        {},
+    package_dirs, package_inputs = _package_evaluation(
+        dataset,
+        _evaluation_pipeline_root(dataset),
+        vendor_pkl_paths,
+        scratch,
     )
-    vendor_inputs = torch.cat(probe_diffusion.input_batches)
-    vendor_scores = torch.cat(probe_diffusion.score_batches)
-    vendor_records = _prediction_records(vendor_predictions)
-
-    # Use the vendor evaluator's complete TEST preprocessing output as the
-    # canonical input for both systems. The loader-stream artifact separately
-    # checks package-side TEST loading on two batches.
-    package_inputs: list[torch.Tensor] = []
-    package_scores_batches: list[torch.Tensor] = []
-    package_predictions: list[tuple[Any, Any]] = []
-    offset = 0
-    for batch_size in probe_diffusion.batch_sizes:
-        input_batch = vendor_inputs[offset : offset + batch_size]
-        offset += batch_size
-        input_ids = input_batch.to(device)
-        timesteps = torch.full(
-            (input_ids.shape[0],), 10, dtype=torch.long, device=device
-        )
-        scores = fixture.package.model.calc_confidence_score(input_ids, timesteps)
-        decoded = fixture.package_reference.tokenizer.decode_layout(input_ids.cpu())
-        package_inputs.append(input_ids.detach().cpu())
-        package_scores_batches.append(scores.detach().cpu())
-        package_predictions.extend(
-            (
-                decoded["bbox"][index][valid].numpy(),
-                decoded["labels"][index][valid].numpy(),
-            )
-            for index, valid in enumerate(decoded["mask"])
-        )
-    package_inputs_tensor = torch.cat(package_inputs)
-    package_scores = torch.cat(package_scores_batches)
-    package_records = _prediction_records(package_predictions)
-    confidence_score_diff = (vendor_scores - package_scores).abs()
-    assert torch.equal(vendor_inputs, package_inputs_tensor)
-    assert vendor_records == package_records
-    assert vendor_total == len(vendor_records) == len(package_records)
-    vendor_prediction_counts = [len(item["bbox"]) for item in vendor_records]
-    package_prediction_counts = [len(item["bbox"]) for item in package_records]
-    vendor_metric = float(sum(vendor_prediction_counts) / max(vendor_total, 1))
-    package_metric = float(
-        sum(package_prediction_counts) / max(len(package_records), 1)
-    )
-    prediction_max_abs_diff, prediction_first = _prediction_difference(
-        vendor_records, package_records
-    )
-    vendor_metrics = _evaluation_metric_values(vendor_records)
-    package_metrics = _evaluation_metric_values(package_records)
-    metric_diffs, metric_first = _mapping_diffs(
-        {key: torch.tensor(value) for key, value in vendor_metrics.items()},
-        {key: torch.tensor(value) for key, value in package_metrics.items()},
-    )
-    assert prediction_first is None
-    assert not metric_first, metric_diffs
-
     evidence_dir = _evidence_root() / "evaluation-path" / dataset
     evidence_dir.mkdir(parents=True, exist_ok=True)
-    inputs_path = evidence_dir / "test-input-ids.bin"
-    inputs_path.write_bytes(vendor_inputs.contiguous().numpy().tobytes())
-    vendor_prediction_path = evidence_dir / "vendor-predictions.json"
-    package_prediction_path = evidence_dir / "package-predictions.json"
-    vendor_prediction_path.write_text(
-        json.dumps(vendor_records, sort_keys=True, separators=(",", ":")) + "\n"
-    )
-    package_prediction_path.write_text(
-        json.dumps(package_records, sort_keys=True, separators=(",", ":")) + "\n"
-    )
-    vendor_weights_path = evidence_dir / "vendor-weights.bin"
-    package_weights_path = evidence_dir / "package-weights.bin"
-    vendor_state_digest = _state_dict_digest(fixture.vendor.model.module.state_dict())
-    package_state_digest = _state_dict_digest(fixture.package.model.model.state_dict())
-    assert vendor_state_digest == package_state_digest
-    vendor_weights_sha256 = _write_weight_artifact(
-        vendor_weights_path, fixture.vendor.model.module.state_dict()
-    )
-    package_weights_sha256 = _write_weight_artifact(
-        package_weights_path, fixture.package.model.model.state_dict()
-    )
-    assert vendor_weights_sha256 == package_weights_sha256
-    vendor_predictions_sha256 = _sha256(vendor_prediction_path)
-    package_predictions_sha256 = _sha256(package_prediction_path)
-    assert vendor_predictions_sha256 == package_predictions_sha256
-    vendor_out_of_bounds = _out_of_bounds_count(vendor_records)
-    package_out_of_bounds = _out_of_bounds_count(package_records)
-    assert vendor_out_of_bounds == package_out_of_bounds
-    evaluation = _write_json(
-        "evaluation-path",
-        dataset,
-        {
-            "dataset": dataset,
-            "vendor_entry_point": "vendor/layout-corrector/src/trainer/trainer/corrector_test.py::run",
-            "vendor_entry_point_wrapper": "vendor/layout-corrector/bin/corrector_test_eval.py",
-            "vendor_entry_point_adapter": "direct call to trainer.corrector_test.run with the script default max_batch_size=512",
-            "package_entry_point": "LayoutCorrectorModel.calc_confidence_score + LayoutDMTokenizer.decode_layout",
-            "split": "test",
-            "evaluator_settings": {
-                "condition": "gt",
-                "timestep": 10,
-                "batch_size": 512,
-                "random_order": False,
-                "gumbel_noise": False,
-                "sampling_seed": 314159,
-            },
-            "num_test_layouts": len(vendor_records),
-            "same_input_ids_digest": _tensor_digest(vendor_inputs),
-            "inputs_artifact": str(inputs_path.relative_to(ROOT)),
-            "inputs_sha256": _sha256(inputs_path),
-            "same_corrector_weights": vendor_state_digest == package_state_digest,
-            "corrector_state_digest_vendor": vendor_state_digest,
-            "corrector_state_digest_package": package_state_digest,
-            "vendor_weights_artifact": str(vendor_weights_path.relative_to(ROOT)),
-            "package_weights_artifact": str(package_weights_path.relative_to(ROOT)),
-            "vendor_weights_sha256": vendor_weights_sha256,
-            "package_weights_sha256": package_weights_sha256,
-            "vendor_predictions_artifact": str(
-                vendor_prediction_path.relative_to(ROOT)
-            ),
-            "package_predictions_artifact": str(
+    pipeline_path = _evaluation_pipeline_root(dataset)
+    results: dict[str, Any] = {
+        "dataset": dataset,
+        "split": "test",
+        "conditions": {},
+        "corrector_checkpoint": str(corrector_checkpoint),
+        "corrector_checkpoint_sha256": _sha256(corrector_checkpoint / "best_model.pt"),
+        "pipeline_path": str(pipeline_path),
+        "vendor_command": vendor_command,
+        "vendor_result_root": str(scratch / "results" / dataset / "layout_corrector"),
+        "vendor_source_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
+        "vendor_evaluator_commit": _source_commit(ROOT / "vendor" / "layout-corrector"),
+        "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
+        "source_commit": _source_commit(ROOT),
+        "runtime": _runtime_record(),
+    }
+    for condition, vendor_path in vendor_pkl_paths.items():
+        with vendor_path.open("rb") as handle:
+            vendor_meta = pickle.load(handle)
+        with (package_dirs[condition] / "seed_0.pkl").open("rb") as handle:
+            package_meta = pickle.load(handle)
+        vendor_records = _prediction_records(vendor_meta["results"])
+        package_records = _prediction_records(package_meta["results"])
+        vendor_prediction_path = evidence_dir / f"{condition}-vendor-predictions.json"
+        package_prediction_path = evidence_dir / f"{condition}-package-predictions.json"
+        vendor_prediction_path.write_text(
+            json.dumps(vendor_records, sort_keys=True, separators=(",", ":")) + "\n"
+        )
+        package_prediction_path.write_text(
+            json.dumps(package_records, sort_keys=True, separators=(",", ":")) + "\n"
+        )
+        vendor_metrics = _numeric_metrics(
+            vendor_path.parent / "scores_fake_seed_0.json"
+        )
+        package_metrics = _numeric_metrics(
+            package_dirs[condition] / "scores_fake_seed_0.json"
+        )
+        common_metrics = sorted(set(vendor_metrics) & set(package_metrics))
+        metric_diffs = {
+            key: abs(vendor_metrics[key] - package_metrics[key])
+            for key in common_metrics
+        }
+        prediction_max_abs_diff, prediction_first = _prediction_difference(
+            vendor_records, package_records
+        )
+        input_path = evidence_dir / f"{condition}-input-ids.bin"
+        input_tensors = package_inputs[condition]
+        input_bytes = (
+            torch.cat(input_tensors).contiguous().numpy().tobytes()
+            if input_tensors
+            else b""
+        )
+        input_path.write_bytes(input_bytes)
+        vendor_counts = [len(item["bbox"]) for item in vendor_records]
+        package_counts = [len(item["bbox"]) for item in package_records]
+        results["conditions"][condition] = {
+            "command_arguments": vendor_command[2:],
+            "sampling_seed": 0,
+            "corrector_t_list": [10, 20, 30],
+            "vendor_results_pickle": str(vendor_path),
+            "package_results_pickle": str(package_dirs[condition] / "seed_0.pkl"),
+            "input_artifact": str(input_path.relative_to(ROOT)),
+            "input_sha256": _sha256(input_path),
+            "vendor_prediction_artifact": str(vendor_prediction_path.relative_to(ROOT)),
+            "package_prediction_artifact": str(
                 package_prediction_path.relative_to(ROOT)
             ),
-            "vendor_predictions_sha256": vendor_predictions_sha256,
-            "package_predictions_sha256": package_predictions_sha256,
-            "vendor_prediction_count": int(sum(vendor_prediction_counts)),
-            "package_prediction_count": int(sum(package_prediction_counts)),
-            "vendor_prediction_counts_per_layout": vendor_prediction_counts,
-            "package_prediction_counts_per_layout": package_prediction_counts,
-            "vendor_out_of_bounds_count_original_frame": vendor_out_of_bounds,
-            "package_out_of_bounds_count_original_frame": package_out_of_bounds,
-            "coordinate_frame": "normalized center xywh in [0, 1]",
+            "vendor_predictions_sha256": _sha256(vendor_prediction_path),
+            "package_predictions_sha256": _sha256(package_prediction_path),
+            "num_layouts": len(vendor_records),
+            "vendor_prediction_count_elements": sum(vendor_counts),
+            "package_prediction_count_elements": sum(package_counts),
+            "vendor_prediction_counts_per_layout": vendor_counts,
+            "package_prediction_counts_per_layout": package_counts,
+            "coordinate_frame": "original normalized center-xywh frame",
+            "vendor_out_of_bounds_count_elements": _out_of_bounds_count(vendor_records),
+            "package_out_of_bounds_count_elements": _out_of_bounds_count(
+                package_records
+            ),
+            "vendor_metrics": vendor_metrics,
+            "package_metrics": package_metrics,
+            "metric_max_abs_diffs": metric_diffs,
             "max_abs_prediction_diff": prediction_max_abs_diff,
-            "max_abs_confidence_score_diff": float(confidence_score_diff.max().item()),
-            "metrics": {
-                "identical": metric_first is None,
-                "vendor": vendor_metrics,
-                "package": package_metrics,
-                "max_abs_diffs": metric_diffs,
-                "valid_elements_per_prediction": {
-                    "vendor": vendor_metric,
-                    "package": package_metric,
-                },
-            },
-            "same_inputs": torch.equal(vendor_inputs, package_inputs_tensor),
-            "prediction_files_identical": vendor_predictions_sha256
-            == package_predictions_sha256,
-            "out_of_bounds_identical": vendor_out_of_bounds == package_out_of_bounds,
-            "first_divergence": {
-                "prediction": prediction_first,
-                "metric": metric_first,
-            },
-            "vendor_source_commit": _source_commit(
-                ROOT / "vendor" / "layout-corrector"
-            ),
-            "vendor_evaluator_commit": _source_commit(
-                ROOT / "vendor" / "layout-corrector"
-            ),
-            "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
-            "source_commit": _source_commit(ROOT),
-            "runtime": _runtime_record(),
-        },
-    )
+            "first_prediction_divergence": prediction_first,
+            "evaluator_command": [
+                sys.executable,
+                str(ROOT / "vendor" / "layout-corrector" / "bin" / "calc_metrics.py"),
+                str(package_dirs[condition]),
+                "--force",
+            ],
+        }
+    evaluation = _write_json("evaluation-path", dataset, results)
     assert evaluation.exists()
