@@ -1239,7 +1239,14 @@ def _stage_s4(device: torch.device) -> Path:
         "--out_path",
         str(vendor_pickle.resolve()),
     ]
-    subprocess.run(vendor_command, cwd=VENDOR_WORK, check=True)
+    vendor_environment = os.environ.copy()
+    vendor_environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+    subprocess.run(
+        vendor_command,
+        cwd=VENDOR_WORK,
+        check=True,
+        env=vendor_environment,
+    )
     package_model = (
         cast(LayoutGANPPModel, LayoutGANPPModel.from_pretrained(CONVERTED))
         .to(device)
@@ -1308,7 +1315,12 @@ def _stage_s4(device: torch.device) -> Path:
             str(VENDOR_BATCH_SIZE),
         ]
         evaluator = subprocess.run(
-            command, cwd=VENDOR_WORK, text=True, capture_output=True, check=True
+            command,
+            cwd=VENDOR_WORK,
+            text=True,
+            capture_output=True,
+            check=True,
+            env=vendor_environment,
         )
         output = evaluator.stdout + evaluator.stderr
         evaluator_outputs[system] = output
