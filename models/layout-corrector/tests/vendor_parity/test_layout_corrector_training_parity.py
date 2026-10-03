@@ -1651,7 +1651,7 @@ def test_s4_loader_stream_matches_vendor(
             "val" if split == "validation" else split,
             fixture,
             random_order=split == "train",
-            evidence_num_workers=0,
+            evidence_num_workers=_loader_worker_count(),
         )
         for split in ("train", "validation", "test")
     }
@@ -1662,8 +1662,8 @@ def test_s4_loader_stream_matches_vendor(
             "dataset": dataset,
             "splits": split_rows,
             "configured_num_workers": 16,
-            "evidence_num_workers": 0,
-            "num_workers_override": "single-process comparison for deterministic worker-independent records",
+            "evidence_num_workers": _loader_worker_count(),
+            "num_workers_override": "none; vendor-configured 16 workers retained",
             "batch_stream_comparison": all(
                 row["max_abs_input_id_diff"] == 0
                 and row["attention_mask_mismatch_count"] == 0
