@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import torch
 from laygen.common.randomness import randperm
@@ -21,6 +21,8 @@ class CrossEpochBatchSampler(Sampler[list[int]]):
         num_records: Number of training records.
         batch_size: Batch size.
         generator: Generator for the permutations.
+        ordered_indices: Optional finite sample-index stream for deterministic
+            replay. Without it, the sampler keeps drawing shuffled passes.
 
     Examples:
         >>> sampler = CrossEpochBatchSampler(5, 2, torch.Generator().manual_seed(0))
@@ -29,12 +31,24 @@ class CrossEpochBatchSampler(Sampler[list[int]]):
     """
 
     def __init__(
-        self, num_records: int, batch_size: int, generator: torch.Generator
+        self,
+        num_records: int,
+        batch_size: int,
+        generator: torch.Generator,
+        *,
+        ordered_indices: Sequence[int] | None = None,
     ) -> None:
         """Store the stream configuration."""
         self.num_records = num_records
         self.batch_size = batch_size
         self.generator = generator
+        if ordered_indices is not None and any(
+            index < 0 or index >= num_records for index in ordered_indices
+        ):
+            raise ValueError("ordered indices must refer to records in the dataset")
+
+        self._ordered_indices = ordered_indices
+        self._ordered_position = 0
         self.buffer: list[int] = []
 
     def __len__(self) -> int:
@@ -44,6 +58,19 @@ class CrossEpochBatchSampler(Sampler[list[int]]):
     def __iter__(self) -> Iterator[list[int]]:
         """Yield the next epoch of batches from the stream."""
         for _ in range(len(self)):
+            if self._ordered_indices is not None:
+                start = self._ordered_position
+                stop = start + self.batch_size
+                if stop > len(self._ordered_indices):
+                    raise RuntimeError(
+                        "the injected sample order ended before the batch"
+                    )
+
+                batch = list(self._ordered_indices[start:stop])
+                self._ordered_position = stop
+                yield batch
+                continue
+
             while len(self.buffer) < self.batch_size:
                 self.buffer.extend(
                     randperm(self.num_records, generator=self.generator).tolist()

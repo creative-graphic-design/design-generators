@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import copy
 import gzip
+import hashlib
 import json
 import math
 import os
 import re
 import zipfile
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
@@ -27,10 +29,9 @@ from canvas_vae import CanvasVAEConfig, CanvasVAEModel, CanvasVAEProcessor
 from canvas_vae.configuration_canvas_vae import CanvasVAEField
 from canvas_vae.conversion import convert_tensorflow_variables, tensorflow_key_map
 from canvas_vae.processing_canvas_vae import (
-    RicoDocument,
+    RicoSplit,
     build_vocabularies,
     count_values,
-    load_rico_split,
     stable_hash,
 )
 from canvas_vae.training import (
@@ -50,6 +51,31 @@ class Tolerance(NamedTuple):
 
     metric: str
     limit: float
+
+
+class RecordingCrossEpochBatchSampler(CrossEpochBatchSampler):
+    """Record production sampler batches while the DataModule loads them."""
+
+    def __init__(
+        self,
+        num_records: int,
+        batch_size: int,
+        generator: torch.Generator,
+        *,
+        ordered_indices: Sequence[int],
+    ) -> None:
+        super().__init__(
+            num_records,
+            batch_size,
+            generator,
+            ordered_indices=ordered_indices,
+        )
+        self.produced_batches: list[list[int]] = []
+
+    def __iter__(self) -> Iterator[list[int]]:
+        for batch in super().__iter__():
+            self.produced_batches.append(batch)
+            yield batch
 
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
@@ -98,9 +124,10 @@ ZERO_GRADIENT_LIMIT = 1e-6
 # so some tensors exceed the one-step gradient limit. For those tensors the
 # synchronized step recomputes the same step in float64 and requires both the
 # package and original float32 gradients to lie within ROUNDING_LIMIT of it.
-# On the complete-data run, the largest distance is 4.069e-3 at step 42 for an
-# encoder MLP bias, below this 5e-3 limit.
-ROUNDING_LIMIT = 5e-3
+# The 388 arbitrated gradients have a maximum error of 2.419970e-3; this limit
+# gives that population 11.6% headroom. The direct 1.8e-4 check still governs
+# every gradient that does not need arbitration.
+ROUNDING_LIMIT = 2.7e-3
 
 
 def require(*paths: Path) -> None:
@@ -913,8 +940,33 @@ def test_s3_synchronized_steps(
             measured,
         )
 
+    gradient_checks = [
+        value for name, value in measured.items() if "/grad/" in name
+    ]
+    arbitrated = [value for value in gradient_checks if value.get("float64_arbitrated")]
+    direct = [value for value in gradient_checks if not value.get("float64_arbitrated")]
+    assert len(gradient_checks) == 3_381
+    assert len(direct) == 2_993
+    assert len(arbitrated) == 388
+    max_arbitrated_error = max(
+        max(value["package_float64_error"], value["original_float64_error"])
+        for value in arbitrated
+    )
+    assert max_arbitrated_error <= ROUNDING_LIMIT
+
     check_measured(
-        "s3_synchronized", measured, {"update_criterion": summarize_updates(measured)}
+        "s3_synchronized",
+        measured,
+        {
+            "update_criterion": summarize_updates(measured),
+            "float64_arbitration": {
+                "total_gradients": len(gradient_checks),
+                "directly_checked": len(direct),
+                "arbitrated_gradients": len(arbitrated),
+                "max_error": max_arbitrated_error,
+                "limit": ROUNDING_LIMIT,
+            },
+        },
     )
 
 
@@ -974,19 +1026,21 @@ def stream_dir() -> Path:
     require(
         path / "streams.json",
         path / "vocabulary.json",
-        DATA_DIR / "train.jsonl",
+        *(DATA_DIR / f"{split}.jsonl" for split in ("train", "val", "test")),
         ARCHIVE,
     )
     return path
 
 
 @pytest.fixture(scope="module")
-def package_documents() -> dict[str, RicoDocument]:
-    return {
-        document["content_hash"]: document
-        for split in ("train", "val", "test")
-        for document in load_rico_split(DATA_DIR, split)
-    }
+def production_data_module():
+    from canvas_vae.training.datamodule import CanvasVAEDataModule
+
+    data_module = CanvasVAEDataModule(
+        data_dir=str(DATA_DIR), batch_size=1024, num_workers=0, seed=0
+    )
+    data_module.setup("fit")
+    return data_module
 
 
 @pytest.fixture(scope="module")
@@ -994,9 +1048,16 @@ def hashes_by_id() -> dict[int, str]:
     return content_hashes()
 
 
-def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, static):
+def test_s4_records_and_vocabulary(
+    stream_dir, hashes_by_id, static, production_data_module
+):
     measured = {}
     original_hashes = {}
+    package_documents = {
+        document["content_hash"]: document
+        for dataset in production_data_module.splits.values()
+        for document in dataset.documents
+    }
     expected_counts = {"train": 45_222, "val": 5_584, "test": 5_623}
     assert len(package_documents) == sum(expected_counts.values())
     for split in ("train", "val", "test"):
@@ -1057,6 +1118,7 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, 
         key: list(package_counts[key]) == list(original_counts[key])
         for key in original_counts
     }
+    assert all(measured["vocabulary_order_equal"].values())
     measured["original_count_json"] = json.loads(
         (stream_dir / "count.json").read_text()
     )
@@ -1064,25 +1126,49 @@ def test_s4_records_and_vocabulary(stream_dir, package_documents, hashes_by_id, 
         key: tables == static["lookups"][key]
         for key, tables in build_vocabularies(package_counts).items()
     }
+    assert all(measured["lookup_tables_equal"].values())
+    processor = production_data_module.processor
+    assert processor is not None
+    expected_vocabularies = {
+        key: static["lookups"][key] for key in ("component", "icon", "text_button")
+    }
+    measured["production_vocabularies_equal"] = {
+        key: processor.vocabularies[key] == tokens
+        for key, tokens in expected_vocabularies.items()
+    }
+    measured["production_lookup_tables_equal"] = {
+        key: processor.token_ids[key]
+        == {token: index for index, token in enumerate(tokens)}
+        for key, tokens in expected_vocabularies.items()
+    }
+    assert all(measured["production_vocabularies_equal"].values())
+    assert all(measured["production_lookup_tables_equal"].values())
     report("s4_records", measured)
 
 
-def test_s4_stream_replay(stream_dir, package_documents, hashes_by_id, static):
+def test_s4_stream_replay(stream_dir, production_data_module):
     streams = json.loads((stream_dir / "streams.json").read_text())
-    processor = CanvasVAEProcessor(
-        {key: static["lookups"][key] for key in ("component", "icon", "text_button")}
-    )
-    import hashlib
 
-    def digest(batch):
-        encoded = processor(
-            [
-                package_documents[hashes_by_id[index]]["elements"]
-                for index in batch["ids"]
-            ]
-        )
+    def document_id_batches(split, reference_batches):
+        dataset = production_data_module.splits[RicoSplit(split)]
+        index_by_id = {
+            document["id"]: index for index, document in enumerate(dataset.documents)
+        }
+        return [
+            [index_by_id[sample_id] for sample_id in batch["ids"]]
+            for batch in reference_batches
+        ]
+
+    def ids_from_indices(split, index_batches):
+        documents = production_data_module.splits[RicoSplit(split)].documents
+        return [
+            [documents[index]["id"] for index in batch] for batch in index_batches
+        ]
+
+    def digest(encoded, reference_batch, lengths_by_id):
+        num_elements = encoded["num_elements"].numpy()
         element_ids = encoded["element_ids"].numpy()
-        arrays = {"length": encoded["num_elements"].numpy() - 1}
+        arrays = {"length": num_elements - 1}
         arrays.update(
             {key: element_ids[..., index] for index, key in enumerate(SEQUENCE_COLUMNS)}
         )
@@ -1091,28 +1177,100 @@ def test_s4_stream_replay(stream_dir, package_documents, hashes_by_id, static):
             hasher.update(key.encode())
             hasher.update(np.ascontiguousarray(arrays[key], dtype=np.int64).tobytes())
 
-        return hasher.hexdigest(), element_ids.shape[1]
+        expected_lengths = np.asarray(
+            [lengths_by_id[sample_id] for sample_id in reference_batch["ids"]]
+        )
+        assert np.array_equal(num_elements, expected_lengths)
+        width = element_ids.shape[1]
+        actual_mask = np.arange(width)[None, :] < num_elements[:, None]
+        expected_mask = np.arange(width)[None, :] < expected_lengths[:, None]
+        assert np.array_equal(actual_mask, expected_mask)
+
+        return hasher.hexdigest(), width
 
     measured = {}
+    original_lengths = {}
     for split in ("train", "val", "test"):
-        batches = streams[f"{split}/attempt0"]
-        measured[f"{split}_batches"] = len(batches)
-        measured[f"{split}_repeat_identical"] = batches == streams[f"{split}/attempt1"]
-        for batch in batches:
-            assert digest(batch) == (batch["digest"], batch["width"])
+        with gzip.open(
+            stream_dir / f"records_{split}.jsonl.gz", "rt", encoding="utf-8"
+        ) as handle:
+            for line in handle:
+                row = json.loads(line)
+                original_lengths[row["id"]] = row["length"]
 
     train = streams["train/attempt0"]
     sizes = static["split_sizes"]
     assert len(train) == 90 and all(len(batch["ids"]) == 1024 for batch in train)
-    stream = [index for batch in train for index in batch["ids"]]
-    assert len(set(stream[: sizes["train"]])) == sizes["train"]
-    val = [index for batch in streams["val/attempt0"] for index in batch["ids"]]
-    assert (
-        len(val) == 6 * 1024 and val[sizes["val"] :] == val[: 6 * 1024 - sizes["val"]]
+    train_indices = document_id_batches("train", train)
+    ordered_train_indices = [index for batch in train_indices for index in batch]
+    sampler_probe = CrossEpochBatchSampler(
+        sizes["train"], 1024, torch.Generator().manual_seed(0),
+        ordered_indices=ordered_train_indices,
     )
-    test = streams["test/attempt0"]
-    assert [len(batch["ids"]) for batch in test] == [1024] * 5 + [
-        sizes["test"] - 5 * 1024
+    sampled_indices = list(sampler_probe) + list(sampler_probe)
+    assert sampled_indices == train_indices
+    assert ids_from_indices("train", sampled_indices) == [
+        batch["ids"] for batch in train
     ]
-    measured["first_pass_straddles"] = len(stream[: 45 * 1024]) > sizes["train"]
+
+    production_sampler = RecordingCrossEpochBatchSampler(
+        sizes["train"],
+        1024,
+        torch.Generator().manual_seed(0),
+        ordered_indices=ordered_train_indices,
+    )
+    production_data_module.train_sampler = production_sampler
+    train_loader = production_data_module.train_dataloader()
+    produced_train = list(train_loader) + list(train_loader)
+    assert len(produced_train) == len(train)
+    assert production_sampler.produced_batches == train_indices
+    assert ids_from_indices("train", production_sampler.produced_batches) == [
+        batch["ids"] for batch in train
+    ]
+    for encoded, reference_batch in zip(produced_train, train, strict=True):
+        assert digest(encoded, reference_batch, original_lengths) == (
+            reference_batch["digest"],
+            reference_batch["width"],
+        )
+
+    for split in ("val", "test"):
+        reference_batches = streams[f"{split}/attempt0"]
+        data_loader = (
+            production_data_module.val_dataloader()
+            if split == "val"
+            else production_data_module.test_dataloader()
+        )
+        sampled_indices = list(data_loader.batch_sampler)
+        assert ids_from_indices(split, sampled_indices) == [
+            batch["ids"] for batch in reference_batches
+        ]
+        produced_batches = list(data_loader)
+        assert len(produced_batches) == len(reference_batches)
+        for encoded, reference_batch in zip(
+            produced_batches, reference_batches, strict=True
+        ):
+            assert digest(encoded, reference_batch, original_lengths) == (
+                reference_batch["digest"],
+                reference_batch["width"],
+            )
+
+    train_ids = [sample_id for batch in train for sample_id in batch["ids"]]
+    assert len(set(train_ids[: sizes["train"]])) == sizes["train"]
+    val_batches = streams["val/attempt0"]
+    val_ids = [sample_id for batch in val_batches for sample_id in batch["ids"]]
+    assert len(val_batches) == 6 and len(val_ids) == 6 * 1024
+    assert val_ids[sizes["val"] :] == val_ids[: 6 * 1024 - sizes["val"]]
+    test = streams["test/attempt0"]
+    test_ids = [sample_id for batch in test for sample_id in batch["ids"]]
+    assert [len(batch["ids"]) for batch in test] == [1024] * 5 + [503]
+    assert len(test_ids) == sizes["test"] and len(set(test_ids)) == sizes["test"]
+    measured["train_batches"] = len(train)
+    measured["validation_batches"] = len(val_batches)
+    measured["validation_wrapped_screens"] = 6 * 1024 - sizes["val"]
+    measured["test_batches"] = len(test)
+    measured["test_final_batch"] = len(test[-1]["ids"])
+    measured["stream_repeat_identical"] = all(
+        streams[f"{split}/attempt0"] == streams[f"{split}/attempt1"]
+        for split in ("train", "val", "test")
+    )
     report("s4_stream", measured)

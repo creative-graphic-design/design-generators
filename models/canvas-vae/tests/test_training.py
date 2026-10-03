@@ -83,6 +83,20 @@ def test_cross_epoch_sampler_straddles_passes():
     assert len(set(first[2])) == 2
 
 
+def test_cross_epoch_sampler_default_order_matches_random_stream():
+    generator = torch.Generator().manual_seed(0)
+    sampler = CrossEpochBatchSampler(5, 2, generator)
+    expected_generator = torch.Generator().manual_seed(0)
+    expected_stream = []
+    while len(expected_stream) < 12:
+        expected_stream.extend(
+            torch.randperm(5, generator=expected_generator).tolist()
+        )
+
+    expected = [expected_stream[index : index + 2] for index in range(0, 12, 2)]
+    assert list(sampler) + list(sampler) == expected
+
+
 def test_rico_scale_stream_constants():
     assert len(CrossEpochBatchSampler(45222, 1024, torch.Generator())) == 45
     batches = wrapping_batches(5584, 1024)
