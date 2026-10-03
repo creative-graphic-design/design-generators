@@ -10,6 +10,7 @@ from typing import TypeAlias
 
 import torch
 from jaxtyping import Bool, Float, Int
+from laygen.common.randomness import resolve_torch_generator
 
 from .configuration_radm import RADMConfig
 from .postprocessing import select_predictions
@@ -136,7 +137,7 @@ def evaluate_cgl_predictions(
         per_category: dict[str, float] = {}
         precisions = evaluator.eval["precision"]
         for category_index, category in enumerate(categories):
-            precision = precisions[:, :, category_index, 0, -1]  # ty: ignore[invalid-argument-type,not-subscriptable]
+            precision = precisions[:, :, category_index, 0, -1]
             precision = precision[precision > -1]
             per_category[f"AP-{category['name']}"] = (
                 float(precision.mean() * 100.0) if precision.size else float("nan")
@@ -209,7 +210,7 @@ def evaluate_checkpoint(
         num_inference_steps=steps,
         eta=1.0,
     )
-    generator = torch.Generator(device=device).manual_seed(seed)
+    generator = resolve_torch_generator(seed=seed)
     predictions: list[CocoPrediction] = []
     offset = 0
     with torch.no_grad():

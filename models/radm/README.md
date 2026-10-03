@@ -46,7 +46,7 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 - **Developed by:** RADM authors.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation.
+- **Model type:** content-aware; task: single-task; conditioning: none.
 - **Language(s) (NLP):** not applicable.
 - **License:** unconfirmed for the checked original source and any user-supplied or converted weights.
 
@@ -58,10 +58,10 @@ RADM is a proposal-box diffusion pipeline for content-aware poster layout genera
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| CGL | `creative-graphic-design/radm-cgl` | not-published |
-| CGL-v2 | `creative-graphic-design/radm-cgl-v2` | not-published |
+| Checkpoint | Hub ID                                | Status        |
+| ---------- | ------------------------------------- | ------------- |
+| CGL        | `creative-graphic-design/radm-cgl`    | not-published |
+| CGL-v2     | `creative-graphic-design/radm-cgl-v2` | not-published |
 
 ## Uses
 
@@ -98,7 +98,7 @@ pip install \
   "radm @ git+https://github.com/creative-graphic-design/design-generators.git#subdirectory=models/radm"
 ```
 
-Clone this repository, install the workspace member, and run the conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/impl-radm/models/radm/REPRODUCING.md). Those steps create `.cache/radm/converted/cgl`.
+Clone this repository, install the workspace member, and run the conversion steps in [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/REPRODUCING.md). Those steps create `.cache/radm/converted/cgl`.
 
 ```bash
 git clone https://github.com/creative-graphic-design/design-generators.git
@@ -121,6 +121,12 @@ print(out.labels)
 print(out.mask)
 ```
 
+```text
+torch.Size([1, 100, 4])
+torch.Size([1, 100])
+torch.Size([1, 100])
+```
+
 ## Training Details
 
 ### Training Data
@@ -128,21 +134,11 @@ print(out.mask)
 The package-local adapter accepts explicit CGL and CGL-v2 COCO-style annotation,
 image, and precomputed 768-dimensional text-feature paths. It does not download
 data. Data provenance and the CGL-v2 license remain unresolved; see
-[TRAINING.md](TRAINING.md) for the current gate status.
+[TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md) for the current gate status.
 
 ### Training Procedure
 
-Phase 1 ships the member-scoped LightningCLI entry surface and captured
-effective recipe under `configs/training`. The checked original recipe uses one
-GPU, batch size 16, AdamW at `2.5e-5`, weight decay `1e-4`, warmup plus
-milestones at 150k and 220k, and `MAX_ITER=250000`. The model predicts four
-classes while the five-entry CGL vocabulary is preserved explicitly in the
-captured class mapping. Source-generated S0-S2 evidence is accepted; the
-two-layer S3 record separates synchronized graph/operation checks from the
-natural trajectory drift envelope. It is not authoritative loader,
-checkpoint-round-trip, or production-wiring evidence, and no S4-S5 or 300-step
-lockstep claim is made. See [TRAINING.md](TRAINING.md) for the staged protocol
-and remaining gates.
+Phase 1 ships the member-scoped LightningCLI entry surface and captured effective recipe under `configs/training`. The checked original recipe uses one GPU, batch size 16, AdamW at `2.5e-5`, weight decay `1e-4`, warmup plus milestones at 150k and 220k, and `MAX_ITER=250000`. The model predicts four classes while the five-entry CGL vocabulary is preserved explicitly in the captured class mapping. Source-generated S0-S2 evidence is accepted; the two-layer S3 record separates synchronized graph/operation checks from the natural trajectory drift envelope, the S4 loader evidence is exact for the recorded CGL stream, and the amended 300-record lockstep preflight plus CGL S5 terminal comparison are recorded in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md). The S5 interpretation remains pending maintainer verdict.
 
 ## Evaluation
 
@@ -162,10 +158,10 @@ Metrics are exact scheduler/timestep agreement, exact tensor equality where the 
 
 ### Parity Results
 
-| Dataset | Compared path | Cases | Assertion |
-| --- | --- | ---: | --- |
-| CGL | original Detectron2 RADM path vs. converted `🧨diffusers` path | 0 | not run; no released checkpoint or local parity assets were available |
-| Synthetic smoke | randomly initialized RADM pipeline save/load | 1 | schema smoke only, no original-code parity claim |
+| Dataset         | Compared path                                                  | Cases | Assertion                                                             |
+| --------------- | -------------------------------------------------------------- | ----: | --------------------------------------------------------------------- |
+| CGL             | original Detectron2 RADM path vs. converted `🧨diffusers` path |     0 | not run; no released checkpoint or local parity assets were available |
+| Synthetic smoke | randomly initialized RADM pipeline save/load                   |     1 | schema smoke only, no original-code parity claim                      |
 
 No accepted original-code inference parity number is available yet. The package includes a gated parity harness that fails under `PARITY_REQUIRE=1` when required local assets are absent.
 
@@ -175,9 +171,9 @@ Reproduce original-implementation agreement by supplying an approved local
 checkpoint and data assets, capturing the original Detectron2 reference state,
 running the gated parity tests, converting the checkpoint, and smoke-testing
 `from_pretrained` as described in
-[REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/impl-radm/models/radm/REPRODUCING.md).
+[REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/REPRODUCING.md).
 Training-stage status and the future member-scoped training commands are in
-[TRAINING.md](TRAINING.md).
+[TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/radm/TRAINING.md).
 
 ## Environmental Impact
 

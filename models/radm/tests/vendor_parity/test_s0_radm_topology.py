@@ -1,4 +1,4 @@
-"""Real original/package topology checks for RADM S0."""
+"""Real original/package topology checks for RADM."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
 
 def test_s0_radm_topology() -> None:
-    """Compare a real original graph with the package graph before S1/S2."""
+    """Compare a real original graph with the package graph before step traces."""
     adapter = RADMReferenceAdapter(vendor_root=Path("vendor/radm"), device="cpu")
     state: ReferenceTrainingState | None = None
     try:

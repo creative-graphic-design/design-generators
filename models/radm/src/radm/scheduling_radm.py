@@ -11,6 +11,7 @@ from diffusers import ConfigMixin, SchedulerMixin
 from diffusers.configuration_utils import register_to_config
 from diffusers.utils import BaseOutput
 from jaxtyping import Float, Int
+from laygen.common.randomness import randn
 
 
 @dataclass
@@ -127,10 +128,12 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
         Returns:
             Sorted normalized boxes in ``xyxy`` order.
         """
-        noise = torch.randn(
-            (batch_size, num_proposals, 4),
+        noise = randn(
+            batch_size,
+            num_proposals,
+            4,
             generator=generator,
-            device=device,
+            device=device or "cpu",
             dtype=dtype,
         )
         points = noise.sigmoid()
@@ -276,8 +279,8 @@ class RADMScheduler(SchedulerMixin, ConfigMixin):
             noise = None
             prev_sample = alpha_prod_t_prev.sqrt() * model_output + direction
             if float(self.config.eta):
-                noise = torch.randn(
-                    model_output.shape,
+                noise = randn(
+                    tuple(model_output.shape),
                     generator=generator,
                     device=model_output.device,
                     dtype=model_output.dtype,
