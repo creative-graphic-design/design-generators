@@ -1354,7 +1354,7 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
     )
     max_abs = (
         max(
-            comparison["first_difference"]["max_abs"]
+            comparison["first_difference"]["max_abs_diff"]
             for row in trace_rows
             for comparison in (
                 row["trace"],
