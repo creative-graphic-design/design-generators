@@ -21,6 +21,7 @@ from devharness.checks.model_readmes import (
     reproducing,
     root_readme,
 )
+from devharness.checks.jaxtyping_annotations import check as jaxtyping_annotations
 from devharness.checks.model_readmes.constants import (
     DOCS_MODEL_TABLE_HEADER,
     ROOT_MODEL_TABLE_HEADER,
@@ -84,7 +85,23 @@ def test_model_readme_dispatch_rejects_unsupported_command(
     monkeypatch.setattr(sys, "argv", ["devharness", "check", "other"])
 
     assert cli.main() == 2
-    assert capsys.readouterr().err == "usage: devharness check model-readmes\n"
+    assert capsys.readouterr().err == (
+        "usage: devharness check {model-readmes,jaxtyping-annotations} "
+        "[--write-baseline]\n"
+    )
+
+
+def test_dispatch_reports_supported_commands_when_command_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["devharness"])
+
+    assert cli.main() == 2
+    assert capsys.readouterr().err == (
+        "usage: devharness check {model-readmes,jaxtyping-annotations} "
+        "[--write-baseline]\n"
+    )
 
 
 def test_model_readme_main_reports_success(
@@ -217,6 +234,24 @@ def test_model_readme_cli_forwards_options(
         ["devharness", "check", "model-readmes", "--write-baseline"],
     )
     monkeypatch.setattr(check, "main", fake_main)
+
+    assert cli.main() == 17
+    assert seen == ["--write-baseline"]
+
+
+def test_jaxtyping_cli_forwards_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def fake_main(argv: list[str]) -> int:
+        seen.extend(argv)
+        return 17
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["devharness", "check", "jaxtyping-annotations", "--write-baseline"],
+    )
+    monkeypatch.setattr(jaxtyping_annotations, "main", fake_main)
 
     assert cli.main() == 17
     assert seen == ["--write-baseline"]
