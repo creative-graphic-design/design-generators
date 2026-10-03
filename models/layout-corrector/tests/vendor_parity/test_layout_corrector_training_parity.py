@@ -2010,6 +2010,7 @@ def test_s4_test_evaluation_path_matches_vendor(
             ),
             "layoutdm_source_commit": _source_commit(ROOT / "vendor" / "layout-dm"),
             "source_commit": _source_commit(ROOT),
+            "runtime": _runtime_record(),
         },
     )
     assert evaluation.exists()
