@@ -65,7 +65,7 @@ Run `uv run --package design-generators scripts/check_training_stage_evidence.py
 
 Keep train-ourselves PRs draft until S5 is complete for every claimed dataset. If a PR intentionally lands S0-S4 infrastructure before full runs complete, the PR body, README, and `TRAINING.md` must state that S5 trained-checkpoint reproduction is not yet claimed.
 
-## Repository Training Contract
+## Repository Training Rules
 
 - Train-ourselves models use PyTorch Lightning through each model package's `training` extra and LightningCLI with YAML configs plus CLI overrides.
 - Keep `LightningModule`, `LightningDataModule`, and `configs/*.yaml` inside the model package.

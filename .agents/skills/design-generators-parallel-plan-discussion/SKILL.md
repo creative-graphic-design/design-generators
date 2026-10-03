@@ -9,7 +9,7 @@ Use this protocol when independent investigations must converge on shared decisi
 
 Use this skill for a requested planning council, not for an ordinary single-package change. Before controlling Herdr, verify `HERDR_ENV=1` and read the `herdr` skill, or retrieve it with `herdr --skill` when it is not already loaded. Do not copy a command manual into this skill.
 
-## Council contract
+## Council protocol
 
 - Choose 2–6 targets, a concrete agenda, a shared drafts directory outside the repository, and exactly two rounds: proposals, then reconciliation. State the scope and completion criteria in the dispatch.
 - Assign one Herdr-recognized agent per target with the role name `impl-plan-<target-slug>`. Every participant must use a separate Herdr-managed worktree and Herdr tab.

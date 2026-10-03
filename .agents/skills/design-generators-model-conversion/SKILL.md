@@ -9,7 +9,7 @@ Deliver the model issue's agreed package interface, reproducible agreement check
 
 Paths below are relative to the repository root. Read the model issue's plan, amendments, and relevant reviews before changing its implementation. Use a task worktree based on current `origin/main`, or continue the existing worktree for that task. Add `in-progress` when model implementation starts.
 
-## Select the relevant contracts
+## Select the relevant rules
 
 - Read `docs/implementation-checklist.md` for a new model package or a complete conversion review; use only the affected sections for maintenance.
 - Use `docs/roadmap.md` to resolve the method/package identity and planned scope, and `docs/data-sources.md` for approved datasets and their configs.
@@ -22,7 +22,7 @@ Confirm the checkpoint/dataset/task matrix and license from the issue and origin
 
 Main package code under `models/*/src` and `lib/*/src` must read as this repository's own implementation. Do not describe runtime modules, public arguments, comments, or docstrings as wrappers around the original implementation, compatibility surfaces for it, or ports of its code. Use repository-owned wording such as `released`, `checkpoint`, `reference`, `source`, or `original-code dependency` when the distinction is needed.
 
-References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API. Use the [model and serialization contracts](docs/conventions.md#model-and-serialization-contracts) for public pipeline arguments, output schemas, model entry points, and serialization rules.
+References phrased in vendor terms are limited to conversion-responsibility modules, `tests/vendor_parity`, `REPRODUCING.md`, and `TRAINING.md`. If a package needs to compare against an original implementation, keep that detail in conversion, reference-generation, or parity-test paths rather than the public runtime API. Use the [model and serialization rules](docs/conventions.md#model-and-serialization-rules) for public pipeline arguments, output schemas, model entry points, and serialization rules.
 
 ## Package and interface
 

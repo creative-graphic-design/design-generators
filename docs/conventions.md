@@ -88,7 +88,7 @@ The `content_image` condition is excluded from model-card Conditioning because i
 
 Layout pipelines expose the following keyword-only arguments. The initial layout interface is called v1; v2 adds the multimodal inputs below. Use precise shaped annotations and explicit model-specific keywords in implementations, rather than a catch-all `**kwargs` signature.
 
-| Arguments                                                  | Contract                                                                                    |
+| Arguments                                                  | Requirement                                                                                 |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `batch_size=1`, `num_elements=None`                        | Requested batch size and optional scalar or per-example element count.                      |
 | `seed=None`, `generator=None`                              | An explicit generator takes precedence over a seed.                                         |
@@ -100,13 +100,13 @@ Layout pipelines expose the following keyword-only arguments. The initial layout
 
 Expose the agreed v1 arguments even when some combinations are unsupported; reject those combinations explicitly. For v2, add only the relevant inputs: `prompt`, `content`, `image`, `saliency`, `scene_graph`, `relations`, `hierarchy`, `retrieval`, `retrieval_examples`, or `label_texts`. The model issue defines their meaning for that package. Open-vocabulary labels use request-local ids; batched outputs use one batch-local union with per-example maps in `intermediates["id2label_per_example"]`.
 
-### Model and serialization contracts
+### Model and serialization rules
 
 Every `PreTrainedModel` implements `forward`. Keep multi-model or decoded-text orchestration in the pipeline, and expose only standard model `forward` and token-level `generate` entrypoints. Layout-level methods such as `generate_layout` belong on the pipeline's `__call__`. Stateful constrained decoding may remain an internal model helper called by the pipeline.
 
-Keep standard `save_pretrained` and `from_pretrained` machinery; justify any unavoidable override in the model plan and PR. Require an explicit config or derive it from a loaded artifact such as `model.config`, rather than synthesizing a fallback config. Use framework suffixes such as `ForConditionalGeneration` only when the class satisfies the corresponding forward/generate contract.
+Keep standard `save_pretrained` and `from_pretrained` machinery; justify any unavoidable override in the model plan and PR. Require an explicit config or derive it from a loaded artifact such as `model.config`, rather than synthesizing a fallback config. Use framework suffixes such as `ForConditionalGeneration` only when the class satisfies the corresponding forward/generate behavior.
 
-Discrete layout tokenizers inherit `transformers.PreTrainedTokenizer` unless the model plan documents a concrete conflict. Use synthetic token strings, standard padding/mask tokens, and `encode_layout()`/`decode_layout()` for layout conversion. Serialize auxiliary data such as cluster centers with tokenizer files, and preserve float64 decode paths where numerical agreement requires them. Processors use `transformers.ProcessorMixin` where its contract applies.
+Discrete layout tokenizers inherit `transformers.PreTrainedTokenizer` unless the model plan documents a concrete conflict. Use synthetic token strings, standard padding/mask tokens, and `encode_layout()`/`decode_layout()` for layout conversion. Serialize auxiliary data such as cluster centers with tokenizer files, and preserve float64 decode paths where numerical agreement requires them. Processors use `transformers.ProcessorMixin` where applicable.
 
 ### Seeded Sampling
 

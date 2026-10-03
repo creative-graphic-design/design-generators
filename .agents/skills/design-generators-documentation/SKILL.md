@@ -19,7 +19,7 @@ Write for a first-time package user or contributor. State the intended reader be
 
 Read the model issue and amendments when changing its scope, interface, or evidence claims. A typo or link correction does not require reading unrelated plans, external model pages, or training artifacts.
 
-## Reader-first contract
+## Reader-first guidance
 
 - Follow the reader-first and no-hard-wrap rules in the repository's core `AGENTS.md`.
 - Before publishing or approving a document, run a reduction pass: for every table column, table row, and sentence, state what a first-time reader would lose if it were deleted, and delete anything that loses nothing. A column that restates another column, a row whose owner cell already says what the row would add, and a sentence that repeats the section's opening principle are the usual casualties.
@@ -35,7 +35,7 @@ Read the model issue and amendments when changing its scope, interface, or evide
 
 ## Model README and model card
 
-Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable contract. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
+Use the README template for required metadata and headings. Keep its overview, paper link, and usage clear; use `devharness check model-readmes` as the executable check. Do not run a new model campaign to fill a missing result: report unavailable evidence explicitly.
 
 - Human review checks that the first `python` usage fence in each model README is followed, after optional blank lines, by a `text` fence containing the output produced when that snippet is run as written; the captured output is provenance for the snippet, not a hand-written example.
 

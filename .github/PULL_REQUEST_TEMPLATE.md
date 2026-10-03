@@ -16,7 +16,7 @@
 
 ## Verification
 
-<!-- Record executed commands and results. Include coverage and parity numbers when applicable, distinguishing passes from skips. For docs/skills, report the affected contracts and existing checks; do not claim model parity from documentation checks. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
+<!-- Record executed commands and results. Include coverage and parity numbers when applicable, distinguishing passes from skips. For docs/skills, report the affected rules and the existing checks; do not claim model parity from documentation checks. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
 
 - TODO
 
