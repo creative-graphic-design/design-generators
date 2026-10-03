@@ -1948,6 +1948,9 @@ def run_s4() -> Path:
             (evaluation_root / "output").symlink_to(
                 vendor_root / "output", target_is_directory=True
             )
+            (evaluation_root / "test_order.pt").symlink_to(
+                vendor_root / "test_order.pt"
+            )
             os.chdir(evaluation_root)
             vendor_eval.main()
     os.chdir(ROOT)
