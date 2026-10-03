@@ -619,7 +619,10 @@ def _tensor_diffs(
 def _state_diffs(
     reference: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
 ) -> tuple[dict[str, float], str | None]:
-    report = compare_optimizer_step(reference, target)
+    report = compare_optimizer_step(
+        {name: value.detach().cpu() for name, value in reference.items()},
+        {name: value.detach().cpu() for name, value in target.items()},
+    )
     diffs = {item.name: item.max_abs_diff for item in report.comparisons}
     diffs.update({name: float("inf") for name in report.missing})
     first = next(
