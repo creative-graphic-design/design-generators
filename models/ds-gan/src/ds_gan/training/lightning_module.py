@@ -29,6 +29,8 @@ class DSGANTrainingModule(LightningModule):
         discriminator_config: DSGANConfig | None = None,
         generator: DSGANModel | None = None,
         discriminator: DSGANDiscriminator | None = None,
+        generator_backbone_weights: str | None = None,
+        discriminator_backbone_weights: str | None = None,
         generator_learning_rate: float = 1e-4,
         discriminator_learning_rate: float = 1e-3,
         generator_backbone_learning_rate: float = 1e-5,
@@ -54,7 +56,14 @@ class DSGANTrainingModule(LightningModule):
     ) -> None:
         """Initialize the two-network DS-GAN training state."""
         super().__init__()
-        self.save_hyperparameters(ignore=("generator", "discriminator"))
+        self.save_hyperparameters(
+            ignore=(
+                "generator",
+                "discriminator",
+                "generator_backbone_weights",
+                "discriminator_backbone_weights",
+            )
+        )
         self.ds_gan_config = config
 
         if discriminator_config is None:
@@ -76,9 +85,12 @@ class DSGANTrainingModule(LightningModule):
         else:
             resolved_discriminator_config = discriminator_config
 
-        self.generator = generator or DSGANModel(config)
+        self.generator = generator or DSGANModel(
+            config, backbone_weights=generator_backbone_weights
+        )
         self.discriminator = discriminator or DSGANDiscriminator(
-            resolved_discriminator_config
+            resolved_discriminator_config,
+            backbone_weights=discriminator_backbone_weights,
         )
         self.criterion = DSGANSetCriterion()
         self.generator_learning_rate = generator_learning_rate

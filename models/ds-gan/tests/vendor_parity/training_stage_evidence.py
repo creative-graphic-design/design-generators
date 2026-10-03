@@ -17,7 +17,6 @@ import sys
 from typing import Any, Iterator, cast  # noqa: TID251 - vendor adapter boundary is heterogeneous
 
 import numpy as np
-import timm
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -114,6 +113,7 @@ def _metadata() -> dict[str, Any]:
     return {
         "source_commit": _git("rev-parse", "HEAD"),
         "vendor_commit": _git("-C", str(VENDOR), "rev-parse", "HEAD"),
+        "backbone_weights": _backbone_manifest(),
         "runtime": _runtime(),
     }
 
@@ -162,24 +162,72 @@ def _rng_digest(state: RNGState) -> dict[str, str]:
 
 @contextmanager
 def _vendor_backbone_loader() -> Iterator[None]:
+    global _VENDOR_TORCH_LOAD
     original_load = torch.load
+    _VENDOR_TORCH_LOAD = original_load
     torch.load = _fake_vendor_backbone  # ty: ignore[invalid-assignment]
     try:
         yield
     finally:
         torch.load = original_load
+        _VENDOR_TORCH_LOAD = None
 
 
 def _fake_vendor_backbone(
     path: str, *args: Any, **kwargs: Any
 ) -> dict[str, torch.Tensor]:
     del args, kwargs
-    backbone = "resnet50" if "resnet50" in path else "resnet18"
-    return timm.create_model(backbone, pretrained=False).state_dict()
+    if _VENDOR_TORCH_LOAD is None:
+        raise RuntimeError("vendor torch.load hook is not active")
+
+    weight_path = _backbone_path("resnet50" if "resnet50" in path else "resnet18")
+    loaded = _VENDOR_TORCH_LOAD(weight_path, map_location="cpu", weights_only=False)
+    if not isinstance(loaded, dict):
+        raise TypeError(f"vendor backbone weights are not a state dict: {weight_path}")
+
+    return loaded
 
 
 _VENDOR_CLASSES: tuple[type[nn.Module], type[nn.Module], Any, Any] | None = None
 _VENDOR_MAIN: Any | None = None
+_VENDOR_TORCH_LOAD: Any | None = None
+
+
+def _backbone_path(backbone: str) -> Path:
+    environment_name = (
+        "DSGAN_RESNET50_WEIGHTS" if backbone == "resnet50" else "DSGAN_RESNET18_WEIGHTS"
+    )
+    value = os.environ.get(environment_name)
+    if not value:
+        raise RuntimeError(f"{environment_name} is required for training evidence")
+
+    path = Path(value)
+    if not path.is_file():
+        raise FileNotFoundError(f"backbone weights not found: {path}")
+
+    return path
+
+
+def _backbone_manifest() -> dict[str, dict[str, str | int]]:
+    urls = {
+        "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
+        "resnet50": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet50_a1_0-14fe96d1.pth",
+    }
+    return {
+        backbone: {
+            "filename": path.name,
+            "url": urls[backbone],
+            "sha256": _sha256(path),
+            "bytes": path.stat().st_size,
+            "path_env": (
+                "DSGAN_RESNET50_WEIGHTS"
+                if backbone == "resnet50"
+                else "DSGAN_RESNET18_WEIGHTS"
+            ),
+        }
+        for backbone in ("resnet18", "resnet50")
+        for path in (_backbone_path(backbone),)
+    }
 
 
 def _vendor_classes() -> tuple[type[nn.Module], type[nn.Module], Any, Any]:
@@ -261,9 +309,13 @@ def _models(device: torch.device) -> tuple[Any, Any, Any, Any, Any, Any]:
         torch.manual_seed(SEED)
         vendor_discriminator = vendor_discriminator_class(discriminator_args).to(device)
     torch.manual_seed(SEED)
-    package_generator = DSGANModel(generator_config).to(device)
+    package_generator = DSGANModel(
+        generator_config, backbone_weights=_backbone_path("resnet50")
+    ).to(device)
     torch.manual_seed(SEED)
-    package_discriminator = DSGANDiscriminator(discriminator_config).to(device)
+    package_discriminator = DSGANDiscriminator(
+        discriminator_config, backbone_weights=_backbone_path("resnet18")
+    ).to(device)
     return (
         vendor_generator,
         vendor_discriminator,
@@ -296,8 +348,12 @@ def _independent_models(system: str, device: torch.device) -> tuple[Any, Any, An
             discriminator_config,
         )
     if system == "package":
-        package_generator = DSGANModel(generator_config).to(device)
-        package_discriminator = DSGANDiscriminator(discriminator_config).to(device)
+        package_generator = DSGANModel(
+            generator_config, backbone_weights=_backbone_path("resnet50")
+        ).to(device)
+        package_discriminator = DSGANDiscriminator(
+            discriminator_config, backbone_weights=_backbone_path("resnet18")
+        ).to(device)
         return (
             package_generator,
             package_discriminator,

@@ -16,6 +16,8 @@ model:
         max_elem: 32
         image_size: [350, 240]
         backbone_feature_size: 330
+    generator_backbone_weights: null
+    discriminator_backbone_weights: null
     generator_learning_rate: 0.0001
     discriminator_learning_rate: 0.001
     generator_backbone_learning_rate: 0.00001

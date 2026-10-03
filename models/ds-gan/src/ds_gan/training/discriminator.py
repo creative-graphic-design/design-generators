@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Final
 
 import numpy as np
@@ -169,10 +170,12 @@ def _cxcywh_to_xyxy(
 class DSGANDiscriminator(nn.Module):
     """Package-local discriminator matching the original DS-GAN topology."""
 
-    def __init__(self, config: DSGANConfig) -> None:
+    def __init__(
+        self, config: DSGANConfig, *, backbone_weights: str | Path | None = None
+    ) -> None:
         """Initialize the discriminator from a ResNet-FPN and CNN-LSTM config."""
         super().__init__()
-        self.resnet_fpn = ResnetBackbone(config)
+        self.resnet_fpn = ResnetBackbone(config, backbone_weights=backbone_weights)
         self.cnnlstm = CNNLSTM(config)
         self.fc_tf = nn.Linear(2 * config.hidden_size, 1)
 

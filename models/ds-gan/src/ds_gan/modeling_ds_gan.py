@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -41,7 +43,9 @@ class DSGANModelOutput(ModelOutput):
 class ResnetBackbone(nn.Module):
     """DS-GAN ResNet-FPN encoder used to initialize the DS-GAN LSTM state."""
 
-    def __init__(self, config: DSGANConfig) -> None:
+    def __init__(
+        self, config: DSGANConfig, *, backbone_weights: str | Path | None = None
+    ) -> None:
         """Initialize the ResNet-FPN encoder."""
         super().__init__()
         try:
@@ -59,6 +63,17 @@ class ResnetBackbone(nn.Module):
             raise ValueError(f"Unsupported DS-GAN backbone: {config.backbone}")
 
         resnet = timm.create_model(config.backbone, pretrained=False)
+        if backbone_weights is not None:
+            weight_path = Path(backbone_weights)
+            if not weight_path.is_file():
+                raise FileNotFoundError(f"backbone weights not found: {weight_path}")
+
+            weights = torch.load(weight_path, map_location="cpu", weights_only=False)
+            if not isinstance(weights, Mapping):
+                raise TypeError("backbone weights must contain a state-dict mapping")
+
+            resnet.load_state_dict(weights, strict=True)
+
         resnet.conv1 = nn.Conv2d(
             4,
             64,
@@ -149,10 +164,16 @@ class DSGANModel(PreTrainedModel):
     base_model_prefix = "ds_gan"
     supports_gradient_checkpointing = False
 
-    def __init__(self, config: DSGANConfig) -> None:
+    def _init_weights(self, module: nn.Module) -> None:
+        """Keep the source module initializers used before ``post_init``."""
+        del module
+
+    def __init__(
+        self, config: DSGANConfig, *, backbone_weights: str | Path | None = None
+    ) -> None:
         """Initialize DS-GAN generator layers."""
         super().__init__(config)
-        self.resnet_fpn = ResnetBackbone(config)
+        self.resnet_fpn = ResnetBackbone(config, backbone_weights=backbone_weights)
         self.cnnlstm = CNNLSTM(config)
         self.fc1 = nn.Linear(2 * config.hidden_size, config.output_size // 2)
         self.fc2 = nn.Linear(2 * config.hidden_size, config.output_size // 2)
