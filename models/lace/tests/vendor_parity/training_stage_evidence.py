@@ -967,24 +967,38 @@ class _PackageNaturalTraceCallback(Callback):
         pl_module: LightningModule,
         optimizer: torch.optim.Optimizer,
     ) -> None:
+        trace = getattr(pl_module, "latest_step_trace", {})
+        self._record = {
+            "batch_ids": list(self._batch_ids),
+            "loss": float(cast(torch.Tensor, trace["train_loss"]).item()),
+            "gradient_hashes": self._pre_clip_hashes,
+            "gradient_norm": self._pre_clip_norm,
+            "learning_rate": optimizer.param_groups[0]["lr"],
+            "trainer_gradient_clip_val": trainer.gradient_clip_val,
+            "trainer_gradient_clip_algorithm": trainer.gradient_clip_algorithm,
+        }
+
+    def on_before_zero_grad(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        optimizer: torch.optim.Optimizer,
+    ) -> None:
+        del trainer, optimizer
+        if self._record is None:
+            raise RuntimeError("Lightning clip hook ran before optimizer-step capture")
         parameters = dict(pl_module.named_parameters())
         gradients = {
             name: parameter.grad.detach()
             for name, parameter in parameters.items()
             if parameter.grad is not None
         }
-        trace = getattr(pl_module, "latest_step_trace", {})
-        self._record = {
-            "batch_ids": list(self._batch_ids),
-            "loss": float(cast(torch.Tensor, trace["train_loss"]).item()),
-            "gradient_hashes": self._pre_clip_hashes,
-            "clipped_gradient_hashes": _tensor_hashes(gradients),
-            "gradient_norm": self._pre_clip_norm,
-            "clipped_gradient_norm": _gradient_norm(parameters.values()),
-            "learning_rate": optimizer.param_groups[0]["lr"],
-            "trainer_gradient_clip_val": trainer.gradient_clip_val,
-            "trainer_gradient_clip_algorithm": trainer.gradient_clip_algorithm,
-        }
+        self._record.update(
+            {
+                "clipped_gradient_hashes": _tensor_hashes(gradients),
+                "clipped_gradient_norm": _gradient_norm(parameters.values()),
+            }
+        )
 
     def on_train_batch_end(
         self,
