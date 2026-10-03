@@ -509,6 +509,10 @@ def test_card_parsing_helpers_cover_empty_and_inline_cases() -> None:
     assert card._frontmatter_scalar("license: mit", "missing") is None
     assert card._frontmatter_list("license: mit", "datasets") == []
     assert card._dataset_display_name("custom") == "custom"
+    assert (
+        card._dataset_display_name("creative-graphic-design/Rico", "layoutganpp")
+        == "RICO13"
+    )
     assert card.semantic_badge_label("plain", "library") == "library"
     assert card.without_badges("A ![badge](url) B") == "A   B"
     assert card.markdown_link_spans("[link](url)")

@@ -1,158 +1,126 @@
 ---
-icon: lucide:dumbbell
+icon: lucide/dumbbell
 tags:
   - Training
   - Reproducibility
   - LayoutGAN++
 ---
 
-# LayoutGAN++ Training
+# LayoutGAN++ training
 
-This document records the LayoutGAN++ package-local training path and the S0-S4 evidence required before a full training run. The staged result is exact agreement with the pinned Const-layout implementation for the Magazine fixture; no S5 full-run claim is made.
+This document records the package-local training commands and staged reproduction evidence for LayoutGAN++. The Magazine fixture passes the static, trace, optimizer-step, repeated-step, and loader/evaluation checks; full-run S5 training remains unrun for Magazine, RICO13, and PubLayNet.
 
-Run commands from the repository root. Training data, logs, checkpoints, and staged evidence stay under `.cache/layoutganpp/`.
+Run commands from the repository root. Keep generated data, logs, converted pipelines, checkpoints, and evaluation artifacts under `.cache/layoutganpp/`.
 
 ## Install
 
-The lockfile environment is the source of truth for CPU-only checks and tests.
-
 ```bash
-UV_FROZEN=1 uv sync --all-packages --frozen
+UV_FROZEN=1 uv sync --package layoutganpp --extra training
+UV_FROZEN=1 uv sync --package layoutganpp --extra training --extra vendor
 ```
 
-Install the package extras in the lockfile environment when preparing data or running CPU-only checks.
-
-```bash
-UV_FROZEN=1 uv sync --package layoutganpp --extra training --extra vendor --frozen
-```
-
-GPU evidence uses an audited runtime because the locked `torch 2.13.0+cu130` wheel cannot initialize on the host's CUDA 12.9-era driver. The audited runtime uses Python 3.11.15, `torch-2.8.0+cu128` (the nearest available audited-GPU-capable cu128 wheel; exact locked version has no cu128 wheel), and `torchvision-0.23.0+cu128`; all other dependencies are pinned to the lockfile. Its `pip freeze` hash is `b16da6f64a1b1b8f058437e2c1f2c2f4f5b32383355a515a2016cbed2afb5d61`.
-
-Create the audited runtime outside tracked repository files and install this worktree into it as an editable package. The package's own tests must pass before GPU evidence is used.
-
-```bash
-UV_FROZEN=1 uv venv --python 3.11 <PACKAGE_AUDIT_VENV>
-UV_FROZEN=1 uv export --frozen --package layoutganpp --extra training --extra vendor --format requirements-txt --output-file .cache/layoutganpp/runtime/locked-requirements.txt
-UV_FROZEN=1 uv pip sync --python <PACKAGE_AUDIT_VENV>/bin/python .cache/layoutganpp/runtime/locked-requirements.txt
-UV_FROZEN=1 uv pip install --python <PACKAGE_AUDIT_VENV>/bin/python --no-deps <torch-2.8.0+cu128-wheel>
-UV_FROZEN=1 uv pip install --python <PACKAGE_AUDIT_VENV>/bin/python --no-deps <torchvision-0.23.0+cu128-wheel>
-UV_FROZEN=1 uv pip install --python <PACKAGE_AUDIT_VENV>/bin/python --index-url https://pypi.org/simple pytest==9.1.1 pytest-cov==7.1.0 pytest-xdist==3.8.0 beartype==0.22.9
-CUDA_VISIBLE_DEVICES="" <PACKAGE_AUDIT_VENV>/bin/python -m pytest models/layoutganpp/tests -q
-```
-
-The audited-runtime package test result was `37 passed, 3 skipped`; the skips are the pre-existing original-weight parity tests without released checkpoint fixtures. One idle GPU was selected and verified with `nvidia-smi` before each GPU run.
+The `vendor` extra is needed for the original-code checks.
 
 ## Data
 
-The vendor entry point is `vendor/const-layout/train.py` at vendor commit `5287480505939345543fff0b9f2e5d541e6f84e2`. It is a plain PyTorch GAN with batch size 64, 200,000 iterations, latent size 4, learning rate `1e-5`, generator/discriminator `d_model=256`, four attention heads, and eight transformer layers each. The generator update precedes the discriminator update. There is no EMA or scheduler in the vendor recipe.
+The staged evidence uses the Magazine source at Hugging Face revision `9b4981b46a4493b299a5412083b959ae4119e928`. The acquisition command and the source shard hashes are recorded in `.cache/layoutganpp/data/magazine/source-manifest.json`, whose SHA-256 is `cddbe8b1965169e9c2c10b8dca0ab278d24d1074a2976bf8333003546bbbbeb0`.
 
-Datasets are processed in the agreed order: Magazine, RICO13, and PubLayNet last. PubLayNet is approximately 107 GB, so check free disk before any transfer and do not download it during ordinary checks.
+| Dataset   | Source                                                                                                                                                      | Config or path                                                                                                                                               |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Magazine  | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine), revision `9b4981b46a4493b299a5412083b959ae4119e928` | `.cache/layoutganpp/source/magazine-arrow` and `.cache/layoutganpp/data/magazine`; 3919 source rows split into 3331 train, 196 validation, and 392 test rows |
+| RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)                                                              | `models/layoutganpp/configs/training/layoutganpp_rico13.yaml`; transfer and loader verification are unrun                                                    |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)                                                    | `models/layoutganpp/configs/training/layoutganpp_publaynet.yaml`; transfer and loader verification are unrun                                                 |
 
-| Dataset   | Approved source                                                                                          | Config or path                                                           | Evidence scope                                                                                   |
-| --------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| Magazine  | [`creative-graphic-design/magazine`](https://huggingface.co/datasets/creative-graphic-design/magazine)   | `.cache/layoutganpp/data/magazine`                                       | Local HF cache, 3,919 source rows; vendor and package splits are train 3,331, val 196, test 392. |
-| RICO13    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | `ui-screenshots-and-hierarchies-with-semantic-annotations` configuration | Approved source; materialization deferred until Magazine and the S0-S4 path are complete.        |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default configuration                                                    | Approved source; last dataset by plan and not transferred for this S0-S4 run.                    |
-
-Materialize the cached Magazine annotations without decoding unused image columns:
-
-```bash
-UV_FROZEN=1 uv run --package layoutganpp --extra training models/layoutganpp/scripts/prepare_training_data.py --dataset magazine --source-arrow-dir .cache/layoutganpp/source/magazine-arrow --output-dir .cache/layoutganpp/data/magazine --source-id creative-graphic-design/magazine
-```
-
-The source manifest at `.cache/layoutganpp/data/magazine/source-manifest.json` records the four source Arrow SHA-256 hashes and the polygon-to-box rule. Magazine is exposed by the approved source as a train split; the vendor creates train, val, and test partitions from that source. The vendor loader converts polygon extrema to normalized center `xywh` for every partition, not only train.
+The vendor converts polygon extrema to normalized center `xywh` boxes for every split. The S4 run cleared the vendor processed-data cache before rebuilding the TEST split.
 
 ## Configs
 
 Training configs live under `models/layoutganpp/configs/training`.
 
-| Config                       | Dataset            | Seed mode       | Purpose                                                  |
-| ---------------------------- | ------------------ | --------------- | -------------------------------------------------------- |
-| `layoutganpp_magazine.yaml`  | Magazine           | `default`       | Package-local recipe values and bounded training wiring. |
-| `layoutganpp_rico13.yaml`    | RICO13             | `default`       | Package-local recipe values and bounded training wiring. |
-| `layoutganpp_publaynet.yaml` | PubLayNet          | `default`       | Package-local recipe values and bounded training wiring. |
-| `smoke.yaml`                 | Magazine synthetic | `deterministic` | CPU-only CLI wiring check.                               |
+| Config                       | Dataset            | Seed mode       | Purpose                                                                  |
+| ---------------------------- | ------------------ | --------------- | ------------------------------------------------------------------------ |
+| `layoutganpp_magazine.yaml`  | Magazine           | `deterministic` | Bounded package training wiring with one epoch and two training batches. |
+| `layoutganpp_rico13.yaml`    | RICO13             | `deterministic` | Bounded package training wiring; dataset transfer is unrun.              |
+| `layoutganpp_publaynet.yaml` | PubLayNet          | `deterministic` | Bounded package training wiring; dataset transfer is unrun.              |
+| `smoke.yaml`                 | Magazine synthetic | `deterministic` | CPU-only CLI wiring check.                                               |
 
-## Scheduler and Recipe Notes
+## Scheduler and recipe notes
 
-The package training module uses Adam with learning rate `1e-5`, one generator update followed by one discriminator update, the vendor's four-dimensional latent draw per valid element, and no scheduler or EMA. Condition labels and valid-element masks come from the loader batch; the vendor path has no label or condition sampler. S1 and S2 records name the latent noise, condition labels, condition mask, padding mask, generator/discriminator losses, gradient norms, and update-order tensors.
+The vendor entry point is `vendor/const-layout/train.py` at vendor commit `5287480505939345543fff0b9f2e5d541e6f84e2`. The effective recipe uses batch size 64, latent size 4, learning rate `1e-5`, generator and discriminator `d_model=256`, four attention heads, and eight transformer layers per network, with the generator update before the discriminator update. The package configs in this document are bounded wiring checks with `max_epochs: 1`, `limit_train_batches: 2`, and `limit_val_batches: 0`; they do not claim the vendor's full training duration. No scheduler, EMA, AMP, or multi-worker randomness is active in the staged evidence, as recorded by S0.
 
-S3 begins with a natural unsynchronized trajectory. The recorded 300-step natural trajectory stayed within the S0-S2 exact comparison tolerance, so a synchronized diagnostic was not needed. If a future change leaves that tolerance, the natural record must be retained and a synchronized layer rerun before any broader claim.
+## Seed policy
 
-## Seed Policy
+The staged seed policy is explicit per stage. Initialization uses seed `42975`. S1 uses latent seed `42001`; S2 uses latent seed `42002`; S3 uses batch seed `42003` and independent latent seeds `[42004, 42005]`, one seed per repeat run. Within each S3 repeat run, both systems consume the same per-run latent seed through their own code paths, with no injected latent and no per-step RNG restore. S4 uses seed `42005` for the seeded training loader stream and evaluation sampling. The S4 package dataset constructor also receives static seed `0`; it does not control the compared loader or latent draws. The production wiring check uses the config initialization seed `42975`.
 
-The package configs use seed `42975` for regular and smoke wiring. S1-S4 evidence uses the explicit fixed latent seed `999` for S1/S2 and the deterministic staged data/latent stream recorded in each run record. No training-seed statistical claim is made. Evaluation-path parity uses the same weights and fixed per-batch latent tensors for both systems.
+## Validation stages
 
-## Validation Stages
+| Stage | Scope                                           | Purpose                                                                                                                                                                         |
+| ----- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Static config and initialized state parity      | Compares independently constructed package and vendor models, parameter counts, state-dict key maps, optimizer defaults, inactive branches, and Magazine dataset static values. |
+| S1    | Fixed-batch pre-optimizer trace parity          | Compares the package and vendor step paths, including each side's latent draw, inputs, outputs, and losses before mutation.                                                     |
+| S2    | One optimizer-step parity                       | Compares per-parameter gradients, Adam state, update order, and post-step parameters.                                                                                           |
+| S3    | Short deterministic multi-batch run             | Compares a natural 300-step trajectory, repeated-run loss envelope, seeded batches, and production wiring.                                                                      |
+| S4    | Deterministic loader stream and evaluation path | Compares seeded train/validation/test streams and the trained-weight TEST evaluation through the vendor entry points.                                                           |
+| S5    | Full-run statistical comparison                 | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` for Magazine, RICO13, and PubLayNet.                                                    |
 
-| Stage | Scope                                      | Purpose                                                                                                                                      |
-| ----- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | Static config and initialized state parity | Confirms topology, initialized state, optimizer defaults, and vendor entry-point facts.                                                      |
-| S1    | Fixed-batch pre-optimizer trace parity     | Confirms forward outputs and losses, including named GAN-specific draws and update order.                                                    |
-| S2    | One optimizer-step parity                  | Confirms gradients, losses, optimizer mutation, and post-step state.                                                                         |
-| S3    | Natural 300-step lockstep                  | Confirms the multi-step trajectory; a synchronized layer is conditional on natural divergence.                                               |
-| S4    | Loader stream and evaluation-path parity   | Confirms train/val/test preprocessing, TEST output coordinate frame, predictions, metrics, and per-system counts.                            |
-| S5    | Full-run statistical comparison            | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)`; outside this task and requires a separate decision. |
+## Stage evidence
 
-## Stage Evidence
+All stage records below were produced from one committed harness head; each record carries the package source commit, vendor commit where applicable, runtime, and source-manifest hash.
 
-All stage records below were produced from source commit `18d78714cafe1f60c34ffe7d3498af08256fc104`; each JSON record stores its own source commit and audited-runtime metadata. Exact means bitwise equality in the recorded tensors; tolerance means the explicit `1e-6` S3 bound; approximate means an observed runtime only, not a parity claim.
+| Stage | Command                                                                                                                                               | Artifact                                                                                                                                                                                           | Result                                                                                                                                                                                                                                                                                                  |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s0-static`               | `.cache/layoutganpp/stage-evidence/s0-static/summary.json`                                                                                                                                         | PASS; generator and discriminator parameter counts are 2,708,996 and 5,562,634 parameters on each system; all three Magazine split counts and names match; first divergence `null`.                                                                                                                     |
+| S1    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s1-fixed-batch`          | `.cache/layoutganpp/stage-evidence/s1-fixed-batch/summary.json`, `.cache/layoutganpp/stage-evidence/s1-fixed-batch/trace.pt`                                                                       | PASS; latent seed `42001`; the package draw is `layoutganpp.training.step._resolve_latent_noise` and the vendor draw is `vendor/const-layout/train.py:124`; first divergence `null`.                                                                                                                    |
+| S2    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s2-one-step`             | `.cache/layoutganpp/stage-evidence/s2-one-step/summary.json`, `.cache/layoutganpp/stage-evidence/s2-one-step/trace.pt`                                                                             | PASS; latent seed `42002`; generator/discriminator gradients cover 103/207 parameters, Adam state comparisons cover 309/621 state tensors including `exp_avg` and `exp_avg_sq`, update order is `[0, 1]` on both systems, and first divergence is `null`.                                               |
+| S3    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s3-lockstep --steps 300` | `.cache/layoutganpp/stage-evidence/s3-lockstep/summary.json`, `.cache/layoutganpp/stage-evidence/s3-lockstep/natural.json`, `.cache/layoutganpp/stage-evidence/s3-lockstep/production-wiring.json` | PASS; the 300-step natural population has first divergence `null`, the 300-step batch stream has first mismatch `null`, both repeat runs use their shared per-run latent seed, the two-run loss envelope is recorded per system, and production wiring returns code 0; synchronized layer `not-needed`. |
+| S4    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval`          | `.cache/layoutganpp/stage-evidence/s4-loader-eval/summary.json`, `.cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json`                                                           | PASS; seeded loader streams have first mismatch `null`, the trained-weight evaluation path has first divergence `null`, both systems produce 392 TEST predictions, and each system has 161 out-of-bounds boxes across 146 layouts in the original normalized `xywh` frame.                              |
+| S5    | —                                                                                                                                                     | `.cache/layoutganpp/full-run/manifest.json; evaluation-path-parity: .cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json`                                                         | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)`                                                                                                                                                                                                                 |
 
-| Stage | Command                                                                                                                                                              | Artifact                                                                                                                                 | Result                                                                                                                                                       |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| S0    | `CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s0-static`                                         | `.cache/layoutganpp/stage-evidence/s0-static/summary.json`                                                                               | PASS; exact topology/state and first divergence `null`.                                                                                                      |
-| S1    | `CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s1-fixed-batch`                                    | `.cache/layoutganpp/stage-evidence/s1-fixed-batch/summary.json`, `.cache/layoutganpp/stage-evidence/s1-fixed-batch/trace.pt`             | PASS; exact named tensor trace and first divergence `null`.                                                                                                  |
-| S2    | `CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s2-one-step`                                       | `.cache/layoutganpp/stage-evidence/s2-one-step/summary.json`, `.cache/layoutganpp/stage-evidence/s2-one-step/trace.pt`                   | PASS; exact one-step losses, draws, gradients, update order, and post-step state.                                                                            |
-| S3    | `CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s3-lockstep --steps 300`                           | `.cache/layoutganpp/stage-evidence/s3-lockstep/summary.json`, `.cache/layoutganpp/stage-evidence/s3-lockstep/natural.json`               | PASS; natural 300 steps, first divergence `null`, synchronized layer `not-needed`; runtime approximately 167 seconds on the audited GPU.                     |
-| S4    | `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval` | `.cache/layoutganpp/stage-evidence/s4-loader-eval/summary.json`, `.cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json` | PASS; all three loader splits exact, deterministic full TEST evaluation predictions max difference `0.0`, metrics identical, and 392 predictions per system. |
-| S5    | —                                                                                                                                                                    | `.cache/layoutganpp/full-run/`                                                                                                           | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)`.                                                                     |
+The S3 loss envelope is a report-only diagnostic over two repeat runs: the maximum absolute discriminator-loss difference is `0.3175089359283447` and the maximum absolute generator-loss difference is `0.31495970487594604` for both systems. The asserted S3 gates are the 300-step batch-stream comparison, the natural first-divergence check, and the production wiring return code.
 
-## Reproduction Results
+## Reproduction results
 
-S0-S4 training reproduction is complete for the local Magazine source and synthetic fixed-batch lockstep: the package and the original implementation agree exactly on topology, fixed-batch GAN draws/losses, one optimizer step, a natural 300-step trajectory, all Magazine train/val/test loader rows, and the TEST evaluation path. RICO13 and PubLayNet have approved sources and recipe configs but no dataset transfer or full-run claim; S5 is outside this task.
+Magazine passes the package-local static, fixed-batch, optimizer-step, natural repeated-step, loader-stream, and trained-weight evaluation-path checks for the named seeds. S4 compares 3331 train rows in 53 seeded shuffled batches, 196 validation rows in 4 batches, and 392 TEST rows in 7 batches; the trained-weight evaluation uses the vendor `generate.py:main` and `eval.py:main` entry points with their default batch size 64. RICO13 and PubLayNet remain unverified because their data transfers and loader checks were not run. Full-run S5 training is not claimed for any dataset.
 
-| Dataset   | System   | Status                                                                                  | Seed scope                          | Primary metrics                        | Loss evidence                              | Artifact summary                     |
-| --------- | -------- | --------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------------- | ------------------------------------------ | ------------------------------------ |
-| Magazine  | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | staged fixed seed; no S5 seed scope | S0-S4 exact; TEST prediction count 392 | S1/S2 exact GAN losses; S3 300-step losses | `.cache/layoutganpp/stage-evidence/` |
-| Magazine  | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | staged fixed seed; no S5 seed scope | S0-S4 exact; TEST prediction count 392 | S1/S2 exact GAN losses; S3 300-step losses | `.cache/layoutganpp/stage-evidence/` |
-| RICO13    | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no S5 seed scope                    | not measured                           | not measured                               | `.cache/layoutganpp/`                |
-| RICO13    | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no S5 seed scope                    | not measured                           | not measured                               | `.cache/layoutganpp/`                |
-| PubLayNet | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no S5 seed scope                    | not measured                           | not measured                               | `.cache/layoutganpp/`                |
-| PubLayNet | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no S5 seed scope                    | not measured                           | not measured                               | `.cache/layoutganpp/`                |
+| Dataset   | System   | Status                                                                                  | Seed scope                                                                                            | Primary metrics                                                                        | Loss evidence                                                                                 | Artifact summary                     |
+| --------- | -------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Magazine  | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | staged seeds `42975`, `42001`, `42002`, `42003`, `[42004, 42005]`, `42005`; no S5 training seed scope | S4 TEST: 392 predictions; FID 13.05; Max IoU 0.26; out-of-bounds boxes/layouts 161/146 | S1/S2 exact trace and optimizer-step comparisons; S3 natural 300-step first divergence `null` | `.cache/layoutganpp/stage-evidence/` |
+| Magazine  | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | staged seeds `42975`, `42001`, `42002`, `42003`, `[42004, 42005]`, `42005`; no S5 training seed scope | S4 TEST: 392 predictions; FID 13.05; Max IoU 0.26; out-of-bounds boxes/layouts 161/146 | S1/S2 exact trace and optimizer-step comparisons; S3 natural 300-step first divergence `null` | `.cache/layoutganpp/stage-evidence/` |
+| RICO13    | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no staged or S5 seed scope; loader unverified                                                         | not measured                                                                           | not measured                                                                                  | `.cache/layoutganpp/`                |
+| RICO13    | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no staged or S5 seed scope; loader unverified                                                         | not measured                                                                           | not measured                                                                                  | `.cache/layoutganpp/`                |
+| PubLayNet | original | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no staged or S5 seed scope; loader unverified                                                         | not measured                                                                           | not measured                                                                                  | `.cache/layoutganpp/`                |
+| PubLayNet | package  | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)` | no staged or S5 seed scope; loader unverified                                                         | not measured                                                                           | not measured                                                                                  | `.cache/layoutganpp/`                |
 
-The S4 TEST-split finding is first-class: the vendor and package both convert polygon extrema to normalized `xywh` for train, val, and test, so no train-only transform difference was found. The shared approved Magazine source itself provides only a train split, and the vendor's deterministic split creates the checked TEST partition.
+Values reported from the vendor evaluator are rounded to two decimal places. The prediction comparison gate is `max_abs_difference <= 1e-6` across 392 TEST layouts and all valid element boxes, with first divergence `null`; the observed maximum difference is `0.0`, and the two prediction files also have the same SHA-256. FID and Max IoU are reported metrics from the same vendor evaluator, not claims of full-run quality or S5 reproduction.
 
 ### Comparison Scope
 
-| Dataset   | System | Evaluator                                                                    | Test split                | Checkpoint-selection rule                                 | Sample count                      |
-| --------- | ------ | ---------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------- | --------------------------------- |
-| Magazine  | both   | vendor `eval.py:main` metric path and package `LayoutGANPPPipeline.__call__` | vendor-derived test split | same initialized generator weights; no trained checkpoint | 392 layouts per evaluation system |
-| RICO13    | both   | not run                                                                      | not run                   | no checkpoint                                             | 0 layouts; S5 not run             |
-| PubLayNet | both   | not run                                                                      | not run                   | no checkpoint                                             | 0 layouts; S5 not run             |
+| Dataset   | System | Evaluator                                                                                                    | Test split | Checkpoint-selection rule                                                                                | Sample count                |
+| --------- | ------ | ------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Magazine  | both   | `vendor/const-layout/generate.py:main` followed by `vendor/const-layout/eval.py:main`, including `LayoutFID` | `test`     | official Magazine checkpoint bytes are used by vendor and converted package model; sampling seed `42005` | 392 TEST layouts per system |
+| RICO13    | both   | not run; dataset unverified                                                                                  | not run    | no checkpoint selected                                                                                   | 0 layouts; S5 not run       |
+| PubLayNet | both   | not run; dataset unverified                                                                                  | not run    | no checkpoint selected                                                                                   | 0 layouts; S5 not run       |
 
-The evaluation artifact records normalized `xywh` output, per-system prediction counts, maximum absolute prediction difference, and metrics computed by the vendor functions `vendor/const-layout/metric.py:compute_alignment` and `vendor/const-layout/metric.py:compute_overlap`, through the evaluation loop in `vendor/const-layout/eval.py:main`. The deterministic full TEST run has 392 predictions per system; both systems report alignment `0.0024827037816104` and overlap `5.560081288522603`, with maximum absolute prediction difference `0.0`. The fixed generator initialization seed is `4242`, and both state dictionaries have SHA-256 `9cc2c23e8117867baa1bec024d43559b67dd98395466d7a14c67843fffc94915`. The latent-noise seed is `4243`; the TEST input hash is `b848437f62ea385b4364b45c1edadb9982fc773d6d56b4f85c67802cb96d43ea`, the latent-noise hash is `6d8c9f90911942662abd2f9cf53607d4b52b28530994973cad786976e6b841b5`, and the vendor/package prediction hashes are both `47f8d5b2b9931bf2585df23d0d39b3ef38f0945e9a185c9cc15dcfdad6da3135`. Both systems use `test`, `batch_size=2`, `shuffle=False`, latent size 4, and `eval` mode. These metrics are exact for this same-weights parity artifact; they are not full-run quality claims.
+The S4 evaluation path records both prediction files and the shared TEST input file under `.cache/layoutganpp/stage-evidence/s4-loader-eval/`. The vendor source commit and the package harness commit are recorded in `evaluation-path.json` and `summary.json`.
 
-The converted original Magazine checkpoint was not available locally. The documented download command `UV_FROZEN=1 uv run --package layoutganpp models/layoutganpp/scripts/download_original_weights.py --output-dir .cache/layoutganpp/original --dataset magazine` failed at `https://esslab.jp/~kotaro/files/const_layout/layoutganpp_magazine.pth.tar` with a TLS connection reset; an HTTP probe returned `503 Service Unavailable`, and no `.cache/layoutganpp/converted/layoutganpp-magazine` directory exists locally. The package inference parity tests therefore skip their absent local checkpoint fixture. Because the trained checkpoint could not be obtained in this environment, `full-392-seeded-003` remains the authoritative S4 evaluation-path record as a fixed-seed, same-random-weights parity result; it is not trained-checkpoint quality evidence. If the documented checkpoint becomes available, that later rerun must supersede this fallback record.
+## Regeneration metadata
 
-### S4 Attempt Comparison
+The Magazine source manifest records the acquisition command, Hugging Face revision, four Arrow shard hashes, and 3919 source rows. The staged runtime record is `.cache/layoutganpp/runtime/pip-freeze.txt` with SHA-256 `8da7ab572c109f1ecfd33ccce43985bcf2dde86369f5f6309497e257b07277c0`.
 
-The two earlier full-TEST attempts remain recorded because they are valid attempts but not replayable parity measurements. Their 392-row sample ordering, batch size, `shuffle=False` setting, normalized-`xywh` metric inputs, vendor metric functions, and package/vendor comparison were unchanged. Each invocation instead created fresh generator weights and fresh latent noise because neither random source was seeded or hashed. That is why the metric values moved even though the evaluator metadata and comparison logic did not change.
+| Runtime field             | Recorded value                                                     |
+| ------------------------- | ------------------------------------------------------------------ |
+| Python                    | 3.11.15                                                            |
+| torch                     | 2.8.0+cu128                                                        |
+| torchvision               | 0.23.0+cu128                                                       |
+| CUDA tag                  | 12.8                                                               |
+| torch wheel SHA-256       | `039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed` |
+| torchvision wheel SHA-256 | `93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb` |
 
-| Attempt                                      | Weight state                                                                                                                                                                    | Latent noise                                                                                  | Rows and ordering                                                                                                 | Metric inputs and evaluator                                                                                                               | Alignment              | Overlap             |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------- |
-| `full-392-unseeded-001`                      | fresh, unrecorded                                                                                                                                                               | fresh, unrecorded                                                                             | same 392 TEST rows and ordering                                                                                   | same normalized `xywh`; vendor metric functions; batch 2; `shuffle=False`; `eval`                                                         | `0.002390173413482908` | `5.59936015459956`  |
-| `full-392-unseeded-002`                      | fresh, unrecorded                                                                                                                                                               | fresh, unrecorded                                                                             | same 392 TEST rows and ordering                                                                                   | same normalized `xywh`; vendor metric functions; batch 2; `shuffle=False`; `eval`                                                         | `0.005550596680055902` | `5.485093088706537` |
-| `full-392-seeded-003` authoritative fallback | fixed random state SHA-256 `9cc2c23e8117867baa1bec024d43559b67dd98395466d7a14c67843fffc94915` from initialization seed `4242`; converted trained checkpoint unavailable locally | fixed seed `4243`, SHA-256 `6d8c9f90911942662abd2f9cf53607d4b52b28530994973cad786976e6b841b5` | same 392 TEST rows and ordering; input SHA-256 `b848437f62ea385b4364b45c1edadb9982fc773d6d56b4f85c67802cb96d43ea` | `vendor/const-layout/eval.py:main`; vendor `compute_alignment` and `compute_overlap`; normalized `xywh`; batch 2; `shuffle=False`; `eval` | `0.0024827037816104`   | `5.560081288522603` |
-
-The seeded record is the reproducible S4 evaluation-path artifact: it has 392 predictions per system, identical prediction SHA-256 `47f8d5b2b9931bf2585df23d0d39b3ef38f0945e9a185c9cc15dcfdad6da3135`, and maximum absolute prediction difference `0.0`. The vendor's metric computation is used for both systems, so the identical metric values are an evaluation-path parity result, not a claim about trained-checkpoint quality.
-
-## Regeneration Metadata
-
-Evidence locations and source/data metadata:
+The official trained Magazine checkpoint is available at [the LayoutGAN++ Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutganpp_magazine.pth.tar), with 33,206,174 bytes and SHA-256 `97ebe0e00893fb641819d306517a912ffc610cdcada622903b8461c0e409f706`. The official LayoutNet FID weights are available at [the LayoutNet Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutnet_magazine.pth.tar), with 11,729,765 bytes and SHA-256 `4dd8c33becd24072ef58a630d4d8bd9d67721b23524e98ba6d090d74a11ed1ad`. The converted package weights are `.cache/layoutganpp/converted/layoutganpp-magazine/model.safetensors`, SHA-256 `d67c74bc343807da702b3f9d55a9d8c5827d7c1d9e05218c7c91d8c87b6449a0`.
 
 ```text
-.cache/layoutganpp/runtime/pip-freeze.txt
 .cache/layoutganpp/data/magazine/source-manifest.json
+.cache/layoutganpp/runtime/pip-freeze.txt
 .cache/layoutganpp/stage-evidence/s0-static/summary.json
 .cache/layoutganpp/stage-evidence/s1-fixed-batch/summary.json
 .cache/layoutganpp/stage-evidence/s1-fixed-batch/trace.pt
@@ -160,46 +128,63 @@ Evidence locations and source/data metadata:
 .cache/layoutganpp/stage-evidence/s2-one-step/trace.pt
 .cache/layoutganpp/stage-evidence/s3-lockstep/summary.json
 .cache/layoutganpp/stage-evidence/s3-lockstep/natural.json
+.cache/layoutganpp/stage-evidence/s3-lockstep/production-wiring.json
 .cache/layoutganpp/stage-evidence/s4-loader-eval/summary.json
 .cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json
-.cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-unseeded-001.json
-.cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-unseeded-002.json
-.cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-seeded-003.json
 ```
 
-The free-disk check before any PubLayNet transfer reported approximately 2.3 TB available. No RICO13 or PubLayNet transfer was performed. Every stage record includes the vendor commit, package source commit, Python version, torch wheel/CUDA tag, and pip-freeze hash.
+## Training commands
 
-The attempt ledger is retained here because it affects replay: the locked cu130 runtime failed CUDA initialization on the host driver; cu128 torch 2.11.0 initialized but had no compatible kernel image and was not used; the audited cu128 torch 2.8.0 runtime passed the package tests and GPU smoke. The first Magazine materialization attempt decoded unused image columns and was interrupted; removing that column produced the recorded manifest. The first S4 script attempt lacked the vendor module path and produced no evidence. The documented Magazine checkpoint download then failed with a TLS connection reset, and the converted checkpoint was absent locally. Two subsequent full-TEST attempts used the same 392 rows, ordering, model architecture, vendor metric functions, and package/vendor comparison, but did not seed model initialization or latent noise; their metrics moved from alignment `0.002390173413482908`, overlap `5.59936015459956` to alignment `0.005550596680055902`, overlap `5.485093088706537` because each invocation drew different random generator weights and latent tensors. Both still had exact package/vendor predictions within their own run, but their inputs were not replayable and are preserved as `full-392-unseeded-001.json` and `full-392-unseeded-002.json`. The authoritative fallback fixes weight seed `4242` and latent seed `4243` and records all input, weight, latent, evaluator, checkpoint-availability, and prediction metadata in `evaluation-path.json`; it reports alignment `0.0024827037816104` and overlap `5.560081288522603`. These attempts are not full-run quality claims.
-
-## Training Commands
-
-Run package tests in the lockfile environment:
+Acquire and materialize the Magazine source.
 
 ```bash
-CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package layoutganpp --extra training --extra vendor --with pytest pytest models/layoutganpp/tests -q
-```
-
-Prepare the cached Magazine source:
-
-```bash
+UV_FROZEN=1 uv run --package layoutganpp --extra training datasets-cli download creative-graphic-design/magazine --repo-type dataset --revision 9b4981b46a4493b299a5412083b959ae4119e928 --local-dir .cache/layoutganpp/source/magazine-arrow
 UV_FROZEN=1 uv run --package layoutganpp --extra training models/layoutganpp/scripts/prepare_training_data.py --dataset magazine --source-arrow-dir .cache/layoutganpp/source/magazine-arrow --output-dir .cache/layoutganpp/data/magazine --source-id creative-graphic-design/magazine
 ```
 
-Run the staged evidence with the audited runtime on one explicitly selected idle GPU only:
+Download and convert the original Magazine generator checkpoint.
 
 ```bash
-LAYOUTGANPP_AUDIT_VENV=<PACKAGE_AUDIT_VENV>
-CUDA_VISIBLE_DEVICES=<gpu> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s0-static
-CUDA_VISIBLE_DEVICES=<gpu> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s1-fixed-batch
-CUDA_VISIBLE_DEVICES=<gpu> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s2-one-step
-CUDA_VISIBLE_DEVICES=<gpu> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s3-lockstep --steps 300
-TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 CUDA_VISIBLE_DEVICES=<gpu> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval
+UV_FROZEN=1 uv run --package layoutganpp --extra download models/layoutganpp/scripts/download_original_weights.py --output-dir .cache/layoutganpp/original --dataset magazine
+TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/convert_original_checkpoint.py --input-checkpoint .cache/layoutganpp/original/layoutganpp_magazine.pth.tar --output-dir .cache/layoutganpp/converted/layoutganpp-magazine
 ```
 
-Run the bounded package-local training wiring check without making an S5 claim:
+Acquire the LayoutNet checkpoint used by the vendor `LayoutFID` evaluator. This is a GET request and writes to the path consumed by the vendor worktree.
+
+```bash
+UV_FROZEN=1 uv run --package layoutganpp --extra download python -c 'from pathlib import Path; import requests; u="https://esslab.jp/~kotaro/files/const_layout/layoutnet_magazine.pth.tar"; p=Path(".cache/layoutganpp/vendor-work/pretrained/layoutnet_magazine.pth.tar"); p.parent.mkdir(parents=True, exist_ok=True); r=requests.get(u, timeout=60); r.raise_for_status(); p.write_bytes(r.content)'
+```
+
+Run the ordered staged checks after the harness commit and after the required previous artifact exists.
+
+```bash
+LAYOUTGANPP_AUDIT_VENV=<your audit venv>
+UV_FROZEN=1 uv venv "$LAYOUTGANPP_AUDIT_VENV" --python 3.11
+UV_FROZEN=1 uv pip install --python "$LAYOUTGANPP_AUDIT_VENV/bin/python" -e 'models/layoutganpp[training,vendor,download]'
+CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s0-static
+CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s1-fixed-batch
+CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s2-one-step
+CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s3-lockstep --steps 300
+CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval
+```
+
+Run the bounded package-local training wiring check without making an S5 claim.
 
 ```bash
 CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 uv run --package layoutganpp --extra training traingen fit --config models/layoutganpp/configs/training/smoke.yaml
 ```
 
-Full-run training, conversion of trained checkpoints, and statistical evaluation are intentionally omitted until the separate S5 decision tracked by [issue 424](https://github.com/creative-graphic-design/design-generators/issues/424).
+Run the package member tests and a local loading smoke test.
+
+```bash
+CUDA_VISIBLE_DEVICES="" UV_FROZEN=1 scripts/run_member_tests.sh models/layoutganpp
+UV_FROZEN=1 uv run --package layoutganpp python - <<'PY'
+from layoutganpp import LayoutGANPPPipeline
+
+pipe = LayoutGANPPPipeline.from_pretrained(".cache/layoutganpp/converted/layoutganpp-magazine")
+out = pipe(labels=[["text", "figure"]], seed=0)
+print(out.bbox.shape, out.labels.shape, out.mask.shape)
+PY
+```
+
+Full-run training, conversion of training checkpoints, and statistical S5 evaluation are tracked by [issue 424](https://github.com/creative-graphic-design/design-generators/issues/424) and are not claimed here.

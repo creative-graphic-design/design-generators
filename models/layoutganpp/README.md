@@ -19,7 +19,7 @@ model-index:
           name: "Layout generation"
         dataset:
           type: "creative-graphic-design/Rico"
-          name: "RICO25"
+          name: "RICO13"
           config: "ui-screenshots-and-hierarchies-with-semantic-annotations"
           split: "vendor parity fixture"
         metrics:
@@ -36,13 +36,13 @@ model-index:
 ![venue](https://img.shields.io/static/v1?label=venue&message=ACM+MM+2021&color=purple&style=flat-square)
 ![license](https://img.shields.io/static/v1?label=license&message=AGPL-3.0&color=orange&style=flat-square&logo=opensourceinitiative&logoColor=white)
 ![base](https://img.shields.io/static/v1?label=base&message=transformers&color=blue&style=flat-square&logo=huggingface&logoColor=white)
-[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO25&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
+[![dataset](https://img.shields.io/static/v1?label=dataset&message=RICO13&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/Rico)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=PubLayNet&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/PubLayNet)
 [![dataset](https://img.shields.io/static/v1?label=dataset&message=Magazine&color=informational&style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/datasets/creative-graphic-design/magazine)
 ![vendor-parity](https://img.shields.io/static/v1?label=vendor-parity&message=tolerance-verified&color=success&style=flat-square)
 ![hub](https://img.shields.io/static/v1?label=hub&message=not-published&color=orange&style=flat-square&logo=huggingface&logoColor=white)
 
-This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name. The package now includes training infrastructure and exact S0-S4 staged evidence for the cached Magazine fixture; S5 full-run reproduction is not claimed and remains a separate decision for all datasets.
+This package ports [LayoutGAN++](https://doi.org/10.1145/3474085.3475497), the [Const-layout](https://github.com/ktrk115/const_layout) generator method, into a [`🤗transformers`](https://huggingface.co/docs/transformers/index)-style package under the literature method name. The package includes training infrastructure and measured S0-S4 staged evidence for the cached Magazine fixture; S5 full-run reproduction is not claimed and remains a separate decision for all datasets.
 
 ## Model Details
 

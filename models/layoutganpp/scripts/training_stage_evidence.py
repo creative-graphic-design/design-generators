@@ -191,6 +191,9 @@ def _require_previous(stage: str, previous: str | None) -> None:
             f"{stage} found a previous artifact from another source commit"
         )
 
+    if record.get("result") != "PASS":
+        raise RuntimeError(f"{stage} found a previous artifact without PASS result")
+
 
 def _tensor_summary(value: Shaped[torch.Tensor, "..."]) -> dict[str, JsonValue]:
     summary = summarize_tensor(value)
@@ -1084,11 +1087,17 @@ def _out_of_bounds_counts(
     layout_count = 0
     for boxes, _ in values:
         tensor = torch.as_tensor(boxes)
-        invalid = (
-            ((tensor < 0) | (tensor > 1)).any(dim=1)
-            if tensor.numel()
-            else tensor.new_zeros(0, dtype=torch.bool)
-        )
+        if not tensor.numel():
+            invalid = tensor.new_zeros(0, dtype=torch.bool)
+        else:
+            components_outside = ((tensor < 0) | (tensor > 1)).any(dim=1)
+            left = tensor[:, 0] - tensor[:, 2] / 2
+            top = tensor[:, 1] - tensor[:, 3] / 2
+            right = tensor[:, 0] + tensor[:, 2] / 2
+            bottom = tensor[:, 1] + tensor[:, 3] / 2
+            edges_outside = (left < 0) | (top < 0) | (right > 1) | (bottom > 1)
+            invalid = components_outside | edges_outside
+
         box_count += int(invalid.sum().item())
         layout_count += int(invalid.any().item())
     return {
@@ -1565,6 +1574,11 @@ def main() -> None:
         path = _stage_s3(device)
     else:
         path = _stage_s4(device)
+
+    record = cast(dict[str, JsonValue], json.loads(path.read_text()))
+    if record.get("result") != "PASS":
+        raise SystemExit(f"{args.stage} wrote non-PASS result: {record.get('result')}")
+
     print(path.relative_to(ROOT))
 
 

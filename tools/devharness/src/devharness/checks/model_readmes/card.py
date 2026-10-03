@@ -120,8 +120,11 @@ def _frontmatter_list(frontmatter: str, key: str) -> list[str]:
     ]
 
 
-def _dataset_display_name(value: str) -> str:
+def _dataset_display_name(value: str, slug: str | None = None) -> str:
     normalized = value.removeprefix("https://huggingface.co/datasets/")
+    if slug == "layoutganpp" and normalized == "creative-graphic-design/Rico":
+        return "RICO13"
+
     return {
         "creative-graphic-design/Rico": "RICO25",
         "creative-graphic-design/PubLayNet": "PubLayNet",
@@ -378,7 +381,9 @@ def assert_expected_frontmatter(path: Path, text: str) -> None:
             f"{path}: frontmatter datasets missing supported checkpoint datasets {missing}"
         )
 
-    expected_badges = {_dataset_display_name(dataset) for dataset in actual_datasets}
+    expected_badges = {
+        _dataset_display_name(dataset, slug) for dataset in actual_datasets
+    }
     actual_badges = set(badge_messages(text, "dataset"))
     if actual_badges != expected_badges:
         raise AssertionError(
