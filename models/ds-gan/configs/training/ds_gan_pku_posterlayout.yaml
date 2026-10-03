@@ -5,6 +5,8 @@ trainer:
   precision: 32-true
   max_epochs: 300
   num_sanity_val_steps: 0
+  gradient_clip_val: null
+  gradient_clip_algorithm: norm
 model:
   class_path: ds_gan.training.DSGANTrainingModule
   init_args:

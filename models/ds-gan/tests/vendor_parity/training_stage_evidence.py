@@ -20,6 +20,8 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import Callback
 
 from traingen_parity.compare import (
     BatchStreamReport,
@@ -837,6 +839,149 @@ def _package_step(
     return dict(module.latest_step_trace)
 
 
+class _NaturalParityCallback(Callback):
+    def __init__(
+        self,
+        vendor_generator: nn.Module,
+        vendor_discriminator: nn.Module,
+        vendor_loader: DataLoader[Any],
+        vendor_optimizers: tuple[torch.optim.Optimizer, torch.optim.Optimizer],
+        vendor_schedulers: tuple[
+            torch.optim.lr_scheduler.MultiStepLR, torch.optim.lr_scheduler.MultiStepLR
+        ],
+        device: torch.device,
+    ) -> None:
+        self.vendor_generator = vendor_generator
+        self.vendor_discriminator = vendor_discriminator
+        self.vendor_loader = vendor_loader
+        self.vendor_iterator = iter(vendor_loader)
+        self.vendor_optimizers = vendor_optimizers
+        self.vendor_schedulers = vendor_schedulers
+        self.device = device
+        self.rows: list[dict[str, Any]] = []
+        self._vendor_trace: dict[str, torch.Tensor] | None = None
+        self._vendor_parameters: dict[str, torch.Tensor] = {}
+        self._vendor_gradients: dict[str, torch.Tensor] = {}
+        self._vendor_optimizer_state: dict[str, torch.Tensor] = {}
+        self._batch_report: BatchStreamReport | None = None
+
+    def on_train_epoch_start(self, trainer: Any, pl_module: Any) -> None:
+        del pl_module
+        if trainer.current_epoch:
+            self.vendor_iterator = iter(self.vendor_loader)
+
+    def on_train_batch_start(
+        self,
+        trainer: Any,
+        pl_module: Any,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,
+    ) -> None:
+        del pl_module, batch_idx
+        vendor_batch = _vendor_batch(next(self.vendor_iterator), self.device)
+        package_batch = _package_batch(batch, self.device)
+        self._batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
+        self._vendor_trace = _vendor_step(
+            self.vendor_generator,
+            self.vendor_discriminator,
+            vendor_batch,
+            *self.vendor_optimizers,
+            _vendor_criterion(self.device),
+            trainer.current_epoch + 1,
+        )
+        self._vendor_parameters = {
+            **_named_parameters(self.vendor_generator, "generator"),
+            **_named_parameters(self.vendor_discriminator, "discriminator"),
+        }
+        self._vendor_gradients = {
+            **_named_gradients(self.vendor_generator, "generator"),
+            **_named_gradients(self.vendor_discriminator, "discriminator"),
+        }
+        self._vendor_optimizer_state = {
+            **_named_optimizer_state(
+                self.vendor_optimizers[0], self.vendor_generator, "generator"
+            ),
+            **_named_optimizer_state(
+                self.vendor_optimizers[1], self.vendor_discriminator, "discriminator"
+            ),
+        }
+
+    def on_train_batch_end(
+        self, trainer: Any, pl_module: Any, outputs: Any, batch: Any, batch_idx: int
+    ) -> None:
+        del outputs, batch, batch_idx
+        if self._vendor_trace is None or self._batch_report is None:
+            raise RuntimeError("natural parity callback has no vendor step")
+
+        package_schedulers = tuple(
+            config.scheduler for config in trainer.lr_scheduler_configs
+        )
+        package_trace = dict(pl_module.latest_step_trace)
+        package_parameters = {
+            **_named_parameters(pl_module.generator, "generator"),
+            **_named_parameters(pl_module.discriminator, "discriminator"),
+        }
+        package_gradients = {
+            **_named_gradients(pl_module.generator, "generator"),
+            **_named_gradients(pl_module.discriminator, "discriminator"),
+        }
+        package_optimizer_state = {
+            **_named_optimizer_state(
+                trainer.optimizers[0], pl_module.generator, "generator"
+            ),
+            **_named_optimizer_state(
+                trainer.optimizers[1], pl_module.discriminator, "discriminator"
+            ),
+        }
+        scheduler_values = {
+            "vendor_last_epoch": [
+                scheduler.last_epoch for scheduler in self.vendor_schedulers
+            ],
+            "package_last_epoch": [
+                scheduler.last_epoch for scheduler in package_schedulers
+            ],
+            "vendor_learning_rates": [
+                [group["lr"] for group in optimizer.param_groups]
+                for optimizer in self.vendor_optimizers
+            ],
+            "package_learning_rates": [
+                [group["lr"] for group in optimizer.param_groups]
+                for optimizer in trainer.optimizers
+            ],
+            "stepped": trainer.global_step % TRAIN_BATCHES_PER_EPOCH == 0,
+        }
+        scheduler_equal = (
+            scheduler_values["vendor_last_epoch"]
+            == scheduler_values["package_last_epoch"]
+            and scheduler_values["vendor_learning_rates"]
+            == scheduler_values["package_learning_rates"]
+        )
+        self.rows.append(
+            {
+                "step": trainer.global_step,
+                "epoch": trainer.current_epoch + 1,
+                "batch_stream": {
+                    "passed": self._batch_report.passed,
+                    "checked_steps": self._batch_report.checked_steps,
+                },
+                "trace": _trace_compare(self._vendor_trace, package_trace),
+                "gradients": _state_compare(self._vendor_gradients, package_gradients),
+                "parameters": _state_compare(
+                    self._vendor_parameters, package_parameters
+                ),
+                "optimizer_state": _state_compare(
+                    self._vendor_optimizer_state, package_optimizer_state
+                ),
+                "scheduler": {**scheduler_values, "passed": scheduler_equal},
+            }
+        )
+
+    def on_train_epoch_end(self, trainer: Any, pl_module: Any) -> None:
+        del trainer, pl_module
+        for scheduler in self.vendor_schedulers:
+            scheduler.step()
+
+
 def _named_parameters(module: nn.Module, prefix: str) -> dict[str, torch.Tensor]:
     return {
         f"{prefix}.{name}": parameter.detach().clone()
@@ -1210,10 +1355,6 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
 
     vendor_loader, _ = _vendor_loaders(SEED)
     package_loader, _ = _package_loaders(SEED)
-    vendor_iterator = iter(vendor_loader)
-    package_iterator = iter(package_loader)
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
     vendor_optimizers = _optimizers(vendor_generator, vendor_discriminator)
     package_module = DSGANTrainingModule(
         config=generator_config,
@@ -1221,134 +1362,55 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         generator=package_generator,
         discriminator=package_discriminator,
     ).to(device)
-    package_optimizers = _optimizers(package_generator, package_discriminator)
     vendor_schedulers = _schedulers(vendor_optimizers)
-    package_schedulers = _schedulers(package_optimizers)
-    package_numpy_rng = np.random.RandomState(SEED)
-    package_torch_generator = torch.Generator(device="cpu")
-    package_torch_generator.manual_seed(SEED)
-    trace_rows: list[dict[str, Any]] = []
-    first_divergence: dict[str, Any] | None = None
-    initial_rng = _rng_digest(capture_rng_state())
-    for step in range(1, LOCKSTEP_STEPS + 1):
-        epoch = (step - 1) // TRAIN_BATCHES_PER_EPOCH + 1
-        if step > 1 and (step - 1) % TRAIN_BATCHES_PER_EPOCH == 0:
-            vendor_iterator = iter(vendor_loader)
-            package_iterator = iter(package_loader)
-        vendor_batch = _vendor_batch(next(vendor_iterator), device)
-        package_batch = _package_batch(next(package_iterator), device)
-        batch_report, _ = _batch_stream_report(package_batch, vendor_batch)
-        if not batch_report.passed:
-            raise RuntimeError(
-                f"natural loader mismatch at step {step}: {batch_report.first_mismatch}"
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    callback = _NaturalParityCallback(
+        vendor_generator,
+        vendor_discriminator,
+        vendor_loader,
+        vendor_optimizers,
+        vendor_schedulers,
+        device,
+    )
+    trainer = Trainer(
+        accelerator="gpu" if device.type == "cuda" else "cpu",
+        devices=1,
+        precision="32-true",
+        max_steps=LOCKSTEP_STEPS,
+        limit_train_batches=TRAIN_BATCHES_PER_EPOCH,
+        num_sanity_val_steps=0,
+        enable_checkpointing=False,
+        enable_progress_bar=False,
+        logger=False,
+        deterministic=True,
+        gradient_clip_val=None,
+        gradient_clip_algorithm="norm",
+        callbacks=[callback],
+    )
+    trainer.fit(package_module, train_dataloaders=package_loader)
+    if trainer.global_step != LOCKSTEP_STEPS:
+        raise RuntimeError(
+            f"package Trainer stopped at {trainer.global_step} steps, expected {LOCKSTEP_STEPS}"
+        )
+    trace_rows = callback.rows
+    first_divergence = next(
+        (
+            row
+            for row in trace_rows
+            if not all(
+                comparison["passed"]
+                for comparison in (
+                    row["trace"],
+                    row["gradients"],
+                    row["parameters"],
+                    row["optimizer_state"],
+                    row["scheduler"],
+                )
             )
-        vendor_trace = _vendor_step(
-            vendor_generator,
-            vendor_discriminator,
-            vendor_batch,
-            *vendor_optimizers,
-            _vendor_criterion(device),
-            epoch,
-        )
-        package_trace = _package_step(
-            package_module,
-            package_batch,
-            *package_optimizers,
-            epoch,
-            numpy_rng=package_numpy_rng,
-            torch_generator=package_torch_generator,
-        )
-        trace_comparison = _trace_compare(vendor_trace, package_trace)
-        parameter_comparison = _state_compare(
-            {
-                **_named_parameters(vendor_generator, "generator"),
-                **_named_parameters(vendor_discriminator, "discriminator"),
-            },
-            {
-                **_named_parameters(package_generator, "generator"),
-                **_named_parameters(package_discriminator, "discriminator"),
-            },
-        )
-        gradient_comparison = _state_compare(
-            {
-                **_named_gradients(vendor_generator, "generator"),
-                **_named_gradients(vendor_discriminator, "discriminator"),
-            },
-            {
-                **_named_gradients(package_generator, "generator"),
-                **_named_gradients(package_discriminator, "discriminator"),
-            },
-        )
-        optimizer_comparison = _state_compare(
-            {
-                **_named_optimizer_state(
-                    vendor_optimizers[0], vendor_generator, "generator"
-                ),
-                **_named_optimizer_state(
-                    vendor_optimizers[1], vendor_discriminator, "discriminator"
-                ),
-            },
-            {
-                **_named_optimizer_state(
-                    package_optimizers[0], package_generator, "generator"
-                ),
-                **_named_optimizer_state(
-                    package_optimizers[1], package_discriminator, "discriminator"
-                ),
-            },
-        )
-        scheduler_event = step % TRAIN_BATCHES_PER_EPOCH == 0
-        if scheduler_event:
-            for scheduler in (*vendor_schedulers, *package_schedulers):
-                scheduler.step()
-        scheduler_values = {
-            "vendor_last_epoch": [
-                scheduler.last_epoch for scheduler in vendor_schedulers
-            ],
-            "package_last_epoch": [
-                scheduler.last_epoch for scheduler in package_schedulers
-            ],
-            "vendor_learning_rates": [
-                [group["lr"] for group in optimizer.param_groups]
-                for optimizer in vendor_optimizers
-            ],
-            "package_learning_rates": [
-                [group["lr"] for group in optimizer.param_groups]
-                for optimizer in package_optimizers
-            ],
-            "stepped": scheduler_event,
-        }
-        scheduler_equal = (
-            scheduler_values["vendor_last_epoch"]
-            == scheduler_values["package_last_epoch"]
-            and scheduler_values["vendor_learning_rates"]
-            == scheduler_values["package_learning_rates"]
-        )
-        row = {
-            "step": step,
-            "epoch": epoch,
-            "batch_stream": {
-                "passed": batch_report.passed,
-                "checked_steps": batch_report.checked_steps,
-            },
-            "trace": trace_comparison,
-            "gradients": gradient_comparison,
-            "parameters": parameter_comparison,
-            "optimizer_state": optimizer_comparison,
-            "scheduler": {**scheduler_values, "passed": scheduler_equal},
-        }
-        trace_rows.append(row)
-        if first_divergence is None and not all(
-            comparison["passed"]
-            for comparison in (
-                trace_comparison,
-                gradient_comparison,
-                parameter_comparison,
-                optimizer_comparison,
-                {"passed": scheduler_equal},
-            )
-        ):
-            first_divergence = row
+        ),
+        None,
+    )
     trace_path = _write_jsonl(
         "s3-lockstep", f"natural-repeat-{repeat}.jsonl", trace_rows
     )
@@ -1383,8 +1445,16 @@ def _run_natural(repeat: int, device: torch.device) -> dict[str, Any]:
         "bitwise_300": first_divergence is None,
         "max_abs_difference": max_abs,
         "trace": str(trace_path.relative_to(ROOT)),
-        "initial_rng_digest": initial_rng,
-        "randomness": "each system starts from seed 0 and consumes its own setup_seed/random_init code path; no per-step RNG restore or injected shared layout",
+        "seed": SEED,
+        "package_training_entry_point": (
+            f"{type(package_module).__module__}.{type(package_module).__qualname__}.training_step"
+        ),
+        "package_trainer": f"{type(trainer).__module__}.{type(trainer).__qualname__}",
+        "package_gradient_clip_call_count": package_module.gradient_clip_call_count,
+        "package_optimizer_group_parameter_counts": [
+            [len(group["params"]) for group in optimizer.param_groups]
+            for optimizer in trainer.optimizers
+        ],
     }
 
 
@@ -1413,7 +1483,6 @@ def run_s3() -> Path:
                 ],
                 "repeat_count": len(repeats),
             },
-            "randomness": "each system starts from seed 0 and consumes its own setup_seed/random_init code path; no per-step RNG restore or injected shared layout",
             "scheduler_cadence": "MultiStepLR steps after each complete 78-batch training epoch; generator milestones every 50 epochs and discriminator every 25 epochs",
             "bound": {
                 "declared_before_run": False,
@@ -1667,7 +1736,6 @@ def run_s3_synchronized() -> Path:
             "first_divergence": first_divergence,
             "trace": str(trace_path.relative_to(ROOT)),
             "natural_record": ".cache/ds-gan/stage-evidence/s3-lockstep/run.json",
-            "synchronized_criterion": "parameters, optimizer state, and RNG state synchronized at every optimizer boundary; no shared input tensor injected",
         },
     )
 
@@ -1901,9 +1969,18 @@ def run_s4() -> Path:
         and vendor_summary["prediction_count"] > 0
     )
     test_stream_passed = all(row["passed"] for row in stream_rows)
+    vendor_entry_point = (
+        f"{Path(vendor_infer.__file__).resolve().relative_to(ROOT)}:"
+        f"{vendor_infer.test.__qualname__};"
+        f"{Path(vendor_eval.__file__).resolve().relative_to(ROOT)}:"
+        f"{vendor_eval.main.__qualname__}"
+    )
+    package_entry_point = (
+        f"{type(pipeline).__module__}.{type(pipeline).__qualname__}.__call__"
+    )
     evaluation = {
-        "vendor_evaluation_entry_point": "vendor/posterlayout-cvpr2023/infer.py:test then eval.py:main",
-        "package_evaluation_entry_point": "ds_gan.DSGANPipeline.__call__",
+        "vendor_evaluation_entry_point": vendor_entry_point,
+        "package_evaluation_entry_point": package_entry_point,
         "same_weights": same_weights,
         "checkpoint_sha256": checkpoint_hash,
         "weight_state_sha256": {

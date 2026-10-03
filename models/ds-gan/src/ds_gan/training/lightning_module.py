@@ -103,6 +103,11 @@ class DSGANTrainingModule(LightningModule):
         self.scheduler_discriminator_milestones = scheduler_discriminator_milestones
         self.seed = seed
         self.automatic_optimization = False
+
+        self._numpy_rng = np.random.RandomState(seed)
+        self._torch_generator = torch.Generator(device="cpu")
+        self._torch_generator.manual_seed(seed)
+        self.gradient_clip_call_count = 0
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self._step_index = 0
 
@@ -165,7 +170,13 @@ class DSGANTrainingModule(LightningModule):
 
         optimizer_g = cast(torch.optim.Optimizer, optimizers[0])
         optimizer_d = cast(torch.optim.Optimizer, optimizers[1])
-        return self.step_with_optimizers(batch, optimizer_g, optimizer_d)
+        return self.step_with_optimizers(
+            batch,
+            optimizer_g,
+            optimizer_d,
+            numpy_rng=self._numpy_rng,
+            torch_generator=self._torch_generator,
+        )
 
     def step_with_optimizers(
         self,
@@ -219,6 +230,7 @@ class DSGANTrainingModule(LightningModule):
         loss_reconstruction = sum(reconstruction.values())
         loss_g = adversarial_weight * loss_g_adv + loss_reconstruction
         self._backward(loss_g)
+        self._configure_gradient_clipping(optimizer_g)
         optimizer_g.step()
 
         optimizer_d.zero_grad(set_to_none=True)
@@ -232,6 +244,7 @@ class DSGANTrainingModule(LightningModule):
         )
         loss_d = adversarial_weight * (loss_d_real + loss_d_fake)
         self._backward(loss_d)
+        self._configure_gradient_clipping(optimizer_d)
         optimizer_d.step()
 
         self.latest_step_trace = {
@@ -279,3 +292,27 @@ class DSGANTrainingModule(LightningModule):
             return
 
         self.manual_backward(loss)
+
+    def _configure_gradient_clipping(self, optimizer: torch.optim.Optimizer) -> None:
+        if self._trainer is None:
+            return
+
+        self.configure_gradient_clipping(
+            optimizer,
+            gradient_clip_val=self.trainer.gradient_clip_val,
+            gradient_clip_algorithm=self.trainer.gradient_clip_algorithm,
+        )
+
+    def configure_gradient_clipping(
+        self,
+        optimizer: torch.optim.Optimizer,
+        gradient_clip_val: float | None = None,
+        gradient_clip_algorithm: str | None = None,
+    ) -> None:
+        """Delegate the Trainer's clipping policy for the active optimizer."""
+        self.gradient_clip_call_count += 1
+        super().configure_gradient_clipping(
+            optimizer,
+            gradient_clip_val=gradient_clip_val,
+            gradient_clip_algorithm=gradient_clip_algorithm,
+        )
