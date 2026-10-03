@@ -23,7 +23,6 @@ from torch.utils.data import DataLoader
 
 from traingen_parity.compare import (
     BatchStreamReport,
-    TensorTolerance,
     compare_batch_stream,
     compare_optimizer_step,
     compare_step_trace,
@@ -730,14 +729,10 @@ def _comparison_dict(
 
 
 def _trace_compare(
-    vendor: dict[str, torch.Tensor],
-    package: dict[str, torch.Tensor],
-    tolerances: dict[str, TensorTolerance] | None = None,
+    vendor: dict[str, torch.Tensor], package: dict[str, torch.Tensor]
 ) -> dict[str, Any]:
     report = compare_step_trace(
-        build_step_trace("vendor", vendor),
-        build_step_trace("package", package),
-        tolerances=tolerances,
+        build_step_trace("vendor", vendor), build_step_trace("package", package)
     )
     return _comparison_dict(report, vendor, package)
 
@@ -1076,12 +1071,7 @@ def run_s1() -> Path:
         ),
         "loss_reconstruction": sum(package_losses.values()),
     }
-    comparison_tolerances = {
-        "loss_reconstruction": TensorTolerance(atol=1e-6, rtol=1e-6)
-    }
-    comparison = _trace_compare(
-        vendor_trace, package_trace, tolerances=comparison_tolerances
-    )
+    comparison = _trace_compare(vendor_trace, package_trace)
     return _write(
         "s1-forward-loss",
         {
@@ -1090,10 +1080,6 @@ def run_s1() -> Path:
             "result": "PASS" if comparison["passed"] else "FAIL",
             "batch": batch_meta,
             "comparison": comparison,
-            "comparison_tolerance": {
-                name: {"atol": tolerance.atol, "rtol": tolerance.rtol}
-                for name, tolerance in comparison_tolerances.items()
-            },
             "trace_fields": sorted(vendor_trace),
         },
     )
