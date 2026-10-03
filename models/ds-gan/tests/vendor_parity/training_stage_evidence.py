@@ -2088,7 +2088,7 @@ def run_s4() -> Path:
             "vendor": vendor_prediction_file,
             "package": package_prediction_file,
         },
-        "prediction_max_abs": float(np.max(np.abs(vendor_boxes - package_boxes))),
+        "prediction_max_abs": float(np.max(np.abs(vendor_boxes - package_boxes_array))),
         "prediction_classes_equal": bool(
             np.array_equal(vendor_classes, package_classes_array)
         ),
