@@ -91,7 +91,7 @@ VendorData = Data
 
 def _source_commit() -> str:
     status = subprocess.check_output(
-        ["git", "status", "--porcelain", "--untracked-files=no"],
+        ["git", "status", "--porcelain"],
         cwd=ROOT,
         text=True,
     ).strip()
@@ -722,17 +722,47 @@ def _loader_stream(
                 yield _dense_vendor_batch(cast(Data, raw), torch.device("cpu"))
 
 
-def _compare_loader_streams(device: torch.device, steps: int) -> BatchStreamReport:
+def _compare_loader_streams(
+    device: torch.device,
+    steps: int,
+    *,
+    split: str = "train",
+    seed: int = S3_BATCH_SEED,
+) -> BatchStreamReport:
     package_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
-        for batch in _loader_stream(_package_loader("train", S3_BATCH_SEED))
+        for batch in _loader_stream(_package_loader(split, seed))
     )
     vendor_stream = (
         {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
-        for batch in _loader_stream(_vendor_loader("train", S3_BATCH_SEED))
+        for batch in _loader_stream(_vendor_loader(split, seed))
     )
     del device
     return compare_batch_stream(vendor_stream, package_stream, steps=steps)
+
+
+def _loader_stream_summary(
+    device: torch.device, split: str, seed: int
+) -> dict[str, JsonValue]:
+    row_count = len(load_rows("magazine", DATA_ROOT, split))
+    expected_batches = (row_count + VENDOR_BATCH_SIZE - 1) // VENDOR_BATCH_SIZE
+    report = _compare_loader_streams(device, expected_batches, split=split, seed=seed)
+    return {
+        "passed": report.passed and report.checked_steps == expected_batches,
+        "checked_batches": report.checked_steps,
+        "expected_batches": expected_batches,
+        "row_count": row_count,
+        "seed": seed,
+        "shuffle": split == "train",
+        "first_mismatch": report.first_mismatch,
+    }
+
+
+def _all_loader_streams(device: torch.device, seed: int) -> dict[str, JsonValue]:
+    return {
+        split: _loader_stream_summary(device, split, seed)
+        for split in ("train", "val", "test")
+    }
 
 
 def _trajectory(
@@ -1055,7 +1085,6 @@ def _out_of_bounds_counts(
 def _stage_s4(device: torch.device) -> Path:
     started = time.time()
     _require_previous("s4-loader-eval", "s3-lockstep")
-    _require_checkpoint_assets()
     _clear_vendor_processed_cache()
     vendor_rows = _vendor_rows("test")
     package_rows = load_rows("magazine", DATA_ROOT, "test")
@@ -1067,6 +1096,108 @@ def _stage_s4(device: torch.device) -> Path:
         )
     evaluator_dir = OUTPUT_ROOT / "s4-loader-eval"
     evaluator_dir.mkdir(parents=True, exist_ok=True)
+    source, source_hash = _source_manifest()
+    loader_streams = _all_loader_streams(device, S4_EVALUATION_SEED)
+    evaluation_path = evaluator_dir / "evaluation-path.json"
+
+    try:
+        _require_checkpoint_assets()
+    except FileNotFoundError as error:
+        retry_summary = os.environ.get("LAYOUTGANPP_CHECKPOINT_RETRY_SUMMARY")
+        blocker = retry_summary or str(error)
+        vendor_source_commit = subprocess.check_output(
+            ["git", "-C", str(VENDOR_ROOT), "rev-parse", "HEAD"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        blocked_evaluation = {
+            "status": f"blocked ({blocker})",
+            "source_commit": _source_commit(),
+            "runtime": _audit_runtime(),
+            "source_manifest": source,
+            "source_manifest_sha256": source_hash,
+            "reason": blocker,
+            "weights": {
+                "trained_checkpoint": {
+                    "path": str(CHECKPOINT.relative_to(ROOT)),
+                    "available": CHECKPOINT.exists(),
+                    "sha256": _sha256(CHECKPOINT) if CHECKPOINT.exists() else None,
+                },
+                "layoutnet_fid": {
+                    "path": str(VENDOR_LAYOUTNET.relative_to(ROOT)),
+                    "available": VENDOR_LAYOUTNET.exists(),
+                    "sha256": (
+                        _sha256(VENDOR_LAYOUTNET) if VENDOR_LAYOUTNET.exists() else None
+                    ),
+                },
+            },
+            "inputs": {
+                "dataset": "magazine",
+                "split": "test",
+                "count": len(package_rows),
+                "source_manifest_sha256": source_hash,
+            },
+            "evaluator_settings": {
+                "batch_size": VENDOR_BATCH_SIZE,
+                "default_batch_size": VENDOR_BATCH_SIZE,
+                "latent_size": LATENT_SIZE,
+                "sampling_seed": S4_EVALUATION_SEED,
+                "model_mode": "eval",
+                "coordinate_frame": "original normalized xywh frame",
+            },
+            "evaluator": {
+                "status": "not-run",
+                "vendor_generate": "vendor/const-layout/generate.py:main",
+                "vendor_eval": "vendor/const-layout/eval.py:main",
+                "vendor_metric_functions": [
+                    "vendor/const-layout/metric.py:compute_alignment",
+                    "vendor/const-layout/metric.py:compute_overlap",
+                    "vendor/const-layout/metric.py:LayoutFID",
+                ],
+            },
+            "prediction_files": {"vendor": None, "package": None},
+            "per_system": {
+                "vendor": {
+                    "status": "not-run",
+                    "prediction_count": None,
+                    "out_of_bounds_counts": None,
+                    "metrics": None,
+                },
+                "package": {
+                    "status": "not-run",
+                    "prediction_count": None,
+                    "out_of_bounds_counts": None,
+                    "metrics": None,
+                },
+            },
+            "evaluator_source_commits": {
+                "vendor_generate": vendor_source_commit,
+                "vendor_eval": vendor_source_commit,
+                "package": _source_commit(),
+            },
+            "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
+        }
+        evaluation_path.write_text(
+            json.dumps(blocked_evaluation, indent=2, sort_keys=True) + "\n"
+        )
+        return _write(
+            "s4-loader-eval",
+            _record(
+                "s4-loader-eval",
+                started,
+                result="PARTIAL",
+                source_manifest=source,
+                source_manifest_sha256=source_hash,
+                loader_streams=loader_streams,
+                evaluation_path_parity={
+                    "status": "blocked",
+                    "artifact": str(evaluation_path.relative_to(ROOT)),
+                    "reason": blocker,
+                },
+                first_divergence=None,
+            ),
+        )
+
     vendor_pickle = evaluator_dir / "vendor-predictions.pkl"
     package_pickle = evaluator_dir / "package-predictions.pkl"
     input_file = evaluator_dir / "test-inputs.pt"
@@ -1189,11 +1320,95 @@ def _stage_s4(device: torch.device) -> Path:
             "sha256": _sha256(input_file),
         },
     }
+    evaluation_payload = {
+        "status": "PASS" if passed else "FAIL",
+        "source_commit": _source_commit(),
+        "runtime": _audit_runtime(),
+        "source_manifest": source,
+        "source_manifest_sha256": source_hash,
+        "weights": {
+            "trained_checkpoint": {
+                "path": str(CHECKPOINT.relative_to(ROOT)),
+                "sha256": _sha256(CHECKPOINT),
+            },
+            "vendor": {
+                "path": str(VENDOR_CHECKPOINT.relative_to(ROOT)),
+                "sha256": _sha256(VENDOR_CHECKPOINT),
+            },
+            "package": {
+                "path": str(package_weight_files[0].relative_to(ROOT)),
+                "sha256": _sha256(package_weight_files[0]),
+                "converted_directory": str(CONVERTED.relative_to(ROOT)),
+            },
+            "layoutnet_fid": {
+                "path": str(VENDOR_LAYOUTNET.relative_to(ROOT)),
+                "sha256": _sha256(VENDOR_LAYOUTNET),
+            },
+        },
+        "inputs": {
+            "path": str(input_file.relative_to(ROOT)),
+            "sha256": _sha256(input_file),
+            "dataset": "magazine",
+            "split": "test",
+            "count": len(package_rows),
+            "names_sha256": hashlib.sha256(
+                "\n".join(package_names).encode()
+            ).hexdigest(),
+            "coordinate_frame": "original normalized xywh frame",
+        },
+        "evaluator_settings": {
+            "batch_size": VENDOR_BATCH_SIZE,
+            "default_batch_size": VENDOR_BATCH_SIZE,
+            "latent_size": LATENT_SIZE,
+            "sampling_seed": S4_EVALUATION_SEED,
+            "model_mode": "eval",
+            "shuffle": False,
+        },
+        "evaluator": {
+            "vendor_generate": "vendor/const-layout/generate.py:main",
+            "vendor_eval": "vendor/const-layout/eval.py:main",
+            "commands": evaluator_commands,
+            "metric_functions": [
+                "vendor/const-layout/metric.py:compute_alignment",
+                "vendor/const-layout/metric.py:compute_overlap",
+                "vendor/const-layout/metric.py:LayoutFID",
+            ],
+            "metrics_output_by_system": evaluator_outputs,
+        },
+        "prediction_files": prediction_files,
+        "per_system": {
+            system: {
+                "prediction_count": len(values),
+                "out_of_bounds_counts": out_of_bounds[system],
+                "metrics": evaluator_metrics[system],
+            }
+            for system, values in predictions.items()
+        },
+        "evaluator_source_commits": {
+            "vendor_generate": vendor_source_commit,
+            "vendor_eval_for_vendor": vendor_source_commit,
+            "vendor_eval_for_package": vendor_source_commit,
+            "package": _source_commit(),
+        },
+        "prediction_comparison": {
+            "passed": passed,
+            "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
+            "max_abs_difference": maximum_difference,
+            "limit": TRACE_ATOL,
+            "first_divergence": first_divergence,
+        },
+    }
+    evaluation_path.write_text(
+        json.dumps(evaluation_payload, indent=2, sort_keys=True) + "\n"
+    )
     payload = _record(
         "s4-loader-eval",
         started,
         result="PASS" if passed else "FAIL",
-        source_manifest_sha256=_source_manifest()[1],
+        source_manifest=source,
+        source_manifest_sha256=source_hash,
+        loader_streams=loader_streams,
+        evaluation_path_parity=str(evaluation_path.relative_to(ROOT)),
         weights={
             "source_checkpoint": {
                 "path": str(CHECKPOINT.relative_to(ROOT)),
