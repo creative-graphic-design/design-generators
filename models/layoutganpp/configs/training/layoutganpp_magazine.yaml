@@ -4,6 +4,7 @@ trainer:
   devices: 1
   precision: 32-true
   deterministic: true
+  gradient_clip_val: 0.0
   max_epochs: 1
   limit_train_batches: 2
   limit_val_batches: 0

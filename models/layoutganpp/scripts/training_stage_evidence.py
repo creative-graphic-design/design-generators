@@ -4,24 +4,30 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
+import importlib.util
 import json
 import os
 import pickle
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import TypeAlias, cast
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import torch
 from jaxtyping import Float, Int, Shaped
+from lightning.pytorch import Callback, LightningModule, Trainer
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch_geometric.data import Data
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from laygen.common.randomness import randn, resolve_torch_generator
 from traingen_parity.compare import (
@@ -217,6 +223,15 @@ def _module_hash(module: torch.nn.Module) -> str:
     ).hexdigest()
 
 
+def _state_values_equal(
+    left: Mapping[str, Shaped[torch.Tensor, "..."]],
+    right: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> bool:
+    return list(left) == list(right) and all(
+        torch.equal(left[name], right[name]) for name in left
+    )
+
+
 def _state_map(
     module: torch.nn.Module,
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
@@ -233,6 +248,53 @@ def _gradient_map(
     }
 
 
+def _gradient_norm(module: torch.nn.Module) -> float:
+    return float(
+        torch.sqrt(
+            sum(
+                (
+                    parameter.grad.detach().square().sum()
+                    for parameter in module.parameters()
+                    if parameter.grad is not None
+                ),
+                torch.zeros((), device=next(module.parameters()).device),
+            )
+        ).item()
+    )
+
+
+def _max_parameter_difference(
+    module: torch.nn.Module,
+    previous: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> float:
+    current = module.state_dict()
+    return max(
+        (
+            float((current[name] - previous[name]).abs().max().item())
+            for name in current
+        ),
+        default=0.0,
+    )
+
+
+def _optimizer_state_summary(
+    optimizer: torch.optim.Optimizer,
+    module: torch.nn.Module,
+) -> dict[str, JsonValue]:
+    summary: dict[str, JsonValue] = {"tensor_count": 0}
+    for state_name in ("exp_avg", "exp_avg_sq"):
+        total = torch.zeros((), device=next(module.parameters()).device)
+        count = 0
+        for parameter in module.parameters():
+            value = optimizer.state[parameter].get(state_name)
+            if isinstance(value, torch.Tensor):
+                total = total + value.detach().square().sum()
+                count += 1
+        summary[f"{state_name}_norm"] = float(torch.sqrt(total).item())
+        summary["tensor_count"] = int(summary["tensor_count"]) + count
+    return summary
+
+
 def _optimizer_map(
     optimizer: torch.optim.Optimizer, module: torch.nn.Module
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
@@ -241,6 +303,39 @@ def _optimizer_map(
         for name, parameter in module.named_parameters()
         for state_name, value in optimizer.state[parameter].items()
         if isinstance(value, torch.Tensor)
+    }
+
+
+def _trajectory_record(
+    *,
+    step: int,
+    generator: torch.nn.Module,
+    discriminator: torch.nn.Module,
+    optimizer_g: torch.optim.Optimizer,
+    optimizer_d: torch.optim.Optimizer,
+    generator_loss: float,
+    discriminator_loss: float,
+    previous_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
+    previous_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> dict[str, JsonValue]:
+    return {
+        "step": step,
+        "generator_loss": generator_loss,
+        "discriminator_loss": discriminator_loss,
+        "generator_gradient_norm": _gradient_norm(generator),
+        "discriminator_gradient_norm": _gradient_norm(discriminator),
+        "generator_max_parameter_difference": _max_parameter_difference(
+            generator, previous_generator
+        ),
+        "discriminator_max_parameter_difference": _max_parameter_difference(
+            discriminator, previous_discriminator
+        ),
+        "generator_optimizer_state": _optimizer_state_summary(optimizer_g, generator),
+        "discriminator_optimizer_state": _optimizer_state_summary(
+            optimizer_d, discriminator
+        ),
+        "generator_learning_rate": float(optimizer_g.param_groups[0]["lr"]),
+        "discriminator_learning_rate": float(optimizer_d.param_groups[0]["lr"]),
     }
 
 
@@ -435,7 +530,24 @@ def _stage_s0(device: torch.device) -> Path:
         for split in ("train", "val", "test")
     }
     vendor_g = torch.optim.Adam(vendor_generator.parameters(), lr=1.0e-5)
+    vendor_d = torch.optim.Adam(vendor_discriminator.parameters(), lr=1.0e-5)
     package_g = torch.optim.Adam(package.generator.parameters(), lr=1.0e-5)
+    package_d = torch.optim.Adam(package.discriminator.parameters(), lr=1.0e-5)
+    vendor_generator_state = _state_map(vendor_generator)
+    package_generator_state = _state_map(package.generator)
+    vendor_discriminator_state = _state_map(vendor_discriminator)
+    package_discriminator_state = _state_map(package.discriminator)
+    initialization_equal = _state_values_equal(
+        vendor_generator_state, package_generator_state
+    ) and _state_values_equal(vendor_discriminator_state, package_discriminator_state)
+    optimizer_defaults_equal = (
+        vendor_g.defaults == package_g.defaults
+        and vendor_d.defaults == package_d.defaults
+    )
+    optimizer_state_equal = (
+        vendor_g.state_dict()["state"] == package_g.state_dict()["state"] == {}
+        and vendor_d.state_dict()["state"] == package_d.state_dict()["state"] == {}
+    )
     dataset_equal = all(
         len(vendor_rows[split]) == len(package_rows[split])
         and [str(row.attr["name"]) for row in vendor_rows[split]]
@@ -447,6 +559,9 @@ def _stage_s0(device: torch.device) -> Path:
         started,
         result="PASS"
         if dataset_equal
+        and initialization_equal
+        and optimizer_defaults_equal
+        and optimizer_state_equal
         and sum(p.numel() for p in vendor_generator.parameters())
         == sum(p.numel() for p in package.generator.parameters())
         and sum(p.numel() for p in vendor_discriminator.parameters())
@@ -456,11 +571,13 @@ def _stage_s0(device: torch.device) -> Path:
         source_manifest_sha256=source_hash,
         source=source,
         initialization={
+            "seed": INIT_SEED,
             "vendor_generator_state_sha256": _module_hash(vendor_generator),
             "package_generator_state_sha256": _module_hash(package.generator),
             "vendor_discriminator_state_sha256": _module_hash(vendor_discriminator),
             "package_discriminator_state_sha256": _module_hash(package.discriminator),
             "compared_as": "independently constructed state metadata; no weights copied",
+            "values_equal": initialization_equal,
         },
         parameter_counts={
             "vendor_generator": sum(p.numel() for p in vendor_generator.parameters()),
@@ -482,10 +599,10 @@ def _stage_s0(device: torch.device) -> Path:
             "class": "torch.optim.Adam",
             "vendor_defaults": vendor_g.defaults,
             "package_defaults": package_g.defaults,
-            "defaults_equal": vendor_g.defaults == package_g.defaults,
-            "state_empty": vendor_g.state_dict()["state"]
-            == package_g.state_dict()["state"]
-            == {},
+            "vendor_discriminator_defaults": vendor_d.defaults,
+            "package_discriminator_defaults": package_d.defaults,
+            "defaults_equal": optimizer_defaults_equal,
+            "state_empty": optimizer_state_equal,
         },
         dataset_static={
             split: {
@@ -502,6 +619,8 @@ def _stage_s0(device: torch.device) -> Path:
             }
             for split in vendor_rows
         },
+        initial_state_equal=initialization_equal,
+        optimizer_static_equal=optimizer_defaults_equal and optimizer_state_equal,
         inactive_rules=["scheduler", "EMA", "AMP", "multi-worker randomness in S0"],
         first_divergence=None,
     )
@@ -544,7 +663,6 @@ def _stage_s1(device: torch.device) -> Path:
             "vendor": "vendor/const-layout/train.py:124 torch.randn in the vendor adapter",
             "package": "layoutganpp.training.step._resolve_latent_noise",
             "latent_seed": S1_LATENT_SEED,
-            "rng_control": "one captured state restored before the package trace; no injected latent",
         },
         named_tensors={
             key: _tensor_summary(value) for key, value in package_trace.items()
@@ -625,7 +743,6 @@ def _stage_s2(device: torch.device) -> Path:
             "vendor": "vendor adapter torch.randn path",
             "package": "package step path",
             "latent_seed": S2_LATENT_SEED,
-            "rng_control": "one restore between systems; no injected latent",
         },
         update_order={
             "vendor": vendor_trace["update_order"].tolist(),
@@ -783,6 +900,421 @@ def _all_loader_streams(device: torch.device, seed: int) -> dict[str, JsonValue]
     }
 
 
+class _BatchDataset(Dataset[dict[str, Shaped[torch.Tensor, "..."] | list[str]]]):
+    def __init__(
+        self,
+        batches: list[dict[str, Shaped[torch.Tensor, "..."] | list[str]]],
+    ) -> None:
+        self.batches = batches
+
+    def __len__(self) -> int:
+        return len(self.batches)
+
+    def __getitem__(
+        self, index: int
+    ) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
+        return self.batches[index]
+
+
+def _identity_batch(
+    batch: list[dict[str, Shaped[torch.Tensor, "..."] | list[str]]],
+) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
+    if len(batch) != 1:
+        raise ValueError("the production Trainer must receive one pre-collated batch")
+    return batch[0]
+
+
+def _script_entry_point(path: Path) -> str:
+    tree = ast.parse(path.read_text())
+    functions = [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "main"
+    ]
+    if len(functions) != 1:
+        raise RuntimeError(f"expected one main entry point in {path}")
+    return f"{path.relative_to(ROOT)}:{functions[0]}"
+
+
+def _relative_command(command: list[str]) -> list[str]:
+    relative: list[str] = []
+    for item in command:
+        path = Path(item)
+        if path.is_absolute():
+            try:
+                relative.append(str(path.relative_to(ROOT)))
+                continue
+            except ValueError:
+                pass
+        relative.append(item)
+    return relative
+
+
+def _command_option(command: list[str], option: str, converter: type[int] = int) -> int:
+    try:
+        value = command[command.index(option) + 1]
+    except (ValueError, IndexError) as error:
+        raise RuntimeError(f"executed command lacks {option}") from error
+    return converter(value)
+
+
+def _optimizer_parameter_names(
+    optimizer: torch.optim.Optimizer,
+    modules: Mapping[str, torch.nn.Module],
+) -> list[list[str]]:
+    names = {
+        id(parameter): f"{module_name}.{name}"
+        for module_name, module in modules.items()
+        for name, parameter in module.named_parameters()
+    }
+    return [
+        [names[id(parameter)] for parameter in group["params"]]
+        for group in optimizer.param_groups
+    ]
+
+
+def _package_training_trajectory(
+    device: torch.device,
+    steps: int,
+    seed: int,
+    initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
+    initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    batches = []
+    loader = _loader_stream(_package_loader("train", S3_BATCH_SEED))
+    for _ in range(steps):
+        batches.append(next(loader))
+    _, _, package = _build_models(device, copy_vendor_weights=False)
+    package.generator.load_state_dict(initial_generator, strict=True)
+    package.discriminator.load_state_dict(initial_discriminator, strict=True)
+
+    class Capture(Callback):
+        def __init__(self) -> None:
+            super().__init__()
+            self.records: list[dict[str, JsonValue]] = []
+            self.previous_generator = _state_map(package.generator)
+            self.previous_discriminator = _state_map(package.discriminator)
+
+        def on_train_batch_end(
+            self,
+            trainer: Trainer,
+            pl_module: LightningModule,
+            outputs: STEP_OUTPUT,
+            batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
+            batch_idx: int,
+        ) -> None:
+            del outputs, batch
+            optimizers = trainer.optimizers
+            if len(optimizers) != 2:
+                raise RuntimeError(
+                    "LayoutGAN++ production training needs two optimizers"
+                )
+            optimizer_g, optimizer_d = optimizers
+            package_module = cast(LayoutGANPPTrainingModule, pl_module)
+            trace = package_module.latest_step_trace
+            record = _trajectory_record(
+                step=batch_idx,
+                generator=package_module.generator,
+                discriminator=package_module.discriminator,
+                optimizer_g=optimizer_g,
+                optimizer_d=optimizer_d,
+                generator_loss=float(trace["generator_loss"].item()),
+                discriminator_loss=float(trace["discriminator_loss"].item()),
+                previous_generator=self.previous_generator,
+                previous_discriminator=self.previous_discriminator,
+            )
+            self.records.append(record)
+            self.previous_generator = _state_map(package_module.generator)
+            self.previous_discriminator = _state_map(package_module.discriminator)
+
+    capture = Capture()
+    data_loader = DataLoader(
+        _BatchDataset(batches),
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+        collate_fn=_identity_batch,
+    )
+    torch.manual_seed(seed)
+    trainer = Trainer(
+        accelerator="gpu" if device.type == "cuda" else "cpu",
+        devices=1,
+        precision="32-true",
+        deterministic=True,
+        max_epochs=1,
+        limit_train_batches=steps,
+        limit_val_batches=0,
+        num_sanity_val_steps=0,
+        logger=False,
+        enable_checkpointing=False,
+        enable_model_summary=False,
+        enable_progress_bar=False,
+        gradient_clip_val=0.0,
+        callbacks=[capture],
+        default_root_dir=str(OUTPUT_ROOT / "s3-lockstep" / "production"),
+    )
+    trainer.fit(package, train_dataloaders=data_loader)
+    if len(capture.records) != steps:
+        raise RuntimeError(
+            f"package Trainer recorded {len(capture.records)} steps, expected {steps}"
+        )
+    package_optimizers = trainer.optimizers
+    metadata: dict[str, JsonValue] = {
+        "entry_points": {
+            "training_step": (
+                f"{package.training_step.__self__.__class__.__module__}:"
+                f"{package.training_step.__qualname__}"
+            ),
+            "configure_optimizers": (
+                f"{package.configure_optimizers.__self__.__class__.__module__}:"
+                f"{package.configure_optimizers.__qualname__}"
+            ),
+        },
+        "trainer": {
+            "gradient_clip_val": trainer.gradient_clip_val,
+            "gradient_clip_algorithm": str(trainer.gradient_clip_algorithm),
+            "optimizer_count": len(package_optimizers),
+            "optimizer_parameter_names": _optimizer_parameter_names(
+                package_optimizers[0],
+                {
+                    "generator": package.generator,
+                    "discriminator": package.discriminator,
+                },
+            ),
+            "fit_loop_batches": trainer.fit_loop.max_batches,
+            "model_training": package.training,
+        },
+        "fit_calls": 1,
+        "latent_seed": seed,
+    }
+    return capture.records, metadata
+
+
+def _vendor_training_trajectory(
+    device: torch.device,
+    system: str,
+    steps: int,
+    seed: int,
+    initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
+    initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    if system != "vendor":
+        raise ValueError("the vendor entry point helper only accepts the vendor system")
+    generator_cls, discriminator_cls = _vendor_classes()
+    captured_models: dict[str, torch.nn.Module] = {}
+    constructed_states: dict[str, dict[str, Shaped[torch.Tensor, "..."]]] = {}
+    captured_optimizers: list["CapturingAdam"] = []
+    captured_losses: list[float] = []
+    records: list[dict[str, JsonValue]] = []
+    previous_generator = dict(initial_generator)
+    previous_discriminator = dict(initial_discriminator)
+
+    class CapturingGenerator(generator_cls):
+        def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            super().__init__(*args, **kwargs)
+            captured_models["generator"] = self
+
+    class CapturingDiscriminator(discriminator_cls):
+        def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            super().__init__(*args, **kwargs)
+            captured_models["discriminator"] = self
+            constructed_states["generator"] = _state_map(captured_models["generator"])
+            constructed_states["discriminator"] = _state_map(self)
+            torch.manual_seed(seed)
+
+    class CapturingAdam:
+        def __init__(
+            self,
+            params: Iterable[torch.nn.Parameter],
+            lr: float = 1.0e-3,
+            betas: tuple[float, float] = (0.9, 0.999),
+        ) -> None:
+            self.raw = torch.optim.Adam(params, lr=lr, betas=betas)
+            captured_optimizers.append(self)
+
+        def zero_grad(self) -> None:
+            self.raw.zero_grad()
+
+        def step(
+            self, closure: Callable[[], float] | None = None
+        ) -> int | float | None:
+            result = self.raw.step(closure=closure)
+            if len(captured_optimizers) == 2 and self is captured_optimizers[0]:
+                if len(captured_losses) < 2:
+                    raise RuntimeError("vendor training step did not record two losses")
+                generator = captured_models["generator"]
+                discriminator = captured_models["discriminator"]
+                generator_optimizer = captured_optimizers[1].raw
+                discriminator_optimizer = captured_optimizers[0].raw
+                records.append(
+                    _trajectory_record(
+                        step=len(records),
+                        generator=generator,
+                        discriminator=discriminator,
+                        optimizer_g=generator_optimizer,
+                        optimizer_d=discriminator_optimizer,
+                        generator_loss=captured_losses[-2],
+                        discriminator_loss=captured_losses[-1],
+                        previous_generator=previous_generator,
+                        previous_discriminator=previous_discriminator,
+                    )
+                )
+                previous_generator.clear()
+                previous_generator.update(_state_map(generator))
+                previous_discriminator.clear()
+                previous_discriminator.update(_state_map(discriminator))
+                captured_losses.clear()
+            return result
+
+    class DatasetView(Dataset[Data]):
+        def __init__(self, rows: list[Data], length: int) -> None:
+            self.rows = rows
+            self.num_classes = 5
+            self.colors: list[tuple[int, int, int]] = []
+            self.length = length
+
+        def __len__(self) -> int:
+            return self.length
+
+        def __getitem__(self, index: int) -> Data:
+            return self.rows[index % len(self.rows)]
+
+    class Sequence:
+        def __init__(self, batches: list[Data]) -> None:
+            self.batches = batches
+
+        def __len__(self) -> int:
+            return len(self.batches)
+
+        def __iter__(self) -> Iterator[Data]:
+            return iter(self.batches)
+
+    train_rows = _vendor_rows("train")
+    val_rows = _vendor_rows("val")
+    train_dataset = DatasetView(train_rows, steps * VENDOR_BATCH_SIZE)
+    val_dataset = DatasetView(val_rows, len(val_rows))
+    train_batches = list(_vendor_loader("train", S3_BATCH_SEED))
+    train_batches = (
+        train_batches * ((steps + len(train_batches) - 1) // len(train_batches))
+    )[:steps]
+    val_batches = list(_vendor_loader("val", S3_BATCH_SEED))
+    captured_module = importlib.util.spec_from_file_location(
+        "layoutganpp_vendor_train", VENDOR_ROOT / "train.py"
+    )
+    if captured_module is None or captured_module.loader is None:
+        raise RuntimeError("could not load the vendor training entry point")
+    vendor_train = importlib.util.module_from_spec(captured_module)
+    captured_module.loader.exec_module(vendor_train)
+    vendor_module: ModuleType = vendor_train
+    vendor_module.__dict__["Generator"] = CapturingGenerator
+    vendor_module.__dict__["Discriminator"] = CapturingDiscriminator
+    vendor_module.__dict__["optim"] = SimpleNamespace(Adam=CapturingAdam)
+    vendor_module.__dict__["get_dataset"] = lambda name, split, transform=None: (
+        train_dataset if split == "train" else val_dataset
+    )
+    vendor_module.__dict__["DataLoader"] = (
+        lambda dataset, batch_size, num_workers, pin_memory, shuffle: Sequence(
+            train_batches if shuffle else val_batches
+        )
+    )
+
+    class NoopWriter:
+        def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            del args, kwargs
+
+        def add_scalar(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            del args, kwargs
+
+        def add_scalars(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            del args, kwargs
+
+    class NoopFID:
+        def __init__(self, *args: JsonValue, **kwargs: JsonValue) -> None:
+            del args, kwargs
+
+        def collect_features(
+            self,
+            *args: Shaped[torch.Tensor, "..."] | bool,
+            **kwargs: Shaped[torch.Tensor, "..."] | bool,
+        ) -> None:
+            del args, kwargs
+
+        def compute_score(self) -> float:
+            return 0.0
+
+    vendor_module.__dict__["SummaryWriter"] = NoopWriter
+    vendor_module.__dict__["LayoutFID"] = NoopFID
+    vendor_module.__dict__["save_image"] = lambda *args, **kwargs: None
+    vendor_module.__dict__["save_checkpoint"] = lambda *args, **kwargs: None
+    original_backward = torch.Tensor.backward
+    original_argv = sys.argv
+    original_cwd = Path.cwd()
+    args = [
+        "--name",
+        f"s3-{seed}",
+        "--dataset",
+        "magazine",
+        "--batch_size",
+        str(VENDOR_BATCH_SIZE),
+        "--iteration",
+        str(steps),
+        "--seed",
+        str(seed),
+    ]
+
+    def capture_backward(
+        self: Shaped[torch.Tensor, "..."],
+        *args: Shaped[torch.Tensor, "..."] | bool,
+        **kwargs: Shaped[torch.Tensor, "..."] | bool,
+    ) -> None:
+        captured_losses.append(float(self.detach().item()))
+        original_backward(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    try:
+        torch.Tensor.backward = capture_backward  # type: ignore[method-assign]
+        sys.argv = [str(VENDOR_ROOT / "train.py"), *args]
+        os.chdir(VENDOR_WORK)
+        cast(Callable[[], None], vendor_module.__dict__["main"])()
+    finally:
+        torch.Tensor.backward = original_backward  # type: ignore[method-assign]
+        sys.argv = original_argv
+        os.chdir(original_cwd)
+    if len(records) != steps:
+        raise RuntimeError(
+            f"vendor train.py recorded {len(records)} steps, expected {steps}"
+        )
+    if not _state_values_equal(initial_generator, constructed_states["generator"]):
+        raise RuntimeError("vendor entry point changed the initialized generator")
+    if not _state_values_equal(
+        initial_discriminator, constructed_states["discriminator"]
+    ):
+        raise RuntimeError("vendor entry point changed the initialized discriminator")
+    metadata: dict[str, JsonValue] = {
+        "entry_point": _script_entry_point(VENDOR_ROOT / "train.py"),
+        "command": shlex.join(
+            ["python", str((VENDOR_ROOT / "train.py").relative_to(ROOT)), *args]
+        ),
+        "training_module_calls": len(records),
+        "optimizer_creation_order": [
+            _optimizer_parameter_names(
+                optimizer.raw,
+                {
+                    "generator": captured_models["generator"],
+                    "discriminator": captured_models["discriminator"],
+                },
+            )
+            for optimizer in captured_optimizers
+        ],
+        "model_training": {
+            name: module.training for name, module in captured_models.items()
+        },
+        "latent_seed": seed,
+    }
+    del device
+    return records, metadata
+
+
 def _trajectory(
     device: torch.device,
     system: str,
@@ -790,88 +1322,23 @@ def _trajectory(
     seed: int,
     initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
     initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
-) -> list[dict[str, JsonValue]]:
-    vendor_generator, vendor_discriminator, package = _build_models(
-        device, copy_vendor_weights=False
-    )
-    if system == "vendor":
-        generator, discriminator = vendor_generator, vendor_discriminator
-    else:
-        package.generator.load_state_dict(initial_generator, strict=True)
-        package.discriminator.load_state_dict(initial_discriminator, strict=True)
-        generator, discriminator = package.generator, package.discriminator
-    generator.load_state_dict(initial_generator, strict=True)
-    discriminator.load_state_dict(initial_discriminator, strict=True)
-    generator.train()
-    discriminator.train()
-    optimizer_g = torch.optim.Adam(generator.parameters(), lr=1.0e-5)
-    optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=1.0e-5)
-    loader = _loader_stream(
-        _vendor_loader("train", S3_BATCH_SEED)
-        if system == "vendor"
-        else _package_loader("train", S3_BATCH_SEED)
-    )
-    torch.manual_seed(seed)
-    records: list[dict[str, JsonValue]] = []
-    for step in range(steps):
-        raw_batch = next(loader)
-        batch = {
-            key: value.to(device) if isinstance(value, torch.Tensor) else value
-            for key, value in raw_batch.items()
-        }
-        trace = (
-            _vendor_iteration(
-                generator,
-                discriminator,
-                batch,
-                optimizer_g,
-                optimizer_d,
-            )
-            if system == "vendor"
-            else run_gan_iteration(
-                generator,
-                discriminator,
-                batch,
-                optimizer_g,
-                optimizer_d,
-            )
+) -> tuple[list[dict[str, JsonValue]], dict[str, JsonValue]]:
+    if system == "package":
+        return _package_training_trajectory(
+            device,
+            steps,
+            seed,
+            initial_generator,
+            initial_discriminator,
         )
-        records.append(
-            {
-                "step": step,
-                "generator_loss": float(trace["generator_loss"].item()),
-                "discriminator_loss": float(trace["discriminator_loss"].item()),
-                "generator_gradient_sha256": hashlib.sha256(
-                    "\n".join(
-                        tensor_sha256(value)
-                        for value in _gradient_map(generator).values()
-                    ).encode()
-                ).hexdigest(),
-                "discriminator_gradient_sha256": hashlib.sha256(
-                    "\n".join(
-                        tensor_sha256(value)
-                        for value in _gradient_map(discriminator).values()
-                    ).encode()
-                ).hexdigest(),
-                "generator_optimizer_state_sha256": hashlib.sha256(
-                    "\n".join(
-                        tensor_sha256(value)
-                        for value in _optimizer_map(optimizer_g, generator).values()
-                    ).encode()
-                ).hexdigest(),
-                "discriminator_optimizer_state_sha256": hashlib.sha256(
-                    "\n".join(
-                        tensor_sha256(value)
-                        for value in _optimizer_map(optimizer_d, discriminator).values()
-                    ).encode()
-                ).hexdigest(),
-                "generator_learning_rate": optimizer_g.param_groups[0]["lr"],
-                "discriminator_learning_rate": optimizer_d.param_groups[0]["lr"],
-                "generator_parameter_sha256": _module_hash(generator),
-                "discriminator_parameter_sha256": _module_hash(discriminator),
-            }
-        )
-    return records
+    return _vendor_training_trajectory(
+        device,
+        system,
+        steps,
+        seed,
+        initial_generator,
+        initial_discriminator,
+    )
 
 
 def _stage_s3(device: torch.device) -> Path:
@@ -890,18 +1357,20 @@ def _stage_s3(device: torch.device) -> Path:
         for name, value in initial_discriminator.state_dict().items()
     }
     natural: dict[str, list[list[dict[str, JsonValue]]]] = {"vendor": [], "package": []}
+    production_runs: list[dict[str, JsonValue]] = []
     for system in natural:
         for repeat in range(S3_REPEATS):
-            natural[system].append(
-                _trajectory(
-                    device,
-                    system,
-                    S3_STEPS,
-                    S3_LATENT_SEED + repeat,
-                    initial_g,
-                    initial_d,
-                )
+            trajectory, metadata = _trajectory(
+                device,
+                system,
+                S3_STEPS,
+                S3_LATENT_SEED + repeat,
+                initial_g,
+                initial_d,
             )
+            natural[system].append(trajectory)
+            if system == "package":
+                production_runs.append(metadata)
     first: dict[str, JsonValue] | None = None
     for step in range(S3_STEPS):
         for name in natural["vendor"][0][step]:
@@ -964,7 +1433,6 @@ def _stage_s3(device: torch.device) -> Path:
         if stream.passed and first is None and process.returncode == 0
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
-        natural_control="each repeat run assigned one latent seed consumed by both systems through their own draw paths; no per-step RNG restore and no injected latent",
         natural_steps=S3_STEPS,
         batch_stream={
             "checked_steps": stream.checked_steps,
@@ -974,9 +1442,14 @@ def _stage_s3(device: torch.device) -> Path:
         },
         latent_seeds=[S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
         latent_seed_policy={
-            "per_repeat_run": [S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
-            "systems_per_run": ["vendor", "package"],
-            "same_seed_for_both_systems": True,
+            "per_repeat_run": [
+                {
+                    "repeat": repeat,
+                    "seed": S3_LATENT_SEED + repeat,
+                    "systems": list(natural),
+                }
+                for repeat in range(S3_REPEATS)
+            ],
             "draw_paths": {
                 "vendor": "vendor adapter torch.randn path",
                 "package": "package step path",
@@ -991,6 +1464,7 @@ def _stage_s3(device: torch.device) -> Path:
             "command": " ".join(command),
             "returncode": process.returncode,
             "artifact": str(production_path.relative_to(ROOT)),
+            "package_trainer_runs": production_runs,
         },
         first_divergence=first,
     )
@@ -1024,10 +1498,12 @@ def _require_checkpoint_assets() -> None:
         )
 
 
-def _clear_vendor_processed_cache() -> None:
+def _clear_vendor_processed_cache() -> bool:
     processed = VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+    existed = processed.exists()
     if processed.exists():
         shutil.rmtree(processed)
+    return existed
 
 
 def _parse_vendor_metrics(text: str) -> dict[str, float]:
@@ -1109,7 +1585,7 @@ def _out_of_bounds_counts(
 def _stage_s4(device: torch.device) -> Path:
     started = time.time()
     _require_previous("s4-loader-eval", "s3-lockstep")
-    _clear_vendor_processed_cache()
+    processed_cache_existed = _clear_vendor_processed_cache()
     vendor_rows = _vendor_rows("test")
     package_rows = load_rows("magazine", DATA_ROOT, "test")
     package_names = [row.name for row in package_rows]
@@ -1173,23 +1649,12 @@ def _stage_s4(device: torch.device) -> Path:
                 "count": len(package_rows),
                 "source_manifest_sha256": source_hash,
             },
-            "evaluator_settings": {
-                "batch_size": VENDOR_BATCH_SIZE,
-                "default_batch_size": VENDOR_BATCH_SIZE,
-                "latent_size": LATENT_SIZE,
-                "sampling_seed": S4_EVALUATION_SEED,
-                "model_mode": "eval",
-                "coordinate_frame": "original normalized xywh frame",
-            },
             "evaluator": {
                 "status": "not-run",
-                "vendor_generate": "vendor/const-layout/generate.py:main",
-                "vendor_eval": "vendor/const-layout/eval.py:main",
-                "vendor_metric_functions": [
-                    "vendor/const-layout/metric.py:compute_alignment",
-                    "vendor/const-layout/metric.py:compute_overlap",
-                    "vendor/const-layout/metric.py:LayoutFID",
-                ],
+                "entry_points": {
+                    "generate": _script_entry_point(VENDOR_ROOT / "generate.py"),
+                    "eval": _script_entry_point(VENDOR_ROOT / "eval.py"),
+                },
             },
             "prediction_files": {"vendor": None, "package": None},
             "per_system": {
@@ -1211,7 +1676,6 @@ def _stage_s4(device: torch.device) -> Path:
                 "vendor_eval": vendor_source_commit,
                 "package": _source_commit(),
             },
-            "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
         }
         evaluation_path.write_text(
             json.dumps(blocked_evaluation, indent=2, sort_keys=True) + "\n"
@@ -1248,12 +1712,7 @@ def _stage_s4(device: torch.device) -> Path:
         "--out_path",
         str(vendor_pickle.resolve()),
     ]
-    recorded_vendor_command = (
-        "python vendor/const-layout/generate.py "
-        ".cache/layoutganpp/vendor-work/pretrained/layoutganpp_magazine.pth.tar "
-        f"--batch_size {VENDOR_BATCH_SIZE} --seed {S4_EVALUATION_SEED} "
-        ".cache/layoutganpp/stage-evidence/s4-loader-eval/vendor-predictions.pkl"
-    )
+    recorded_vendor_command = shlex.join(_relative_command(vendor_command))
     vendor_environment = os.environ.copy()
     vendor_environment["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     subprocess.run(
@@ -1317,6 +1776,7 @@ def _stage_s4(device: torch.device) -> Path:
     evaluator_outputs: dict[str, str] = {}
     evaluator_metrics: dict[str, dict[str, float]] = {}
     evaluator_commands: dict[str, str] = {}
+    evaluator_command_argv: dict[str, list[str]] = {}
     for system, prediction_file in (
         ("vendor", vendor_pickle),
         ("package", package_pickle),
@@ -1340,10 +1800,8 @@ def _stage_s4(device: torch.device) -> Path:
         output = (evaluator.stdout + evaluator.stderr).replace(f"{ROOT}/", "")
         evaluator_outputs[system] = output
         evaluator_metrics[system] = _parse_vendor_metrics(output)
-        evaluator_commands[system] = (
-            "python vendor/const-layout/eval.py magazine "
-            f"{prediction_file.relative_to(ROOT)} --batch_size {VENDOR_BATCH_SIZE}"
-        )
+        evaluator_commands[system] = shlex.join(_relative_command(command))
+        evaluator_command_argv[system] = command
         (evaluator_dir / f"{system}-evaluator.txt").write_text(output)
 
     maximum_difference, first_divergence = _compare_prediction_rows(
@@ -1377,6 +1835,10 @@ def _stage_s4(device: torch.device) -> Path:
             "sha256": _sha256(input_file),
         },
     }
+    checkpoint_args = cast(
+        dict[str, JsonValue],
+        torch.load(VENDOR_CHECKPOINT, map_location="cpu", weights_only=False)["args"],
+    )
     evaluation_payload = {
         "status": "PASS" if passed else "FAIL",
         "source_commit": _source_commit(),
@@ -1426,23 +1888,29 @@ def _stage_s4(device: torch.device) -> Path:
             "coordinate_frame": "original normalized xywh frame",
         },
         "evaluator_settings": {
-            "batch_size": VENDOR_BATCH_SIZE,
-            "default_batch_size": VENDOR_BATCH_SIZE,
-            "latent_size": LATENT_SIZE,
-            "sampling_seed": S4_EVALUATION_SEED,
-            "model_mode": "eval",
-            "shuffle": False,
+            "generate_command": {
+                "batch_size": _command_option(vendor_command, "--batch_size"),
+                "latent_size": int(
+                    cast(int | float | str, checkpoint_args["latent_size"])
+                ),
+                "sampling_seed": _command_option(vendor_command, "--seed"),
+            },
+            "eval_commands": {
+                system: {
+                    "batch_size": _command_option(
+                        evaluator_command_argv[system], "--batch_size"
+                    )
+                    for system in evaluator_commands
+                },
+            },
         },
         "sampling_seeds": {"evaluation_seed": S4_EVALUATION_SEED},
         "evaluator": {
-            "vendor_generate": "vendor/const-layout/generate.py:main",
-            "vendor_eval": "vendor/const-layout/eval.py:main",
+            "entry_points": {
+                "generate": _script_entry_point(VENDOR_ROOT / "generate.py"),
+                "eval": _script_entry_point(VENDOR_ROOT / "eval.py"),
+            },
             "commands": evaluator_commands,
-            "metric_functions": [
-                "vendor/const-layout/metric.py:compute_alignment",
-                "vendor/const-layout/metric.py:compute_overlap",
-                "vendor/const-layout/metric.py:LayoutFID",
-            ],
             "metrics_output_by_system": evaluator_outputs,
         },
         "prediction_files": prediction_files,
@@ -1495,18 +1963,29 @@ def _stage_s4(device: torch.device) -> Path:
             },
         },
         loader={
-            "vendor_generate": "vendor/const-layout/generate.py:39-66 DataLoader + torch_geometric.to_dense_batch",
-            "vendor_eval": "vendor/const-layout/eval.py:44-63 and :99-133 DataLoader + torch_geometric.to_dense_batch",
             "package": "layoutganpp training dataset DataLoader + collate_layoutganpp",
             "test_split": "test",
             "batch_size": VENDOR_BATCH_SIZE,
             "shuffle": False,
-            "vendor_processed_cache_cleared": True,
+            "vendor_processed_cache": {
+                "path": str(
+                    (
+                        VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+                    ).relative_to(ROOT)
+                ),
+                "existed_before_clear": processed_cache_existed,
+                "exists_after_vendor_load": (
+                    VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+                ).exists(),
+            },
         },
         evaluator={
-            "vendor_command": recorded_vendor_command,
+            "entry_points": {
+                "generate": _script_entry_point(VENDOR_ROOT / "generate.py"),
+                "eval": _script_entry_point(VENDOR_ROOT / "eval.py"),
+            },
+            "generate_command": recorded_vendor_command,
             "commands_by_system": evaluator_commands,
-            "source": "vendor/const-layout/eval.py:main; one invocation per prediction file",
             "metrics_output_by_system": evaluator_outputs,
         },
         sampling_seeds={"evaluation_seed": S4_EVALUATION_SEED},
@@ -1537,7 +2016,6 @@ def _stage_s4(device: torch.device) -> Path:
             "limit": TRACE_ATOL,
             "first_divergence": first_divergence,
         },
-        metrics_recorded_by_vendor=True,
         first_divergence=first_divergence,
     )
     return _write("s4-loader-eval", payload)

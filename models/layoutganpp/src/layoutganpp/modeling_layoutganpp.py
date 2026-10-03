@@ -128,7 +128,6 @@ class LayoutGANPPModel(PreTrainedModel):
             encoder_layer, num_layers=config.num_layers
         )
         self.fc_out = nn.Linear(config.d_model, 4)
-        self.post_init()
 
     def forward(
         self,
