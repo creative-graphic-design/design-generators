@@ -69,9 +69,11 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.register_buffer("layout_dm_lt_count", reference.lt_count)
 
         initialization_device = _vendor_initialization_device()
-        with torch.device(initialization_device):
+        with torch.device("cpu"):
             self.model = LayoutCorrectorModel(**dict(config.config))
 
+        torch.nn.Module.to(self.model, initialization_device)
+        self.model.initialize_weights()
         self.initialization_device = str(initialization_device)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay

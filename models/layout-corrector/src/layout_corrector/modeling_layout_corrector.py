@@ -311,6 +311,9 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             num_attributes_per_element=num_attributes_per_element,
             num_timesteps=num_timesteps,
         )
+
+    def initialize_weights(self) -> None:
+        """Apply the released training initialization on the active device."""
         self.apply(_init_layout_corrector_weights)
 
     def forward(
