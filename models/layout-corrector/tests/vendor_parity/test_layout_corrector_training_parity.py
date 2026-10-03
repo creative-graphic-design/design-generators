@@ -1157,6 +1157,7 @@ def _run_natural_side(
         grad_norm = _clip_grad_norm(parameters)
         optimizer.step()
         loss = float(trace["train_loss"].detach().cpu().item())
+        importance_probability = trace.get("pt")
         rows.append(
             {
                 "step": step,
@@ -1167,7 +1168,11 @@ def _run_natural_side(
                 "parameter_state_digest": _state_dict_digest(model.state_dict()),
                 "rng_digest": rng_digest,
                 "timesteps_digest": _tensor_digest(trace["t"]),
-                "importance_probability_digest": _tensor_digest(trace["pt"]),
+                "importance_probability_digest": (
+                    None
+                    if importance_probability is None
+                    else _tensor_digest(importance_probability)
+                ),
             }
         )
     return rows, deepcopy(model.state_dict())
@@ -1400,7 +1405,7 @@ def test_s3_synchronized_diagnostic_matches_vendor(
         vendor_trace["train_loss"].backward()
 
         fixture.package.model.model.load_state_dict(pre_model_state, strict=True)
-        package_optimizer.load_state_dict(pre_optimizer_state)
+        package_optimizer.load_state_dict(deepcopy(pre_optimizer_state))
         _assert_optimizer_state_independent(
             pre_optimizer_state, package_optimizer.state_dict()
         )
