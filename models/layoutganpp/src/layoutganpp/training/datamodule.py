@@ -7,12 +7,12 @@ from pathlib import Path
 from lightning.pytorch import LightningDataModule
 from torch.utils.data import DataLoader
 
-from .config import LayoutGANPPSeedMode
 from .dataset import LayoutGANPPDataset, LayoutRow, collate_layoutganpp
+from laygen.common.randomness import resolve_torch_generator
 
 
 class LayoutGANPPDataModule(LightningDataModule):
-    """Load local reference-shaped rows or deterministic synthetic rows."""
+    """Load local reference-shaped rows or deterministic smoke-test rows."""
 
     def __init__(
         self,
@@ -23,7 +23,6 @@ class LayoutGANPPDataModule(LightningDataModule):
         num_workers: int,
         synthetic_size: int = 64,
         seed: int = 0,
-        seed_mode: LayoutGANPPSeedMode | str = LayoutGANPPSeedMode.default,
         shuffle_train: bool = True,
     ) -> None:
         """Initialize the package-local training data module."""
@@ -34,7 +33,6 @@ class LayoutGANPPDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.synthetic_size = synthetic_size
         self.seed = seed
-        self.seed_mode = LayoutGANPPSeedMode(seed_mode)
         self.shuffle_train = shuffle_train
 
     def setup(self, stage: str | None = None) -> None:
@@ -64,8 +62,7 @@ class LayoutGANPPDataModule(LightningDataModule):
 
     def train_dataloader(self) -> DataLoader[LayoutRow]:
         """Return the training data loader."""
-        if not hasattr(self, "train_dataset"):
-            self.setup("fit")
+        self.setup("fit")
 
         return DataLoader(
             self.train_dataset,
@@ -73,12 +70,12 @@ class LayoutGANPPDataModule(LightningDataModule):
             shuffle=self.shuffle_train,
             num_workers=self.num_workers,
             collate_fn=collate_layoutganpp,
+            generator=resolve_torch_generator(seed=self.seed),
         )
 
     def val_dataloader(self) -> DataLoader[LayoutRow]:
         """Return the validation data loader."""
-        if not hasattr(self, "val_dataset"):
-            self.setup("validate")
+        self.setup("validate")
 
         return DataLoader(
             self.val_dataset,
@@ -90,8 +87,7 @@ class LayoutGANPPDataModule(LightningDataModule):
 
     def test_dataloader(self) -> DataLoader[LayoutRow]:
         """Return the test data loader."""
-        if not hasattr(self, "test_dataset"):
-            self.setup("test")
+        self.setup("test")
 
         return DataLoader(
             self.test_dataset,

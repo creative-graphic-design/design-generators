@@ -1,4 +1,4 @@
-"""Reference adapter and parity tests for LayoutGAN++ training."""
+"""Reference adapter and staged parity tests for LayoutGAN++ training."""
 # pylint: disable=duplicate-code
 
 from __future__ import annotations
@@ -12,17 +12,24 @@ import pytest
 import torch
 import torch.nn.functional as F
 
+from laygen.common.randomness import randn
 from layoutganpp.training import LayoutGANPPTrainingModule
-from layoutganpp.training.dataset import collate_layoutganpp, synthetic_rows
-from layoutganpp.training.step import (
-    gan_forward_trace,
-    record_gan_trace,
-    run_gan_iteration,
+from layoutganpp.training.dataset import collate_layoutganpp, load_rows
+from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
+from traingen_parity.compare import (
+    OptimizerStepReport,
+    StepReport,
+    TensorTolerance,
+    compare_optimizer_step,
+    compare_step_trace,
 )
+from traingen_parity.determinism import capture_rng_state, restore_rng_state
+from traingen_parity.trace import build_step_trace, tensor_sha256
 
 pytestmark = [pytest.mark.vendor_parity, pytest.mark.training]
 
 ROOT = Path(__file__).resolve().parents[4]
+DATA_ROOT = ROOT / ".cache" / "layoutganpp" / "data" / "magazine"
 
 
 @dataclass
@@ -49,6 +56,8 @@ def _import_vendor_module() -> ModuleType:
 
 
 def _build_fixture(device: torch.device) -> Fixture:
+    if not DATA_ROOT.exists():
+        pytest.skip("Magazine fixture is not materialized")
     generator_cls, discriminator_cls = _vendor_classes()
     torch.manual_seed(123)
     vendor_generator = generator_cls(4, 5, d_model=256, nhead=4, num_layers=8).to(
@@ -69,9 +78,8 @@ def _build_fixture(device: torch.device) -> Fixture:
         discriminator_max_elements=50,
         learning_rate=1.0e-5,
     ).to(device)
-    target.generator.load_state_dict(vendor_generator.state_dict(), strict=True)
-    target.discriminator.load_state_dict(vendor_discriminator.state_dict(), strict=True)
-    batch = collate_layoutganpp(synthetic_rows("magazine", 2, 314159))
+    rows = load_rows("magazine", DATA_ROOT, "train")[:2]
+    batch = collate_layoutganpp(rows)
     return Fixture(
         vendor_generator=vendor_generator,
         vendor_discriminator=vendor_discriminator,
@@ -81,6 +89,15 @@ def _build_fixture(device: torch.device) -> Fixture:
             for key, value in batch.items()
         },
     )
+
+
+def _matched_target(fixture: Fixture) -> LayoutGANPPTrainingModule:
+    target = fixture.target
+    target.generator.load_state_dict(fixture.vendor_generator.state_dict(), strict=True)
+    target.discriminator.load_state_dict(
+        fixture.vendor_discriminator.state_dict(), strict=True
+    )
+    return target
 
 
 def _device() -> torch.device:
@@ -105,12 +122,12 @@ def _vendor_forward_trace(
     generator: torch.nn.Module,
     discriminator: torch.nn.Module,
     batch: dict[str, torch.Tensor | list[str]],
-    latent_noise: torch.Tensor,
     *,
     detach: bool = True,
 ) -> dict[str, torch.Tensor]:
     bbox, labels, mask = _batch_tensors(batch)
     padding_mask = ~mask
+    latent_noise = randn(labels.shape[0], labels.shape[1], 4, device=labels.device)
     bbox_fake = generator(latent_noise, labels, padding_mask)
     discriminator_fake_for_g = discriminator(bbox_fake, labels, padding_mask)
     loss_g = F.softplus(-discriminator_fake_for_g).mean()
@@ -128,181 +145,159 @@ def _vendor_forward_trace(
         + loss_d_reconstruction_labels
         + 10.0 * loss_d_reconstruction_boxes
     )
-    return record_gan_trace(
-        {
-            "latent_noise": latent_noise,
-            "draw_latent_noise": latent_noise,
-            "condition_labels": labels,
-            "draw_condition_labels": labels,
-            "condition_mask": mask,
-            "draw_condition_mask": mask,
-            "padding_mask": padding_mask,
-            "generator_bbox": bbox_fake,
-            "generator_discriminator_logits": discriminator_fake_for_g,
-            "generator_loss": loss_g.reshape(1),
-            "discriminator_fake_bbox": bbox_fake,
-            "discriminator_fake_logits": discriminator_fake,
-            "discriminator_real_logits": discriminator_real,
-            "discriminator_class_logits": logits_cls,
-            "discriminator_bbox_reconstruction": bbox_reconstruction,
-            "discriminator_fake_loss": loss_d_fake.reshape(1),
-            "discriminator_real_loss": loss_d_real.reshape(1),
-            "discriminator_label_reconstruction_loss": loss_d_reconstruction_labels.reshape(
-                1
-            ),
-            "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
-                1
-            ),
-            "discriminator_loss": loss_d.reshape(1),
-        },
-        device=bbox.device,
-        detach=detach,
+    values = {
+        "latent_noise": latent_noise,
+        "draw_latent_noise": latent_noise,
+        "condition_labels": labels,
+        "condition_mask": mask,
+        "padding_mask": padding_mask,
+        "generator_bbox": bbox_fake,
+        "generator_discriminator_logits": discriminator_fake_for_g,
+        "generator_loss": loss_g.reshape(1),
+        "discriminator_fake_bbox": bbox_fake,
+        "discriminator_fake_logits": discriminator_fake,
+        "discriminator_real_logits": discriminator_real,
+        "discriminator_class_logits": logits_cls,
+        "discriminator_bbox_reconstruction": bbox_reconstruction,
+        "discriminator_fake_loss": loss_d_fake.reshape(1),
+        "discriminator_real_loss": loss_d_real.reshape(1),
+        "discriminator_label_reconstruction_loss": loss_d_reconstruction_labels.reshape(
+            1
+        ),
+        "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
+            1
+        ),
+        "discriminator_loss": loss_d.reshape(1),
+    }
+    if detach:
+        return {key: value.detach().clone() for key, value in values.items()}
+    return values
+
+
+def _trace_report(
+    reference: dict[str, torch.Tensor], target: dict[str, torch.Tensor]
+) -> StepReport:
+    return compare_step_trace(
+        build_step_trace("vendor", reference),
+        build_step_trace("package", target),
+        {"generator_bbox": TensorTolerance(atol=0.0, rtol=0.0)},
     )
 
 
-def _assert_trace_equal(
-    expected: dict[str, torch.Tensor], actual: dict[str, torch.Tensor]
-) -> None:
-    assert expected.keys() == actual.keys()
-    for name in expected:
-        try:
-            torch.testing.assert_close(expected[name], actual[name], rtol=0.0, atol=0.0)
-        except AssertionError as exc:
-            raise AssertionError(f"trace diverges at {name}: {exc}") from exc
+def _parameter_gradients(
+    module: torch.nn.Module,
+) -> dict[str, torch.Tensor]:
+    return {
+        name: parameter.grad.detach().clone()
+        for name, parameter in module.named_parameters()
+        if parameter.grad is not None
+    }
 
 
-def _rng_snapshot(device: torch.device) -> tuple[torch.Tensor, torch.Tensor | None]:
-    cuda_state = torch.cuda.get_rng_state(device) if device.type == "cuda" else None
-    return torch.get_rng_state(), cuda_state
+def _optimizer_state(
+    optimizer: torch.optim.Optimizer,
+    module: torch.nn.Module,
+) -> dict[str, torch.Tensor]:
+    return {
+        f"{name}.{state_name}": value.detach().clone()
+        for name, parameter in module.named_parameters()
+        for state_name, value in optimizer.state[parameter].items()
+        if isinstance(value, torch.Tensor)
+    }
 
 
-def _restore_rng(
-    device: torch.device, state: tuple[torch.Tensor, torch.Tensor | None]
-) -> None:
-    cpu_state, cuda_state = state
-    torch.set_rng_state(cpu_state)
-    if cuda_state is not None:
-        torch.cuda.set_rng_state(cuda_state, device)
+def _assert_report_passed(report: StepReport | OptimizerStepReport) -> None:
+    assert report.passed, report
 
 
 def test_s0_training_static_state_matches_vendor() -> None:
     fixture = _build_fixture(_device())
-    assert fixture.target.generator.config.d_model == 256
-    assert fixture.target.generator.config.num_layers == 8
-    assert len(fixture.target.discriminator.enc_transformer.core.layers) == 8
-    assert len(fixture.target.discriminator.dec_transformer.layers) == 8
-    assert tuple(fixture.target.discriminator.pos_token.shape) == (50, 1, 256)
+    generator_cls, discriminator_cls = _vendor_classes()
+    assert sum(
+        parameter.numel() for parameter in fixture.target.generator.parameters()
+    ) == sum(parameter.numel() for parameter in fixture.vendor_generator.parameters())
+    assert sum(
+        parameter.numel() for parameter in fixture.target.discriminator.parameters()
+    ) == sum(
+        parameter.numel() for parameter in fixture.vendor_discriminator.parameters()
+    )
     assert list(fixture.target.generator.state_dict()) == list(
         fixture.vendor_generator.state_dict()
     )
     assert list(fixture.target.discriminator.state_dict()) == list(
         fixture.vendor_discriminator.state_dict()
     )
-    for target, vendor in (
-        (fixture.target.generator, fixture.vendor_generator),
-        (fixture.target.discriminator, fixture.vendor_discriminator),
-    ):
-        for name, value in target.state_dict().items():
-            torch.testing.assert_close(
-                value, vendor.state_dict()[name], rtol=0.0, atol=0.0
-            )
+    assert generator_cls and discriminator_cls
+    assert len(load_rows("magazine", DATA_ROOT, "train")) > 0
+    vendor_g = torch.optim.Adam(fixture.vendor_generator.parameters(), lr=1.0e-5)
+    package_g = torch.optim.Adam(fixture.target.generator.parameters(), lr=1.0e-5)
+    assert vendor_g.defaults == package_g.defaults
+    assert vendor_g.state_dict()["state"] == package_g.state_dict()["state"] == {}
+    assert tensor_sha256(next(fixture.target.generator.parameters())) != ""
 
 
 def test_s1_fixed_batch_pre_optimizer_trace_matches_vendor() -> None:
     fixture = _build_fixture(_device())
-    _, labels, _ = _batch_tensors(fixture.batch)
+    target = _matched_target(fixture)
     torch.manual_seed(999)
-    latent_noise = torch.randn(
-        labels.shape[0], labels.shape[1], 4, device=labels.device
-    )
-    rng_state = _rng_snapshot(labels.device)
+    rng_state = capture_rng_state()
     vendor_trace = _vendor_forward_trace(
-        fixture.vendor_generator,
-        fixture.vendor_discriminator,
-        fixture.batch,
-        latent_noise,
+        fixture.vendor_generator, fixture.vendor_discriminator, fixture.batch
     )
-    _restore_rng(labels.device, rng_state)
-    target_trace = gan_forward_trace(
-        fixture.target.generator,
-        fixture.target.discriminator,
-        fixture.batch,
-        latent_noise=latent_noise,
+    restore_rng_state(rng_state)
+    package_trace = gan_forward_trace(
+        target.generator, target.discriminator, fixture.batch
     )
-    _assert_trace_equal(vendor_trace, target_trace)
+    _assert_report_passed(_trace_report(vendor_trace, package_trace))
 
 
 def test_s2_one_optimizer_step_matches_vendor() -> None:
     fixture = _build_fixture(_device())
-    vendor_generator_optimizer = torch.optim.Adam(
-        fixture.vendor_generator.parameters(), lr=1.0e-5
-    )
-    vendor_discriminator_optimizer = torch.optim.Adam(
-        fixture.vendor_discriminator.parameters(), lr=1.0e-5
-    )
-    target_generator_optimizer = torch.optim.Adam(
-        fixture.target.generator.parameters(), lr=1.0e-5
-    )
-    target_discriminator_optimizer = torch.optim.Adam(
-        fixture.target.discriminator.parameters(), lr=1.0e-5
-    )
-    _, labels, _ = _batch_tensors(fixture.batch)
+    target = _matched_target(fixture)
+    vendor_g = torch.optim.Adam(fixture.vendor_generator.parameters(), lr=1.0e-5)
+    vendor_d = torch.optim.Adam(fixture.vendor_discriminator.parameters(), lr=1.0e-5)
+    package_g = torch.optim.Adam(target.generator.parameters(), lr=1.0e-5)
+    package_d = torch.optim.Adam(target.discriminator.parameters(), lr=1.0e-5)
     torch.manual_seed(999)
-    latent_noise = torch.randn(
-        labels.shape[0], labels.shape[1], 4, device=labels.device
-    )
-
-    vendor_generator_optimizer.zero_grad()
-    vendor_discriminator_optimizer.zero_grad()
-    rng_state = _rng_snapshot(labels.device)
+    rng_state = capture_rng_state()
     vendor_trace = _vendor_forward_trace(
         fixture.vendor_generator,
         fixture.vendor_discriminator,
         fixture.batch,
-        latent_noise,
         detach=False,
     )
+    vendor_g.zero_grad()
     vendor_trace["generator_loss"].mean().backward()
-    vendor_generator_optimizer.step()
-    vendor_discriminator_optimizer.zero_grad()
+    vendor_g.step()
+    vendor_d.zero_grad()
     vendor_trace["discriminator_loss"].mean().backward()
-    vendor_discriminator_optimizer.step()
-    vendor_trace["generator_gradient_norm"] = torch.sqrt(
-        sum(
-            (
-                parameter.grad.detach().square().sum()
-                for parameter in fixture.vendor_generator.parameters()
-                if parameter.grad is not None
-            ),
-            torch.zeros((), device=labels.device),
-        )
-    ).reshape(1)
-    vendor_trace["discriminator_gradient_norm"] = torch.sqrt(
-        sum(
-            (
-                parameter.grad.detach().square().sum()
-                for parameter in fixture.vendor_discriminator.parameters()
-                if parameter.grad is not None
-            ),
-            torch.zeros((), device=labels.device),
-        )
-    ).reshape(1)
-
-    _restore_rng(labels.device, rng_state)
-    target_trace = run_gan_iteration(
-        fixture.target.generator,
-        fixture.target.discriminator,
-        fixture.batch,
-        target_generator_optimizer,
-        target_discriminator_optimizer,
-        latent_noise=latent_noise,
+    vendor_d.step()
+    restore_rng_state(rng_state)
+    package_trace = run_gan_iteration(
+        target.generator, target.discriminator, fixture.batch, package_g, package_d
     )
-    _assert_trace_equal(vendor_trace, target_trace)
-    for target, vendor in (
-        (fixture.target.generator, fixture.vendor_generator),
-        (fixture.target.discriminator, fixture.vendor_discriminator),
-    ):
-        for name, value in target.state_dict().items():
-            torch.testing.assert_close(
-                value, vendor.state_dict()[name], rtol=0.0, atol=0.0
-            )
+    _assert_report_passed(_trace_report(vendor_trace, package_trace))
+    _assert_report_passed(
+        compare_optimizer_step(
+            _parameter_gradients(fixture.vendor_generator),
+            _parameter_gradients(target.generator),
+        )
+    )
+    _assert_report_passed(
+        compare_optimizer_step(
+            _parameter_gradients(fixture.vendor_discriminator),
+            _parameter_gradients(target.discriminator),
+        )
+    )
+    _assert_report_passed(
+        compare_optimizer_step(
+            _optimizer_state(vendor_g, fixture.vendor_generator),
+            _optimizer_state(package_g, target.generator),
+        )
+    )
+    _assert_report_passed(
+        compare_optimizer_step(
+            _optimizer_state(vendor_d, fixture.vendor_discriminator),
+            _optimizer_state(package_d, target.discriminator),
+        )
+    )

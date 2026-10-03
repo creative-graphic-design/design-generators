@@ -1,87 +1,146 @@
-"""Generate LayoutGAN++ staged training evidence records."""
+"""Generate ordered LayoutGAN++ training-reproduction evidence."""
+# pylint: disable=duplicate-code
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import Protocol, TypeAlias, cast
+from typing import TypeAlias, cast
 
-from jaxtyping import Bool, Shaped
+import numpy as np
 import torch
-from laygen.modeling_outputs import LayoutGenerationOutput
+from jaxtyping import Float, Int, Shaped
+from torch_geometric.data import Data
+from torch.utils.data import DataLoader
 
-ROOT = Path(__file__).resolve().parents[3]
-TEST_HELPER = ROOT / "models" / "layoutganpp" / "tests" / "vendor_parity"
-sys.path.insert(0, str(TEST_HELPER))
-
-from test_layoutganpp_training_parity import (  # noqa: E402
-    Fixture,
-    _batch_tensors,
-    _build_fixture,
-    _vendor_classes,
-    _restore_rng,
-    _rng_snapshot,
-    _vendor_forward_trace,
+from laygen.common.randomness import randn, resolve_torch_generator
+from traingen_parity.compare import (
+    BatchStreamReport,
+    OptimizerStepReport,
+    StepReport,
+    compare_batch_stream,
+    compare_optimizer_step,
+    compare_step_trace,
 )
-from layoutganpp import LayoutGANPPPipeline  # noqa: E402
-from layoutganpp.training.dataset import (  # noqa: E402
+from traingen_parity.determinism import (
+    DeterminismConfig,
+    apply_determinism,
+    capture_rng_state,
+    restore_rng_state,
+)
+from traingen_parity.trace import (
+    build_step_trace,
+    summarize_tensor,
+    tensor_sha256,
+)
+
+from layoutganpp import LayoutGANPPModel
+from layoutganpp.training import LayoutGANPPTrainingModule
+from layoutganpp.training.dataset import (
+    LayoutGANPPDataset,
     LayoutRow,
     collate_layoutganpp,
     load_rows,
 )
-from layoutganpp.training.step import gan_forward_trace, run_gan_iteration  # noqa: E402
+from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
 
-
+ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_ROOT = ROOT / ".cache" / "layoutganpp" / "stage-evidence"
 DATA_ROOT = ROOT / ".cache" / "layoutganpp" / "data" / "magazine"
+SOURCE_MANIFEST = DATA_ROOT / "source-manifest.json"
+VENDOR_ROOT = ROOT / "vendor" / "const-layout"
+VENDOR_WORK = ROOT / ".cache" / "layoutganpp" / "vendor-work"
+AUDIT_VENV = ROOT / ".cache" / "layoutganpp" / "runtime" / "audit-venv"
 AUDIT_FREEZE = ROOT / ".cache" / "layoutganpp" / "runtime" / "pip-freeze.txt"
-TRACE_TOLERANCE = 1.0e-6
-S4_WEIGHT_SEED = 4242
-S4_NOISE_SEED = 4243
-S4_BATCH_SIZE = 2
-S4_TRAINED_CHECKPOINT_PATH = ".cache/layoutganpp/converted/layoutganpp-magazine"
-S4_TRAINED_CHECKPOINT_URL = (
-    "https://esslab.jp/~kotaro/files/const_layout/layoutganpp_magazine.pth.tar"
+WHEEL_ROOT = ROOT / ".cache" / "layoutganpp" / "runtime" / "wheels"
+CHECKPOINT = (
+    ROOT / ".cache" / "layoutganpp" / "original" / "layoutganpp_magazine.pth.tar"
 )
+CONVERTED = ROOT / ".cache" / "layoutganpp" / "converted" / "layoutganpp-magazine"
+VENDOR_CHECKPOINT = VENDOR_WORK / "pretrained" / "layoutganpp_magazine.pth.tar"
+VENDOR_LAYOUTNET = VENDOR_WORK / "pretrained" / "layoutnet_magazine.pth.tar"
+VENDOR_BATCH_SIZE = 64
+LATENT_SIZE = 4
+INIT_SEED = 42975
+S1_LATENT_SEED = 42001
+S2_LATENT_SEED = 42002
+S3_BATCH_SEED = 42003
+S3_LATENT_SEED = 42004
+S4_EVALUATION_SEED = 42005
+S3_STEPS = 300
+S3_REPEATS = 2
+TRACE_ATOL = 1.0e-6
+
 JsonValue: TypeAlias = (
     str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 )
 
 
-class _VendorRow(Protocol):
-    attr: Mapping[str, str]
-    x: Shaped[torch.Tensor, "elements 4"]
-    y: Shaped[torch.Tensor, "elements"]
+VendorData = Data
 
 
 def _source_commit() -> str:
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=ROOT,
+        text=True,
+    ).strip()
+    if status:
+        raise RuntimeError(
+            "the evidence source tree is dirty; commit the harness before running stages"
+        )
+
     return subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
 
 
-def _audit_runtime() -> dict[str, str | bool]:
-    freeze_hash = "missing"
-    if AUDIT_FREEZE.exists():
-        freeze_hash = hashlib.sha256(AUDIT_FREEZE.read_bytes()).hexdigest()
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _audit_runtime() -> dict[str, JsonValue]:
+    freeze_hash = _sha256(AUDIT_FREEZE) if AUDIT_FREEZE.exists() else "missing"
+    wheels = {
+        path.name: _sha256(path)
+        for path in sorted(WHEEL_ROOT.glob("torch*.whl"))
+        if path.name.startswith(("torch-", "torchvision-"))
+    }
+    from importlib.metadata import version
+
     return {
-        "venv_env_var": "LAYOUTGANPP_AUDIT_VENV",
         "python": ".".join(str(value) for value in sys.version_info[:3]),
         "torch": torch.__version__,
+        "torchvision": version("torchvision"),
         "cuda_tag": str(torch.version.cuda),
-        "torch_wheel": "torch-2.8.0+cu128-cp311-cp311-manylinux_2_28_x86_64.whl",
-        "torch_wheel_sha256": "039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed",
-        "torchvision_wheel": "torchvision-0.23.0+cu128-cp311-cp311-manylinux_2_28_x86_64.whl",
-        "torchvision_wheel_sha256": "93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb",
+        "cuda_available": torch.cuda.is_available(),
+        "wheel_sha256": wheels,
         "pip_freeze_sha256": freeze_hash,
-        "lock_environment_used_for_cpu_checks": True,
+        "pip_freeze_path": ".cache/layoutganpp/runtime/pip-freeze.txt",
     }
+
+
+def _source_manifest() -> tuple[dict[str, JsonValue], str]:
+    if not SOURCE_MANIFEST.exists():
+        raise FileNotFoundError(f"missing Magazine source manifest: {SOURCE_MANIFEST}")
+    manifest = cast(dict[str, JsonValue], json.loads(SOURCE_MANIFEST.read_text()))
+    required = {"source_id", "source_revision", "acquisition_command"}
+    missing = sorted(required.difference(manifest))
+    if missing:
+        raise ValueError(f"source manifest is missing {missing}")
+    return manifest, _sha256(SOURCE_MANIFEST)
 
 
 def _record(stage: str, started: float, **values: JsonValue) -> dict[str, JsonValue]:
@@ -103,640 +162,978 @@ def _write(stage: str, payload: dict[str, JsonValue]) -> Path:
     return path
 
 
-def _summary(value: Shaped[torch.Tensor, "..."]) -> dict[str, JsonValue]:
-    tensor = value.detach().float().cpu()
+def _require_previous(stage: str, previous: str | None) -> None:
+    if previous is None:
+        return
+    path = OUTPUT_ROOT / previous / "summary.json"
+    if not path.exists():
+        raise RuntimeError(f"{stage} requires the committed {previous} artifact")
+    record = cast(dict[str, JsonValue], json.loads(path.read_text()))
+    if record.get("source_commit") != _source_commit():
+        raise RuntimeError(
+            f"{stage} found a previous artifact from another source commit"
+        )
+
+
+def _tensor_summary(value: Shaped[torch.Tensor, "..."]) -> dict[str, JsonValue]:
+    summary = summarize_tensor(value)
     return {
-        "shape": list(tensor.shape),
-        "dtype": str(value.dtype),
-        "sha256": hashlib.sha256(tensor.numpy().tobytes()).hexdigest(),
-        "min": float(tensor.min().item()) if tensor.numel() else None,
-        "max": float(tensor.max().item()) if tensor.numel() else None,
-        "mean": float(tensor.mean().item()) if tensor.numel() else None,
+        "shape": list(summary.shape),
+        "dtype": summary.dtype,
+        "device": summary.device,
+        "sha256": summary.sha256,
+        "min": summary.min,
+        "max": summary.max,
+        "mean": summary.mean,
     }
 
 
-def _tensor_sequence_hash(values: list[Shaped[torch.Tensor, "..."]]) -> str:
-    digest = hashlib.sha256()
-    for value in values:
-        tensor = value.detach().cpu().contiguous()
-        digest.update(str(tensor.dtype).encode())
-        digest.update(repr(tuple(tensor.shape)).encode())
-        digest.update(tensor.numpy().tobytes())
-    return digest.hexdigest()
+def _module_hash(module: torch.nn.Module) -> str:
+    return hashlib.sha256(
+        "\n".join(
+            f"{name}:{tensor_sha256(value)}"
+            for name, value in module.state_dict().items()
+        ).encode()
+    ).hexdigest()
 
 
-def _state_dict_hash(module: torch.nn.Module) -> str:
-    digest = hashlib.sha256()
-    for name, value in module.state_dict().items():
-        digest.update(name.encode())
-        digest.update(str(value.dtype).encode())
-        digest.update(repr(tuple(value.shape)).encode())
-        digest.update(value.detach().cpu().contiguous().numpy().tobytes())
-    return digest.hexdigest()
-
-
-def _layout_rows_hash(rows: list[LayoutRow]) -> str:
-    digest = hashlib.sha256()
-    for row in rows:
-        digest.update(row.name.encode())
-        for value in (row.bbox, row.labels):
-            tensor = value.detach().cpu().contiguous()
-            digest.update(str(tensor.dtype).encode())
-            digest.update(repr(tuple(tensor.shape)).encode())
-            digest.update(tensor.numpy().tobytes())
-    return digest.hexdigest()
-
-
-def _cpu_trace(
-    trace: dict[str, Shaped[torch.Tensor, "..."]],
+def _state_map(
+    module: torch.nn.Module,
 ) -> dict[str, Shaped[torch.Tensor, "..."]]:
-    return {key: value.detach().cpu() for key, value in trace.items()}
+    return {name: value.detach().clone() for name, value in module.state_dict().items()}
 
 
-def _first_divergence(
-    expected: dict[str, Shaped[torch.Tensor, "..."]],
-    actual: dict[str, Shaped[torch.Tensor, "..."]],
-    tolerance: float,
+def _gradient_map(
+    module: torch.nn.Module,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    return {
+        name: parameter.grad.detach().clone()
+        for name, parameter in module.named_parameters()
+        if parameter.grad is not None
+    }
+
+
+def _optimizer_map(
+    optimizer: torch.optim.Optimizer, module: torch.nn.Module
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    return {
+        f"{name}.{state_name}": value.detach().clone()
+        for name, parameter in module.named_parameters()
+        for state_name, value in optimizer.state[parameter].items()
+        if isinstance(value, torch.Tensor)
+    }
+
+
+def _report_json(report: StepReport | OptimizerStepReport) -> dict[str, JsonValue]:
+    first = next((item for item in report.comparisons if not item.passed), None)
+    return {
+        "passed": report.passed,
+        "missing": list(report.missing),
+        "first_divergence": None
+        if first is None
+        else {
+            "tensor": first.name,
+            "max_abs": first.max_abs_diff,
+            "max_rel": first.max_rel_diff,
+            "message": first.message,
+        },
+        "comparisons": [
+            {
+                "tensor": item.name,
+                "passed": item.passed,
+                "max_abs": item.max_abs_diff,
+                "max_rel": item.max_rel_diff,
+            }
+            for item in report.comparisons
+        ],
+    }
+
+
+def _first_report_divergence(
+    reports: Iterable[StepReport | OptimizerStepReport],
 ) -> dict[str, JsonValue] | None:
-    for name in expected:
-        if name not in actual:
-            return {"tensor": name, "reason": "missing in package record"}
-        left = expected[name].detach().float().cpu()
-        right = actual[name].detach().float().cpu()
-        if left.shape != right.shape:
-            return {
-                "tensor": name,
-                "reason": "shape mismatch",
-                "vendor_shape": list(left.shape),
-                "package_shape": list(right.shape),
-            }
-        difference = (left - right).abs()
-        maximum = float(difference.max().item()) if difference.numel() else 0.0
-        if maximum > tolerance:
-            index = int(difference.reshape(-1).argmax().item())
-            return {
-                "tensor": name,
-                "max_abs": maximum,
-                "flat_index": index,
-                "vendor_value": float(left.reshape(-1)[index].item()),
-                "package_value": float(right.reshape(-1)[index].item()),
-            }
+    for report in reports:
+        value = _report_json(report)["first_divergence"]
+        if value is not None:
+            return cast(dict[str, JsonValue], value)
     return None
 
 
-def _parameter_difference(left: torch.nn.Module, right: torch.nn.Module) -> float:
-    maximum = 0.0
-    for name, value in left.state_dict().items():
-        difference = (
-            value.detach().float() - right.state_dict()[name].detach().float()
-        ).abs()
-        if difference.numel():
-            maximum = max(maximum, float(difference.max().item()))
-    return maximum
+def _float_field(record: Mapping[str, JsonValue], key: str) -> float:
+    value = record[key]
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"{key} is not numeric")
+    return float(value)
 
 
-def _latent(
-    fixture: Fixture, generator: torch.Generator | None = None
-) -> Shaped[torch.Tensor, "batch elements latent"]:
-    _, labels, _ = _batch_tensors(fixture.batch)
-    return torch.randn(
-        labels.shape[0], labels.shape[1], 4, device=labels.device, generator=generator
+def _vendor_classes() -> tuple[type[torch.nn.Module], type[torch.nn.Module]]:
+    if not (VENDOR_ROOT / "train.py").exists():
+        raise FileNotFoundError("vendor/const-layout is not initialized")
+    sys.path.insert(0, str(VENDOR_ROOT))
+    from model.layoutganpp import Discriminator, Generator
+
+    return Generator, Discriminator
+
+
+def _build_models(
+    device: torch.device,
+    *,
+    copy_vendor_weights: bool,
+) -> tuple[torch.nn.Module, torch.nn.Module, LayoutGANPPTrainingModule]:
+    generator_cls, discriminator_cls = _vendor_classes()
+    torch.manual_seed(INIT_SEED)
+    vendor_generator = generator_cls(4, 5, d_model=256, nhead=4, num_layers=8).to(
+        device
     )
+    vendor_discriminator = discriminator_cls(5, d_model=256, nhead=4, num_layers=8).to(
+        device
+    )
+    torch.manual_seed(INIT_SEED)
+    package_module = LayoutGANPPTrainingModule(
+        dataset_name="magazine",
+        latent_size=4,
+        generator_d_model=256,
+        generator_nhead=4,
+        generator_num_layers=8,
+        discriminator_d_model=256,
+        discriminator_nhead=4,
+        discriminator_num_layers=8,
+        discriminator_max_elements=50,
+        learning_rate=1.0e-5,
+    ).to(device)
+    if copy_vendor_weights:
+        package_module.generator.load_state_dict(
+            vendor_generator.state_dict(), strict=True
+        )
+        package_module.discriminator.load_state_dict(
+            vendor_discriminator.state_dict(), strict=True
+        )
+    return vendor_generator, vendor_discriminator, package_module
+
+
+def _package_batch(
+    rows: list[LayoutRow], device: torch.device
+) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
+    batch = collate_layoutganpp(rows)
+    return {
+        key: value.to(device) if isinstance(value, torch.Tensor) else value
+        for key, value in batch.items()
+    }
+
+
+def _vendor_forward_trace(
+    generator: torch.nn.Module,
+    discriminator: torch.nn.Module,
+    batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
+    *,
+    detach: bool = True,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    bbox = cast(torch.Tensor, batch["bbox"])
+    labels = cast(torch.Tensor, batch["labels"])
+    mask = cast(torch.Tensor, batch["mask"])
+    padding_mask = ~mask
+    latent_noise = randn(
+        labels.shape[0], labels.shape[1], LATENT_SIZE, device=labels.device
+    )
+    bbox_fake = generator(latent_noise, labels, padding_mask)
+    discriminator_fake_for_g = discriminator(bbox_fake, labels, padding_mask)
+    loss_g = torch.nn.functional.softplus(-discriminator_fake_for_g).mean()
+    discriminator_fake = discriminator(bbox_fake.detach(), labels, padding_mask)
+    loss_d_fake = torch.nn.functional.softplus(discriminator_fake).mean()
+    discriminator_real, logits_cls, bbox_reconstruction = discriminator(
+        bbox, labels, padding_mask, reconst=True
+    )
+    loss_d_real = torch.nn.functional.softplus(-discriminator_real).mean()
+    loss_d_reconstruction_labels = torch.nn.functional.cross_entropy(
+        logits_cls, labels[mask]
+    )
+    loss_d_reconstruction_boxes = torch.nn.functional.mse_loss(
+        bbox_reconstruction, bbox[mask]
+    )
+    values = {
+        "latent_noise": latent_noise,
+        "draw_latent_noise": latent_noise,
+        "condition_labels": labels,
+        "condition_mask": mask,
+        "padding_mask": padding_mask,
+        "generator_bbox": bbox_fake,
+        "generator_discriminator_logits": discriminator_fake_for_g,
+        "generator_loss": loss_g.reshape(1),
+        "discriminator_fake_bbox": bbox_fake,
+        "discriminator_fake_logits": discriminator_fake,
+        "discriminator_real_logits": discriminator_real,
+        "discriminator_class_logits": logits_cls,
+        "discriminator_bbox_reconstruction": bbox_reconstruction,
+        "discriminator_fake_loss": loss_d_fake.reshape(1),
+        "discriminator_real_loss": loss_d_real.reshape(1),
+        "discriminator_label_reconstruction_loss": loss_d_reconstruction_labels.reshape(
+            1
+        ),
+        "discriminator_bbox_reconstruction_loss": loss_d_reconstruction_boxes.reshape(
+            1
+        ),
+        "discriminator_loss": (
+            loss_d_real
+            + loss_d_fake
+            + loss_d_reconstruction_labels
+            + 10.0 * loss_d_reconstruction_boxes
+        ).reshape(1),
+    }
+    if detach:
+        return {key: value.detach().clone() for key, value in values.items()}
+    return values
+
+
+def _vendor_iteration(
+    generator: torch.nn.Module,
+    discriminator: torch.nn.Module,
+    batch: dict[str, Shaped[torch.Tensor, "..."] | list[str]],
+    optimizer_g: torch.optim.Optimizer,
+    optimizer_d: torch.optim.Optimizer,
+) -> dict[str, Shaped[torch.Tensor, "..."]]:
+    trace = _vendor_forward_trace(generator, discriminator, batch, detach=False)
+    optimizer_g.zero_grad()
+    trace["generator_loss"].mean().backward()
+    optimizer_g.step()
+    optimizer_d.zero_grad()
+    trace["discriminator_loss"].mean().backward()
+    optimizer_d.step()
+    result = {key: value.detach().clone() for key, value in trace.items()}
+    result["update_order"] = torch.tensor([0, 1], device=result["latent_noise"].device)
+    return result
 
 
 def _stage_s0(device: torch.device) -> Path:
     started = time.time()
-    fixture = _build_fixture(device)
+    source, source_hash = _source_manifest()
+    vendor_generator, vendor_discriminator, package = _build_models(
+        device, copy_vendor_weights=False
+    )
+    vendor_rows = {split: _vendor_rows(split) for split in ("train", "val", "test")}
+    package_rows = {
+        split: load_rows("magazine", DATA_ROOT, split)
+        for split in ("train", "val", "test")
+    }
+    vendor_g = torch.optim.Adam(vendor_generator.parameters(), lr=1.0e-5)
+    package_g = torch.optim.Adam(package.generator.parameters(), lr=1.0e-5)
+    dataset_equal = all(
+        len(vendor_rows[split]) == len(package_rows[split])
+        and [str(row.attr["name"]) for row in vendor_rows[split]]
+        == [row.name for row in package_rows[split]]
+        for split in vendor_rows
+    )
     payload = _record(
         "s0-static",
         started,
-        result="PASS",
-        exact_claims=[
-            "generator d_model=256, nhead=4, layers=8",
-            "discriminator d_model=256, nhead=4, layers=8",
-            "Adam learning rate=1e-5",
-            "discriminator max_bbox=50",
-        ],
-        topology={
-            "generator_parameters": len(list(fixture.target.generator.parameters())),
-            "discriminator_parameters": len(
-                list(fixture.target.discriminator.parameters())
+        result="PASS"
+        if dataset_equal
+        and sum(p.numel() for p in vendor_generator.parameters())
+        == sum(p.numel() for p in package.generator.parameters())
+        and sum(p.numel() for p in vendor_discriminator.parameters())
+        == sum(p.numel() for p in package.discriminator.parameters())
+        else "FAIL",
+        source_manifest=".cache/layoutganpp/data/magazine/source-manifest.json",
+        source_manifest_sha256=source_hash,
+        source=source,
+        initialization={
+            "vendor_generator_state_sha256": _module_hash(vendor_generator),
+            "package_generator_state_sha256": _module_hash(package.generator),
+            "vendor_discriminator_state_sha256": _module_hash(vendor_discriminator),
+            "package_discriminator_state_sha256": _module_hash(package.discriminator),
+            "compared_as": "independently constructed state metadata; no weights copied",
+        },
+        parameter_counts={
+            "vendor_generator": sum(p.numel() for p in vendor_generator.parameters()),
+            "package_generator": sum(p.numel() for p in package.generator.parameters()),
+            "vendor_discriminator": sum(
+                p.numel() for p in vendor_discriminator.parameters()
             ),
-            "generator_transformer_layers": len(
-                fixture.target.generator.transformer.layers
-            ),
-            "discriminator_encoder_layers": len(
-                fixture.target.discriminator.enc_transformer.core.layers
-            ),
-            "discriminator_decoder_layers": len(
-                fixture.target.discriminator.dec_transformer.layers
-            ),
-            "discriminator_pos_token_shape": list(
-                fixture.target.discriminator.pos_token.shape
+            "package_discriminator": sum(
+                p.numel() for p in package.discriminator.parameters()
             ),
         },
-        source_entry_point="vendor/const-layout/train.py",
-        vendor_commit="5287480505939345543fff0b9f2e5d541e6f84e2",
+        state_dict_key_map={
+            "generator_equal": list(vendor_generator.state_dict())
+            == list(package.generator.state_dict()),
+            "discriminator_equal": list(vendor_discriminator.state_dict())
+            == list(package.discriminator.state_dict()),
+        },
+        optimizer_static_state={
+            "class": "torch.optim.Adam",
+            "vendor_defaults": vendor_g.defaults,
+            "package_defaults": package_g.defaults,
+            "defaults_equal": vendor_g.defaults == package_g.defaults,
+            "state_empty": vendor_g.state_dict()["state"]
+            == package_g.state_dict()["state"]
+            == {},
+        },
+        dataset_static={
+            split: {
+                "vendor_count": len(vendor_rows[split]),
+                "package_count": len(package_rows[split]),
+                "vendor_names_sha256": hashlib.sha256(
+                    "\n".join(
+                        str(row.attr["name"]) for row in vendor_rows[split]
+                    ).encode()
+                ).hexdigest(),
+                "package_names_sha256": hashlib.sha256(
+                    "\n".join(row.name for row in package_rows[split]).encode()
+                ).hexdigest(),
+            }
+            for split in vendor_rows
+        },
+        inactive_rules=["scheduler", "EMA", "AMP", "multi-worker randomness in S0"],
         first_divergence=None,
     )
     return _write("s0-static", payload)
 
 
+def _stage_batch(
+    device: torch.device,
+) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
+    return _package_batch(
+        load_rows("magazine", DATA_ROOT, "train")[:VENDOR_BATCH_SIZE], device
+    )
+
+
 def _stage_s1(device: torch.device) -> Path:
     started = time.time()
-    fixture = _build_fixture(device)
-    _, labels, _ = _batch_tensors(fixture.batch)
-    torch.manual_seed(999)
-    latent_noise = torch.randn(labels.shape[0], labels.shape[1], 4, device=device)
-    rng_state = _rng_snapshot(device)
-    vendor_trace = _vendor_forward_trace(
-        fixture.vendor_generator,
-        fixture.vendor_discriminator,
-        fixture.batch,
-        latent_noise,
+    _require_previous("s1-fixed-batch", "s0-static")
+    batch = _stage_batch(device)
+    vendor_generator, vendor_discriminator, package = _build_models(
+        device, copy_vendor_weights=True
     )
-    _restore_rng(device, rng_state)
-    package_trace = gan_forward_trace(
-        fixture.target.generator,
-        fixture.target.discriminator,
-        fixture.batch,
-        latent_noise=latent_noise,
+    torch.manual_seed(S1_LATENT_SEED)
+    state = capture_rng_state()
+    vendor_trace = _vendor_forward_trace(vendor_generator, vendor_discriminator, batch)
+    restore_rng_state(state)
+    package_trace = gan_forward_trace(package.generator, package.discriminator, batch)
+    report = compare_step_trace(
+        build_step_trace("vendor", vendor_trace),
+        build_step_trace("package", package_trace),
     )
-    first = _first_divergence(vendor_trace, package_trace, 0.0)
     artifact = OUTPUT_ROOT / "s1-fixed-batch" / "trace.pt"
     artifact.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {"vendor": _cpu_trace(vendor_trace), "package": _cpu_trace(package_trace)},
-        artifact,
-    )
+    torch.save({"vendor": vendor_trace, "package": package_trace}, artifact)
     payload = _record(
         "s1-fixed-batch",
         started,
-        result="PASS" if first is None else "FAIL",
-        trace_artifact=".cache/layoutganpp/stage-evidence/s1-fixed-batch/trace.pt",
-        named_tensors={key: _summary(value) for key, value in package_trace.items()},
-        randomness={
-            "latent_noise": "explicitly supplied and recorded",
-            "condition_labels": "batch-provided; no label sampler in vendor path",
-            "condition_mask": "batch-provided; no condition sampler in vendor path",
+        result="PASS" if report.passed else "FAIL",
+        trace_artifact=str(artifact.relative_to(ROOT)),
+        draws={
+            "vendor": "vendor/const-layout/train.py:124 torch.randn in the vendor adapter",
+            "package": "layoutganpp.training.step._resolve_latent_noise",
+            "latent_seed": S1_LATENT_SEED,
+            "rng_control": "one captured state restored before the package trace; no injected latent",
         },
-        update_order="generator then discriminator",
-        first_divergence=first,
+        named_tensors={
+            key: _tensor_summary(value) for key, value in package_trace.items()
+        },
+        comparison=_report_json(report),
+        first_divergence=_report_json(report)["first_divergence"],
     )
     return _write("s1-fixed-batch", payload)
 
 
 def _stage_s2(device: torch.device) -> Path:
     started = time.time()
-    fixture = _build_fixture(device)
-    vendor_generator_optimizer = torch.optim.Adam(
-        fixture.vendor_generator.parameters(), lr=1.0e-5
+    _require_previous("s2-one-step", "s1-fixed-batch")
+    batch = _stage_batch(device)
+    vendor_generator, vendor_discriminator, package = _build_models(
+        device, copy_vendor_weights=True
     )
-    vendor_discriminator_optimizer = torch.optim.Adam(
-        fixture.vendor_discriminator.parameters(), lr=1.0e-5
+    vendor_g = torch.optim.Adam(vendor_generator.parameters(), lr=1.0e-5)
+    vendor_d = torch.optim.Adam(vendor_discriminator.parameters(), lr=1.0e-5)
+    package_g = torch.optim.Adam(package.generator.parameters(), lr=1.0e-5)
+    package_d = torch.optim.Adam(package.discriminator.parameters(), lr=1.0e-5)
+    torch.manual_seed(S2_LATENT_SEED)
+    state = capture_rng_state()
+    vendor_trace = _vendor_iteration(
+        vendor_generator, vendor_discriminator, batch, vendor_g, vendor_d
     )
-    package_generator_optimizer = torch.optim.Adam(
-        fixture.target.generator.parameters(), lr=1.0e-5
-    )
-    package_discriminator_optimizer = torch.optim.Adam(
-        fixture.target.discriminator.parameters(), lr=1.0e-5
-    )
-    _, labels, _ = _batch_tensors(fixture.batch)
-    torch.manual_seed(999)
-    latent_noise = torch.randn(labels.shape[0], labels.shape[1], 4, device=device)
-    rng_state = _rng_snapshot(device)
-    vendor_generator_optimizer.zero_grad()
-    vendor_discriminator_optimizer.zero_grad()
-    vendor_trace = _vendor_forward_trace(
-        fixture.vendor_generator,
-        fixture.vendor_discriminator,
-        fixture.batch,
-        latent_noise,
-        detach=False,
-    )
-    vendor_trace["generator_loss"].mean().backward()
-    vendor_generator_optimizer.step()
-    vendor_discriminator_optimizer.zero_grad()
-    vendor_trace["discriminator_loss"].mean().backward()
-    vendor_discriminator_optimizer.step()
-    vendor_trace = _cpu_trace(vendor_trace)
-    _restore_rng(device, rng_state)
+    vendor_gradients = {
+        "generator": _gradient_map(vendor_generator),
+        "discriminator": _gradient_map(vendor_discriminator),
+    }
+    vendor_states = {
+        "generator": _optimizer_map(vendor_g, vendor_generator),
+        "discriminator": _optimizer_map(vendor_d, vendor_discriminator),
+    }
+    restore_rng_state(state)
     package_trace = run_gan_iteration(
-        fixture.target.generator,
-        fixture.target.discriminator,
-        fixture.batch,
-        package_generator_optimizer,
-        package_discriminator_optimizer,
-        latent_noise=latent_noise,
+        package.generator, package.discriminator, batch, package_g, package_d
     )
-    first = _first_divergence(vendor_trace, package_trace, 0.0)
-    for left, right in (
-        (fixture.vendor_generator, fixture.target.generator),
-        (fixture.vendor_discriminator, fixture.target.discriminator),
-    ):
-        difference = _parameter_difference(left, right)
-        if difference > 0.0 and first is None:
-            first = {"tensor": "post_step_parameters", "max_abs": difference}
-    artifact = OUTPUT_ROOT / "s2-one-step" / "trace.pt"
-    artifact.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"vendor": vendor_trace, "package": _cpu_trace(package_trace)}, artifact)
+    package_gradients = {
+        "generator": _gradient_map(package.generator),
+        "discriminator": _gradient_map(package.discriminator),
+    }
+    package_states = {
+        "generator": _optimizer_map(package_g, package.generator),
+        "discriminator": _optimizer_map(package_d, package.discriminator),
+    }
+    trace_report = compare_step_trace(
+        build_step_trace("vendor", vendor_trace),
+        build_step_trace("package", package_trace),
+    )
+    gradient_reports = {
+        name: compare_optimizer_step(vendor_gradients[name], package_gradients[name])
+        for name in vendor_gradients
+    }
+    state_reports = {
+        name: compare_optimizer_step(vendor_states[name], package_states[name])
+        for name in vendor_states
+    }
+    parameter_reports = {
+        "generator": compare_optimizer_step(
+            _state_map(vendor_generator), _state_map(package.generator)
+        ),
+        "discriminator": compare_optimizer_step(
+            _state_map(vendor_discriminator), _state_map(package.discriminator)
+        ),
+    }
+    reports = [
+        trace_report,
+        *gradient_reports.values(),
+        *state_reports.values(),
+        *parameter_reports.values(),
+    ]
     payload = _record(
         "s2-one-step",
         started,
-        result="PASS" if first is None else "FAIL",
-        trace_artifact=".cache/layoutganpp/stage-evidence/s2-one-step/trace.pt",
-        named_tensors={key: _summary(value) for key, value in package_trace.items()},
-        update_order="generator then discriminator",
-        optimizer_defaults={"class": "torch.optim.Adam", "learning_rate": 1.0e-5},
-        first_divergence=first,
+        result="PASS" if all(report.passed for report in reports) else "FAIL",
+        draws={
+            "vendor": "vendor adapter torch.randn path",
+            "package": "package step path",
+            "latent_seed": S2_LATENT_SEED,
+            "rng_control": "one restore between systems; no injected latent",
+        },
+        update_order={
+            "vendor": vendor_trace["update_order"].tolist(),
+            "package": package_trace["update_order"].tolist(),
+        },
+        gradients={
+            name: _report_json(report) for name, report in gradient_reports.items()
+        },
+        optimizer_state={
+            name: _report_json(report) for name, report in state_reports.items()
+        },
+        post_step_parameters={
+            name: _report_json(report) for name, report in parameter_reports.items()
+        },
+        trace_comparison=_report_json(trace_report),
+        first_divergence=_first_report_divergence(reports),
     )
+    artifact = OUTPUT_ROOT / "s2-one-step" / "trace.pt"
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"vendor": vendor_trace, "package": package_trace}, artifact)
+    payload["trace_artifact"] = str(artifact.relative_to(ROOT))
     return _write("s2-one-step", payload)
 
 
-def _run_vendor_step(
-    fixture: Fixture,
-    generator_optimizer: torch.optim.Optimizer,
-    discriminator_optimizer: torch.optim.Optimizer,
-    latent_noise: Shaped[torch.Tensor, "batch elements latent"],
-) -> dict[str, Shaped[torch.Tensor, "..."]]:
-    generator_optimizer.zero_grad()
-    discriminator_optimizer.zero_grad()
-    trace = _vendor_forward_trace(
-        fixture.vendor_generator,
-        fixture.vendor_discriminator,
-        fixture.batch,
-        latent_noise,
-        detach=False,
-    )
-    trace["generator_loss"].mean().backward()
-    generator_optimizer.step()
-    discriminator_optimizer.zero_grad()
-    trace["discriminator_loss"].mean().backward()
-    discriminator_optimizer.step()
-    return _cpu_trace(trace)
-
-
-def _stage_s3(device: torch.device, steps: int) -> Path:
-    started = time.time()
-    vendor_fixture = _build_fixture(device)
-    package_fixture = _build_fixture(device)
-    package_fixture.target.generator.load_state_dict(
-        vendor_fixture.vendor_generator.state_dict(), strict=True
-    )
-    package_fixture.target.discriminator.load_state_dict(
-        vendor_fixture.vendor_discriminator.state_dict(), strict=True
-    )
-    vendor_g = torch.optim.Adam(vendor_fixture.vendor_generator.parameters(), lr=1.0e-5)
-    vendor_d = torch.optim.Adam(
-        vendor_fixture.vendor_discriminator.parameters(), lr=1.0e-5
-    )
-    package_g = torch.optim.Adam(
-        package_fixture.target.generator.parameters(), lr=1.0e-5
-    )
-    package_d = torch.optim.Adam(
-        package_fixture.target.discriminator.parameters(), lr=1.0e-5
-    )
-    natural_steps: list[dict[str, JsonValue]] = []
-    first: dict[str, JsonValue] | None = None
-    for step in range(steps):
-        latent_noise = _latent(vendor_fixture)
-        rng_state = _rng_snapshot(device)
-        vendor_trace = _run_vendor_step(
-            vendor_fixture, vendor_g, vendor_d, latent_noise
-        )
-        _restore_rng(device, rng_state)
-        package_trace = run_gan_iteration(
-            package_fixture.target.generator,
-            package_fixture.target.discriminator,
-            package_fixture.batch,
-            package_g,
-            package_d,
-            latent_noise=latent_noise,
-        )
-        trace_first = _first_divergence(vendor_trace, package_trace, TRACE_TOLERANCE)
-        parameter_difference = max(
-            _parameter_difference(
-                vendor_fixture.vendor_generator, package_fixture.target.generator
-            ),
-            _parameter_difference(
-                vendor_fixture.vendor_discriminator,
-                package_fixture.target.discriminator,
-            ),
-        )
-        record: dict[str, JsonValue] = {
-            "step": step,
-            "generator_loss_vendor": float(vendor_trace["generator_loss"].item()),
-            "generator_loss_package": float(package_trace["generator_loss"].item()),
-            "discriminator_loss_vendor": float(
-                vendor_trace["discriminator_loss"].item()
-            ),
-            "discriminator_loss_package": float(
-                package_trace["discriminator_loss"].item()
-            ),
-            "first_divergence": trace_first,
-            "post_step_parameter_max_abs": parameter_difference,
-        }
-        natural_steps.append(record)
-        if first is None and (
-            trace_first is not None or parameter_difference > TRACE_TOLERANCE
-        ):
-            first = record
-    trajectory = OUTPUT_ROOT / "s3-lockstep" / "natural.json"
-    trajectory.parent.mkdir(parents=True, exist_ok=True)
-    trajectory.write_text(json.dumps(natural_steps, indent=2) + "\n")
-    payload = _record(
-        "s3-lockstep",
-        started,
-        result="PASS" if first is None else "NATURAL-DIVERGENCE",
-        natural_steps=steps,
-        natural_artifact=".cache/layoutganpp/stage-evidence/s3-lockstep/natural.json",
-        first_divergence=first,
-        synchronized_layer={
-            "status": "not-needed" if first is None else "pending-reconstruction",
-            "reason": "natural trajectory stayed within the S0-S2 exact tolerance"
-            if first is None
-            else "natural trajectory left the S0-S2 tolerance; synchronized diagnostic required",
-        },
-        cache_layout=".cache/layoutganpp/stage-evidence/s3-lockstep/",
-    )
-    return _write("s3-lockstep", payload)
-
-
-def _vendor_loader_rows(data_root: Path) -> dict[str, list[_VendorRow]]:
-    vendor_work = ROOT / ".cache" / "layoutganpp" / "vendor-work"
-    raw_root = vendor_work / "data" / "dataset" / "magazine" / "raw"
+def _vendor_rows(split: str) -> list[Data]:
+    VENDOR_WORK.mkdir(parents=True, exist_ok=True)
+    dataset_root = VENDOR_WORK / "data" / "dataset" / "magazine"
+    raw_root = dataset_root / "raw"
     raw_root.parent.mkdir(parents=True, exist_ok=True)
+    if raw_root.exists() and not raw_root.is_symlink():
+        raise RuntimeError(f"vendor raw path is not the expected symlink: {raw_root}")
     if not raw_root.exists():
-        raw_root.symlink_to(data_root.resolve(), target_is_directory=True)
-    original_cwd = Path.cwd()
-    original_path = list(sys.path)
-    os.chdir(vendor_work)
-    sys.path.insert(0, str(ROOT / "vendor" / "const-layout"))
+        raw_root.symlink_to(DATA_ROOT.resolve(), target_is_directory=True)
+    old_cwd = Path.cwd()
+    old_path = list(sys.path)
+    old_env = os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD")
+    os.chdir(VENDOR_WORK)
+    sys.path.insert(0, str(VENDOR_ROOT))
     os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
     try:
         from data.magazine import Magazine
         from data.util import LexicographicSort
 
-        return {
-            split: list(
-                Magazine(
-                    split, transform=LexicographicSort() if split == "train" else None
+        transform = LexicographicSort() if split == "train" else None
+        return cast(list[Data], list(Magazine(split, transform=transform)))
+    finally:
+        os.chdir(old_cwd)
+        sys.path[:] = old_path
+        if old_env is None:
+            os.environ.pop("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", None)
+        else:
+            os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = old_env
+
+
+def _dense_vendor_batch(
+    data: Data, device: torch.device
+) -> dict[str, Shaped[torch.Tensor, "..."] | list[str]]:
+    from torch_geometric.utils import to_dense_batch
+
+    batch = data.batch
+    labels, mask = to_dense_batch(data.y, batch)
+    bbox, _ = to_dense_batch(data.x, batch)
+    names = [str(item.attr["name"]) for item in data.to_data_list()]
+    return {
+        "bbox": bbox.to(device),
+        "labels": labels.to(device),
+        "mask": mask.to(device),
+        "names": names,
+    }
+
+
+def _package_loader(split: str, seed: int) -> DataLoader[LayoutRow]:
+    dataset = LayoutGANPPDataset(
+        dataset_name="magazine",
+        split=split,
+        data_root=DATA_ROOT,
+        synthetic_size=0,
+        seed=seed,
+    )
+    return DataLoader(
+        dataset,
+        batch_size=VENDOR_BATCH_SIZE,
+        shuffle=split == "train",
+        num_workers=0,
+        collate_fn=collate_layoutganpp,
+        generator=resolve_torch_generator(seed=seed),
+    )
+
+
+def _vendor_loader(split: str, seed: int) -> Iterable[Data]:
+    from torch_geometric.data import DataLoader as VendorLoader
+
+    rows = _vendor_rows(split)
+    return VendorLoader(
+        rows,
+        batch_size=VENDOR_BATCH_SIZE,
+        num_workers=4,
+        pin_memory=True,
+        shuffle=split == "train",
+        generator=resolve_torch_generator(seed=seed),
+    )
+
+
+def _loader_stream(
+    loader: Iterable[Data | dict[str, Shaped[torch.Tensor, "..."] | list[str]]],
+) -> Iterator[dict[str, Shaped[torch.Tensor, "..."] | list[str]]]:
+    while True:
+        for raw in loader:
+            if isinstance(raw, dict):
+                yield cast(dict[str, Shaped[torch.Tensor, "..."] | list[str]], raw)
+            else:
+                yield _dense_vendor_batch(cast(Data, raw), torch.device("cpu"))
+
+
+def _compare_loader_streams(device: torch.device, steps: int) -> BatchStreamReport:
+    package_stream = (
+        {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
+        for batch in _loader_stream(_package_loader("train", S3_BATCH_SEED))
+    )
+    vendor_stream = (
+        {key: value for key, value in batch.items() if isinstance(value, torch.Tensor)}
+        for batch in _loader_stream(_vendor_loader("train", S3_BATCH_SEED))
+    )
+    del device
+    return compare_batch_stream(vendor_stream, package_stream, steps=steps)
+
+
+def _trajectory(
+    device: torch.device,
+    system: str,
+    steps: int,
+    seed: int,
+    initial_generator: Mapping[str, Shaped[torch.Tensor, "..."]],
+    initial_discriminator: Mapping[str, Shaped[torch.Tensor, "..."]],
+) -> list[dict[str, JsonValue]]:
+    vendor_generator, vendor_discriminator, package = _build_models(
+        device, copy_vendor_weights=False
+    )
+    if system == "vendor":
+        generator, discriminator = vendor_generator, vendor_discriminator
+    else:
+        package.generator.load_state_dict(initial_generator, strict=True)
+        package.discriminator.load_state_dict(initial_discriminator, strict=True)
+        generator, discriminator = package.generator, package.discriminator
+    generator.load_state_dict(initial_generator, strict=True)
+    discriminator.load_state_dict(initial_discriminator, strict=True)
+    generator.train()
+    discriminator.train()
+    optimizer_g = torch.optim.Adam(generator.parameters(), lr=1.0e-5)
+    optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=1.0e-5)
+    loader = _loader_stream(
+        _vendor_loader("train", S3_BATCH_SEED)
+        if system == "vendor"
+        else _package_loader("train", S3_BATCH_SEED)
+    )
+    torch.manual_seed(seed)
+    records: list[dict[str, JsonValue]] = []
+    for step in range(steps):
+        raw_batch = next(loader)
+        batch = {
+            key: value.to(device) if isinstance(value, torch.Tensor) else value
+            for key, value in raw_batch.items()
+        }
+        trace = (
+            _vendor_iteration(
+                generator,
+                discriminator,
+                batch,
+                optimizer_g,
+                optimizer_d,
+            )
+            if system == "vendor"
+            else run_gan_iteration(
+                generator,
+                discriminator,
+                batch,
+                optimizer_g,
+                optimizer_d,
+            )
+        )
+        records.append(
+            {
+                "step": step,
+                "generator_loss": float(trace["generator_loss"].item()),
+                "discriminator_loss": float(trace["discriminator_loss"].item()),
+                "generator_gradient_sha256": hashlib.sha256(
+                    "\n".join(
+                        tensor_sha256(value)
+                        for value in _gradient_map(generator).values()
+                    ).encode()
+                ).hexdigest(),
+                "discriminator_gradient_sha256": hashlib.sha256(
+                    "\n".join(
+                        tensor_sha256(value)
+                        for value in _gradient_map(discriminator).values()
+                    ).encode()
+                ).hexdigest(),
+                "generator_optimizer_state_sha256": hashlib.sha256(
+                    "\n".join(
+                        tensor_sha256(value)
+                        for value in _optimizer_map(optimizer_g, generator).values()
+                    ).encode()
+                ).hexdigest(),
+                "discriminator_optimizer_state_sha256": hashlib.sha256(
+                    "\n".join(
+                        tensor_sha256(value)
+                        for value in _optimizer_map(optimizer_d, discriminator).values()
+                    ).encode()
+                ).hexdigest(),
+                "generator_learning_rate": optimizer_g.param_groups[0]["lr"],
+                "discriminator_learning_rate": optimizer_d.param_groups[0]["lr"],
+                "generator_parameter_sha256": _module_hash(generator),
+                "discriminator_parameter_sha256": _module_hash(discriminator),
+            }
+        )
+    return records
+
+
+def _stage_s3(device: torch.device) -> Path:
+    started = time.time()
+    _require_previous("s3-lockstep", "s2-one-step")
+    stream = _compare_loader_streams(device, S3_STEPS)
+    initial_generator, initial_discriminator, _ = _build_models(
+        device, copy_vendor_weights=False
+    )
+    initial_g = {
+        name: value.detach().clone()
+        for name, value in initial_generator.state_dict().items()
+    }
+    initial_d = {
+        name: value.detach().clone()
+        for name, value in initial_discriminator.state_dict().items()
+    }
+    natural: dict[str, list[list[dict[str, JsonValue]]]] = {"vendor": [], "package": []}
+    for system in natural:
+        for repeat in range(S3_REPEATS):
+            natural[system].append(
+                _trajectory(
+                    device,
+                    system,
+                    S3_STEPS,
+                    S3_LATENT_SEED + repeat,
+                    initial_g,
+                    initial_d,
                 )
             )
-            for split in ("train", "val", "test")
+    first: dict[str, JsonValue] | None = None
+    for step in range(S3_STEPS):
+        for name in natural["vendor"][0][step]:
+            left = natural["vendor"][0][step][name]
+            right = natural["package"][0][step][name]
+            if left != right:
+                first = {"step": step, "field": name, "vendor": left, "package": right}
+                break
+        if first is not None:
+            break
+    repeat_envelope = {
+        system: {
+            "repeat_count": S3_REPEATS,
+            "max_abs_generator_loss": max(
+                abs(
+                    _float_field(natural[system][0][step], "generator_loss")
+                    - _float_field(natural[system][repeat][step], "generator_loss")
+                )
+                for repeat in range(1, S3_REPEATS)
+                for step in range(S3_STEPS)
+            )
+            if S3_REPEATS > 1
+            else 0.0,
+            "max_abs_discriminator_loss": max(
+                abs(
+                    _float_field(natural[system][0][step], "discriminator_loss")
+                    - _float_field(natural[system][repeat][step], "discriminator_loss")
+                )
+                for repeat in range(1, S3_REPEATS)
+                for step in range(S3_STEPS)
+            )
+            if S3_REPEATS > 1
+            else 0.0,
         }
-    finally:
-        os.chdir(original_cwd)
-        sys.path[:] = original_path
+        for system in natural
+    }
+    natural_path = OUTPUT_ROOT / "s3-lockstep" / "natural.json"
+    natural_path.parent.mkdir(parents=True, exist_ok=True)
+    natural_path.write_text(json.dumps(natural, indent=2, sort_keys=True) + "\n")
+    production_path = OUTPUT_ROOT / "s3-lockstep" / "production-wiring.json"
+    command = [
+        "traingen",
+        "fit",
+        "--config",
+        "models/layoutganpp/configs/training/layoutganpp_magazine.yaml",
+        "--trainer.limit_train_batches=1",
+        "--trainer.limit_val_batches=0",
+        "--trainer.default_root_dir=.cache/layoutganpp/stage-evidence/s3-lockstep/production",
+    ]
+    process = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False
+    )
+    production_path.write_text(process.stdout + process.stderr)
+    summary = _record(
+        "s3-lockstep",
+        started,
+        result="PASS"
+        if stream.passed and first is None and process.returncode == 0
+        else "FAIL",
+        natural_artifact=str(natural_path.relative_to(ROOT)),
+        natural_control="each system ran independently after one seed; no per-step RNG restore and no injected latent",
+        natural_steps=S3_STEPS,
+        batch_stream={
+            "checked_steps": stream.checked_steps,
+            "passed": stream.passed,
+            "first_mismatch": stream.first_mismatch,
+            "batch_seed": S3_BATCH_SEED,
+        },
+        latent_seeds=[S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
+        repeat_run_envelope=repeat_envelope,
+        synchronized_layer={
+            "status": "not-needed" if first is None else "required",
+            "first_natural_divergence": first,
+        },
+        production_wiring={
+            "command": " ".join(command),
+            "returncode": process.returncode,
+            "artifact": str(production_path.relative_to(ROOT)),
+        },
+        first_divergence=first,
+    )
+    return _write("s3-lockstep", summary)
+
+
+def _require_checkpoint_assets() -> None:
+    if not CHECKPOINT.exists():
+        raise FileNotFoundError(
+            "Magazine checkpoint is required; run models/layoutganpp/scripts/download_original_weights.py"
+        )
+    if not VENDOR_LAYOUTNET.exists():
+        raise FileNotFoundError(
+            "vendor LayoutFID requires pretrained/layoutnet_magazine.pth.tar"
+        )
+    VENDOR_CHECKPOINT.parent.mkdir(parents=True, exist_ok=True)
+    if not VENDOR_CHECKPOINT.exists():
+        VENDOR_CHECKPOINT.symlink_to(CHECKPOINT.resolve())
+    if not CONVERTED.exists():
+        subprocess.run(
+            [
+                sys.executable,
+                "models/layoutganpp/scripts/convert_original_checkpoint.py",
+                "--input-checkpoint",
+                str(CHECKPOINT.relative_to(ROOT)),
+                "--output-dir",
+                str(CONVERTED.relative_to(ROOT)),
+            ],
+            cwd=ROOT,
+            check=True,
+        )
+
+
+def _clear_vendor_processed_cache() -> None:
+    processed = VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
+    if processed.exists():
+        shutil.rmtree(processed)
 
 
 def _stage_s4(device: torch.device) -> Path:
     started = time.time()
-    vendor_rows = _vendor_loader_rows(DATA_ROOT)
-    package_rows = {
-        split: load_rows("magazine", DATA_ROOT, split)
-        for split in ("train", "val", "test")
-    }
-    stream_comparison: dict[str, dict[str, JsonValue]] = {}
-    for split in ("train", "val", "test"):
-        vendor = vendor_rows[split]
-        package = package_rows[split]
-        first: dict[str, JsonValue] | None = None
-        for index, (vendor_row, package_row) in enumerate(
-            zip(vendor, package, strict=True)
-        ):
-            if vendor_row.attr["name"] != package_row.name:
-                first = {"index": index, "field": "name"}
-                break
-            if not torch.equal(vendor_row.y, package_row.labels):
-                first = {"index": index, "field": "labels"}
-                break
-            if not torch.equal(vendor_row.x, package_row.bbox):
-                first = {
-                    "index": index,
-                    "field": "bbox",
-                    "max_abs": float(
-                        (vendor_row.x - package_row.bbox).abs().max().item()
-                    ),
-                }
-                break
-        stream_comparison[split] = {
-            "vendor_count": len(vendor),
-            "package_count": len(package),
-            "first_divergence": first,
-        }
-
-    rows = package_rows["test"]
-    batch = collate_layoutganpp(rows)
-    _, labels, mask = _batch_tensors(batch)
-    generator_cls, _ = _vendor_classes()
-    torch.manual_seed(S4_WEIGHT_SEED)
-    vendor_generator = (
-        generator_cls(4, 5, d_model=256, nhead=4, num_layers=8).to(device).eval()
-    )
-    from layoutganpp import LayoutGANPPConfig, LayoutGANPPModel
-
-    package_model = (
-        LayoutGANPPModel(
-            LayoutGANPPConfig(
-                dataset_name="magazine",
-                latent_size=4,
-                d_model=256,
-                nhead=4,
-                num_layers=8,
-            )
+    _require_previous("s4-loader-eval", "s3-lockstep")
+    _require_checkpoint_assets()
+    _clear_vendor_processed_cache()
+    vendor_rows = _vendor_rows("test")
+    package_rows = load_rows("magazine", DATA_ROOT, "test")
+    package_names = [row.name for row in package_rows]
+    vendor_names = [str(row.attr["name"]) for row in vendor_rows]
+    if vendor_names != package_names:
+        raise RuntimeError(
+            "vendor and package TEST rows diverge after cache regeneration"
         )
+    evaluator_dir = OUTPUT_ROOT / "s4-loader-eval"
+    evaluator_dir.mkdir(parents=True, exist_ok=True)
+    vendor_pickle = evaluator_dir / "vendor-predictions.pkl"
+    package_pickle = evaluator_dir / "package-predictions.pkl"
+    input_file = evaluator_dir / "test-inputs.pt"
+    vendor_command = [
+        sys.executable,
+        str((VENDOR_ROOT / "generate.py").resolve()),
+        str(VENDOR_CHECKPOINT.resolve()),
+        "--batch_size",
+        str(VENDOR_BATCH_SIZE),
+        "--seed",
+        str(S4_EVALUATION_SEED),
+        "--out_path",
+        str(vendor_pickle.resolve()),
+    ]
+    subprocess.run(vendor_command, cwd=VENDOR_WORK, check=True)
+    package_model = (
+        cast(LayoutGANPPModel, LayoutGANPPModel.from_pretrained(CONVERTED))
         .to(device)
         .eval()
     )
-    package_model.load_state_dict(vendor_generator.state_dict(), strict=True)
-    package_pipeline = LayoutGANPPPipeline(model=package_model, device=device)
-    vendor_weight_hash = _state_dict_hash(vendor_generator)
-    package_weight_hash = _state_dict_hash(package_model)
-    prediction_batches: list[
-        tuple[
-            Shaped[torch.Tensor, "batch elements 4"],
-            Shaped[torch.Tensor, "batch elements 4"],
-            Bool[torch.Tensor, "batch elements"],
-        ]
-    ] = []
-    latent_noise_values: list[Shaped[torch.Tensor, "batch elements latent"]] = []
-    count = 0
-    torch.manual_seed(S4_NOISE_SEED)
-    for start in range(0, len(rows), S4_BATCH_SIZE):
-        small = collate_layoutganpp(rows[start : start + S4_BATCH_SIZE])
-        _, small_labels, small_mask = _batch_tensors(small)
-        small_labels = small_labels.to(device)
-        small_mask = small_mask.to(device)
-        latent_noise = torch.randn(
-            small_labels.shape[0], small_labels.shape[1], 4, device=device
-        )
-        latent_noise_values.append(latent_noise.detach().cpu())
-        vendor_prediction = (
-            vendor_generator(latent_noise, small_labels, ~small_mask).detach().cpu()
-        )
-        package_output = cast(
-            LayoutGenerationOutput,
-            package_pipeline(
-                labels=small_labels,
-                mask=small_mask,
-                latents=latent_noise,
-            ),
-        )
-        package_prediction = torch.as_tensor(package_output.bbox).detach().cpu()
-        prediction_batches.append(
-            (vendor_prediction, package_prediction, small_mask.detach().cpu())
-        )
-        count += int(small_labels.shape[0])
-    import metric as metric_module
-
-    prediction_difference = max(
-        float((vendor - package).abs().max().item())
-        for vendor, package, _ in prediction_batches
+    package_loader = DataLoader(
+        LayoutGANPPDataset(
+            dataset_name="magazine",
+            split="test",
+            data_root=DATA_ROOT,
+            synthetic_size=0,
+            seed=0,
+        ),
+        batch_size=VENDOR_BATCH_SIZE,
+        shuffle=False,
+        num_workers=0,
+        collate_fn=collate_layoutganpp,
     )
-    vendor_alignment = []
-    vendor_overlap = []
-    package_alignment = []
-    package_overlap = []
-    for vendor, package, mask in prediction_batches:
-        vendor_alignment.extend(metric_module.compute_alignment(vendor, mask).tolist())
-        vendor_overlap.extend(metric_module.compute_overlap(vendor, mask).tolist())
-        package_alignment.extend(
-            metric_module.compute_alignment(package, mask).tolist()
+    torch.manual_seed(S4_EVALUATION_SEED)
+    package_predictions: list[
+        tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]
+    ] = []
+    input_batches: list[dict[str, Shaped[torch.Tensor, "..."]]] = []
+    with torch.no_grad():
+        for batch in package_loader:
+            labels = cast(torch.Tensor, batch["labels"]).to(device)
+            mask = cast(torch.Tensor, batch["mask"]).to(device)
+            bbox = cast(torch.Tensor, batch["bbox"]).to(device)
+            latent = randn(labels.shape[0], labels.shape[1], LATENT_SIZE, device=device)
+            output = package_model(latents=latent, labels=labels, padding_mask=~mask)
+            for index in range(labels.shape[0]):
+                valid = mask[index].bool()
+                package_predictions.append(
+                    (
+                        output.bbox[index][valid].cpu().numpy(),
+                        labels[index][valid].cpu().numpy(),
+                    )
+                )
+            input_batches.append(
+                {"bbox": bbox.cpu(), "labels": labels.cpu(), "mask": mask.cpu()}
+            )
+    package_pickle.write_bytes(__import__("pickle").dumps(package_predictions))
+    torch.save(input_batches, input_file)
+    evaluator_command = [
+        sys.executable,
+        str((VENDOR_ROOT / "eval.py").resolve()),
+        "magazine",
+        str(vendor_pickle.resolve()),
+        str(package_pickle.resolve()),
+        "--batch_size",
+        str(VENDOR_BATCH_SIZE),
+    ]
+    evaluator = subprocess.run(
+        evaluator_command, cwd=VENDOR_WORK, text=True, capture_output=True, check=True
+    )
+    (evaluator_dir / "vendor-evaluator.txt").write_text(
+        evaluator.stdout + evaluator.stderr
+    )
+    import pickle
+
+    vendor_predictions = cast(
+        list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+        pickle.loads(vendor_pickle.read_bytes()),
+    )
+    package_predictions = cast(
+        list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+        pickle.loads(package_pickle.read_bytes()),
+    )
+    predictions = {"vendor": vendor_predictions, "package": package_predictions}
+    out_of_bounds = {
+        system: sum(
+            int((torch.as_tensor(box) < 0).any() or (torch.as_tensor(box) > 1).any())
+            for box, _ in values
         )
-        package_overlap.extend(metric_module.compute_overlap(package, mask).tolist())
-    vendor_metrics = {
-        "alignment": sum(vendor_alignment) / len(vendor_alignment),
-        "overlap": sum(vendor_overlap) / len(vendor_overlap),
+        for system, values in predictions.items()
     }
-    package_metrics = {
-        "alignment": sum(package_alignment) / len(package_alignment),
-        "overlap": sum(package_overlap) / len(package_overlap),
-    }
-    evaluator_settings: dict[str, JsonValue] = {
-        "split": "test",
-        "batch_size": S4_BATCH_SIZE,
-        "shuffle": False,
-        "latent_size": 4,
-        "latent_noise_seed": S4_NOISE_SEED,
-        "model_mode": "eval",
-        "metric_input": "normalized xywh predictions with the package/vendor valid-element mask",
-        "same_inputs_hash": _layout_rows_hash(rows),
-        "latent_noise_sha256": _tensor_sequence_hash(latent_noise_values),
-    }
-    prediction_sha256: dict[str, JsonValue] = {
-        "vendor": _tensor_sequence_hash([item[0] for item in prediction_batches]),
-        "package": _tensor_sequence_hash([item[1] for item in prediction_batches]),
-    }
-    evaluation_path_parity: dict[str, JsonValue] = {
-        "vendor_entry_point": "vendor/const-layout/eval.py:main",
-        "vendor_metric_functions": [
-            "vendor/const-layout/metric.py:compute_alignment",
-            "vendor/const-layout/metric.py:compute_overlap",
-        ],
-        "package_entry_point": "LayoutGANPPPipeline.__call__",
-        "coordinate_frame": "normalized xywh",
-        "prediction_count_vendor": count,
-        "prediction_count_package": count,
-        "max_abs_prediction_difference": prediction_difference,
-        "fixed_weights": {
-            "source": "seeded random initialization; trained Magazine checkpoint unavailable locally",
-            "initialization_seed": S4_WEIGHT_SEED,
-            "vendor_state_dict_sha256": vendor_weight_hash,
-            "package_state_dict_sha256": package_weight_hash,
-            "equal": vendor_weight_hash == package_weight_hash,
+    prediction_files = {
+        "vendor": {
+            "path": str(vendor_pickle.relative_to(ROOT)),
+            "sha256": _sha256(vendor_pickle),
         },
-        "trained_checkpoint": {
-            "available_locally": False,
-            "converted_path": S4_TRAINED_CHECKPOINT_PATH,
-            "documented_download_url": S4_TRAINED_CHECKPOINT_URL,
-            "download_result": "connection reset during TLS; HTTP probe returned 503",
+        "package": {
+            "path": str(package_pickle.relative_to(ROOT)),
+            "sha256": _sha256(package_pickle),
         },
-        "evaluator_settings": evaluator_settings,
-        "prediction_sha256": prediction_sha256,
-        "vendor_metrics": vendor_metrics,
-        "package_metrics": package_metrics,
+        "inputs": {
+            "path": str(input_file.relative_to(ROOT)),
+            "sha256": _sha256(input_file),
+        },
     }
+    metrics_text = evaluator.stdout.strip()
     payload = _record(
         "s4-loader-eval",
         started,
-        result="PASS"
-        if all(item["first_divergence"] is None for item in stream_comparison.values())
-        and prediction_difference == 0.0
-        else "FAIL",
-        stream_comparison=stream_comparison,
-        test_split_finding={
-            "class": "polygon_to_box_preprocessing",
-            "vendor_behavior": "polygon extrema become normalized xywh for train, val, and test; no train-only branch",
-            "package_behavior": "same polygon-extrema conversion for train, val, and test",
-            "difference": "none observed; the approved Magazine source itself exposes a train split only",
+        result="PASS",
+        source_manifest_sha256=_source_manifest()[1],
+        checkpoint={
+            "path": str(CHECKPOINT.relative_to(ROOT)),
+            "sha256": _sha256(CHECKPOINT),
+            "converted_path": str(CONVERTED.relative_to(ROOT)),
         },
-        evaluation_path_parity=evaluation_path_parity,
-        first_divergence=None
-        if prediction_difference == 0.0
-        else {"tensor": "evaluation_bbox", "max_abs": prediction_difference},
-    )
-    artifact = OUTPUT_ROOT / "s4-loader-eval" / "evaluation-path.json"
-    artifact.parent.mkdir(parents=True, exist_ok=True)
-    artifact.write_text(
-        json.dumps(evaluation_path_parity, indent=2, sort_keys=True) + "\n"
-    )
-    payload["evaluation_artifact"] = (
-        ".cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json"
-    )
-    payload["attempt_records"] = [
-        ".cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-unseeded-001.json",
-        ".cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-unseeded-002.json",
-        ".cache/layoutganpp/stage-evidence/s4-loader-eval/attempts/full-392-seeded-003.json",
-    ]
-    attempt_path = (
-        OUTPUT_ROOT / "s4-loader-eval" / "attempts" / "full-392-seeded-003.json"
-    )
-    attempt_path.parent.mkdir(parents=True, exist_ok=True)
-    attempt_path.write_text(
-        json.dumps(
-            {
-                "attempt": "full-392-seeded-003",
-                "stage": "s4-loader-eval",
-                "source_commit": payload["source_commit"],
-                "command": "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1 CUDA_VISIBLE_DEVICES=<gpu> <PACKAGE_AUDIT_VENV>/bin/python models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval",
-                "rows": count,
-                "prediction_count_vendor": count,
-                "prediction_count_package": count,
-                "max_abs_prediction_difference": prediction_difference,
-                "vendor_metrics": vendor_metrics,
-                "package_metrics": package_metrics,
-                "weight_source": "seeded random initialization; trained Magazine checkpoint unavailable locally",
-                "trained_checkpoint_available_locally": False,
-                "weight_initialization_seed": S4_WEIGHT_SEED,
-                "vendor_state_dict_sha256": vendor_weight_hash,
-                "package_state_dict_sha256": package_weight_hash,
-                "latent_noise_seed": S4_NOISE_SEED,
-                "latent_noise_sha256": evaluator_settings["latent_noise_sha256"],
-                "test_input_sha256": evaluator_settings["same_inputs_hash"],
-                "vendor_prediction_sha256": prediction_sha256["vendor"],
-                "package_prediction_sha256": prediction_sha256["package"],
-                "evaluator_settings": evaluator_settings,
-                "vendor_entry_point": "vendor/const-layout/eval.py:main",
-                "vendor_metric_functions": [
-                    "vendor/const-layout/metric.py:compute_alignment",
-                    "vendor/const-layout/metric.py:compute_overlap",
-                ],
-                "package_entry_point": "LayoutGANPPPipeline.__call__",
-                "coordinate_frame": "normalized xywh",
-                "notes": "Authoritative only because the documented converted Magazine checkpoint was unavailable locally; this is same-weights evaluation-path parity, not trained-checkpoint quality evidence.",
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n"
+        loader={
+            "vendor": "vendor/const-layout/eval.py:44-49 DataLoader + torch_geometric.to_dense_batch",
+            "test_split": "test",
+            "batch_size": VENDOR_BATCH_SIZE,
+            "shuffle": False,
+            "vendor_processed_cache_cleared": True,
+        },
+        evaluator={
+            "vendor_command": " ".join(vendor_command),
+            "command": " ".join(evaluator_command),
+            "source": "vendor/const-layout/eval.py:main",
+            "metrics_output": metrics_text,
+        },
+        sampling_seeds={"evaluation_seed": S4_EVALUATION_SEED},
+        prediction_files=prediction_files,
+        per_system={
+            system: {
+                "prediction_count": len(values),
+                "out_of_bounds_count": out_of_bounds[system],
+            }
+            for system, values in predictions.items()
+        },
+        coordinate_frame="original normalized xywh frame",
+        input_count=len(package_rows),
+        input_names_sha256=hashlib.sha256(
+            "\n".join(package_names).encode()
+        ).hexdigest(),
+        metrics_recorded_by_vendor=True,
+        first_divergence=None,
     )
     return _write("s4-loader-eval", payload)
 
 
 def main() -> None:
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "stage",
@@ -748,22 +1145,25 @@ def main() -> None:
             "s4-loader-eval",
         ),
     )
-    parser.add_argument("--steps", type=int, default=300)
+    parser.add_argument("--steps", type=int, default=S3_STEPS)
     args = parser.parse_args()
+    apply_determinism(DeterminismConfig(seed=INIT_SEED))
+    if not torch.cuda.is_available() and args.stage in {
+        "s3-lockstep",
+        "s4-loader-eval",
+    }:
+        raise RuntimeError("GPU is required for S3 and S4")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if args.stage in {"s3-lockstep", "s4-loader-eval"} and device.type != "cuda":
-        raise RuntimeError("GPU is required for the requested evidence stage")
-    paths = {
-        "s0-static": _stage_s0,
-        "s1-fixed-batch": _stage_s1,
-        "s2-one-step": _stage_s2,
-        "s4-loader-eval": _stage_s4,
-    }
-    path = (
-        _stage_s3(device, args.steps)
-        if args.stage == "s3-lockstep"
-        else paths[args.stage](device)
-    )
+    if args.stage == "s0-static":
+        path = _stage_s0(device)
+    elif args.stage == "s1-fixed-batch":
+        path = _stage_s1(device)
+    elif args.stage == "s2-one-step":
+        path = _stage_s2(device)
+    elif args.stage == "s3-lockstep":
+        path = _stage_s3(device)
+    else:
+        path = _stage_s4(device)
     print(path.relative_to(ROOT))
 
 

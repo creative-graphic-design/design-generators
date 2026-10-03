@@ -69,6 +69,16 @@ def main() -> None:
         default="creative-graphic-design/magazine",
         help="Approved Hugging Face dataset identifier recorded in the manifest.",
     )
+    parser.add_argument(
+        "--source-revision",
+        required=True,
+        help="Hugging Face dataset commit recorded in the manifest.",
+    )
+    parser.add_argument(
+        "--acquisition-command",
+        required=True,
+        help="The command used to acquire the source Arrow files.",
+    )
     args = parser.parse_args()
 
     dataset = _load_magazine_arrow(args.source_arrow_dir)
@@ -76,6 +86,8 @@ def main() -> None:
     manifest = {
         "dataset": args.dataset,
         "source_id": args.source_id,
+        "source_revision": args.source_revision,
+        "acquisition_command": args.acquisition_command,
         "source_arrow_shards": [
             {"name": path.name, "sha256": _sha256(path)}
             for path in sorted(args.source_arrow_dir.glob("*.arrow"))

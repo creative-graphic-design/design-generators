@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import torch
-from collections.abc import Callable
 from typing import cast
 from jaxtyping import Shaped
 from lightning.pytorch import LightningModule
@@ -33,7 +32,6 @@ class LayoutGANPPTrainingModule(LightningModule):
         discriminator_num_layers: int,
         learning_rate: float,
         discriminator_max_elements: int = 50,
-        optimizer: Callable[..., torch.optim.Optimizer] = torch.optim.Adam,
     ) -> None:
         """Initialize the package generator and discriminator."""
         super().__init__()
@@ -42,7 +40,6 @@ class LayoutGANPPTrainingModule(LightningModule):
         self.dataset_name = str(canonical)
         self.latent_size = latent_size
         self.learning_rate = learning_rate
-        self.optimizer_factory = optimizer
         self.generator = LayoutGANPPModel(
             LayoutGANPPConfig(
                 dataset_name=canonical,
@@ -64,10 +61,10 @@ class LayoutGANPPTrainingModule(LightningModule):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Create generator and discriminator Adam optimizers."""
-        optimizer_g = self.optimizer_factory(
+        optimizer_g = torch.optim.Adam(
             self.generator.parameters(), lr=self.learning_rate
         )
-        optimizer_d = self.optimizer_factory(
+        optimizer_d = torch.optim.Adam(
             self.discriminator.parameters(), lr=self.learning_rate
         )
         return [optimizer_g, optimizer_d]

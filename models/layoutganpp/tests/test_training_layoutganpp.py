@@ -1,11 +1,8 @@
 import json
-from collections.abc import Iterable
-from types import SimpleNamespace
 from typing import cast
 
 import pytest
 import torch
-from torch import nn
 
 from layoutganpp.training.datamodule import LayoutGANPPDataModule
 from layoutganpp.training.dataset import (
@@ -23,12 +20,7 @@ from layoutganpp.training.dataset import (
 )
 from layoutganpp.training.lightning_module import LayoutGANPPTrainingModule
 from layoutganpp.training.modeling import LayoutGANPPDiscriminator, TransformerWithToken
-from layoutganpp.training.step import (
-    _generator_boxes,
-    _resolve_latent_noise,
-    gan_forward_trace,
-    run_gan_iteration,
-)
+from layoutganpp.training.step import gan_forward_trace, run_gan_iteration
 
 
 def _write_dataset_fixture(root):
@@ -119,7 +111,7 @@ def test_dataset_parsers_splits_and_collation(tmp_path):
     assert [
         len(_split_indices(10, "magazine", split)) for split in ("train", "val", "test")
     ] == [8, 1, 1]
-    assert len(_split_indices(10, "publaynet", "test")) == 0
+    assert len(_split_indices(10, "publaynet", "test")) == 1
     with pytest.raises(ValueError, match="Unsupported split"):
         _split_indices(10, "magazine", "bad")
 
@@ -153,7 +145,6 @@ def test_datamodule_builds_all_loaders():
         num_workers=0,
         synthetic_size=4,
         seed=13,
-        seed_mode="deterministic",
         shuffle_train=False,
     )
     data_module.setup("fit")
@@ -171,100 +162,36 @@ def test_datamodule_builds_all_loaders():
     assert test_batch["bbox"].shape[0] == 2
 
 
-class _ToyGenerator(nn.Module):
-    latent_size = 4
-
-    def __init__(self, output_object=True):
-        super().__init__()
-        self.linear = nn.Linear(4, 4)
-        self.output_object = output_object
-
-    def forward(self, latents, labels, padding_mask):
-        del labels, padding_mask
-        output = self.linear(latents)
-        return SimpleNamespace(bbox=output) if self.output_object else output
-
-
-class _ConfigGenerator(_ToyGenerator):
-    def __init__(self):
-        super().__init__()
-        self.__dict__.pop("latent_size", None)
-        self.config = SimpleNamespace(latent_size=4)
-
-
-class _ToyDiscriminator(nn.Module):
-    def __init__(self, labels=5):
-        super().__init__()
-        self.score = nn.Linear(4, 1)
-        self.classifier = nn.Linear(4, labels)
-        self.reconstructor = nn.Linear(4, 4)
-
-    def forward(self, bbox, labels, padding_mask, reconst=False):
-        del labels
-        score = self.score(bbox).squeeze(-1).masked_fill(padding_mask, 0).mean(dim=1)
-        if not reconst:
-            return score
-        valid = ~padding_mask
-        return (
-            score,
-            self.classifier(bbox[valid]),
-            torch.sigmoid(self.reconstructor(bbox[valid])),
-        )
-
-
-class _ToyOptimizer:
-    def __init__(self, parameters: Iterable[torch.Tensor], lr: float = 1e-3):
-        self.parameters = list(parameters)
-        self.lr = lr
-
-    @torch.no_grad()
-    def zero_grad(self) -> None:
-        for parameter in self.parameters:
-            parameter.grad = None
-
-    @torch.no_grad()
-    def step(self) -> None:
-        for parameter in self.parameters:
-            if parameter.grad is not None:
-                parameter -= self.lr * parameter.grad
-
-
 def test_training_models_and_step_trace():
     rows = synthetic_rows("magazine", 2, 3)
     batch = collate_layoutganpp(rows)
-    latent = torch.randn(2, 3, 4)
-    generator = _ToyGenerator()
-    discriminator = _ToyDiscriminator()
+    module = LayoutGANPPTrainingModule(
+        dataset_name="magazine",
+        latent_size=4,
+        generator_d_model=4,
+        generator_nhead=1,
+        generator_num_layers=1,
+        discriminator_d_model=4,
+        discriminator_nhead=1,
+        discriminator_num_layers=1,
+        learning_rate=1e-3,
+        discriminator_max_elements=3,
+    )
+    generator = module.generator
+    discriminator = module.discriminator
     labels = cast(torch.Tensor, batch["labels"])
-    mask = cast(torch.Tensor, batch["mask"])
-    bbox = cast(torch.Tensor, batch["bbox"])
-    assert (
-        _generator_boxes(
-            _ToyGenerator(output_object=False), latent, labels, ~mask
-        ).shape[-1]
-        == 4
-    )
-    assert _resolve_latent_noise(generator, labels, bbox, latent) is latent
-    assert _resolve_latent_noise(generator, labels, bbox, None).shape == latent.shape
-    assert (
-        _resolve_latent_noise(_ConfigGenerator(), labels, bbox, None).shape
-        == latent.shape
-    )
-
-    trace = gan_forward_trace(generator, discriminator, batch, latent_noise=latent)
-    assert trace["update_order"].tolist() == [0, 1]
-    assert trace["latent_noise"].shape == latent.shape
+    trace = gan_forward_trace(generator, discriminator, batch)
+    assert trace["latent_noise"].shape[:2] == labels.shape
     assert trace["condition_labels"].shape == labels.shape
-    trace_with_grad = gan_forward_trace(
-        generator, discriminator, batch, latent_noise=latent, detach=False
-    )
+    trace_with_grad = gan_forward_trace(generator, discriminator, batch, detach=False)
     assert trace_with_grad["generator_loss"].requires_grad
-    optimizer_g = _ToyOptimizer(generator.parameters())
-    optimizer_d = _ToyOptimizer(discriminator.parameters())
+    optimizer_g = torch.optim.Adam(generator.parameters(), lr=1e-3)
+    optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=1e-3)
     result = run_gan_iteration(
-        generator, discriminator, batch, optimizer_g, optimizer_d, latent_noise=latent
+        generator, discriminator, batch, optimizer_g, optimizer_d
     )
     assert result["generator_gradient_norm"].numel() == 1
+    assert result["update_order"].tolist() == [0, 1]
     callback_calls = []
     result_with_callback = run_gan_iteration(
         generator,
@@ -276,7 +203,6 @@ def test_training_models_and_step_trace():
             callback_calls.append(float(loss.detach())),
             loss.backward(),
         )[1],
-        latent_noise=latent,
     )
     assert result_with_callback["discriminator_gradient_norm"].numel() == 1
     assert len(callback_calls) == 2
@@ -313,11 +239,6 @@ def test_discriminator_and_lightning_module_paths(monkeypatch: pytest.MonkeyPatc
         discriminator_num_layers=1,
         learning_rate=1e-3,
         discriminator_max_elements=3,
-    )
-    monkeypatch.setattr(
-        module,
-        "optimizer_factory",
-        lambda parameters, lr: _ToyOptimizer(parameters, lr),
     )
     optimizers = cast(list[torch.optim.Optimizer], module.configure_optimizers())
 

@@ -22,8 +22,6 @@ model:
     discriminator_num_layers: 8
     discriminator_max_elements: 50
     learning_rate: 1.0e-5
-    optimizer:
-      class_path: torch.optim.Adam
 data:
   class_path: layoutganpp.training.LayoutGANPPDataModule
   init_args:
@@ -32,5 +30,4 @@ data:
     batch_size: 64
     num_workers: 4
     seed: 42975
-    seed_mode: default
     shuffle_train: true

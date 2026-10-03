@@ -86,9 +86,6 @@ def _split_indices(
         if split == "val":
             return shuffled[train_end:]
 
-        if split == "test":
-            return torch.arange(0)
-
     first = int(length * 0.85)
     second = int(length * 0.90)
     if split == "train":
