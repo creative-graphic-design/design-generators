@@ -28,6 +28,7 @@ import yaml
 from canvas_vae import CanvasVAEConfig, CanvasVAEModel, CanvasVAEProcessor
 from canvas_vae.configuration_canvas_vae import CanvasVAEField
 from canvas_vae.conversion import convert_tensorflow_variables, tensorflow_key_map
+from canvas_vae.modeling_canvas_vae import length_mask
 from canvas_vae.processing_canvas_vae import (
     RicoSplit,
     build_vocabularies,
@@ -544,7 +545,7 @@ def keras_adam_float64(grad, m, v, step: int):
 def check_update(
     name, package, original, package_grad, original_grad, m, v, step, measured
 ):
-    """Check both updates against float64 Keras Adam and each other where well conditioned."""
+    """Gate Adam-rule and well-conditioned checks; record full-update norm as diagnostic."""
     package = torch.as_tensor(package, dtype=torch.float64)
     original = torch.as_tensor(np.asarray(original), dtype=torch.float64)
     package_exact, _ = keras_adam_float64(
@@ -1174,7 +1175,7 @@ def test_s4_stream_replay(stream_dir, static, production_data_module):
         )
         assert np.array_equal(num_elements, expected_lengths)
         width = element_ids.shape[1]
-        actual_mask = np.arange(width)[None, :] < num_elements[:, None]
+        actual_mask = length_mask(encoded["num_elements"] - 1, width).cpu().numpy()
         expected_mask = np.arange(width)[None, :] < expected_lengths[:, None]
         assert np.array_equal(actual_mask, expected_mask)
 
