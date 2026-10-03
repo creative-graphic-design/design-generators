@@ -7,6 +7,8 @@ import argparse
 import hashlib
 import json
 import os
+import pickle
+import re
 import shutil
 import subprocess
 import sys
@@ -914,7 +916,7 @@ def _stage_s3(device: torch.device) -> Path:
         if stream.passed and first is None and process.returncode == 0
         else "FAIL",
         natural_artifact=str(natural_path.relative_to(ROOT)),
-        natural_control="each system ran independently after one seed; no per-step RNG restore and no injected latent",
+        natural_control="each repeat run assigned one latent seed consumed by both systems through their own draw paths; no per-step RNG restore and no injected latent",
         natural_steps=S3_STEPS,
         batch_stream={
             "checked_steps": stream.checked_steps,
@@ -923,6 +925,15 @@ def _stage_s3(device: torch.device) -> Path:
             "batch_seed": S3_BATCH_SEED,
         },
         latent_seeds=[S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
+        latent_seed_policy={
+            "per_repeat_run": [S3_LATENT_SEED + repeat for repeat in range(S3_REPEATS)],
+            "systems_per_run": ["vendor", "package"],
+            "same_seed_for_both_systems": True,
+            "draw_paths": {
+                "vendor": "vendor adapter torch.randn path",
+                "package": "package step path",
+            },
+        },
         repeat_run_envelope=repeat_envelope,
         synchronized_layer={
             "status": "not-needed" if first is None else "required",
@@ -969,6 +980,76 @@ def _clear_vendor_processed_cache() -> None:
     processed = VENDOR_WORK / "data" / "dataset" / "magazine" / "processed"
     if processed.exists():
         shutil.rmtree(processed)
+
+
+def _parse_vendor_metrics(text: str) -> dict[str, float]:
+    metrics: dict[str, float] = {}
+    for name in ("FID", "Max. IoU"):
+        match = re.search(
+            rf"^\s*{re.escape(name)}:\s+([-+0-9.eE]+)",
+            text,
+            flags=re.MULTILINE,
+        )
+        if match is None:
+            raise RuntimeError(f"vendor evaluator did not report {name}")
+        metrics[name] = float(match.group(1))
+    return metrics
+
+
+def _compare_prediction_rows(
+    vendor: list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+    package: list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+) -> tuple[float, dict[str, JsonValue] | None]:
+    if len(vendor) != len(package):
+        return float("inf"), {
+            "field": "prediction_count",
+            "vendor": len(vendor),
+            "package": len(package),
+        }
+
+    maximum = 0.0
+    for index, (vendor_row, package_row) in enumerate(zip(vendor, package)):
+        vendor_boxes = torch.as_tensor(vendor_row[0], dtype=torch.float32)
+        package_boxes = torch.as_tensor(package_row[0], dtype=torch.float32)
+        if vendor_boxes.shape != package_boxes.shape:
+            return float("inf"), {
+                "index": index,
+                "field": "prediction_shape",
+                "vendor": list(vendor_boxes.shape),
+                "package": list(package_boxes.shape),
+            }
+        difference = (vendor_boxes - package_boxes).abs()
+        maximum = max(
+            maximum, float(difference.max().item()) if difference.numel() else 0.0
+        )
+        if not torch.equal(
+            torch.as_tensor(vendor_row[1]), torch.as_tensor(package_row[1])
+        ):
+            return maximum, {"index": index, "field": "labels"}
+
+    if maximum > TRACE_ATOL:
+        return maximum, {"field": "prediction_values", "max_abs": maximum}
+    return maximum, None
+
+
+def _out_of_bounds_counts(
+    values: list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
+) -> dict[str, int]:
+    box_count = 0
+    layout_count = 0
+    for boxes, _ in values:
+        tensor = torch.as_tensor(boxes)
+        invalid = (
+            ((tensor < 0) | (tensor > 1)).any(dim=1)
+            if tensor.numel()
+            else tensor.new_zeros(0, dtype=torch.bool)
+        )
+        box_count += int(invalid.sum().item())
+        layout_count += int(invalid.any().item())
+    return {
+        "out_of_bounds_box_count": box_count,
+        "out_of_bounds_layout_count": layout_count,
+    }
 
 
 def _stage_s4(device: torch.device) -> Path:
@@ -1042,25 +1123,8 @@ def _stage_s4(device: torch.device) -> Path:
             input_batches.append(
                 {"bbox": bbox.cpu(), "labels": labels.cpu(), "mask": mask.cpu()}
             )
-    package_pickle.write_bytes(__import__("pickle").dumps(package_predictions))
-    torch.save(input_batches, input_file)
-    evaluator_command = [
-        sys.executable,
-        str((VENDOR_ROOT / "eval.py").resolve()),
-        "magazine",
-        str(vendor_pickle.resolve()),
-        str(package_pickle.resolve()),
-        "--batch_size",
-        str(VENDOR_BATCH_SIZE),
-    ]
-    evaluator = subprocess.run(
-        evaluator_command, cwd=VENDOR_WORK, text=True, capture_output=True, check=True
-    )
-    (evaluator_dir / "vendor-evaluator.txt").write_text(
-        evaluator.stdout + evaluator.stderr
-    )
-    import pickle
-
+    package_pickle.write_bytes(pickle.dumps(package_predictions))
+    torch.save({"names": package_names, "batches": input_batches}, input_file)
     vendor_predictions = cast(
         list[tuple[Float[np.ndarray, "elements 4"], Int[np.ndarray, "elements"]]],
         pickle.loads(vendor_pickle.read_bytes()),
@@ -1070,13 +1134,47 @@ def _stage_s4(device: torch.device) -> Path:
         pickle.loads(package_pickle.read_bytes()),
     )
     predictions = {"vendor": vendor_predictions, "package": package_predictions}
-    out_of_bounds = {
-        system: sum(
-            int((torch.as_tensor(box) < 0).any() or (torch.as_tensor(box) > 1).any())
-            for box, _ in values
+    evaluator_outputs: dict[str, str] = {}
+    evaluator_metrics: dict[str, dict[str, float]] = {}
+    evaluator_commands: dict[str, str] = {}
+    for system, prediction_file in (
+        ("vendor", vendor_pickle),
+        ("package", package_pickle),
+    ):
+        command = [
+            sys.executable,
+            str((VENDOR_ROOT / "eval.py").resolve()),
+            "magazine",
+            str(prediction_file.resolve()),
+            "--batch_size",
+            str(VENDOR_BATCH_SIZE),
+        ]
+        evaluator = subprocess.run(
+            command, cwd=VENDOR_WORK, text=True, capture_output=True, check=True
         )
-        for system, values in predictions.items()
+        output = evaluator.stdout + evaluator.stderr
+        evaluator_outputs[system] = output
+        evaluator_metrics[system] = _parse_vendor_metrics(output)
+        evaluator_commands[system] = " ".join(command)
+        (evaluator_dir / f"{system}-evaluator.txt").write_text(output)
+
+    maximum_difference, first_divergence = _compare_prediction_rows(
+        vendor_predictions, package_predictions
+    )
+    out_of_bounds = {
+        system: _out_of_bounds_counts(values) for system, values in predictions.items()
     }
+    package_weight_files = sorted(CONVERTED.glob("*.safetensors"))
+    if len(package_weight_files) != 1:
+        raise RuntimeError(
+            "converted Magazine checkpoint must contain one safetensors file"
+        )
+    vendor_source_commit = subprocess.check_output(
+        ["git", "-C", str(VENDOR_ROOT), "rev-parse", "HEAD"],
+        cwd=ROOT,
+        text=True,
+    ).strip()
+    passed = maximum_difference <= TRACE_ATOL and first_divergence is None
     prediction_files = {
         "vendor": {
             "path": str(vendor_pickle.relative_to(ROOT)),
@@ -1091,19 +1189,30 @@ def _stage_s4(device: torch.device) -> Path:
             "sha256": _sha256(input_file),
         },
     }
-    metrics_text = evaluator.stdout.strip()
     payload = _record(
         "s4-loader-eval",
         started,
-        result="PASS",
+        result="PASS" if passed else "FAIL",
         source_manifest_sha256=_source_manifest()[1],
-        checkpoint={
-            "path": str(CHECKPOINT.relative_to(ROOT)),
-            "sha256": _sha256(CHECKPOINT),
-            "converted_path": str(CONVERTED.relative_to(ROOT)),
+        weights={
+            "source_checkpoint": {
+                "path": str(CHECKPOINT.relative_to(ROOT)),
+                "sha256": _sha256(CHECKPOINT),
+            },
+            "vendor": {
+                "path": str(VENDOR_CHECKPOINT.relative_to(ROOT)),
+                "sha256": _sha256(VENDOR_CHECKPOINT),
+            },
+            "package": {
+                "path": str(package_weight_files[0].relative_to(ROOT)),
+                "sha256": _sha256(package_weight_files[0]),
+                "converted_directory": str(CONVERTED.relative_to(ROOT)),
+            },
         },
         loader={
-            "vendor": "vendor/const-layout/eval.py:44-49 DataLoader + torch_geometric.to_dense_batch",
+            "vendor_generate": "vendor/const-layout/generate.py:39-66 DataLoader + torch_geometric.to_dense_batch",
+            "vendor_eval": "vendor/const-layout/eval.py:44-63 and :99-133 DataLoader + torch_geometric.to_dense_batch",
+            "package": "layoutganpp training dataset DataLoader + collate_layoutganpp",
             "test_split": "test",
             "batch_size": VENDOR_BATCH_SIZE,
             "shuffle": False,
@@ -1111,26 +1220,40 @@ def _stage_s4(device: torch.device) -> Path:
         },
         evaluator={
             "vendor_command": " ".join(vendor_command),
-            "command": " ".join(evaluator_command),
-            "source": "vendor/const-layout/eval.py:main",
-            "metrics_output": metrics_text,
+            "commands_by_system": evaluator_commands,
+            "source": "vendor/const-layout/eval.py:main; one invocation per prediction file",
+            "metrics_output_by_system": evaluator_outputs,
         },
         sampling_seeds={"evaluation_seed": S4_EVALUATION_SEED},
         prediction_files=prediction_files,
         per_system={
             system: {
                 "prediction_count": len(values),
-                "out_of_bounds_count": out_of_bounds[system],
+                **out_of_bounds[system],
+                "metrics": evaluator_metrics[system],
             }
             for system, values in predictions.items()
+        },
+        evaluator_source_commits={
+            "vendor_generate": vendor_source_commit,
+            "vendor_eval_for_vendor": vendor_source_commit,
+            "vendor_eval_for_package": vendor_source_commit,
+            "package_source": _source_commit(),
         },
         coordinate_frame="original normalized xywh frame",
         input_count=len(package_rows),
         input_names_sha256=hashlib.sha256(
             "\n".join(package_names).encode()
         ).hexdigest(),
+        prediction_comparison={
+            "passed": passed,
+            "population": f"{len(package_rows)} TEST layouts and all valid element boxes",
+            "max_abs_difference": maximum_difference,
+            "limit": TRACE_ATOL,
+            "first_divergence": first_divergence,
+        },
         metrics_recorded_by_vendor=True,
-        first_divergence=None,
+        first_divergence=first_divergence,
     )
     return _write("s4-loader-eval", payload)
 
