@@ -33,6 +33,7 @@ SOURCE_FIELDS = {
     "train.annotations": "annotations",
 }
 SOURCE_TO_VENDOR_LABEL = {0: 1, 1: 2, 2: 3, 3: 0}
+VENDOR_CANVAS_SIZE = (513, 750)
 
 DatasetScalar: TypeAlias = str | int | float | bool | None
 DatasetValue: TypeAlias = (
@@ -124,6 +125,8 @@ class DSGANDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."]]]):
             ),
             max_elem=self.max_elem,
             include_unconnected_underlays=False,
+            canvas_size=VENDOR_CANVAS_SIZE,
+            vendor_box_fix=True,
         )
         bbox = cast(torch.Tensor, layout_fields["bbox"]).squeeze(0)
         labels = cast(torch.Tensor, layout_fields["labels"]).squeeze(0)

@@ -413,12 +413,16 @@ def annotations_from_pku_example(
     *,
     max_elem: int = 32,
     include_unconnected_underlays: bool = True,
+    canvas_size: tuple[int, int] | None = None,
+    vendor_box_fix: bool = False,
 ) -> dict[str, Shaped[torch.Tensor, "..."] | tuple[int, int]]:
     """Convert a PKU PosterLayout dataset row into public layout tensors.
 
     The adapter filters ``INVALID`` annotations, converts pixel ``ltrb`` boxes
     to normalized center ``xywh``, derives canvas size from the image columns,
-    and applies the reference ``designSeq.reorder`` ordering policy.
+    and applies the reference ``designSeq.reorder`` ordering policy. Set
+    ``vendor_box_fix`` to reproduce the reference loader's overlapping-slice
+    assignment for inverted boxes.
     """
     annotations = cast(
         Mapping[
@@ -430,7 +434,7 @@ def annotations_from_pku_example(
     raw_boxes = cast(
         Sequence[str | Sequence[int | float | str]], annotations["box_elem"]
     )
-    canvas_size = _canvas_size_from_example(example)
+    resolved_canvas_size = canvas_size or _canvas_size_from_example(example)
     model_labels: list[int] = []
     public_labels: list[int] = []
     boxes: list[list[float]] = []
@@ -450,7 +454,7 @@ def annotations_from_pku_example(
         public_id = PKU_DATASET_LABEL2ID[label]
         model_labels.append(PKU_MODEL_LABEL2ID[label])
         public_labels.append(public_id)
-        boxes.append(_parse_box(raw_box))
+        boxes.append(_parse_box(raw_box, sort=not vendor_box_fix))
 
     if boxes:
         box_t = torch.tensor(boxes, dtype=torch.float32)
@@ -474,7 +478,18 @@ def annotations_from_pku_example(
         )
         box_t = box_t[torch.tensor(order, dtype=torch.long)]
         labels_t = torch.tensor([public_labels[i] for i in order], dtype=torch.long)
-        bbox_t = _normalize_vendor_ltrb(box_t, canvas_size)
+        if vendor_box_fix:
+            inverted = (box_t[:, 0] > box_t[:, 2]) | (box_t[:, 1] > box_t[:, 3])
+            if inverted.any():
+                box_t[inverted, :2] = box_t[inverted, 2:]
+                box_t[inverted, 2:] = box_t[inverted, :2]
+        else:
+            left = torch.minimum(box_t[:, 0], box_t[:, 2])
+            top = torch.minimum(box_t[:, 1], box_t[:, 3])
+            right = torch.maximum(box_t[:, 0], box_t[:, 2])
+            bottom = torch.maximum(box_t[:, 1], box_t[:, 3])
+            box_t = torch.stack((left, top, right, bottom), dim=-1)
+        bbox_t = _normalize_vendor_ltrb(box_t, resolved_canvas_size)
     else:
         bbox_t = torch.zeros(0, 4, dtype=torch.float32)
         labels_t = torch.zeros(0, dtype=torch.long)
@@ -483,11 +498,13 @@ def annotations_from_pku_example(
         "bbox": bbox_t.unsqueeze(0),
         "labels": labels_t.unsqueeze(0),
         "mask": mask_t.unsqueeze(0),
-        "canvas_size": canvas_size,
+        "canvas_size": resolved_canvas_size,
     }
 
 
-def _parse_box(raw_box: str | Sequence[int | float | str]) -> list[float]:
+def _parse_box(
+    raw_box: str | Sequence[int | float | str], *, sort: bool = True
+) -> list[float]:
     if isinstance(raw_box, str):
         import ast
 
@@ -496,10 +513,12 @@ def _parse_box(raw_box: str | Sequence[int | float | str]) -> list[float]:
         parsed = raw_box
     values = [float(v) for v in cast(list[int | float | str], parsed)]
     left, top, right, bottom = values
-    if left > right:
+    if sort and left > right:
         left, right = right, left
-    if top > bottom:
+
+    if sort and top > bottom:
         top, bottom = bottom, top
+
     return [left, top, right, bottom]
 
 
