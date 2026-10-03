@@ -43,6 +43,9 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 DEFAULT_OUTPUT_ROOT = ROOT / ".cache" / "lace" / "stage-evidence"
+LACE_CHECKPOINT_SOURCE_URL = (
+    "https://huggingface.co/datasets/puar-playground/LACE/resolve/main/model.tar.gz"
+)
 
 sys.path.insert(0, str(ROOT / "vendor" / "lace"))
 
@@ -316,6 +319,52 @@ def _package_trace(
     if not detach:
         trace["train_loss"] = loss
     return trace
+
+
+def _vendor_training_iteration(
+    vendor: VendorDiffusion,
+    batch: Mapping[str, torch.Tensor],
+    *,
+    optimizer: torch.optim.Optimizer,
+    ema: VendorEMA,
+    num_classes: int,
+    batch_ids: object,
+    step: int,
+) -> dict[str, object]:
+    """Run one vendor training iteration in the order used by ``vendor/lace/train.py``."""
+    trace = _vendor_trace(vendor, batch, num_classes=num_classes, detach=False)
+    optimizer.zero_grad()
+    trace["train_loss"].backward()
+
+    named_parameters = dict(vendor.model.named_parameters())
+    gradients = {
+        name: _parameter_grad(parameter).detach().clone()
+        for name, parameter in named_parameters.items()
+    }
+    gradient_norm = torch.nn.utils.clip_grad_norm_(vendor.model.parameters(), 1.0)
+    clipped_gradients = {
+        name: _parameter_grad(parameter).detach().clone()
+        for name, parameter in named_parameters.items()
+    }
+    optimizer.step()
+    ema.update(vendor.model)
+
+    optimizer_state = _optimizer_state_tensors(optimizer)
+    return {
+        "step": step,
+        "batch_ids": batch_ids,
+        "loss": float(trace["train_loss"].item()),
+        "gradient_norm": float(gradient_norm.item()),
+        "learning_rate": optimizer.param_groups[0]["lr"],
+        "gradient_hashes": _tensor_hashes(gradients),
+        "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
+        "clipped_gradient_norm": _gradient_norm(named_parameters.values()),
+        "optimizer_state_hashes": _tensor_hashes(optimizer_state),
+        "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
+        "parameter_l2_norm": _mapping_l2_norm(vendor.model.state_dict()),
+        "parameter_hashes": _tensor_hashes(vendor.model.state_dict()),
+        "ema_hashes": _tensor_hashes(ema.shadow),
+    }
 
 
 def _paired_trace(
@@ -1083,15 +1132,18 @@ def _run_natural_system(
             }
             for index, record in enumerate(callback.records, start=1)
         ]
-    model = vendor if system == "vendor" else target
-    optimizer: torch.optim.Optimizer = (
-        torch.optim.Adam(model.model.parameters(), lr=1e-5)
-        if system == "vendor"
-        else cast(torch.optim.Optimizer, target.configure_optimizers())
-    )
-    ema = VendorEMA(mu=0.9999) if system == "vendor" else target.ema_helper
+    if system not in {"vendor", "package"}:
+        raise ValueError(system)
+
+    vendor_optimizer: torch.optim.Optimizer | None = None
+    vendor_ema: VendorEMA | None = None
+    package_optimizer: torch.optim.Optimizer | None = None
     if system == "vendor":
-        cast(VendorEMA, ema).register(vendor.model)
+        vendor_optimizer = torch.optim.Adam(vendor.model.parameters(), lr=1e-5)
+        vendor_ema = VendorEMA(mu=0.9999)
+        vendor_ema.register(vendor.model)
+    else:
+        package_optimizer = cast(torch.optim.Optimizer, target.configure_optimizers())
     vendor_batches, package_batches = _loader_batches(
         dataset,
         data_root,
@@ -1106,46 +1158,55 @@ def _run_natural_system(
     records: list[dict[str, object]] = []
     for step, source_batch in enumerate(batches, start=1):
         batch = _batch_tensors(source_batch, device)
-        trace = (
-            _vendor_trace(vendor, batch, num_classes=target.num_classes, detach=False)
-            if system == "vendor"
-            else _package_trace(target, batch, detach=False)
-        )
-        optimizer.zero_grad()
+        if system == "vendor":
+            if vendor_optimizer is None or vendor_ema is None:
+                raise RuntimeError("vendor optimizer state was not initialized")
+            records.append(
+                _vendor_training_iteration(
+                    vendor,
+                    batch,
+                    optimizer=vendor_optimizer,
+                    ema=vendor_ema,
+                    num_classes=target.num_classes,
+                    batch_ids=source_batch["id"],
+                    step=step,
+                )
+            )
+            continue
+
+        if package_optimizer is None:
+            raise RuntimeError("package optimizer state was not initialized")
+        trace = _package_trace(target, batch, detach=False)
+        package_optimizer.zero_grad()
         trace["train_loss"].backward()
-        named_parameters = dict(model.model.named_parameters())
+        named_parameters = dict(target.model.named_parameters())
         gradients = {
             name: _parameter_grad(parameter).detach().clone()
             for name, parameter in named_parameters.items()
         }
-        gradient_norm = torch.nn.utils.clip_grad_norm_(model.model.parameters(), 1.0)
+        gradient_norm = torch.nn.utils.clip_grad_norm_(target.model.parameters(), 1.0)
         clipped_gradients = {
             name: _parameter_grad(parameter).detach().clone()
             for name, parameter in named_parameters.items()
         }
-        optimizer.step()
-        if system == "vendor":
-            cast(VendorEMA, ema).update(vendor.model)
-            ema_values = cast(VendorEMA, ema).shadow
-        else:
-            target.ema_helper.update(target.model)
-            ema_values = target.ema_helper.shadow
-        optimizer_state = _optimizer_state_tensors(optimizer)
+        package_optimizer.step()
+        target.ema_helper.update(target.model)
+        optimizer_state = _optimizer_state_tensors(package_optimizer)
         records.append(
             {
                 "step": step,
                 "batch_ids": source_batch["id"],
                 "loss": float(trace["train_loss"].item()),
                 "gradient_norm": float(gradient_norm.item()),
-                "learning_rate": optimizer.param_groups[0]["lr"],
+                "learning_rate": package_optimizer.param_groups[0]["lr"],
                 "gradient_hashes": _tensor_hashes(gradients),
                 "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
                 "clipped_gradient_norm": _gradient_norm(named_parameters.values()),
                 "optimizer_state_hashes": _tensor_hashes(optimizer_state),
                 "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
-                "parameter_l2_norm": _mapping_l2_norm(model.model.state_dict()),
-                "parameter_hashes": _tensor_hashes(model.model.state_dict()),
-                "ema_hashes": _tensor_hashes(ema_values),
+                "parameter_l2_norm": _mapping_l2_norm(target.model.state_dict()),
+                "parameter_hashes": _tensor_hashes(target.model.state_dict()),
+                "ema_hashes": _tensor_hashes(target.ema_helper.shadow),
             }
         )
     if len(records) != steps:
@@ -1525,6 +1586,20 @@ def run_s3(args: argparse.Namespace) -> Path:
             "natural_backend": "vendor-default",
             "synchronized_backend": "math" if args.sdpa_math else "vendor-default",
             "synchronized_forced_for_both_systems": args.sdpa_math,
+        },
+        "vendor_training_iteration": {
+            "adapter": _source_entrypoint(_vendor_training_iteration),
+            "source_recipe": "vendor/lace/train.py",
+            "executed_order": [
+                "sample_t",
+                "forward_t",
+                "loss computation",
+                "optimizer.zero_grad",
+                "backward",
+                "clip_grad_norm_",
+                "optimizer.step",
+                "ema.update",
+            ],
         },
         "natural": {
             "artifact": natural_artifact,
@@ -2217,6 +2292,8 @@ def _evaluation_parity(
     evaluation_payload = {
         "dataset": dataset,
         "source_commit": source_commit,
+        "checkpoint_source_url": LACE_CHECKPOINT_SOURCE_URL,
+        "checkpoint_path": str(checkpoint.relative_to(ROOT)),
         "checkpoint_sha256": _sha256(checkpoint),
         "weights_sha256_equal": vendor_weights_hash == package_weights_hash,
         "evaluator_commit": vendor_commit,
@@ -2240,6 +2317,8 @@ def _evaluation_parity(
     return {
         "dataset": dataset,
         "source_commit": source_commit,
+        "checkpoint_source_url": LACE_CHECKPOINT_SOURCE_URL,
+        "checkpoint_path": str(checkpoint.relative_to(ROOT)),
         "checkpoint_sha256": _sha256(checkpoint),
         "weights_sha256_equal": vendor_weights_hash == package_weights_hash,
         "evaluator_commit": vendor_commit,
