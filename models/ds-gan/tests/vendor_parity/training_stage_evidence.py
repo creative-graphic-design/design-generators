@@ -2018,10 +2018,20 @@ def run_s4() -> Path:
         package_classes_array,
         package_boxes_array,
     )
-    vendor_metrics = _vendor_metrics(vendor_eval, names, vendor_classes, vendor_boxes)
-    package_metrics = _vendor_metrics(
-        vendor_eval, names, package_classes_array, package_boxes_array
-    )
+    with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as metrics_dir:
+        metrics_root = Path(metrics_dir)
+        (metrics_root / "Dataset").symlink_to(paths["root"], target_is_directory=True)
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(metrics_root)
+            vendor_metrics = _vendor_metrics(
+                vendor_eval, names, vendor_classes, vendor_boxes
+            )
+            package_metrics = _vendor_metrics(
+                vendor_eval, names, package_classes_array, package_boxes_array
+            )
+        finally:
+            os.chdir(old_cwd)
     vendor_summary = _metric_summary(vendor_classes, vendor_boxes)
     package_summary = _metric_summary(package_classes_array, package_boxes_array)
     vendor_weight_hash = _module_state_hash(vendor_generator)
