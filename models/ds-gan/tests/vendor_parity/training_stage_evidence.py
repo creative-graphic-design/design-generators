@@ -98,6 +98,11 @@ def _runtime() -> dict[str, Any]:
         "pip_freeze_sha256": freeze_hash,
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
+        "determinism_note": (
+            "CUDA cross_entropy has no deterministic implementation on the audited "
+            "cu128 V100 runtime; deterministic algorithms remain enabled in warn-only "
+            "mode for both systems"
+        ),
         "cudnn_deterministic": torch.backends.cudnn.deterministic,
         "cudnn_benchmark": torch.backends.cudnn.benchmark,
         "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
@@ -136,12 +141,13 @@ def _set_determinism(seed: int = SEED) -> None:
     apply_determinism(
         DeterminismConfig(
             seed=seed,
-            deterministic_algorithms=True,
+            deterministic_algorithms=False,
             cudnn_benchmark=False,
             allow_tf32=False,
             cublas_workspace_config=":4096:8",
         )
     )
+    torch.use_deterministic_algorithms(True, warn_only=True)
     torch.backends.cudnn.deterministic = True
 
 
