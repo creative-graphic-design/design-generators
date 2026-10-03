@@ -20,14 +20,16 @@ The protocol has six ordered stages, S0 through S5. S0-S2 are exact or near-exac
 
 Parity commands use `PARITY_REQUIRE=1`, a fail-closed setting that treats missing local parity assets as failures; parity here means agreement with the original implementation.
 
-| Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                       |
-| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                     |
-| S1    | Fixed-batch pre-optimizer trace     | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation.                                                                                                                                                                      |
-| S2    | One optimizer step                  | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate.                                                                                                                                                                                                                 |
-| S3    | N training batches                  | Always record the natural multi-step trajectory. If every step remains within the S0-S2 contract, it is S3 numerical parity `PASS`; if any step leaves the contract, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
-| S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                           |
-| S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                    |
+Follow the stages in order. Record S0-S2 evidence in the model issue, then record S3-S4 evidence before launching any S5-scale training or evaluation or making an S5 claim. Keep all six stages in the package's `TRAINING.md`. Missing evidence stops the claim at the current stage; S5 cannot substitute for an earlier stage.
+
+| Stage | Scope                               | Required evidence                                                                                                                                                                                                                                                                                                                                                                 |
+| ----- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Static config and initialized state | Package and original training configs, parameter counts, state-dict key mapping, optimizer defaults, scheduler defaults, dataset encoding, and initial state agree.                                                                                                                                                                                                               |
+| S1    | Fixed-batch pre-optimizer trace     | The same batch and random-number-generator (RNG) state produce matching prepared inputs, sampled noise or timesteps, model outputs, loss components, and total loss before any optimizer mutation.                                                                                                                                                                                |
+| S2    | One optimizer step                  | One backward pass and optimizer step produce matching gradients, clipped gradients when used, optimizer state, post-step parameters, and learning rate.                                                                                                                                                                                                                           |
+| S3    | N training batches                  | Always record the natural multi-step trajectory. If every step remains within the S0-S2 requirements, it is S3 numerical parity `PASS`; if any step leaves those requirements, add the synchronized diagnostic while retaining the natural record. The bounded production-wiring result is a separate third layer for either path; see [S3 Evidence Layers](#s3-evidence-layers). |
+| S4    | Deterministic loader stream         | The package loader reproduces the original training sample order, transforms, masks, padding, dataset-specific class ids, and validation stream under deterministic controls.                                                                                                                                                                                                     |
+| S5    | Full-run statistical comparison     | Full training and evaluation compare package checkpoints against original-code checkpoints under the original evaluation protocol, with per-dataset metrics and seed scope recorded.                                                                                                                                                                                              |
 
 Every full run that makes an S5 claim must have one launch manifest: a JSON file written before the S5 launch with `source_commit`, `config` (a resolved path or inline resolved configuration), `evaluator_command` (the evaluator command and flags), `checkpoint_rule`, `artifacts` (each artifact path mapped to its SHA-256), and `launched_at`; the S5 Stage Evidence row's Artifact cell cites its repository- or cache-relative path, such as `.cache/<package>/full-run/<dataset>/manifest.json`.
 
@@ -39,7 +41,7 @@ Only an amendment comment on the model's issue can authorize a package-specific 
 
 ### Step Parity and Full-Run Parity
 
-S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. Always run S5 full-run parity per dataset, and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
+S0-S2 step-level parity is necessary but not sufficient for a training reproduction claim. For each dataset covered by the claim, run S5 full-run parity and never infer full-run parity from passing step-level loss, gradient, or optimizer-state checks.
 
 When S5 diverges, diagnose the gap in this order before claiming a bug:
 
@@ -54,7 +56,7 @@ Parity thresholds are per-dataset. Here, practical parity names an accepted full
 
 ### S3 Evidence Layers
 
-S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 contract, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves the contract, retain the natural record and add a synchronized diagnostic; its contract-internal agreement plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
+S3 always begins with a natural, unsynchronized multi-step trajectory using the same seed and data for both systems. If every step remains within the existing S0-S2 requirements, that natural trajectory is S3 numerical parity `PASS`, and no synchronized layer is needed. If a natural step leaves those requirements, retain the natural record and add a synchronized diagnostic; agreement within those requirements plus the retained natural evidence is a bounded S3 numerical `PASS`. This path distinction does not change tolerances. For either path, report the bounded production-wiring result as an independent third layer; it does not establish numerical trajectory parity.
 
 ### Activation Thresholds
 
@@ -155,16 +157,18 @@ Each training-first package should include `models/<package>/TRAINING.md`. Its `
 
 When auditing a pickle or Torch artifact on CPU, set `CUDA_VISIBLE_DEVICES=""` and pass `map_location="cpu"` to loaders that support it. CUDA-tagged tensors retain their device tags in serialized artifacts, so a CPU audit that does not hide CUDA can initialize an unintended GPU or fail before the artifact is inspected.
 
-Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, `Reproduction Results` status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`.
+Use [docs/templates/TRAINING.template.md](templates/TRAINING.template.md) as the canonical `TRAINING.md` structure. The template fixes the required sections, status vocabulary, regeneration metadata block, seed policy, and README supported-checkpoints cross-check surface enforced by `scripts/check_training_doc_template.py`; it does not validate every metadata field.
+
+Reviewers check that each evidence command produces the cited artifact and supports that stage's claim. A checker baseline records an existing gap; a passing check with that baseline does not establish missing stage evidence. Document an unavailable artifact or untracked helper as a replay limitation until its source or generation command is available. Keep historical measurements separate from evidence that authorizes a new run or a broader reproduction claim.
 
 ### S3 Evidence Recording
 
 Record the natural multi-step layer for every model with the same seed and data
 on both systems. Repeat it to measure the run-to-run envelope, and preserve
 per-step state drift, loss, gradients, post-step parameters, learning rates,
-the first divergence, and the envelope even when every step is within contract.
+the first divergence, and the envelope even when every step is within those requirements.
 
-When natural evidence leaves the S0-S2 contract, record the synchronized layer
+When natural evidence leaves the S0-S2 requirements, record the synchronized layer
 at every optimizer boundary. Synchronize model parameters and buffers,
 optimizer state, and scheduler state before the next batch, then apply the
 existing S0-S2 comparisons. Copy optimizer state with a `deepcopy` before
