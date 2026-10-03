@@ -303,8 +303,10 @@ def _vendor_config(dataset: str) -> tuple[DictConfig, DictConfig, DictConfig]:
             "var_order": "c-x-y-w-h",
         }
     )
-    dataset_cfg = OmegaConf.load(config_dir / "dataset" / f"{dataset}.yaml")
-    backbone = OmegaConf.load(config_dir / "backbone" / "medium.yaml")
+    dataset_cfg = cast(
+        DictConfig, OmegaConf.load(config_dir / "dataset" / f"{dataset}.yaml")
+    )
+    backbone = cast(DictConfig, OmegaConf.load(config_dir / "backbone" / "medium.yaml"))
     backbone.encoder_layer.timestep_type = "adalayernorm"
     backbone.encoder_layer.diffusion_step = 100
     backbone.encoder_layer.dropout = 0.0
