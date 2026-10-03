@@ -1346,7 +1346,7 @@ def _vendor_training_trajectory(
         train_dataset if split == "train" else val_dataset
     )
     vendor_module.__dict__["DataLoader"] = (
-        lambda dataset, batch_size, num_workers, _pin_memory, shuffle: Sequence(
+        lambda dataset, batch_size, num_workers, pin_memory, shuffle: Sequence(
             train_loader if shuffle else val_loader,
             steps if shuffle else val_batch_count,
         )
