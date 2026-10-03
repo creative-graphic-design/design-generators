@@ -429,15 +429,10 @@ def _fixture(
     corrector_cls, layout_dm_cls, tokenizer_cls = _vendor_imports()
     _, _, backbone = _vendor_config(dataset)
     package_config = _package_layout_dm_config(dataset)
-    package_reference = FrozenLayoutDMReference.from_checkpoint(
-        dataset_name=dataset,
-        checkpoint_path=_checkpoint_path(dataset),
-        cluster_centers_path=_cluster_path(dataset),
-    )
+    torch.manual_seed(seed)
     vendor_diffusion, vendor_tokenizer = _vendor_reference(
         dataset, tokenizer_cls, layout_dm_cls, backbone
     )
-    torch.manual_seed(seed)
     vendor_corrector = cast(
         VendorCorrector,
         corrector_cls(
@@ -462,6 +457,7 @@ def _fixture(
         betas=(0.9, 0.98),
         gradient_clip_norm=1.0,
     )
+    package_reference = package._reference_value()
     vendor_initialization_device = str(next(vendor_corrector.parameters()).device)
     package_initialization_device = str(next(package.model.parameters()).device)
     if align_corrector_weights:
