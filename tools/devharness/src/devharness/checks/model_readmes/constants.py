@@ -89,6 +89,7 @@ MODEL_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "models").glob("*/pyproject.toml")
 )
 MODEL_READMES = [member_dir / "README.md" for member_dir in MODEL_MEMBER_DIRS]
+MODEL_README_BASELINE_PATH = REPO_ROOT / "scripts" / "model_readme_baseline.txt"
 MODEL_REPRODUCING = [member_dir / "REPRODUCING.md" for member_dir in MODEL_MEMBER_DIRS]
 LIB_MEMBER_DIRS = sorted(
     path.parent for path in (REPO_ROOT / "lib").glob("*/pyproject.toml")

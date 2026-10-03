@@ -16,7 +16,7 @@
 
 ## Verification
 
-<!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. -->
+<!-- Use workspace-scoped commands, for example `uv run --package <pkg> ...`. Include coverage numbers when applicable, and parity numbers for model PRs. When changing `mkdocs.yml`, `docs/api/**`, or `docs/stylesheets/**`, list each page URL opened in `zensical serve` or the built site and the checks performed on that page. Example: `http://127.0.0.1:8000/api/models/layout-dm/` — navigation, rendered headings, API members, code blocks, and links. -->
 
 - TODO
 
