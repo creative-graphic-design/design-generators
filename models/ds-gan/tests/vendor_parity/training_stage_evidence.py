@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 from typing import Any, Iterator, cast  # noqa: TID251 - vendor adapter boundary is heterogeneous
 
 import numpy as np
@@ -1939,7 +1940,16 @@ def run_s4() -> Path:
             torch.as_tensor(vendor_boxes / np.asarray((513, 750, 513, 750))),
             "output/boxes-Epoch300.pt",
         )
-        vendor_eval.main()
+        with TemporaryDirectory(dir=EVIDENCE / "s4-evaluation") as evaluation_dir:
+            evaluation_root = Path(evaluation_dir)
+            (evaluation_root / "Dataset").symlink_to(
+                paths["root"], target_is_directory=True
+            )
+            (evaluation_root / "output").symlink_to(
+                vendor_root / "output", target_is_directory=True
+            )
+            os.chdir(evaluation_root)
+            vendor_eval.main()
     os.chdir(ROOT)
     (EVIDENCE / "s4-evaluation").mkdir(parents=True, exist_ok=True)
     (EVIDENCE / "s4-evaluation" / "vendor-eval.txt").write_text(output.getvalue())
