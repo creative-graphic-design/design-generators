@@ -154,6 +154,10 @@ print(out.labels)  # dataset-local integer labels
 print(out.mask)    # valid element mask
 ```
 
+```text
+# Paste the captured output from running the snippet as written.
+```
+
 ## Training Details
 
 ### Training Data
