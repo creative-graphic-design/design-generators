@@ -125,6 +125,12 @@ print(out.labels.shape)
 print(out.id2label[int(out.labels[out.mask][0])])
 ```
 
+```text
+torch.Size([4, 49, 4])
+torch.Size([4, 49])
+Modal
+```
+
 ## Training Details
 
 ### Training Data
