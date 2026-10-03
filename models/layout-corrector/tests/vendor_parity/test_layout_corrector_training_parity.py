@@ -407,6 +407,8 @@ class Fixture:
     vendor_diffusion: torch.nn.Module
     package_reference: FrozenLayoutDMReference
     vendor_tokenizer: Any
+    vendor_initialization_device: str
+    package_initialization_device: str
 
 
 def _fixture(
@@ -452,6 +454,8 @@ def _fixture(
         betas=(0.9, 0.98),
         gradient_clip_norm=1.0,
     )
+    vendor_initialization_device = str(next(vendor_corrector.parameters()).device)
+    package_initialization_device = str(next(package.model.parameters()).device)
     if align_corrector_weights:
         package.model.model.load_state_dict(
             vendor_corrector.model.module.state_dict(), strict=True
@@ -469,6 +473,8 @@ def _fixture(
         vendor_diffusion=vendor_diffusion,
         package_reference=package_reference,
         vendor_tokenizer=vendor_tokenizer,
+        vendor_initialization_device=vendor_initialization_device,
+        package_initialization_device=package_initialization_device,
     )
 
 
@@ -895,6 +901,9 @@ def test_s0_training_static_state_matches_vendor(
     assert not frozen_vendor_first, frozen_vendor_diffs
     assert not dataset_first, dataset_input_diffs
     assert not corrector_first, corrector_diffs
+    expected_initialization_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    assert fixture.vendor_initialization_device == expected_initialization_device
+    assert fixture.package_initialization_device == expected_initialization_device
     assert not set(vendor_state) - set(package_state_corrector)
     assert not set(package_state_corrector) - set(vendor_state)
     assert sum(value.numel() for value in vendor_state.values()) == sum(
@@ -941,6 +950,10 @@ def test_s0_training_static_state_matches_vendor(
             ),
             "native_initialization_max_abs_diff": max(corrector_diffs.values()),
             "native_initialization_first_difference": corrector_first,
+            "vendor_initialization_device": fixture.vendor_initialization_device,
+            "package_initialization_device": fixture.package_initialization_device,
+            "initialization_device_equal": fixture.vendor_initialization_device
+            == fixture.package_initialization_device,
             "parameter_registration_order_equal": [
                 name for name, _ in fixture.vendor.model.module.named_parameters()
             ]

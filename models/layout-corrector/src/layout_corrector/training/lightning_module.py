@@ -26,6 +26,11 @@ from .config import LayoutCorrectorTrainingScheduler
 from .reference import FrozenLayoutDMReference
 
 
+def _vendor_initialization_device() -> torch.device:
+    """Select the device used by the original corrector during construction."""
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 class LayoutCorrectorTrainingModule(LightningModule):
     """Reproduce the original corrector loop with a frozen LayoutDM model."""
 
@@ -63,7 +68,11 @@ class LayoutCorrectorTrainingModule(LightningModule):
         self.register_buffer("layout_dm_lt_history", reference.lt_history)
         self.register_buffer("layout_dm_lt_count", reference.lt_count)
 
-        self.model = LayoutCorrectorModel(**dict(config.config))
+        initialization_device = _vendor_initialization_device()
+        with torch.device(initialization_device):
+            self.model = LayoutCorrectorModel(**dict(config.config))
+
+        self.initialization_device = str(initialization_device)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.betas = betas
