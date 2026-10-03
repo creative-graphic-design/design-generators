@@ -94,8 +94,9 @@ REGENERATE = (
 )
 SEQUENCE_COLUMNS = tuple(str(field) for field in CanvasVAEField)
 
-# On complete RICO data, activations and logits differ by at most 1.4e-6 of the
-# tensor's largest magnitude and scalar losses by at most 1.4e-7 relative.
+# On complete RICO data, the eval forward differs by at most 1.266045e-6 and
+# train-mode logits by 1.867336e-6 of each tensor's largest magnitude. The
+# largest per-field loss difference is 1.434896e-7 relative.
 # The largest one-step gradient, clipped-gradient, and first-moment difference
 # is 1.482e-4 in relative L2 norm; the 1.8e-4 bound leaves 21% headroom.
 # TensorFlow and PyTorch reduce layer, attention, pooling, batch-statistic, and
@@ -766,7 +767,7 @@ def test_s3_natural_trajectory(
     expected = trajectory["total_loss"]
     relative = [abs(a - b) / abs(b) for a, b in zip(first[0], expected, strict=True)]
     first_divergence = next(
-        (index for index, value in enumerate(relative) if value > LOSS.limit),
+        (index + 1 for index, value in enumerate(relative) if value > LOSS.limit),
         None,
     )
     parameter_drift = {}
