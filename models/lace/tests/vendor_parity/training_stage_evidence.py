@@ -978,28 +978,6 @@ class _PackageNaturalTraceCallback(Callback):
             "trainer_gradient_clip_algorithm": trainer.gradient_clip_algorithm,
         }
 
-    def on_before_zero_grad(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        optimizer: torch.optim.Optimizer,
-    ) -> None:
-        del trainer, optimizer
-        if self._record is None:
-            raise RuntimeError("Lightning clip hook ran before optimizer-step capture")
-        parameters = dict(pl_module.named_parameters())
-        gradients = {
-            name: parameter.grad.detach()
-            for name, parameter in parameters.items()
-            if parameter.grad is not None
-        }
-        self._record.update(
-            {
-                "clipped_gradient_hashes": _tensor_hashes(gradients),
-                "clipped_gradient_norm": _gradient_norm(parameters.values()),
-            }
-        )
-
     def on_train_batch_end(
         self,
         trainer: Trainer,
@@ -1013,6 +991,18 @@ class _PackageNaturalTraceCallback(Callback):
             raise RuntimeError("Lightning optimizer callback did not capture a step")
         optimizer = cast(torch.optim.Optimizer, pl_module.optimizers())
         model = cast(nn.Module, getattr(pl_module, "model"))
+        parameters = dict(pl_module.named_parameters())
+        gradients = {
+            name: parameter.grad.detach()
+            for name, parameter in parameters.items()
+            if parameter.grad is not None
+        }
+        self._record.update(
+            {
+                "clipped_gradient_hashes": _tensor_hashes(gradients),
+                "clipped_gradient_norm": _gradient_norm(parameters.values()),
+            }
+        )
         optimizer_state = _optimizer_state_tensors(optimizer)
         self._record.update(
             {
