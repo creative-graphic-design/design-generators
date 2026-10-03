@@ -27,6 +27,7 @@ class LaceDataModule(LightningDataModule):
         max_seq_length: int = 25,
         num_workers: int = 4,
         pin_memory: bool = True,
+        loader_seed: int | None = None,
     ) -> None:
         """Initialize loader settings matching the original entry point."""
         super().__init__()
@@ -36,6 +37,7 @@ class LaceDataModule(LightningDataModule):
         self.max_seq_length = max_seq_length
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.loader_seed = loader_seed
         self.train_dataset: LaceProcessedDataset | None = None
         self.val_dataset: LaceProcessedDataset | None = None
         self.test_dataset: LaceProcessedDataset | None = None
@@ -110,6 +112,11 @@ class LaceDataModule(LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             collate_fn=partial(collate_lace_batch, max_seq_length=self.max_seq_length),
+            generator=(
+                torch.Generator().manual_seed(self.loader_seed)
+                if self.loader_seed is not None
+                else None
+            ),
         )
         return cast(
             DataLoader[dict[str, Shaped[torch.Tensor, "..."] | list[str]]], loader

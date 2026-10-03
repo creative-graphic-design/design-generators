@@ -74,6 +74,7 @@ class LaceTrainingModule(LightningModule):
         self.register_buffer("alphas_bar_sqrt", alphas_cumprod.sqrt())
         self.register_buffer("one_minus_alphas_bar_sqrt", (1 - alphas_cumprod).sqrt())
         self.latest_step_trace: dict[str, Shaped[torch.Tensor, "..."]] = {}
+        self.latest_ema_state: dict[str, Shaped[torch.Tensor, "..."]] = {}
         self.save_hyperparameters(ignore=("model",))
 
     def on_fit_start(self) -> None:
@@ -107,6 +108,7 @@ class LaceTrainingModule(LightningModule):
         """Update EMA after Lightning completes the optimizer step."""
         del outputs, batch, batch_idx
         self.ema_helper.update(self.model)
+        self.latest_ema_state = self.ema_helper.state_dict()
 
     def forward_t(
         self,

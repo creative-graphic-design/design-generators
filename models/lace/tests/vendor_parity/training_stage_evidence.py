@@ -11,6 +11,7 @@ import argparse
 import copy
 from contextlib import nullcontext
 import hashlib
+import inspect
 import json
 import os
 import pickle
@@ -28,6 +29,7 @@ from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch import nn
 from torch.utils.data import DataLoader
 from torch_geometric.data import Dataset as GeometricDataset
+from lightning.pytorch import Callback, LightningModule, Trainer
 from traingen_parity.compare import (
     compare_batch_stream,
     compare_optimizer_step,
@@ -67,6 +69,7 @@ from lace.conversion import build_pipeline_from_vendor_checkpoint  # noqa: E402
 from lace.modeling_lace import LaceTransformerModel  # noqa: E402
 from lace.training.config import LaceTrainingDatasetName, LaceTrainingSplit  # noqa: E402
 from lace.training.dataset import LaceProcessedDataset, collate_lace_batch  # noqa: E402
+from lace.training.datamodule import LaceDataModule  # noqa: E402
 from lace.training.ema import LaceEMA  # noqa: E402
 from lace.training.lightning_module import LaceTrainingModule  # noqa: E402
 
@@ -104,6 +107,16 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _source_entrypoint(function: Callable[..., object]) -> str:
+    source = inspect.getsourcefile(function)
+    if source is None:
+        raise RuntimeError(f"cannot locate source for {function!r}")
+    name = getattr(function, "__name__", None)
+    if not isinstance(name, str):
+        raise RuntimeError(f"cannot locate callable name for {function!r}")
+    return f"{Path(source).resolve().relative_to(ROOT).as_posix()}::{name}"
 
 
 def _runtime_metadata() -> dict[str, object]:
@@ -173,6 +186,7 @@ def _build_training_fixture(
     device: torch.device,
     *,
     tiny: bool,
+    seed: int = 42975,
 ) -> tuple[VendorDiffusion, LaceTrainingModule]:
     config = _tiny_config(dataset) if tiny else _training_config(dataset)
     torch.manual_seed(123)
@@ -196,6 +210,7 @@ def _build_training_fixture(
         nhead=config["nhead"],
         num_layers=config["num_layers"],
         feature_dim=config["dim_feedforward"],
+        seed=seed,
     ).to(device)
     vendor.model.train()
     target.model.train()
@@ -839,7 +854,6 @@ def run_s2(args: argparse.Namespace) -> Path:
                 "decoupled_weight_decay"
             ),
             "eps": vendor_optimizer.param_groups[0]["eps"],
-            "clipping_order": "clip_grad_norm_(max_norm=1.0) then optimizer.step()",
             "same_gradient_probe_parameter_max_abs_diff": _state_max_diff(
                 probe_vendor.model.state_dict(), probe_package.model.state_dict()
             ),
@@ -902,6 +916,113 @@ def _batch_tensors(
     }
 
 
+def _gradient_norm(parameters: Iterable[nn.Parameter]) -> float:
+    squared_norm = torch.zeros((), dtype=torch.float64)
+    for parameter in parameters:
+        if parameter.grad is not None:
+            squared_norm += parameter.grad.detach().double().square().sum().cpu()
+    return float(squared_norm.sqrt().item())
+
+
+class _PackageNaturalTraceCallback(Callback):
+    """Capture the production Lightning optimizer path after each batch."""
+
+    def __init__(self) -> None:
+        self._batch_ids: list[str] = []
+        self._pre_clip_hashes: dict[str, str] = {}
+        self._pre_clip_norm = 0.0
+        self._record: dict[str, object] | None = None
+        self.records: list[dict[str, object]] = []
+
+    def on_train_batch_start(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        batch: object,
+        batch_idx: int,
+    ) -> None:
+        del trainer, batch_idx
+        self._finalize_record(pl_module)
+        if not isinstance(batch, Mapping):
+            raise TypeError("LACE production batch must be a mapping")
+        ids = batch.get("id", [])
+        if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+            raise TypeError("LACE production batch must carry string ids")
+        self._batch_ids = cast(list[str], ids)
+
+    def on_after_backward(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        parameters = dict(pl_module.named_parameters())
+        self._pre_clip_hashes = _tensor_hashes(
+            {
+                name: parameter.grad.detach()
+                for name, parameter in parameters.items()
+                if parameter.grad is not None
+            }
+        )
+        self._pre_clip_norm = _gradient_norm(pl_module.parameters())
+
+    def on_before_optimizer_step(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        optimizer: torch.optim.Optimizer,
+    ) -> None:
+        parameters = dict(pl_module.named_parameters())
+        gradients = {
+            name: parameter.grad.detach()
+            for name, parameter in parameters.items()
+            if parameter.grad is not None
+        }
+        trace = getattr(pl_module, "latest_step_trace", {})
+        self._record = {
+            "batch_ids": list(self._batch_ids),
+            "loss": float(cast(torch.Tensor, trace["train_loss"]).item()),
+            "gradient_hashes": self._pre_clip_hashes,
+            "clipped_gradient_hashes": _tensor_hashes(gradients),
+            "gradient_norm": self._pre_clip_norm,
+            "clipped_gradient_norm": _gradient_norm(parameters.values()),
+            "learning_rate": optimizer.param_groups[0]["lr"],
+            "trainer_gradient_clip_val": trainer.gradient_clip_val,
+            "trainer_gradient_clip_algorithm": trainer.gradient_clip_algorithm,
+        }
+
+    def on_train_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        outputs: object,
+        batch: object,
+        batch_idx: int,
+    ) -> None:
+        del trainer, outputs, batch, batch_idx
+        if self._record is None:
+            raise RuntimeError("Lightning optimizer callback did not capture a step")
+        optimizer = cast(torch.optim.Optimizer, pl_module.optimizers())
+        model = cast(nn.Module, getattr(pl_module, "model"))
+        optimizer_state = _optimizer_state_tensors(optimizer)
+        self._record.update(
+            {
+                "optimizer_state_hashes": _tensor_hashes(optimizer_state),
+                "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
+                "parameter_l2_norm": _mapping_l2_norm(model.state_dict()),
+                "parameter_hashes": _tensor_hashes(model.state_dict()),
+            }
+        )
+
+    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        del trainer
+        self._finalize_record(pl_module)
+
+    def _finalize_record(self, pl_module: LightningModule) -> None:
+        if self._record is None:
+            return
+        ema_state = cast(
+            Mapping[str, torch.Tensor], getattr(pl_module, "latest_ema_state")
+        )
+        self.records.append({**self._record, "ema_hashes": _tensor_hashes(ema_state)})
+        self._record = None
+
+
 def _run_natural_system(
     dataset: str,
     data_root: Path,
@@ -912,7 +1033,46 @@ def _run_natural_system(
     steps: int,
     seed: int,
 ) -> list[dict[str, object]]:
-    vendor, target = _build_training_fixture(dataset, device, tiny=False)
+    vendor, target = _build_training_fixture(dataset, device, tiny=False, seed=seed)
+    if system == "package":
+        callback = _PackageNaturalTraceCallback()
+        datamodule = LaceDataModule(
+            processed_data_dir=data_root,
+            dataset_name=cast(LaceTrainingDatasetName, dataset),
+            batch_size=batch_size,
+            num_workers=0,
+            pin_memory=False,
+            loader_seed=42975,
+        )
+        trainer = Trainer(
+            accelerator="gpu" if device.type == "cuda" else "cpu",
+            devices=1,
+            max_steps=steps,
+            limit_train_batches=steps,
+            limit_val_batches=0,
+            num_sanity_val_steps=0,
+            gradient_clip_val=1.0,
+            gradient_clip_algorithm="norm",
+            logger=False,
+            enable_checkpointing=False,
+            enable_progress_bar=False,
+            enable_model_summary=False,
+            default_root_dir=ROOT / ".cache" / "lace" / "trainer",
+            log_every_n_steps=steps,
+        )
+        trainer.fit(target, datamodule=datamodule)
+        if trainer.global_step != steps or len(callback.records) != steps:
+            raise RuntimeError(
+                f"package Trainer produced {trainer.global_step} steps and "
+                f"{len(callback.records)} records, expected {steps}"
+            )
+        return [
+            {
+                **record,
+                "step": index,
+            }
+            for index, record in enumerate(callback.records, start=1)
+        ]
     model = vendor if system == "vendor" else target
     optimizer: torch.optim.Optimizer = (
         torch.optim.Adam(model.model.parameters(), lr=1e-5)
@@ -949,6 +1109,10 @@ def _run_natural_system(
             for name, parameter in named_parameters.items()
         }
         gradient_norm = torch.nn.utils.clip_grad_norm_(model.model.parameters(), 1.0)
+        clipped_gradients = {
+            name: _parameter_grad(parameter).detach().clone()
+            for name, parameter in named_parameters.items()
+        }
         optimizer.step()
         if system == "vendor":
             cast(VendorEMA, ema).update(vendor.model)
@@ -965,6 +1129,8 @@ def _run_natural_system(
                 "gradient_norm": float(gradient_norm.item()),
                 "learning_rate": optimizer.param_groups[0]["lr"],
                 "gradient_hashes": _tensor_hashes(gradients),
+                "clipped_gradient_hashes": _tensor_hashes(clipped_gradients),
+                "clipped_gradient_norm": _gradient_norm(named_parameters.values()),
                 "optimizer_state_hashes": _tensor_hashes(optimizer_state),
                 "optimizer_state_l2_norm": _mapping_l2_norm(optimizer_state),
                 "parameter_l2_norm": _mapping_l2_norm(model.model.state_dict()),
@@ -1033,8 +1199,22 @@ def _natural_pair_records(
                     _record_float(vendor_record, "gradient_norm")
                     - _record_float(package_record, "gradient_norm")
                 ),
+                "vendor_clipped_gradient_norm": vendor_record["clipped_gradient_norm"],
+                "package_clipped_gradient_norm": package_record[
+                    "clipped_gradient_norm"
+                ],
+                "clipped_gradient_norm_abs_diff": abs(
+                    _record_float(vendor_record, "clipped_gradient_norm")
+                    - _record_float(package_record, "clipped_gradient_norm")
+                ),
                 "vendor_gradient_hashes": vendor_record["gradient_hashes"],
                 "package_gradient_hashes": package_record["gradient_hashes"],
+                "vendor_clipped_gradient_hashes": vendor_record[
+                    "clipped_gradient_hashes"
+                ],
+                "package_clipped_gradient_hashes": package_record[
+                    "clipped_gradient_hashes"
+                ],
                 "vendor_learning_rate": vendor_record["learning_rate"],
                 "package_learning_rate": package_record["learning_rate"],
                 "vendor_optimizer_state_hashes": vendor_record[
@@ -1057,6 +1237,10 @@ def _natural_pair_records(
                 "package_ema_hashes": package_record["ema_hashes"],
                 "gradient_hashes_equal": vendor_record["gradient_hashes"]
                 == package_record["gradient_hashes"],
+                "clipped_gradient_hashes_equal": vendor_record[
+                    "clipped_gradient_hashes"
+                ]
+                == package_record["clipped_gradient_hashes"],
                 "optimizer_state_hashes_equal": vendor_record["optimizer_state_hashes"]
                 == package_record["optimizer_state_hashes"],
             }
@@ -1317,23 +1501,20 @@ def run_s3(args: argparse.Namespace) -> Path:
         "device": str(device),
         "dataset": args.dataset,
         "steps": args.steps,
-        "model_scale": "full recipe dimensions (1024 transformer width, 4 layers)",
+        "model_scale": {
+            "dim_transformer": _training_config(args.dataset)["dim_transformer"],
+            "num_layers": _training_config(args.dataset)["num_layers"],
+        },
         "batch_size": args.batch_size,
-        "seed_scope": "deterministic training-seed n=1; each natural system run starts once from seed 10000; synchronized layer uses captured/restored pair states",
+        "natural_seed": 10000,
         "determinism_condition": {
             "torch_use_deterministic_algorithms": False,
             "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
-            "natural_record": "each system ran its own continuous RNG stream from seed 10000",
         },
         "sdpa_condition": {
             "natural_backend": "vendor-default",
             "synchronized_backend": "math" if args.sdpa_math else "vendor-default",
             "synchronized_forced_for_both_systems": args.sdpa_math,
-            "math_diagnostic_result": (
-                "not bitwise in S2; retained as a diagnostic condition"
-                if args.sdpa_math
-                else "not requested"
-            ),
         },
         "natural": {
             "artifact": natural_artifact,
@@ -1643,6 +1824,7 @@ def _evaluation_parity(
         def __init__(self, wrapped: VendorDiffusion) -> None:
             self.wrapped = wrapped
             self.outputs: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = []
+            self.calls: list[dict[str, object]] = []
             self.elapsed = 0.0
 
         @property
@@ -1664,6 +1846,17 @@ def _evaluation_parity(
             )
             self.elapsed += time.perf_counter() - started
             self.outputs.append(tuple(value.detach().cpu() for value in result))
+            self.calls.append(
+                {
+                    "condition_type": {"c": "label", "cwh": "label_size"}.get(
+                        cond, cond
+                    ),
+                    "stochastic": True,
+                    "generator_seed": seed,
+                    "batch_size": int(real_layout.shape[0]),
+                    "grad_enabled": torch.is_grad_enabled(),
+                }
+            )
             return result
 
     wrapped_device = device
@@ -1706,6 +1899,7 @@ def _evaluation_parity(
     vendor_layouts: list[tuple[np.ndarray, np.ndarray]] = []
     package_layouts: list[tuple[np.ndarray, np.ndarray]] = []
     batch_records: list[dict[str, object]] = []
+    package_calls: list[dict[str, object]] = []
     preprocessing_equal = True
     package_elapsed = 0.0
     for batch_index, test_batch in enumerate(loader):
@@ -1746,18 +1940,28 @@ def _evaluation_parity(
         ]
         package_generator = torch.Generator().manual_seed(20260000 + batch_index)
         package_started = time.perf_counter()
-        package_cond = cast(
-            LayoutGenerationOutput,
-            package(
-                condition_type="label",
-                bbox=bbox.to(device),
-                labels=labels.to(device),
-                mask=mask.to(device),
-                generator=package_generator,
-                num_inference_steps=ddim_num_steps,
-            ),
-        )
+        with torch.no_grad():
+            package_cond = cast(
+                LayoutGenerationOutput,
+                package(
+                    condition_type="label",
+                    bbox=bbox.to(device),
+                    labels=labels.to(device),
+                    mask=mask.to(device),
+                    generator=package_generator,
+                    num_inference_steps=ddim_num_steps,
+                ),
+            )
+            package_grad_enabled = torch.is_grad_enabled()
         package_elapsed += time.perf_counter() - package_started
+        package_call: dict[str, object] = {
+            "condition_type": "label",
+            "stochastic": package_generator is not None,
+            "generator_seed": 20260000 + batch_index,
+            "batch_size": int(bbox.shape[0]),
+            "grad_enabled": package_grad_enabled,
+        }
+        package_calls.append(package_call)
         vendor_cpu = {
             "bbox": vendor_cond,
             "labels": vendor_cond_labels,
@@ -1812,6 +2016,8 @@ def _evaluation_parity(
                 )
                 and torch.equal(vendor_cpu["labels"], package_cpu["labels"])
                 and torch.equal(vendor_cpu["mask"], package_cpu["mask"]),
+                "vendor_evaluation_settings": captured_vendor.calls[batch_index],
+                "package_evaluation_settings": package_call,
             }
         )
     if not input_batches:
@@ -1911,7 +2117,7 @@ def _evaluation_parity(
             "fid_checkpoint_sha256": _sha256(
                 fid_root / "FIDNetV3" / f"{dataset}-max25" / "model_best.pth.tar"
             ),
-            "metric_function": "vendor/lace/util/metric.py::compute_generative_model_scores",
+            "metric_function": _source_entrypoint(compute_generative_model_scores),
         }
     vendor_input_hash = _sha256(evaluation_root / "vendor-inputs.npz")
     package_input_hash = _sha256(evaluation_root / "package-inputs.npz")
@@ -1936,7 +2142,7 @@ def _evaluation_parity(
             for record in batch_records
         ),
         "coordinate_frame": "normalized center-xywh in [0, 1] for decoded outputs; [-1, 1] latent input",
-        "metric_implementation": "vendor/lace/util/metric.py",
+        "metric_implementation": _source_entrypoint(compute_alignment),
         "vendor_metrics": vendor_metrics,
         "package_metrics": package_metrics,
         "metric_values_equal": vendor_metrics == package_metrics,
@@ -1979,19 +2185,11 @@ def _evaluation_parity(
             "batch_size": batch_size,
             "vendor_default_batch_size": 256,
         },
-        "evaluation_settings_equal": (
-            {
-                "condition_type": "label",
-                "ddim_num_steps": ddim_num_steps,
-                "stochastic": True,
-                "batch_size": batch_size,
-            }
-            == {
-                "condition_type": "label",
-                "ddim_num_steps": ddim_num_steps,
-                "stochastic": True,
-                "batch_size": batch_size,
-            }
+        "evaluation_settings_equal": all(
+            vendor_call == package_call
+            for vendor_call, package_call in zip(
+                captured_vendor.calls, package_calls, strict=True
+            )
         ),
         "sampling_seeds_sha256": hashlib.sha256(
             json.dumps(
@@ -2015,9 +2213,16 @@ def _evaluation_parity(
         "vendor_evaluator_source_commit": vendor_commit,
         "package_evaluator_source_commit": source_commit,
         "input_split": "test",
-        "vendor_evaluation_entry": "vendor/lace/test.py::test_layout_cond (invoked)",
-        "package_evaluation_entry": "lace.pipeline_lace.LacePipeline.__call__",
-        "matched_runtime_condition": "torch.no_grad() for both evaluation entry points",
+        "vendor_evaluation_entry": _source_entrypoint(vendor_test.test_layout_cond),
+        "package_evaluation_entry": _source_entrypoint(package.__call__),
+        "runtime_condition": {
+            "vendor_grad_enabled": all(
+                not bool(call["grad_enabled"]) for call in captured_vendor.calls
+            ),
+            "package_grad_enabled": all(
+                not bool(call["grad_enabled"]) for call in package_calls
+            ),
+        },
         "runtime": _runtime_metadata(),
         "test_split": test_check,
     }
@@ -2031,9 +2236,16 @@ def _evaluation_parity(
         "vendor_evaluator_source_commit": vendor_commit,
         "package_evaluator_source_commit": source_commit,
         "input_split": "test",
-        "vendor_evaluation_entry": "vendor/lace/test.py::test_layout_cond (invoked)",
-        "package_evaluation_entry": "lace.pipeline_lace.LacePipeline.__call__",
-        "matched_runtime_condition": "torch.no_grad() for both evaluation entry points",
+        "vendor_evaluation_entry": _source_entrypoint(vendor_test.test_layout_cond),
+        "package_evaluation_entry": _source_entrypoint(package.__call__),
+        "runtime_condition": {
+            "vendor_grad_enabled": all(
+                not bool(call["grad_enabled"]) for call in captured_vendor.calls
+            ),
+            "package_grad_enabled": all(
+                not bool(call["grad_enabled"]) for call in package_calls
+            ),
+        },
         "runtime": _runtime_metadata(),
         "test_split": test_check,
         "metrics_exact": test_check["metric_values_equal"],
@@ -2085,7 +2297,10 @@ def run_s4(args: argparse.Namespace) -> Path:
         "runtime": _runtime_metadata(),
         "streams": streams,
         "evaluations": evaluations,
-        "test_split_mandatory_check": True,
+        "test_split_mandatory_check": all(
+            cast(dict[str, object], result["test_split"])["full_test_split"]
+            for result in evaluations.values()
+        ),
         "exact_loader_stream": all(
             split_result["exact"]
             for dataset_result in streams.values()
