@@ -71,4 +71,4 @@ When editing templates or copyable examples, check required headings, status val
 
 Before review, check that the commands match the actual scripts and the claims match recorded evidence. Report unrun heavyweight commands and unavailable assets in the PR rather than presenting them as passes.
 
-Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. The PR must use `.github/PULL_REQUEST_TEMPLATE.md` and include the implementation issue, checklist verification, tests, and shared-library rationale when applicable.
+- Run the documentation and root gates through uv, and run the full pre-commit suite before opening a PR. The PR must use `.github/PULL_REQUEST_TEMPLATE.md` and include the implementation issue, checklist verification, tests, and shared-library rationale when applicable.
