@@ -29,6 +29,17 @@ from .configuration_layout_corrector import (
 from .sampling import CorrectorMaskMode, normalize_corrector_mask_mode
 
 
+def _init_layout_corrector_weights(module: nn.Module) -> None:
+    """Initialize trainable layers as the released training loop does."""
+    if isinstance(module, (nn.Linear, nn.Embedding)):
+        module.weight.data.normal_(mean=0.0, std=0.02)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
+    elif isinstance(module, nn.LayerNorm) and module.elementwise_affine:
+        module.bias.data.zero_()
+        module.weight.data.fill_(1.0)
+
+
 @dataclass
 class LayoutCorrectorOutput(BaseOutput):
     """Output container for Layout-Corrector confidence logits.
@@ -84,12 +95,6 @@ class AggregatedCategoricalTransformer(nn.Module):
             )
 
         self.num_attributes_per_element = num_attributes_per_element
-        self.cat_emb = nn.Embedding(vocab_size, hidden_size)
-        self.drop = nn.Dropout(dropout)
-        self.enc = nn.Sequential(
-            nn.Linear(num_attributes_per_element * hidden_size, hidden_size),
-            nn.ReLU(),
-        )
         layer = Block(
             d_model=hidden_size,
             nhead=num_attention_heads,
@@ -100,11 +105,23 @@ class AggregatedCategoricalTransformer(nn.Module):
             diffusion_step=num_timesteps,
             timestep_type=timestep_type,
         )
-        self.backbone = TransformerEncoder(layer, num_hidden_layers)
-        self.dec = nn.Sequential(
+        backbone = TransformerEncoder(layer, num_hidden_layers)
+        cat_emb = nn.Embedding(vocab_size, hidden_size)
+        drop = nn.Dropout(dropout)
+        head = nn.Sequential(
+            nn.LayerNorm(hidden_size),
+            nn.Linear(hidden_size, 1, bias=False),
+        )
+        enc = nn.Sequential(
+            nn.Linear(num_attributes_per_element * hidden_size, hidden_size),
+            nn.ReLU(),
+        )
+        dec = nn.Sequential(
             nn.Linear(hidden_size, num_attributes_per_element * hidden_size),
             nn.ReLU(),
         )
+        self.backbone = backbone
+        self.cat_emb = cat_emb
         self.pos_emb = None
         if CorrectorPositionEmbedding(pos_emb) is not CorrectorPositionEmbedding.none:
             self.pos_emb = ElementPositionalEmbedding(
@@ -112,10 +129,10 @@ class AggregatedCategoricalTransformer(nn.Module):
                 max_token_length // num_attributes_per_element,
                 n_attr_per_elem=1,
             )
-        self.head = nn.Sequential(
-            nn.LayerNorm(hidden_size),
-            nn.Linear(hidden_size, 1, bias=False),
-        )
+        self.drop = drop
+        self.head = head
+        self.enc = enc
+        self.dec = dec
 
     def forward(
         self,
@@ -294,6 +311,7 @@ class LayoutCorrectorModel(ModelMixin, ConfigMixin):
             num_attributes_per_element=num_attributes_per_element,
             num_timesteps=num_timesteps,
         )
+        self.apply(_init_layout_corrector_weights)
 
     def forward(
         self,
