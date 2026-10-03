@@ -28,6 +28,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for LayoutDM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2303.08137&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2303.08137)
@@ -49,7 +50,7 @@ LayoutDM is a discrete diffusion layout generator for controllable UI and docume
 
 - **Developed by:** Naoto Inoue et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0.
 
@@ -62,10 +63,10 @@ LayoutDM is a discrete diffusion layout generator for controllable UI and docume
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layoutdm-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layoutdm-publaynet) | not-published |
+| Checkpoint | Hub ID                                                                                                            | Status        |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layoutdm-rico25`](https://huggingface.co/creative-graphic-design/layoutdm-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/layoutdm-publaynet`](https://huggingface.co/creative-graphic-design/layoutdm-publaynet) | not-published |
 
 ## Uses
 
@@ -75,14 +76,14 @@ Use this package for research inference, conversion checks, and agreement checks
 
 LayoutDM supports controllable discrete diffusion over layout tokens. The converted checkpoints follow the original release for RICO25 mobile UI layouts and PubLayNet document page layouts, both with at most 25 elements.
 
-| `condition_type` | Required inputs | Effect |
-| --- | --- | --- |
-| `unconditional` | none | samples labels and geometry |
-| `label` | `labels`, `bbox`, `mask` | keeps labels fixed and samples geometry |
-| `label_size` | `labels`, `bbox`, `mask` | keeps labels and element sizes fixed |
-| `completion` | `labels`, `bbox`, `mask` | preserves provided elements and fills the remainder |
-| `refinement` | `labels`, `bbox`, `mask` | refines an existing layout |
-| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` |
+| `condition_type`                                                 | Required inputs          | Effect                                              |
+| ---------------------------------------------------------------- | ------------------------ | --------------------------------------------------- |
+| `unconditional`                                                  | none                     | samples labels and geometry                         |
+| `label`                                                          | `labels`, `bbox`, `mask` | keeps labels fixed and samples geometry             |
+| `label_size`                                                     | `labels`, `bbox`, `mask` | keeps labels and element sizes fixed                |
+| `completion`                                                     | `labels`, `bbox`, `mask` | preserves provided elements and fills the remainder |
+| `refinement`                                                     | `labels`, `bbox`, `mask` | refines an existing layout                          |
+| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable           | raises `NotImplementedError`                        |
 
 ### Downstream Use
 
@@ -145,10 +146,10 @@ print(out.bbox.shape)
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
 
 ### Training Procedure
 
@@ -184,9 +185,9 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Tokenizer exact | Deterministic exact | Denoiser logits assertion |
-| --- | ---: | ---: | --- |
-| RICO25 | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Dataset   |                                             Tokenizer exact |                                         Deterministic exact | Denoiser logits assertion              |
+| --------- | ----------------------------------------------------------: | ----------------------------------------------------------: | -------------------------------------- |
+| RICO25    | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 | PubLayNet | 1 sample (25 elements x 5 attributes = 125 token positions) | 1 sample (25 elements x 5 attributes = 125 token positions) | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 
 The deterministic sequence check uses the non-default argmax sampling mode (`sampling="deterministic"`), not the pipeline's stochastic default.
@@ -194,7 +195,6 @@ The deterministic sequence check uses the non-default argmax sampling mode (`sam
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading. See [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-dm/TRAINING.md) for package-local LightningCLI training reproduction.
-
 
 ## Environmental Impact
 

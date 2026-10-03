@@ -45,10 +45,7 @@ Training configs live under `models/<package>/configs/training`.
 
 ## Scheduler and Recipe Notes
 
-Document optimizer, scheduler cadence, validation cadence, batch-size,
-accumulation, initialization, and recipe differences that affect reproduction.
-State observed environment constraints as verified setup, not as inherent
-package requirements.
+Document optimizer, scheduler cadence, validation cadence, batch-size, accumulation, initialization, and recipe differences that affect reproduction. State observed environment constraints as verified setup, not as inherent package requirements. Record inapplicable-rule notes and amendment citations here, in the format defined in [Stage Rules](../training-reproduction.md#stage-rules).
 
 ## Seed Policy
 

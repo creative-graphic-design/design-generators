@@ -7,7 +7,8 @@ import sys
 
 def main() -> int:
     """Dispatch the supported repository checker command."""
-    if sys.argv[1:] != ["check", "model-readmes"]:
+    args = sys.argv[1:]
+    if len(args) < 2 or args[:2] != ["check", "model-readmes"]:
         print("usage: devharness check model-readmes", file=sys.stderr)
         return 2
 
@@ -17,4 +18,4 @@ def main() -> int:
         print(exc, file=sys.stderr)
         return 1
 
-    return model_readmes.main()
+    return model_readmes.main(args[2:])

@@ -73,15 +73,33 @@ def test_readme_badge_policy_derives_model_label_from_alt_prefix(
     ] == [("model", "LayoutGAN++", "blue", None)]
 
 
-def test_root_readme_models_table_omits_generated_metadata_badges() -> None:
+def test_root_readme_model_classification_badges_follow_policy() -> None:
     check_readme_badges = _load_check_readme_badges()
-    metadata_badges = [
+    badges = [
         badge
         for badge in check_readme_badges._iter_badges(REPO_ROOT / "README.md")
-        if badge.label in {"dataset", "framework", "task"}
+        if badge.label in {"task", "content"}
     ]
 
-    assert metadata_badges == []
+    assert len(badges) == 56
+    assert {badge.label for badge in badges} == {"task", "content"}
+
+
+def test_docs_index_classification_badges_follow_root_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    check_readme_badges = _load_check_readme_badges()
+    monkeypatch.setattr(check_readme_badges, "REPO_ROOT", tmp_path)
+    docs_index = tmp_path / "docs" / "index.md"
+    docs_index.parent.mkdir()
+    docs_index.write_text(
+        "![task: task-agnostic](https://img.shields.io/static/v1?label=task&"
+        "message=task-agnostic&color=purple)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="task.*color"):
+        check_readme_badges._iter_badges(docs_index)
 
 
 def test_root_readme_badge_policy_enforces_library_badges() -> None:

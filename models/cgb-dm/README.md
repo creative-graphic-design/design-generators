@@ -30,6 +30,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for CGB-DM
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2407.15233&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2407.15233)
@@ -51,7 +52,7 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 - **Developed by:** Yu Li, Yifan Chen, Gongye Liu, Fei Yin, Qingyan Bai, Jie Wu, Hongfa Wang, Ruihang Chu, and Yujiu Yang.
 - **Shared by:** creative-graphic-design.
-- **Model type:** content-aware poster layout generation.
+- **Model type:** content-aware; task: task-agnostic; conditioning: label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** Apache-2.0 for the original implementation and this package.
 
@@ -63,10 +64,10 @@ CGB-DM generates poster layouts from content images, saliency information, and o
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
+| Checkpoint              | Hub ID                                            | Status                                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PKU PosterLayout CGB-DM | `creative-graphic-design/cgb-dm-pku-posterlayout` | local training complete; S5 (full-run evaluation stage) recipe instability documented in [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md); Hub publication pending |
-| CGL CGB-DM | `creative-graphic-design/cgb-dm-cgl` | local training and S5 practical parity complete; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md); Hub publication pending |
+| CGL CGB-DM              | `creative-graphic-design/cgb-dm-cgl`              | local training and S5 practical parity complete; see [TRAINING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md); Hub publication pending                                     |
 
 ## Uses
 
@@ -141,11 +142,11 @@ uv run --package cgb-dm --extra training \
 
 The original-implementation agreement suite requires local CGB-DM assets and `PARITY_REQUIRE=1`; this setting makes missing assets fail the run instead of allowing an all-skip result.
 
-| Dataset | Stage | Cases | Criterion | Result |
-| --- | --- | ---: | --- | --- |
-| PKU PosterLayout | original-code [S0-S2](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md) training-step agreement | 1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1` |
-| PKU PosterLayout | S5 full-run metrics | 3 evaluation seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; seed-variance matrix shows shared no-underlay seed/trajectory instability | not a practical-parity claim: no-underlay collapse is not package-exclusive, with observed collapse rates of 3/4 original runs and 4/5 package runs; `undl`/`unds` are undefined when no underlay is generated, and the number of runs is too small for a stable frequency comparison |
-| CGL | S5 full-run metrics | 3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are in practical parity | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115` |
+| Dataset          | Stage                                                                                                                                           |                                  Cases | Criterion                                                                                                                                                                                                    | Result                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PKU PosterLayout | original-code [S0-S2](https://github.com/creative-graphic-design/design-generators/blob/main/models/cgb-dm/TRAINING.md) training-step agreement |                          1 fixed batch | S0 exact loader replay; S1 trace exact for integer/mask tensors and `atol=1e-7, rtol=1e-5` for CUDA floating tensors; S2 gradients `atol=1e-9, rtol=1e-5`, post-Adam parameters/state `atol=5e-7, rtol=2e-3` | passes locally with `PARITY_REQUIRE=1`                                                                                                                                                                                                                                                |
+| PKU PosterLayout | S5 full-run metrics                                                                                                                             | 3 evaluation seeds, 1,000 samples/seed | raw internal classes and boxes evaluated with original metric formulas; seed-variance matrix shows shared no-underlay seed/trajectory instability                                                            | not a practical-parity claim: no-underlay collapse is not package-exclusive, with observed collapse rates of 3/4 original runs and 4/5 package runs; `undl`/`unds` are undefined when no underlay is generated, and the number of runs is too small for a stable frequency comparison |
+| CGL              | S5 full-run metrics                                                                                                                             |            3 seeds, 6,055 samples/seed | raw internal classes and boxes evaluated with original metric formulas; package and reference distributions are in practical parity                                                                          | pass: `val=0.999213 +/- 0.000044`, `ove=0.001790 +/- 0.000203`, `undl=0.996399 +/- 0.001292`, `unds=0.987553 +/- 0.002680`, `occ=0.116357 +/- 0.000279`, `rea=0.005971 +/- 0.000115`                                                                                                  |
 
 ## Reproducibility
 

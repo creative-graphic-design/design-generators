@@ -29,6 +29,7 @@ model-index:
 ---
 
 <!-- --8<-- [start:card] -->
+
 # Model Card for Layout-Corrector
 
 [![arXiv](https://img.shields.io/static/v1?label=arXiv&message=2409.16689&color=b31b1b&style=flat-square&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2409.16689)
@@ -51,7 +52,7 @@ Layout-Corrector refines candidate layouts by running a training-free correction
 
 - **Developed by:** Shoma Iwai et al.
 - **Shared by:** creative-graphic-design.
-- **Model type:** layout generation.
+- **Model type:** content-agnostic; task: task-agnostic; conditioning: unconditional, label, label_size, completion, refinement.
 - **Language(s) (NLP):** not applicable.
 - **License:** MIT.
 
@@ -62,11 +63,11 @@ Layout-Corrector refines candidate layouts by running a training-free correction
 
 ## Supported Checkpoints
 
-| Checkpoint | Hub ID | Status |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/layout-corrector-rico25`](https://huggingface.co/creative-graphic-design/layout-corrector-rico25) | not-published |
-| PubLayNet | [`creative-graphic-design/layout-corrector-publaynet`](https://huggingface.co/creative-graphic-design/layout-corrector-publaynet) | not-published |
-| Crello | [`creative-graphic-design/layout-corrector-crello`](https://huggingface.co/creative-graphic-design/layout-corrector-crello) | not-published |
+| Checkpoint | Hub ID                                                                                                                            | Status        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| RICO25     | [`creative-graphic-design/layout-corrector-rico25`](https://huggingface.co/creative-graphic-design/layout-corrector-rico25)       | not-published |
+| PubLayNet  | [`creative-graphic-design/layout-corrector-publaynet`](https://huggingface.co/creative-graphic-design/layout-corrector-publaynet) | not-published |
+| Crello     | [`creative-graphic-design/layout-corrector-crello`](https://huggingface.co/creative-graphic-design/layout-corrector-crello)       | not-published |
 
 ## Uses
 
@@ -129,14 +130,14 @@ LayoutDM samples the next step
 
 Conditional generation follows the nested LayoutDM processor path:
 
-| `condition_type` | Required inputs | Effect |
-| --- | --- | --- |
-| `unconditional` | none | samples with nested LayoutDM, then applies correction |
-| `label` | `labels`, `bbox`, optional `mask` | keeps labels fixed and corrects sampled geometry |
-| `label_size` | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed |
-| `completion` | `labels`, `bbox`, optional `mask` | preserves provided elements and completes the layout |
-| `refinement` | `labels`, `bbox`, optional `mask` | refines the provided layout |
-| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable | raises `NotImplementedError` through nested LayoutDM |
+| `condition_type`                                                 | Required inputs                   | Effect                                                |
+| ---------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `unconditional`                                                  | none                              | samples with nested LayoutDM, then applies correction |
+| `label`                                                          | `labels`, `bbox`, optional `mask` | keeps labels fixed and corrects sampled geometry      |
+| `label_size`                                                     | `labels`, `bbox`, optional `mask` | keeps labels and element sizes fixed                  |
+| `completion`                                                     | `labels`, `bbox`, optional `mask` | preserves provided elements and completes the layout  |
+| `refinement`                                                     | `labels`, `bbox`, optional `mask` | refines the provided layout                           |
+| `text`, `content_image`, `relation`, `hierarchical`, `retrieval` | not applicable                    | raises `NotImplementedError` through nested LayoutDM  |
 
 ```python
 labels = [[1, 2, 3]]
@@ -205,11 +206,11 @@ print(out.id2label[int(out.labels[out.mask][0])])
 
 ### Training Data
 
-| Dataset | Dataset ID | Notes |
-| --- | --- | --- |
-| RICO25 | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico) | ui-screenshots-and-hierarchies-with-semantic-annotations |
-| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default |
-| Crello | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) | canonical source until an org mirror exists |
+| Dataset   | Dataset ID                                                                                               | Notes                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| RICO25    | [`creative-graphic-design/Rico`](https://huggingface.co/datasets/creative-graphic-design/Rico)           | ui-screenshots-and-hierarchies-with-semantic-annotations |
+| PubLayNet | [`creative-graphic-design/PubLayNet`](https://huggingface.co/datasets/creative-graphic-design/PubLayNet) | default                                                  |
+| Crello    | [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello)                                 | canonical source until an org mirror exists              |
 
 The converted checkpoints follow the original Layout-Corrector release and use the authors' released preprocessing package for exact agreement fixtures. For Crello, [`cyberagent/crello`](https://huggingface.co/datasets/cyberagent/crello) is the canonical Hugging Face dataset source for processor/data-path documentation; the authors' processed splits remain the agreement baseline because they are the released preprocessing artifact.
 
@@ -247,22 +248,21 @@ Metrics are exact tensor equality, exact token or byte equality, or an explicitl
 
 ### Parity Results
 
-| Dataset | Seed | Compared path | Cases | Assertion |
-| --- | ---: | --- | ---: | --- |
-| RICO25 | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| RICO25 | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| PubLayNet | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
-| Crello | 2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Dataset   | Seed | Compared path                                                           |             Cases | Assertion                              |
+| --------- | ---: | ----------------------------------------------------------------------- | ----------------: | -------------------------------------- |
+| RICO25    |    0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25    |    1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| RICO25    |    2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet |    0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet |    1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| PubLayNet |    2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello    |    0 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello    |    1 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
+| Crello    |    2 | original-implementation corrector logits vs. converted corrector logits | 1 synthetic batch | `torch.allclose(atol=1e-5, rtol=1e-5)` |
 
 ## Reproducibility
 
 See [REPRODUCING.md](https://github.com/creative-graphic-design/design-generators/blob/main/models/layout-corrector/REPRODUCING.md) for the commands that download original-implementation assets, generate reference outputs, run agreement checks, convert checkpoints, and smoke-test local loading.
-
 
 ## Environmental Impact
 
