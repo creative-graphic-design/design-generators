@@ -1061,6 +1061,7 @@ def _run_natural_system(
             enable_checkpointing=False,
             enable_progress_bar=False,
             enable_model_summary=False,
+            callbacks=[callback],
             default_root_dir=ROOT / ".cache" / "lace" / "trainer",
             log_every_n_steps=steps,
         )
