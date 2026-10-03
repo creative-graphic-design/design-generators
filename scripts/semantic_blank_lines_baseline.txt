@@ -55,7 +55,7 @@ models/dlt/src/dlt/training/seed.py	block-end	1
 models/ds-gan/src/ds_gan/conversion.py	block-end	4
 models/ds-gan/src/ds_gan/modeling_ds_gan.py	block-end	3
 models/ds-gan/src/ds_gan/pipeline_ds_gan.py	block-end	8
-models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	32
+models/ds-gan/src/ds_gan/processing_ds_gan.py	block-end	30
 models/flex-dm/src/flex_dm/configuration_flex_dm.py	block-end	5
 models/flex-dm/src/flex_dm/conversion.py	block-end	11
 models/flex-dm/src/flex_dm/data_specs.py	block-end	17

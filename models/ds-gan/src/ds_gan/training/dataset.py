@@ -32,6 +32,7 @@ SOURCE_FIELDS = {
     "test.saliency_basnet": "basnet_saliency_map",
     "train.annotations": "annotations",
 }
+SOURCE_TO_VENDOR_LABEL = {0: 1, 1: 2, 2: 3, 3: 0}
 
 DatasetScalar: TypeAlias = str | int | float | bool | None
 DatasetValue: TypeAlias = (
@@ -122,6 +123,7 @@ class DSGANDataset(TorchDataset[dict[str, Shaped[torch.Tensor, "..."]]]):
                 },
             ),
             max_elem=self.max_elem,
+            include_unconnected_underlays=False,
         )
         bbox = cast(torch.Tensor, layout_fields["bbox"]).squeeze(0)
         labels = cast(torch.Tensor, layout_fields["labels"]).squeeze(0)
@@ -191,6 +193,12 @@ def build_bridge_manifest(
             "box_format": "ltrb_to_normalized_cxcywh",
             "canvas_size": [513, 750],
             "invalid_class": "filtered",
+            "source_label_to_vendor_class": {
+                "0": 1,
+                "1": 2,
+                "2": 3,
+                "3": 0,
+            },
         },
     }
 

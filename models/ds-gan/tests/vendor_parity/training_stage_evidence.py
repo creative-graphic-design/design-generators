@@ -15,7 +15,6 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Any, Iterator, cast  # noqa: TID251 - vendor adapter boundary is heterogeneous
-from urllib.parse import unquote, urlparse
 
 import numpy as np
 import timm
@@ -65,19 +64,20 @@ def _sha256(path: Path) -> str:
 
 def _runtime_wheel(name: str, override_path: str) -> dict[str, str]:
     metadata = distribution(name)
-    direct_url = metadata.read_text("direct_url.json")
-    if direct_url is None:
-        raise RuntimeError(f"{name} has no direct_url.json wheel provenance")
-    url = json.loads(direct_url)["url"]
     wheel_path = Path(os.environ[override_path])
     if not wheel_path.exists():
         raise RuntimeError(f"wheel path for {name} is unavailable: {wheel_path}")
+    wheel_name = wheel_path.name
+    cuda_tag = next(
+        (part for part in wheel_name.split("+")[1].split("-") if part.startswith("cu")),
+        "unknown",
+    )
     return {
-        "name": unquote(Path(urlparse(url).path).name),
+        "name": name,
         "version": metadata.version,
-        "url": url,
+        "wheel_name": wheel_name,
+        "cuda_tag": cuda_tag,
         "sha256": _sha256(wheel_path),
-        "measured_from": str(wheel_path),
     }
 
 
@@ -93,7 +93,9 @@ def _runtime() -> dict[str, Any]:
         "torchvision_wheel": _runtime_wheel(
             "torchvision", "DSGAN_TORCHVISION_WHEEL_PATH"
         ),
-        "audit_venv": os.environ.get("DSGAN_AUDIT_VENV", "<DSGAN_AUDIT_VENV>"),
+        "audit_venv_env": "DSGAN_AUDIT_VENV",
+        "venv_creation_command": 'python -m venv "$DSGAN_AUDIT_VENV"',
+        "environment_basis": "lockfile environment for all CPU-only checks and tests; audited runtime only for CUDA evidence",
         "pip_freeze_sha256": freeze_hash,
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "deterministic_warn_only": torch.is_deterministic_algorithms_warn_only_enabled(),
@@ -419,6 +421,7 @@ def _aggregate_files(paths: list[Path], root: Path) -> dict[str, Any]:
 
 def _materialize_bridge() -> dict[str, Any]:
     from ds_gan.training.dataset import (
+        SOURCE_TO_VENDOR_LABEL,
         load_cached_dataset,
         manifest_from_cached_dataset,
     )
@@ -437,31 +440,58 @@ def _materialize_bridge() -> dict[str, Any]:
     paths["train_csv"].parent.mkdir(parents=True, exist_ok=True)
     train_rows = source["train"]
     test_rows = source["test"]
+    train_images_complete = len(list(paths["train_images"].glob("*.png"))) == len(
+        train_rows
+    )
+    train_pfpn_complete = len(list(paths["train_pfpn"].glob("*.png"))) == len(
+        train_rows
+    )
+    train_basnet_complete = len(list(paths["train_basnet"].glob("*.png"))) == len(
+        train_rows
+    )
     with paths["train_csv"].open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["poster_path", "total_elem", "cls_elem", "box_elem"])
-        for index, row in enumerate(train_rows):
+        annotation_rows = train_rows.select_columns(["annotations"]).with_format(
+            "python"
+        )
+        for index, row in enumerate(annotation_rows):
             filename = f"{index:05d}_mask.png"
             poster_path = f"train/{index:05d}.png"
-            row["inpainted_poster"].save(paths["train_images"] / filename)
-            row["pfpn_saliency_map"].save(
-                paths["train_pfpn"] / filename.replace(".png", "_pred.png")
-            )
-            row["basnet_saliency_map"].save(paths["train_basnet"] / filename)
             annotations = row["annotations"]
+            if not (
+                train_images_complete and train_pfpn_complete and train_basnet_complete
+            ):
+                source_row = train_rows[index]
+                source_row["inpainted_poster"].save(paths["train_images"] / filename)
+                source_row["pfpn_saliency_map"].save(
+                    paths["train_pfpn"] / filename.replace(".png", "_pred.png")
+                )
+                source_row["basnet_saliency_map"].save(paths["train_basnet"] / filename)
             for label, box in zip(
                 annotations["cls_elem"], annotations["box_elem"], strict=True
             ):
+                vendor_label = SOURCE_TO_VENDOR_LABEL[int(label)]
+                if vendor_label == 0:
+                    continue
                 writer.writerow(
-                    [poster_path, len(annotations["cls_elem"]), label, repr(box)]
+                    [poster_path, len(annotations["cls_elem"]), vendor_label, repr(box)]
                 )
-    for index, row in enumerate(test_rows):
-        filename = f"{index:05d}.png"
-        row["canvas"].save(paths["test_images"] / filename)
-        row["pfpn_saliency_map"].save(
-            paths["test_pfpn"] / filename.replace(".png", "_pred.png")
-        )
-        row["basnet_saliency_map"].save(paths["test_basnet"] / filename)
+    test_images_complete = len(list(paths["test_images"].glob("*.png"))) == len(
+        test_rows
+    )
+    test_pfpn_complete = len(list(paths["test_pfpn"].glob("*.png"))) == len(test_rows)
+    test_basnet_complete = len(list(paths["test_basnet"].glob("*.png"))) == len(
+        test_rows
+    )
+    if not (test_images_complete and test_pfpn_complete and test_basnet_complete):
+        for index, row in enumerate(test_rows):
+            filename = f"{index:05d}.png"
+            row["canvas"].save(paths["test_images"] / filename)
+            row["pfpn_saliency_map"].save(
+                paths["test_pfpn"] / filename.replace(".png", "_pred.png")
+            )
+            row["basnet_saliency_map"].save(paths["test_basnet"] / filename)
     manifest = manifest_from_cached_dataset(_source_root())
     manifest["source_fields"] = {
         "train.inpainted_poster": "inpainted_poster",
@@ -505,6 +535,7 @@ def _materialize_bridge() -> dict[str, Any]:
 
 
 def _vendor_loaders(seed: int) -> tuple[Any, Any]:
+    sys.path.insert(0, str(VENDOR))
     from dataloader import canvas, canvasLayout
 
     paths = _bridge_paths()
