@@ -70,6 +70,9 @@ CONVERTED = ROOT / ".cache" / "layoutganpp" / "converted" / "layoutganpp-magazin
 VENDOR_CHECKPOINT = VENDOR_WORK / "pretrained" / "layoutganpp_magazine.pth.tar"
 VENDOR_LAYOUTNET = VENDOR_WORK / "pretrained" / "layoutnet_magazine.pth.tar"
 VENDOR_BATCH_SIZE = 64
+WEIGHT_BASE_URL = "https://esslab.jp/~kotaro/files/const_layout"
+CHECKPOINT_URL = f"{WEIGHT_BASE_URL}/layoutganpp_magazine.pth.tar"
+LAYOUTNET_URL = f"{WEIGHT_BASE_URL}/layoutnet_magazine.pth.tar"
 LATENT_SIZE = 4
 INIT_SEED = 42975
 S1_LATENT_SEED = 42001
@@ -111,6 +114,18 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _asset_record(path: Path, url: str, acquisition: str) -> dict[str, JsonValue]:
+    available = path.exists()
+    return {
+        "url": url,
+        "path": str(path.relative_to(ROOT)),
+        "available": available,
+        "size_bytes": path.stat().st_size if available else None,
+        "sha256": _sha256(path) if available else None,
+        "acquisition": acquisition,
+    }
 
 
 def _audit_runtime() -> dict[str, JsonValue]:
@@ -1131,6 +1146,18 @@ def _stage_s4(device: torch.device) -> Path:
                     ),
                 },
             },
+            "downloads": {
+                "trained_checkpoint": _asset_record(
+                    CHECKPOINT,
+                    CHECKPOINT_URL,
+                    "models/layoutganpp/scripts/download_original_weights.py via GET",
+                ),
+                "layoutnet_fid": _asset_record(
+                    VENDOR_LAYOUTNET,
+                    LAYOUTNET_URL,
+                    "official URL via GET",
+                ),
+            },
             "inputs": {
                 "dataset": "magazine",
                 "split": "test",
@@ -1344,6 +1371,18 @@ def _stage_s4(device: torch.device) -> Path:
                 "path": str(VENDOR_LAYOUTNET.relative_to(ROOT)),
                 "sha256": _sha256(VENDOR_LAYOUTNET),
             },
+        },
+        "downloads": {
+            "trained_checkpoint": _asset_record(
+                CHECKPOINT,
+                CHECKPOINT_URL,
+                "models/layoutganpp/scripts/download_original_weights.py via GET",
+            ),
+            "layoutnet_fid": _asset_record(
+                VENDOR_LAYOUTNET,
+                LAYOUTNET_URL,
+                "official URL via GET",
+            ),
         },
         "inputs": {
             "path": str(input_file.relative_to(ROOT)),
