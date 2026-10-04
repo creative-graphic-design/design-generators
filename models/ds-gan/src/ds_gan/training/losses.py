@@ -154,14 +154,10 @@ class DSGANSetCriterion(nn.Module):
             device=pred_logits.device,
         )
         target_classes[batch_indices, source_indices] = target_labels
-        log_probs = torch.nn.functional.log_softmax(pred_logits.transpose(1, 2), dim=1)
-        class_weights = cast(torch.Tensor, self.empty_weight)[target_classes]
-        loss_ce = (
-            -(
-                log_probs.gather(1, target_classes.unsqueeze(1)).squeeze(1)
-                * class_weights
-            ).sum()
-            / class_weights.sum()
+        loss_ce = torch.nn.functional.cross_entropy(
+            pred_logits.transpose(1, 2),
+            target_classes,
+            cast(torch.Tensor, self.empty_weight),
         )
         source_boxes = pred_boxes[batch_indices, source_indices]
         target_boxes = torch.cat(
