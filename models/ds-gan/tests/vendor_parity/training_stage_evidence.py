@@ -1072,6 +1072,13 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
         generator = package_generator
         discriminator = package_discriminator
     optimizers = _optimizers(generator, discriminator)
+    initial_parameters = {
+        name: value.cpu()
+        for name, value in {
+            **_named_parameters(generator, "generator"),
+            **_named_parameters(discriminator, "discriminator"),
+        }.items()
+    }
     if system == "vendor":
         _schedulers(optimizers)
         batch, _, initial_layout, batch_meta = _fixed_batch(SEED, device)
@@ -1100,6 +1107,7 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
             trace = _package_step(module, batch, *optimizers, 1, initial_layout)
 
     states = {
+        "initial_parameters": initial_parameters,
         "parameters": {
             name: value.cpu()
             for name, value in {
@@ -1120,6 +1128,12 @@ def _run_s2_self_repeat(system: str, repeat: int, json_path: Path) -> None:
                 **_named_optimizer_state(optimizers[0], generator, "generator"),
                 **_named_optimizer_state(optimizers[1], discriminator, "discriminator"),
             }.items()
+        },
+        "optimizer_hyperparameters": {
+            **_named_optimizer_hyperparameters(optimizers[0], generator, "generator"),
+            **_named_optimizer_hyperparameters(
+                optimizers[1], discriminator, "discriminator"
+            ),
         },
     }
 
@@ -1330,6 +1344,10 @@ def _elementwise_envelope(
                 float(state["gradients"][name][maximum_index].item())
                 for state in package_states
             ]
+            maximum_candidate["all_24_gradient_values"] = (
+                maximum_candidate["vendor_gradient_values"]
+                + maximum_candidate["package_gradient_values"]
+            )
         candidate_cross_abs = float(maximum_candidate["cross_max_abs"])
         if candidate_cross_abs > maximum_cross_abs:
             maximum = maximum_candidate
@@ -1365,6 +1383,153 @@ def _elementwise_envelope(
         "outside_self_envelope": outside,
         "maximum_cross_element": maximum,
         "cross_inside_combined_self_envelope": not outside,
+    }
+
+
+def _parameter_update_mechanism(
+    vendor_states: list[dict[str, Any]],
+    package_states: list[dict[str, Any]],
+    parameter_envelope: dict[str, Any],
+) -> dict[str, Any]:
+    candidates: list[dict[str, Any]] = []
+    for item in parameter_envelope["outside_self_envelope"]:
+        name = item["name"]
+        index = tuple(item["index"])
+        vendor_gradients = [
+            float(state["gradients"][name][index].item()) for state in vendor_states
+        ]
+        package_gradients = [
+            float(state["gradients"][name][index].item()) for state in package_states
+        ]
+        all_gradients = vendor_gradients + package_gradients
+        gradient_self_max_abs = max(
+            max(vendor_gradients) - min(vendor_gradients),
+            max(package_gradients) - min(package_gradients),
+        )
+        gradient_cross_max_abs = max(
+            abs(vendor - package)
+            for vendor, package in zip(vendor_gradients, package_gradients, strict=True)
+        )
+        vendor_hyperparameters = vendor_states[0]["optimizer_hyperparameters"][name]
+        package_hyperparameters = package_states[0]["optimizer_hyperparameters"][name]
+        initial_values = [
+            float(state["initial_parameters"][name][index].item())
+            for state in vendor_states
+        ] + [
+            float(state["initial_parameters"][name][index].item())
+            for state in package_states
+        ]
+        initial_cross_max_abs = max(
+            abs(vendor - package)
+            for vendor, package in zip(
+                initial_values[: len(vendor_states)],
+                initial_values[len(vendor_states) :],
+                strict=True,
+            )
+        )
+        predictions: list[dict[str, Any]] = []
+        for repeat, (vendor_state, package_state) in enumerate(
+            zip(vendor_states, package_states, strict=True), 1
+        ):
+            vendor_gradient = vendor_gradients[repeat - 1]
+            package_gradient = package_gradients[repeat - 1]
+            vendor_delta = _adam_first_step_delta(
+                vendor_gradient, vendor_hyperparameters
+            )
+            package_delta = _adam_first_step_delta(
+                package_gradient, package_hyperparameters
+            )
+            vendor_initial = vendor_state["initial_parameters"][name][index]
+            package_initial = package_state["initial_parameters"][name][index]
+            predicted_vendor = float(
+                (vendor_initial + torch.tensor(vendor_delta)).item()
+            )
+            predicted_package = float(
+                (package_initial + torch.tensor(package_delta)).item()
+            )
+            actual_vendor = float(vendor_state["parameters"][name][index].item())
+            actual_package = float(package_state["parameters"][name][index].item())
+            predicted_cross = predicted_vendor - predicted_package
+            actual_cross = actual_vendor - actual_package
+            predictions.append(
+                {
+                    "repeat": repeat,
+                    "vendor_gradient": vendor_gradient,
+                    "package_gradient": package_gradient,
+                    "vendor_gradient_sign": (
+                        "positive"
+                        if vendor_gradient > 0
+                        else "negative"
+                        if vendor_gradient < 0
+                        else "zero"
+                    ),
+                    "package_gradient_sign": (
+                        "positive"
+                        if package_gradient > 0
+                        else "negative"
+                        if package_gradient < 0
+                        else "zero"
+                    ),
+                    "vendor_delta": vendor_delta,
+                    "package_delta": package_delta,
+                    "predicted_vendor_parameter": predicted_vendor,
+                    "predicted_package_parameter": predicted_package,
+                    "predicted_cross_parameter_difference": predicted_cross,
+                    "actual_cross_parameter_difference": actual_cross,
+                    "prediction_residual": actual_cross - predicted_cross,
+                }
+            )
+        vendor_signs = {
+            "positive" if value > 0 else "negative" if value < 0 else "zero"
+            for value in vendor_gradients
+        }
+        package_signs = {
+            "positive" if value > 0 else "negative" if value < 0 else "zero"
+            for value in package_gradients
+        }
+        all_signs = {
+            "positive" if value > 0 else "negative" if value < 0 else "zero"
+            for value in all_gradients
+        }
+        candidates.append(
+            {
+                **item,
+                "vendor_gradient_values": vendor_gradients,
+                "package_gradient_values": package_gradients,
+                "all_24_gradient_values": all_gradients,
+                "vendor_gradient_signs": sorted(vendor_signs),
+                "package_gradient_signs": sorted(package_signs),
+                "all_gradient_signs": sorted(all_signs),
+                "both_signs_occur": "positive" in all_signs and "negative" in all_signs,
+                "gradient_cross_max_abs": gradient_cross_max_abs,
+                "gradient_self_max_abs": gradient_self_max_abs,
+                "gradient_inside_like_for_like_envelope": (
+                    gradient_cross_max_abs <= gradient_self_max_abs
+                ),
+                "initial_parameter_cross_max_abs": initial_cross_max_abs,
+                "vendor_optimizer_hyperparameters": vendor_hyperparameters,
+                "package_optimizer_hyperparameters": package_hyperparameters,
+                "adam_first_step_predictions": predictions,
+                "adam_prediction_max_abs_residual": max(
+                    abs(prediction["prediction_residual"]) for prediction in predictions
+                ),
+                "adam_prediction_bitwise": all(
+                    prediction["prediction_residual"] == 0.0
+                    for prediction in predictions
+                ),
+            }
+        )
+    explained = all(
+        candidate["both_signs_occur"]
+        and candidate["gradient_inside_like_for_like_envelope"]
+        and candidate["adam_prediction_bitwise"]
+        for candidate in candidates
+    )
+    return {
+        "parameter_outside_count": len(candidates),
+        "candidates": candidates,
+        "all_outside_elements_explained_by_sign_straddling_adam": explained,
+        "passed": explained,
     }
 
 
@@ -1539,6 +1704,38 @@ def _named_optimizer_state(
             if isinstance(value, torch.Tensor):
                 values[f"{prefix}.{name}.{key}"] = value.detach().clone()
     return values
+
+
+def _named_optimizer_hyperparameters(
+    optimizer: torch.optim.Optimizer, module: nn.Module, prefix: str
+) -> dict[str, dict[str, Any]]:
+    groups = {
+        id(parameter): group
+        for group in optimizer.param_groups
+        for parameter in group["params"]
+    }
+    return {
+        f"{prefix}.{name}": {
+            "lr": float(groups[id(parameter)]["lr"]),
+            "betas": [float(value) for value in groups[id(parameter)]["betas"]],
+            "eps": float(groups[id(parameter)]["eps"]),
+            "maximize": bool(groups[id(parameter)].get("maximize", False)),
+        }
+        for name, parameter in module.named_parameters()
+    }
+
+
+def _adam_first_step_delta(gradient: float, hyperparameters: dict[str, Any]) -> float:
+    value = torch.tensor(gradient, dtype=torch.float32)
+    if hyperparameters["maximize"]:
+        value = -value
+    beta1, beta2 = hyperparameters["betas"]
+    first_moment = (1.0 - beta1) * value
+    second_moment = (1.0 - beta2) * value.square()
+    step_size = hyperparameters["lr"] / (1.0 - beta1)
+    denominator = second_moment.sqrt() / (1.0 - beta2) ** 0.5
+    denominator = denominator + hyperparameters["eps"]
+    return float((-step_size * first_moment / denominator).item())
 
 
 def _fixed_batch(
@@ -1981,6 +2178,11 @@ def run_s2() -> Path:
         )
         for field in ("gradients", "parameters")
     }
+    parameter_update_mechanism = _parameter_update_mechanism(
+        self_states["vendor"],
+        self_states["package"],
+        elementwise_envelopes["parameters"],
+    )
     vendor_operator = _vendor_cross_entropy_operator()
     package_differences = {
         "loss": trace_comparison,
@@ -2061,6 +2263,7 @@ def run_s2() -> Path:
             "distributions": cross_distributions,
             "inside_self_distributions": inside_self_distributions,
             "elementwise_envelopes": elementwise_envelopes,
+            "parameter_update_mechanism": parameter_update_mechanism,
             "initial_layout_is_paired": cross_layout_is_paired,
         },
         "package_vendor_single_pair": {
@@ -2074,6 +2277,7 @@ def run_s2() -> Path:
             envelope["cross_inside_combined_self_envelope"]
             for envelope in elementwise_envelopes.values()
         )
+        and parameter_update_mechanism["passed"]
         and self_repeats_valid
     )
     passed = scheduler_comparison["passed"] and cause_passed
