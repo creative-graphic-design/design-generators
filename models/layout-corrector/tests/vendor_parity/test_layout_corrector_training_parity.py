@@ -1827,30 +1827,34 @@ def test_s4_loader_stream_matches_vendor(
         )
         for split in ("train", "validation", "test")
     }
+    observed_loader_num_workers = sorted(
+        {
+            row["vendor_loader_num_workers"]
+            for rows in split_rows.values()
+            for row in rows
+        }
+        | {
+            row["package_loader_num_workers"]
+            for rows in split_rows.values()
+            for row in rows
+        }
+    )
+    batch_stream_comparison = all(
+        row["max_abs_input_id_diff"] == 0 and row["attention_mask_mismatch_count"] == 0
+        for rows in split_rows.values()
+        for row in rows
+    )
+    assert all(len(rows) == 2 for rows in split_rows.values())
+    assert observed_loader_num_workers == [_loader_worker_count()]
+    assert batch_stream_comparison
     path = _write_json(
         "loader-stream",
         dataset,
         {
             "dataset": dataset,
             "splits": split_rows,
-            "observed_loader_num_workers": sorted(
-                {
-                    row["vendor_loader_num_workers"]
-                    for rows in split_rows.values()
-                    for row in rows
-                }
-                | {
-                    row["package_loader_num_workers"]
-                    for rows in split_rows.values()
-                    for row in rows
-                }
-            ),
-            "batch_stream_comparison": all(
-                row["max_abs_input_id_diff"] == 0
-                and row["attention_mask_mismatch_count"] == 0
-                for rows in split_rows.values()
-                for row in rows
-            ),
+            "observed_loader_num_workers": observed_loader_num_workers,
+            "batch_stream_comparison": batch_stream_comparison,
             "train_transform": "RandomOrder",
             "validation_transform": "none",
             "test_transform": "none (vendor evaluation-time preprocessing)",
