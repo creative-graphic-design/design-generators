@@ -8,7 +8,7 @@ tags:
 
 # LayoutGAN++ Training
 
-This record answers whether the package reproduces the pinned Const-layout Magazine training and evaluation paths before a full training run. It compares independently built states and fixed steps, a natural 300-step trajectory, seeded Magazine streams, and the vendor's original evaluation entry points on the official trained checkpoint. The S0-S4 result is PASS for Magazine: S4 produced 392 TEST predictions per system with FID 13.05, Max IoU 0.26, Alignment 0.95, and Overlap 33.56 for both systems; each system had 161 out-of-bounds boxes in 146 layouts, and prediction maximum absolute difference was 0.0. The staged seed scope is initialization 42975, S1 latent 42001, S2 latent 42002, S3 batch 42003 with independent per-repeat latent seeds 42004 and 42005, and S4 evaluation 42005. S5 full-run training remains not-yet-run for Magazine, RICO13, and PubLayNet, so this record does not claim full training reproduction.
+Question: does the package reproduce the pinned Const-layout Magazine training and evaluation paths before a full run? Method: compare independently constructed states, fixed package/vendor steps, a natural 300-step trajectory, seeded Magazine streams, and both systems through the vendor's original evaluation entry points on the official trained checkpoint. Result: S0-S4 PASS; S4 produced 392 TEST predictions per system with FID 13.05, Max IoU 0.26, Alignment 0.95, and Overlap 33.56 for both systems, each system had 161 out-of-bounds boxes in 146 layouts, and prediction maximum absolute difference was 0.0. Initialization used seed 42975, S1 used latent seed 42001, S2 used latent seed 42002, S3 used batch seed 42003 and per-repeat latent seeds 42004 and 42005, and S4 used evaluation seed 42005. Consequence: S5 full-run training remains not-yet-run for Magazine, RICO13, and PubLayNet, so this record does not claim full training reproduction.
 
 Run commands from the repository root. Keep generated data, logs, converted pipelines, checkpoints, and evaluation artifacts under `.cache/layoutganpp/`.
 
@@ -21,9 +21,17 @@ UV_FROZEN=1 uv sync --package layoutganpp --extra training --extra vendor
 
 Install the `vendor` extra only for original-code agreement checks.
 
+The audited runtime used Python 3.11.15 with the torch 2.8.0+cu128 and torchvision 0.23.0+cu128 wheels. Create it with the following commands, then keep the resulting `pip freeze` at `.cache/layoutganpp/runtime/pip-freeze.txt`.
+
+```bash
+LAYOUTGANPP_AUDIT_VENV=<your audit venv>
+UV_FROZEN=1 uv venv "$LAYOUTGANPP_AUDIT_VENV" --python 3.11
+UV_FROZEN=1 uv pip install --python "$LAYOUTGANPP_AUDIT_VENV/bin/python" torch==2.8.0+cu128 torchvision==0.23.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+```
+
 ## Data
 
-The staged evidence uses the approved Magazine source at Hugging Face revision `9b4981b46a4493b299a5412083b959ae4119e928`. The acquisition command, source revision, four Arrow shard hashes, and row count are recorded in `.cache/layoutganpp/data/magazine/source-manifest.json`, whose SHA-256 is `cddbe8b1965169e9c2c10b8dca0ab278d24d1074a2976bf8333003546bbbbeb0`.
+The staged evidence uses the approved Magazine source at Hugging Face revision `9b4981b46a4493b299a5412083b959ae4119e928`. The acquisition command, source revision, four Arrow shard hashes, and row count are recorded in `.cache/layoutganpp/data/magazine/source-manifest.json`, whose SHA-256 is `a0a2f9d5a39235cecffd3621b739aa6245cf5191a72b4e1a757db0326d4feeac`.
 
 | Dataset   | Source                                                                                                                                                      | Config or path                                                                                                                                               |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -37,18 +45,18 @@ The vendor converts polygon extrema to normalized center `xywh` boxes for every 
 
 Training configs live under `models/layoutganpp/configs/training`.
 
-| Config                       | Dataset            | Seed mode       | Purpose                                                                  |
-| ---------------------------- | ------------------ | --------------- | ------------------------------------------------------------------------ |
-| `layoutganpp_magazine.yaml`  | Magazine           | `deterministic` | Bounded package training wiring with one epoch and two training batches. |
-| `layoutganpp_rico13.yaml`    | RICO13             | `deterministic` | Bounded package training wiring; dataset transfer is unrun.              |
-| `layoutganpp_publaynet.yaml` | PubLayNet          | `deterministic` | Bounded package training wiring; dataset transfer is unrun.              |
-| `smoke.yaml`                 | Magazine synthetic | `deterministic` | CPU-only CLI wiring check.                                               |
+| Config                       | Dataset            | Purpose                                                                  |
+| ---------------------------- | ------------------ | ------------------------------------------------------------------------ |
+| `layoutganpp_magazine.yaml`  | Magazine           | Bounded package training wiring with one epoch and two training batches. |
+| `layoutganpp_rico13.yaml`    | RICO13             | Bounded package training wiring; dataset transfer is unrun.              |
+| `layoutganpp_publaynet.yaml` | PubLayNet          | Bounded package training wiring; dataset transfer is unrun.              |
+| `smoke.yaml`                 | Magazine synthetic | CPU-only CLI wiring check.                                               |
 
 ## Scheduler and Recipe Notes
 
-The vendor entry point is `vendor/const-layout/train.py` at vendor commit `5287480505939345543fff0b9f2e5d541e6f84e2`. The effective recipe uses batch size 64, latent size 4, learning rate `1e-5`, generator and discriminator `d_model=256`, four attention heads, and eight transformer layers per network, with the generator update before the discriminator update. The vendor recipe nominally specifies 200,000 iterations; the package configs are bounded wiring checks with `max_epochs: 1`, `limit_train_batches: 2`, and `limit_val_batches: 0`, so they do not claim that full duration. Scheduler — not applicable: the effective loop has no scheduler. EMA — not applicable: the effective loop has no EMA. AMP — not applicable: the staged checks use the effective FP32 path. Multi-worker randomness — inactive in S0-S2; S3 selected zero vendor workers only after proving no per-sample randomness.
+The vendor entry point is `vendor/const-layout/train.py` at vendor commit `5287480505939345543fff0b9f2e5d541e6f84e2`. The effective recipe uses batch size 64, latent size 4, learning rate `1e-5`, generator and discriminator `d_model=256`, four attention heads, and eight transformer layers per network, with the generator update before the discriminator update. The vendor recipe nominally specifies 200,000 iterations; the package configs are bounded wiring checks with `max_epochs: 1`, `limit_train_batches: 2`, and `limit_val_batches: 0`, so they do not claim that full duration. The package generator restores `post_init()` and overrides the Hugging Face `_init_weights` extension point as a no-op so production construction retains PyTorch's default initialization while state initialization remains bitwise matched. Scheduler — not applicable: the effective loop has no scheduler. EMA — not applicable: the effective loop has no EMA. AMP — not applicable: the staged checks use the effective FP32 path. Multi-worker randomness — inactive in S0-S2; S3 selected zero vendor workers only after proving no per-sample randomness.
 
-The S3 worker audit found no random calls in Magazine `__getitem__` or its active transform. With seed 42003, the first 20 vendor train-batch hashes were identical at four and zero workers: `80f71dbd1c4155bd54a5765af2bf1d479e02c9ef0a2357a99017b8a252583653`. The natural S3 layer therefore used the vendor's zero-worker loader in-process; this is a comparison-specific choice supported by the worker audit, not a general recipe change.
+The S3 worker audit found no random calls in Magazine `__getitem__` or its active transform. With seed 42003, the first 20 vendor train-batch hashes were identical at four and zero workers: `80f71dbd1c4155bd54a5765af2bf1d479e02c9ef0a2357a99017b8a252583653`. The natural S3 layer therefore used the vendor's zero-worker loader in-process; this is a comparison-specific choice supported by the worker audit, not a general recipe change. The vendor `train.py:main` ran with harness substitutions for `get_dataset`, `DataLoader`, `Adam`, `LayoutFID`, `SummaryWriter`, `save_image`, `save_checkpoint`, and `torch.Tensor.backward`; these substitutions supplied the recorded real Magazine batches and capture points while the vendor model, loss arithmetic, optimizer calls, and training entry point executed. The package side ran its production LightningModule `training_step` and `configure_optimizers` under a Lightning `Trainer` with the recorded gradient-clipping settings.
 
 ## Seed Policy
 
@@ -67,7 +75,7 @@ Initialization uses seed 42975. S1 uses latent seed 42001. S2 uses latent seed 4
 
 ## Stage Evidence
 
-All five stage records cite source commit `60f2317a3be6c6f58484cd3e92573f557ca29c23`, an ancestor of the PR head; the ordered S0-S4 checks ran from that committed source. The required loading-only change initialized `LayoutGANPPModel.all_tied_weights_keys`; `git diff --stat aa4b5d179edee2ce12b7c646704d0de3aeb7ca31 97dacc2f4518c696dbbf633b81317b1202cc98f2` was one insertion in `models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py`, with no model construction, initialization tensor, training-step, loss, optimizer, or parameter-order change, so it did not affect S0-S3. The main-integration merge is also an ancestor of the PR head.
+All five stage records cite source commit `b9419a2412f8d9df10c0e5daca868d8bf6bdfb83`; the ordered S0-S4 checks ran from this clean committed source, which is an ancestor of the PR head. The loading-only ancestry is `git diff --stat aa4b5d179edee2ce12b7c646704d0de3aeb7ca31 97dacc2f4518c696dbbf633b81317b1202cc98f2`, one insertion in `models/layoutganpp/src/layoutganpp/modeling_layoutganpp.py`; it changed checkpoint-loading metadata only, so it did not affect S0-S3. The production initialization repair is part of the cited evidence commit and was included in the ordered rerun.
 
 | Stage | Command                                                                                                                                                                                              | Artifact                                                                                                                                   | Result                                                                                                                                                                                                                               |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -78,9 +86,9 @@ All five stage records cite source commit `60f2317a3be6c6f58484cd3e92573f557ca29
 | S4    | `CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s4-loader-eval`                                                         | `.cache/layoutganpp/stage-evidence/s4-loader-eval/summary.json`                                                                            | PASS; seeded streams and trained-weight evaluation-path parity completed through the vendor `generate.py:main` and `eval.py:main` entry points.                                                                                      |
 | S5    | `CUDA_VISIBLE_DEVICES=<gpu-index> UV_FROZEN=1 uv run --package layoutganpp --extra training traingen fit --config models/layoutganpp/configs/training/layoutganpp_magazine.yaml --trainer.devices=1` | `.cache/layoutganpp/full-run/manifest.json; evaluation-path-parity: .cache/layoutganpp/stage-evidence/s4-loader-eval/evaluation-path.json` | `not-yet-run (https://github.com/creative-graphic-design/design-generators/issues/424)`                                                                                                                                              |
 
-The S3 natural JSONL contains 1200 records for two systems, two repeat runs, and 300 optimizer steps per repeat, with per-step losses, gradient norms, learning rates, optimizer-state summaries, and per-system before/after-step update magnitudes. Both repeat comparisons are asserted tolerance gates from `traingen_parity.compare_step_trace` with `atol=1e-6` and `rtol=0.0` over 300 optimizer steps and all recorded scalar fields per step; the comparison is not bitwise. Repeat 0 first differs at step 0 in `discriminator_loss` by absolute `2.384185791015625e-7` and relative `6.52623300936025e-8`; repeat 1 first differs at step 0 by absolute `2.384185791015625e-7` and relative `6.46882080124367e-8`. The asserted relative-loss criterion passes for both repeats at limit `1e-3` over 300 steps x generator and discriminator loss per repeat: maximum relative differences are `1.1696649272579534e-7` for latent seed 42004 and `1.1822652177927606e-7` for latent seed 42005, with no exceedance. The measured cause is FP32 accumulation/order difference between the plain-PyTorch vendor path and the package Lightning path with matched inputs and latent draws. The maximum recorded generator/discriminator gradient norms over the 600 records per system are 38.545345306396484 and 41.789974212646484; the maximum recorded generator/discriminator update magnitudes, each comparing a system's parameters before and after its optimizer step, are 3.699585795402527e-05 and 3.61613929271698e-05. The asserted gates are the two per-repeat trace comparisons, the two relative-loss criteria, the seeded stream comparison, and the production-wiring return code.
+The natural S3 JSONL contains 1200 records: two systems × two repeat runs × 300 optimizer steps, with one JSON object per step containing losses, gradient norms, learning rates, optimizer-state summaries, and each system's before/after-step update magnitudes. Both per-repeat comparisons are asserted bitwise gates from `traingen_parity.compare_step_trace` with `atol=0.0` and `rtol=0.0` over 300 optimizer steps and all recorded scalar fields per step; both first divergences are `null`, both relative-loss criteria pass at limit `1e-3` over 300 steps × generator/discriminator loss, and both maximum relative loss differences are `0.0`. The maximum recorded generator/discriminator gradient norms over the 600 records per system are 38.545345306396484 and 41.789974212646484; the maximum recorded generator/discriminator update magnitudes over the same population, each comparing a system's parameters before and after its own optimizer step, are 3.699585795402527e-05 and 3.61613929271698e-05. The natural layer passed, so the synchronized layer was not needed. The separate production-wiring layer returned 0 and recorded the live package Trainer settings, including `gradient_clip_val=0.0`, `gradient_clip_algorithm=None`, two optimizers, and 300 fit-loop batches. The repeat seeds are 42004 and 42005, one seed per repeat run with both systems drawing that seed through their own code paths; the batch-stream seed is 42003.
 
-The 20-step RSS dry run records step-5 and step-20 RSS for each system/repeat in `.cache/layoutganpp/stage-evidence/s3-lockstep/rss-dry-run.json`: package repeat 0 was 1846607872 to 1846624256 bytes, package repeat 1 was unchanged at 1836871680 bytes, vendor repeat 0 was 1773244416 to 1773465600 bytes, and vendor repeat 1 was unchanged at 1831673856 bytes. The largest step-5-to-step-20 increase was 221184 bytes, with no retained per-step tensor list. The full natural run streams one JSON object per line to `natural.jsonl` and retains only running summaries.
+The 20-step RSS dry run records source commit `b9419a2412f8d9df10c0e5daca868d8bf6bdfb83` and step-5/step-20 RSS for each system/repeat in `.cache/layoutganpp/stage-evidence/s3-lockstep/rss-dry-run.json`: package repeat 0 was 1856806912/1856806912 bytes, package repeat 1 was 2004488192/2004488192 bytes, vendor repeat 0 was 1788325888/1788649472 bytes, and vendor repeat 1 was 1847508992/1847508992 bytes. The largest step-5-to-step-20 increase was 323584 bytes; the recorder retains no per-step tensor list, and the full natural run streams one JSON object per line to `natural.jsonl` while retaining only running summaries.
 
 ## Reproduction Results
 
@@ -103,13 +111,13 @@ S5 is not claimed. Magazine has complete S0-S4 evidence for both the original im
 | RICO13    | both   | not run; dataset unverified                                                                                  | not run    | no checkpoint selected                                                                               | 0 layouts; S5 not run       |
 | PubLayNet | both   | not run; dataset unverified                                                                                  | not run    | no checkpoint selected                                                                               | 0 layouts; S5 not run       |
 
-The S4 evaluation-path artifact records the official checkpoint URL, size, SHA-256, converted package weight SHA-256, LayoutNet FID weight URL/size/SHA-256, TEST input SHA-256, vendor and package prediction files with SHA-256, per-system metrics and counts, original normalized `xywh` frame, executed evaluator commands, evaluator source commits, and runtime. Its SHA-256 is `f30077441324462769c3f1158ba70cc52f61e870bdf2f485829226b1703bfde5`.
+The S4 evaluation-path artifact records the official checkpoint URL, size, SHA-256, converted package weight SHA-256, LayoutNet FID weight URL/size/SHA-256, TEST input SHA-256, vendor and package prediction files with SHA-256, per-system metrics and counts, original normalized `xywh` frame, executed evaluator commands, evaluator source commits, and runtime. Alignment and Overlap are the `eval.py` display values after its `×100` scaling. Its SHA-256 is `fbb6e435934a39cb296415c27ac8bf8f356a48db11e91c74a567ed5abc5dbc77`.
 
 ## Regeneration Metadata
 
 The staged runtime record is `.cache/layoutganpp/runtime/pip-freeze.txt` with SHA-256 `8da7ab572c109f1ecfd33ccce43985bcf2dde86369f5f6309497e257b07277c0`. It records Python 3.11.15, torch 2.8.0+cu128, torchvision 0.23.0+cu128, CUDA 12.8, and measured wheel SHA-256 values: torch `039b9dcdd6bdbaa10a8a5cd6be22c4cb3e3589a341e5f904cbb571ca28f55bed` and torchvision `93f1b5f56b20cd6869bca40943de4fd3ca9ccc56e1b57f47c671de1cdab39cdb`. The freeze retains its `file://` wheel lines.
 
-The official trained Magazine checkpoint is available at [the LayoutGAN++ Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutganpp_magazine.pth.tar), with 33,206,174 bytes and SHA-256 `97ebe0e00893fb641819d306517a912ffc610cdcada622903b8461c0e409f706`. The official LayoutNet FID weights are available at [the LayoutNet Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutnet_magazine.pth.tar), with 11,729,765 bytes and SHA-256 `4dd8c33becd24072ef58a630d4d8bd9d67721b23524e98ba6d090d74a11ed1ad`. The trained checkpoint was downloaded with `models/layoutganpp/scripts/download_original_weights.py` via GET and converted with `models/layoutganpp/scripts/convert_original_checkpoint.py`; the converted package weight is `.cache/layoutganpp/converted/layoutganpp-magazine/model.safetensors` with SHA-256 `d67c74bc343807da702b3f9d55a9d8c5827d7c1d9e05218c7c91d8c87b6449a0`.
+The official trained Magazine checkpoint is available at [the LayoutGAN++ Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutganpp_magazine.pth.tar), with 33,206,174 bytes and SHA-256 `97ebe0e00893fb641819d306517a912ffc610cdcada622903b8461c0e409f706`. The official LayoutNet FID weights are available at [the LayoutNet Magazine checkpoint URL](https://esslab.jp/~kotaro/files/const_layout/layoutnet_magazine.pth.tar), with 11,729,765 bytes and SHA-256 `4dd8c33becd24072ef58a630d4d8bd9d67721b23524e98ba6d090d74a11ed1ad`. The acquisition record reports that both files were fetched from their official URLs by HTTPS GET at `2026-10-03 03:40 JST` and copied into the documented cache locations; the converted package weight was produced with `models/layoutganpp/scripts/convert_original_checkpoint.py` and is `.cache/layoutganpp/converted/layoutganpp-magazine/model.safetensors` with SHA-256 `d67c74bc343807da702b3f9d55a9d8c5827d7c1d9e05218c7c91d8c87b6449a0`.
 
 Evidence paths:
 
@@ -134,16 +142,13 @@ Evidence paths:
 
 ## Training Commands
 
-Set the audited runtime path before running the staged commands. The recorded commands used one explicitly selected GPU; replace `<gpu-index>` with the selected device for a fresh run.
-
-```bash
-LAYOUTGANPP_AUDIT_VENV=<your audit venv>
-```
+Set the audited runtime path above before running the staged commands. The recorded commands used one explicitly selected GPU; replace `<gpu-index>` with the selected device for a fresh run.
 
 Acquire and materialize the Magazine source.
 
 ```bash
-UV_FROZEN=1 uv run --package layoutganpp --extra training datasets-cli download creative-graphic-design/magazine --repo-type dataset --revision 9b4981b46a4493b299a5412083b959ae4119e928 --local-dir .cache/layoutganpp/source/magazine-arrow
+UV_FROZEN=1 uv run --package layoutganpp --extra training hf download creative-graphic-design/magazine --repo-type dataset --revision 9b4981b46a4493b299a5412083b959ae4119e928 --include '*.parquet' --local-dir .cache/layoutganpp/source/magazine-parquet
+UV_FROZEN=1 uv run --package layoutganpp --extra training python -c 'from datasets import load_dataset; d=load_dataset("parquet", data_files=".cache/layoutganpp/source/magazine-parquet/data/*.parquet", split="train"); d.save_to_disk(".cache/layoutganpp/source/magazine-arrow", num_shards=4)'
 UV_FROZEN=1 uv run --package layoutganpp --extra training models/layoutganpp/scripts/prepare_training_data.py --dataset magazine --source-arrow-dir .cache/layoutganpp/source/magazine-arrow --output-dir .cache/layoutganpp/data/magazine --source-id creative-graphic-design/magazine
 ```
 
@@ -160,7 +165,7 @@ Acquire the LayoutNet checkpoint used by the vendor `LayoutFID` evaluator with a
 UV_FROZEN=1 uv run --package layoutganpp --extra download python -c 'from pathlib import Path; import requests; u="https://esslab.jp/~kotaro/files/const_layout/layoutnet_magazine.pth.tar"; p=Path(".cache/layoutganpp/vendor-work/pretrained/layoutnet_magazine.pth.tar"); p.parent.mkdir(parents=True, exist_ok=True); r=requests.get(u, timeout=60); r.raise_for_status(); p.write_bytes(r.content)'
 ```
 
-Run the staged checks in order from the evidence source commit `60f2317a3be6c6f58484cd3e92573f557ca29c23`; the loading-only checkpoint metadata change and the later RSS-report fix are already included in that committed head.
+Run the staged checks in order from evidence source commit `b9419a2412f8d9df10c0e5daca868d8bf6bdfb83`; this evidence commit is an ancestor of the PR head.
 
 ```bash
 CUDA_VISIBLE_DEVICES=<gpu-index> "$LAYOUTGANPP_AUDIT_VENV/bin/python" models/layoutganpp/scripts/training_stage_evidence.py s0-static
@@ -189,7 +194,7 @@ UV_FROZEN=1 uv run --package layoutganpp python - <<'PY'
 from layoutganpp import LayoutGANPPPipeline
 
 pipe = LayoutGANPPPipeline.from_pretrained(".cache/layoutganpp/converted/layoutganpp-magazine")
-out = pipe(labels=[["text", "figure"]], seed=0)
+out = pipe(labels=[["text", "image"]], seed=0)
 print(out.bbox.shape, out.labels.shape, out.mask.shape)
 PY
 ```
